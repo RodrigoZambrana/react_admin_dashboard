@@ -41,6 +41,36 @@ Every inbound or outbound message must attempt to resolve its canonical thread u
 - Heuristic fallback may create provisional grouping, but a stronger provider identity must replace it when discovered later.
 - Raw messages remain individually traceable even when grouped into one thread.
 
+## Canonical Message Origin Contract
+
+Every normalized inbound or outbound message should carry two orthogonal fields:
+
+- `authorKind`
+  - `customer_human`
+  - `business_human`
+  - `business_auto`
+  - `channel_system`
+  - `operator_human`
+  - `agent_runtime`
+- `messageKind`
+  - `human_message`
+  - `business_auto_reply`
+  - `channel_system`
+  - `attachment_only`
+  - `system_event`
+
+### Behavioral rules
+
+- `authorType` and `kind` remain the persisted canonical enums for database compatibility.
+- `authorKind` and `messageKind` add finer semantic intent without forcing a schema rewrite.
+- `business_auto_reply` and `channel_system` must be persisted and visible for audit.
+- `business_auto_reply` and `channel_system` must have zero or near-zero weight in:
+  - intent detection
+  - short-term conversational memory
+  - follow-up resolution
+  - retrieval query building
+- Unknown or unsupported origin values must fall back safely to `human_message` + a compatible persisted enum.
+
 ## Canonical Ordering Rules
 
 - Thread lists must be ordered by `lastMessageAt DESC`.

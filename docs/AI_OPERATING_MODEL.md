@@ -58,6 +58,7 @@ Archivos centrales:
 Documento de cierre conversacional:
 
 - [AI_CONVERSATIONAL_CLOSURE_PLAN.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_CONVERSATIONAL_CLOSURE_PLAN.md)
+- [AI_CONVERSATIONAL_BEHAVIOR_ANALYSIS.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_CONVERSATIONAL_BEHAVIOR_ANALYSIS.md)
 
 ### 2.2 Principios ya implementados
 

@@ -1,6 +1,16 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { DocumentType, EventType, PaymentStatus, PaymentType, Prisma, ProductMode } from '@prisma/client'
+import {
+  DocumentType,
+  EventType,
+  InstallationChargeScope,
+  InstallationResolutionMode,
+  PaymentStatus,
+  PaymentType,
+  Prisma,
+  ProductMode,
+  ProductType,
+} from '@prisma/client'
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import { SecureConfigService } from '../common/security/secure-config.service'
@@ -10,6 +20,7 @@ import { SalesDocumentsService } from '../orders/sales-documents.service'
 import { AberturasParserService } from '../aberturas/parser/aberturas-parser.service'
 import { normalizeAberturasToken } from '../aberturas/parser/utils'
 import { ParametricPricingService } from '../pricing/parametric-pricing.service'
+import { resolveEffectiveInstallationPolicy } from '../catalog/installation-policy'
 import { CreateOrderDto } from '../sales/dto/order.dto'
 import { CreateAiCategoryDto } from './dto/create-ai-category.dto'
 import { CreateAiAppointmentDto } from './dto/create-ai-appointment.dto'
@@ -17,6 +28,8 @@ import { CreateAiCustomerDto } from './dto/create-ai-customer.dto'
 import { CreateAiOrderDto, GenerateAiQuoteDto } from './dto/create-ai-order.dto'
 import { CreateAiPaymentDto } from './dto/create-ai-payment.dto'
 import { CreateAiProductDto } from './dto/create-ai-product.dto'
+import { PreviewAiProductQuoteDto } from './dto/preview-ai-product-quote.dto'
+import { GetOwnedCustomerDocumentDto } from './dto/get-owned-customer-document.dto'
 import { ListAiAppointmentsDto } from './dto/list-ai-appointments.dto'
 import { ListAiCategoriesDto } from './dto/list-ai-categories.dto'
 import { ListAiCustomersDto } from './dto/list-ai-customers.dto'
@@ -72,6 +85,24 @@ type StoredAiRuntimeConfig = {
   usageMessage?: string | null
   adminInternalPrompt?: string | null
   customerPublicPrompt?: string | null
+  customerGreetingDefault?: string | null
+  customerGreetingMorning?: string | null
+  customerGreetingAfternoon?: string | null
+  customerGreetingConsultation?: string | null
+  customerGreetingHelp?: string | null
+  adminGreetingDefault?: string | null
+  customerGroundedRewriteEnabled?: boolean
+  customerGroundedRewriteMaxChars?: number | null
+  customerCapabilityProfile?:
+    | 'full_assistant'
+    | 'ecommerce_content'
+    | 'scheduling_content'
+    | 'content_only'
+    | 'custom'
+  customerContentMode?: 'enabled' | 'deterministic_only' | 'handoff_only'
+  customerCommerceMode?: 'enabled' | 'deterministic_only' | 'handoff_only'
+  customerSchedulingMode?: 'enabled' | 'deterministic_only' | 'handoff_only'
+  customerWordingOverrides?: Record<string, string | string[]> | null
 }
 
 @Injectable()
@@ -87,6 +118,205 @@ export class AiService {
     private readonly aberturasParser: AberturasParserService,
     private readonly parametricPricing: ParametricPricingService,
   ) {}
+
+  private normalizeRuntimeWordingOverrides(
+    value: unknown,
+  ): Record<string, string | string[]> | null {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return null
+    }
+
+    const entries: Array<[string, string | string[]]> = []
+
+    for (const [key, rawValue] of Object.entries(value)) {
+      const normalizedKey = String(key || '').trim()
+      if (!normalizedKey) {
+        continue
+      }
+
+      if (typeof rawValue === 'string') {
+        const normalizedValue = rawValue.trim()
+        if (normalizedValue) {
+          entries.push([normalizedKey, normalizedValue])
+        }
+        continue
+      }
+
+      if (Array.isArray(rawValue)) {
+        const normalizedValues = rawValue
+          .filter((entry) => typeof entry === 'string')
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+        if (normalizedValues.length) {
+          entries.push([normalizedKey, normalizedValues])
+        }
+      }
+    }
+
+    return entries.length ? Object.fromEntries(entries) : null
+  }
+
+  private parseRuntimeWordingOverridesJson(
+    value: string | null | undefined,
+  ): Record<string, string | string[]> | null | undefined {
+    if (value === undefined) {
+      return undefined
+    }
+
+    const trimmed = String(value || '').trim()
+    if (!trimmed) {
+      return null
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      return this.normalizeRuntimeWordingOverrides(parsed)
+    } catch (error) {
+      throw new BadRequestException('customerWordingOverridesJson.invalid_json')
+    }
+  }
+
+  private buildPreviewItemsFromInput(
+    input: PreviewAiProductQuoteDto,
+  ): Array<{
+    quantity: number
+    widthMm?: number
+    heightMm?: number
+    lengthMm?: number
+  }> {
+    const rawItems =
+      Array.isArray(input.items) && input.items.length > 0
+        ? input.items
+        : [
+            {
+              widthMm: input.widthMm,
+              heightMm: input.heightMm,
+              lengthMm: input.lengthMm,
+              quantity: input.quantity,
+            },
+          ]
+
+    return rawItems.map((item) => ({
+      quantity: Number(item?.quantity || input.quantity || 1),
+      widthMm:
+        Number.isFinite(Number(item?.widthMm)) && Number(item?.widthMm) > 0
+          ? Number(item?.widthMm)
+          : undefined,
+      heightMm:
+        Number.isFinite(Number(item?.heightMm)) && Number(item?.heightMm) > 0
+          ? Number(item?.heightMm)
+          : undefined,
+      lengthMm:
+        Number.isFinite(Number(item?.lengthMm)) && Number(item?.lengthMm) > 0
+          ? Number(item?.lengthMm)
+          : undefined,
+    }))
+  }
+
+  private previewServiceProductCharge({
+    serviceProduct,
+    chargeScope,
+    items,
+  }: {
+    serviceProduct: {
+      salePrice: Prisma.Decimal | number
+      currency: string
+      unitOfMeasure: string | null
+    }
+    chargeScope: InstallationChargeScope | null
+    items: Array<{
+      quantity: number
+      widthMm?: number
+      heightMm?: number
+      lengthMm?: number
+    }>
+  }) {
+    const salePrice = this.decimalToNumber(serviceProduct.salePrice)
+    if (salePrice === null || !Number.isFinite(salePrice)) {
+      return null
+    }
+
+    const unitOfMeasure = (serviceProduct.unitOfMeasure || 'UNIT') as
+      | 'UNIT'
+      | 'SQUARE_METER'
+      | 'LINEAR_METER'
+    const effectiveChargeScope =
+      chargeScope ??
+      (unitOfMeasure === 'UNIT'
+        ? InstallationChargeScope.PER_QUOTE
+        : InstallationChargeScope.MATCH_PRODUCT_MEASUREMENTS)
+
+    const rawItems =
+      effectiveChargeScope === InstallationChargeScope.PER_QUOTE
+        ? [{ quantity: 1 }]
+        : effectiveChargeScope === InstallationChargeScope.MATCH_PRODUCT_QUANTITY
+          ? [
+              {
+                quantity: items.reduce(
+                  (sum, entry) => sum + (Number(entry.quantity) || 0),
+                  0,
+                ) || 1,
+              },
+            ]
+          : items
+
+    const previewItems = rawItems.map((item) => {
+      const customAttributes =
+        unitOfMeasure === 'SQUARE_METER'
+          ? {
+              width:
+                Number.isFinite(Number(item?.widthMm)) && Number(item?.widthMm) > 0
+                  ? Number(item.widthMm) / 1000
+                  : undefined,
+              height:
+                Number.isFinite(Number(item?.heightMm)) && Number(item?.heightMm) > 0
+                  ? Number(item.heightMm) / 1000
+                  : undefined,
+            }
+          : unitOfMeasure === 'LINEAR_METER'
+            ? {
+                length:
+                  Number.isFinite(Number(item?.lengthMm)) && Number(item?.lengthMm) > 0
+                    ? Number(item.lengthMm) / 1000
+                    : undefined,
+              }
+            : null
+
+      const preview = this.salesDocuments.previewSalesUnitPricing({
+        salePrice,
+        currency: serviceProduct.currency,
+        unitOfMeasure,
+        quantity: Number(item?.quantity || 1),
+        customAttributes,
+      })
+
+      return {
+        quantity: preview.quantity,
+        measurementPerUnit: preview.measurementPerUnit,
+        effectiveQuantity: preview.effectiveQuantity,
+        derivedUnitPrice: preview.derivedUnitPrice,
+        totalAmount: preview.totalAmount,
+        missingMeasurements: preview.missingMeasurements,
+      }
+    })
+
+    const totalAmount = previewItems.reduce(
+      (sum, entry) => sum + (Number(entry.totalAmount) || 0),
+      0,
+    )
+
+    return {
+      chargeScope: effectiveChargeScope,
+      unitOfMeasure,
+      currency: serviceProduct.currency,
+      unitAmount: salePrice,
+      totalAmount: Number.isFinite(totalAmount) ? totalAmount : null,
+      needsMeasurements:
+        unitOfMeasure !== 'UNIT' &&
+        previewItems.some((entry) => Boolean(entry.missingMeasurements)),
+      items: previewItems,
+    }
+  }
 
   listActions(): AiActionCatalogEntry[] {
     const actions: AiActionCatalogEntry[] = [
@@ -914,6 +1144,29 @@ export class AiService {
             select: {
               id: true,
               name: true,
+              installationResolutionMode: true,
+              installationChargeScope: true,
+              installationPricePresentationMode: true,
+              installServiceProduct: {
+                select: {
+                  id: true,
+                  name: true,
+                  productCode: true,
+                  salePrice: true,
+                  currency: true,
+                  unitOfMeasure: true,
+                },
+              },
+            },
+          },
+          installServiceProduct: {
+            select: {
+              id: true,
+              name: true,
+              productCode: true,
+              salePrice: true,
+              currency: true,
+              unitOfMeasure: true,
             },
           },
         },
@@ -923,14 +1176,34 @@ export class AiService {
 
     return {
       items: items.map((product) => ({
+        ...((
+          policy => ({
+            installationResolutionMode: policy.mode,
+            installationChargeScope: policy.chargeScope,
+            installationPricePresentationMode: policy.pricePresentationMode,
+            installationPolicySource: policy.source,
+            installServiceProduct: policy.serviceProduct
+              ? {
+                  id: policy.serviceProduct.id,
+                  name: policy.serviceProduct.name,
+                  productCode: policy.serviceProduct.productCode,
+                  salePrice: this.decimalToNumber(policy.serviceProduct.salePrice),
+                  currency: policy.serviceProduct.currency,
+                  unitOfMeasure: policy.serviceProduct.unitOfMeasure,
+                }
+              : null,
+          })
+        )(resolveEffectiveInstallationPolicy(product))),
         id: product.id,
         name: product.name,
         productCode: product.productCode,
         mode: product.mode,
         productType: product.productType,
+        description: product.description,
         currency: product.currency,
         salePrice: Number(product.salePrice),
         costPrice: Number(product.costPrice),
+        unitOfMeasure: product.unitOfMeasure,
         stock: product.stock,
         published: product.published,
         category: product.category,
@@ -938,6 +1211,244 @@ export class AiService {
       total,
       page,
       pageSize,
+    }
+  }
+
+  async previewProductQuote(input: PreviewAiProductQuoteDto) {
+    const product = await this.prisma.product.findUnique({
+      where: { id: input.productId },
+      select: {
+        id: true,
+        name: true,
+        productCode: true,
+        mode: true,
+        productType: true,
+        unitOfMeasure: true,
+        salePrice: true,
+        currency: true,
+        published: true,
+        installationResolutionMode: true,
+        installationChargeScope: true,
+        installationPricePresentationMode: true,
+        installServiceProduct: {
+          select: {
+            id: true,
+            name: true,
+            productCode: true,
+            salePrice: true,
+            currency: true,
+            unitOfMeasure: true,
+          },
+        },
+        category: {
+          select: {
+            id: true,
+            name: true,
+            installationResolutionMode: true,
+            installationChargeScope: true,
+            installationPricePresentationMode: true,
+            installServiceProduct: {
+              select: {
+                id: true,
+                name: true,
+                productCode: true,
+                salePrice: true,
+                currency: true,
+                unitOfMeasure: true,
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (!product) {
+      throw new NotFoundException('product.notFound')
+    }
+
+    const unitOfMeasure = product.unitOfMeasure ?? 'UNIT'
+    const installationPolicy = resolveEffectiveInstallationPolicy(product)
+    const salePrice = this.decimalToNumber(product.salePrice)
+    if (salePrice === null || !Number.isFinite(salePrice)) {
+      throw new BadRequestException('pricing.preview.invalidSalePrice')
+    }
+    const previewSourceItems = this.buildPreviewItemsFromInput(input)
+
+    const previewItems = previewSourceItems.map((item) => {
+      const quantity = Number(item?.quantity || input.quantity || 1)
+      const customAttributes =
+        unitOfMeasure === 'SQUARE_METER'
+          ? {
+              width:
+                Number.isFinite(Number(item?.widthMm)) && Number(item?.widthMm) > 0
+                  ? Number(item.widthMm) / 1000
+                  : undefined,
+              height:
+                Number.isFinite(Number(item?.heightMm)) && Number(item?.heightMm) > 0
+                  ? Number(item.heightMm) / 1000
+                  : undefined,
+            }
+          : unitOfMeasure === 'LINEAR_METER'
+            ? {
+                length:
+                  Number.isFinite(Number(item?.lengthMm)) && Number(item?.lengthMm) > 0
+                    ? Number(item.lengthMm) / 1000
+                    : undefined,
+              }
+            : null
+
+      const preview = this.salesDocuments.previewSalesUnitPricing({
+        salePrice,
+        currency: product.currency,
+        unitOfMeasure,
+        quantity,
+        customAttributes,
+      })
+
+      return {
+        quantity: preview.quantity,
+        widthMm:
+          Number.isFinite(Number(item?.widthMm)) && Number(item?.widthMm) > 0
+            ? Number(item.widthMm)
+            : null,
+        heightMm:
+          Number.isFinite(Number(item?.heightMm)) && Number(item?.heightMm) > 0
+            ? Number(item.heightMm)
+            : null,
+        lengthMm:
+          Number.isFinite(Number(item?.lengthMm)) && Number(item?.lengthMm) > 0
+            ? Number(item.lengthMm)
+            : null,
+        measurementPerUnit: preview.measurementPerUnit,
+        effectiveQuantity: preview.effectiveQuantity,
+        derivedUnitPrice: preview.derivedUnitPrice,
+        totalAmount: preview.totalAmount,
+        missingMeasurements: preview.missingMeasurements,
+      }
+    })
+
+    const hasMissingMeasurements =
+      previewItems.some((entry) => entry.missingMeasurements) &&
+      unitOfMeasure !== 'UNIT'
+    const totalAmount = previewItems.reduce(
+      (sum, entry) => sum + (Number(entry.totalAmount) || 0),
+      0,
+    )
+    const effectiveQuantity = previewItems.reduce(
+      (sum, entry) => sum + (Number(entry.effectiveQuantity) || 0),
+      0,
+    )
+    const measurementPerUnit =
+      previewItems.length === 1
+        ? previewItems[0]?.measurementPerUnit ?? null
+        : null
+
+    return {
+      product: {
+        id: product.id,
+        name: product.name,
+        productCode: product.productCode,
+        mode: product.mode,
+        unitOfMeasure,
+        currency: product.currency,
+        published: product.published,
+      },
+      available:
+        product.mode !== ProductMode.PARAMETRIC &&
+        !hasMissingMeasurements &&
+        previewItems.every((entry) => Number.isFinite(Number(entry.totalAmount))),
+      needsConfiguration: hasMissingMeasurements,
+      quantity: previewItems.reduce(
+        (sum, entry) => sum + (Number(entry.quantity) || 0),
+        0,
+      ),
+      unitAmount: salePrice,
+      currency: product.currency,
+      effectiveQuantity:
+        Number.isFinite(effectiveQuantity) && effectiveQuantity > 0
+          ? effectiveQuantity
+          : null,
+      measurementPerUnit,
+      totalAmount:
+        Number.isFinite(totalAmount) && totalAmount > 0 ? totalAmount : null,
+      items: previewItems,
+      installationResolutionMode: installationPolicy.mode,
+      installationChargeScope: installationPolicy.chargeScope,
+      installationPricePresentationMode: installationPolicy.pricePresentationMode,
+      installationIncluded: installationPolicy.mode === InstallationResolutionMode.INCLUDED,
+      installationRequiresConfirmation:
+        installationPolicy.mode === InstallationResolutionMode.UNKNOWN,
+      installation: (() => {
+        if (
+          !installationPolicy.hasServiceProduct ||
+          !installationPolicy.serviceProduct
+        ) {
+          return {
+            mode: installationPolicy.mode,
+            chargeScope: installationPolicy.chargeScope,
+            pricePresentationMode: installationPolicy.pricePresentationMode,
+            source: installationPolicy.source,
+            included: installationPolicy.mode === InstallationResolutionMode.INCLUDED,
+            requiresConfirmation:
+              installationPolicy.mode === InstallationResolutionMode.UNKNOWN,
+            serviceProduct: null,
+            amount: null,
+            currency: product.currency,
+            totalAmountWithInstallation:
+              installationPolicy.mode === InstallationResolutionMode.INCLUDED &&
+              Number.isFinite(totalAmount) &&
+              totalAmount > 0
+                ? totalAmount
+                : null,
+            needsMeasurements: false,
+          }
+        }
+
+        const installationPreview = this.previewServiceProductCharge({
+          serviceProduct: installationPolicy.serviceProduct,
+          chargeScope: installationPolicy.chargeScope,
+          items: previewSourceItems,
+        })
+        const installationAmount =
+          installationPreview &&
+          Number.isFinite(Number(installationPreview.totalAmount)) &&
+          Number(installationPreview.totalAmount) > 0
+            ? Number(installationPreview.totalAmount)
+            : null
+        const totalAmountWithInstallation =
+          Number.isFinite(totalAmount) && totalAmount > 0
+            ? installationPolicy.mode === InstallationResolutionMode.INCLUDED
+              ? totalAmount
+              : installationAmount !== null
+                ? totalAmount + installationAmount
+                : totalAmount
+            : null
+
+        return {
+          mode: installationPolicy.mode,
+          chargeScope: installationPreview?.chargeScope ?? installationPolicy.chargeScope,
+          pricePresentationMode: installationPolicy.pricePresentationMode,
+          source: installationPolicy.source,
+          included: installationPolicy.mode === InstallationResolutionMode.INCLUDED,
+          requiresConfirmation:
+            installationPolicy.mode === InstallationResolutionMode.UNKNOWN,
+          serviceProduct: {
+            id: installationPolicy.serviceProduct.id,
+            name: installationPolicy.serviceProduct.name,
+            productCode: installationPolicy.serviceProduct.productCode,
+            currency: installationPolicy.serviceProduct.currency,
+            unitOfMeasure: installationPolicy.serviceProduct.unitOfMeasure,
+            unitAmount: this.decimalToNumber(installationPolicy.serviceProduct.salePrice),
+          },
+          amount: installationAmount,
+          currency:
+            installationPreview?.currency ||
+            installationPolicy.serviceProduct.currency ||
+            product.currency,
+          totalAmountWithInstallation,
+          needsMeasurements: Boolean(installationPreview?.needsMeasurements),
+        }
+      })(),
     }
   }
 
@@ -1040,6 +1551,104 @@ export class AiService {
       page,
       pageSize,
     }
+  }
+
+  async getOwnedCustomerDocument(query: GetOwnedCustomerDocumentDto) {
+    const identifier = query.identifier.trim()
+    const lookup = this.buildOwnedCustomerDocumentLookup(
+      query.customerId,
+      identifier,
+      query.documentType,
+    )
+    if (!lookup) {
+      return null
+    }
+
+    const item = await this.prisma.order.findFirst({
+      where: lookup,
+      select: {
+        id: true,
+        uuid: true,
+        documentType: true,
+        statusId: true,
+        orderCurrency: true,
+        grandTotal: true,
+        validUntil: true,
+        updatedAt: true,
+      },
+    })
+
+    if (!item) {
+      return null
+    }
+
+    const status = findOrderStatusById(item.statusId)
+    return {
+      id: item.id,
+      uuid: item.uuid,
+      reference: this.buildOwnedCustomerDocumentReference(item.documentType, item.id, item.uuid),
+      documentType: item.documentType,
+      statusCode: status?.code ?? null,
+      statusLabel: status?.label ?? null,
+      currency: item.orderCurrency ?? null,
+      grandTotal: this.decimalToNumber(item.grandTotal),
+      validUntil: item.validUntil,
+      updatedAt: item.updatedAt,
+    }
+  }
+
+  private buildOwnedCustomerDocumentLookup(
+    customerId: number,
+    identifier: string,
+    documentType: DocumentType,
+  ): Prisma.OrderWhereInput | null {
+    const normalized = identifier.trim()
+    if (!normalized) {
+      return null
+    }
+
+    const uuidPattern =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (uuidPattern.test(normalized)) {
+      return {
+        customerId,
+        documentType,
+        uuid: { equals: normalized, mode: 'insensitive' },
+      }
+    }
+
+    const numericIdentifier =
+      normalized.match(/^(?:ord|pedido|orden|bud|presupuesto|cotizacion|cotización)[-:#\s]?0*(\d{1,10})$/i)?.[1] ??
+      normalized.match(/^0*(\d{1,10})$/)?.[1] ??
+      null
+
+    if (!numericIdentifier) {
+      return null
+    }
+
+    const id = Number(numericIdentifier)
+    if (!Number.isInteger(id) || id <= 0) {
+      return null
+    }
+
+    return {
+      customerId,
+      documentType,
+      id,
+    }
+  }
+
+  private buildOwnedCustomerDocumentReference(
+    documentType: DocumentType,
+    id: number,
+    uuid?: string | null,
+  ) {
+    const normalizedUuid = uuid?.trim()
+    if (normalizedUuid) {
+      return normalizedUuid
+    }
+    const prefix = documentType === DocumentType.BUDGET ? 'BUD' : 'ORD'
+    return `${prefix}-${id.toString().padStart(6, '0')}`
   }
 
   async listPayments(query: ListAiPaymentsDto) {
@@ -2018,6 +2627,25 @@ export class AiService {
       usageMessage: resolved.usageMessage ?? null,
       adminInternalPrompt: resolved.adminInternalPrompt ?? null,
       customerPublicPrompt: resolved.customerPublicPrompt ?? null,
+      customerGreetingDefault: resolved.customerGreetingDefault ?? null,
+      customerGreetingMorning: resolved.customerGreetingMorning ?? null,
+      customerGreetingAfternoon: resolved.customerGreetingAfternoon ?? null,
+      customerGreetingConsultation: resolved.customerGreetingConsultation ?? null,
+      customerGreetingHelp: resolved.customerGreetingHelp ?? null,
+      adminGreetingDefault: resolved.adminGreetingDefault ?? null,
+      customerGroundedRewriteEnabled:
+        resolved.customerGroundedRewriteEnabled ?? false,
+      customerGroundedRewriteMaxChars:
+        resolved.customerGroundedRewriteMaxChars ?? 220,
+      customerCapabilityProfile:
+        resolved.customerCapabilityProfile ?? 'full_assistant',
+      customerContentMode: resolved.customerContentMode ?? 'enabled',
+      customerCommerceMode: resolved.customerCommerceMode ?? 'enabled',
+      customerSchedulingMode: resolved.customerSchedulingMode ?? 'enabled',
+      customerWordingOverrides: resolved.customerWordingOverrides ?? null,
+      customerWordingOverridesJson: resolved.customerWordingOverrides
+        ? JSON.stringify(resolved.customerWordingOverrides, null, 2)
+        : '',
       roleCatalog: this.getRoleCatalog(),
       usage,
       source: stored ? 'database' : 'environment',
@@ -2043,6 +2671,25 @@ export class AiService {
       usageMessage: resolved.usageMessage ?? null,
       adminInternalPrompt: resolved.adminInternalPrompt ?? null,
       customerPublicPrompt: resolved.customerPublicPrompt ?? null,
+      customerGreetingDefault: resolved.customerGreetingDefault ?? null,
+      customerGreetingMorning: resolved.customerGreetingMorning ?? null,
+      customerGreetingAfternoon: resolved.customerGreetingAfternoon ?? null,
+      customerGreetingConsultation: resolved.customerGreetingConsultation ?? null,
+      customerGreetingHelp: resolved.customerGreetingHelp ?? null,
+      adminGreetingDefault: resolved.adminGreetingDefault ?? null,
+      customerGroundedRewriteEnabled:
+        resolved.customerGroundedRewriteEnabled ?? false,
+      customerGroundedRewriteMaxChars:
+        resolved.customerGroundedRewriteMaxChars ?? 220,
+      customerCapabilityProfile:
+        resolved.customerCapabilityProfile ?? 'full_assistant',
+      customerContentMode: resolved.customerContentMode ?? 'enabled',
+      customerCommerceMode: resolved.customerCommerceMode ?? 'enabled',
+      customerSchedulingMode: resolved.customerSchedulingMode ?? 'enabled',
+      customerWordingOverrides: resolved.customerWordingOverrides ?? null,
+      customerWordingOverridesJson: resolved.customerWordingOverrides
+        ? JSON.stringify(resolved.customerWordingOverrides, null, 2)
+        : '',
       roleCatalog: this.getRoleCatalog(),
       usage,
       updatedAt: stored?.updatedAt ?? null,
@@ -2073,6 +2720,40 @@ export class AiService {
             input.customerPublicPrompt === undefined
               ? undefined
               : input.customerPublicPrompt?.trim() || null,
+          customerGreetingDefault:
+            input.customerGreetingDefault === undefined
+              ? undefined
+              : input.customerGreetingDefault?.trim() || null,
+          customerGreetingMorning:
+            input.customerGreetingMorning === undefined
+              ? undefined
+              : input.customerGreetingMorning?.trim() || null,
+          customerGreetingAfternoon:
+            input.customerGreetingAfternoon === undefined
+              ? undefined
+              : input.customerGreetingAfternoon?.trim() || null,
+          customerGreetingConsultation:
+            input.customerGreetingConsultation === undefined
+              ? undefined
+              : input.customerGreetingConsultation?.trim() || null,
+          customerGreetingHelp:
+            input.customerGreetingHelp === undefined
+              ? undefined
+              : input.customerGreetingHelp?.trim() || null,
+          adminGreetingDefault:
+            input.adminGreetingDefault === undefined
+              ? undefined
+              : input.adminGreetingDefault?.trim() || null,
+          customerGroundedRewriteEnabled:
+            input.customerGroundedRewriteEnabled,
+          customerGroundedRewriteMaxChars:
+            input.customerGroundedRewriteMaxChars,
+          customerCapabilityProfile: input.customerCapabilityProfile,
+          customerContentMode: input.customerContentMode,
+          customerCommerceMode: input.customerCommerceMode,
+          customerSchedulingMode: input.customerSchedulingMode,
+          customerWordingOverrides:
+            this.parseRuntimeWordingOverridesJson(input.customerWordingOverridesJson),
         }).filter(([, value]) => value !== undefined),
       ),
     }
@@ -2644,6 +3325,17 @@ export class AiService {
     return new Prisma.Decimal(value)
   }
 
+  private decimalToNumber(value: { toNumber?: () => number } | number | string | null | undefined) {
+    if (value === null || value === undefined) {
+      return null
+    }
+    if (typeof value === 'object' && typeof value.toNumber === 'function') {
+      return value.toNumber()
+    }
+    const normalized = Number(value)
+    return Number.isFinite(normalized) ? normalized : null
+  }
+
   private serializeDocumentStatus(statusId?: number | null) {
     const definition = findOrderStatusById(statusId ?? null)
     if (!definition) {
@@ -2691,6 +3383,45 @@ export class AiService {
         stored?.customerPublicPrompt ??
         this.config.get<string>('AI_CUSTOMER_PUBLIC_PROMPT') ??
         null,
+      customerGreetingDefault:
+        stored?.customerGreetingDefault ??
+        this.config.get<string>('AI_CUSTOMER_GREETING_DEFAULT') ??
+        'Hola. ¿En qué podemos ayudarte hoy?',
+      customerGreetingMorning:
+        stored?.customerGreetingMorning ??
+        this.config.get<string>('AI_CUSTOMER_GREETING_MORNING') ??
+        'Buenos días. ¿En qué podemos ayudarte?',
+      customerGreetingAfternoon:
+        stored?.customerGreetingAfternoon ??
+        this.config.get<string>('AI_CUSTOMER_GREETING_AFTERNOON') ??
+        'Buenas tardes. ¿En qué podemos ayudarte hoy?',
+      customerGreetingConsultation:
+        stored?.customerGreetingConsultation ??
+        this.config.get<string>('AI_CUSTOMER_GREETING_CONSULTATION') ??
+        'Hola. Claro, cuéntanos tu consulta.',
+      customerGreetingHelp:
+        stored?.customerGreetingHelp ??
+        this.config.get<string>('AI_CUSTOMER_GREETING_HELP') ??
+        'Hola. Claro, ¿con qué te ayudamos?',
+      adminGreetingDefault:
+        stored?.adminGreetingDefault ??
+        this.config.get<string>('AI_ADMIN_GREETING_DEFAULT') ??
+        'Hola. ¿En qué te ayudo hoy?',
+      customerGroundedRewriteEnabled:
+        stored?.customerGroundedRewriteEnabled ??
+        ((this.config.get<string>('AI_CUSTOMER_GROUNDED_REWRITE_ENABLED') ??
+          'false') === 'true'),
+      customerGroundedRewriteMaxChars:
+        stored?.customerGroundedRewriteMaxChars ??
+        this.readNumberFromEnv('AI_CUSTOMER_GROUNDED_REWRITE_MAX_CHARS') ??
+        220,
+      customerCapabilityProfile:
+        stored?.customerCapabilityProfile ?? 'full_assistant',
+      customerContentMode: stored?.customerContentMode ?? 'enabled',
+      customerCommerceMode: stored?.customerCommerceMode ?? 'enabled',
+      customerSchedulingMode: stored?.customerSchedulingMode ?? 'enabled',
+      customerWordingOverrides:
+        this.normalizeRuntimeWordingOverrides(stored?.customerWordingOverrides) ?? null,
     }
   }
 

@@ -31,6 +31,7 @@ import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-sessi
 import { RerouteConversationDto } from './dto/reroute-conversation.dto'
 import { ListConversationContactsDto } from './dto/list-conversation-contacts.dto'
 import { StartContactConversationDto } from './dto/start-contact-conversation.dto'
+import { RecordConversationAiSuggestionFeedbackDto } from './dto/conversation-ai-suggestion-feedback.dto'
 
 @Controller('conversations')
 export class ConversationsController {
@@ -286,6 +287,21 @@ export class ConversationsController {
     @Req() req: FastifyRequest & { user: { sub: string } },
   ) {
     return this.conversations.replyAsOperator(id, dto, Number(req.user?.sub))
+  }
+
+  @Post(':id/ai-suggestions/feedback')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN)
+  recordAiSuggestionFeedback(
+    @Param('id') id: string,
+    @Body() dto: RecordConversationAiSuggestionFeedbackDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.recordConversationSuggestionFeedback(
+      id,
+      dto.feedback,
+      Number(req.user?.sub),
+    )
   }
 
   @Post(':id/agent-reply')

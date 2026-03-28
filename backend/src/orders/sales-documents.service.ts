@@ -527,6 +527,70 @@ export class SalesDocumentsService {
     return Number.isNaN(val) ? 22 : val
   }
 
+  previewSalesUnitPricing(input: {
+    salePrice: Prisma.Decimal | number | string | null | undefined
+    currency?: string | null
+    unitOfMeasure?: SalesUnit | string | null
+    quantity?: number | string | null
+    customAttributes?: Record<string, unknown> | Prisma.JsonObject | null
+  }) {
+    const baseUnitPrice = this.decimalToNumber(input.salePrice)
+    if (baseUnitPrice === null || !Number.isFinite(baseUnitPrice) || baseUnitPrice < 0) {
+      throw new BadRequestException('pricing.preview.invalidSalePrice')
+    }
+
+    const unit = this.resolveSalesUnit(input.unitOfMeasure, SalesUnit.UNIT) ?? SalesUnit.UNIT
+    const customAttributes = this.normalizeCustomAttributes(input.customAttributes)
+    const quantityRaw = this.coerceNumber(input.quantity)
+    const quantity =
+      quantityRaw === null || !Number.isFinite(quantityRaw) || quantityRaw <= 0
+        ? 1
+        : Math.max(quantityRaw, 1)
+
+    const measurementPerUnit = this.computeMeasurementFactor(unit, customAttributes)
+    if (unit !== SalesUnit.UNIT && measurementPerUnit === null) {
+      return {
+        unitOfMeasure: unit,
+        quantity,
+        measurementPerUnit: null,
+        effectiveQuantity: null,
+        derivedUnitPrice: null,
+        totalAmount: null,
+        currency: input.currency?.trim().toUpperCase() || null,
+        missingMeasurements: true,
+      }
+    }
+
+    const effectiveQuantity =
+      unit === SalesUnit.UNIT
+        ? quantity
+        : Number((measurementPerUnit ?? 0) * quantity)
+    const derivedUnitPrice =
+      unit === SalesUnit.UNIT
+        ? baseUnitPrice
+        : Number(baseUnitPrice * Number(measurementPerUnit ?? 0))
+    const totalAmount =
+      unit === SalesUnit.UNIT
+        ? Number(baseUnitPrice * quantity)
+        : Number(derivedUnitPrice * quantity)
+
+    return {
+      unitOfMeasure: unit,
+      quantity,
+      measurementPerUnit:
+        measurementPerUnit === null ? null : Number(measurementPerUnit),
+      effectiveQuantity: Number.isFinite(effectiveQuantity)
+        ? Number(effectiveQuantity)
+        : null,
+      derivedUnitPrice: Number.isFinite(derivedUnitPrice)
+        ? Number(derivedUnitPrice)
+        : null,
+      totalAmount: Number.isFinite(totalAmount) ? Number(totalAmount) : null,
+      currency: input.currency?.trim().toUpperCase() || null,
+      missingMeasurements: false,
+    }
+  }
+
   private toOrderStatusRecord(definition: ReturnType<typeof findOrderStatusById>) {
     if (!definition) {
       return null

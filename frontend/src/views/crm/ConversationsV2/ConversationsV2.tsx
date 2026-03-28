@@ -1,6 +1,8 @@
 import {
+    type ChangeEvent,
     useCallback,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
@@ -17,6 +19,7 @@ import { apiGetUsers } from '@/services/UsersService'
 import ConversationsService, {
     type ConversationContact,
     type ConversationDetail,
+    type ConversationMessageAttachmentInput,
     type ConversationQueueSummary,
     type InboxSummary,
     type ConversationSummary,
@@ -68,6 +71,7 @@ type ConversationAsset = {
     fileName: string | null
     contentType: string | null
     size: number | null
+    kind: string | null
     posterUrl?: string | null
 }
 
@@ -102,6 +106,179 @@ type CustomerDetailSnapshot = {
         comments?: string | null
         isPrimary?: boolean
     }> | null
+}
+
+type ApprovedReplySuggestion =
+    ConversationDetail['aiSuggestions']['items'][number]
+
+type ReplyComposerAttachment = ConversationMessageAttachmentInput & {
+    localId: string
+    size: number
+}
+
+type ThreadAuditSlot = {
+    key: string
+    label: string
+    value: string
+    source: string | null
+}
+
+type ConversationThreadAuditSnapshot = {
+    totalTurnsWithThreadData: number
+    detectedThreads: Array<{
+        key: string
+        label: string
+        baseType: string | null
+        lastSeenAt: string | null
+        switchCount: number
+        slots: ThreadAuditSlot[]
+    }>
+    activeThreadKey: string | null
+    activeThreadLabel: string | null
+    threadSwitches: Array<{
+        messageId: string
+        createdAt: string
+        fromLabel: string | null
+        toLabel: string | null
+    }>
+    disambiguationTurns: Array<{
+        messageId: string
+        createdAt: string
+        promptText: string | null
+        currentTurnText: string | null
+    }>
+}
+
+const MAX_REPLY_ATTACHMENTS = 4
+const MAX_REPLY_ATTACHMENT_BYTES = 8 * 1024 * 1024
+const ACCEPTED_REPLY_ATTACHMENT_TYPES =
+    '.png,.jpg,.jpeg,.webp,.gif,.webm,.ogg,.mp3,.wav,.mp4,.mov,.pdf,.csv,.xlsx,.xls,.doc,.docx,.txt,.md,.json,image/png,image/jpeg,image/webp,image/gif,audio/webm,audio/ogg,audio/mpeg,audio/mp3,audio/wav,video/mp4,video/webm,video/quicktime,application/pdf,text/plain,text/markdown,application/json,text/csv,application/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+const INTERNAL_ASSISTANT_CONTACT_KEY = 'internal:assistant'
+const INTERNAL_ASSISTANT_FALLBACK_CONTACT: ConversationContact = {
+    key: INTERNAL_ASSISTANT_CONTACT_KEY,
+    kind: 'internal',
+    label: 'Asistente interno',
+    description: 'Agente IA operativa para apoyo interno',
+    email: null,
+    phoneNumber: null,
+    channel: 'admin_chat',
+    conversationId: null,
+    hasDeliveryChannel: true,
+    updatedAt: null,
+}
+
+const inferReplyAttachmentAssetType = (file: File) => {
+    const mime = file.type.toLowerCase()
+    const name = file.name.toLowerCase()
+
+    if (mime.startsWith('image/')) return 'image'
+    if (mime.startsWith('audio/')) return 'audio'
+    if (mime.startsWith('video/')) return 'video'
+    if (mime.includes('pdf')) return 'pdf'
+    if (
+        mime.includes('spreadsheet') ||
+        mime.includes('excel') ||
+        name.endsWith('.xlsx') ||
+        name.endsWith('.xls')
+    ) {
+        return 'xlsx'
+    }
+    if (mime.includes('csv') || name.endsWith('.csv')) return 'csv'
+    if (
+        mime.includes('word') ||
+        mime.includes('officedocument.wordprocessingml') ||
+        name.endsWith('.docx') ||
+        name.endsWith('.doc')
+    ) {
+        return 'docx'
+    }
+    if (
+        mime.startsWith('text/') ||
+        name.endsWith('.txt') ||
+        name.endsWith('.md') ||
+        name.endsWith('.json')
+    ) {
+        return 'text'
+    }
+
+    return 'file'
+}
+
+const readReplyFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+            resolve(typeof reader.result === 'string' ? reader.result : '')
+        }
+        reader.onerror = () =>
+            reject(reader.error ?? new Error('No fue posible leer el archivo.'))
+        reader.readAsDataURL(file)
+    })
+
+const buildReplyAttachmentFromFile = async (
+    file: File,
+): Promise<ReplyComposerAttachment> => {
+    const assetType = inferReplyAttachmentAssetType(file)
+    const [content, textContent] = await Promise.all([
+        readReplyFileAsDataUrl(file),
+        assetType === 'text' || assetType === 'csv'
+            ? file.text().catch(() => '')
+            : Promise.resolve(''),
+    ])
+
+    return {
+        localId: `${file.name}-${file.size}-${file.lastModified}-${Math.random()
+            .toString(36)
+            .slice(2, 8)}`,
+        assetType,
+        fileName: file.name,
+        contentType: file.type || 'application/octet-stream',
+        content,
+        textContent: textContent.trim() || undefined,
+        metadata: {
+            size: file.size,
+            lastModified: file.lastModified,
+        },
+        size: file.size,
+    }
+}
+
+const formatReplyAttachmentType = (attachment: {
+    assetType?: string | null
+    contentType?: string | null
+}) => {
+    const normalized = String(
+        attachment.assetType || attachment.contentType || '',
+    ).toLowerCase()
+
+    if (!normalized) return 'Adjunto'
+    if (
+        normalized.includes('image') ||
+        normalized.includes('jpg') ||
+        normalized.includes('png') ||
+        normalized.includes('webp')
+    ) {
+        return 'Imagen'
+    }
+    if (
+        normalized.includes('audio') ||
+        normalized.includes('voice') ||
+        normalized.includes('webm') ||
+        normalized.includes('ogg')
+    ) {
+        return 'Audio'
+    }
+    if (normalized.includes('video') || normalized.includes('mp4')) {
+        return 'Video'
+    }
+    if (normalized.includes('csv') || normalized.includes('xls')) {
+        return 'Tabla'
+    }
+    if (normalized.includes('pdf') || normalized.includes('doc')) {
+        return 'Documento'
+    }
+    return 'Adjunto'
 }
 
 const formatDateTime = (value?: string | null) => {
@@ -173,6 +350,138 @@ const formatTaskSummaryPreview = (summary?: string | null) => {
     if (intent) return intent
 
     return summary?.trim() || null
+}
+
+const formatSuggestionMatchLabel = (value: string) => {
+    switch (value) {
+        case 'dedupe':
+            return 'Coincidencia exacta'
+        case 'intent':
+            return 'Misma intención'
+        case 'cluster':
+            return 'Mismo patrón'
+        case 'lexical':
+            return 'Texto similar'
+        case 'feedback':
+            return 'Historial validado'
+        default:
+            return titleCase(value)
+    }
+}
+
+const formatSuggestionPreview = (value: string, limit = 180) => {
+    const normalized = value.trim()
+    if (normalized.length <= limit) {
+        return normalized
+    }
+
+    return `${normalized.slice(0, limit).trimEnd()}…`
+}
+
+const extractMessageAiResponse = (metadata: unknown) => {
+    const root = asRecord(metadata)
+    const aiResponse = asRecord(root?.aiResponse)
+    if (!aiResponse) {
+        return null
+    }
+
+    return {
+        finalUserText:
+            typeof aiResponse.finalUserText === 'string'
+                ? aiResponse.finalUserText
+                : null,
+        debugSummary:
+            typeof aiResponse.debugSummary === 'string'
+                ? aiResponse.debugSummary
+                : null,
+        auditPayload: asRecord(aiResponse.auditPayload),
+    }
+}
+
+const extractStoredMessageElements = (payload: unknown, metadata: unknown) => {
+    const payloadRecord = asRecord(payload)
+    const metadataRecord = asRecord(metadata)
+    const aiResponse = asRecord(metadataRecord?.aiResponse)
+    const auditPayload = asRecord(aiResponse?.auditPayload)
+    const raw = Array.isArray(payloadRecord?.messageElements)
+        ? payloadRecord.messageElements
+        : Array.isArray(metadataRecord?.messageElements)
+          ? metadataRecord.messageElements
+          : Array.isArray(auditPayload?.messageElements)
+            ? auditPayload.messageElements
+            : []
+
+    return raw
+        .map((entry) => asRecord(entry))
+        .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+}
+
+const extractStoredMessageContextOrigin = (payload: unknown, metadata: unknown) => {
+    const payloadRecord = asRecord(payload)
+    const metadataRecord = asRecord(metadata)
+    const aiResponse = asRecord(metadataRecord?.aiResponse)
+    const auditPayload = asRecord(aiResponse?.auditPayload)
+    const raw = Array.isArray(payloadRecord?.messageContextOrigin)
+        ? payloadRecord.messageContextOrigin
+        : Array.isArray(metadataRecord?.messageContextOrigin)
+          ? metadataRecord.messageContextOrigin
+          : Array.isArray(auditPayload?.messageContextOrigin)
+            ? auditPayload.messageContextOrigin
+            : []
+
+    return raw.filter((entry): entry is string => typeof entry === 'string')
+}
+
+const extractMessageDeliveryState = (
+    message: NonNullable<ConversationDetail>['messages'][number],
+) => {
+    const metadataRecord = asRecord(message.metadata)
+    const latestTransportEvent = Array.isArray(message.transportEvents)
+        ? message.transportEvents[0] ?? null
+        : null
+    const transportPayload = asRecord(latestTransportEvent?.payload)
+    const status =
+        typeof transportPayload?.deliveryStatus === 'string'
+            ? transportPayload.deliveryStatus
+            : typeof metadataRecord?.deliveryStatus === 'string'
+              ? metadataRecord.deliveryStatus
+              : null
+    const errorMessage =
+        typeof transportPayload?.errorMessage === 'string'
+            ? transportPayload.errorMessage
+            : typeof metadataRecord?.errorMessage === 'string'
+              ? metadataRecord.errorMessage
+              : null
+
+    if (!status || status === 'internal_only') {
+        return null
+    }
+
+    const normalized = status.trim().toLowerCase()
+    const label =
+        normalized === 'failed' || normalized === 'rejected'
+            ? 'Entrega fallida'
+            : normalized === 'delivered' || normalized === 'read'
+              ? 'Entregado'
+              : normalized === 'accepted' || normalized === 'queued'
+                ? 'En cola'
+                : normalized === 'sent' || normalized === 'pending_external'
+                  ? 'Enviado'
+                  : titleCase(normalized)
+
+    return {
+        status: normalized,
+        label,
+        errorMessage,
+    }
+}
+
+const formatAuditStageHistory = (history?: string[] | null) => {
+    if (!Array.isArray(history) || history.length === 0) {
+        return null
+    }
+
+    return history.join(' -> ')
 }
 
 const buildHandoffTaskSummary = (conversation: ConversationSummary | ConversationDetail) => {
@@ -299,6 +608,7 @@ const previewByConversation = (conversation: ConversationSummary) => {
         prefix = 'IA: '
     } else if (latest.authorType === 'operator') {
         const operatorLabel =
+            latest.authorLabel?.trim() ||
             latest.authorUser?.name?.trim() ||
             conversation.assignedToUser?.name?.trim() ||
             'Admin'
@@ -309,15 +619,32 @@ const previewByConversation = (conversation: ConversationSummary) => {
     if (latest.kind === 'image') return `${prefix}Imagen`
     if (latest.kind === 'audio') return `${prefix}Audio`
     if (latest.kind === 'attachment') return `${prefix}Adjunto`
-    const body = latest.body?.trim()
+    const body = (latest.preview || latest.body || '').trim()
+    const subject = String(conversation.subject || '').trim()
+    const emailSubjectPreview =
+        conversation.channel === 'email' && subject
+            ? prefix
+                ? `${prefix}Asunto: ${subject}`
+                : `Asunto: ${subject}`
+            : null
     if (body) {
+        if (
+            emailSubjectPreview &&
+            !body.toLowerCase().includes(subject.toLowerCase())
+        ) {
+            return `${emailSubjectPreview} · ${body}`
+        }
         return `${prefix}${body}`
+    }
+    if (emailSubjectPreview) {
+        return emailSubjectPreview
     }
     if (latest.authorType === 'agent') {
         return 'IA: respuesta sin texto'
     }
     if (latest.authorType === 'operator') {
         const operatorLabel =
+            latest.authorLabel?.trim() ||
             latest.authorUser?.name?.trim() ||
             conversation.assignedToUser?.name?.trim() ||
             'Admin'
@@ -336,8 +663,36 @@ const getConversationOwnerState = (conversation: ConversationSummary) => {
         }
     }
 
+    if (conversation.controlMode === 'hybrid') {
+        return {
+            label: conversation.assignedToUser?.name || 'Equipo',
+            tone: 'admin' as const,
+        }
+    }
+
     return {
         label: 'Agente IA',
+        tone: 'agent' as const,
+    }
+}
+
+const getConversationControlModeBadge = (conversation: ConversationSummary) => {
+    if (conversation.needsHuman || conversation.aiState?.needsHuman || conversation.controlMode === 'human') {
+        return {
+            label: 'Asesor humano',
+            tone: 'human' as const,
+        }
+    }
+
+    if (conversation.controlMode === 'hybrid') {
+        return {
+            label: 'IA + equipo',
+            tone: 'hybrid' as const,
+        }
+    }
+
+    return {
+        label: 'Asistente IA',
         tone: 'agent' as const,
     }
 }
@@ -479,6 +834,331 @@ const asString = (value: unknown) =>
 const asNumber = (value: unknown) =>
     typeof value === 'number' && Number.isFinite(value) ? value : null
 
+const extractAuditTurnInterpretation = (metadata: unknown) => {
+    const aiResponse = extractMessageAiResponse(metadata)
+    return asRecord(aiResponse?.auditPayload?.turnInterpretation)
+}
+
+const extractAuditThreadLabel = (thread: unknown) => {
+    const record = asRecord(thread)
+    return (
+        asString(record?.displayLabel) ||
+        asString(record?.resolvedLabel) ||
+        asString(record?.baseLabel)
+    )
+}
+
+const formatAuditCapturedValue = (value: unknown): string | null => {
+    const directString = asString(value)
+    if (directString) return directString
+
+    const directNumber = asNumber(value)
+    if (directNumber != null) return String(directNumber)
+
+    const record = asRecord(value)
+    if (!record) return null
+
+    return (
+        asString(record.confirmationLabel) ||
+        asString(record.displayLabel) ||
+        asString(record.label) ||
+        asString(record.value) ||
+        (asNumber(record.total) != null ? String(asNumber(record.total)) : null)
+    )
+}
+
+const extractQuoteCapturedSlots = (quoteContext: unknown): ThreadAuditSlot[] => {
+    const record = asRecord(quoteContext)
+    const captured = asRecord(record?.capturedAttributes)
+    if (!captured) {
+        return []
+    }
+
+    return Object.entries(captured)
+        .map(([key, value]) => {
+            const entry = asRecord(value)
+            const formattedValue = formatAuditCapturedValue(
+                entry?.label ?? entry?.value ?? null,
+            )
+            if (!formattedValue) {
+                return null
+            }
+
+            return {
+                key,
+                label: asString(entry?.label) || titleCase(key),
+                value: formattedValue,
+                source: asString(entry?.source),
+            }
+        })
+        .filter((entry): entry is ThreadAuditSlot => Boolean(entry))
+}
+
+const buildConversationThreadAudit = (
+    conversation: ConversationDetail | null,
+): ConversationThreadAuditSnapshot | null => {
+    if (!conversation?.messages?.length) {
+        return null
+    }
+
+    const threadMap = new Map<
+        string,
+        {
+            key: string
+            label: string
+            baseType: string | null
+            lastSeenAt: string | null
+            switchCount: number
+            slotMap: Map<string, ThreadAuditSlot>
+        }
+    >()
+    const threadSwitches: ConversationThreadAuditSnapshot['threadSwitches'] = []
+    const disambiguationTurns: ConversationThreadAuditSnapshot['disambiguationTurns'] =
+        []
+
+    let totalTurnsWithThreadData = 0
+    let latestActiveThreadKey: string | null = null
+    let latestActiveThreadLabel: string | null = null
+    let previousActiveThreadLabel: string | null = null
+
+    const ensureThread = (
+        key: string,
+        label: string,
+        baseType: string | null,
+        createdAt: string,
+    ) => {
+        const existing = threadMap.get(key)
+        if (existing) {
+            existing.lastSeenAt = createdAt
+            if (!existing.baseType && baseType) {
+                existing.baseType = baseType
+            }
+            return existing
+        }
+
+        const created = {
+            key,
+            label,
+            baseType,
+            lastSeenAt: createdAt,
+            switchCount: 0,
+            slotMap: new Map<string, ThreadAuditSlot>(),
+        }
+        threadMap.set(key, created)
+        return created
+    }
+
+    for (const message of conversation.messages) {
+        const turnInterpretation = extractAuditTurnInterpretation(message.metadata)
+        if (!turnInterpretation) {
+            continue
+        }
+
+        const threadResolution = asRecord(turnInterpretation.threadResolution)
+        const quoteContext = asRecord(turnInterpretation.quoteContext)
+        if (!threadResolution && !quoteContext) {
+            continue
+        }
+
+        totalTurnsWithThreadData += 1
+
+        const threadEntries = Array.isArray(threadResolution?.threads)
+            ? threadResolution.threads
+                  .map((entry) => asRecord(entry))
+                  .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+            : []
+
+        for (const threadEntry of threadEntries) {
+            const key = asString(threadEntry.key)
+            const label = extractAuditThreadLabel(threadEntry)
+            if (!key || !label) {
+                continue
+            }
+            ensureThread(
+                key,
+                label,
+                asString(threadEntry.baseType),
+                message.createdAt,
+            )
+        }
+
+        const activeThread = asRecord(threadResolution?.activeThread)
+        const activeThreadKey =
+            asString(threadResolution?.activeThreadKey) ||
+            asString(activeThread?.key) ||
+            null
+        const activeThreadLabel =
+            extractAuditThreadLabel(activeThread) ||
+            (activeThreadKey ? threadMap.get(activeThreadKey)?.label ?? null : null) ||
+            asString(quoteContext?.topicLabel) ||
+            asString(quoteContext?.familyLabel) ||
+            null
+
+        if (activeThreadKey && activeThreadLabel) {
+            ensureThread(
+                activeThreadKey,
+                activeThreadLabel,
+                asString(activeThread?.baseType),
+                message.createdAt,
+            )
+        }
+
+        if (threadResolution?.requiresDisambiguation) {
+            disambiguationTurns.push({
+                messageId: message.id,
+                createdAt: message.createdAt,
+                promptText: asString(threadResolution.promptText),
+                currentTurnText: asString(turnInterpretation.currentTurnText),
+            })
+        }
+
+        if (threadResolution?.switchDetected && activeThreadKey && activeThreadLabel) {
+            threadSwitches.push({
+                messageId: message.id,
+                createdAt: message.createdAt,
+                fromLabel: previousActiveThreadLabel,
+                toLabel: activeThreadLabel,
+            })
+            const targetThread = threadMap.get(activeThreadKey)
+            if (targetThread) {
+                targetThread.switchCount += 1
+            }
+        }
+
+        const capturedSlots = extractQuoteCapturedSlots(quoteContext)
+        if (capturedSlots.length) {
+            const slotThreadKey =
+                activeThreadKey ||
+                `quote:${asString(quoteContext?.topicLabel) || asString(quoteContext?.familyLabel) || asString(quoteContext?.profileKey) || 'general'}`
+            const slotThreadLabel =
+                activeThreadLabel ||
+                asString(quoteContext?.topicLabel) ||
+                asString(quoteContext?.familyLabel) ||
+                asString(quoteContext?.profileLabel) ||
+                'Sin hilo activo'
+            const slotThread = ensureThread(
+                slotThreadKey,
+                slotThreadLabel,
+                null,
+                message.createdAt,
+            )
+            for (const slot of capturedSlots) {
+                slotThread.slotMap.set(`${slot.key}:${slot.value}`, slot)
+            }
+        }
+
+        if (activeThreadKey) {
+            latestActiveThreadKey = activeThreadKey
+        }
+        if (activeThreadLabel) {
+            previousActiveThreadLabel = activeThreadLabel
+            latestActiveThreadLabel = activeThreadLabel
+        }
+    }
+
+    if (!totalTurnsWithThreadData && threadMap.size === 0) {
+        return null
+    }
+
+    return {
+        totalTurnsWithThreadData,
+        detectedThreads: Array.from(threadMap.values())
+            .map((entry) => ({
+                key: entry.key,
+                label: entry.label,
+                baseType: entry.baseType,
+                lastSeenAt: entry.lastSeenAt,
+                switchCount: entry.switchCount,
+                slots: Array.from(entry.slotMap.values()),
+            }))
+            .sort((left, right) => left.label.localeCompare(right.label)),
+        activeThreadKey: latestActiveThreadKey,
+        activeThreadLabel: latestActiveThreadLabel,
+        threadSwitches,
+        disambiguationTurns,
+    }
+}
+
+const ATTACHMENT_SUMMARY_LINE_REGEX = /^\[Adjunto:[^\]]+\](?:\s.*)?$/i
+
+const isSyntheticAttachmentSummaryText = (value: unknown) => {
+    const normalized = asString(value)
+    if (!normalized) {
+        return false
+    }
+
+    const lines = normalized
+        .split(/\n+/)
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+
+    return lines.length > 0 && lines.every((entry) => ATTACHMENT_SUMMARY_LINE_REGEX.test(entry))
+}
+
+const inferConversationAssetKind = (asset: Record<string, unknown>) => {
+    const normalized = String(
+        asset.assetType ||
+            asset.kind ||
+            asset.contentType ||
+            asset.mimeType ||
+            asset.fileName ||
+            asset.filename ||
+            asset.name ||
+            '',
+    )
+        .trim()
+        .toLowerCase()
+
+    if (!normalized) {
+        return null
+    }
+
+    if (
+        normalized.includes('image') ||
+        normalized.includes('jpg') ||
+        normalized.includes('jpeg') ||
+        normalized.includes('png') ||
+        normalized.includes('webp') ||
+        normalized.includes('gif')
+    ) {
+        return 'image'
+    }
+
+    if (
+        normalized.includes('audio') ||
+        normalized.includes('voice') ||
+        normalized.includes('wav') ||
+        normalized.includes('ogg') ||
+        normalized.includes('mp3') ||
+        normalized.includes('webm')
+    ) {
+        return 'audio'
+    }
+
+    if (
+        normalized.includes('video') ||
+        normalized.includes('mp4') ||
+        normalized.includes('mov') ||
+        normalized.includes('quicktime')
+    ) {
+        return 'video'
+    }
+
+    return 'attachment'
+}
+
+const dedupeConversationAssets = (value: ConversationAsset[]) => {
+    const seen = new Set<string>()
+    return value.filter((entry) => {
+        const key = `${entry.kind || 'attachment'}:${entry.url}:${entry.fileName ?? ''}`
+        if (seen.has(key)) {
+            return false
+        }
+        seen.add(key)
+        return true
+    })
+}
+
 const normalizeAsset = (value: unknown): ConversationAsset | null => {
     const asset = asRecord(value)
     if (!asset) {
@@ -489,7 +1169,8 @@ const normalizeAsset = (value: unknown): ConversationAsset | null => {
         asString(asset.url) ||
         asString(asset.href) ||
         asString(asset.downloadUrl) ||
-        asString(asset.previewUrl)
+        asString(asset.previewUrl) ||
+        asString(asset.content)
 
     if (!url) {
         return null
@@ -504,6 +1185,7 @@ const normalizeAsset = (value: unknown): ConversationAsset | null => {
         contentType:
             asString(asset.contentType) || asString(asset.mimeType) || null,
         size: asNumber(asset.size),
+        kind: inferConversationAssetKind(asset),
         posterUrl:
             asString(asset.posterUrl) ||
             asString(asset.poster) ||
@@ -517,20 +1199,11 @@ const normalizeAssets = (value: unknown): ConversationAsset[] => {
         return []
     }
 
-    const seen = new Set<string>()
-    return value
+    return dedupeConversationAssets(
+        value
         .map((entry) => normalizeAsset(entry))
-        .filter((entry): entry is ConversationAsset => {
-            if (!entry) {
-                return false
-            }
-            const key = `${entry.url}:${entry.fileName ?? ''}`
-            if (seen.has(key)) {
-                return false
-            }
-            seen.add(key)
-            return true
-        })
+        .filter((entry): entry is ConversationAsset => Boolean(entry)),
+    )
 }
 
 const getMessageAssets = (
@@ -540,70 +1213,89 @@ const getMessageAssets = (
     const payloadRecord = asRecord(payload)
     const metadataRecord = asRecord(metadata)
 
-    const attachments = normalizeAssets(
+    const rawAttachments = normalizeAssets(
         payloadRecord?.attachments ?? metadataRecord?.attachments,
     )
-    const image =
-        normalizeAsset(payloadRecord?.image) ||
-        normalizeAsset(metadataRecord?.image) ||
-        normalizeAsset(
-            asString(payloadRecord?.imageUrl) || asString(metadataRecord?.imageUrl)
-                ? {
-                      url:
-                          asString(payloadRecord?.imageUrl) ||
-                          asString(metadataRecord?.imageUrl),
-                      fileName:
-                          asString(payloadRecord?.imageName) ||
-                          asString(metadataRecord?.imageName),
-                      contentType:
-                          asString(payloadRecord?.imageContentType) ||
-                          asString(metadataRecord?.imageContentType),
-                  }
-                : null,
-        )
+    const images = dedupeConversationAssets(
+        [
+            normalizeAsset(payloadRecord?.image),
+            normalizeAsset(metadataRecord?.image),
+            normalizeAsset(
+                asString(payloadRecord?.imageUrl) ||
+                    asString(metadataRecord?.imageUrl)
+                    ? {
+                          url:
+                              asString(payloadRecord?.imageUrl) ||
+                              asString(metadataRecord?.imageUrl),
+                          fileName:
+                              asString(payloadRecord?.imageName) ||
+                              asString(metadataRecord?.imageName),
+                          contentType:
+                              asString(payloadRecord?.imageContentType) ||
+                              asString(metadataRecord?.imageContentType),
+                      }
+                    : null,
+            ),
+            ...rawAttachments.filter((entry) => entry.kind === 'image'),
+        ].filter((entry): entry is ConversationAsset => Boolean(entry)),
+    )
 
-    const audio =
-        normalizeAsset(payloadRecord?.audio) ||
-        normalizeAsset(metadataRecord?.audio) ||
-        normalizeAsset(
-            asString(payloadRecord?.audioUrl) || asString(metadataRecord?.audioUrl)
-                ? {
-                      url:
-                          asString(payloadRecord?.audioUrl) ||
-                          asString(metadataRecord?.audioUrl),
-                      fileName:
-                          asString(payloadRecord?.audioName) ||
-                          asString(metadataRecord?.audioName),
-                      contentType:
-                          asString(payloadRecord?.audioContentType) ||
-                          asString(metadataRecord?.audioContentType),
-                  }
-                : null,
-        )
+    const audios = dedupeConversationAssets(
+        [
+            normalizeAsset(payloadRecord?.audio),
+            normalizeAsset(metadataRecord?.audio),
+            normalizeAsset(
+                asString(payloadRecord?.audioUrl) ||
+                    asString(metadataRecord?.audioUrl)
+                    ? {
+                          url:
+                              asString(payloadRecord?.audioUrl) ||
+                              asString(metadataRecord?.audioUrl),
+                          fileName:
+                              asString(payloadRecord?.audioName) ||
+                              asString(metadataRecord?.audioName),
+                          contentType:
+                              asString(payloadRecord?.audioContentType) ||
+                              asString(metadataRecord?.audioContentType),
+                      }
+                    : null,
+            ),
+            ...rawAttachments.filter((entry) => entry.kind === 'audio'),
+        ].filter((entry): entry is ConversationAsset => Boolean(entry)),
+    )
 
-    const video =
-        normalizeAsset(payloadRecord?.video) ||
-        normalizeAsset(metadataRecord?.video) ||
-        normalizeAsset(
-            asString(payloadRecord?.videoUrl) || asString(metadataRecord?.videoUrl)
-                ? {
-                      url:
-                          asString(payloadRecord?.videoUrl) ||
-                          asString(metadataRecord?.videoUrl),
-                      fileName:
-                          asString(payloadRecord?.videoName) ||
-                          asString(metadataRecord?.videoName),
-                      contentType:
-                          asString(payloadRecord?.videoContentType) ||
-                          asString(metadataRecord?.videoContentType),
-                      posterUrl:
-                          asString(payloadRecord?.videoPosterUrl) ||
-                          asString(metadataRecord?.videoPosterUrl),
-                  }
-                : null,
-        )
+    const videos = dedupeConversationAssets(
+        [
+            normalizeAsset(payloadRecord?.video),
+            normalizeAsset(metadataRecord?.video),
+            normalizeAsset(
+                asString(payloadRecord?.videoUrl) ||
+                    asString(metadataRecord?.videoUrl)
+                    ? {
+                          url:
+                              asString(payloadRecord?.videoUrl) ||
+                              asString(metadataRecord?.videoUrl),
+                          fileName:
+                              asString(payloadRecord?.videoName) ||
+                              asString(metadataRecord?.videoName),
+                          contentType:
+                              asString(payloadRecord?.videoContentType) ||
+                              asString(metadataRecord?.videoContentType),
+                          posterUrl:
+                              asString(payloadRecord?.videoPosterUrl) ||
+                              asString(metadataRecord?.videoPosterUrl),
+                      }
+                    : null,
+            ),
+            ...rawAttachments.filter((entry) => entry.kind === 'video'),
+        ].filter((entry): entry is ConversationAsset => Boolean(entry)),
+    )
 
-    return { attachments, image, audio, video }
+    const attachments = rawAttachments.filter(
+        (entry) => entry.kind !== 'image' && entry.kind !== 'audio' && entry.kind !== 'video',
+    )
+
+    return { attachments, images, audios, videos }
 }
 
 const formatBytes = (value: number | null) => {
@@ -672,6 +1364,7 @@ const conversationScopeOptions = [
 
 const conversationChannelOptions = [
     { value: '', label: 'Todos los canales' },
+    { value: 'email', label: 'Email' },
     { value: 'webchat', label: 'Webchat' },
     { value: 'whatsapp', label: 'WhatsApp' },
     { value: 'facebook', label: 'Facebook' },
@@ -689,6 +1382,7 @@ const conversationStatusOptions = [
 
 const sidebarChannelOptions = [
     { key: 'all', label: 'Inbox completo' },
+    { key: 'email', label: 'Email' },
     { key: 'webchat', label: 'Webchat' },
     { key: 'whatsapp', label: 'WhatsApp' },
     { key: 'facebook', label: 'Facebook' },
@@ -761,6 +1455,25 @@ const buildConversationCollectionSignature = (items: ConversationSummary[]) =>
         )
         .join('::')
 
+const buildListQuerySignature = (input: {
+    search: string
+    scope: string
+    channel: string
+    status: string
+}) =>
+    [
+        input.search.trim().toLowerCase(),
+        input.scope || 'all',
+        input.channel || 'all',
+        input.status || 'all',
+    ].join('::')
+
+let pendingConversationListScrollSnapshot: {
+    conversationId: string
+    scrollTop: number
+    expiresAt: number
+} | null = null
+
 const ConversationsV2 = () => {
     const { conversationId = '' } = useParams<{ conversationId?: string }>()
     const navigate = useNavigate()
@@ -774,6 +1487,7 @@ const ConversationsV2 = () => {
     const [listLoading, setListLoading] = useState(true)
     const [listRefreshing, setListRefreshing] = useState(false)
     const [listLoadingMore, setListLoadingMore] = useState(false)
+    const [listQueryPending, setListQueryPending] = useState(false)
     const [listTotal, setListTotal] = useState(0)
     const [listPage, setListPage] = useState(1)
     const [listError, setListError] = useState<string | null>(null)
@@ -783,7 +1497,15 @@ const ConversationsV2 = () => {
     const [detailError, setDetailError] = useState<string | null>(null)
     const [search, setSearch] = useState('')
     const [replyBody, setReplyBody] = useState('')
+    const [replyAttachments, setReplyAttachments] = useState<ReplyComposerAttachment[]>(
+        [],
+    )
+    const [replyComposerError, setReplyComposerError] = useState<string | null>(null)
     const [replying, setReplying] = useState(false)
+    const [activeReplySuggestion, setActiveReplySuggestion] =
+        useState<ApprovedReplySuggestion | null>(null)
+    const [suggestionFeedbackLoadingId, setSuggestionFeedbackLoadingId] =
+        useState<string | null>(null)
     const [isDetailsOpen, setIsDetailsOpen] = useState(false)
     const [isDirectoryOpen, setIsDirectoryOpen] = useState(false)
     const [isConversationMenuOpen, setIsConversationMenuOpen] = useState(false)
@@ -819,8 +1541,25 @@ const ConversationsV2 = () => {
     const conversationButtonRefs = useRef<
         Record<string, HTMLButtonElement | null>
     >({})
+    const replyFileInputRef = useRef<HTMLInputElement | null>(null)
+    const replyAudioInputRef = useRef<HTMLInputElement | null>(null)
     const listViewportRef = useRef<HTMLDivElement | null>(null)
     const autoScrolledConversationIdRef = useRef<string | null>(null)
+    const manualSelectionIntentRef = useRef<{
+        conversationId: string
+        expiresAt: number
+    } | null>(null)
+    const preservedSelectionScrollRef = useRef<{
+        conversationId: string
+        scrollTop: number
+        expiresAt: number
+    } | null>(null)
+    const listPageRef = useRef(1)
+    const loadedConversationCountRef = useRef(0)
+    const listLoadingRef = useRef(false)
+    const listLoadingMoreRef = useRef(false)
+    const listRefreshingRef = useRef(false)
+    const activeListQuerySignatureRef = useRef('')
     const effectiveChannelFilter =
         filters.channel || (selectedChannel !== 'all' ? selectedChannel : '')
     const effectiveScopeFilter =
@@ -930,16 +1669,52 @@ const ConversationsV2 = () => {
             },
         ) => {
             const requestedPage = options?.page ?? 1
+            const requestSignature = buildListQuerySignature({
+                search: searchValue,
+                scope: effectiveScopeFilter,
+                channel: effectiveChannelFilter,
+                status: filters.status,
+            })
+            const isFreshQueryReset =
+                !options?.append &&
+                !options?.silent &&
+                activeListQuerySignatureRef.current.length > 0 &&
+                activeListQuerySignatureRef.current !== requestSignature
+            activeListQuerySignatureRef.current = requestSignature
+            const loadedConversationCount = Math.max(
+                loadedConversationCountRef.current,
+                listPageRef.current * LIST_PAGE_SIZE,
+                LIST_PAGE_SIZE,
+            )
             const requestedPageSize =
                 options?.pageSize ??
-                (options?.silent ? Math.max(listPage, 1) * LIST_PAGE_SIZE : LIST_PAGE_SIZE)
+                (options?.silent ? loadedConversationCount : LIST_PAGE_SIZE)
+
+            if (
+                options?.silent &&
+                (listLoadingRef.current || listLoadingMoreRef.current)
+            ) {
+                return
+            }
+
+            if (isFreshQueryReset) {
+                loadedConversationCountRef.current = 0
+                listPageRef.current = 1
+                setListPage(1)
+                setListTotal(0)
+                setItems([])
+                autoScrolledConversationIdRef.current = null
+            }
 
             if (options?.append) {
                 setListLoadingMore(true)
+                listLoadingMoreRef.current = true
             } else if (options?.silent) {
                 setListRefreshing(true)
+                listRefreshingRef.current = true
             } else {
                 setListLoading(true)
+                listLoadingRef.current = true
             }
             setListError(null)
             try {
@@ -970,19 +1745,24 @@ const ConversationsV2 = () => {
                               Promise.resolve(null),
                           ])
 
+                if (activeListQuerySignatureRef.current !== requestSignature) {
+                    return
+                }
+
                 setListTotal(response.total)
-                setListPage(
-                    options?.append
-                        ? requestedPage
-                        : Math.max(
-                              1,
-                              Math.ceil(response.items.length / LIST_PAGE_SIZE) || 1,
-                          ),
-                )
+                const nextPage = options?.append
+                    ? requestedPage
+                    : Math.max(
+                          1,
+                          Math.ceil(response.items.length / LIST_PAGE_SIZE) || 1,
+                      )
+                listPageRef.current = nextPage
+                setListPage(nextPage)
                 setItems((current) => {
                     const nextItems = options?.append
                         ? mergeConversationSummaries(current, response.items)
                         : response.items
+                    loadedConversationCountRef.current = nextItems.length
                     const currentSignature = buildConversationCollectionSignature(current)
                     const nextSignature = buildConversationCollectionSignature(nextItems)
                     return currentSignature === nextSignature ? current : nextItems
@@ -1002,10 +1782,13 @@ const ConversationsV2 = () => {
             } finally {
                 if (options?.append) {
                     setListLoadingMore(false)
+                    listLoadingMoreRef.current = false
                 } else if (options?.silent) {
                     setListRefreshing(false)
+                    listRefreshingRef.current = false
                 } else {
                     setListLoading(false)
+                    listLoadingRef.current = false
                 }
             }
         },
@@ -1013,10 +1796,29 @@ const ConversationsV2 = () => {
             filters.status,
             effectiveChannelFilter,
             effectiveScopeFilter,
-            listPage,
             search,
         ],
     )
+
+    useEffect(() => {
+        listPageRef.current = listPage
+    }, [listPage])
+
+    useEffect(() => {
+        loadedConversationCountRef.current = items.length
+    }, [items.length])
+
+    useEffect(() => {
+        listLoadingRef.current = listLoading
+    }, [listLoading])
+
+    useEffect(() => {
+        listLoadingMoreRef.current = listLoadingMore
+    }, [listLoadingMore])
+
+    useEffect(() => {
+        listRefreshingRef.current = listRefreshing
+    }, [listRefreshing])
 
     const loadConversation = useCallback(
         async (
@@ -1057,6 +1859,12 @@ const ConversationsV2 = () => {
     }, [selectedChannel])
 
     useEffect(() => {
+        if (selectedChannel === 'admin_chat' && selectedInboxId !== 'all') {
+            setSelectedInboxId('all')
+        }
+    }, [selectedChannel, selectedInboxId])
+
+    useEffect(() => {
         if (filters.channel === 'email') {
             setFilters((previous) => ({ ...previous, channel: '' }))
         }
@@ -1066,17 +1874,30 @@ const ConversationsV2 = () => {
     }, [filterDraft.channel, filters.channel])
 
     useEffect(() => {
+        let cancelled = false
+        setListQueryPending(true)
+
         const timeout = window.setTimeout(() => {
-            void loadList(search)
+            void loadList(search).finally(() => {
+                if (!cancelled) {
+                    setListQueryPending(false)
+                }
+            })
         }, 220)
-        return () => window.clearTimeout(timeout)
+
+        return () => {
+            cancelled = true
+            window.clearTimeout(timeout)
+        }
     }, [filters, loadList, search])
 
     useEffect(() => {
         if (!conversationId) {
             setSelectedConversation(null)
+            setActiveReplySuggestion(null)
             return
         }
+        setActiveReplySuggestion(null)
         void loadConversation(conversationId)
     }, [conversationId, loadConversation])
 
@@ -1143,6 +1964,16 @@ const ConversationsV2 = () => {
         () => Boolean(filters.scope || filters.channel || filters.status),
         [filters.channel, filters.scope, filters.status],
     )
+    const hasManualListContext = useMemo(
+        () =>
+            Boolean(
+                search.trim().length > 0 ||
+                    hasActiveFilters ||
+                    selectedChannel !== 'all' ||
+                    selectedInboxId !== 'all',
+            ),
+        [hasActiveFilters, search, selectedChannel, selectedInboxId],
+    )
     const channelCounts = useMemo(() => {
         return items.reduce<Record<string, number>>((accumulator, conversation) => {
             accumulator[conversation.channel] =
@@ -1153,14 +1984,28 @@ const ConversationsV2 = () => {
     const visibleItems = useMemo(() => {
         return items
             .filter((conversation) => {
+                const matchesScope =
+                    !effectiveScopeFilter ||
+                    conversation.scope === effectiveScopeFilter
+                const matchesChannel =
+                    !effectiveChannelFilter ||
+                    conversation.channel === effectiveChannelFilter
+                const matchesStatus =
+                    !filters.status || conversation.status === filters.status
                 const matchesInbox =
+                    effectiveChannelFilter === 'admin_chat' ||
                     selectedInboxId === 'all' ||
                     conversation.inboxAccount?.id === selectedInboxId ||
                     (selectedInboxId === 'virtual:webchat' &&
                         conversation.channel === 'webchat' &&
                         !conversation.inboxAccount)
 
-                return matchesInbox
+                return (
+                    matchesScope &&
+                    matchesChannel &&
+                    matchesStatus &&
+                    matchesInbox
+                )
             })
             .sort((left, right) => {
                 const leftPinned = isConversationPinned(left.id) ? 1 : 0
@@ -1177,17 +2022,39 @@ const ConversationsV2 = () => {
 
                 return left.id.localeCompare(right.id)
             })
-    }, [isConversationPinned, items, selectedInboxId])
+    }, [
+        effectiveChannelFilter,
+        effectiveScopeFilter,
+        filters.status,
+        isConversationPinned,
+        items,
+        selectedInboxId,
+    ])
     const hasMoreConversations =
         !usesClientSideOnlyPaginationFilter && items.length < listTotal
     const recentVisibleChats = useMemo(() => visibleItems.slice(0, 8), [visibleItems])
+    const internalAssistantContact = useMemo(
+        () =>
+            contacts.find((contact) => contact.key === INTERNAL_ASSISTANT_CONTACT_KEY) ??
+            INTERNAL_ASSISTANT_FALLBACK_CONTACT,
+        [contacts],
+    )
+    const availableContacts = useMemo(
+        () => [
+            internalAssistantContact,
+            ...contacts.filter((contact) => contact.key !== INTERNAL_ASSISTANT_CONTACT_KEY),
+        ],
+        [contacts, internalAssistantContact],
+    )
     const menuConversation = useMemo(
         () => items.find((conversation) => conversation.id === menuConversationId) ?? null,
         [items, menuConversationId],
     )
     const selectedContact = useMemo(
-        () => contacts.find((contact) => contact.key === selectedContactKey) ?? null,
-        [contacts, selectedContactKey],
+        () =>
+            availableContacts.find((contact) => contact.key === selectedContactKey) ??
+            null,
+        [availableContacts, selectedContactKey],
     )
     const selectedCount = bulkSelectionIds.length
     const filteredMessages = useMemo(() => {
@@ -1236,6 +2103,22 @@ const ConversationsV2 = () => {
                     selectedQueueDiagnostics.slaTargetMinutes - detailSlaMinutes,
                     0,
                 )}m`
+    const conversationThreadAudit = useMemo(
+        () => buildConversationThreadAudit(selectedConversation),
+        [selectedConversation],
+    )
+    const approvedReplySuggestions = useMemo(
+        () => selectedConversation?.aiSuggestions?.items ?? [],
+        [selectedConversation?.aiSuggestions],
+    )
+    const approvedReplySuggestionTarget = useMemo(() => {
+        const raw = selectedConversation?.aiSuggestions?.targetMessageText
+        if (typeof raw !== 'string' || !raw.trim()) {
+            return null
+        }
+
+        return formatSuggestionPreview(raw, 160)
+    }, [selectedConversation?.aiSuggestions?.targetMessageText])
     const customerDisplayName =
         [customerProfile?.firstName, customerProfile?.lastName]
             .filter(Boolean)
@@ -1356,15 +2239,110 @@ const ConversationsV2 = () => {
         }
     }, [selectedConversation?.customer?.id])
 
+    useEffect(() => {
+        setReplyBody('')
+        setReplyAttachments([])
+        setReplyComposerError(null)
+        setActiveReplySuggestion(null)
+    }, [selectedConversation?.id])
+
     const renderMessageBody = useCallback(
         (
             message: NonNullable<ConversationDetail>['messages'][number],
             authorType: string,
         ) => {
-            const body = message.body || message.normalizedText || ''
+            const aiResponse = extractMessageAiResponse(message.metadata)
+            const body =
+                aiResponse?.finalUserText ||
+                message.body ||
+                message.normalizedText ||
+                ''
             const assets = getMessageAssets(message.payload, message.metadata)
+            const displayBody =
+                isSyntheticAttachmentSummaryText(body) &&
+                (assets.images.length > 0 ||
+                    assets.audios.length > 0 ||
+                    assets.videos.length > 0 ||
+                    assets.attachments.length > 0)
+                    ? ''
+                    : body
+            const deliveryState = extractMessageDeliveryState(message)
             const bodyColorClass =
                 authorType === 'operator' ? 'text-white/90' : 'text-slate-700'
+            const storedMessageElements = extractStoredMessageElements(
+                message.payload,
+                message.metadata,
+            )
+            const storedMessageContextOrigin = extractStoredMessageContextOrigin(
+                message.payload,
+                message.metadata,
+            )
+            const auditPayload = aiResponse?.auditPayload
+            const stageHistory = Array.isArray(auditPayload?.stageHistory)
+                ? auditPayload.stageHistory.filter(
+                      (entry): entry is string => typeof entry === 'string',
+                  )
+                : []
+            const referencedMessages = Array.isArray(auditPayload?.referencedMessages)
+                ? auditPayload.referencedMessages
+                      .map((entry) => asRecord(entry))
+                      .filter(
+                          (entry): entry is Record<string, unknown> => Boolean(entry),
+                      )
+                : []
+            const decisionPath = Array.isArray(auditPayload?.decisionPath)
+                ? auditPayload.decisionPath.filter(
+                      (entry): entry is string => typeof entry === 'string',
+                  )
+                : []
+            const messageElementsUsed = Array.isArray(auditPayload?.messageElementsUsed)
+                ? auditPayload.messageElementsUsed.filter(
+                      (entry): entry is string => typeof entry === 'string',
+                  )
+                : []
+            const messageElements = Array.isArray(auditPayload?.messageElements)
+                ? auditPayload.messageElements
+                      .map((entry) => asRecord(entry))
+                      .filter(
+                          (entry): entry is Record<string, unknown> => Boolean(entry),
+                      )
+                : []
+            const messageContextOrigin = Array.isArray(
+                auditPayload?.messageContextOrigin,
+            )
+                ? auditPayload.messageContextOrigin.filter(
+                      (entry): entry is string => typeof entry === 'string',
+                  )
+                : []
+            const intentSource =
+                typeof auditPayload?.intentSource === 'string'
+                    ? auditPayload.intentSource
+                    : null
+            const intentConfidence =
+                typeof auditPayload?.intentConfidence === 'number' &&
+                Number.isFinite(auditPayload.intentConfidence)
+                    ? auditPayload.intentConfidence
+                    : null
+            const turnInterpretation = asRecord(auditPayload?.turnInterpretation)
+            const threadResolution = asRecord(turnInterpretation?.threadResolution)
+            const quoteContext = asRecord(turnInterpretation?.quoteContext)
+            const auditThreads = Array.isArray(threadResolution?.threads)
+                ? threadResolution.threads
+                      .map((entry) => asRecord(entry))
+                      .filter(
+                          (entry): entry is Record<string, unknown> => Boolean(entry),
+                      )
+                : []
+            const auditThreadLabels = auditThreads
+                .map((entry) => extractAuditThreadLabel(entry))
+                .filter((entry): entry is string => Boolean(entry))
+            const activeThreadLabel =
+                extractAuditThreadLabel(threadResolution?.activeThread) ||
+                asString(quoteContext?.topicLabel) ||
+                asString(quoteContext?.familyLabel)
+            const capturedSlotSummary = extractQuoteCapturedSlots(quoteContext).map(
+                (entry) => `${entry.label}: ${entry.value}`,
+            )
 
             const attachmentNodes = assets.attachments.map((attachment) => (
                 <div
@@ -1397,47 +2375,248 @@ const ConversationsV2 = () => {
 
             return (
                 <div className={bodyColorClass}>
-                    {body ? <div className="message-text">{body}</div> : null}
-                    {assets.image ? (
+                    {displayBody ? <div className="message-text">{displayBody}</div> : null}
+                    {deliveryState ? (
+                        <div
+                            className={`conversation-message-status ${
+                                deliveryState.status === 'failed' ||
+                                deliveryState.status === 'rejected'
+                                    ? 'is-failed'
+                                    : ''
+                            }`}
+                            data-testid={`admin-conversation-message-status-${message.id}`}
+                        >
+                            <span>{deliveryState.label}</span>
+                            {deliveryState.errorMessage ? (
+                                <span className="conversation-message-status-detail">
+                                    {deliveryState.errorMessage}
+                                </span>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    {storedMessageContextOrigin.length || storedMessageElements.length ? (
+                        <div
+                            className="conversation-ai-debug"
+                            data-testid={`admin-conversation-message-context-${message.id}`}
+                        >
+                            <div className="conversation-ai-debug-title">
+                                Contexto interpretado
+                            </div>
+                            {storedMessageContextOrigin.length ? (
+                                <div
+                                    className="conversation-ai-debug-meta"
+                                    data-testid={`admin-conversation-message-context-origin-${message.id}`}
+                                >
+                                    Origen:{' '}
+                                    {storedMessageContextOrigin.join(', ')}
+                                </div>
+                            ) : null}
+                            {storedMessageElements.length ? (
+                                <div
+                                    className="conversation-ai-debug-meta"
+                                    data-testid={`admin-conversation-message-elements-${message.id}`}
+                                >
+                                    Elementos:{' '}
+                                    {storedMessageElements
+                                        .map((entry) => {
+                                            const label =
+                                                typeof entry.label === 'string'
+                                                    ? entry.label
+                                                    : typeof entry.kind === 'string'
+                                                      ? entry.kind
+                                                      : 'elemento'
+                                            const preview =
+                                                typeof entry.preview === 'string'
+                                                    ? entry.preview
+                                                    : null
+                                            return `${label}${
+                                                preview ? ` (${preview})` : ''
+                                            }`
+                                        })
+                                        .join(' | ')}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    {aiResponse?.debugSummary ? (
+                        <div
+                            className="conversation-ai-debug"
+                            data-testid={`admin-conversation-message-debug-${message.id}`}
+                        >
+                            <div className="conversation-ai-debug-title">
+                                Debug IA
+                            </div>
+                            <pre className="conversation-ai-debug-body">
+                                {aiResponse.debugSummary}
+                            </pre>
+                            {formatAuditStageHistory(stageHistory) ? (
+                                <div className="conversation-ai-debug-meta">
+                                    Etapas:{' '}
+                                    {formatAuditStageHistory(stageHistory)}
+                                </div>
+                            ) : null}
+                            {referencedMessages.length ? (
+                                <div
+                                    className="conversation-ai-debug-meta"
+                                    data-testid={`admin-conversation-message-references-${message.id}`}
+                                >
+                                    Referencias:{' '}
+                                    {referencedMessages
+                                        .map((entry) => {
+                                            const preview =
+                                                typeof entry.preview === 'string'
+                                                    ? entry.preview
+                                                    : null
+                                            const messageId =
+                                                typeof entry.messageId === 'string'
+                                                    ? entry.messageId
+                                                    : null
+                                            return (
+                                                preview ||
+                                                messageId ||
+                                                'mensaje_reciente'
+                                            )
+                                        })
+                                        .join(' | ')}
+                                </div>
+                            ) : null}
+                            {intentSource ? (
+                                <div className="conversation-ai-debug-meta">
+                                    Fuente de intención: {intentSource}
+                                    {intentConfidence != null
+                                        ? ` · confianza ${intentConfidence.toFixed(2)}`
+                                        : ''}
+                                </div>
+                            ) : null}
+                            {decisionPath.length ? (
+                                <div className="conversation-ai-debug-meta">
+                                    Decisión: {decisionPath.join(' → ')}
+                                </div>
+                            ) : null}
+                            {messageContextOrigin.length ? (
+                                <div className="conversation-ai-debug-meta">
+                                    Origen de contexto:{' '}
+                                    {messageContextOrigin.join(', ')}
+                                </div>
+                            ) : null}
+                            {messageElementsUsed.length ? (
+                                <div className="conversation-ai-debug-meta">
+                                    Elementos usados:{' '}
+                                    {messageElementsUsed.join(', ')}
+                                </div>
+                            ) : null}
+                            {messageElements.length ? (
+                                <div className="conversation-ai-debug-meta">
+                                    Elementos:{' '}
+                                    {messageElements
+                                        .map((entry) => {
+                                            const label =
+                                                typeof entry.label === 'string'
+                                                    ? entry.label
+                                                    : null
+                                            const kind =
+                                                typeof entry.kind === 'string'
+                                                    ? entry.kind
+                                                    : 'elemento'
+                                            const preview =
+                                                typeof entry.preview === 'string'
+                                                    ? entry.preview
+                                                    : null
+                                            return `${label || kind}${
+                                                preview ? ` (${preview})` : ''
+                                            }`
+                                        })
+                                        .join(' | ')}
+                                </div>
+                            ) : null}
+                            {auditThreadLabels.length ? (
+                                <div
+                                    className="conversation-ai-debug-meta"
+                                    data-testid={`admin-conversation-message-threads-${message.id}`}
+                                >
+                                    Hilos detectados: {auditThreadLabels.join(' | ')}
+                                </div>
+                            ) : null}
+                            {activeThreadLabel ? (
+                                <div
+                                    className="conversation-ai-debug-meta"
+                                    data-testid={`admin-conversation-message-active-thread-${message.id}`}
+                                >
+                                    Hilo activo: {activeThreadLabel}
+                                </div>
+                            ) : null}
+                            {threadResolution?.switchDetected ? (
+                                <div
+                                    className="conversation-ai-debug-meta"
+                                    data-testid={`admin-conversation-message-thread-switch-${message.id}`}
+                                >
+                                    Cambio de hilo detectado
+                                </div>
+                            ) : null}
+                            {threadResolution?.requiresDisambiguation ? (
+                                <div
+                                    className="conversation-ai-debug-meta"
+                                    data-testid={`admin-conversation-message-disambiguation-${message.id}`}
+                                >
+                                    Disambiguación solicitada
+                                    {asString(threadResolution?.promptText)
+                                        ? `: ${asString(threadResolution?.promptText)}`
+                                        : ''}
+                                </div>
+                            ) : null}
+                            {capturedSlotSummary.length ? (
+                                <div
+                                    className="conversation-ai-debug-meta"
+                                    data-testid={`admin-conversation-message-slots-${message.id}`}
+                                >
+                                    Slots capturados: {capturedSlotSummary.join(' | ')}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
+                    {assets.images.map((image, index) => (
                         <a
-                            href={assets.image.url}
+                            href={image.url}
                             target="_blank"
                             rel="noreferrer"
-                            data-testid={`admin-conversation-image-${message.id}`}
+                            data-testid={`admin-conversation-image-${message.id}-${index}`}
+                            key={`${image.url}:${image.fileName ?? index}`}
                         >
                             <img
                                 className="message-image"
-                                src={assets.image.url}
-                                alt={assets.image.fileName || 'Imagen'}
+                                src={image.url}
+                                alt={image.fileName || 'Imagen'}
                             />
                         </a>
-                    ) : null}
-                    {assets.audio ? (
+                    ))}
+                    {assets.audios.map((audio, index) => (
                         <div
                             className="message-audio mt-3"
-                            data-testid={`admin-conversation-audio-${message.id}`}
+                            data-testid={`admin-conversation-audio-${message.id}-${index}`}
+                            key={`${audio.url}:${audio.fileName ?? index}`}
                         >
-                            <audio controls src={assets.audio.url}>
+                            <audio controls src={audio.url}>
                                 <track kind="captions" />
                                 Tu navegador no soporta audio embebido.
                             </audio>
                         </div>
-                    ) : null}
-                    {assets.video ? (
+                    ))}
+                    {assets.videos.map((video, index) => (
                         <div
                             className="message-video mt-3"
-                            data-testid={`admin-conversation-video-${message.id}`}
+                            data-testid={`admin-conversation-video-${message.id}-${index}`}
+                            key={`${video.url}:${video.fileName ?? index}`}
                         >
                             <video
                                 controls
-                                poster={assets.video.posterUrl || undefined}
-                                src={assets.video.url}
+                                poster={video.posterUrl || undefined}
+                                src={video.url}
                             >
                                 <track kind="captions" />
                                 Tu navegador no soporta video embebido.
                             </video>
                         </div>
-                    ) : null}
+                    ))}
                     {attachmentNodes}
                 </div>
             )
@@ -1446,8 +2625,22 @@ const ConversationsV2 = () => {
     )
 
     useEffect(() => {
+        const manualSelectionIntent = manualSelectionIntentRef.current
+        if (
+            manualSelectionIntent &&
+            manualSelectionIntent.expiresAt <= Date.now()
+        ) {
+            manualSelectionIntentRef.current = null
+        }
+
         if (!conversationId) {
             if (isMobile) {
+                return
+            }
+            if (manualSelectionIntentRef.current) {
+                return
+            }
+            if (hasManualListContext) {
                 return
             }
             if (visibleItems[0]) {
@@ -1459,6 +2652,18 @@ const ConversationsV2 = () => {
         }
 
         if (
+            listLoading ||
+            listRefreshing ||
+            listLoadingMore ||
+            manualSelectionIntentRef.current ||
+            preservedSelectionScrollRef.current?.conversationId === conversationId ||
+            pendingConversationListScrollSnapshot?.conversationId === conversationId ||
+            hasManualListContext
+        ) {
+            return
+        }
+
+        if (
             visibleItems.length > 0 &&
             !visibleItems.some((conversation) => conversation.id === conversationId)
         ) {
@@ -1466,10 +2671,70 @@ const ConversationsV2 = () => {
                 replace: true,
             })
         }
-    }, [conversationId, isMobile, navigate, visibleItems])
+    }, [
+        conversationId,
+        hasManualListContext,
+        hasActiveFilters,
+        isMobile,
+        listLoading,
+        listLoadingMore,
+        listRefreshing,
+        navigate,
+        search,
+        visibleItems,
+    ])
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!conversationId || listLoading) {
+            return
+        }
+
+        if (
+            manualSelectionIntentRef.current?.conversationId === conversationId &&
+            manualSelectionIntentRef.current.expiresAt > Date.now()
+        ) {
+            manualSelectionIntentRef.current = null
+        }
+
+        const preservedSelectionScroll =
+            preservedSelectionScrollRef.current ??
+            pendingConversationListScrollSnapshot
+        if (preservedSelectionScroll?.conversationId === conversationId) {
+            autoScrolledConversationIdRef.current = conversationId
+            let frame = 0
+
+            const keepListScrollStable = () => {
+                const viewport = listViewportRef.current
+                if (!viewport) {
+                    preservedSelectionScrollRef.current = null
+                    pendingConversationListScrollSnapshot = null
+                    return
+                }
+
+                if (
+                    Math.abs(
+                        viewport.scrollTop - preservedSelectionScroll.scrollTop,
+                    ) > 1
+                ) {
+                    viewport.scrollTop = preservedSelectionScroll.scrollTop
+                }
+
+                if (Date.now() >= preservedSelectionScroll.expiresAt) {
+                    preservedSelectionScrollRef.current = null
+                    pendingConversationListScrollSnapshot = null
+                    return
+                }
+
+                frame = window.requestAnimationFrame(keepListScrollStable)
+            }
+
+            frame = window.requestAnimationFrame(keepListScrollStable)
+
+            return () => window.cancelAnimationFrame(frame)
+        }
+
+        if (hasManualListContext) {
+            autoScrolledConversationIdRef.current = conversationId
             return
         }
 
@@ -1493,7 +2758,7 @@ const ConversationsV2 = () => {
         })
 
         return () => window.cancelAnimationFrame(frame)
-    }, [conversationId, listLoading, visibleItems.length])
+    }, [conversationId, hasManualListContext, listLoading, visibleItems.length])
 
     const handleListScroll = useCallback(
         (event: UIEvent<HTMLDivElement>) => {
@@ -1536,6 +2801,25 @@ const ConversationsV2 = () => {
             )
             return
         }
+
+        if (listQueryPending || listLoading || listRefreshing || listLoadingMore) {
+            return
+        }
+
+        if (listViewportRef.current) {
+            const nextSnapshot = {
+                conversationId: id,
+                scrollTop: listViewportRef.current.scrollTop,
+                expiresAt: Date.now() + 2500,
+            }
+            preservedSelectionScrollRef.current = nextSnapshot
+            pendingConversationListScrollSnapshot = nextSnapshot
+        }
+        manualSelectionIntentRef.current = {
+            conversationId: id,
+            expiresAt: Date.now() + 2500,
+        }
+        autoScrolledConversationIdRef.current = id
 
         const targetConversation =
             items.find((conversation) => conversation.id === id) ?? null
@@ -1604,23 +2888,106 @@ const ConversationsV2 = () => {
     )
 
     const handleReply = async () => {
-        if (!selectedConversation || !replyBody.trim()) {
+        if (!selectedConversation || (!replyBody.trim() && replyAttachments.length === 0)) {
             return
         }
         setReplying(true)
         try {
+            const normalizedReply = replyBody.trim()
+            const outgoingAttachments = replyAttachments.map(
+                ({ localId, size, ...attachment }) => attachment,
+            )
+            const aiSuggestionFeedback = activeReplySuggestion
+                ? {
+                      candidateId: activeReplySuggestion.id,
+                      targetMessageId:
+                          selectedConversation.aiSuggestions?.targetMessageId ?? null,
+                      targetMessageText:
+                          selectedConversation.aiSuggestions?.targetMessageText ??
+                          null,
+                      suggestedText: activeReplySuggestion.responseText,
+                      outcome:
+                          normalizedReply ===
+                          activeReplySuggestion.responseText.trim()
+                              ? ('used' as const)
+                              : ('edited' as const),
+                  }
+                : undefined
             const updated = await ConversationsService.replyToConversation(
                 selectedConversation.id,
-                replyBody.trim(),
+                normalizedReply,
+                aiSuggestionFeedback,
+                outgoingAttachments,
             )
             syncConversation(updated)
             setReplyBody('')
+            setReplyAttachments([])
+            setReplyComposerError(null)
+            setActiveReplySuggestion(null)
         } catch (error) {
             console.error(error)
         } finally {
             setReplying(false)
         }
     }
+
+    const openReplyFilePicker = useCallback(() => {
+        replyFileInputRef.current?.click()
+    }, [])
+
+    const openReplyAudioPicker = useCallback(() => {
+        replyAudioInputRef.current?.click()
+    }, [])
+
+    const removeReplyAttachment = useCallback((attachmentId: string) => {
+        setReplyAttachments((current) =>
+            current.filter((attachment) => attachment.localId !== attachmentId),
+        )
+    }, [])
+
+    const handleReplyFilesSelected = useCallback(
+        async (event: ChangeEvent<HTMLInputElement>) => {
+            const selected = Array.from(event.target.files ?? [])
+            event.target.value = ''
+            if (!selected.length) {
+                return
+            }
+
+            setReplyComposerError(null)
+
+            if (replyAttachments.length + selected.length > MAX_REPLY_ATTACHMENTS) {
+                setReplyComposerError(
+                    `Puedes adjuntar hasta ${MAX_REPLY_ATTACHMENTS} archivos por mensaje.`,
+                )
+                return
+            }
+
+            const oversized = selected.find(
+                (file) => file.size > MAX_REPLY_ATTACHMENT_BYTES,
+            )
+            if (oversized) {
+                setReplyComposerError(
+                    `${oversized.name} supera el límite de ${Math.round(
+                        MAX_REPLY_ATTACHMENT_BYTES / (1024 * 1024),
+                    )} MB.`,
+                )
+                return
+            }
+
+            try {
+                const built = await Promise.all(
+                    selected.map((file) => buildReplyAttachmentFromFile(file)),
+                )
+                setReplyAttachments((current) => [...current, ...built])
+            } catch (error) {
+                console.error(error)
+                setReplyComposerError(
+                    'No fue posible preparar uno de los archivos adjuntos.',
+                )
+            }
+        },
+        [replyAttachments.length],
+    )
 
     const syncConversation = useCallback((detail: ConversationDetail) => {
         setSelectedConversation(detail)
@@ -1655,13 +3022,81 @@ const ConversationsV2 = () => {
         input?.focus()
     }, [])
 
+    const applyReplySuggestion = useCallback(
+        (suggestion: ApprovedReplySuggestion) => {
+            setReplyBody(suggestion.responseText)
+            setActiveReplySuggestion(suggestion)
+            requestAnimationFrame(() => {
+                focusReplyInput()
+            })
+        },
+        [focusReplyInput],
+    )
+
+    const dismissReplySuggestion = useCallback(
+        async (suggestion: ApprovedReplySuggestion) => {
+            if (!selectedConversation) {
+                return
+            }
+
+            setSuggestionFeedbackLoadingId(suggestion.id)
+            try {
+                await ConversationsService.recordConversationSuggestionFeedback(
+                    selectedConversation.id,
+                    {
+                        candidateId: suggestion.id,
+                        outcome: 'discarded',
+                        targetMessageId:
+                            selectedConversation.aiSuggestions?.targetMessageId ?? null,
+                        targetMessageText:
+                            selectedConversation.aiSuggestions?.targetMessageText ??
+                            null,
+                        suggestedText: suggestion.responseText,
+                    },
+                )
+
+                setSelectedConversation((current) => {
+                    if (!current?.aiSuggestions) {
+                        return current
+                    }
+
+                    return {
+                        ...current,
+                        aiSuggestions: {
+                            ...current.aiSuggestions,
+                            items: current.aiSuggestions.items.filter(
+                                (entry) => entry.id !== suggestion.id,
+                            ),
+                        },
+                    }
+                })
+
+                if (activeReplySuggestion?.id === suggestion.id) {
+                    setActiveReplySuggestion(null)
+                    setReplyBody((current) =>
+                        current.trim() === suggestion.responseText.trim()
+                            ? ''
+                            : current,
+                    )
+                }
+            } catch (error) {
+                console.error(error)
+            } finally {
+                setSuggestionFeedbackLoadingId(null)
+            }
+        },
+        [activeReplySuggestion?.id, selectedConversation],
+    )
+
     const handleApplyFilters = async () => {
+        setListQueryPending(true)
         setFilters(filterDraft)
         setSearch(filterDraft.searchText)
         setIsFilterOpen(false)
     }
 
     const handleResetFilters = async () => {
+        setListQueryPending(true)
         setFilterDraft(defaultFilters)
         setFilters(defaultFilters)
         setSearch('')
@@ -1670,7 +3105,8 @@ const ConversationsV2 = () => {
 
     const handleCreateNewChat = async () => {
         const selectedContact =
-            contacts.find((contact) => contact.key === selectedContactKey) ?? null
+            availableContacts.find((contact) => contact.key === selectedContactKey) ??
+            null
         const message = newChatForm.message.trim()
 
         if (!selectedContact) {
@@ -1714,11 +3150,12 @@ const ConversationsV2 = () => {
         setIsNewChatOpen(true)
         setNewChatError(null)
         setContactSearch('')
-        setSelectedContactKey('')
+        setSelectedContactKey(INTERNAL_ASSISTANT_CONTACT_KEY)
         setNewChatForm({ message: '' })
     }
 
     const selectChannel = (channel: string, options?: { closeDirectory?: boolean }) => {
+        setListQueryPending(true)
         setSelectedChannel(channel)
         setSelectedInboxId('all')
         if (channel !== 'all' && selectedInboxId !== 'all') {
@@ -1741,8 +3178,10 @@ const ConversationsV2 = () => {
         options?: { closeDirectory?: boolean },
     ) => {
         if (channel) {
+            setListQueryPending(true)
             setSelectedChannel(channel)
         }
+        setListQueryPending(true)
         setSelectedInboxId(inboxId)
         if (options?.closeDirectory) {
             setIsDirectoryOpen(false)
@@ -1796,7 +3235,10 @@ const ConversationsV2 = () => {
                         ) {
                             return previous
                         }
-                        return response.items[0]?.key ?? ''
+                        if (previous === INTERNAL_ASSISTANT_CONTACT_KEY) {
+                            return previous
+                        }
+                        return response.items[0]?.key ?? INTERNAL_ASSISTANT_CONTACT_KEY
                     })
                 })
                 .catch((error) => {
@@ -2197,7 +3639,10 @@ const ConversationsV2 = () => {
                             type="text"
                             data-testid="admin-conversations-search-input"
                             value={search}
-                            onChange={(event) => setSearch(event.target.value)}
+                            onChange={(event) => {
+                                setListQueryPending(true)
+                                setSearch(event.target.value)
+                            }}
                             placeholder="Buscar contactos o mensajes"
                         />
                         <span className="input-group-text">
@@ -2311,15 +3756,19 @@ const ConversationsV2 = () => {
                         </button>
                     </div>
                 ) : null}
-                {!listLoading || listRefreshing ? (
+                {!listLoading || listRefreshing || listQueryPending ? (
                     <div
-                        className={`conversation-list-status is-top ${listRefreshing ? 'is-loading' : ''}`}
+                        className={`conversation-list-status is-top ${listRefreshing || listQueryPending ? 'is-loading' : ''}`}
                         data-testid="admin-conversations-list-refresh-indicator"
                     >
-                        {listRefreshing ? (
+                        {listRefreshing || listQueryPending ? (
                             <>
                                 <Spinner size={16} />
-                                <span>Actualizando conversaciones nuevas...</span>
+                                <span>
+                                    {listQueryPending
+                                        ? 'Buscando conversaciones...'
+                                        : 'Actualizando conversaciones nuevas...'}
+                                </span>
                             </>
                         ) : (
                             <span>
@@ -2329,7 +3778,7 @@ const ConversationsV2 = () => {
                         )}
                     </div>
                 ) : null}
-                {listLoading ? (
+                {listLoading || listQueryPending ? (
                     <div className="empty-state">
                         <Spinner size={28} />
                     </div>
@@ -2346,6 +3795,8 @@ const ConversationsV2 = () => {
                             const unreadCount = getDisplayUnreadCount(conversation)
                             const isPinned = isConversationPinned(conversation.id)
                             const ownerState = getConversationOwnerState(conversation)
+                            const controlModeBadge =
+                                getConversationControlModeBadge(conversation)
                             const roleLabel = getConversationRoleLabel(
                                 conversation.role,
                             )
@@ -2360,11 +3811,18 @@ const ConversationsV2 = () => {
                                 conversation.id,
                             )
                             const previewIcon =
-                                conversation.latestMessage?.kind === 'image' ? (
+                                (conversation.latestMessage?.previewKind ||
+                                    conversation.latestMessage?.kind) === 'image' ? (
                                     <TbPhoto size={14} />
-                                ) : conversation.latestMessage?.kind === 'audio' ? (
+                                ) : (conversation.latestMessage?.previewKind ||
+                                      conversation.latestMessage?.kind) === 'audio' ? (
                                     <TbMicrophone size={14} />
-                                ) : conversation.latestMessage?.kind === 'attachment' ? (
+                                ) : (conversation.latestMessage?.previewKind ||
+                                      conversation.latestMessage?.kind) === 'video' ? (
+                                    <TbVideo size={14} />
+                                ) : (conversation.latestMessage?.previewKind ||
+                                      conversation.latestMessage?.kind) ===
+                                  'attachment' ? (
                                     <TbFileDescription size={14} />
                                 ) : null
 
@@ -2427,6 +3885,12 @@ const ConversationsV2 = () => {
                                                         data-testid={`admin-conversation-owner-${conversation.id}`}
                                                     >
                                                         {ownerState.label}
+                                                    </span>
+                                                    <span
+                                                        className={`conversation-owner-pill is-${controlModeBadge.tone}`}
+                                                        data-testid={`admin-conversation-mode-${conversation.id}`}
+                                                    >
+                                                        {controlModeBadge.label}
                                                     </span>
                                                     {aiStateBadge ? (
                                                         <span
@@ -2594,6 +4058,12 @@ const ConversationsV2 = () => {
                                         >
                                             {getConversationOwnerState(selectedConversation).label}
                                         </span>
+                                        <span
+                                            className={`conversation-owner-pill is-${getConversationControlModeBadge(selectedConversation).tone}`}
+                                            data-testid="admin-conversation-mode-current"
+                                        >
+                                            {getConversationControlModeBadge(selectedConversation).label}
+                                        </span>
                                         {getConversationAiStateBadge(
                                             selectedConversation,
                                         ) ? (
@@ -2681,9 +4151,10 @@ const ConversationsV2 = () => {
                                         message.authorType === 'operator' ||
                                         message.authorType === 'agent'
                                     const authorLabel =
-                                        message.authorType === 'operator'
+                                        message.authorLabel?.trim() ||
+                                        (message.authorType === 'operator'
                                             ? 'Administrador'
-                                            : titleCase(message.authorType)
+                                            : titleCase(message.authorType))
                                     const messageVariant = messageVariantByAuthor(
                                         message.authorType,
                                     )
@@ -2755,6 +4226,141 @@ const ConversationsV2 = () => {
                         </div>
                     </div>
                     <div className="chat-footer">
+                        {approvedReplySuggestions.length ? (
+                            <div
+                                className="conversation-ai-suggestions"
+                                data-testid="admin-conversation-ai-suggestions"
+                            >
+                                <div className="conversation-ai-suggestions-header">
+                                    <div>
+                                        <div className="conversation-ai-suggestions-title">
+                                            <TbSparkles size={16} />
+                                            <span>Sugerencias aprobadas</span>
+                                        </div>
+                                        <p>
+                                            Basadas en conocimiento validado para responder más
+                                            rápido sin perder control humano.
+                                        </p>
+                                    </div>
+                                    <span className="conversation-ai-suggestions-count">
+                                        {approvedReplySuggestions.length}
+                                    </span>
+                                </div>
+                                {approvedReplySuggestionTarget ? (
+                                    <div
+                                        className="conversation-ai-suggestions-target"
+                                        data-testid="admin-conversation-ai-suggestions-target"
+                                    >
+                                        <span>Mensaje objetivo</span>
+                                        <p>{approvedReplySuggestionTarget}</p>
+                                    </div>
+                                ) : null}
+                                <div className="conversation-ai-suggestion-list">
+                                    {approvedReplySuggestions.map((suggestion) => (
+                                        <div
+                                            key={suggestion.id}
+                                            className="conversation-ai-suggestion-card"
+                                            data-testid={`admin-conversation-ai-suggestion-${suggestion.id}`}
+                                        >
+                                            <div className="conversation-ai-suggestion-copy">
+                                                <div className="conversation-ai-suggestion-topline">
+                                                    <h6>{suggestion.title}</h6>
+                                                    <span className="conversation-ai-suggestion-version">
+                                                        v{suggestion.version}
+                                                    </span>
+                                                </div>
+                                                {suggestion.summary ? (
+                                                    <p className="conversation-ai-suggestion-summary">
+                                                        {suggestion.summary}
+                                                    </p>
+                                                ) : null}
+                                                <p className="conversation-ai-suggestion-preview">
+                                                    {formatSuggestionPreview(
+                                                        suggestion.responseText,
+                                                    )}
+                                                </p>
+                                                <div className="conversation-ai-suggestion-meta">
+                                                    {suggestion.detectedIntent ? (
+                                                        <span>
+                                                            Intent: {suggestion.detectedIntent}
+                                                        </span>
+                                                    ) : null}
+                                                    {suggestion.confidence != null ? (
+                                                        <span>
+                                                            Confianza{' '}
+                                                            {suggestion.confidence.toFixed(2)}
+                                                        </span>
+                                                    ) : null}
+                                                    {suggestion.matchedBy.length ? (
+                                                        <span>
+                                                            Match:{' '}
+                                                            {suggestion.matchedBy
+                                                                .map((entry) =>
+                                                                    formatSuggestionMatchLabel(
+                                                                        entry,
+                                                                    ),
+                                                                )
+                                                                .join(' · ')}
+                                                        </span>
+                                                    ) : null}
+                                                    {suggestion.feedback ? (
+                                                        <span>
+                                                            Historial:{' '}
+                                                            {suggestion.feedback.used} uso
+                                                            {suggestion.feedback.used === 1
+                                                                ? ''
+                                                                : 's'}{' '}
+                                                            · {suggestion.feedback.edited}{' '}
+                                                            edición
+                                                            {suggestion.feedback.edited === 1
+                                                                ? ''
+                                                                : 'es'}{' '}
+                                                            · {
+                                                                suggestion.feedback
+                                                                    .discarded
+                                                            } descarte
+                                                            {suggestion.feedback.discarded === 1
+                                                                ? ''
+                                                                : 's'}
+                                                        </span>
+                                                    ) : null}
+                                                </div>
+                                            </div>
+                                            <div className="conversation-ai-suggestion-actions">
+                                                <button
+                                                    className="conversation-ai-suggestion-dismiss"
+                                                    type="button"
+                                                    data-testid={`admin-conversation-ai-suggestion-discard-${suggestion.id}`}
+                                                    disabled={
+                                                        suggestionFeedbackLoadingId ===
+                                                        suggestion.id
+                                                    }
+                                                    onClick={() =>
+                                                        void dismissReplySuggestion(
+                                                            suggestion,
+                                                        )
+                                                    }
+                                                >
+                                                    Descartar
+                                                </button>
+                                                <button
+                                                    className="conversation-ai-suggestion-apply"
+                                                    type="button"
+                                                    data-testid={`admin-conversation-ai-suggestion-apply-${suggestion.id}`}
+                                                    onClick={() =>
+                                                        applyReplySuggestion(suggestion)
+                                                    }
+                                                >
+                                                    {activeReplySuggestion?.id === suggestion.id
+                                                        ? 'Seleccionada'
+                                                        : 'Usar'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : null}
                         <form
                             className="footer-form"
                             onSubmit={(event) => {
@@ -2762,12 +4368,82 @@ const ConversationsV2 = () => {
                                 void handleReply()
                             }}
                         >
+                            <input
+                                ref={replyFileInputRef}
+                                type="file"
+                                multiple
+                                accept={ACCEPTED_REPLY_ATTACHMENT_TYPES}
+                                className="d-none"
+                                onChange={(event) => {
+                                    void handleReplyFilesSelected(event)
+                                }}
+                                data-testid="admin-conversation-reply-file-input"
+                            />
+                            <input
+                                ref={replyAudioInputRef}
+                                type="file"
+                                multiple
+                                accept="audio/*"
+                                className="d-none"
+                                onChange={(event) => {
+                                    void handleReplyFilesSelected(event)
+                                }}
+                                data-testid="admin-conversation-reply-audio-input"
+                            />
+                            {replyAttachments.length ? (
+                                <div
+                                    className="conversation-reply-attachments"
+                                    data-testid="admin-conversation-reply-attachments"
+                                >
+                                    {replyAttachments.map((attachment) => (
+                                        <div
+                                            className="conversation-reply-attachment"
+                                            key={attachment.localId}
+                                            data-testid={`admin-conversation-reply-attachment-${attachment.localId}`}
+                                        >
+                                            <div className="conversation-reply-attachment-copy">
+                                                <span className="conversation-reply-attachment-type">
+                                                    {formatReplyAttachmentType(
+                                                        attachment,
+                                                    )}
+                                                </span>
+                                                <span className="conversation-reply-attachment-name">
+                                                    {attachment.fileName ||
+                                                        'Adjunto'}
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                className="conversation-reply-attachment-remove"
+                                                onClick={() =>
+                                                    removeReplyAttachment(
+                                                        attachment.localId,
+                                                    )
+                                                }
+                                                aria-label={`Quitar ${attachment.fileName || 'adjunto'}`}
+                                            >
+                                                <TbX size={14} />
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : null}
+                            {replyComposerError ? (
+                                <div
+                                    className="conversation-reply-error"
+                                    data-testid="admin-conversation-reply-error"
+                                >
+                                    {replyComposerError}
+                                </div>
+                            ) : null}
                             <div className="chat-footer-wrap">
                                 <div className="form-item">
                                     <button
                                         className="action-circle"
                                         type="button"
                                         aria-label="Audio"
+                                        onClick={openReplyAudioPicker}
+                                        disabled={replying || !selectedConversation}
                                     >
                                         <TbMicrophone size={18} />
                                     </button>
@@ -2797,6 +4473,8 @@ const ConversationsV2 = () => {
                                         className="action-circle file-action"
                                         type="button"
                                         aria-label="Adjuntar"
+                                        onClick={openReplyFilePicker}
+                                        disabled={replying || !selectedConversation}
                                     >
                                         <TbFolder size={18} />
                                     </button>
@@ -2816,7 +4494,11 @@ const ConversationsV2 = () => {
                                         type="submit"
                                         data-testid="admin-conversation-reply-submit"
                                         aria-label="Enviar"
-                                        disabled={replying || !replyBody.trim()}
+                                        disabled={
+                                            replying ||
+                                            (!replyBody.trim() &&
+                                                replyAttachments.length === 0)
+                                        }
                                     >
                                         <TbSend2 size={20} />
                                     </button>
@@ -3374,43 +5056,92 @@ const ConversationsV2 = () => {
                                         No hay contactos disponibles.
                                     </div>
                                 ) : (
-                                    contacts.map((contact) => (
-                                        <button
-                                            key={contact.key}
-                                            type="button"
-                                            className={`conversation-contact-option ${selectedContactKey === contact.key ? 'is-active' : ''}`}
-                                            data-testid={`admin-conversations-contact-${contact.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`}
-                                            onClick={() =>
-                                                setSelectedContactKey(contact.key)
-                                            }
-                                        >
-                                            <div className="conversation-contact-avatar">
-                                                {renderAvatar({
-                                                    seed: contact.label,
-                                                    label: contact.label,
-                                                    size: 44,
-                                                    preferInitials:
-                                                        contact.kind === 'internal',
-                                                })}
+                                    <>
+                                        <div className="conversation-contact-suggestion">
+                                            <div className="conversation-contact-suggestion-label">
+                                                Sugerencia IA
                                             </div>
-                                            <div className="conversation-contact-copy">
-                                                <strong>{contact.label}</strong>
-                                                <span>
-                                                    {contact.description ||
-                                                        (contact.kind === 'internal'
-                                                            ? 'Contacto interno'
-                                                            : 'Sin descripción')}
-                                                </span>
-                                            </div>
-                                            <div className="conversation-contact-meta">
-                                                <small>
-                                                    {contact.conversationId
-                                                        ? 'Existente'
-                                                        : 'Nuevo'}
-                                                </small>
-                                            </div>
-                                        </button>
-                                    ))
+                                            <button
+                                                type="button"
+                                                className={`conversation-contact-option conversation-contact-option-suggested ${selectedContactKey === internalAssistantContact.key ? 'is-active' : ''}`}
+                                                data-testid="admin-conversations-contact-internal-assistant"
+                                                onClick={() =>
+                                                    setSelectedContactKey(
+                                                        internalAssistantContact.key,
+                                                    )
+                                                }
+                                            >
+                                                <div className="conversation-contact-avatar">
+                                                    {renderAvatar({
+                                                        seed: internalAssistantContact.label,
+                                                        label: internalAssistantContact.label,
+                                                        size: 44,
+                                                        preferInitials: true,
+                                                    })}
+                                                </div>
+                                                <div className="conversation-contact-copy">
+                                                    <strong>
+                                                        {internalAssistantContact.label}
+                                                    </strong>
+                                                    <span>
+                                                        {internalAssistantContact.description}
+                                                    </span>
+                                                </div>
+                                                <div className="conversation-contact-meta">
+                                                    <small>
+                                                        {internalAssistantContact.conversationId
+                                                            ? 'Existente'
+                                                            : 'Nuevo'}
+                                                    </small>
+                                                </div>
+                                            </button>
+                                        </div>
+                                        {availableContacts
+                                            .filter(
+                                                (contact) =>
+                                                    contact.key !==
+                                                    INTERNAL_ASSISTANT_CONTACT_KEY,
+                                            )
+                                            .map((contact) => (
+                                                <button
+                                                    key={contact.key}
+                                                    type="button"
+                                                    className={`conversation-contact-option ${selectedContactKey === contact.key ? 'is-active' : ''}`}
+                                                    data-testid={`admin-conversations-contact-${contact.key.replace(/[^a-zA-Z0-9_-]/g, '-')}`}
+                                                    onClick={() =>
+                                                        setSelectedContactKey(contact.key)
+                                                    }
+                                                >
+                                                    <div className="conversation-contact-avatar">
+                                                        {renderAvatar({
+                                                            seed: contact.label,
+                                                            label: contact.label,
+                                                            size: 44,
+                                                            preferInitials:
+                                                                contact.kind ===
+                                                                'internal',
+                                                        })}
+                                                    </div>
+                                                    <div className="conversation-contact-copy">
+                                                        <strong>{contact.label}</strong>
+                                                        <span>
+                                                            {contact.description ||
+                                                                (contact.kind ===
+                                                                'internal'
+                                                                    ? 'Contacto interno'
+                                                                    : 'Sin descripción')}
+                                                        </span>
+                                                    </div>
+                                                    <div className="conversation-contact-meta">
+                                                        <small>
+                                                            {contact.conversationId
+                                                                ? 'Existente'
+                                                                : 'Nuevo'}
+                                                        </small>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                    </>
                                 )}
                             </div>
                             <div className="filter-field">
@@ -3691,6 +5422,14 @@ const ConversationsV2 = () => {
                                                                         selectedConversation.role,
                                                                     )}
                                                                 </p>
+                                                                <p data-testid="admin-conversation-mode-inline">
+                                                                    Modo:{' '}
+                                                                    {
+                                                                        getConversationControlModeBadge(
+                                                                            selectedConversation,
+                                                                        ).label
+                                                                    }
+                                                                </p>
                                                                 <p>
                                                                     {selectedConversation
                                                                         .needsHuman ||
@@ -3758,6 +5497,178 @@ const ConversationsV2 = () => {
                                                                         {selectedConversation.aiState.audit.executedTools.join(
                                                                             ', ',
                                                                         )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.memory
+                                                                    ?.state ? (
+                                                                    <p data-testid="admin-conversation-memory-state-current">
+                                                                        Estado del agente:{' '}
+                                                                        {
+                                                                            selectedConversation
+                                                                                .aiState
+                                                                                .memory
+                                                                                .state
+                                                                        }
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.memory
+                                                                    ?.stateHistory
+                                                                    ?.length ? (
+                                                                    <p data-testid="admin-conversation-memory-state-history-current">
+                                                                        Estados:{' '}
+                                                                        {selectedConversation.aiState.memory.stateHistory.join(
+                                                                            ' → ',
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.memory
+                                                                    ?.lastTransitionAt ? (
+                                                                    <p data-testid="admin-conversation-memory-transition-current">
+                                                                        Última transición:{' '}
+                                                                        {formatDateTime(
+                                                                            selectedConversation
+                                                                                .aiState
+                                                                                .memory
+                                                                                .lastTransitionAt,
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit?.stage ? (
+                                                                    <p data-testid="admin-conversation-stage-current">
+                                                                        Etapa actual:{' '}
+                                                                        {
+                                                                            selectedConversation
+                                                                                .aiState.audit
+                                                                                .stage
+                                                                        }
+                                                                    </p>
+                                                                ) : null}
+                                                                {formatAuditStageHistory(
+                                                                    selectedConversation.aiState
+                                                                        ?.audit
+                                                                        ?.stageHistory,
+                                                                ) ? (
+                                                                    <p data-testid="admin-conversation-stage-history-current">
+                                                                        Historial:{' '}
+                                                                        {formatAuditStageHistory(
+                                                                            selectedConversation
+                                                                                .aiState.audit
+                                                                                ?.stageHistory,
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit
+                                                                    ?.intentSource ? (
+                                                                    <p data-testid="admin-conversation-intent-source-current">
+                                                                        Fuente de intención:{' '}
+                                                                        {
+                                                                            selectedConversation
+                                                                                .aiState.audit
+                                                                                .intentSource
+                                                                        }
+                                                                        {typeof selectedConversation
+                                                                            .aiState.audit
+                                                                            .intentConfidence ===
+                                                                        'number'
+                                                                            ? ` · confianza ${selectedConversation.aiState.audit.intentConfidence.toFixed(
+                                                                                  2,
+                                                                              )}`
+                                                                            : ''}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit
+                                                                    ?.decisionPath
+                                                                    ?.length ? (
+                                                                    <p data-testid="admin-conversation-decision-path-current">
+                                                                        Ruta de decisión:{' '}
+                                                                        {selectedConversation.aiState.audit.decisionPath.join(
+                                                                            ' → ',
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit?.detail ? (
+                                                                    <p data-testid="admin-conversation-audit-detail-current">
+                                                                        Detalle:{' '}
+                                                                        {
+                                                                            selectedConversation
+                                                                                .aiState.audit
+                                                                                .detail
+                                                                        }
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit
+                                                                    ?.referencedMessages
+                                                                    ?.length ? (
+                                                                    <p data-testid="admin-conversation-references-current">
+                                                                        Referencias:{' '}
+                                                                        {selectedConversation.aiState.audit.referencedMessages
+                                                                            .map(
+                                                                                (
+                                                                                    entry,
+                                                                                ) =>
+                                                                                    entry.preview ||
+                                                                                    entry.messageId ||
+                                                                                    'mensaje_reciente',
+                                                                            )
+                                                                            .join(
+                                                                                ' | ',
+                                                                            )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit
+                                                                    ?.messageContextOrigin
+                                                                    ?.length ? (
+                                                                    <p data-testid="admin-conversation-context-origin-current">
+                                                                        Origen de contexto:{' '}
+                                                                        {selectedConversation.aiState.audit.messageContextOrigin.join(
+                                                                            ', ',
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit
+                                                                    ?.messageElementsUsed
+                                                                    ?.length ? (
+                                                                    <p data-testid="admin-conversation-message-elements-used-current">
+                                                                        Elementos usados:{' '}
+                                                                        {selectedConversation.aiState.audit.messageElementsUsed.join(
+                                                                            ', ',
+                                                                        )}
+                                                                    </p>
+                                                                ) : null}
+                                                                {selectedConversation.aiState
+                                                                    ?.audit
+                                                                    ?.messageElements
+                                                                    ?.length ? (
+                                                                    <p data-testid="admin-conversation-message-elements-current">
+                                                                        Elementos:{' '}
+                                                                        {selectedConversation.aiState.audit.messageElements
+                                                                            .map(
+                                                                                (
+                                                                                    entry,
+                                                                                ) =>
+                                                                                    `${
+                                                                                        entry.label ||
+                                                                                        entry.kind ||
+                                                                                        'elemento'
+                                                                                    }${
+                                                                                        entry.preview
+                                                                                            ? ` (${entry.preview})`
+                                                                                            : ''
+                                                                                    }`,
+                                                                            )
+                                                                            .join(
+                                                                                ' | ',
+                                                                            )}
                                                                     </p>
                                                                 ) : null}
                                                                 {selectedConversation.aiState
@@ -3939,6 +5850,191 @@ const ConversationsV2 = () => {
                                                     </div>
                                                 </div>
                                             </div>
+
+                                            {conversationThreadAudit ? (
+                                                <div className="content-wrapper">
+                                                    <h5 className="sub-title">
+                                                        Auditoría conversacional
+                                                    </h5>
+                                                    <div className="card">
+                                                        <div className="card-body">
+                                                            <div className="thread-audit-summary">
+                                                                <div className="thread-audit-stat-row">
+                                                                    <div className="thread-audit-stat">
+                                                                        <span className="thread-audit-stat-label">
+                                                                            Hilos detectados
+                                                                        </span>
+                                                                        <strong data-testid="admin-conversation-thread-count">
+                                                                            {
+                                                                                conversationThreadAudit
+                                                                                    .detectedThreads
+                                                                                    .length
+                                                                            }
+                                                                        </strong>
+                                                                    </div>
+                                                                    <div className="thread-audit-stat">
+                                                                        <span className="thread-audit-stat-label">
+                                                                            Turnos auditados
+                                                                        </span>
+                                                                        <strong data-testid="admin-conversation-thread-turn-count">
+                                                                            {
+                                                                                conversationThreadAudit.totalTurnsWithThreadData
+                                                                            }
+                                                                        </strong>
+                                                                    </div>
+                                                                </div>
+                                                                <div className="thread-audit-block">
+                                                                    <div className="thread-audit-block-title">
+                                                                        Hilo activo
+                                                                    </div>
+                                                                    <p data-testid="admin-conversation-active-thread">
+                                                                        {conversationThreadAudit.activeThreadLabel ||
+                                                                            'Sin hilo activo definido'}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="thread-audit-block">
+                                                                    <div className="thread-audit-block-title">
+                                                                        Cambios de hilo
+                                                                    </div>
+                                                                    {conversationThreadAudit.threadSwitches.length ? (
+                                                                        <ul
+                                                                            className="thread-audit-list"
+                                                                            data-testid="admin-conversation-thread-switches"
+                                                                        >
+                                                                            {conversationThreadAudit.threadSwitches
+                                                                                .slice(-4)
+                                                                                .map((entry) => (
+                                                                                    <li
+                                                                                        key={`${entry.messageId}:${entry.createdAt}`}
+                                                                                    >
+                                                                                        <strong>
+                                                                                            {entry.toLabel ||
+                                                                                                'Hilo sin resolver'}
+                                                                                        </strong>
+                                                                                        <span>
+                                                                                            {entry.fromLabel
+                                                                                                ? ` desde ${entry.fromLabel}`
+                                                                                                : ''}
+                                                                                            {' · '}
+                                                                                            {formatDateTime(
+                                                                                                entry.createdAt,
+                                                                                            )}
+                                                                                        </span>
+                                                                                    </li>
+                                                                                ))}
+                                                                        </ul>
+                                                                    ) : (
+                                                                        <p>Sin cambios de hilo registrados.</p>
+                                                                    )}
+                                                                </div>
+                                                                <div className="thread-audit-block">
+                                                                    <div className="thread-audit-block-title">
+                                                                        Turnos con disambiguación
+                                                                    </div>
+                                                                    {conversationThreadAudit.disambiguationTurns.length ? (
+                                                                        <ul
+                                                                            className="thread-audit-list"
+                                                                            data-testid="admin-conversation-thread-disambiguation"
+                                                                        >
+                                                                            {conversationThreadAudit.disambiguationTurns
+                                                                                .slice(-4)
+                                                                                .map((entry) => (
+                                                                                    <li
+                                                                                        key={`${entry.messageId}:${entry.createdAt}`}
+                                                                                    >
+                                                                                        <strong>
+                                                                                            {entry.promptText ||
+                                                                                                'Disambiguación solicitada'}
+                                                                                        </strong>
+                                                                                        <span>
+                                                                                            {entry.currentTurnText
+                                                                                                ? `${entry.currentTurnText} · `
+                                                                                                : ''}
+                                                                                            {formatDateTime(
+                                                                                                entry.createdAt,
+                                                                                            )}
+                                                                                        </span>
+                                                                                    </li>
+                                                                                ))}
+                                                                        </ul>
+                                                                    ) : (
+                                                                        <p>
+                                                                            Sin turnos de disambiguación.
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                                <div className="thread-audit-block">
+                                                                    <div className="thread-audit-block-title">
+                                                                        Slots capturados por hilo
+                                                                    </div>
+                                                                    {conversationThreadAudit.detectedThreads.some(
+                                                                        (entry) =>
+                                                                            entry.slots.length > 0,
+                                                                    ) ? (
+                                                                        <div
+                                                                            className="thread-audit-thread-list"
+                                                                            data-testid="admin-conversation-thread-slots"
+                                                                        >
+                                                                            {conversationThreadAudit.detectedThreads.map(
+                                                                                (thread) => (
+                                                                                    <div
+                                                                                        className="thread-audit-thread-card"
+                                                                                        key={thread.key}
+                                                                                    >
+                                                                                        <div className="thread-audit-thread-header">
+                                                                                            <strong>
+                                                                                                {thread.label}
+                                                                                            </strong>
+                                                                                            <span>
+                                                                                                {thread.switchCount > 0
+                                                                                                    ? `${thread.switchCount} cambio(s)`
+                                                                                                    : thread.baseType
+                                                                                                      ? titleCase(
+                                                                                                            thread.baseType,
+                                                                                                        )
+                                                                                                      : 'Sin cambios'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        {thread.slots.length ? (
+                                                                                            <div className="thread-audit-slot-list">
+                                                                                                {thread.slots.map(
+                                                                                                    (
+                                                                                                        slot,
+                                                                                                    ) => (
+                                                                                                        <span
+                                                                                                            className="thread-audit-slot"
+                                                                                                            key={`${thread.key}:${slot.key}:${slot.value}`}
+                                                                                                        >
+                                                                                                            <strong>
+                                                                                                                {slot.label}
+                                                                                                            </strong>
+                                                                                                            <span>
+                                                                                                                {slot.value}
+                                                                                                            </span>
+                                                                                                        </span>
+                                                                                                    ),
+                                                                                                )}
+                                                                                            </div>
+                                                                                        ) : (
+                                                                                            <p>
+                                                                                                Sin slots capturados.
+                                                                                            </p>
+                                                                                        )}
+                                                                                    </div>
+                                                                                ),
+                                                                            )}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p>
+                                                                            Todavía no hay slots capturados por hilo.
+                                                                        </p>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : null}
 
                                             {customerPhones.slice(1).length ? (
                                                 <div className="content-wrapper">

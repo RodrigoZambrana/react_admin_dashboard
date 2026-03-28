@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
+import { inboxEmailAddress } from "./support/env";
 
 const backendBaseUrl =
   process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
@@ -23,7 +24,7 @@ test("supervisor can reroute a conversation to another queue from the inbox deta
         tenantKey: "urucortinas",
         channel: "email",
         userId: `routing-${timestamp}@example.com`,
-        inboxAddress: "ventas@urucortinas.com",
+        inboxAddress: inboxEmailAddress,
         subject: "Consulta para enrutar",
         threadId: `routing-thread-${timestamp}`,
         externalMessageId: `routing-msg-${timestamp}`,

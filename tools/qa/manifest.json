@@ -5,6 +5,7 @@
     "storefront-e2e-auth-content",
     "storefront-e2e-admin-cross-project",
     "storefront-e2e-ai-conversations",
+    "ai-conversation-quality",
     "storefront-e2e-account-notifications",
     "storefront-e2e-account-checkout",
     "backend-domain-core",
@@ -114,6 +115,56 @@
       ],
       "estimatedMinutes": 6,
       "tags": ["ai", "conversations", "webchat", "admin", "cross-project", "e2e"]
+    },
+    {
+      "id": "ai-conversation-quality",
+      "name": "AI Conversation Quality Loop",
+      "description": "Ciclo profundo para estabilidad conversacional: runtime multi-turno, retrieval/knowledge, multimodalidad y E2E admin/storefront sobre chats reales.",
+      "kind": "quality",
+      "cwd": ".",
+      "steps": [
+        { "cwd": ".", "command": ["node", "tools/qa/ingest-whatsapp-real-corpus.mjs"] },
+        { "cwd": ".", "command": ["docker", "exec", "dashboard-ai-agent-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4100/health"] },
+        { "cwd": "services/ai-agent-service", "command": ["npm", "run", "test:conversation-quality"] },
+        {
+          "cwd": "backend",
+          "command": [
+            "npm",
+            "test",
+            "--",
+            "src/conversations/__tests__/conversations.service.spec.ts",
+            "src/knowledge/__tests__/knowledge.service.spec.ts"
+          ]
+        },
+        {
+          "cwd": "ecommerce",
+          "command": [
+            "npm",
+            "run",
+            "test:e2e",
+            "--",
+            "--workers=1",
+            "storefront-webchat.spec.ts",
+            "storefront-webchat-authenticated-memory.spec.ts",
+            "admin-conversations-inbox-regression.spec.ts",
+            "admin-conversations-message-types.spec.ts",
+            "admin-conversations-subroles.spec.ts",
+            "admin-conversations-email-reply.spec.ts"
+          ]
+        }
+      ],
+      "estimatedMinutes": 14,
+      "tags": ["ai", "conversation", "quality", "runtime", "knowledge", "e2e"]
+    },
+    {
+      "id": "real-whatsapp-corpus-sync",
+      "name": "Real WhatsApp Corpus Sync",
+      "description": "Lee exports reales de WhatsApp desde la carpeta externa, genera manifiestos normalizados, clasifica casos y propone regresiones automáticas para QA.",
+      "kind": "quality",
+      "cwd": ".",
+      "command": ["node", "tools/qa/ingest-whatsapp-real-corpus.mjs"],
+      "estimatedMinutes": 1,
+      "tags": ["ai", "conversation", "quality", "real-corpus", "whatsapp"]
     },
     {
       "id": "storefront-e2e-account-checkout",

@@ -54,119 +54,135 @@ const emailAdapter = new EmailAdapter(clients)
 const metaAdapter = new MetaAdapter(clients, config)
 
 const server = http.createServer(async (req, res) => {
-  if (!req.url) {
-    json(res, 404, { ok: false })
-    return
-  }
+  try {
+    if (!req.url) {
+      json(res, 404, { ok: false })
+      return
+    }
 
-  if (req.method === 'OPTIONS') {
-    json(res, 200, { ok: true })
-    return
-  }
+    if (req.method === 'OPTIONS') {
+      json(res, 200, { ok: true })
+      return
+    }
 
-  if (req.method === 'GET' && req.url === '/health') {
-    json(res, 200, {
-      status: 'ok',
-      service: config.service,
-      timestamp: new Date().toISOString(),
-    })
-    return
-  }
+    if (req.method === 'GET' && req.url === '/health') {
+      json(res, 200, {
+        status: 'ok',
+        service: config.service,
+        timestamp: new Date().toISOString(),
+      })
+      return
+    }
 
-  if (req.method === 'GET' && req.url === '/channels') {
-    json(res, 200, {
-      channels: ['webchat', 'email', 'whatsapp', 'instagram', 'messenger'],
-    })
-    return
-  }
+    if (req.method === 'GET' && req.url === '/channels') {
+      json(res, 200, {
+        channels: ['webchat', 'email', 'whatsapp', 'instagram', 'messenger'],
+      })
+      return
+    }
 
-  if (req.method === 'POST' && req.url === '/webhooks/webchat') {
-    try {
+    if (req.method === 'POST' && req.url === '/webhooks/webchat') {
+      try {
+        const body = await readBody(req)
+        const result = await webchatAdapter.handleInbound(body)
+        json(res, 202, {
+          ok: true,
+          status: 'accepted',
+          ...result,
+        })
+      } catch (error) {
+        json(res, 422, {
+          ok: false,
+          message: error instanceof Error ? error.message : 'invalid webchat payload',
+        })
+      }
+      return
+    }
+
+    if (req.method === 'POST' && req.url === '/webhooks/email') {
       const body = await readBody(req)
-      const result = await webchatAdapter.handleInbound(body)
+      const result = await emailAdapter.handleInbound(body)
       json(res, 202, {
         ok: true,
         status: 'accepted',
         ...result,
       })
-    } catch (error) {
-      json(res, 422, {
-        ok: false,
-        message: error instanceof Error ? error.message : 'invalid webchat payload',
-      })
+      return
     }
-    return
-  }
 
-  if (req.method === 'POST' && req.url === '/webhooks/email') {
-    const body = await readBody(req)
-    const result = await emailAdapter.handleInbound(body)
-    json(res, 202, {
-      ok: true,
-      status: 'accepted',
-      ...result,
-    })
-    return
-  }
-
-  if (req.method === 'POST' && req.url === '/webhooks/email/status') {
-    const body = await readBody(req)
-    const result = await emailAdapter.handleStatus(body)
-    json(res, 202, {
-      ok: true,
-      status: 'accepted',
-      ...result,
-    })
-    return
-  }
-
-  if (req.method === 'POST' && req.url === '/webhooks/meta') {
-    const body = await readBody(req)
-    const hasStatuses =
-      Array.isArray(body?.statuses) ||
-      Boolean(
-        body?.entry?.some((entry) =>
-          (entry?.changes || []).some(
-            (change) => Array.isArray(change?.value?.statuses) && change.value.statuses.length,
-          ),
-        ),
-      )
-    const result =
-      hasStatuses
-        ? await metaAdapter.handleStatus(body)
-        : await metaAdapter.handleInbound(body)
-    json(res, 202, {
-      ok: true,
-      status: 'accepted',
-      ...result,
-    })
-    return
-  }
-
-  if (req.method === 'POST' && req.url === '/dispatch/meta') {
-    const token = req.headers['x-ai-internal-token']
-    if (token !== config.internalToken) {
-      json(res, 401, {
-        ok: false,
-        message: 'unauthorized',
+    if (req.method === 'POST' && req.url === '/webhooks/email/status') {
+      const body = await readBody(req)
+      const result = await emailAdapter.handleStatus(body)
+      json(res, 202, {
+        ok: true,
+        status: 'accepted',
+        ...result,
       })
       return
     }
 
-    const body = await readBody(req)
-    const result = await metaAdapter.sendOutbound(body)
-    json(res, 200, {
-      ok: true,
-      ...result,
-    })
-    return
-  }
+    if (req.method === 'POST' && req.url === '/webhooks/meta') {
+      const body = await readBody(req)
+      const hasStatuses =
+        Array.isArray(body?.statuses) ||
+        Boolean(
+          body?.entry?.some((entry) =>
+            (entry?.changes || []).some(
+              (change) => Array.isArray(change?.value?.statuses) && change.value.statuses.length,
+            ),
+          ),
+        )
+      const result =
+        hasStatuses
+          ? await metaAdapter.handleStatus(body)
+          : await metaAdapter.handleInbound(body)
+      json(res, 202, {
+        ok: true,
+        status: 'accepted',
+        ...result,
+      })
+      return
+    }
 
-  json(res, 404, {
-    ok: false,
-    service: config.service,
-    message: 'route not implemented yet',
-  })
+    if (req.method === 'POST' && req.url === '/dispatch/meta') {
+      const token = req.headers['x-ai-internal-token']
+      if (token !== config.internalToken) {
+        json(res, 401, {
+          ok: false,
+          message: 'unauthorized',
+        })
+        return
+      }
+
+      const body = await readBody(req)
+      const result = await metaAdapter.sendOutbound(body)
+      json(res, 200, {
+        ok: true,
+        ...result,
+      })
+      return
+    }
+
+    json(res, 404, {
+      ok: false,
+      service: config.service,
+      message: 'route not implemented yet',
+    })
+  } catch (error) {
+    console.error(
+      JSON.stringify({
+        service: config.service,
+        route: req.url,
+        method: req.method,
+        message: error instanceof Error ? error.message : 'unexpected channel adapter error',
+      }),
+    )
+    json(res, 500, {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : 'unexpected channel adapter error',
+    })
+  }
 })
 
 server.listen(port, '0.0.0.0', () => {

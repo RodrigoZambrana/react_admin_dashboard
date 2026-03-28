@@ -171,6 +171,39 @@ const GROUP_ROLE_ORDER = [
   ['support', 'admin_support'],
 ]
 
+const FORBIDDEN_INTENT_FAMILY_RULES = [
+  {
+    family: 'customers.manage',
+    matches: (intentKey) => String(intentKey || '').startsWith('customers.'),
+  },
+  {
+    family: 'appointments.manage',
+    matches: (intentKey) => String(intentKey || '').startsWith('appointments.'),
+  },
+  {
+    family: 'orders.manage',
+    matches: (intentKey) => String(intentKey || '').startsWith('orders.'),
+  },
+  {
+    family: 'quotes.manage',
+    matches: (intentKey) => String(intentKey || '').startsWith('quotes.'),
+  },
+  {
+    family: 'payments.manage',
+    matches: (intentKey) => String(intentKey || '').startsWith('payments.'),
+  },
+  {
+    family: 'catalog.manage',
+    matches: (intentKey) =>
+      String(intentKey || '').startsWith('products.') ||
+      String(intentKey || '').startsWith('categories.'),
+  },
+  {
+    family: 'conversations.manage',
+    matches: (intentKey) => String(intentKey || '').startsWith('conversations.'),
+  },
+]
+
 const resolveCapabilityFamilies = (capabilityEnvelope = []) => {
   const families = new Set()
 
@@ -317,10 +350,45 @@ export const roleRequiresConfirmation = (role, toolName, roleCatalog) => {
   return Array.isArray(config.requiresConfirmation) && config.requiresConfirmation.includes(toolName)
 }
 
+const resolveIntentGuardKeys = (intentKey) => {
+  const normalizedIntent = String(intentKey || '')
+    .trim()
+    .toLowerCase()
+
+  const guardKeys = new Set()
+  if (!normalizedIntent) {
+    return guardKeys
+  }
+
+  guardKeys.add(normalizedIntent)
+  for (const rule of FORBIDDEN_INTENT_FAMILY_RULES) {
+    if (rule.matches(normalizedIntent)) {
+      guardKeys.add(rule.family)
+    }
+  }
+
+  return guardKeys
+}
+
 export const canRoleExecuteIntent = (role, intentKey, roleCatalog) => {
   const config = getRoleConfig(role, roleCatalog)
+  const normalizedForbidden = normalizeStringList(config.forbiddenIntents)
+  const guardKeys = resolveIntentGuardKeys(intentKey)
+
   return !config.forbiddenIntents?.some(
-    (entry) => intentKey === entry || String(intentKey || '').startsWith(`${entry}.`),
+    (entry) => {
+      const normalizedEntry = String(entry || '')
+        .trim()
+        .toLowerCase()
+      if (!normalizedEntry || !normalizedForbidden.includes(normalizedEntry)) {
+        return false
+      }
+
+      return (
+        guardKeys.has(normalizedEntry) ||
+        String(intentKey || '').startsWith(`${normalizedEntry}.`)
+      )
+    },
   )
 }
 

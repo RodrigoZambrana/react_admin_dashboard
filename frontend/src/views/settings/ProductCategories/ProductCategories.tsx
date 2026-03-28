@@ -32,6 +32,20 @@ type CategoryService = {
     unitOfMeasure: string
 }
 
+type InstallationResolutionMode =
+    | 'INCLUDED'
+    | 'OPTIONAL_ADD_ON'
+    | 'SEPARATE_SERVICE'
+    | 'NOT_OFFERED'
+    | 'UNKNOWN'
+
+type InstallationChargeScope =
+    | 'PER_QUOTE'
+    | 'MATCH_PRODUCT_QUANTITY'
+    | 'MATCH_PRODUCT_MEASUREMENTS'
+
+type InstallationPricePresentationMode = 'EXACT' | 'FROM_BASE' | 'HIDDEN'
+
 type RawCategory = {
     id: number
     name: string
@@ -39,6 +53,9 @@ type RawCategory = {
     image: string | null
     parentId: number | null
     installable: boolean
+    installationResolutionMode: InstallationResolutionMode | null
+    installationChargeScope: InstallationChargeScope | null
+    installationPricePresentationMode: InstallationPricePresentationMode | null
     service: CategoryService | null
 }
 
@@ -63,6 +80,9 @@ type FormState = {
     image: string
     parentId: string
     installable: boolean
+    installationResolutionMode: InstallationResolutionMode
+    installationChargeScope: InstallationChargeScope
+    installationPricePresentationMode: InstallationPricePresentationMode
     service: ServiceFormState
 }
 
@@ -72,6 +92,35 @@ const SALES_UNIT_OPTIONS: Array<{ label: string; value: string }> = [
     { value: 'UNIT', label: 'UNIT' },
     { value: 'SQUARE_METER', label: 'SQUARE_METER' },
     { value: 'LINEAR_METER', label: 'LINEAR_METER' },
+]
+
+const INSTALLATION_RESOLUTION_OPTIONS: Array<{
+    label: string
+    value: InstallationResolutionMode
+}> = [
+    { value: 'OPTIONAL_ADD_ON', label: 'Opcional adicional' },
+    { value: 'INCLUDED', label: 'Incluida' },
+    { value: 'SEPARATE_SERVICE', label: 'Servicio separado' },
+    { value: 'UNKNOWN', label: 'Confirmar manualmente' },
+    { value: 'NOT_OFFERED', label: 'No ofrecida' },
+]
+
+const INSTALLATION_CHARGE_SCOPE_OPTIONS: Array<{
+    label: string
+    value: InstallationChargeScope
+}> = [
+    { value: 'PER_QUOTE', label: 'Por cotización' },
+    { value: 'MATCH_PRODUCT_QUANTITY', label: 'Por cantidad del producto' },
+    { value: 'MATCH_PRODUCT_MEASUREMENTS', label: 'Por medidas del producto' },
+]
+
+const INSTALLATION_PRICE_PRESENTATION_OPTIONS: Array<{
+    label: string
+    value: InstallationPricePresentationMode
+}> = [
+    { value: 'HIDDEN', label: 'No exponer precio automáticamente' },
+    { value: 'EXACT', label: 'Mostrar precio exacto' },
+    { value: 'FROM_BASE', label: 'Mostrar “a partir de…”' },
 ]
 
 const DEFAULT_SERVICE_FORM: ServiceFormState = {
@@ -92,6 +141,9 @@ const DEFAULT_FORM: FormState = {
     image: '',
     parentId: '',
     installable: false,
+    installationResolutionMode: 'OPTIONAL_ADD_ON',
+    installationChargeScope: 'PER_QUOTE',
+    installationPricePresentationMode: 'HIDDEN',
     service: { ...DEFAULT_SERVICE_FORM },
 }
 
@@ -179,6 +231,33 @@ const normalizeCategoryResponse = (entry: unknown, fallbackId: number): RawCateg
         image,
         parentId,
         installable: Boolean(service),
+        installationResolutionMode:
+            typeof raw.installationResolutionMode === 'string' &&
+            raw.installationResolutionMode.trim()
+                ? (raw.installationResolutionMode
+                      .trim()
+                      .toUpperCase() as InstallationResolutionMode)
+                : service
+                  ? 'OPTIONAL_ADD_ON'
+                  : 'NOT_OFFERED',
+        installationChargeScope:
+            typeof raw.installationChargeScope === 'string' &&
+            raw.installationChargeScope.trim()
+                ? (raw.installationChargeScope
+                      .trim()
+                      .toUpperCase() as InstallationChargeScope)
+                : service
+                  ? 'PER_QUOTE'
+                  : null,
+        installationPricePresentationMode:
+            typeof raw.installationPricePresentationMode === 'string' &&
+            raw.installationPricePresentationMode.trim()
+                ? (raw.installationPricePresentationMode
+                      .trim()
+                      .toUpperCase() as InstallationPricePresentationMode)
+                : service
+                  ? 'HIDDEN'
+                  : null,
         service,
     }
 }
@@ -433,6 +512,15 @@ const ProductCategories = () => {
             image,
             parentId,
             installable: form.installable,
+            installationResolutionMode: form.installable
+                ? form.installationResolutionMode
+                : 'NOT_OFFERED',
+            installationChargeScope: form.installable
+                ? form.installationChargeScope
+                : null,
+            installationPricePresentationMode: form.installable
+                ? form.installationPricePresentationMode
+                : null,
         }
         if (form.installable && servicePayload) {
             payload.service = servicePayload
@@ -479,6 +567,12 @@ const ProductCategories = () => {
             image: category.image ?? '',
             parentId: category.parentId ? String(category.parentId) : '',
             installable: category.installable,
+            installationResolutionMode:
+                category.installationResolutionMode ?? 'OPTIONAL_ADD_ON',
+            installationChargeScope:
+                category.installationChargeScope ?? 'PER_QUOTE',
+            installationPricePresentationMode:
+                category.installationPricePresentationMode ?? 'HIDDEN',
             service: category.installable && category.service
                 ? {
                       name: category.service.name ?? '',
@@ -551,6 +645,15 @@ const ProductCategories = () => {
                       image: String(category?.image ?? ''),
                       parent: String(category?.parent ?? ''),
                       installable: category?.installable ? 'true' : 'false',
+                      installationResolutionMode: String(
+                          category?.installationResolutionMode ?? '',
+                      ),
+                      installationChargeScope: String(
+                          category?.installationChargeScope ?? '',
+                      ),
+                      installationPricePresentationMode: String(
+                          category?.installationPricePresentationMode ?? '',
+                      ),
                       serviceName: String(category?.service?.name ?? ''),
                       serviceProductCode: String(category?.service?.productCode ?? ''),
                       serviceDescription: String(category?.service?.description ?? ''),
@@ -597,6 +700,19 @@ const ProductCategories = () => {
                     const parent = toNullableString(String(row.parent ?? ''))
                     const installableFlag = String(row.installable ?? '').trim().toLowerCase()
                     const installable = ['true', '1', 'yes', 'on'].includes(installableFlag)
+                    const installationResolutionMode = (
+                        String(row.installationResolutionMode ?? '').trim().toUpperCase() ||
+                        (installable ? 'OPTIONAL_ADD_ON' : 'NOT_OFFERED')
+                    ) as InstallationResolutionMode
+                    const installationChargeScope = (
+                        String(row.installationChargeScope ?? '').trim().toUpperCase() ||
+                        (installable ? 'PER_QUOTE' : '')
+                    ) as InstallationChargeScope
+                    const installationPricePresentationMode = (
+                        String(row.installationPricePresentationMode ?? '')
+                            .trim()
+                            .toUpperCase() || (installable ? 'HIDDEN' : '')
+                    ) as InstallationPricePresentationMode
                     const service = installable
                         ? {
                               name: String(row.serviceName ?? '').trim(),
@@ -615,6 +731,13 @@ const ProductCategories = () => {
                         image,
                         parent,
                         installable,
+                        installationResolutionMode,
+                        installationChargeScope: installable
+                            ? installationChargeScope
+                            : null,
+                        installationPricePresentationMode: installable
+                            ? installationPricePresentationMode
+                            : null,
                         service,
                     }
                 })
@@ -627,6 +750,8 @@ const ProductCategories = () => {
                         image: string | null
                         parent: string | null
                         installable: boolean
+                        installationResolutionMode: InstallationResolutionMode
+                        installationChargeScope: InstallationChargeScope | null
                         service?: Record<string, string>
                     } => row !== null,
                 )
@@ -805,6 +930,77 @@ const ProductCategories = () => {
                             </p>
                         </div>
                         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <Select<{ label: string; value: InstallationResolutionMode }>
+                                className="min-w-[200px]"
+                                options={INSTALLATION_RESOLUTION_OPTIONS}
+                                value={
+                                    INSTALLATION_RESOLUTION_OPTIONS.find(
+                                        (option) =>
+                                            option.value === form.installationResolutionMode,
+                                    ) ?? INSTALLATION_RESOLUTION_OPTIONS[0]
+                                }
+                                onChange={(option) =>
+                                    handleFormChange(
+                                        'installationResolutionMode',
+                                        ((option as { value: InstallationResolutionMode } | null)
+                                            ?.value ??
+                                            'OPTIONAL_ADD_ON') as FormState['installationResolutionMode'],
+                                    )
+                                }
+                                isClearable={false}
+                                isDisabled={saving}
+                                placeholder="Resolución de instalación"
+                            />
+                            <Select<{ label: string; value: InstallationChargeScope }>
+                                className="min-w-[200px]"
+                                options={INSTALLATION_CHARGE_SCOPE_OPTIONS}
+                                value={
+                                    INSTALLATION_CHARGE_SCOPE_OPTIONS.find(
+                                        (option) =>
+                                            option.value === form.installationChargeScope,
+                                    ) ?? INSTALLATION_CHARGE_SCOPE_OPTIONS[0]
+                                }
+                                onChange={(option) =>
+                                    handleFormChange(
+                                        'installationChargeScope',
+                                        ((option as { value: InstallationChargeScope } | null)
+                                            ?.value ??
+                                            'PER_QUOTE') as FormState['installationChargeScope'],
+                                    )
+                                }
+                                isClearable={false}
+                                isDisabled={saving}
+                                placeholder="Cobro de instalación"
+                            />
+                            <Select<{
+                                label: string
+                                value: InstallationPricePresentationMode
+                            }>
+                                className="min-w-[200px]"
+                                options={INSTALLATION_PRICE_PRESENTATION_OPTIONS}
+                                value={
+                                    INSTALLATION_PRICE_PRESENTATION_OPTIONS.find(
+                                        (option) =>
+                                            option.value ===
+                                            form.installationPricePresentationMode,
+                                    ) ?? INSTALLATION_PRICE_PRESENTATION_OPTIONS[0]
+                                }
+                                onChange={(option) =>
+                                    handleFormChange(
+                                        'installationPricePresentationMode',
+                                        ((
+                                            option as {
+                                                value: InstallationPricePresentationMode
+                                            } | null
+                                        )?.value ?? 'HIDDEN') as FormState['installationPricePresentationMode'],
+                                    )
+                                }
+                                isClearable={false}
+                                isDisabled={saving}
+                                placeholder="Presentación del precio"
+                            />
+                        </div>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                             <Input
                                 value={form.service.name}
                                 placeholder={
@@ -961,7 +1157,12 @@ const ProductCategories = () => {
                                                         minimumFractionDigits: 2,
                                                         maximumFractionDigits: 2,
                                                     })}`
-                                                })()}
+                                                    })()} 
+                                            </div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                {`${category.installationResolutionMode ?? 'UNKNOWN'} · ${
+                                                    category.installationChargeScope ?? 'SIN_SCOPE'
+                                                } · ${category.installationPricePresentationMode ?? 'HIDDEN'}`}
                                             </div>
                                         </div>
                                     ) : (

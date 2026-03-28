@@ -13,6 +13,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common'
+import { EventType } from '@prisma/client'
 import { ConfigService } from '@nestjs/config'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { KnowledgeService } from '../knowledge/knowledge.service'
@@ -24,6 +25,8 @@ import { CreateAiCustomerDto } from './dto/create-ai-customer.dto'
 import { CreateAiOrderDto, GenerateAiQuoteDto } from './dto/create-ai-order.dto'
 import { CreateAiPaymentDto } from './dto/create-ai-payment.dto'
 import { CreateAiProductDto } from './dto/create-ai-product.dto'
+import { PreviewAiProductQuoteDto } from './dto/preview-ai-product-quote.dto'
+import { GetOwnedCustomerDocumentDto } from './dto/get-owned-customer-document.dto'
 import { AdjustAiProductStockDto } from './dto/adjust-ai-product-stock.dto'
 import { ListAiAppointmentsDto } from './dto/list-ai-appointments.dto'
 import { ListAiCategoriesDto } from './dto/list-ai-categories.dto'
@@ -103,6 +106,42 @@ export class AiController {
     })
   }
 
+  @Get('knowledge/topic-taxonomy')
+  getKnowledgeTopicTaxonomy(
+    @Query('tenantKey') tenantKey?: string,
+    @Query('scope') scope?: string,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    this.assertInternalToken(token)
+    return this.knowledge.getTopicTaxonomy({
+      tenantKey,
+      scope: scope?.trim() === 'admin_internal' ? 'admin_internal' : 'customer_public',
+    })
+  }
+
+  @Get('knowledge/quote-profiles')
+  getKnowledgeQuoteProfiles(
+    @Query('tenantKey') tenantKey?: string,
+    @Query('scope') scope?: string,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    this.assertInternalToken(token)
+    return this.knowledge.getQuoteProfiles({
+      tenantKey,
+      scope: scope?.trim() === 'admin_internal' ? 'admin_internal' : 'customer_public',
+    })
+  }
+
+  @Get('customer-documents/lookup')
+  getOwnedCustomerDocument(
+    @Query() query: GetOwnedCustomerDocumentDto,
+    @Headers('x-ai-role') role?: string,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    this.assertAuthenticatedCustomerInternalAccess(token, role)
+    return this.ai.getOwnedCustomerDocument(query)
+  }
+
   @Post('assets/extract')
   extractAssets(
     @Body() body: ExtractAiAssetsDto,
@@ -120,6 +159,16 @@ export class AiController {
   ) {
     this.assertInternalToolAccess(token, role, 'search_products')
     return this.ai.listProducts(query, role)
+  }
+
+  @Post('products/quote-preview')
+  previewProductQuote(
+    @Body() body: PreviewAiProductQuoteDto,
+    @Headers('x-ai-role') role?: string,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    this.assertInternalToolAccess(token, role, 'search_products')
+    return this.ai.previewProductQuote(body)
   }
 
   @Get('categories')
@@ -173,6 +222,16 @@ export class AiController {
     return this.ai.listAppointments(query)
   }
 
+  @Get('customer-appointments')
+  listCustomerAppointments(
+    @Query() query: ListAiAppointmentsDto,
+    @Headers('x-ai-role') role?: string,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    this.assertCustomerScheduleInternalAccess(token, role)
+    return this.ai.listAppointments(query)
+  }
+
   @Post('appointments')
   createAppointment(
     @Body() body: CreateAiAppointmentDto,
@@ -181,6 +240,23 @@ export class AiController {
   ) {
     this.assertInternalToolAccess(token, role, 'create_appointment')
     return this.ai.createAppointment(body)
+  }
+
+  @Post('customer-appointments')
+  createCustomerAppointment(
+    @Body() body: CreateAiAppointmentDto,
+    @Headers('x-ai-role') role?: string,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    this.assertCustomerScheduleInternalAccess(token, role)
+    return this.ai.createAppointment({
+      ...body,
+      type: EventType.MEETING,
+      metadata: {
+        ...(body?.metadata ?? {}),
+        scheduleKind: 'customer_technical_visit',
+      },
+    })
   }
 
   @Put('appointments/:id')
@@ -492,6 +568,30 @@ export class AiController {
 
     if (!canUseTool(role, toolName)) {
       throw new ForbiddenException('ai.tool_forbidden')
+    }
+  }
+
+  private assertAuthenticatedCustomerInternalAccess(
+    token: string | undefined,
+    roleHeader: string | undefined,
+  ) {
+    this.assertInternalToken(token)
+
+    const role = normalizeAiConversationRole(roleHeader)
+    if (role !== 'customer_authenticated') {
+      throw new ForbiddenException('ai.customer_scope_forbidden')
+    }
+  }
+
+  private assertCustomerScheduleInternalAccess(
+    token: string | undefined,
+    roleHeader: string | undefined,
+  ) {
+    this.assertInternalToken(token)
+
+    const role = normalizeAiConversationRole(roleHeader)
+    if (role !== 'customer_public' && role !== 'customer_authenticated') {
+      throw new ForbiddenException('ai.customer_schedule_forbidden')
     }
   }
 }

@@ -28,6 +28,18 @@ Correr varios bloques:
 node tools/qa/run-qa.mjs --block storefront-e2e-critical,backend-domain-core
 ```
 
+Bloque profundo de conversación:
+
+```bash
+node tools/qa/run-qa.mjs --block ai-conversation-quality
+```
+
+Sync puntual del corpus real de WhatsApp:
+
+```bash
+node tools/qa/run-qa.mjs --block real-whatsapp-corpus-sync
+```
+
 Repetir la secuencia seleccionada:
 
 ```bash
@@ -41,6 +53,17 @@ Los resultados quedan persistidos en:
 - `.qa/latest.json`
 - `.qa/runs/<run-id>.json`
 - `.qa/runs/<run-id>/*.log`
+- `.qa/latest.conversation-quality.json`
+- `.qa/latest.conversation-quality.md`
+
+Para bloques conversacionales, `run-qa` genera además un reporte agrupado por patrón, bucket probable, capa a ajustar y siguiente acción sugerida.
+
+Si existe la carpeta externa de exports reales de WhatsApp, el loop conversacional también genera:
+
+- `.qa/external-real-conversations/whatsapp/index.json`
+- `.qa/external-real-conversations/whatsapp/summary.md`
+- manifiestos normalizados por conversación
+- propuestas automáticas de fixtures/regresiones
 
 ## Admin
 
@@ -115,6 +138,8 @@ Para validar esos bloques:
 
 ## Bloques actuales
 
+- `ai-conversation-quality`
+- `real-whatsapp-corpus-sync`
 - `storefront-e2e-critical`
 - `storefront-e2e-auth-content`
 - `storefront-e2e-account-notifications`
@@ -122,3 +147,17 @@ Para validar esos bloques:
 - `backend-domain-core`
 - `frontend-admin-unit`
 - `quality-static`
+
+Etiquetas nuevas relevantes del corpus real:
+
+- `outbound_follow_up`
+- `abandoned_thread`
+- `reengagement_after_gap`
+- `operational_thread_switch`
+- `system_message_interference`
+
+Perfiles explícitos del hilo en el corpus QA:
+
+- `customer_initiated`
+- `business_initiated`
+- `channel_interfered`

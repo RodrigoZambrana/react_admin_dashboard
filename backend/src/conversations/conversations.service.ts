@@ -42,6 +42,7 @@ import { RerouteConversationDto } from './dto/reroute-conversation.dto'
 import { ListConversationContactsDto } from './dto/list-conversation-contacts.dto'
 import { StartContactConversationDto } from './dto/start-contact-conversation.dto'
 import { ConversationAiSuggestionFeedbackDto } from './dto/conversation-ai-suggestion-feedback.dto'
+import { ConversationMessageAttachmentDto } from './dto/conversation-message-attachment.dto'
 import { validateConversationAttachment } from './conversation-attachment-policy'
 import {
   type AiConversationRole,
@@ -84,6 +85,13 @@ const INTERNAL_ASSISTANT_CONTACT_ALIASES = [
   'IA',
   'Chat interno IA operativa',
 ]
+
+const NON_REASONING_AUTHOR_KINDS = new Set(['business_auto', 'channel_system'])
+const NON_REASONING_MESSAGE_KINDS = new Set([
+  'business_auto_reply',
+  'channel_system',
+  'system_event',
+])
 
 const isInternalAssistantSubject = (value?: string | null) => {
   const normalized = String(value || '').trim().toLowerCase()
@@ -496,11 +504,13 @@ export class ConversationsService {
       messages: conversation.messages.map((message) => ({
         id: message.id,
         authorType: this.normalizeEnum(message.authorType),
+        authorKind: this.resolveConversationMessageAuthorKind(message),
         authorLabel: this.resolveConversationMessageAuthorLabel(
           message,
           conversation,
         ),
         kind: this.normalizeEnum(message.kind),
+        messageKind: this.resolveConversationMessageKind(message),
         body: message.body ?? null,
         normalizedText: message.normalizedText ?? null,
         payload: message.payload ?? null,
@@ -1417,6 +1427,8 @@ export class ConversationsService {
                 ? 'customer'
                 : 'agent',
             kind: this.normalizeEnum(message.kind),
+            authorKind: this.resolveConversationMessageAuthorKind(message),
+            messageKind: this.resolveConversationMessageKind(message),
             text: message.body ?? message.normalizedText ?? '',
             createdAt: message.createdAt,
             messageElements: this.extractStoredMessageElements(
@@ -1488,11 +1500,23 @@ export class ConversationsService {
       data: {
         conversationId: conversation.id,
         authorType: ConversationMessageAuthorType.CUSTOMER,
-        kind: ConversationMessageKind.TEXT,
+        kind:
+          attachments.length > 0 && !input.text?.trim()
+            ? this.mapInboundMessageKind(
+                'attachment_only',
+                ConversationChannel.WEBCHAT,
+                attachments,
+              )
+            : ConversationMessageKind.TEXT,
         body: normalizedText,
         normalizedText,
         metadata: this.toJsonValue({
           source: 'webchat',
+          authorKind: 'customer_human',
+          messageKind:
+            attachments.length > 0 && !input.text?.trim()
+              ? 'attachment_only'
+              : 'human_message',
           guestId: input.guestId?.trim() || conversation.externalUserId || null,
           hasAttachments: attachments.length > 0,
           attachments: attachments.length > 0 ? attachments : null,
@@ -1503,6 +1527,11 @@ export class ConversationsService {
         payload:
           attachments.length > 0 || messageElements.length > 0
             ? this.toJsonValue({
+                authorKind: 'customer_human',
+                messageKind:
+                  attachments.length > 0 && !input.text?.trim()
+                    ? 'attachment_only'
+                    : 'human_message',
                 attachments: attachments.length > 0 ? attachments : null,
                 messageElements: messageElements.length > 0 ? messageElements : null,
                 messageContextOrigin:
@@ -1589,6 +1618,9 @@ export class ConversationsService {
       messageElements,
       explicitOrigin: inputMetadata?.messageContextOrigin,
     })
+    const authorKind = this.resolveInboundAuthorKind(input)
+    const messageKind = this.resolveInboundMessageKind(input, authorKind, attachments)
+    const inboundAuthorType = this.mapInboundAuthorType(authorKind)
     if (!normalizedText) {
       throw new BadRequestException('conversation.inboundTextRequired')
     }
@@ -1748,23 +1780,25 @@ export class ConversationsService {
             })
           : null
 
-      const kind =
-        channel === ConversationChannel.EMAIL
-          ? ConversationMessageKind.EMAIL
-          : ConversationMessageKind.TEXT
+      const kind = this.mapInboundMessageKind(messageKind, channel, attachments)
 
       const message = await tx.conversationMessage.create({
         data: {
           conversationId: conversation.id,
-          authorType: ConversationMessageAuthorType.CUSTOMER,
+          authorType: inboundAuthorType,
           kind,
-          authorCustomerId: customer?.id ?? null,
+          authorCustomerId:
+            inboundAuthorType === ConversationMessageAuthorType.CUSTOMER
+              ? customer?.id ?? null
+              : null,
           externalMessageId: input.externalMessageId?.trim() || null,
           inboxMessageId: inboxMessage?.id ?? null,
           body: normalizedText,
           normalizedText,
           payload: this.toJsonValue({
             subject: input.subject?.trim() || null,
+            authorKind,
+            messageKind,
             attachments: attachments.length > 0 ? attachments : null,
             messageElements: messageElements.length > 0 ? messageElements : null,
             messageContextOrigin:
@@ -1773,6 +1807,8 @@ export class ConversationsService {
           metadata: this.toJsonValue({
             source: 'channel-adapter',
             channel: input.channel,
+            authorKind,
+            messageKind,
             hasAttachments: attachments.length > 0,
             attachments: attachments.length > 0 ? attachments : null,
             messageElements: messageElements.length > 0 ? messageElements : null,
@@ -1788,12 +1824,21 @@ export class ConversationsService {
         },
       })
 
+      const shouldAffectCustomerQueue =
+        inboundAuthorType === ConversationMessageAuthorType.CUSTOMER &&
+        !NON_REASONING_AUTHOR_KINDS.has(authorKind) &&
+        !NON_REASONING_MESSAGE_KINDS.has(messageKind)
+
       await tx.conversation.update({
         where: { id: conversation.id },
         data: {
           lastMessageAt: message.createdAt,
-          lastInboundAt: message.createdAt,
-          status: ConversationStatus.WAITING_INTERNAL,
+          ...(shouldAffectCustomerQueue
+            ? {
+                lastInboundAt: message.createdAt,
+                status: ConversationStatus.WAITING_INTERNAL,
+              }
+            : {}),
         },
       })
 
@@ -1815,11 +1860,16 @@ export class ConversationsService {
       return {
         conversationId: conversation.id,
         messageId: message.id,
-        status: 'waiting_internal' as const,
+        status: shouldAffectCustomerQueue
+          ? ('waiting_internal' as const)
+          : this.normalizeEnum(conversation.status),
         controlMode: this.normalizeEnum(conversation.controlMode),
         scope: 'customer_public' as const,
         channel: this.normalizeEnum(channel),
         queue,
+        authorKind,
+        messageKind,
+        shouldCaptureKnowledge: shouldAffectCustomerQueue,
         inboxAccount: inboxAccount
           ? {
               id: inboxAccount.id,
@@ -1830,11 +1880,12 @@ export class ConversationsService {
       }
     })
 
-    if (result.messageId) {
+    if (result.messageId && result.shouldCaptureKnowledge) {
       await this.captureKnowledgeMessage(result.messageId)
     }
 
-    return result
+    const { shouldCaptureKnowledge: _shouldCaptureKnowledge, ...publicResult } = result
+    return publicResult
   }
 
   async takeoverConversation(
@@ -2126,6 +2177,11 @@ export class ConversationsService {
           sentAt: outbound.sentAt,
           metadata: this.toJsonValue({
             source: 'admin-reply',
+            authorKind: 'operator_human',
+            messageKind:
+              input.kind?.trim().toLowerCase() === 'system_event'
+                ? 'system_event'
+                : 'human_message',
             ...(outbound.metadata ?? {}),
             attachments: attachments.length > 0 ? attachments : null,
             messageElements:
@@ -2140,6 +2196,11 @@ export class ConversationsService {
             storedMessageElements.length > 0 ||
             storedMessageContextOrigin.length > 0
               ? this.toJsonValue({
+                  authorKind: 'operator_human',
+                  messageKind:
+                    input.kind?.trim().toLowerCase() === 'system_event'
+                      ? 'system_event'
+                      : 'human_message',
                   attachments: attachments.length > 0 ? attachments : null,
                   messageElements:
                     storedMessageElements.length > 0
@@ -2313,6 +2374,11 @@ export class ConversationsService {
           sentAt: outbound.sentAt,
           metadata: this.toJsonValue({
             source: 'ai-agent-service',
+            authorKind: 'agent_runtime',
+            messageKind:
+              outbound.kind === ConversationMessageKind.SYSTEM_EVENT
+                ? 'system_event'
+                : 'human_message',
             ...(input.metadata ?? {}),
             messageElements:
               storedMessageElements.length > 0 ? storedMessageElements : null,
@@ -2327,6 +2393,11 @@ export class ConversationsService {
           payload:
             storedMessageElements.length > 0 || storedMessageContextOrigin.length > 0
               ? this.toJsonValue({
+                  authorKind: 'agent_runtime',
+                  messageKind:
+                    outbound.kind === ConversationMessageKind.SYSTEM_EVENT
+                      ? 'system_event'
+                      : 'human_message',
                   messageElements:
                     storedMessageElements.length > 0 ? storedMessageElements : null,
                   messageContextOrigin:
@@ -3789,6 +3860,275 @@ export class ConversationsService {
     }
   }
 
+  private extractConversationThreadAuditThread(thread: unknown) {
+    const state = this.asRecord(thread)
+    if (!state) {
+      return null
+    }
+
+    return {
+      key: typeof state.key === 'string' ? state.key : null,
+      baseKey: typeof state.baseKey === 'string' ? state.baseKey : null,
+      baseLabel: typeof state.baseLabel === 'string' ? state.baseLabel : null,
+      baseType: typeof state.baseType === 'string' ? state.baseType : null,
+      familyLabel:
+        typeof state.familyLabel === 'string' ? state.familyLabel : null,
+      displayLabel:
+        typeof state.displayLabel === 'string' ? state.displayLabel : null,
+      resolvedLabel:
+        typeof state.resolvedLabel === 'string' ? state.resolvedLabel : null,
+      variantLabels: Array.isArray(state.variantLabels)
+        ? state.variantLabels.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      confidence:
+        typeof state.confidence === 'number' && Number.isFinite(state.confidence)
+          ? state.confidence
+          : null,
+      source: typeof state.source === 'string' ? state.source : null,
+    }
+  }
+
+  private extractConversationQuoteAuditAttribute(attribute: unknown) {
+    const state = this.asRecord(attribute)
+    if (!state) {
+      return null
+    }
+
+    return {
+      key: typeof state.key === 'string' ? state.key : null,
+      label: typeof state.label === 'string' ? state.label : null,
+      required: state.required !== false,
+      captureKind:
+        typeof state.captureKind === 'string' ? state.captureKind : null,
+      subjectPrefix:
+        typeof state.subjectPrefix === 'string' ? state.subjectPrefix : null,
+    }
+  }
+
+  private extractConversationQuoteCapturedAttribute(attribute: unknown) {
+    const state = this.asRecord(attribute)
+    if (!state) {
+      return null
+    }
+
+    return {
+      value:
+        typeof state.value === 'string' || typeof state.value === 'number'
+          ? state.value
+          : this.asRecord(state.value) ?? null,
+      label: typeof state.label === 'string' ? state.label : null,
+      source: typeof state.source === 'string' ? state.source : null,
+    }
+  }
+
+  private extractConversationQuoteAuditContext(quoteContext: unknown) {
+    const state = this.asRecord(quoteContext)
+    if (!state) {
+      return null
+    }
+
+    return {
+      requiresMeasurements: Boolean(state.requiresMeasurements),
+      familyLabel:
+        typeof state.familyLabel === 'string' ? state.familyLabel : null,
+      topicLabel:
+        typeof state.topicLabel === 'string' ? state.topicLabel : null,
+      profileKey:
+        typeof state.profileKey === 'string' ? state.profileKey : null,
+      profileLabel:
+        typeof state.profileLabel === 'string' ? state.profileLabel : null,
+      missingFields: Array.isArray(state.missingFields)
+        ? state.missingFields.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      requiredFields: Array.isArray(state.requiredFields)
+        ? state.requiredFields.filter(
+            (entry): entry is string => typeof entry === 'string',
+          )
+        : [],
+      requiredAttributes: Array.isArray(state.requiredAttributes)
+        ? state.requiredAttributes
+            .map((entry) => this.extractConversationQuoteAuditAttribute(entry))
+            .filter(Boolean)
+        : [],
+      profileAttributes: Array.isArray(state.profileAttributes)
+        ? state.profileAttributes
+            .map((entry) => this.extractConversationQuoteAuditAttribute(entry))
+            .filter(Boolean)
+        : [],
+      missingAttributes: Array.isArray(state.missingAttributes)
+        ? state.missingAttributes
+            .map((entry) => this.extractConversationQuoteAuditAttribute(entry))
+            .filter(Boolean)
+        : [],
+      completionStatus:
+        typeof state.completionStatus === 'string'
+          ? state.completionStatus
+          : null,
+      closureMode:
+        typeof state.closureMode === 'string' ? state.closureMode : null,
+      quantity:
+        this.asRecord(state.quantity) && typeof this.asRecord(state.quantity)?.total === 'number'
+          ? {
+              total: this.asRecord(state.quantity)?.total as number,
+              source:
+                typeof this.asRecord(state.quantity)?.source === 'string'
+                  ? (this.asRecord(state.quantity)?.source as string)
+                  : null,
+            }
+          : null,
+      measurements: this.asRecord(state.measurements)
+        ? {
+            widthMm:
+              typeof this.asRecord(state.measurements)?.widthMm === 'number'
+                ? (this.asRecord(state.measurements)?.widthMm as number)
+                : null,
+            heightMm:
+              typeof this.asRecord(state.measurements)?.heightMm === 'number'
+                ? (this.asRecord(state.measurements)?.heightMm as number)
+                : null,
+            displayUnit:
+              typeof this.asRecord(state.measurements)?.displayUnit === 'string'
+                ? (this.asRecord(state.measurements)?.displayUnit as string)
+                : null,
+            displayLabel:
+              typeof this.asRecord(state.measurements)?.displayLabel === 'string'
+                ? (this.asRecord(state.measurements)?.displayLabel as string)
+                : null,
+            confirmationLabel:
+              typeof this.asRecord(state.measurements)?.confirmationLabel === 'string'
+                ? (this.asRecord(state.measurements)?.confirmationLabel as string)
+                : null,
+          }
+        : null,
+      capturedAttributes: this.asRecord(state.capturedAttributes)
+        ? Object.fromEntries(
+            Object.entries(this.asRecord(state.capturedAttributes) ?? {})
+              .map(([key, value]) => [
+                key,
+                this.extractConversationQuoteCapturedAttribute(value),
+              ])
+              .filter(([, value]) => Boolean(value)),
+          )
+        : {},
+    }
+  }
+
+  private extractConversationTurnInterpretationAudit(turnInterpretation: unknown) {
+    const state = this.asRecord(turnInterpretation)
+    if (!state) {
+      return null
+    }
+
+    return {
+      category: typeof state.category === 'string' ? state.category : null,
+      currentTurnText:
+        typeof state.currentTurnText === 'string' ? state.currentTurnText : null,
+      intent: this.asRecord(state.intent)
+        ? {
+            key:
+              typeof this.asRecord(state.intent)?.key === 'string'
+                ? (this.asRecord(state.intent)?.key as string)
+                : null,
+            confidence:
+              typeof this.asRecord(state.intent)?.confidence === 'number' &&
+              Number.isFinite(this.asRecord(state.intent)?.confidence)
+                ? (this.asRecord(state.intent)?.confidence as number)
+                : null,
+            source:
+              typeof this.asRecord(state.intent)?.source === 'string'
+                ? (this.asRecord(state.intent)?.source as string)
+                : null,
+            inherited: Boolean(this.asRecord(state.intent)?.inherited),
+          }
+        : null,
+      followUp: this.asRecord(state.followUp)
+        ? {
+            detected: Boolean(this.asRecord(state.followUp)?.detected),
+            inheritedIntentKey:
+              typeof this.asRecord(state.followUp)?.inheritedIntentKey ===
+              'string'
+                ? (this.asRecord(state.followUp)?.inheritedIntentKey as string)
+                : null,
+            confidence:
+              typeof this.asRecord(state.followUp)?.confidence === 'number' &&
+              Number.isFinite(this.asRecord(state.followUp)?.confidence)
+                ? (this.asRecord(state.followUp)?.confidence as number)
+                : null,
+            source:
+              typeof this.asRecord(state.followUp)?.source === 'string'
+                ? (this.asRecord(state.followUp)?.source as string)
+                : null,
+          }
+        : null,
+      topic: this.asRecord(state.topic)
+        ? {
+            label:
+              typeof this.asRecord(state.topic)?.label === 'string'
+                ? (this.asRecord(state.topic)?.label as string)
+                : null,
+            type:
+              typeof this.asRecord(state.topic)?.type === 'string'
+                ? (this.asRecord(state.topic)?.type as string)
+                : null,
+            confidence:
+              typeof this.asRecord(state.topic)?.confidence === 'number' &&
+              Number.isFinite(this.asRecord(state.topic)?.confidence)
+                ? (this.asRecord(state.topic)?.confidence as number)
+                : null,
+            source:
+              typeof this.asRecord(state.topic)?.source === 'string'
+                ? (this.asRecord(state.topic)?.source as string)
+                : null,
+          }
+        : null,
+      retrievalQuery:
+        typeof state.retrievalQuery === 'string' ? state.retrievalQuery : null,
+      operationalQuery:
+        typeof state.operationalQuery === 'string'
+          ? state.operationalQuery
+          : null,
+      threadResolution: this.asRecord(state.threadResolution)
+        ? {
+            threads: Array.isArray(this.asRecord(state.threadResolution)?.threads)
+              ? (this.asRecord(state.threadResolution)?.threads as unknown[])
+                  .map((entry) => this.extractConversationThreadAuditThread(entry))
+                  .filter(Boolean)
+              : [],
+            activeThreadKey:
+              typeof this.asRecord(state.threadResolution)?.activeThreadKey ===
+              'string'
+                ? (this.asRecord(state.threadResolution)?.activeThreadKey as string)
+                : null,
+            activeThread: this.extractConversationThreadAuditThread(
+              this.asRecord(state.threadResolution)?.activeThread,
+            ),
+            multiTopicDetected: Boolean(
+              this.asRecord(state.threadResolution)?.multiTopicDetected,
+            ),
+            requiresDisambiguation: Boolean(
+              this.asRecord(state.threadResolution)?.requiresDisambiguation,
+            ),
+            switchDetected: Boolean(
+              this.asRecord(state.threadResolution)?.switchDetected,
+            ),
+            measurementOnlyTurn: Boolean(
+              this.asRecord(state.threadResolution)?.measurementOnlyTurn,
+            ),
+            promptText:
+              typeof this.asRecord(state.threadResolution)?.promptText ===
+              'string'
+                ? (this.asRecord(state.threadResolution)?.promptText as string)
+                : null,
+          }
+        : null,
+      quoteContext: this.extractConversationQuoteAuditContext(state.quoteContext),
+    }
+  }
+
   private extractConversationAiAuditState(audit: unknown) {
     const state = this.asRecord(audit)
     if (!state) {
@@ -3879,6 +4219,9 @@ export class ConversationsService {
       fallbackActivated: Boolean(state.fallbackActivated),
       taskChanged: Boolean(state.taskChanged),
       createdAt: typeof state.createdAt === 'string' ? state.createdAt : null,
+      turnInterpretation: this.extractConversationTurnInterpretationAudit(
+        state.turnInterpretation,
+      ),
     }
   }
 
@@ -4029,6 +4372,16 @@ export class ConversationsService {
           content: attachment?.content?.trim() || null,
           textContent: attachment?.textContent?.trim() || null,
           metadata: this.asRecord(attachment?.metadata) ?? null,
+        }),
+      )
+      .map(
+        (attachment): ConversationMessageAttachmentDto => ({
+          assetType: attachment.assetType,
+          fileName: attachment.fileName ?? undefined,
+          contentType: attachment.contentType ?? undefined,
+          content: attachment.content ?? undefined,
+          textContent: attachment.textContent ?? undefined,
+          metadata: attachment.metadata ?? undefined,
         }),
       )
       .filter(
@@ -4187,11 +4540,13 @@ export class ConversationsService {
   private resolveConversationMessageAuthorLabel(
     message: {
       authorType: ConversationMessageAuthorType
+      kind?: ConversationMessageKind
       authorUser?: {
         id: number
         name: string | null
         email: string
       } | null
+      payload?: Prisma.JsonValue | null
       metadata?: Prisma.JsonValue | null
     },
     conversation: {
@@ -4212,6 +4567,9 @@ export class ConversationsService {
       externalUserId?: string | null
     },
   ) {
+    const metadataRecord = this.asRecord(message.metadata)
+    const authorKind = this.resolveConversationMessageAuthorKind(message)
+
     if (message.authorType === ConversationMessageAuthorType.OPERATOR) {
       return (
         message.authorUser?.name?.trim() ||
@@ -4224,8 +4582,35 @@ export class ConversationsService {
       return 'Asistente IA'
     }
 
+    if (message.authorType === ConversationMessageAuthorType.SYSTEM) {
+      const explicitLabel =
+        (typeof metadataRecord?.displayName === 'string'
+          ? metadataRecord.displayName
+          : null) ||
+        (typeof metadataRecord?.fromName === 'string'
+          ? metadataRecord.fromName
+          : null)
+
+      if (explicitLabel) {
+        return explicitLabel
+      }
+
+      if (authorKind === 'business_auto') {
+        return 'Respuesta automática'
+      }
+
+      if (authorKind === 'business_human') {
+        return 'Negocio'
+      }
+
+      if (authorKind === 'channel_system') {
+        return 'Sistema del canal'
+      }
+
+      return 'Sistema'
+    }
+
     if (message.authorType === ConversationMessageAuthorType.CUSTOMER) {
-      const metadataRecord = this.asRecord(message.metadata)
       return (
         (typeof metadataRecord?.displayName === 'string'
           ? metadataRecord.displayName
@@ -4244,6 +4629,183 @@ export class ConversationsService {
     }
 
     return this.normalizeEnum(message.authorType)
+  }
+
+  private resolveConversationMessageAuthorKind(message: {
+    authorType: ConversationMessageAuthorType
+    metadata?: Prisma.JsonValue | null
+  }) {
+    const metadataRecord = this.asRecord(message.metadata)
+    const explicitAuthorKind =
+      typeof metadataRecord?.authorKind === 'string'
+        ? metadataRecord.authorKind.trim().toLowerCase()
+        : null
+
+    if (explicitAuthorKind) {
+      return explicitAuthorKind
+    }
+
+    if (message.authorType === ConversationMessageAuthorType.CUSTOMER) {
+      return 'customer_human'
+    }
+
+    if (message.authorType === ConversationMessageAuthorType.OPERATOR) {
+      return 'operator_human'
+    }
+
+    if (message.authorType === ConversationMessageAuthorType.AGENT) {
+      return 'agent_runtime'
+    }
+
+    return 'channel_system'
+  }
+
+  private resolveConversationMessageKind(message: {
+    kind: ConversationMessageKind
+    body?: string | null
+    normalizedText?: string | null
+    payload?: Prisma.JsonValue | null
+    metadata?: Prisma.JsonValue | null
+  }) {
+    const metadataRecord = this.asRecord(message.metadata)
+    const explicitMessageKind =
+      typeof metadataRecord?.messageKind === 'string'
+        ? metadataRecord.messageKind.trim().toLowerCase()
+        : null
+
+    if (explicitMessageKind) {
+      return explicitMessageKind
+    }
+
+    if (message.kind === ConversationMessageKind.SYSTEM_EVENT) {
+      return 'channel_system'
+    }
+
+    const payloadRecord = this.asRecord(message.payload)
+    const hasAttachments =
+      (Array.isArray(payloadRecord?.attachments) && payloadRecord.attachments.length > 0) ||
+      (Array.isArray(metadataRecord?.attachments) && metadataRecord.attachments.length > 0)
+
+    if (!String(message.body ?? message.normalizedText ?? '').trim() && hasAttachments) {
+      return 'attachment_only'
+    }
+
+    return 'human_message'
+  }
+
+  private resolveInboundAuthorKind(input: IngestInboundMessageDto) {
+    const metadataRecord = this.asRecord(input.metadata)
+    const explicitAuthorKind =
+      typeof input.authorKind === 'string' && input.authorKind.trim().length > 0
+        ? input.authorKind.trim().toLowerCase()
+        : typeof metadataRecord?.authorKind === 'string' &&
+            metadataRecord.authorKind.trim().length > 0
+          ? metadataRecord.authorKind.trim().toLowerCase()
+          : null
+
+    if (explicitAuthorKind) {
+      return explicitAuthorKind
+    }
+
+    return 'customer_human'
+  }
+
+  private resolveInboundMessageKind(
+    input: IngestInboundMessageDto,
+    authorKind: string,
+    attachments: ConversationMessageAttachmentDto[],
+  ) {
+    const metadataRecord = this.asRecord(input.metadata)
+    const explicitMessageKind =
+      typeof input.messageKind === 'string' && input.messageKind.trim().length > 0
+        ? input.messageKind.trim().toLowerCase()
+        : typeof metadataRecord?.messageKind === 'string' &&
+            metadataRecord.messageKind.trim().length > 0
+          ? metadataRecord.messageKind.trim().toLowerCase()
+          : null
+
+    if (explicitMessageKind) {
+      return explicitMessageKind
+    }
+
+    if (authorKind === 'channel_system') {
+      return 'channel_system'
+    }
+
+    if (authorKind === 'business_auto') {
+      return 'business_auto_reply'
+    }
+
+    if (!input.text?.trim() && attachments.length > 0) {
+      return 'attachment_only'
+    }
+
+    return 'human_message'
+  }
+
+  private mapInboundAuthorType(authorKind: string) {
+    switch (authorKind) {
+      case 'operator_human':
+        return ConversationMessageAuthorType.OPERATOR
+      case 'agent_runtime':
+        return ConversationMessageAuthorType.AGENT
+      case 'business_human':
+      case 'business_auto':
+      case 'channel_system':
+        return ConversationMessageAuthorType.SYSTEM
+      case 'customer_human':
+      case 'unknown':
+      default:
+        return ConversationMessageAuthorType.CUSTOMER
+    }
+  }
+
+  private mapInboundMessageKind(
+    messageKind: string,
+    channel: ConversationChannel,
+    attachments: ConversationMessageAttachmentDto[],
+  ) {
+    if (
+      messageKind === 'channel_system' ||
+      messageKind === 'business_auto_reply' ||
+      messageKind === 'system_event'
+    ) {
+      return ConversationMessageKind.SYSTEM_EVENT
+    }
+
+    if (attachments.length > 0 && !['human_message', 'attachment_only'].includes(messageKind)) {
+      const primaryAttachment = attachments[0]
+      if (
+        primaryAttachment?.assetType &&
+        ['image', 'photo', 'jpeg', 'jpg', 'png', 'webp'].includes(
+          String(primaryAttachment.assetType).trim().toLowerCase(),
+        )
+      ) {
+        return ConversationMessageKind.IMAGE
+      }
+
+      return ConversationMessageKind.FILE
+    }
+
+    if (channel === ConversationChannel.EMAIL) {
+      return ConversationMessageKind.EMAIL
+    }
+
+    if (messageKind === 'attachment_only' && attachments.length > 0) {
+      const primaryAttachment = attachments[0]
+      if (
+        primaryAttachment?.assetType &&
+        ['image', 'photo', 'jpeg', 'jpg', 'png', 'webp'].includes(
+          String(primaryAttachment.assetType).trim().toLowerCase(),
+        )
+      ) {
+        return ConversationMessageKind.IMAGE
+      }
+
+      return ConversationMessageKind.FILE
+    }
+
+    return ConversationMessageKind.TEXT
   }
 
   private mapAssetTypeToStoredMessageElementKind(value: unknown) {
@@ -4719,6 +5281,9 @@ export class ConversationsService {
         typeof sourceState?.createdAt === 'string'
           ? sourceState.createdAt
           : new Date().toISOString(),
+      turnInterpretation: this.extractConversationTurnInterpretationAudit(
+        sourceState?.turnInterpretation,
+      ),
     }
   }
 

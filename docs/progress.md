@@ -6,6 +6,13 @@ The repository is on branch `codex-ai-agent-foundation`.
 
 Commerce, admin and QA baselines were already hardened before the current AI slice.
 
+Latest hardening added on 2026-03-27:
+
+- destructive maintenance scripts now block in production-like environments
+- destructive maintenance scripts now block against remote databases by default
+- `regression:prepare` now defaults to `dry-run`
+- cleanup/apply execution requires explicit confirmation
+
 The AI foundation now includes:
 
 - canonical conversation persistence in backend

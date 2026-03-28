@@ -645,7 +645,7 @@ const esTranslations: Record<string, string> = {
   "account.profile.emailVerification.errors.generic":
     "No pudimos reenviar el correo de verificación.",
   "account.profile.details.status": "Estado",
-  "account.orders.errors.noLongerAvailable": "Este elemento ya no está disponible.",
+  "account.orders.errors.noLongerAvailable": "Este pedido no está disponible para esta cuenta o ya no existe.",
   "auth.emailVerification.emailRequired": "Debes tener un correo electrónico para verificar la cuenta.",
   "auth.emailVerification.alreadyVerified": "Tu correo ya fue verificado.",
   "auth.emailVerification.invalidToken": "El enlace de verificación es inválido o ya venció.",

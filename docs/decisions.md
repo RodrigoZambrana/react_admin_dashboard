@@ -2,6 +2,15 @@
 
 ## Active Decisions
 
+### Critical maintenance scripts are local-only and explicitly confirmed
+
+- `prepare-regression-state`, `reset-admin` and `bootstrap-fresh-local-db` must remain CLI-only maintenance paths, never HTTP-triggerable flows.
+- Destructive execution is blocked in `production / prod / live` environments.
+- Destructive execution requires explicit confirmation instead of relying on script names.
+- Cleanup entrypoints should default to `dry-run`; destructive apply should be a separate explicit command.
+- Non-local database targets are blocked by default unless a deliberate non-production override is set.
+- Reason: avoid accidental or hostile data loss through maintenance tooling, especially during test/prod convergence.
+
 ### AI runtime stays decoupled
 
 - `services/ai-agent-service` and `services/channel-adapter` remain independent services

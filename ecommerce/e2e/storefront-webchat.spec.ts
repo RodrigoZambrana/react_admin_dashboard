@@ -47,6 +47,17 @@ async function sendStorefrontMessageWithEnter(page: Page, text: string) {
   ).toBeVisible({ timeout: 30_000 });
 }
 
+async function readStoredWebchatSession(page: Page) {
+  const sessionRaw = await page.evaluate(() =>
+    window.localStorage.getItem("storefront.webchat.session.v1"),
+  );
+  expect(sessionRaw).toBeTruthy();
+  return JSON.parse(sessionRaw as string) as {
+    conversationId: string;
+    scope: string;
+  };
+}
+
 async function createWebchatSessionSnapshot(
   request: APIRequestContext,
   input: {
@@ -128,14 +139,7 @@ test("public storefront webchat uses floating bubble, sends a message and restor
 
   await sendStorefrontMessage(page, "Quiero precio de cortina roller");
 
-  const sessionRaw = await page.evaluate(() =>
-    window.localStorage.getItem("storefront.webchat.session.v1"),
-  );
-  expect(sessionRaw).toBeTruthy();
-  const session = JSON.parse(sessionRaw as string) as {
-    conversationId: string;
-    scope: string;
-  };
+  const session = await readStoredWebchatSession(page);
   expect(session.conversationId).toBeTruthy();
   expect(session.scope).toBe("customer_public");
 
@@ -150,6 +154,49 @@ test("public storefront webchat uses floating bubble, sends a message and restor
   await expect(
     page.locator('[data-testid="storefront-webchat-message-agent"]').last(),
   ).toBeVisible({ timeout: 30_000 });
+});
+
+test("public storefront webchat can start a new chat without restoring the previous transcript after reload", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("storefront.locale.v1", "es");
+  });
+
+  await page.goto(storefrontBaseUrl, {
+    waitUntil: "domcontentloaded",
+  });
+  await openStorefrontChat(page);
+
+  const firstPrompt = "Quiero presupuesto para una roller blackout.";
+  await sendStorefrontMessage(page, firstPrompt);
+
+  const firstSession = await readStoredWebchatSession(page);
+  await expect(page.getByTestId("storefront-webchat-restart")).toBeVisible();
+
+  await page.getByTestId("storefront-webchat-restart").click();
+
+  await expect(
+    page.locator('[data-testid="storefront-webchat-message-customer"]'),
+  ).toHaveCount(0);
+  await expect(page.getByText("Hola. ¿En qué podemos ayudarte hoy?")).toBeVisible();
+
+  const secondSession = await readStoredWebchatSession(page);
+  expect(secondSession.scope).toBe("customer_public");
+  expect(secondSession.conversationId).not.toBe(firstSession.conversationId);
+
+  const secondPrompt = "Necesito saber horarios.";
+  await sendStorefrontMessage(page, secondPrompt);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await openStorefrontChat(page);
+
+  await expect(
+    page.locator('[data-testid="storefront-webchat-message-customer"]').last(),
+  ).toContainText(secondPrompt, {
+    timeout: 20_000,
+  });
+  await expect(page.getByText(firstPrompt)).toHaveCount(0);
 });
 
 test("storefront webchat keeps greetings short and topic answers focused", async ({
@@ -228,15 +275,9 @@ test("authenticated storefront webchat keeps authenticated scope and restores tr
   const prompt = "Necesito ayuda con mi pedido y saber si tienen instalación.";
   await sendStorefrontMessage(page, prompt);
 
-  const sessionRaw = await page.evaluate(() =>
-    window.localStorage.getItem("storefront.webchat.session.v1"),
-  );
-  expect(sessionRaw).toBeTruthy();
-  const session = JSON.parse(sessionRaw as string) as {
-    conversationId: string;
-    scope: string;
-  };
+  const session = await readStoredWebchatSession(page);
   expect(session.scope).toBe("customer_authenticated");
+  await expect(page.getByTestId("storefront-webchat-restart")).toHaveCount(0);
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await openStorefrontChat(page);

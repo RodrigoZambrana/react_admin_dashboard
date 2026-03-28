@@ -31,6 +31,9 @@ export type ConversationMemorySnapshot = {
   taskState?: {
     taskId: string
     intentKey: string
+    state?: string | null
+    stateHistory?: string[]
+    lastTransitionAt?: string | null
     topicTokens: string[]
     taskSummary?: string | null
     currentTask?: {

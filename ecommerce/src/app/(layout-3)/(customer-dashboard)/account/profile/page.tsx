@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import ProfileClient from "./ProfileClient";
 
 export default function AccountProfilePage() {
-  return <ProfileClient />;
+  return (
+    <Suspense fallback={null}>
+      <ProfileClient />
+    </Suspense>
+  );
 }

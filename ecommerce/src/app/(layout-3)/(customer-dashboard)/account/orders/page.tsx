@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import OrdersClient from "./OrdersClient";
 
 export default function AccountOrdersPage() {
-  return <OrdersClient />;
+  return (
+    <Suspense fallback={null}>
+      <OrdersClient />
+    </Suspense>
+  );
 }

@@ -26,6 +26,7 @@ export type Category = {
 type Message = {
     id: string | number
     name: string
+    authorLabel?: string | null
     mail: string[]
     from: string
     avatar: string
@@ -45,6 +46,7 @@ type Message = {
 export type Mail = {
     id: string | number
     name: string
+    authorLabel?: string | null
     label: string
     group: string
     folder?: string | null
@@ -163,6 +165,7 @@ const buildMailFromInboxMessage = (
         message.from?.name ??
         ''
     const fromName =
+        message.authorLabel ??
         message.from?.name ??
         fromAddress
     const metadataBase =
@@ -183,6 +186,7 @@ const buildMailFromInboxMessage = (
     const messageEntry: Message = {
         id: message.id,
         name: fromName,
+        authorLabel: message.authorLabel ?? fromName,
         mail: message.to ?? [],
         from: fromAddress,
         avatar: '',
@@ -206,6 +210,7 @@ const buildMailFromInboxMessage = (
     const mailObject: Mail = {
         id: message.id,
         name: fromName,
+        authorLabel: message.authorLabel ?? fromName,
         label: message.folder ?? 'Inbox',
         group,
         folder: message.folder ?? null,
@@ -247,6 +252,12 @@ const buildMailFromInboxThread = (
     const messages: Message[] = thread.messages.map((entry) => ({
         id: entry.id,
         name:
+            entry.authorLabel ??
+            entry.from?.name ??
+            entry.from?.address ??
+            '',
+        authorLabel:
+            entry.authorLabel ??
             entry.from?.name ??
             entry.from?.address ??
             '',
@@ -269,6 +280,12 @@ const buildMailFromInboxThread = (
     return applyMailLocalState({
         id: thread.id,
         name:
+            thread.authorLabel ??
+            thread.from?.name ??
+            thread.from?.address ??
+            '',
+        authorLabel:
+            thread.authorLabel ??
             thread.from?.name ??
             thread.from?.address ??
             '',

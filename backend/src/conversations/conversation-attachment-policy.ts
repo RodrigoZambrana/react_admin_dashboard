@@ -145,7 +145,7 @@ const isAllowedMimeForAssetType = (assetType: string, contentType: string | null
 export const validateConversationAttachment = (
   attachment: AttachmentInput,
 ): Required<Pick<AttachmentInput, 'metadata'>> &
-  Omit<AttachmentInput, 'metadata'> & { assetType: string | null } => {
+  Omit<AttachmentInput, 'metadata'> & { assetType: string } => {
   const assetType =
     normalizeAssetType(attachment.assetType) ||
     normalizeAssetType(attachment.contentType) ||

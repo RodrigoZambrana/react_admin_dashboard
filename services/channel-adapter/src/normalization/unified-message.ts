@@ -22,6 +22,22 @@ export type UnifiedRole =
 
 export type UnifiedAuthLevel = 'anonymous' | 'customer' | 'admin'
 
+export type UnifiedAuthorKind =
+  | 'customer_human'
+  | 'business_human'
+  | 'business_auto'
+  | 'channel_system'
+  | 'operator_human'
+  | 'agent_runtime'
+  | 'unknown'
+
+export type UnifiedMessageKind =
+  | 'human_message'
+  | 'business_auto_reply'
+  | 'channel_system'
+  | 'attachment_only'
+  | 'system_event'
+
 export type UnifiedMessage = {
   channel: UnifiedChannel
   tenantKey: string
@@ -29,6 +45,7 @@ export type UnifiedMessage = {
   scope: UnifiedScope
   role?: UnifiedRole
   text: string
+  customerId?: number | null
   messageId?: string
   conversationId?: string
   inboxId?: string
@@ -39,6 +56,8 @@ export type UnifiedMessage = {
   directCapabilities?: string[]
   capabilityEnvelope?: string[]
   authenticated?: boolean
+  authorKind: UnifiedAuthorKind
+  messageKind: UnifiedMessageKind
   attachments?: Array<{
     assetType?: string
     fileName?: string
@@ -47,5 +66,6 @@ export type UnifiedMessage = {
     textContent?: string
     metadata?: Record<string, unknown>
   }>
+  messageElements?: Array<Record<string, unknown>>
   metadata?: Record<string, unknown>
 }

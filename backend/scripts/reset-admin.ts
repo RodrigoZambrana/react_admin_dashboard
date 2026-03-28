@@ -1,5 +1,9 @@
 import { PrismaClient } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
+import {
+  assertMaintenanceScriptSafety,
+  loadEnvFromBackendRoot,
+} from './script-safety'
 
 const prisma = new PrismaClient()
 
@@ -8,6 +12,14 @@ const DEFAULT_NAME = process.env.DEFAULT_ADMIN_NAME || 'Admin'
 const DEFAULT_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD
 
 async function main() {
+  loadEnvFromBackendRoot()
+  assertMaintenanceScriptSafety({
+    scriptName: 'reset-admin',
+    argv: process.argv.slice(2),
+    destructive: true,
+    defaultDryRun: false,
+  })
+
   if (!DEFAULT_PASSWORD?.trim()) {
     throw new Error('DEFAULT_ADMIN_PASSWORD must be provided to reset the admin user.')
   }

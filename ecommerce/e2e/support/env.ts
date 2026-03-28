@@ -5,3 +5,6 @@ export const databaseUrl =
   process.env.PLAYWRIGHT_DATABASE_URL ??
   process.env.DATABASE_URL ??
   "postgresql://postgres:postgres@127.0.0.1:5432/react_admin_dashboard?schema=public";
+
+export const inboxEmailAddress =
+  process.env.PLAYWRIGHT_INBOX_EMAIL_ADDRESS ?? "desarrollo@software-strategy.com";

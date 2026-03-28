@@ -1,0 +1,1 @@
+ALTER TYPE "KnowledgeSourceType" ADD VALUE IF NOT EXISTS 'WEB_URL';

@@ -4577,7 +4577,11 @@ export class StorefrontService implements OnModuleInit {
     }
   }
 
-  private async resolveCustomerOrderId(customerId: number, identifier: string): Promise<number> {
+  private async resolveOwnedCustomerDocumentId(
+    customerId: number,
+    identifier: string,
+    documentType: DocumentType,
+  ): Promise<number> {
     const normalized = identifier.trim()
     if (!normalized) {
       throw new NotFoundException('Order not found')
@@ -4590,7 +4594,7 @@ export class StorefrontService implements OnModuleInit {
     const order = await this.prisma.order.findFirst({
       where: {
         customerId,
-        documentType: DocumentType.ORDER,
+        documentType,
         uuid: { equals: normalized, mode: 'insensitive' },
       },
       select: { id: true },
@@ -4599,6 +4603,14 @@ export class StorefrontService implements OnModuleInit {
       throw new NotFoundException('Order not found')
     }
     return order.id
+  }
+
+  private async resolveCustomerOrderId(customerId: number, identifier: string): Promise<number> {
+    return this.resolveOwnedCustomerDocumentId(
+      customerId,
+      identifier,
+      DocumentType.ORDER,
+    )
   }
 
   private async getWishlistSummary(customerId: number) {

@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 import {
   createAdminInternalSessionForUser,
   createManagedAdminUser,
+  startAdminInternalAssistantConversationForUser,
 } from "./support/admin-api";
 import { loginAsAdmin, loginAsAdminUser, resolveAdminAppUrl } from "./support/admin-ui";
 
@@ -16,6 +17,13 @@ async function createWebchatConversation(
     email: string;
     text: string;
     authenticated?: boolean;
+    attachments?: Array<{
+      assetType?: string;
+      fileName?: string;
+      contentType?: string;
+      textContent?: string;
+      metadata?: Record<string, unknown>;
+    }>;
   },
 ) {
   const sessionResponse = await request.post(
@@ -46,13 +54,22 @@ async function createWebchatConversation(
         conversationId: sessionPayload.conversationId,
         guestId: sessionPayload.guestId ?? input.guestId,
         text: input.text,
+        attachments: input.attachments ?? [],
       },
     },
   );
 
   expect(messageResponse.ok()).toBeTruthy();
+  const messagePayload = (await messageResponse.json()) as {
+    message?: {
+      id?: string;
+    };
+  };
 
-  return sessionPayload;
+  return {
+    ...sessionPayload,
+    messageId: messagePayload.message?.id ?? null,
+  };
 }
 
 async function createWebchatConversationWithAgentReply(
@@ -115,7 +132,9 @@ async function openInternalAssistantContact(page: Page) {
   });
   const searchInput = page.getByTestId("admin-conversations-contact-search");
   const contact = page.getByTestId("admin-conversations-contact-internal-assistant");
-  await searchInput.fill("Agente IA");
+  if (!(await contact.isVisible().catch(() => false))) {
+    await searchInput.fill("Agente IA");
+  }
   if (!(await contact.isVisible().catch(() => false))) {
     await searchInput.fill("Asistente interno");
   }
@@ -155,6 +174,11 @@ test.describe.serial("admin inbox regression", () => {
 
     const list = page.getByTestId("admin-conversations-list");
     await expect(list).toBeVisible({ timeout: 20_000 });
+    await expect(
+      page.getByTestId("admin-conversations-list-refresh-indicator"),
+    ).toContainText(`Cargadas ${created.length} de ${created.length} conversaciones`, {
+      timeout: 20_000,
+    });
 
     const scrollTopBefore = await list.evaluate((element) => {
       element.scrollTop = element.scrollHeight;
@@ -166,13 +190,8 @@ test.describe.serial("admin inbox regression", () => {
     const conversationRows = list.locator(
       'button.chat-user-list[data-testid^="admin-conversation-"]',
     );
-    await expect
-      .poll(async () => conversationRows.count(), {
-        timeout: 20_000,
-      })
-      .toBeGreaterThanOrEqual(10);
     const rowCount = await conversationRows.count();
-    expect(rowCount).toBeGreaterThanOrEqual(10);
+    expect(rowCount).toBe(created.length);
 
     const targetRow = conversationRows.nth(rowCount - 1);
     const targetTestId = await targetRow.getAttribute("data-testid");
@@ -192,10 +211,32 @@ test.describe.serial("admin inbox regression", () => {
       target?.name ?? "",
       { timeout: 20_000 },
     );
+    await expect(page.getByTestId("admin-conversation-details-open")).toBeVisible();
+    await expect(page.getByTestId("admin-conversation-reply-input")).toBeVisible();
+    await expect(page.getByTestId("admin-conversation-reply-submit")).toBeVisible();
 
-    const scrollTopAfter = await list.evaluate((element) => element.scrollTop);
-    expect(scrollTopAfter).toBeGreaterThan(20);
-    expect(Math.abs(scrollTopAfter - scrollTopBefore)).toBeLessThan(220);
+    await expect
+      .poll(
+        async () =>
+          list.evaluate(
+            (element, before) => Math.abs(element.scrollTop - before),
+            scrollTopBefore,
+          ),
+        {
+          timeout: 2_000,
+        },
+      )
+      .toBeLessThan(220);
+
+    const scrollTopAfter = await list.evaluate(
+      (element, before) => ({
+        top: element.scrollTop,
+        delta: Math.abs(element.scrollTop - before),
+      }),
+      scrollTopBefore,
+    );
+    expect(scrollTopAfter.top).toBeGreaterThan(20);
+    expect(scrollTopAfter.delta).toBeLessThan(220);
     await expect(targetRow).toBeVisible();
   });
 
@@ -277,13 +318,9 @@ test.describe.serial("admin inbox regression", () => {
           capabilityGroups: ["support"],
         });
 
-        const conversation = await createAdminInternalSessionForUser(
+        const conversation = await startAdminInternalAssistantConversationForUser(
           request,
           { email, password },
-          {
-            subject: "Agente IA",
-            message: `Filtro interno ${suffix} ${uniqueId}`,
-          },
         );
 
         return { email, password, conversation };
@@ -305,6 +342,11 @@ test.describe.serial("admin inbox regression", () => {
       timeout: 20_000,
     });
     await page.getByTestId("admin-conversations-channel-admin_chat").click();
+    await expect(
+      page.getByTestId("admin-conversations-list-refresh-indicator"),
+    ).toContainText("Cargadas 1 de 1 conversaciones", {
+      timeout: 20_000,
+    });
 
     const rows = page.locator(
       'button.chat-user-list[data-testid^="admin-conversation-"]',
@@ -352,6 +394,59 @@ test.describe.serial("admin inbox regression", () => {
     await expect(row).toBeVisible({ timeout: 20_000 });
     await expect(row).toContainText("IA:");
     await expect(row).toContainText("¿En qué podemos ayudarte hoy?", {
+      timeout: 20_000,
+    });
+  });
+
+  test("conversation detail shows per-message interpreted context for attachment-based customer messages", async ({
+    page,
+    request,
+  }) => {
+    const uniqueId = Date.now();
+    const guestId = `message-elements-${uniqueId}`;
+    const email = `message.elements.${uniqueId}@example.com`;
+    const name = `Message Elements ${uniqueId}`;
+
+    const conversation = await createWebchatConversation(request, {
+      guestId,
+      name,
+      email,
+      text: "Registralo según el audio adjunto",
+      attachments: [
+        {
+          assetType: "audio",
+          fileName: "nota.webm",
+          contentType: "audio/webm",
+          textContent:
+            "Registrar cliente Carlos Rodriguez con correo carlos@example.com",
+        },
+      ],
+    });
+
+    expect(conversation.messageId).toBeTruthy();
+
+    await loginAsAdmin(page);
+    await page.goto(resolveAdminAppUrl("/app/crm/conversations"), {
+      waitUntil: "domcontentloaded",
+    });
+
+    await page.getByTestId("admin-conversations-search-input").fill(guestId);
+    const row = page.getByTestId(`admin-conversation-${conversation.conversationId}`);
+    await expect(row).toBeVisible({ timeout: 20_000 });
+    await row.click();
+
+    await expect(page).toHaveURL(
+      new RegExp(`/app/crm/conversations/${conversation.conversationId}$`),
+    );
+    const interpretedContext = page.getByText("Contexto interpretado").last();
+    await expect(interpretedContext).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/Origen:\s*message_text/i).last()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/nota\.webm/i).last()).toBeVisible({
+      timeout: 20_000,
+    });
+    await expect(page.getByText(/Carlos Rodriguez/i).last()).toBeVisible({
       timeout: 20_000,
     });
   });

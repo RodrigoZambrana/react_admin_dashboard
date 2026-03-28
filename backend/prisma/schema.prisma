@@ -110,6 +110,26 @@ enum ProductMode {
   PARAMETRIC
 }
 
+enum InstallationResolutionMode {
+  INCLUDED
+  OPTIONAL_ADD_ON
+  SEPARATE_SERVICE
+  NOT_OFFERED
+  UNKNOWN
+}
+
+enum InstallationChargeScope {
+  PER_QUOTE
+  MATCH_PRODUCT_QUANTITY
+  MATCH_PRODUCT_MEASUREMENTS
+}
+
+enum InstallationPricePresentationMode {
+  EXACT
+  FROM_BASE
+  HIDDEN
+}
+
 enum ProductAttributeType {
   COLOR
   SIZE
@@ -238,6 +258,7 @@ enum InboxQueueAssignmentMode {
 
 enum KnowledgeSourceType {
   DOCS
+  WEB_URL
   BACKEND_DATASET
   ADMIN_CURATED
   CONVERSATION_DERIVED
@@ -258,6 +279,88 @@ enum KnowledgeCandidateStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum KnowledgeRawEventStatus {
+  NEW
+  PROCESSED
+  DISCARDED
+}
+
+enum KnowledgeIngestionRunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum KnowledgeSuggestionFeedbackOutcome {
+  USED
+  EDITED
+  DISCARDED
+}
+
+enum KnowledgeSnapshotStatus {
+  BUILDING
+  READY
+  FAILED
+  STALE
+}
+
+enum KnowledgeSnapshotEntryType {
+  TOPIC_SUMMARY
+  APPROVED_RULE
+  APPROVED_RESPONSE_PATTERN
+  GUARDRAIL_NEGATIVE
+  KNOWN_GAP
+  OPERATIONAL_NOTE
+}
+
+enum KnowledgeSnapshotSourceKind {
+  KNOWLEDGE_DOCUMENT
+  KNOWLEDGE_CANDIDATE
+  KNOWLEDGE_RAW_EVENT
+  KNOWLEDGE_CONVERSATION_BUNDLE
+  KNOWLEDGE_NEGATIVE_EXAMPLE
+  KNOWLEDGE_FEEDBACK
+}
+
+enum KnowledgeSnapshotSourceRole {
+  PRIMARY_SUPPORT
+  SECONDARY_SUPPORT
+  GUARDRAIL
+  COUNTEREXAMPLE
+  PENDING_SIGNAL
+}
+
+enum KnowledgeConversationBundleStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum KnowledgeNegativeExampleStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum KnowledgeNegativeExampleSourceKind {
+  REJECTED_CANDIDATE
+  DISCARDED_FEEDBACK
+  MANUAL
+}
+
+enum KnowledgeDerivedArtifactType {
+  TOPIC_TAXONOMY
+  QUOTE_PROFILE_HINTS
+  MEASUREMENT_CARRIER_TERMS
+  KEYWORD_LEXICON
+}
+
+enum KnowledgeDerivedArtifactStatus {
+  ACTIVE
+  DISABLED
+  STALE
 }
 
 enum EmailCategory {
@@ -429,6 +532,13 @@ model User {
   approvedKnowledgeDocuments     KnowledgeDocument[]        @relation("KnowledgeDocumentApprovedByUser")
   createdKnowledgeCandidates     KnowledgeCandidate[]       @relation("KnowledgeCandidateCreatedByUser")
   reviewedKnowledgeCandidates    KnowledgeCandidate[]       @relation("KnowledgeCandidateReviewedByUser")
+  createdKnowledgeIngestionRuns  KnowledgeIngestionRun[]    @relation("KnowledgeIngestionRunCreatedByUser")
+  knowledgeSuggestionFeedbacks   KnowledgeSuggestionFeedback[] @relation("KnowledgeSuggestionFeedbackActorUser")
+  generatedKnowledgeSnapshots    KnowledgeSnapshot[]        @relation("KnowledgeSnapshotGeneratedByUser")
+  createdKnowledgeConversationBundles KnowledgeConversationBundle[] @relation("KnowledgeConversationBundleCreatedByUser")
+  reviewedKnowledgeConversationBundles KnowledgeConversationBundle[] @relation("KnowledgeConversationBundleReviewedByUser")
+  createdKnowledgeNegativeExamples KnowledgeNegativeExample[] @relation("KnowledgeNegativeExampleCreatedByUser")
+  reviewedKnowledgeNegativeExamples KnowledgeNegativeExample[] @relation("KnowledgeNegativeExampleReviewedByUser")
 }
 
 model UserDevice {
@@ -639,6 +749,11 @@ model Product {
   specifications            String?
   categoryId                Int?
   category                  ProductCategory?              @relation(fields: [categoryId], references: [id])
+  installationResolutionMode InstallationResolutionMode?
+  installationChargeScope   InstallationChargeScope?
+  installationPricePresentationMode InstallationPricePresentationMode?
+  installServiceProductId   Int?
+  installServiceProduct     Product?                      @relation("ProductInstallService", fields: [installServiceProductId], references: [id], onDelete: SetNull)
   productType               ProductType                   @default(PHYSICAL)
   mode                      ProductMode                   @default(SIMPLE)
   salePrice                 Decimal                       @default(0) @map("precio_venta") @db.Decimal(12, 2)
@@ -664,9 +779,12 @@ model Product {
   updatedAt                 DateTime                      @updatedAt
   orderItems                OrderItem[]
   installServiceForCategory ProductCategory?              @relation("CategoryInstallService")
+  installServiceForProduct  Product[]                     @relation("ProductInstallService")
   priceMatrix               DimensionPriceMatrix[]
   parametricMatrixStaging   ParametricMatrixStaging[]     @relation("ProductParametricMatrixStaging")
   compatibilityRules        ParametricCompatibilityRule[]
+
+  @@index([installServiceProductId])
 }
 
 model ProductImage {
@@ -768,6 +886,9 @@ model ProductCategory {
   children                ProductCategory[] @relation("CategoryHierarchy")
   products                Product[]
   cmsEntries              CmsEntry[]
+  installationResolutionMode InstallationResolutionMode?
+  installationChargeScope   InstallationChargeScope?
+  installationPricePresentationMode InstallationPricePresentationMode?
   installServiceProductId Int?
   installServiceProduct   Product?          @relation("CategoryInstallService", fields: [installServiceProductId], references: [id], onDelete: SetNull)
 
@@ -1586,6 +1707,10 @@ model Conversation {
   toolCalls           ConversationToolCall[]
   readStates          ConversationReadState[]
   knowledgeCandidates KnowledgeCandidate[]
+  knowledgeRawEvents  KnowledgeRawEvent[]
+  knowledgeSuggestionFeedbacks KnowledgeSuggestionFeedback[]
+  knowledgeConversationBundle KnowledgeConversationBundle?
+  knowledgeNegativeExamples KnowledgeNegativeExample[]
 
   @@unique([tenantKey, channel, externalThreadId])
   @@index([tenantKey, scope, channel, status])
@@ -1650,6 +1775,9 @@ model ConversationMessage {
   createdAt           DateTime                      @default(now())
   toolCalls           ConversationToolCall[]
   knowledgeCandidates KnowledgeCandidate[]
+  knowledgeRawEvents  KnowledgeRawEvent[]
+  targetedKnowledgeSuggestionFeedbacks KnowledgeSuggestionFeedback[] @relation("KnowledgeSuggestionTargetMessage")
+  operatorKnowledgeSuggestionFeedbacks KnowledgeSuggestionFeedback[] @relation("KnowledgeSuggestionOperatorMessage")
 
   @@index([conversationId, createdAt])
   @@index([externalMessageId])
@@ -1719,6 +1847,7 @@ model KnowledgeDocument {
   createdAt        DateTime                    @default(now())
   updatedAt        DateTime                    @updatedAt
   embedding        KnowledgeDocumentEmbedding?
+  derivedArtifacts KnowledgeDerivedArtifact[]
 
   @@unique([tenantKey, scope, sourceType, sourceKey])
   @@index([tenantKey, scope, status, sourceType])
@@ -1739,16 +1868,44 @@ model KnowledgeDocumentEmbedding {
   @@index([provider, model])
 }
 
+model KnowledgeDerivedArtifact {
+  id               String                         @id @default(cuid())
+  tenantKey        String
+  scope            KnowledgeDocumentScope
+  type             KnowledgeDerivedArtifactType
+  status           KnowledgeDerivedArtifactStatus @default(ACTIVE)
+  sourceDocumentId String
+  sourceDocument   KnowledgeDocument             @relation(fields: [sourceDocumentId], references: [id], onDelete: Cascade)
+  content          Json
+  metadata         Json?
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+
+  @@index([tenantKey, scope, type, status])
+  @@index([sourceDocumentId])
+}
+
 model KnowledgeCandidate {
   id               String                   @id @default(cuid())
   tenantKey        String
   scope            KnowledgeDocumentScope
   sourceType       KnowledgeSourceType      @default(CONVERSATION_DERIVED)
   status           KnowledgeCandidateStatus @default(PENDING)
+  observationId    String?                  @unique
+  observation      KnowledgeRawEvent?       @relation(fields: [observationId], references: [id], onDelete: SetNull)
   title            String
   excerpt          String
   redactedExcerpt  String?
   summary          String?
+  detectedIntent   String?
+  problem          String?
+  contextSummary   String?
+  suggestedResponse String?
+  approvedResponse String?
+  confidence       Float?
+  dedupeHash       String?
+  clusterKey       String?
+  version          Int                      @default(1)
   piiDetected      Boolean                  @default(false)
   metadata         Json?
   conversationId   String?
@@ -1762,10 +1919,230 @@ model KnowledgeCandidate {
   reviewedAt       DateTime?
   createdAt        DateTime                 @default(now())
   updatedAt        DateTime                 @updatedAt
+  suggestionFeedbacks KnowledgeSuggestionFeedback[]
+  negativeExamples KnowledgeNegativeExample[]
 
   @@index([tenantKey, scope, status, sourceType, createdAt])
   @@index([conversationId, createdAt])
   @@index([messageId])
+  @@index([tenantKey, dedupeHash, status])
+  @@index([tenantKey, detectedIntent, status])
+}
+
+model KnowledgeRawEvent {
+  id                   String                      @id @default(cuid())
+  tenantKey            String
+  scope                KnowledgeDocumentScope
+  channel              ConversationChannel
+  sourceAuthorType     ConversationMessageAuthorType
+  status               KnowledgeRawEventStatus    @default(NEW)
+  conversationId       String?
+  conversation         Conversation?              @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  messageId            String?                    @unique
+  message              ConversationMessage?       @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  userMessage          String
+  normalizedMessage    String
+  redactedMessage      String?
+  operatorReply        String?
+  aiReply              String?
+  detectedIntent       String?
+  problem              String?
+  contextSummary       String?
+  suggestedResponse    String?
+  confidence           Float?
+  relevanceScore       Float?
+  dedupeHash           String?
+  clusterKey           String?
+  messageElements      Json?
+  messageContextOrigin Json?
+  attachments          Json?
+  metadata             Json?
+  ingestionRunId       String?
+  ingestionRun         KnowledgeIngestionRun?     @relation(fields: [ingestionRunId], references: [id], onDelete: SetNull)
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+  candidate            KnowledgeCandidate?
+
+  @@index([tenantKey, scope, status, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([ingestionRunId])
+  @@index([tenantKey, dedupeHash])
+}
+
+model KnowledgeIngestionRun {
+  id               String                     @id @default(cuid())
+  tenantKey        String
+  sourceType       String
+  triggerType      String
+  status           KnowledgeIngestionRunStatus @default(RUNNING)
+  processedCount   Int                        @default(0)
+  createdCandidates Int                       @default(0)
+  skippedCount     Int                        @default(0)
+  errorCount       Int                        @default(0)
+  metadata         Json?
+  createdByUserId  Int?
+  createdByUser    User?                      @relation("KnowledgeIngestionRunCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  startedAt        DateTime                   @default(now())
+  finishedAt       DateTime?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  observations     KnowledgeRawEvent[]
+
+  @@index([tenantKey, status, startedAt])
+  @@index([createdByUserId, startedAt])
+}
+
+model KnowledgeSuggestionFeedback {
+  id               String                           @id @default(cuid())
+  tenantKey        String
+  conversationId   String
+  conversation     Conversation                     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  candidateId      String
+  candidate        KnowledgeCandidate               @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  targetMessageId  String?
+  targetMessage    ConversationMessage?             @relation("KnowledgeSuggestionTargetMessage", fields: [targetMessageId], references: [id], onDelete: SetNull)
+  operatorMessageId String?
+  operatorMessage  ConversationMessage?             @relation("KnowledgeSuggestionOperatorMessage", fields: [operatorMessageId], references: [id], onDelete: SetNull)
+  actorUserId      Int?
+  actorUser        User?                            @relation("KnowledgeSuggestionFeedbackActorUser", fields: [actorUserId], references: [id], onDelete: SetNull)
+  outcome          KnowledgeSuggestionFeedbackOutcome
+  suggestedText    String?
+  finalText        String?
+  metadata         Json?
+  createdAt        DateTime                         @default(now())
+  updatedAt        DateTime                         @updatedAt
+  negativeExample  KnowledgeNegativeExample?
+
+  @@index([tenantKey, candidateId, outcome, createdAt])
+  @@index([conversationId, createdAt])
+  @@index([targetMessageId])
+  @@index([operatorMessageId])
+  @@index([actorUserId, createdAt])
+}
+
+model KnowledgeConversationBundle {
+  id               String                            @id @default(cuid())
+  tenantKey        String
+  scope            KnowledgeDocumentScope
+  status           KnowledgeConversationBundleStatus @default(PENDING)
+  conversationId   String                            @unique
+  conversation     Conversation                      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  title            String
+  summary          String?
+  detectedIntents  String[]                          @default([])
+  eventCount       Int                               @default(0)
+  candidateCount   Int                               @default(0)
+  approvedCount    Int                               @default(0)
+  pendingCount     Int                               @default(0)
+  previewQuestion  String?
+  previewResponse  String?
+  metadata         Json?
+  createdByUserId  Int?
+  createdByUser    User?                             @relation("KnowledgeConversationBundleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedByUserId Int?
+  reviewedByUser   User?                             @relation("KnowledgeConversationBundleReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  createdAt        DateTime                          @default(now())
+  updatedAt        DateTime                          @updatedAt
+
+  @@index([tenantKey, scope, status, updatedAt])
+  @@index([tenantKey, conversationId])
+}
+
+model KnowledgeNegativeExample {
+  id               String                            @id @default(cuid())
+  tenantKey        String
+  scope            KnowledgeDocumentScope
+  status           KnowledgeNegativeExampleStatus    @default(PENDING)
+  sourceKind       KnowledgeNegativeExampleSourceKind
+  conversationId   String?
+  conversation     Conversation?                     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  candidateId      String?
+  candidate        KnowledgeCandidate?               @relation(fields: [candidateId], references: [id], onDelete: SetNull)
+  feedbackId       String?                           @unique
+  feedback         KnowledgeSuggestionFeedback?      @relation(fields: [feedbackId], references: [id], onDelete: SetNull)
+  title            String
+  summary          String?
+  detectedIntent   String?
+  channel          ConversationChannel?
+  disallowedText   String
+  correctedText    String?
+  metadata         Json?
+  createdByUserId  Int?
+  createdByUser    User?                             @relation("KnowledgeNegativeExampleCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  reviewedByUserId Int?
+  reviewedByUser   User?                             @relation("KnowledgeNegativeExampleReviewedByUser", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  reviewedAt       DateTime?
+  createdAt        DateTime                          @default(now())
+  updatedAt        DateTime                          @updatedAt
+
+  @@index([tenantKey, scope, status, sourceKind, updatedAt])
+  @@index([tenantKey, conversationId, updatedAt])
+}
+
+model KnowledgeSnapshot {
+  id                String                  @id @default(cuid())
+  tenantKey         String
+  scope             KnowledgeDocumentScope
+  status            KnowledgeSnapshotStatus @default(BUILDING)
+  version           Int
+  generationReason  String
+  summaryText       String?
+  metrics           Json?
+  coverageScore     Float?
+  metadata          Json?
+  generatedByUserId Int?
+  generatedByUser   User?                   @relation("KnowledgeSnapshotGeneratedByUser", fields: [generatedByUserId], references: [id], onDelete: SetNull)
+  generatedAt       DateTime?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  entries           KnowledgeSnapshotEntry[]
+
+  @@unique([tenantKey, scope, version])
+  @@index([tenantKey, scope, status, generatedAt])
+}
+
+model KnowledgeSnapshotEntry {
+  id                String                     @id @default(cuid())
+  snapshotId        String
+  snapshot          KnowledgeSnapshot          @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  tenantKey         String
+  scope             KnowledgeDocumentScope
+  entryType         KnowledgeSnapshotEntryType
+  key               String
+  title             String
+  plainText         String
+  normalizedIntent  String?
+  topicKey          String?
+  confidence        Float?
+  priority          String?
+  appliesToChannels String[]                   @default([])
+  metadata          Json?
+  createdAt         DateTime                   @default(now())
+  updatedAt         DateTime                   @updatedAt
+  sources           KnowledgeSnapshotSource[]
+
+  @@index([snapshotId, entryType])
+  @@index([tenantKey, scope, entryType])
+  @@index([snapshotId, key])
+}
+
+model KnowledgeSnapshotSource {
+  id              String                      @id @default(cuid())
+  snapshotEntryId String
+  snapshotEntry   KnowledgeSnapshotEntry      @relation(fields: [snapshotEntryId], references: [id], onDelete: Cascade)
+  sourceKind      KnowledgeSnapshotSourceKind
+  sourceId        String
+  sourceVersion   Int?
+  sourceStatus    String?
+  role            KnowledgeSnapshotSourceRole
+  excerpt         String?
+  metadata        Json?
+  createdAt       DateTime                    @default(now())
+  updatedAt       DateTime                    @updatedAt
+
+  @@index([snapshotEntryId])
+  @@index([sourceKind, sourceId])
 }
 
 model EmailSetting {

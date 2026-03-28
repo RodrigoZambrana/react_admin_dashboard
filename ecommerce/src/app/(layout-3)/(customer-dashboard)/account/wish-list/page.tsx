@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { IconHeartFilled } from "@tabler/icons-react";
 
 import Box from "@component/Box";
@@ -13,13 +14,15 @@ export default function AccountWishListPage() {
   const t = useTranslation();
 
   return (
-    <Box display="flex" flexDirection="column" style={{ gap: "1.5rem" }}>
-      <DashboardPageHeader
-        title={t("My Wish List")}
-        Icon={<IconHeartFilled size={27} />}
-        button={<Button color="primary">{t("Add All to Cart")}</Button>}
-      />
-      <WishlistContent />
-    </Box>
+    <Suspense fallback={null}>
+      <Box display="flex" flexDirection="column" style={{ gap: "1.5rem" }}>
+        <DashboardPageHeader
+          title={t("My Wish List")}
+          Icon={<IconHeartFilled size={27} />}
+          button={<Button color="primary">{t("Add All to Cart")}</Button>}
+        />
+        <WishlistContent />
+      </Box>
+    </Suspense>
   );
 }

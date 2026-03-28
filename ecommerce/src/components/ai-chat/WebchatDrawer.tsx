@@ -5,6 +5,7 @@ import { ChangeEvent, FormEvent, KeyboardEvent, useEffect, useRef, useState } fr
 import {
   IconPaperclip,
   IconLoader2,
+  IconPlus,
   IconRefresh,
   IconRobotFace,
   IconSend2,
@@ -81,6 +82,9 @@ const toFriendlyAttachmentType = (
   if (normalized.includes("audio") || normalized.includes("voice") || normalized.includes("webm") || normalized.includes("ogg")) {
     return "Audio";
   }
+  if (normalized.includes("video") || normalized.includes("mp4") || normalized.includes("mov")) {
+    return "Video";
+  }
   if (normalized.includes("csv") || normalized.includes("xls")) {
     return "Tabla";
   }
@@ -93,6 +97,22 @@ const toFriendlyAttachmentType = (
 const resolveAttachmentPreviewUrl = (attachment: {
   content?: string | null;
 }) => (typeof attachment.content === "string" && attachment.content.trim() ? attachment.content : null);
+
+const ATTACHMENT_SUMMARY_LINE_REGEX = /^\[Adjunto:[^\]]+\](?:\s.*)?$/i;
+
+const isSyntheticAttachmentSummary = (value: string | null | undefined) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) {
+    return false;
+  }
+
+  const lines = normalized
+    .split(/\n+/)
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return lines.length > 0 && lines.every((entry) => ATTACHMENT_SUMMARY_LINE_REGEX.test(entry));
+};
 
 type ComposerAttachment = WebchatMessageAttachment & {
   localId: string;
@@ -183,6 +203,8 @@ export default function WebchatDrawer() {
     taskSummary,
     lastSyncedAt,
     refresh,
+    restartConversation,
+    canRestartConversation,
   } = useWebchat();
   const [draft, setDraft] = useState("");
   const [composerAttachments, setComposerAttachments] = useState<ComposerAttachment[]>([]);
@@ -350,6 +372,21 @@ export default function WebchatDrawer() {
 
         <div className={styles.chatOptions}>
           <ul>
+            {canRestartConversation ? (
+              <li>
+                <button
+                  type="button"
+                  onClick={() => void restartConversation()}
+                  className={styles.optionButton}
+                  data-testid="storefront-webchat-restart"
+                  aria-label="Nuevo chat"
+                  title="Nuevo chat"
+                  disabled={isHydrating || isSending || isSyncing || !isReady}
+                >
+                  <IconPlus size={16} />
+                </button>
+              </li>
+            ) : null}
             <li>
               <button
                 type="button"
@@ -357,6 +394,8 @@ export default function WebchatDrawer() {
                 className={styles.optionButton}
                 data-testid="storefront-webchat-refresh"
                 aria-label="Actualizar conversación"
+                title="Actualizar conversación"
+                disabled={isHydrating || isSending || isSyncing || !isReady}
               >
                 {isSyncing ? <IconLoader2 size={16} className="animate-spin" /> : <IconRefresh size={16} />}
               </button>
@@ -368,6 +407,7 @@ export default function WebchatDrawer() {
                 className={styles.optionButton}
                 data-testid="storefront-webchat-close"
                 aria-label="Cerrar chat"
+                title="Cerrar chat"
               >
                 <IconX size={16} />
               </button>
@@ -461,12 +501,18 @@ export default function WebchatDrawer() {
 
           {messages.map((message) => {
             const isCustomer = message.role === "customer";
-            const hasMessageText = Boolean(message.text?.trim());
-            const nonTextElements = Array.isArray(message.messageElements)
-              ? message.messageElements.filter(
+            const messageAttachments = Array.isArray(message.attachments) ? message.attachments : [];
+            const renderableText =
+              messageAttachments.length > 0 && isSyntheticAttachmentSummary(message.text)
+                ? ""
+                : message.text;
+            const hasMessageText = Boolean(renderableText?.trim());
+            const nonTextElements =
+              messageAttachments.length === 0 && Array.isArray(message.messageElements)
+                ? message.messageElements.filter(
                   (element) => element?.kind && element.kind !== "text",
                 )
-              : [];
+                : [];
             return (
               <div
                 key={message.id}
@@ -499,59 +545,80 @@ export default function WebchatDrawer() {
                     </h6>
                   </div>
 
-                  {Array.isArray(message.attachments) && message.attachments.length > 0 ? (
-                    message.attachments.map((attachment, index) => (
-                      <div
-                        key={`${message.id}-attachment-${index}`}
-                        className={styles.messageContent}
-                        data-testid={`storefront-webchat-attachment-${message.id}-${index}`}
-                      >
-                        {toFriendlyAttachmentType(attachment) === "Imagen" && resolveAttachmentPreviewUrl(attachment) ? (
-                          <a
-                            href={resolveAttachmentPreviewUrl(attachment) || undefined}
-                            target="_blank"
-                            rel="noreferrer"
-                            className={styles.mediaLink}
-                            data-testid={`storefront-webchat-image-${message.id}-${index}`}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={resolveAttachmentPreviewUrl(attachment) || undefined}
-                              alt={attachment.fileName || "Imagen"}
-                              className={styles.messageImage}
-                            />
-                          </a>
-                        ) : null}
-                        {toFriendlyAttachmentType(attachment) === "Audio" && resolveAttachmentPreviewUrl(attachment) ? (
-                          <div
-                            className={styles.messageAudio}
-                            data-testid={`storefront-webchat-audio-${message.id}-${index}`}
-                          >
-                            <audio controls src={resolveAttachmentPreviewUrl(attachment) || undefined}>
-                              <track kind="captions" />
-                              Tu navegador no soporta audio embebido.
-                            </audio>
-                          </div>
-                        ) : null}
-                        <div className={styles.fileAttach}>
-                          <span className={styles.fileIcon}>
-                            {toFriendlyAttachmentType(attachment).slice(0, 1).toUpperCase() || "A"}
-                          </span>
-                          <div className={styles.fileDetails}>
-                            <h6>{attachment.fileName || "Adjunto"}</h6>
-                            <span className={styles.fileTypePill}>
-                              {toFriendlyAttachmentType(attachment)}
-                            </span>
-                            <p>{formatAttachmentLabel(attachment)}</p>
-                          </div>
+                  {messageAttachments.length > 0 ? (
+                    messageAttachments.map((attachment, index) => {
+                      const attachmentType = toFriendlyAttachmentType(attachment);
+                      const previewUrl = resolveAttachmentPreviewUrl(attachment);
+                      const showsImagePreview = attachmentType === "Imagen" && Boolean(previewUrl);
+                      const showsAudioPreview = attachmentType === "Audio" && Boolean(previewUrl);
+                      const showsVideoPreview = attachmentType === "Video" && Boolean(previewUrl);
+
+                      return (
+                        <div
+                          key={`${message.id}-attachment-${index}`}
+                          className={styles.messageContent}
+                          data-testid={`storefront-webchat-attachment-${message.id}-${index}`}
+                        >
+                          {showsImagePreview ? (
+                            <a
+                              href={previewUrl || undefined}
+                              target="_blank"
+                              rel="noreferrer"
+                              className={styles.mediaLink}
+                              data-testid={`storefront-webchat-image-${message.id}-${index}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={previewUrl || undefined}
+                                alt={attachment.fileName || "Imagen"}
+                                className={styles.messageImage}
+                              />
+                            </a>
+                          ) : null}
+                          {showsAudioPreview ? (
+                            <div
+                              className={styles.messageAudio}
+                              data-testid={`storefront-webchat-audio-${message.id}-${index}`}
+                            >
+                              <audio controls src={previewUrl || undefined}>
+                                <track kind="captions" />
+                                Tu navegador no soporta audio embebido.
+                              </audio>
+                            </div>
+                          ) : null}
+                          {showsVideoPreview ? (
+                            <div
+                              className={styles.messageVideo}
+                              data-testid={`storefront-webchat-video-${message.id}-${index}`}
+                            >
+                              <video controls src={previewUrl || undefined}>
+                                <track kind="captions" />
+                                Tu navegador no soporta video embebido.
+                              </video>
+                            </div>
+                          ) : null}
+                          {!showsImagePreview && !showsAudioPreview && !showsVideoPreview ? (
+                            <div className={styles.fileAttach}>
+                              <span className={styles.fileIcon}>
+                                {attachmentType.slice(0, 1).toUpperCase() || "A"}
+                              </span>
+                              <div className={styles.fileDetails}>
+                                <h6>{attachment.fileName || "Adjunto"}</h6>
+                                <span className={styles.fileTypePill}>
+                                  {attachmentType}
+                                </span>
+                                <p>{formatAttachmentLabel(attachment)}</p>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : null}
 
                   {hasMessageText ? (
                     <div className={`${styles.messageContent} ${message.pending ? styles.pendingMessage : ""}`}>
-                      <div className={styles.messageText}>{message.text}</div>
+                      <div className={styles.messageText}>{renderableText}</div>
                       {nonTextElements.length > 0 ? (
                         <div
                           className={styles.elementSummary}
