@@ -22,6 +22,19 @@ Cerrar el gap entre el estado actual y un chatbot reusable que sea:
 
 ## Prioridad 1: mayor valor para cerrar fluidez + correctitud
 
+### 0. Loop profundo de evaluación del webchat sobre corpus real
+Problema:
+- el runtime ya responde mejor, pero todavía falla en foco, continuidad de tema y cambio de contexto
+
+Resultado buscado:
+- una iteración repetible de prueba -> ajuste -> re-prueba hasta acercar el comportamiento al nivel esperado del corpus real
+
+Implementación:
+- usar el corpus real de WhatsApp como benchmark de calidad
+- medir coherencia, continuidad, correctitud, cambio de tema y cierre útil por turno
+- separar errores de estado/contexto de errores de wording
+- agregar fallback mínimo universal cuando no se pueda cerrar la resolución final
+
 ### 1. Estado compartido entre soporte/postventa y agenda
 Problema:
 - un pedido de revisión o service todavía puede volver a cotización o romper el hilo
@@ -139,6 +152,8 @@ Se considera “chat automatizado fluido y usable” cuando:
 - evita reactivar cotización por preguntas laterales
 - agenda y cotización comparten estado cuando corresponde
 - responde con wording flexible, no robótico
+- cubre también conversaciones operativas frecuentes y no solo venta
+- si no puede cerrar la resolución final, igual identifica la necesidad y comunica continuidad por operador
 - ejecuta tareas reales con payloads completos y validados
 - cae a humano de forma limpia cuando no puede resolver
 
@@ -169,3 +184,4 @@ Pendientes operativos del canal Meta:
 
 Referencia consolidada:
 - [PLATFORM_NEXT_ITERATIONS_ROADMAP.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/PLATFORM_NEXT_ITERATIONS_ROADMAP.md)
+- [WEBCHAT_DEEP_EVALUATION_AND_SCOPE.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/WEBCHAT_DEEP_EVALUATION_AND_SCOPE.md)

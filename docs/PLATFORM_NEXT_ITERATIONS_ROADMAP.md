@@ -28,6 +28,32 @@ La prioridad se define por:
 
 ## Prioridad 1
 
+### 0. Ciclo profundo de evaluación y ajuste del webchat
+
+Problema:
+
+- el agente ya tiene una base usable, pero todavía falla en foco, continuidad temática y cambio de contexto
+- hoy no existe una disciplina explícita de prueba y re-prueba sobre conversaciones reales hasta acercarse al nivel esperado
+
+Resultado buscado:
+
+- un loop repetible de corpus real -> evaluación -> ajuste -> re-prueba
+- una definición clara de límites entre lo que resuelve el agente y lo que sigue el operador
+
+Diseño recomendado:
+
+- usar el corpus real de WhatsApp como benchmark principal
+- medir por conversación y por turno:
+  - coherencia
+  - continuidad
+  - correctitud
+  - cambio de tema
+  - resolución de intención
+  - cierre útil
+- clasificar desvíos por familia de error
+- corregir primero estado/contexto/taxonomía y después wording
+- incorporar fallback mínimo universal cuando no se llegue a una resolución final
+
 ### 1. Reconciliación y continuidad de WhatsApp después de desconexión o restore
 
 Problema:
@@ -226,11 +252,12 @@ Regla:
 
 ## Orden recomendado de siguientes iteraciones
 
-1. `CmsPage` con scope persistido `GENERAL | STORE`
-2. resolución unificada de locale/moneda para chat
-3. reconciliación de WhatsApp QR después de reconnect/restore
-4. relaciones `frequently bought together` + instalación como add-on sugerible
-5. capa `Growth / Insights` para Google y Meta
+1. ciclo profundo de evaluación y ajuste del webchat
+2. `CmsPage` con scope persistido `GENERAL | STORE`
+3. resolución unificada de locale/moneda para chat
+4. reconciliación de WhatsApp QR después de reconnect/restore
+5. relaciones `frequently bought together` + instalación como add-on sugerible
+6. capa `Growth / Insights` para Google y Meta
 
 ## Resultado esperado al final
 
@@ -245,6 +272,7 @@ Regla:
 - WhatsApp QR robusto ante reconexión y restauración
 - Meta activo como canal oficial para Facebook e Instagram
 - locale/moneda consistentes por usuario
+- criterio explícito de alcance conversacional y fallback hacia operador
 
 ### Ecommerce
 
