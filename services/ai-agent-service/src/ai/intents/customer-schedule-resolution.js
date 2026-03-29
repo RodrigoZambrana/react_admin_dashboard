@@ -1,4 +1,5 @@
 import { pickWordingVariant } from '../outcomes/wording-registry.js'
+import { localePrefersEnglish, normalizeChatLocale } from '../locale-format.js'
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
@@ -75,6 +76,7 @@ export const buildCustomerScheduleConfirmationClarifyText = ({
   scheduleContext = null,
   variationSeed = '',
   wordingOverrides = null,
+  locale = 'es-UY',
 }) => {
   if (intentKey !== 'customer.confirmation') {
     return null
@@ -92,13 +94,17 @@ export const buildCustomerScheduleConfirmationClarifyText = ({
   const hasAddress =
     typeof scheduleContext?.address === 'string' && scheduleContext.address.trim().length > 0
 
+  const normalizedLocale = normalizeChatLocale(locale)
+  const prefersEnglish = localePrefersEnglish(normalizedLocale)
+
   if (hasDate && !hasTime) {
     return pickWordingVariant({
       key: 'customer.schedule.confirmation.day_known',
       variationSeed,
       overrides: wordingOverrides,
-      fallback:
-        'Perfecto. Ya tengo el día. ¿Querés decirme un horario concreto o preferís que te proponga uno?',
+      fallback: prefersEnglish
+        ? 'Perfect. I already have the day. Do you want to tell me a specific time or would you prefer me to suggest one?'
+        : 'Perfecto. Ya tengo el día. ¿Querés decirme un horario concreto o preferís que te proponga uno?',
     })
   }
   if (!hasDate && hasTime) {
@@ -106,8 +112,9 @@ export const buildCustomerScheduleConfirmationClarifyText = ({
       key: 'customer.schedule.confirmation.time_known',
       variationSeed,
       overrides: wordingOverrides,
-      fallback:
-        'Perfecto. Ya tengo el horario de referencia. ¿Qué día te vendría bien para la visita?',
+      fallback: prefersEnglish
+        ? 'Perfect. I already have the reference time. What day would work for the visit?'
+        : 'Perfecto. Ya tengo el horario de referencia. ¿Qué día te vendría bien para la visita?',
     })
   }
   if (hasDate && hasTime && !hasAddress) {
@@ -115,8 +122,9 @@ export const buildCustomerScheduleConfirmationClarifyText = ({
       key: 'customer.schedule.confirmation.address_missing',
       variationSeed,
       overrides: wordingOverrides,
-      fallback:
-        'Perfecto. Ya tengo el día y el horario. Pasame la dirección donde habría que ir y lo termino de coordinar.',
+      fallback: prefersEnglish
+        ? 'Perfect. I already have the day and time. Send me the address where we would need to go and I will finish coordinating it.'
+        : 'Perfecto. Ya tengo el día y el horario. Pasame la dirección donde habría que ir y lo termino de coordinar.',
     })
   }
 
@@ -124,17 +132,25 @@ export const buildCustomerScheduleConfirmationClarifyText = ({
     key: 'customer.schedule.confirmation.full_missing',
     variationSeed,
     overrides: wordingOverrides,
-    fallback:
-      'Perfecto. Para seguir con la visita, necesito que me confirmes el día, el horario, la dirección y un teléfono o email de contacto.',
+    fallback: prefersEnglish
+      ? 'Perfect. To continue with the visit, I need you to confirm the day, time, address, and a contact phone number or email.'
+      : 'Perfecto. Para seguir con la visita, necesito que me confirmes el día, el horario, la dirección y un teléfono o email de contacto.',
   })
 }
 
-export const buildCustomerScheduleCancellationText = (scheduleContext = null) => {
+export const buildCustomerScheduleCancellationText = (
+  scheduleContext = null,
+  options = {},
+) => {
+  const locale = normalizeChatLocale(options?.locale)
+  const prefersEnglish = localePrefersEnglish(locale)
   const reason =
     typeof scheduleContext?.reason === 'string' && scheduleContext.reason.trim()
       ? scheduleContext.reason.trim()
       : 'la visita técnica'
-  return `Perfecto. Dejamos sin coordinar ${reason} por ahora. Si querés retomarlo más adelante, seguimos por acá.`
+  return prefersEnglish
+    ? `Perfect. We will leave ${reason} unscheduled for now. If you want to resume it later, we can continue here.`
+    : `Perfecto. Dejamos sin coordinar ${reason} por ahora. Si querés retomarlo más adelante, seguimos por acá.`
 }
 
 export const buildCustomerScheduleAppointmentPayload = ({

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -10,6 +10,7 @@ import Notification from '@/components/ui/Notification'
 import toast from '@/components/ui/toast'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import {
+    apiBackfillWhatsappQrHistory,
     apiGetWhatsappQrOverview,
     apiReconnectWhatsappQrSession,
     apiResetWhatsappQrSession,
@@ -69,6 +70,16 @@ const defaultConfig: WhatsappQrChannelConfig = {
     quietHoursEnd: '',
 }
 
+const hasConsistencyDrift = (overview: WhatsappQrOverview | null) =>
+    Boolean(
+        overview &&
+            (!overview.consistency.adapterReachable ||
+                !overview.consistency.adapterEnabledMatchesConfig ||
+                !overview.consistency.inboxActiveMatchesConfig ||
+                !overview.consistency.inboxAddressMatchesConfig ||
+                !overview.consistency.inboxTransportMatches),
+    )
+
 const WhatsappQrSettings = () => {
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
@@ -125,13 +136,14 @@ const WhatsappQrSettings = () => {
     const saveConfig = useCallback(async () => {
         setSaving(true)
         try {
-            const response = await apiUpdateWhatsappQrConfig({
+            const payload = {
                 ...form,
                 displayName: form.displayName || null,
                 address: form.address || null,
                 quietHoursStart: form.quietHoursStart || null,
                 quietHoursEnd: form.quietHoursEnd || null,
-            })
+            }
+            const response = await apiUpdateWhatsappQrConfig(payload)
             syncOverview(response.data)
             toast.push(
                 <Notification type="success" title="WhatsApp QR actualizado">
@@ -144,6 +156,41 @@ const WhatsappQrSettings = () => {
             toast.push(
                 <Notification type="danger" title="No fue posible guardar">
                     Verificá los campos del canal y reintentá.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setSaving(false)
+        }
+    }, [form, syncOverview])
+
+    const generateQr = useCallback(async () => {
+        setSaving(true)
+        try {
+            const prepared = await apiUpdateWhatsappQrConfig({
+                ...form,
+                enabled: true,
+                autoStart: true,
+                displayName: form.displayName || null,
+                address: form.address || null,
+                quietHoursStart: form.quietHoursStart || null,
+                quietHoursEnd: form.quietHoursEnd || null,
+            })
+            syncOverview(prepared.data)
+
+            const response = await apiStartWhatsappQrSession()
+            syncOverview(response.data)
+            toast.push(
+                <Notification type="success" title="Generando QR">
+                    El canal quedó habilitado y se inició la sesión para vincular la cuenta.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } catch (error) {
+            console.error(error)
+            toast.push(
+                <Notification type="danger" title="No fue posible generar el QR">
+                    Revisá la configuración del canal y volvé a intentar.
                 </Notification>,
                 { placement: 'top-end' },
             )
@@ -189,13 +236,7 @@ const WhatsappQrSettings = () => {
         [syncOverview],
     )
 
-    const capabilities = useMemo(
-        () =>
-            Object.entries(overview?.status.capabilities ?? {}).filter(
-                ([, enabled]) => enabled,
-            ),
-        [overview?.status.capabilities],
-    )
+    const consistencyDrift = hasConsistencyDrift(overview)
 
     if (loading) {
         return <Loading loading />
@@ -219,10 +260,38 @@ const WhatsappQrSettings = () => {
                         <Button size="sm" onClick={() => void loadOverview()} loading={saving}>
                             Refrescar
                         </Button>
+                        <Button size="sm" variant="solid" onClick={() => void generateQr()} loading={saving}>
+                            Generar QR
+                        </Button>
                         <Button size="sm" onClick={() => void runSessionAction('sync')} loading={saving}>
                             Sincronizar
                         </Button>
-                        <Button size="sm" variant="solid" onClick={() => void runSessionAction('start')} loading={saving}>
+                        <Button size="sm" onClick={async () => {
+                            setSaving(true)
+                            try {
+                                const response = await apiBackfillWhatsappQrHistory()
+                                syncOverview(response.data.overview)
+                                toast.push(
+                                    <Notification type="success" title="Historial sincronizado">
+                                        {`Mensajes importados: ${response.data.backfill.importedMessages}. Conversaciones nuevas: ${response.data.backfill.importedConversations}. Hilos detectados desde la sesión: ${response.data.backfill.bootstrappedFromAuth}/${response.data.backfill.authBootstrapCandidates}. Ruido eliminado: ${response.data.cleanup.deletedConversations} conversaciones.`}
+                                    </Notification>,
+                                    { placement: 'top-end' },
+                                )
+                            } catch (error) {
+                                console.error(error)
+                                toast.push(
+                                    <Notification type="danger" title="No fue posible sincronizar el historial">
+                                        Revisá el estado del canal y reintentá.
+                                    </Notification>,
+                                    { placement: 'top-end' },
+                                )
+                            } finally {
+                                setSaving(false)
+                            }
+                        }} loading={saving}>
+                            Traer historial
+                        </Button>
+                        <Button size="sm" onClick={() => void runSessionAction('start')} loading={saving}>
                             Iniciar
                         </Button>
                         <Button size="sm" onClick={() => void runSessionAction('reconnect')} loading={saving}>
@@ -241,6 +310,37 @@ const WhatsappQrSettings = () => {
             {overview?.status.lastError ? (
                 <Alert type="danger" showIcon>
                     {overview.status.lastError}
+                </Alert>
+            ) : null}
+
+            {overview?.status.state === 'disabled' ? (
+                <Alert type="info" showIcon>
+                    El canal está deshabilitado. Para vincular la cuenta y mostrar el QR,
+                    usá “Generar QR”.
+                </Alert>
+            ) : null}
+
+            {overview?.status.state === 'connecting' ? (
+                <Alert type="info" showIcon>
+                    Estamos iniciando la sesión. El QR debería aparecer en unos segundos.
+                </Alert>
+            ) : null}
+
+            {overview?.status.state === 'qr_ready' ? (
+                <Alert type="success" showIcon>
+                    Escaneá el QR desde WhatsApp en el teléfono que quieras vincular.
+                </Alert>
+            ) : null}
+
+            {overview?.status.state === 'connected' ? (
+                <Alert type="success" showIcon>
+                    La cuenta ya está vinculada y el canal quedó operativo.
+                </Alert>
+            ) : null}
+
+            {overview?.status.history?.lastBackfillResult ? (
+                <Alert type="info" showIcon>
+                    {`Último backfill: ${overview.status.history.lastBackfillResult.importedMessages} mensajes importados, ${overview.status.history.lastBackfillResult.importedConversations} conversaciones nuevas y ${overview.status.history.lastBackfillResult.bootstrappedFromAuth} hilos recuperados desde el estado local de la sesión.`}
                 </Alert>
             ) : null}
 
@@ -452,7 +552,6 @@ const WhatsappQrSettings = () => {
                                 <div>Teléfono: <strong>{overview?.status.connectedPhone ?? 'n/a'}</strong></div>
                                 <div>Reintento: <strong>{formatDateTime(overview?.status.reconnectScheduledAt ?? null)}</strong></div>
                                 <div>Última desconexión: <strong>{formatDateTime(overview?.status.lastDisconnectAt ?? null)}</strong></div>
-                                <div>Driver: <strong>{overview?.status.driver ?? 'n/a'}</strong></div>
                             </div>
                             {overview?.status.qrCodeDataUrl ? (
                                 <div className="flex flex-col items-center gap-2 rounded-xl border border-gray-200 p-4">
@@ -475,113 +574,25 @@ const WhatsappQrSettings = () => {
 
                     <Card>
                         <div className="space-y-3">
-                            <h5 className="m-0">Operación</h5>
+                            <h5 className="m-0">Canal</h5>
                             <div className="text-sm text-gray-700">
-                                <div>Inbox: <strong>{overview?.inboxAccount?.displayName ?? 'n/a'}</strong></div>
-                                <div>Dirección: <strong>{overview?.inboxAccount?.address ?? 'n/a'}</strong></div>
-                                <div>Mensajes última hora: <strong>{overview?.status.outboundCounters?.lastHour ?? 0}</strong></div>
-                                <div>Mensajes últimas 24h: <strong>{overview?.status.outboundCounters?.lastDay ?? 0}</strong></div>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                                {capabilities.map(([key]) => (
-                                    <Badge key={key} content={key} />
-                                ))}
+                                <div>Nombre: <strong>{overview?.inboxAccount?.displayName ?? form.displayName ?? 'n/a'}</strong></div>
+                                <div>Dirección: <strong>{overview?.inboxAccount?.address ?? form.address ?? 'n/a'}</strong></div>
                             </div>
                         </div>
                     </Card>
 
-                    <Card>
-                        <div className="space-y-3">
-                            <h5 className="m-0">Consistencia</h5>
-                            <div className="grid grid-cols-1 gap-2 text-sm text-gray-700">
-                                <div className="flex items-center justify-between gap-2">
-                                    <span>Adapter alcanzable</span>
-                                    <Badge
-                                        content={
-                                            overview?.consistency.adapterReachable
-                                                ? 'ok'
-                                                : 'revisar'
-                                        }
-                                        innerClass={
-                                            overview?.consistency.adapterReachable
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-rose-100 text-rose-700'
-                                        }
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span>Config backend = adapter</span>
-                                    <Badge
-                                        content={
-                                            overview?.consistency.adapterEnabledMatchesConfig
-                                                ? 'ok'
-                                                : 'drift'
-                                        }
-                                        innerClass={
-                                            overview?.consistency.adapterEnabledMatchesConfig
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-amber-100 text-amber-700'
-                                        }
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span>Inbox activa alineada</span>
-                                    <Badge
-                                        content={
-                                            overview?.consistency.inboxActiveMatchesConfig
-                                                ? 'ok'
-                                                : 'revisar'
-                                        }
-                                        innerClass={
-                                            overview?.consistency.inboxActiveMatchesConfig
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-amber-100 text-amber-700'
-                                        }
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span>Dirección sincronizada</span>
-                                    <Badge
-                                        content={
-                                            overview?.consistency.inboxAddressMatchesConfig
-                                                ? 'ok'
-                                                : 'revisar'
-                                        }
-                                        innerClass={
-                                            overview?.consistency.inboxAddressMatchesConfig
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-amber-100 text-amber-700'
-                                        }
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between gap-2">
-                                    <span>Transporte QR en inbox</span>
-                                    <Badge
-                                        content={
-                                            overview?.consistency.inboxTransportMatches
-                                                ? 'ok'
-                                                : 'revisar'
-                                        }
-                                        innerClass={
-                                            overview?.consistency.inboxTransportMatches
-                                                ? 'bg-emerald-100 text-emerald-700'
-                                                : 'bg-amber-100 text-amber-700'
-                                        }
-                                    />
-                                </div>
-                            </div>
-                            {overview?.consistency.adapterReachable &&
-                            overview?.consistency.adapterEnabledMatchesConfig &&
-                            overview?.consistency.inboxActiveMatchesConfig &&
-                            overview?.consistency.inboxAddressMatchesConfig &&
-                            overview?.consistency.inboxTransportMatches ? null : (
+                    {consistencyDrift ? (
+                        <Card>
+                            <div className="space-y-3">
+                                <h5 className="m-0">Diagnóstico</h5>
                                 <Alert type="warning" showIcon>
-                                    Si hay drift entre backend, inbox y adapter, usá
-                                    “Sincronizar” antes de reiniciar o reautenticar el canal.
+                                    Detectamos diferencias entre backend, inbox y adapter.
+                                    Usá “Sincronizar” antes de reiniciar o reautenticar el canal.
                                 </Alert>
-                            )}
-                        </div>
-                    </Card>
+                            </div>
+                        </Card>
+                    ) : null}
                 </div>
             </div>
         </div>

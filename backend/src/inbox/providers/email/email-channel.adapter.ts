@@ -11,6 +11,7 @@ import {
   ChannelMessageListItem,
   ChannelMessageBody,
   ChannelMessageIdentifier,
+  ChannelMoveMessageResult,
   ChannelSendMessageInput,
   ChannelSendMessageResult,
   ChannelSetFlagsInput,
@@ -361,24 +362,95 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
     _flags: ChannelSetFlagsInput,
   ): Promise<void> {
     this.assertConfigured()
-    throw new Error('Email channel setFlags not implemented yet')
+    await this.withImapClient(async (client) => {
+      const listed = await client.list()
+      const mailbox = this.resolveMailboxPathFromList(
+        listed,
+        _identifier.mailbox || 'INBOX',
+        'inbox',
+      )
+      const uid = this.parseMessageUid(_identifier.remoteId)
+
+      await client.mailboxOpen(mailbox)
+      try {
+        if (_flags.seen !== undefined) {
+          if (_flags.seen) {
+            await client.messageFlagsAdd([uid], ['\\Seen'], { uid: true })
+          } else {
+            await client.messageFlagsRemove([uid], ['\\Seen'], { uid: true })
+          }
+        }
+
+        if (_flags.starred !== undefined) {
+          if (_flags.starred) {
+            await client.messageFlagsAdd([uid], ['\\Flagged'], { uid: true })
+          } else {
+            await client.messageFlagsRemove([uid], ['\\Flagged'], { uid: true })
+          }
+        }
+
+        if (_flags.spam !== undefined) {
+          const junkFlags = ['\\Junk', '$Junk']
+          if (_flags.spam) {
+            await client.messageFlagsAdd([uid], junkFlags, { uid: true }).catch(
+              (error) => {
+                this.logger.warn(
+                  `Unable to set junk flags on email message ${_identifier.remoteId}: ${(error as Error).message}`,
+                )
+              },
+            )
+          } else {
+            await client
+              .messageFlagsRemove([uid], [...junkFlags, '\\Spam'], { uid: true })
+              .catch((error) => {
+                this.logger.warn(
+                  `Unable to clear junk flags on email message ${_identifier.remoteId}: ${(error as Error).message}`,
+                )
+              })
+          }
+        }
+      } finally {
+        await client.mailboxClose().catch(() => undefined)
+      }
+    })
   }
 
   async moveMessage(
     _account: ChannelAccount,
     _identifier: ChannelMessageIdentifier,
     _targetMailbox: string,
-  ): Promise<void> {
+  ): Promise<ChannelMoveMessageResult> {
     this.assertConfigured()
-    throw new Error('Email channel moveMessage not implemented yet')
+    return this.withImapClient(async (client) => {
+      const listed = await client.list()
+      return this.moveMessageWithinMailboxes(
+        client,
+        listed,
+        _identifier,
+        _targetMailbox,
+      )
+    })
   }
 
   async markAsSpam(
     _account: ChannelAccount,
     _identifier: ChannelMessageIdentifier,
-  ): Promise<void> {
+  ): Promise<ChannelMoveMessageResult> {
     this.assertConfigured()
-    throw new Error('Email channel markAsSpam not implemented yet')
+    return this.withImapClient(async (client) => {
+      const listed = await client.list()
+      const spamMailbox = this.resolveMailboxPathFromList(
+        listed,
+        'Spam',
+        'spam',
+      )
+      return this.moveMessageWithinMailboxes(
+        client,
+        listed,
+        _identifier,
+        spamMailbox,
+      )
+    })
   }
 
   async refreshConfig() {
@@ -790,6 +862,112 @@ export class EmailChannelAdapter implements ChannelAdapter, OnModuleInit {
     if (upper.includes('SPAM') || upper.includes('JUNK')) return 'spam'
     if (upper.includes('ARCHIVE')) return 'archive'
     return 'custom'
+  }
+
+  private resolveMailboxPathFromList(
+    mailboxes: ListResponse[],
+    requested: string,
+    preferredType?: ChannelMailbox['type'],
+  ) {
+    const normalizedRequested = this.normalizeMailboxLookupKey(requested)
+    const preferred =
+      preferredType ||
+      this.resolveRequestedMailboxType(normalizedRequested)
+
+    const exactPath = mailboxes.find((mailbox) => mailbox.path === requested.trim())
+    if (exactPath) {
+      return exactPath.path
+    }
+
+    const normalizedMatch = mailboxes.find((mailbox) => {
+      return (
+        this.normalizeMailboxLookupKey(mailbox.path) === normalizedRequested ||
+        this.normalizeMailboxLookupKey(this.resolveMailboxLabel(mailbox)) ===
+          normalizedRequested
+      )
+    })
+    if (normalizedMatch) {
+      return normalizedMatch.path
+    }
+
+    if (preferred) {
+      const preferredMatch = mailboxes.find(
+        (mailbox) => this.resolveMailboxType(mailbox) === preferred,
+      )
+      if (preferredMatch) {
+        return preferredMatch.path
+      }
+    }
+
+    return requested.trim() || 'INBOX'
+  }
+
+  private resolveRequestedMailboxType(value: string): ChannelMailbox['type'] | undefined {
+    if (!value) {
+      return undefined
+    }
+
+    if (value.includes('inbox')) return 'inbox'
+    if (value.includes('sent')) return 'sent'
+    if (value.includes('draft')) return 'drafts'
+    if (value.includes('trash') || value.includes('deleted') || value.includes('bin')) return 'trash'
+    if (value.includes('spam') || value.includes('junk')) return 'spam'
+    if (value.includes('archive')) return 'archive'
+    return undefined
+  }
+
+  private normalizeMailboxLookupKey(value: string) {
+    return (value || '').trim().toLowerCase()
+  }
+
+  private parseMessageUid(remoteId: string) {
+    const uid = Number.parseInt(String(remoteId || '').trim(), 10)
+    if (!Number.isInteger(uid) || uid <= 0) {
+      throw new Error(`Invalid email remoteId for IMAP UID operations: ${remoteId}`)
+    }
+    return uid
+  }
+
+  private async moveMessageWithinMailboxes(
+    client: ImapFlow,
+    listed: ListResponse[],
+    identifier: ChannelMessageIdentifier,
+    targetMailbox: string,
+  ): Promise<ChannelMoveMessageResult> {
+    const sourceMailbox = this.resolveMailboxPathFromList(
+      listed,
+      identifier.mailbox || 'INBOX',
+      'inbox',
+    )
+    const destinationMailbox = this.resolveMailboxPathFromList(listed, targetMailbox)
+    const uid = this.parseMessageUid(identifier.remoteId)
+
+    if (sourceMailbox === destinationMailbox) {
+      return {
+        remoteId: identifier.remoteId,
+        threadRemoteId: identifier.threadRemoteId ?? null,
+        mailbox: destinationMailbox,
+      }
+    }
+
+    await client.mailboxOpen(sourceMailbox)
+    try {
+      const moveResult = await client.messageMove([uid], destinationMailbox, {
+        uid: true,
+      })
+      const mappedUid =
+        moveResult && moveResult.uidMap instanceof Map
+          ? moveResult.uidMap.get(uid)
+          : undefined
+
+      return {
+        remoteId: mappedUid ? String(mappedUid) : identifier.remoteId,
+        threadRemoteId: identifier.threadRemoteId ?? null,
+        mailbox: destinationMailbox,
+      }
+    } finally {
+      await client.mailboxClose().catch(() => undefined)
+    }
   }
 
   private async mapFetchMessage(

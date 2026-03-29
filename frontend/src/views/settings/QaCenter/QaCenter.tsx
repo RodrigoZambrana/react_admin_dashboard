@@ -117,18 +117,59 @@ const QaCenter = () => {
     const load = useCallback(async () => {
         setLoading(true)
         try {
-            const [catalogResponse, latestResponse, runsResponse] = await Promise.all([
+            const [catalogResponse, latestResponse, runsResponse] = await Promise.allSettled([
                 apiGetQaCatalog<QaCatalog>(),
                 apiGetLatestQaRun<QaRunDetails | null>(),
                 apiGetQaRuns<QaRunListItem[]>({ limit: 10 }),
             ])
-            const nextCatalog = catalogResponse.data ?? null
-            const nextLatest = latestResponse.data ?? null
-            const nextRuns = Array.isArray(runsResponse.data) ? runsResponse.data : []
+
+            const nextCatalog =
+                catalogResponse.status === 'fulfilled'
+                    ? catalogResponse.value.data ?? null
+                    : null
+            const nextLatest =
+                latestResponse.status === 'fulfilled'
+                    ? latestResponse.value.data ?? null
+                    : null
+            const nextRuns =
+                runsResponse.status === 'fulfilled' &&
+                Array.isArray(runsResponse.value.data)
+                    ? runsResponse.value.data
+                    : []
+
             setCatalog(nextCatalog)
             setLatestRun(nextLatest)
             setRuns(nextRuns)
-            setSelectedRunId((current) => current ?? nextLatest?.id ?? nextRuns[0]?.id ?? null)
+            setSelectedRunId(
+                (current) => current ?? nextLatest?.id ?? nextRuns[0]?.id ?? null,
+            )
+
+            if (
+                catalogResponse.status === 'rejected' ||
+                latestResponse.status === 'rejected' ||
+                runsResponse.status === 'rejected'
+            ) {
+                console.error({
+                    catalogError:
+                        catalogResponse.status === 'rejected'
+                            ? catalogResponse.reason
+                            : null,
+                    latestError:
+                        latestResponse.status === 'rejected'
+                            ? latestResponse.reason
+                            : null,
+                    runsError:
+                        runsResponse.status === 'rejected'
+                            ? runsResponse.reason
+                            : null,
+                })
+                toast.push(
+                    <Notification title="QA Center" type="warning">
+                        Se cargó información parcial de QA. Revisá la conexión o
+                        los artefactos persistidos si falta algún bloque o run.
+                    </Notification>,
+                )
+            }
         } catch (error) {
             console.error(error)
             toast.push(

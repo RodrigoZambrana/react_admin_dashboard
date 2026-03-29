@@ -7,6 +7,7 @@ import {
   formatQuoteResolutionArea,
 } from '../intents/customer-quote-resolution.js'
 import { extractTenantFamilyLabel } from '../intents/customer-topic-taxonomy.js'
+import { localePrefersEnglish, normalizeChatLocale } from '../locale-format.js'
 import { pickWordingVariant } from './wording-registry.js'
 
 const normalizeLightInput = (value) =>
@@ -589,6 +590,8 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
     interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
       ? interpretation.quoteContext
       : null
+  const locale = normalizeChatLocale(options?.locale)
+  const prefersEnglish = localePrefersEnglish(locale)
   const baseSubject =
     compactText(resolution.subjectLabel || '') ||
     resolveQuoteSubjectLabel(interpretation, Array.isArray(options?.tenantTopicTaxonomy) ? options.tenantTopicTaxonomy : []) ||
@@ -607,37 +610,66 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
   const totalAmount = formatQuoteResolutionAmount(
     resolution.currency,
     resolution.totalAmount,
+    locale,
   )
   const readyHandoffClose = pickWordingVariant({
     key: 'customer.quote.handoff_ready',
     variationSeed,
     overrides: options?.wordingOverrides,
     fallback:
-      'Gracias por la información enviada. Le enviamos la cotización a la brevedad. Si hace falta algún dato adicional, un asesor del equipo se comunica para continuar.',
+      prefersEnglish
+        ? 'Thanks for the information. We will send you the quote shortly. If any extra detail is needed, one of our advisors will contact you to continue.'
+        : 'Gracias por la información enviada. Le enviamos la cotización a la brevedad. Si hace falta algún dato adicional, un asesor del equipo se comunica para continuar.',
   })
 
   if (resolution.status === 'product_not_found') {
     if (resolution.productNotFoundSubtype === 'catalog_match_ambiguous') {
-      return `Tengo una coincidencia parcial para ${decoratedSubject}, pero necesito que me confirmes cuál opción querés cotizar para no mezclar productos. Si querés, te ayudo a dejarlo encaminado y lo revisa un asesor.`
+      return prefersEnglish
+        ? `I found a partial match for ${decoratedSubject}, but I need you to confirm which option you want quoted so I do not mix products. If you want, I can leave it ready for an advisor to review.`
+        : `Tengo una coincidencia parcial para ${decoratedSubject}, pero necesito que me confirmes cuál opción querés cotizar para no mezclar productos. Si querés, te ayudo a dejarlo encaminado y lo revisa un asesor.`
     }
     if (resolution.productNotFoundSubtype === 'catalog_present_but_strategy_unavailable') {
-      return `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. En este momento no encuentro una configuración publicada con precio inmediato para resolverla automáticamente. ${readyHandoffClose}`.trim()
+      return (
+        prefersEnglish
+          ? `I already have the information needed for a quote for ${decoratedSubject}. Right now I cannot find a published configuration with immediate pricing to resolve it automatically. ${readyHandoffClose}`
+          : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. En este momento no encuentro una configuración publicada con precio inmediato para resolverla automáticamente. ${readyHandoffClose}`
+      ).trim()
     }
     if (resolution.productNotFoundSubtype === 'catalog_present_without_immediate_price') {
-      return `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Existe una opción en catálogo, pero no tiene un precio inmediato publicado para responderte en el momento. ${readyHandoffClose}`.trim()
+      return (
+        prefersEnglish
+          ? `I already have the information needed for a quote for ${decoratedSubject}. There is a catalog option, but it does not have an immediate published price to answer you right away. ${readyHandoffClose}`
+          : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Existe una opción en catálogo, pero no tiene un precio inmediato publicado para responderte en el momento. ${readyHandoffClose}`
+      ).trim()
     }
     if (resolution.productNotFoundSubtype === 'catalog_missing_but_known_in_knowledge') {
-      return `Puedo orientarte con información general disponible sobre ${decoratedSubject}, pero ahora no tengo una configuración publicada con precio inmediato. ${readyHandoffClose}`.trim()
+      return (
+        prefersEnglish
+          ? `I can guide you with the general information available about ${decoratedSubject}, but I do not currently have a published configuration with immediate pricing. ${readyHandoffClose}`
+          : `Puedo orientarte con información general disponible sobre ${decoratedSubject}, pero ahora no tengo una configuración publicada con precio inmediato. ${readyHandoffClose}`
+      ).trim()
     }
-    return `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. En este momento no encuentro una opción publicada con precio inmediato para esa configuración. ${readyHandoffClose}`.trim()
+    return (
+      prefersEnglish
+        ? `I already have the information needed for a quote for ${decoratedSubject}. Right now I cannot find a published option with immediate pricing for that configuration. ${readyHandoffClose}`
+        : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. En este momento no encuentro una opción publicada con precio inmediato para esa configuración. ${readyHandoffClose}`
+    ).trim()
   }
 
   if (resolution.status === 'needs_handoff') {
     if (resolution.detail === 'immediate_preview_unavailable') {
-      return `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Como no hay una resolución automática confiable para calcularla en este momento, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`.trim()
+      return (
+        prefersEnglish
+          ? `I already have the information needed for a quote for ${decoratedSubject}. Since there is no reliable automatic calculation available right now, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
+          : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Como no hay una resolución automática confiable para calcularla en este momento, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
+      ).trim()
     }
     if (resolution.detail === 'external_parametric_quote_required') {
-      return `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Como esta configuración requiere revisión y cotización externa, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`.trim()
+      return (
+        prefersEnglish
+          ? `I already have the information needed for a quote for ${decoratedSubject}. Since this configuration requires external review and quoting, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
+          : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Como esta configuración requiere revisión y cotización externa, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
+      ).trim()
     }
     return readyHandoffClose
   }
@@ -648,15 +680,19 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
 
   if (resolution.strategy === 'immediate_unit_price') {
     if (quantity && quantity > 1) {
-      return `Perfecto. Para ${quantity} unidades de ${decoratedSubject}, el precio estimado es ${totalAmount}.`
+      return prefersEnglish
+        ? `Perfect. For ${quantity} units of ${decoratedSubject}, the estimated price is ${totalAmount}.`
+        : `Perfecto. Para ${quantity} unidades de ${decoratedSubject}, el precio estimado es ${totalAmount}.`
     }
-    return `Perfecto. Para ${decoratedSubject}, el precio estimado es ${totalAmount}.`
+    return prefersEnglish
+      ? `Perfect. For ${decoratedSubject}, the estimated price is ${totalAmount}.`
+      : `Perfecto. Para ${decoratedSubject}, el precio estimado es ${totalAmount}.`
   }
 
   if (resolution.strategy === 'immediate_square_meter') {
     const totalArea =
       typeof resolution.totalAreaM2 === 'number' && Number.isFinite(resolution.totalAreaM2)
-        ? formatQuoteResolutionArea(resolution.totalAreaM2)
+        ? formatQuoteResolutionArea(resolution.totalAreaM2, locale)
         : null
     const firstMeasurement =
       compactText(resolution.measurementLabel || '') ||
@@ -667,38 +703,64 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
         quantity && quantity > 1 ? `${quantity} unidades de ` : ''
       const areaSuffix =
         totalArea
-          ? ` El cálculo toma ${totalArea} m² en total.`
+          ? prefersEnglish
+            ? ` The calculation takes ${totalArea} m² in total.`
+            : ` El cálculo toma ${totalArea} m² en total.`
           : ''
-      return `Perfecto. Para ${quantityLabel}${decoratedSubject} con las medidas indicadas, el precio estimado es ${totalAmount}.${areaSuffix}`.trim()
+      return (
+        prefersEnglish
+          ? `Perfect. For ${quantityLabel}${decoratedSubject} with the indicated measurements, the estimated price is ${totalAmount}.${areaSuffix}`
+          : `Perfecto. Para ${quantityLabel}${decoratedSubject} con las medidas indicadas, el precio estimado es ${totalAmount}.${areaSuffix}`
+      ).trim()
     }
 
     if (quantity && quantity > 1 && firstMeasurement) {
       const areaSuffix =
         totalArea
-          ? ` El cálculo toma ${totalArea} m² en total.`
+          ? prefersEnglish
+            ? ` The calculation takes ${totalArea} m² in total.`
+            : ` El cálculo toma ${totalArea} m² en total.`
           : ''
-      return `Perfecto. Para ${quantity} unidades de ${decoratedSubject} de ${firstMeasurement}, el precio estimado es ${totalAmount}.${areaSuffix}`.trim()
+      return (
+        prefersEnglish
+          ? `Perfect. For ${quantity} units of ${decoratedSubject} measuring ${firstMeasurement}, the estimated price is ${totalAmount}.${areaSuffix}`
+          : `Perfecto. Para ${quantity} unidades de ${decoratedSubject} de ${firstMeasurement}, el precio estimado es ${totalAmount}.${areaSuffix}`
+      ).trim()
     }
 
     if (firstMeasurement) {
       const areaSuffix =
         totalArea
-          ? ` El cálculo toma ${totalArea} m² en total.`
+          ? prefersEnglish
+            ? ` The calculation takes ${totalArea} m² in total.`
+            : ` El cálculo toma ${totalArea} m² en total.`
           : ''
-      return `Perfecto. Para ${decoratedSubject} de ${firstMeasurement}, el precio estimado es ${totalAmount}.${areaSuffix}`.trim()
+      return (
+        prefersEnglish
+          ? `Perfect. For ${decoratedSubject} measuring ${firstMeasurement}, the estimated price is ${totalAmount}.${areaSuffix}`
+          : `Perfecto. Para ${decoratedSubject} de ${firstMeasurement}, el precio estimado es ${totalAmount}.${areaSuffix}`
+      ).trim()
     }
 
-    return `Perfecto. Para ${decoratedSubject}, el precio estimado es ${totalAmount}.`
+    return prefersEnglish
+      ? `Perfect. For ${decoratedSubject}, the estimated price is ${totalAmount}.`
+      : `Perfecto. Para ${decoratedSubject}, el precio estimado es ${totalAmount}.`
   }
 
   if (resolution.strategy === 'parametric_exact_or_handoff') {
     if (Array.isArray(resolution.items) && resolution.items.length > 1) {
-      return `Perfecto. Encontré una cotización lista para ${decoratedSubject} con las medidas indicadas. El total estimado es ${totalAmount}.`
+      return prefersEnglish
+        ? `Perfect. I found a ready quote for ${decoratedSubject} with the indicated measurements. The estimated total is ${totalAmount}.`
+        : `Perfecto. Encontré una cotización lista para ${decoratedSubject} con las medidas indicadas. El total estimado es ${totalAmount}.`
     }
     if (quantity && quantity > 1) {
-      return `Perfecto. Encontré una cotización lista para ${quantity} unidades de ${decoratedSubject}. El total estimado es ${totalAmount}.`
+      return prefersEnglish
+        ? `Perfect. I found a ready quote for ${quantity} units of ${decoratedSubject}. The estimated total is ${totalAmount}.`
+        : `Perfecto. Encontré una cotización lista para ${quantity} unidades de ${decoratedSubject}. El total estimado es ${totalAmount}.`
     }
-    return `Perfecto. Encontré una cotización lista para ${decoratedSubject}. El precio estimado es ${totalAmount}.`
+    return prefersEnglish
+      ? `Perfect. I found a ready quote for ${decoratedSubject}. The estimated price is ${totalAmount}.`
+      : `Perfecto. Encontré una cotización lista para ${decoratedSubject}. El precio estimado es ${totalAmount}.`
   }
 
   return null
@@ -724,14 +786,20 @@ export const buildCustomerSupportRequestText = (input, options = {}) => {
   })
 }
 
-export const buildCustomerScheduleRequestText = (input) => {
+export const buildCustomerScheduleRequestText = (input, options = {}) => {
   const normalized = normalizeLightInput(input)
+  const locale = normalizeChatLocale(options?.locale)
+  const prefersEnglish = localePrefersEnglish(locale)
 
   if (/\b(instalacion|instalación|colocacion|colocación)\b/.test(normalized)) {
-    return 'Claro. Para coordinar la instalación, decime la zona o dirección y qué día u horario te queda mejor.'
+    return prefersEnglish
+      ? 'Sure. To coordinate the installation, tell me the area or address and what day or time works best for you.'
+      : 'Claro. Para coordinar la instalación, decime la zona o dirección y qué día u horario te queda mejor.'
   }
 
-  return 'Claro. Podemos coordinar una visita. Decime la zona o dirección y qué día u horario te queda mejor.'
+  return prefersEnglish
+    ? 'Sure. We can coordinate a visit. Tell me the area or address and what day or time works best for you.'
+    : 'Claro. Podemos coordinar una visita. Decime la zona o dirección y qué día u horario te queda mejor.'
 }
 
 const formatScheduleReasonForSentence = (reason) => {
@@ -781,6 +849,8 @@ export const buildCustomerScheduleProgressText = (
   scheduleContext = null,
   options = {},
 ) => {
+  const locale = normalizeChatLocale(options?.locale)
+  const prefersEnglish = localePrefersEnglish(locale)
   const variationSeed = String(options?.variationSeed || '')
   const wordingOverrides = options?.wordingOverrides || null
   const missingFields = Array.isArray(scheduleContext?.missingFields)
@@ -796,7 +866,9 @@ export const buildCustomerScheduleProgressText = (
       variationSeed,
       overrides: wordingOverrides,
       variables: { reason },
-      fallback: `Perfecto. Ya tengo lo necesario para coordinar ${reason}. Estoy validando la disponibilidad y te confirmo el agendamiento.`,
+      fallback: prefersEnglish
+        ? `Perfect. I already have what I need to coordinate ${reason}. I am checking availability and will confirm the booking shortly.`
+        : `Perfecto. Ya tengo lo necesario para coordinar ${reason}. Estoy validando la disponibilidad y te confirmo el agendamiento.`,
     })
   }
 
@@ -808,7 +880,9 @@ export const buildCustomerScheduleProgressText = (
           variationSeed,
           overrides: wordingOverrides,
           variables: { reason },
-          fallback: `Perfecto. Para coordinar ${reason}, decime qué día te queda bien.`,
+          fallback: prefersEnglish
+            ? `Perfect. To coordinate ${reason}, tell me what day works for you.`
+            : `Perfecto. Para coordinar ${reason}, decime qué día te queda bien.`,
         })
       case 'time':
         return pickWordingVariant({
@@ -816,7 +890,9 @@ export const buildCustomerScheduleProgressText = (
           variationSeed,
           overrides: wordingOverrides,
           variables: { reason },
-          fallback: `Perfecto. Para coordinar ${reason}, decime un horario concreto que te sirva.`,
+          fallback: prefersEnglish
+            ? `Perfect. To coordinate ${reason}, tell me a specific time that works for you.`
+            : `Perfecto. Para coordinar ${reason}, decime un horario concreto que te sirva.`,
         })
       case 'address':
         return pickWordingVariant({
@@ -824,7 +900,9 @@ export const buildCustomerScheduleProgressText = (
           variationSeed,
           overrides: wordingOverrides,
           variables: { reason },
-          fallback: `Perfecto. Para coordinar ${reason}, pasame la dirección donde habría que ir.`,
+          fallback: prefersEnglish
+            ? `Perfect. To coordinate ${reason}, send me the address where we would need to go.`
+            : `Perfecto. Para coordinar ${reason}, pasame la dirección donde habría que ir.`,
         })
       case 'contact':
         return pickWordingVariant({
@@ -832,7 +910,9 @@ export const buildCustomerScheduleProgressText = (
           variationSeed,
           overrides: wordingOverrides,
           variables: { reason },
-          fallback: `Perfecto. Para coordinar ${reason}, pasame un teléfono o email de contacto.`,
+          fallback: prefersEnglish
+            ? `Perfect. To coordinate ${reason}, send me a phone number or email for contact.`
+            : `Perfecto. Para coordinar ${reason}, pasame un teléfono o email de contacto.`,
         })
       default:
         break
@@ -842,30 +922,47 @@ export const buildCustomerScheduleProgressText = (
   const missingLabels = missingFields
     .map((field) =>
       field === 'day'
-        ? 'el día'
+        ? prefersEnglish
+          ? 'the day'
+          : 'el día'
         : field === 'time'
-          ? 'el horario'
+          ? prefersEnglish
+            ? 'the time'
+            : 'el horario'
           : field === 'address'
-            ? 'la dirección'
+            ? prefersEnglish
+              ? 'the address'
+              : 'la dirección'
             : field === 'contact'
-              ? 'un teléfono o email de contacto'
+              ? prefersEnglish
+                ? 'a contact phone number or email'
+                : 'un teléfono o email de contacto'
               : null,
     )
     .filter(Boolean)
-  const missingText =
-    missingLabels.length === 2
+  const missingText = prefersEnglish
+    ? missingLabels.length === 2
+      ? `${missingLabels[0]} and ${missingLabels[1]}`
+      : `${missingLabels.slice(0, -1).join(', ')} and ${missingLabels.at(-1)}`
+    : missingLabels.length === 2
       ? `${missingLabels[0]} y ${missingLabels[1]}`
       : `${missingLabels.slice(0, -1).join(', ')} y ${missingLabels.at(-1)}`
   const knownText = knownParts.length
-    ? ` Por ahora tomo ${knownParts.join(' · ')}.`
+    ? prefersEnglish
+      ? ` So far I have ${knownParts.join(' · ')}.`
+      : ` Por ahora tomo ${knownParts.join(' · ')}.`
     : ''
-  return `Perfecto. Para coordinar ${reason}, necesito ${missingText}.${knownText}`
+  return prefersEnglish
+    ? `Perfect. To coordinate ${reason}, I need ${missingText}.${knownText}`
+    : `Perfecto. Para coordinar ${reason}, necesito ${missingText}.${knownText}`
 }
 
 export const buildCustomerScheduleCreatedText = ({
   scheduleContext = null,
   appointment = null,
 }, options = {}) => {
+  const locale = normalizeChatLocale(options?.locale)
+  const prefersEnglish = localePrefersEnglish(locale)
   const variationSeed = String(options?.variationSeed || '')
   const knownParts = formatScheduleKnownParts(scheduleContext)
   const timeText = knownParts.length ? knownParts.join(' · ') : 'el horario solicitado'
@@ -874,22 +971,32 @@ export const buildCustomerScheduleCreatedText = ({
     variationSeed,
     overrides: options?.wordingOverrides,
     variables: { timeText },
-    fallback: `Perfecto. Ya dejé agendada la visita técnica para ${timeText}.`,
+    fallback: prefersEnglish
+      ? `Perfect. The technical visit is now scheduled for ${timeText}.`
+      : `Perfecto. Ya dejé agendada la visita técnica para ${timeText}.`,
   })
 }
 
 export const buildCustomerScheduleUnavailableText = ({
   scheduleContext = null,
 }, options = {}) => {
+  const locale = normalizeChatLocale(options?.locale)
+  const prefersEnglish = localePrefersEnglish(locale)
   const variationSeed = String(options?.variationSeed || '')
   const knownParts = formatScheduleKnownParts(scheduleContext)
-  const scheduleText = knownParts.length ? knownParts.join(' · ') : 'ese horario'
+  const scheduleText = knownParts.length
+    ? knownParts.join(' · ')
+    : prefersEnglish
+      ? 'that time slot'
+      : 'ese horario'
   return pickWordingVariant({
     key: 'customer.schedule.unavailable',
     variationSeed,
     overrides: options?.wordingOverrides,
     variables: { scheduleText },
-    fallback: `En ese momento ya no tengo disponibilidad para ${scheduleText}. Si querés, pasame otra opción de día u horario y lo reviso.`,
+    fallback: prefersEnglish
+      ? `I no longer have availability for ${scheduleText}. If you want, send me another day or time option and I will check it.`
+      : `En ese momento ya no tengo disponibilidad para ${scheduleText}. Si querés, pasame otra opción de día u horario y lo reviso.`,
   })
 }
 
@@ -1044,6 +1151,7 @@ export const renderCustomerDeterministicText = ({
   tenantTopicTaxonomy = [],
   variationSeed = '',
   wordingOverrides = null,
+  locale = 'es-UY',
 }) => {
   switch (intentKey) {
     case 'customer.clarify_request':
@@ -1076,10 +1184,11 @@ export const renderCustomerDeterministicText = ({
     case 'customer.schedule_request':
       return interpretation?.scheduleContext
         ? buildCustomerScheduleProgressText(interpretation.scheduleContext, {
+            locale,
             variationSeed,
             wordingOverrides,
           })
-        : buildCustomerScheduleRequestText(input)
+        : buildCustomerScheduleRequestText(input, { locale })
     case 'customer.auth_required':
       return buildCustomerAuthRequiredText()
     case 'customer.owned_document_request':

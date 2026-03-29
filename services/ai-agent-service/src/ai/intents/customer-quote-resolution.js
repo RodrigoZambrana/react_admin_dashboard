@@ -1,4 +1,9 @@
 import { extractCustomerQuoteLeadText } from './customer-quote-context.js'
+import {
+  formatChatMoney,
+  formatChatNumber,
+  normalizeChatLocale,
+} from '../locale-format.js'
 
 const PRODUCT_TOPIC_TYPES = new Set([
   'product_family',
@@ -502,7 +507,7 @@ const buildEffectiveMeasurementItems = (quoteContext = null) => {
   })
 }
 
-const formatMeasurementFromMm = (widthMm, heightMm) => {
+const formatMeasurementFromMm = (widthMm, heightMm, locale = 'es-UY') => {
   if (
     !Number.isFinite(widthMm) ||
     !Number.isFinite(heightMm) ||
@@ -519,36 +524,40 @@ const formatMeasurementFromMm = (widthMm, heightMm) => {
 
   const formatter =
     unit === 'm'
-      ? new Intl.NumberFormat('es-UY', {
+      ? {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
           useGrouping: false,
-        })
-      : new Intl.NumberFormat('es-UY', {
+        }
+      : {
           maximumFractionDigits: 0,
           useGrouping: false,
-        })
+        }
 
   const divisor = unit === 'm' ? 1000 : 10
-  return `${formatter.format(widthMm / divisor)} x ${formatter.format(heightMm / divisor)} ${unit}`
+  return `${formatChatNumber(widthMm / divisor, {
+    locale,
+    ...formatter,
+  })} x ${formatChatNumber(heightMm / divisor, {
+    locale,
+    ...formatter,
+  })} ${unit}`
 }
 
-const formatAreaM2 = (value) =>
-  new Intl.NumberFormat('es-UY', {
+const formatAreaM2 = (value, locale = 'es-UY') =>
+  formatChatNumber(value, {
+    locale,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
     useGrouping: false,
-  }).format(value)
+  })
 
-const formatAmount = (currency, amount) => {
-  if (!currency || !Number.isFinite(amount)) {
-    return null
-  }
-  return `${String(currency).toUpperCase()} ${new Intl.NumberFormat('es-UY', {
+const formatAmount = (currency, amount, locale = 'es-UY') =>
+  formatChatMoney(currency, amount, {
+    locale,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount)}`
-}
+  })
 
 const buildParametricQuotePayloadText = (quoteContext = null, interpretation = null) => {
   const subjectLabel = resolveQuoteSubjectLabel(interpretation, quoteContext) || 'aberturas'
@@ -651,6 +660,7 @@ const buildImmediateUnitResolutionFromPublishedCatalog = async ({
   quoteContext = null,
   operationalContext = null,
   backendClient,
+  targetCurrency = null,
 }) => {
   const queries = buildPublishedCatalogExactQueries({
     input,
@@ -733,6 +743,7 @@ const buildImmediateUnitResolutionFromPublishedCatalog = async ({
   const preview = await backendClient.previewProductQuote({
     productId: Number(productMatch.id),
     quantity,
+    ...(targetCurrency ? { targetCurrency } : {}),
   })
 
   if (!preview?.available || !Number.isFinite(Number(preview.totalAmount))) {
@@ -767,7 +778,10 @@ export const resolveCustomerQuoteResolution = async ({
   backendClient,
   tenantKey = null,
   role = null,
+  locale = 'es-UY',
+  targetCurrency = null,
 }) => {
+  const normalizedLocale = normalizeChatLocale(locale)
   const quoteContext =
     interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
       ? interpretation.quoteContext
@@ -794,6 +808,8 @@ export const resolveCustomerQuoteResolution = async ({
         quoteContext,
         operationalContext,
         backendClient,
+        locale: normalizedLocale,
+        targetCurrency,
       })
     if (publishedCatalogResolution) {
       return publishedCatalogResolution
@@ -943,10 +959,12 @@ export const resolveCustomerQuoteResolution = async ({
       ? {
           productId: Number(productMatch.id),
           quantity,
+          ...(targetCurrency ? { targetCurrency } : {}),
         }
       : {
           productId: Number(productMatch.id),
           quantity,
+          ...(targetCurrency ? { targetCurrency } : {}),
           ...(effectiveItems.length === 1
             ? {
                 widthMm: Number(effectiveItems[0].widthMm),
@@ -1009,7 +1027,11 @@ export const resolveCustomerQuoteResolution = async ({
       heightMm: Number(entry.heightMm),
       displayLabel:
         entry.displayLabel ||
-        formatMeasurementFromMm(Number(entry.widthMm), Number(entry.heightMm)),
+        formatMeasurementFromMm(
+          Number(entry.widthMm),
+          Number(entry.heightMm),
+          normalizedLocale,
+        ),
       quantity: entryQuantity,
       areaM2:
         Number.isFinite(Number(previewItem?.measurementPerUnit))

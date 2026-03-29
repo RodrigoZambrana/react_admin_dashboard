@@ -288,6 +288,14 @@ const formatBytes = (value: number | null) => {
     return `${mb.toFixed(mb >= 100 ? 0 : 1)} MB`
 }
 
+const getInboxSecondaryLabel = (inbox: InboxSummary) => {
+    if (inbox.address) {
+        return inbox.address
+    }
+
+    return titleCase(inbox.channel)
+}
+
 const channelOptions = [
     { key: 'all', label: 'Inbox completo' },
     { key: 'webchat', label: 'Webchat' },
@@ -979,7 +987,7 @@ const Conversations = () => {
                                                     titleCase(inbox.channel)}
                                             </div>
                                             <div className="truncate text-xs text-gray-400">
-                                                {titleCase(inbox.channel)}
+                                                {getInboxSecondaryLabel(inbox)}
                                             </div>
                                         </div>
                                         <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">

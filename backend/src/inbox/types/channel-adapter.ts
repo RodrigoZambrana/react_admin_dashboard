@@ -52,6 +52,7 @@ export type ChannelListMessagesResult = {
 export type ChannelMessageIdentifier = {
   remoteId: string
   threadRemoteId?: string | null
+  mailbox?: string | null
 }
 
 export type ChannelMessageAttachment = {
@@ -123,6 +124,12 @@ export type ChannelSetFlagsInput = {
   metadata?: Record<string, unknown>
 }
 
+export type ChannelMoveMessageResult = {
+  remoteId?: string | null
+  threadRemoteId?: string | null
+  mailbox?: string | null
+}
+
 export interface ChannelAdapter {
   readonly type: InboxChannelType
 
@@ -158,12 +165,12 @@ export interface ChannelAdapter {
     account: ChannelAccount,
     identifier: ChannelMessageIdentifier,
     targetMailbox: string,
-  ): Promise<void>
+  ): Promise<ChannelMoveMessageResult | void>
 
   markAsSpam?(
     account: ChannelAccount,
     identifier: ChannelMessageIdentifier,
-  ): Promise<void>
+  ): Promise<ChannelMoveMessageResult | void>
 }
 
 export type ChannelAdapterFactory = () => ChannelAdapter

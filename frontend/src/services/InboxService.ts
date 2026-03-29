@@ -154,10 +154,11 @@ export type SendInboxMessagePayload = {
     queueSlug?: string
 }
 
-export const apiGetInboxAccounts = () => {
+export const apiGetInboxAccounts = (params?: { channel?: string }) => {
     return ApiService.fetchData<InboxAccountDto[]>({
         url: '/inbox/accounts',
         method: 'get',
+        params,
     })
 }
 
@@ -240,6 +241,7 @@ export const apiUpdateInboxMessageFlags = (params: {
     remoteId: string
     body: {
         threadRemoteId?: string
+        mailbox?: string
         seen?: boolean
         starred?: boolean
         spam?: boolean
@@ -256,7 +258,7 @@ export const apiUpdateInboxMessageFlags = (params: {
 export const apiMoveInboxMessage = (params: {
     accountId: string
     remoteId: string
-    body: { threadRemoteId?: string; targetMailbox: string }
+    body: { threadRemoteId?: string; mailbox?: string; targetMailbox: string }
 }) => {
     const { accountId, remoteId, body } = params
     return ApiService.fetchData<InboxMessageSummaryDto>({
@@ -269,7 +271,7 @@ export const apiMoveInboxMessage = (params: {
 export const apiMarkInboxMessageSpam = (params: {
     accountId: string
     remoteId: string
-    body?: { threadRemoteId?: string }
+    body?: { threadRemoteId?: string; mailbox?: string }
 }) => {
     const { accountId, remoteId, body } = params
     return ApiService.fetchData<InboxMessageSummaryDto>({

@@ -12,7 +12,10 @@ import { useNavigate, useParams } from 'react-router-dom'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Drawer from '@/components/ui/Drawer'
 import Dialog from '@/components/ui/Dialog'
+import Dropdown from '@/components/ui/Dropdown'
+import Notification from '@/components/ui/Notification'
 import Spinner from '@/components/ui/Spinner'
+import toast from '@/components/ui/toast'
 import { APP_PREFIX_PATH } from '@/constants/route.constant'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { apiGetUsers } from '@/services/UsersService'
@@ -63,6 +66,9 @@ import {
     TbLayoutGrid,
     TbRefresh,
     TbSparkles,
+    TbChevronDown,
+    TbShare3,
+    TbPencil,
 } from 'react-icons/tb'
 import './conversations-v2.css'
 
@@ -148,6 +154,8 @@ type ConversationThreadAuditSnapshot = {
         currentTurnText: string | null
     }>
 }
+
+type ConversationMessageDetail = ConversationDetail['messages'][number]
 
 const MAX_REPLY_ATTACHMENTS = 4
 const MAX_REPLY_ATTACHMENT_BYTES = 8 * 1024 * 1024
@@ -505,8 +513,8 @@ const buildHandoffTaskSummary = (conversation: ConversationSummary | Conversatio
 }
 
 const getInboxSecondaryLabel = (inbox: InboxSummary) => {
-    if (inbox.channel === 'email') {
-        return inbox.address || 'Cuenta de correo'
+    if (inbox.address) {
+        return inbox.address
     }
 
     return titleCase(inbox.channel)
@@ -1298,6 +1306,146 @@ const getMessageAssets = (
     return { attachments, images, audios, videos }
 }
 
+const DEFAULT_WHATSAPP_REACTION_OPTIONS = ['👍', '❤️', '✅', '👀', '🙏', '🔥']
+
+const isWhatsappQrConversation = (
+    conversation: Pick<ConversationSummary, 'channel' | 'inboxAccount'> | null | undefined,
+) =>
+    conversation?.channel?.toLowerCase() === 'whatsapp' &&
+    conversation?.inboxAccount?.transport === 'whatsapp_qr'
+
+const isWebchatConversation = (
+    conversation: Pick<ConversationSummary, 'channel'> | null | undefined,
+) => conversation?.channel?.toLowerCase() === 'webchat'
+
+const extractChannelMessageActions = (
+    message: ConversationMessageDetail,
+    conversation?: Pick<ConversationSummary, 'channel' | 'inboxAccount'> | null,
+) => {
+    const metadataRecord = asRecord(message.metadata)
+    const channelActions = asRecord(metadataRecord?.channelActions)
+    const provider =
+        typeof channelActions?.provider === 'string'
+            ? channelActions.provider
+            : null
+    const whatsappRecord = asRecord(metadataRecord?.whatsapp)
+    const actionsRecord = asRecord(whatsappRecord?.actions)
+    const whatsappState = asRecord(metadataRecord?.whatsappState)
+
+    if (provider) {
+        return {
+            enabled: true,
+            provider,
+            canReact: channelActions?.canReact === true,
+            canReply: channelActions?.canReply === true,
+            canEdit: channelActions?.canEdit === true,
+            canDelete: channelActions?.canDelete === true,
+            canStar: channelActions?.canStar === true,
+            canForward: channelActions?.canForward === true,
+            canDownloadMedia: channelActions?.canDownloadMedia === true,
+            starred: channelActions?.starred === true,
+        }
+    }
+
+    const isWhatsappQr = isWhatsappQrConversation(conversation)
+
+    return {
+        enabled: Boolean(whatsappRecord) && isWhatsappQr,
+        provider: isWhatsappQr ? 'whatsapp_qr' : null,
+        canReact:
+            actionsRecord?.canReact === true || whatsappRecord?.canReact === true,
+        canReply: actionsRecord?.canReply === true,
+        canEdit: actionsRecord?.canEdit === true,
+        canDelete: actionsRecord?.canDelete === true,
+        canStar: actionsRecord?.canStar === true,
+        canForward:
+            actionsRecord?.canForward === true || whatsappRecord?.canForward === true,
+        canDownloadMedia:
+            actionsRecord?.canDownloadMedia === true ||
+            whatsappRecord?.hasMedia === true,
+        starred: whatsappState?.starred === true,
+    }
+}
+
+const extractChannelMessageReactions = (
+    message: ConversationMessageDetail,
+) => {
+    const metadataRecord = asRecord(message.metadata)
+    const webchatState = asRecord(metadataRecord?.webchatState)
+    const reactionEntries = Array.isArray(webchatState?.reactions)
+        ? webchatState.reactions
+        : []
+    const counters = new Map<string, { emoji: string; count: number }>()
+
+    reactionEntries.forEach((entry) => {
+        const record = asRecord(entry)
+        const emoji =
+            typeof record?.emoji === 'string' ? record.emoji.trim() : ''
+        if (!emoji) {
+            return
+        }
+        const current = counters.get(emoji) ?? {
+            emoji,
+            count: 0,
+        }
+        current.count += 1
+        counters.set(emoji, current)
+    })
+
+    return Array.from(counters.values())
+}
+
+const saveBlobDownload = (blob: Blob, fileName: string) => {
+    const url = window.URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    anchor.rel = 'noreferrer'
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    window.URL.revokeObjectURL(url)
+}
+
+const triggerHrefDownload = (href: string, fileName: string) => {
+    const anchor = document.createElement('a')
+    anchor.href = href
+    anchor.download = fileName
+    anchor.rel = 'noreferrer'
+    anchor.target = '_blank'
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+}
+
+const resolveLocalAttachmentDownload = (
+    attachment: unknown,
+    fallbackName: string,
+) => {
+    const record = asRecord(attachment)
+    if (!record) {
+        return null
+    }
+
+    const href =
+        (typeof record.url === 'string' && record.url.trim()) ||
+        (typeof record.content === 'string' && record.content.trim()) ||
+        null
+
+    if (!href) {
+        return null
+    }
+
+    const fileName =
+        (typeof record.fileName === 'string' && record.fileName.trim()) ||
+        fallbackName
+
+    return {
+        href,
+        fileName,
+    }
+}
+
 const formatBytes = (value: number | null) => {
     if (!value || value <= 0) return null
     if (value >= 1024 * 1024) return `${(value / (1024 * 1024)).toFixed(2)} MB`
@@ -1502,6 +1650,22 @@ const ConversationsV2 = () => {
     )
     const [replyComposerError, setReplyComposerError] = useState<string | null>(null)
     const [replying, setReplying] = useState(false)
+    const [channelActionLoadingKey, setChannelActionLoadingKey] =
+        useState<string | null>(null)
+    const [reactionDialogMessage, setReactionDialogMessage] =
+        useState<ConversationMessageDetail | null>(null)
+    const [reactionValue, setReactionValue] = useState('👍')
+    const [forwardDialogMessage, setForwardDialogMessage] =
+        useState<ConversationMessageDetail | null>(null)
+    const [forwardTargets, setForwardTargets] = useState<ConversationSummary[]>([])
+    const [forwardTargetsLoading, setForwardTargetsLoading] = useState(false)
+    const [forwardTargetConversationId, setForwardTargetConversationId] = useState('')
+    const [messageReplyDialogMessage, setMessageReplyDialogMessage] =
+        useState<ConversationMessageDetail | null>(null)
+    const [messageReplyBody, setMessageReplyBody] = useState('')
+    const [messageEditDialogMessage, setMessageEditDialogMessage] =
+        useState<ConversationMessageDetail | null>(null)
+    const [messageEditBody, setMessageEditBody] = useState('')
     const [activeReplySuggestion, setActiveReplySuggestion] =
         useState<ApprovedReplySuggestion | null>(null)
     const [suggestionFeedbackLoadingId, setSuggestionFeedbackLoadingId] =
@@ -2244,13 +2408,20 @@ const ConversationsV2 = () => {
         setReplyAttachments([])
         setReplyComposerError(null)
         setActiveReplySuggestion(null)
+        setReactionDialogMessage(null)
+        setForwardDialogMessage(null)
+        setForwardTargets([])
+        setForwardTargetConversationId('')
+        setMessageReplyDialogMessage(null)
+        setMessageReplyBody('')
+        setMessageEditDialogMessage(null)
+        setMessageEditBody('')
     }, [selectedConversation?.id])
 
-    const renderMessageBody = useCallback(
-        (
-            message: NonNullable<ConversationDetail>['messages'][number],
-            authorType: string,
-        ) => {
+    const renderMessageBody = (
+        message: NonNullable<ConversationDetail>['messages'][number],
+        authorType: string,
+    ) => {
             const aiResponse = extractMessageAiResponse(message.metadata)
             const body =
                 aiResponse?.finalUserText ||
@@ -2268,7 +2439,9 @@ const ConversationsV2 = () => {
                     : body
             const deliveryState = extractMessageDeliveryState(message)
             const bodyColorClass =
-                authorType === 'operator' ? 'text-white/90' : 'text-slate-700'
+                authorType === 'operator' ? 'text-slate-800' : 'text-slate-700'
+            const payloadRecord = asRecord(message.payload)
+            const metadataRecord = asRecord(message.metadata)
             const storedMessageElements = extractStoredMessageElements(
                 message.payload,
                 message.metadata,
@@ -2343,6 +2516,53 @@ const ConversationsV2 = () => {
             const capturedSlotSummary = extractQuoteCapturedSlots(quoteContext).map(
                 (entry) => `${entry.label}: ${entry.value}`,
             )
+            const channelActions = extractChannelMessageActions(
+                message,
+                selectedConversation,
+            )
+            const messageReactions = extractChannelMessageReactions(message)
+            const quotedMessage =
+                asRecord(payloadRecord?.quotedMessage) ||
+                asRecord(metadataRecord?.quotedMessage)
+            const rawAttachmentEntries = Array.isArray(payloadRecord?.attachments)
+                ? payloadRecord.attachments
+                : Array.isArray(metadataRecord?.attachments)
+                  ? metadataRecord.attachments
+                  : []
+            const firstDownloadableAttachmentIndex = rawAttachmentEntries.findIndex(
+                (entry) => {
+                    const attachmentRecord = asRecord(entry)
+                    const attachmentMetadata = asRecord(attachmentRecord?.metadata)
+                    return (
+                        attachmentMetadata?.downloadable === true ||
+                        typeof attachmentRecord?.url === 'string' ||
+                        typeof attachmentRecord?.content === 'string'
+                    )
+                },
+            )
+            const hasContextAudit =
+                storedMessageContextOrigin.length > 0 ||
+                storedMessageElements.length > 0
+            const hasRuntimeDebug = Boolean(aiResponse?.debugSummary)
+            const hasAiDebugPanel = hasContextAudit || hasRuntimeDebug
+            const showWhatsappMediaPlaceholder =
+                channelActions.provider === 'whatsapp_qr' &&
+                channelActions.canDownloadMedia &&
+                !displayBody &&
+                assets.images.length === 0 &&
+                assets.audios.length === 0 &&
+                assets.videos.length === 0 &&
+                assets.attachments.length === 0
+            const hasMessageActionMenu =
+                channelActions.enabled &&
+                (channelActions.canReply ||
+                    channelActions.canReact ||
+                    channelActions.canStar ||
+                    channelActions.canForward ||
+                    channelActions.canEdit ||
+                    channelActions.canDelete ||
+                    (channelActions.canDownloadMedia &&
+                        firstDownloadableAttachmentIndex >= 0))
 
             const attachmentNodes = assets.attachments.map((attachment) => (
                 <div
@@ -2375,7 +2595,37 @@ const ConversationsV2 = () => {
 
             return (
                 <div className={bodyColorClass}>
+                    {quotedMessage ? (
+                        <div className="conversation-whatsapp-quoted">
+                            <div className="conversation-whatsapp-quoted-label">
+                                Respuesta sobre mensaje anterior
+                            </div>
+                            {asString(quotedMessage.preview) ? (
+                                <div className="conversation-whatsapp-quoted-preview">
+                                    {asString(quotedMessage.preview)}
+                                </div>
+                            ) : null}
+                        </div>
+                    ) : null}
                     {displayBody ? <div className="message-text">{displayBody}</div> : null}
+                    {showWhatsappMediaPlaceholder ? (
+                        <div className="conversation-whatsapp-media-placeholder">
+                            Contenido multimedia de WhatsApp disponible para descargar.
+                        </div>
+                    ) : null}
+                    {messageReactions.length ? (
+                        <div className="conversation-message-reactions">
+                            {messageReactions.map((reaction) => (
+                                <span
+                                    className="conversation-message-reaction-chip"
+                                    key={`${message.id}:${reaction.emoji}`}
+                                >
+                                    <span>{reaction.emoji}</span>
+                                    <span>{reaction.count}</span>
+                                </span>
+                            ))}
+                        </div>
+                    ) : null}
                     {deliveryState ? (
                         <div
                             className={`conversation-message-status ${
@@ -2394,185 +2644,198 @@ const ConversationsV2 = () => {
                             ) : null}
                         </div>
                     ) : null}
-                    {storedMessageContextOrigin.length || storedMessageElements.length ? (
-                        <div
-                            className="conversation-ai-debug"
-                            data-testid={`admin-conversation-message-context-${message.id}`}
+                    {hasAiDebugPanel ? (
+                        <details
+                            className="conversation-ai-debug-panel"
+                            data-testid={`admin-conversation-message-debug-panel-${message.id}`}
                         >
-                            <div className="conversation-ai-debug-title">
-                                Contexto interpretado
+                            <summary className="conversation-ai-debug-summary">
+                                <span>Contexto y debug</span>
+                                <TbChevronDown size={16} />
+                            </summary>
+                            <div className="conversation-ai-debug-panel-body">
+                                {hasContextAudit ? (
+                                    <div
+                                        className="conversation-ai-debug"
+                                        data-testid={`admin-conversation-message-context-${message.id}`}
+                                    >
+                                        <div className="conversation-ai-debug-title">
+                                            Contexto interpretado
+                                        </div>
+                                        {storedMessageContextOrigin.length ? (
+                                            <div
+                                                className="conversation-ai-debug-meta"
+                                                data-testid={`admin-conversation-message-context-origin-${message.id}`}
+                                            >
+                                                Origen:{' '}
+                                                {storedMessageContextOrigin.join(', ')}
+                                            </div>
+                                        ) : null}
+                                        {storedMessageElements.length ? (
+                                            <div
+                                                className="conversation-ai-debug-meta"
+                                                data-testid={`admin-conversation-message-elements-${message.id}`}
+                                            >
+                                                Elementos:{' '}
+                                                {storedMessageElements
+                                                    .map((entry) => {
+                                                        const label =
+                                                            typeof entry.label === 'string'
+                                                                ? entry.label
+                                                                : typeof entry.kind === 'string'
+                                                                  ? entry.kind
+                                                                  : 'elemento'
+                                                        const preview =
+                                                            typeof entry.preview === 'string'
+                                                                ? entry.preview
+                                                                : null
+                                                        return `${label}${
+                                                            preview ? ` (${preview})` : ''
+                                                        }`
+                                                    })
+                                                    .join(' | ')}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                ) : null}
+                                {hasRuntimeDebug ? (
+                                    <div
+                                        className="conversation-ai-debug"
+                                        data-testid={`admin-conversation-message-debug-${message.id}`}
+                                    >
+                                        <div className="conversation-ai-debug-title">
+                                            Debug IA
+                                        </div>
+                                        <pre className="conversation-ai-debug-body">
+                                            {aiResponse?.debugSummary}
+                                        </pre>
+                                        {formatAuditStageHistory(stageHistory) ? (
+                                            <div className="conversation-ai-debug-meta">
+                                                Etapas:{' '}
+                                                {formatAuditStageHistory(stageHistory)}
+                                            </div>
+                                        ) : null}
+                                        {referencedMessages.length ? (
+                                            <div
+                                                className="conversation-ai-debug-meta"
+                                                data-testid={`admin-conversation-message-references-${message.id}`}
+                                            >
+                                                Referencias:{' '}
+                                                {referencedMessages
+                                                    .map((entry) => {
+                                                        const preview =
+                                                            typeof entry.preview === 'string'
+                                                                ? entry.preview
+                                                                : null
+                                                        const messageId =
+                                                            typeof entry.messageId === 'string'
+                                                                ? entry.messageId
+                                                                : null
+                                                        return (
+                                                            preview ||
+                                                            messageId ||
+                                                            'mensaje_reciente'
+                                                        )
+                                                    })
+                                                    .join(' | ')}
+                                            </div>
+                                        ) : null}
+                                        {intentSource ? (
+                                            <div className="conversation-ai-debug-meta">
+                                                Fuente de intención: {intentSource}
+                                                {intentConfidence != null
+                                                    ? ` · confianza ${intentConfidence.toFixed(2)}`
+                                                    : ''}
+                                            </div>
+                                        ) : null}
+                                        {decisionPath.length ? (
+                                            <div className="conversation-ai-debug-meta">
+                                                Decisión: {decisionPath.join(' → ')}
+                                            </div>
+                                        ) : null}
+                                        {messageContextOrigin.length ? (
+                                            <div className="conversation-ai-debug-meta">
+                                                Origen de contexto:{' '}
+                                                {messageContextOrigin.join(', ')}
+                                            </div>
+                                        ) : null}
+                                        {messageElementsUsed.length ? (
+                                            <div className="conversation-ai-debug-meta">
+                                                Elementos usados:{' '}
+                                                {messageElementsUsed.join(', ')}
+                                            </div>
+                                        ) : null}
+                                        {messageElements.length ? (
+                                            <div className="conversation-ai-debug-meta">
+                                                Elementos:{' '}
+                                                {messageElements
+                                                    .map((entry) => {
+                                                        const label =
+                                                            typeof entry.label === 'string'
+                                                                ? entry.label
+                                                                : null
+                                                        const kind =
+                                                            typeof entry.kind === 'string'
+                                                                ? entry.kind
+                                                                : 'elemento'
+                                                        const preview =
+                                                            typeof entry.preview === 'string'
+                                                                ? entry.preview
+                                                                : null
+                                                        return `${label || kind}${
+                                                            preview ? ` (${preview})` : ''
+                                                        }`
+                                                    })
+                                                    .join(' | ')}
+                                            </div>
+                                        ) : null}
+                                        {auditThreadLabels.length ? (
+                                            <div
+                                                className="conversation-ai-debug-meta"
+                                                data-testid={`admin-conversation-message-threads-${message.id}`}
+                                            >
+                                                Hilos detectados: {auditThreadLabels.join(' | ')}
+                                            </div>
+                                        ) : null}
+                                        {activeThreadLabel ? (
+                                            <div
+                                                className="conversation-ai-debug-meta"
+                                                data-testid={`admin-conversation-message-active-thread-${message.id}`}
+                                            >
+                                                Hilo activo: {activeThreadLabel}
+                                            </div>
+                                        ) : null}
+                                        {threadResolution?.switchDetected ? (
+                                            <div
+                                                className="conversation-ai-debug-meta"
+                                                data-testid={`admin-conversation-message-thread-switch-${message.id}`}
+                                            >
+                                                Cambio de hilo detectado
+                                            </div>
+                                        ) : null}
+                                        {threadResolution?.requiresDisambiguation ? (
+                                            <div
+                                                className="conversation-ai-debug-meta"
+                                                data-testid={`admin-conversation-message-disambiguation-${message.id}`}
+                                            >
+                                                Disambiguación solicitada
+                                                {asString(threadResolution?.promptText)
+                                                    ? `: ${asString(threadResolution?.promptText)}`
+                                                    : ''}
+                                            </div>
+                                        ) : null}
+                                        {capturedSlotSummary.length ? (
+                                            <div
+                                                className="conversation-ai-debug-meta"
+                                                data-testid={`admin-conversation-message-slots-${message.id}`}
+                                            >
+                                                Slots capturados: {capturedSlotSummary.join(' | ')}
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                ) : null}
                             </div>
-                            {storedMessageContextOrigin.length ? (
-                                <div
-                                    className="conversation-ai-debug-meta"
-                                    data-testid={`admin-conversation-message-context-origin-${message.id}`}
-                                >
-                                    Origen:{' '}
-                                    {storedMessageContextOrigin.join(', ')}
-                                </div>
-                            ) : null}
-                            {storedMessageElements.length ? (
-                                <div
-                                    className="conversation-ai-debug-meta"
-                                    data-testid={`admin-conversation-message-elements-${message.id}`}
-                                >
-                                    Elementos:{' '}
-                                    {storedMessageElements
-                                        .map((entry) => {
-                                            const label =
-                                                typeof entry.label === 'string'
-                                                    ? entry.label
-                                                    : typeof entry.kind === 'string'
-                                                      ? entry.kind
-                                                      : 'elemento'
-                                            const preview =
-                                                typeof entry.preview === 'string'
-                                                    ? entry.preview
-                                                    : null
-                                            return `${label}${
-                                                preview ? ` (${preview})` : ''
-                                            }`
-                                        })
-                                        .join(' | ')}
-                                </div>
-                            ) : null}
-                        </div>
-                    ) : null}
-                    {aiResponse?.debugSummary ? (
-                        <div
-                            className="conversation-ai-debug"
-                            data-testid={`admin-conversation-message-debug-${message.id}`}
-                        >
-                            <div className="conversation-ai-debug-title">
-                                Debug IA
-                            </div>
-                            <pre className="conversation-ai-debug-body">
-                                {aiResponse.debugSummary}
-                            </pre>
-                            {formatAuditStageHistory(stageHistory) ? (
-                                <div className="conversation-ai-debug-meta">
-                                    Etapas:{' '}
-                                    {formatAuditStageHistory(stageHistory)}
-                                </div>
-                            ) : null}
-                            {referencedMessages.length ? (
-                                <div
-                                    className="conversation-ai-debug-meta"
-                                    data-testid={`admin-conversation-message-references-${message.id}`}
-                                >
-                                    Referencias:{' '}
-                                    {referencedMessages
-                                        .map((entry) => {
-                                            const preview =
-                                                typeof entry.preview === 'string'
-                                                    ? entry.preview
-                                                    : null
-                                            const messageId =
-                                                typeof entry.messageId === 'string'
-                                                    ? entry.messageId
-                                                    : null
-                                            return (
-                                                preview ||
-                                                messageId ||
-                                                'mensaje_reciente'
-                                            )
-                                        })
-                                        .join(' | ')}
-                                </div>
-                            ) : null}
-                            {intentSource ? (
-                                <div className="conversation-ai-debug-meta">
-                                    Fuente de intención: {intentSource}
-                                    {intentConfidence != null
-                                        ? ` · confianza ${intentConfidence.toFixed(2)}`
-                                        : ''}
-                                </div>
-                            ) : null}
-                            {decisionPath.length ? (
-                                <div className="conversation-ai-debug-meta">
-                                    Decisión: {decisionPath.join(' → ')}
-                                </div>
-                            ) : null}
-                            {messageContextOrigin.length ? (
-                                <div className="conversation-ai-debug-meta">
-                                    Origen de contexto:{' '}
-                                    {messageContextOrigin.join(', ')}
-                                </div>
-                            ) : null}
-                            {messageElementsUsed.length ? (
-                                <div className="conversation-ai-debug-meta">
-                                    Elementos usados:{' '}
-                                    {messageElementsUsed.join(', ')}
-                                </div>
-                            ) : null}
-                            {messageElements.length ? (
-                                <div className="conversation-ai-debug-meta">
-                                    Elementos:{' '}
-                                    {messageElements
-                                        .map((entry) => {
-                                            const label =
-                                                typeof entry.label === 'string'
-                                                    ? entry.label
-                                                    : null
-                                            const kind =
-                                                typeof entry.kind === 'string'
-                                                    ? entry.kind
-                                                    : 'elemento'
-                                            const preview =
-                                                typeof entry.preview === 'string'
-                                                    ? entry.preview
-                                                    : null
-                                            return `${label || kind}${
-                                                preview ? ` (${preview})` : ''
-                                            }`
-                                        })
-                                        .join(' | ')}
-                                </div>
-                            ) : null}
-                            {auditThreadLabels.length ? (
-                                <div
-                                    className="conversation-ai-debug-meta"
-                                    data-testid={`admin-conversation-message-threads-${message.id}`}
-                                >
-                                    Hilos detectados: {auditThreadLabels.join(' | ')}
-                                </div>
-                            ) : null}
-                            {activeThreadLabel ? (
-                                <div
-                                    className="conversation-ai-debug-meta"
-                                    data-testid={`admin-conversation-message-active-thread-${message.id}`}
-                                >
-                                    Hilo activo: {activeThreadLabel}
-                                </div>
-                            ) : null}
-                            {threadResolution?.switchDetected ? (
-                                <div
-                                    className="conversation-ai-debug-meta"
-                                    data-testid={`admin-conversation-message-thread-switch-${message.id}`}
-                                >
-                                    Cambio de hilo detectado
-                                </div>
-                            ) : null}
-                            {threadResolution?.requiresDisambiguation ? (
-                                <div
-                                    className="conversation-ai-debug-meta"
-                                    data-testid={`admin-conversation-message-disambiguation-${message.id}`}
-                                >
-                                    Disambiguación solicitada
-                                    {asString(threadResolution?.promptText)
-                                        ? `: ${asString(threadResolution?.promptText)}`
-                                        : ''}
-                                </div>
-                            ) : null}
-                            {capturedSlotSummary.length ? (
-                                <div
-                                    className="conversation-ai-debug-meta"
-                                    data-testid={`admin-conversation-message-slots-${message.id}`}
-                                >
-                                    Slots capturados: {capturedSlotSummary.join(' | ')}
-                                </div>
-                            ) : null}
-                        </div>
+                        </details>
                     ) : null}
                     {assets.images.map((image, index) => (
                         <a
@@ -2618,11 +2881,124 @@ const ConversationsV2 = () => {
                         </div>
                     ))}
                     {attachmentNodes}
+                    {hasMessageActionMenu ? (
+                        <div className="conversation-message-action-menu">
+                            <Dropdown
+                                placement="bottom-end"
+                                renderTitle={
+                                    <button
+                                        type="button"
+                                        className="conversation-message-action-toggle"
+                                        data-testid={`admin-conversation-message-actions-${message.id}`}
+                                        disabled={Boolean(channelActionLoadingKey)}
+                                    >
+                                        <TbDotsVertical size={16} />
+                                    </button>
+                                }
+                            >
+                                {channelActions.canReply ? (
+                                    <Dropdown.Item
+                                        eventKey={`reply-${message.id}`}
+                                        onClick={() => openMessageReplyDialog(message)}
+                                        data-testid={`admin-conversation-message-reply-${message.id}`}
+                                    >
+                                        <span className="conversation-message-action-item">
+                                            <TbMessageReply size={15} />
+                                            <span>Responder</span>
+                                        </span>
+                                    </Dropdown.Item>
+                                ) : null}
+                                {channelActions.canReact ? (
+                                    <Dropdown.Item
+                                        eventKey={`react-${message.id}`}
+                                        onClick={() => openReactionDialog(message)}
+                                        data-testid={`admin-conversation-message-react-${message.id}`}
+                                    >
+                                        <span className="conversation-message-action-item">
+                                            <TbMoodSmile size={15} />
+                                            <span>Reaccionar</span>
+                                        </span>
+                                    </Dropdown.Item>
+                                ) : null}
+                                {channelActions.canStar ? (
+                                    <Dropdown.Item
+                                        eventKey={`star-${message.id}`}
+                                        onClick={() =>
+                                            void toggleChannelMessageStar(message)
+                                        }
+                                        data-testid={`admin-conversation-message-star-${message.id}`}
+                                    >
+                                        <span className="conversation-message-action-item">
+                                            <TbSparkles size={15} />
+                                            <span>
+                                                {channelActions.starred
+                                                    ? 'Quitar destacado'
+                                                    : 'Destacar'}
+                                            </span>
+                                        </span>
+                                    </Dropdown.Item>
+                                ) : null}
+                                {channelActions.canForward ? (
+                                    <Dropdown.Item
+                                        eventKey={`forward-${message.id}`}
+                                        onClick={() => void openForwardDialog(message)}
+                                        data-testid={`admin-conversation-message-forward-${message.id}`}
+                                    >
+                                        <span className="conversation-message-action-item">
+                                            <TbShare3 size={15} />
+                                            <span>Reenviar</span>
+                                        </span>
+                                    </Dropdown.Item>
+                                ) : null}
+                                {channelActions.canEdit ? (
+                                    <Dropdown.Item
+                                        eventKey={`edit-${message.id}`}
+                                        onClick={() => openMessageEditDialog(message)}
+                                        data-testid={`admin-conversation-message-edit-${message.id}`}
+                                    >
+                                        <span className="conversation-message-action-item">
+                                            <TbPencil size={15} />
+                                            <span>Editar</span>
+                                        </span>
+                                    </Dropdown.Item>
+                                ) : null}
+                                {channelActions.canDelete ? (
+                                    <Dropdown.Item
+                                        eventKey={`delete-${message.id}`}
+                                        onClick={() => void deleteChannelMessage(message)}
+                                        data-testid={`admin-conversation-message-delete-${message.id}`}
+                                    >
+                                        <span className="conversation-message-action-item is-danger">
+                                            <TbX size={15} />
+                                            <span>Eliminar</span>
+                                        </span>
+                                    </Dropdown.Item>
+                                ) : null}
+                                {channelActions.canDownloadMedia &&
+                                firstDownloadableAttachmentIndex >= 0 ? (
+                                    <Dropdown.Item
+                                        eventKey={`download-${message.id}`}
+                                        onClick={() =>
+                                            void downloadChannelAttachment(
+                                                message,
+                                                rawAttachmentEntries,
+                                                firstDownloadableAttachmentIndex,
+                                            )
+                                        }
+                                        data-testid={`admin-conversation-message-download-${message.id}`}
+                                    >
+                                        <span className="conversation-message-action-item">
+                                            <TbDownload size={15} />
+                                            <span>Descargar</span>
+                                        </span>
+                                    </Dropdown.Item>
+                                ) : null}
+                            </Dropdown>
+                        </div>
+                    ) : null}
                 </div>
             )
-        },
-        [],
-    )
+    }
 
     useEffect(() => {
         const manualSelectionIntent = manualSelectionIntentRef.current
@@ -2802,7 +3178,7 @@ const ConversationsV2 = () => {
             return
         }
 
-        if (listQueryPending || listLoading || listRefreshing || listLoadingMore) {
+        if (listLoading && items.length === 0) {
             return
         }
 
@@ -2993,6 +3369,514 @@ const ConversationsV2 = () => {
         setSelectedConversation(detail)
         setItems((current) => upsertConversationSummary(current, detail))
     }, [])
+
+    const refreshSelectedConversation = useCallback(async () => {
+        if (!selectedConversation) {
+            return null
+        }
+        const detail = await ConversationsService.fetchConversation(
+            selectedConversation.id,
+        )
+        syncConversation(detail)
+        return detail
+    }, [selectedConversation, syncConversation])
+
+    const pushConversationToast = useCallback(
+        (type: 'success' | 'danger', title: string, message?: string) => {
+            toast.push(
+                <Notification type={type} title={title}>
+                    {message}
+                </Notification>,
+            )
+        },
+        [],
+    )
+
+    const openReactionDialog = useCallback((message: ConversationMessageDetail) => {
+        setReactionValue(DEFAULT_WHATSAPP_REACTION_OPTIONS[0] || '👍')
+        setReactionDialogMessage(message)
+    }, [])
+
+    const submitReaction = useCallback(async () => {
+        if (!selectedConversation || !reactionDialogMessage || !reactionValue.trim()) {
+            return
+        }
+
+        const actions = extractChannelMessageActions(
+            reactionDialogMessage,
+            selectedConversation,
+        )
+        const actionKey = `react:${reactionDialogMessage.id}`
+        setChannelActionLoadingKey(actionKey)
+        try {
+            if (actions.provider === 'whatsapp_qr') {
+                await ConversationsService.reactToWhatsappMessage(
+                    selectedConversation.id,
+                    reactionDialogMessage.id,
+                    reactionValue.trim(),
+                )
+            } else if (actions.provider === 'webchat') {
+                await ConversationsService.reactToWebchatMessage(
+                    selectedConversation.id,
+                    reactionDialogMessage.id,
+                    reactionValue.trim(),
+                )
+            } else {
+                throw new Error('channel.reactionUnsupported')
+            }
+            await refreshSelectedConversation()
+            pushConversationToast(
+                'success',
+                'Reacción enviada',
+                `Se agregó ${reactionValue.trim()} al mensaje seleccionado.`,
+            )
+            setReactionDialogMessage(null)
+        } catch (error) {
+            console.error(error)
+            pushConversationToast(
+                'danger',
+                'No fue posible reaccionar',
+                actions.provider === 'webchat'
+                    ? 'La reacción no pudo registrarse en el Webchat.'
+                    : 'La reacción no pudo enviarse por WhatsApp.',
+            )
+        } finally {
+            setChannelActionLoadingKey(null)
+        }
+    }, [
+        refreshSelectedConversation,
+        pushConversationToast,
+        reactionDialogMessage,
+        reactionValue,
+        selectedConversation,
+    ])
+
+    const openForwardDialog = useCallback(
+        async (message: ConversationMessageDetail) => {
+            if (!selectedConversation) {
+                return
+            }
+
+            setForwardDialogMessage(message)
+            setForwardTargetConversationId('')
+            setForwardTargetsLoading(true)
+
+            try {
+                const response = await ConversationsService.fetchConversations({
+                    channel: 'whatsapp',
+                    page: 1,
+                    pageSize: 100,
+                })
+
+                setForwardTargets(
+                    response.items.filter(
+                        (conversation) =>
+                            conversation.id !== selectedConversation.id &&
+                            isWhatsappQrConversation(conversation),
+                    ),
+                )
+            } catch (error) {
+                console.error(error)
+                setForwardTargets([])
+                pushConversationToast(
+                    'danger',
+                    'No fue posible cargar destinos',
+                    'No pudimos listar las conversaciones disponibles para reenvío.',
+                )
+            } finally {
+                setForwardTargetsLoading(false)
+            }
+        },
+        [pushConversationToast, selectedConversation],
+    )
+
+    const submitForward = useCallback(async () => {
+        if (
+            !selectedConversation ||
+            !forwardDialogMessage ||
+            !forwardTargetConversationId
+        ) {
+            return
+        }
+
+        const actionKey = `forward:${forwardDialogMessage.id}`
+        setChannelActionLoadingKey(actionKey)
+        try {
+            const result = await ConversationsService.forwardWhatsappMessage(
+                selectedConversation.id,
+                forwardDialogMessage.id,
+                forwardTargetConversationId,
+            )
+            setForwardDialogMessage(null)
+            setForwardTargetConversationId('')
+            pushConversationToast(
+                'success',
+                'Mensaje reenviado',
+                `El mensaje se reenvió a la conversación ${result.targetConversationId}.`,
+            )
+            if (selectedConversation.id === result.targetConversationId) {
+                const detail = await ConversationsService.fetchConversation(
+                    result.targetConversationId,
+                )
+                syncConversation(detail)
+            }
+        } catch (error) {
+            console.error(error)
+            pushConversationToast(
+                'danger',
+                'No fue posible reenviar',
+                'El mensaje no pudo reenviarse por WhatsApp.',
+            )
+        } finally {
+            setChannelActionLoadingKey(null)
+        }
+    }, [
+        forwardDialogMessage,
+        forwardTargetConversationId,
+        pushConversationToast,
+        selectedConversation,
+        syncConversation,
+    ])
+
+    const downloadChannelAttachment = useCallback(
+        async (
+            message: ConversationMessageDetail,
+            rawAttachmentEntries: unknown[],
+            attachmentIndex: number,
+        ) => {
+            if (!selectedConversation) {
+                return
+            }
+
+            const actions = extractChannelMessageActions(message, selectedConversation)
+            const actionKey = `download:${message.id}:${attachmentIndex}`
+            setChannelActionLoadingKey(actionKey)
+
+            try {
+                if (actions.provider === 'webchat') {
+                    const localDownload = resolveLocalAttachmentDownload(
+                        rawAttachmentEntries[attachmentIndex],
+                        `webchat-media-${message.id}`,
+                    )
+                    if (!localDownload) {
+                        throw new Error('webchat.mediaUnavailable')
+                    }
+                    triggerHrefDownload(
+                        localDownload.href,
+                        localDownload.fileName,
+                    )
+                } else {
+                    const response =
+                        await ConversationsService.downloadWhatsappMessageMedia(
+                            selectedConversation.id,
+                            message.id,
+                            attachmentIndex,
+                        )
+                    const contentDisposition =
+                        response.headers['content-disposition'] ||
+                        response.headers['Content-Disposition']
+                    const fileNameMatch =
+                        typeof contentDisposition === 'string'
+                            ? contentDisposition.match(
+                                  /filename\*=UTF-8''([^;]+)/i,
+                              ) ||
+                              contentDisposition.match(/filename="?([^"]+)"?/i)
+                            : null
+                    const fileName = fileNameMatch?.[1]
+                        ? decodeURIComponent(fileNameMatch[1])
+                        : `whatsapp-media-${message.id}`
+                    saveBlobDownload(response.data, fileName)
+                }
+            } catch (error) {
+                console.error(error)
+                pushConversationToast(
+                    'danger',
+                    'No fue posible descargar',
+                    actions.provider === 'webchat'
+                        ? 'El contenido adjunto no pudo descargarse desde el Webchat.'
+                        : 'El contenido multimedia no pudo descargarse.',
+                )
+            } finally {
+                setChannelActionLoadingKey(null)
+            }
+        },
+        [pushConversationToast, selectedConversation],
+    )
+
+    const openMessageReplyDialog = useCallback(
+        (message: ConversationMessageDetail) => {
+            setMessageReplyDialogMessage(message)
+            setMessageReplyBody('')
+        },
+        [],
+    )
+
+    const submitMessageReply = useCallback(async () => {
+        if (
+            !selectedConversation ||
+            !messageReplyDialogMessage ||
+            !messageReplyBody.trim()
+        ) {
+            return
+        }
+
+        const actions = extractChannelMessageActions(
+            messageReplyDialogMessage,
+            selectedConversation,
+        )
+        const actionKey = `reply:${messageReplyDialogMessage.id}`
+        setChannelActionLoadingKey(actionKey)
+        try {
+            if (actions.provider === 'whatsapp_qr') {
+                await ConversationsService.replyToWhatsappMessage(
+                    selectedConversation.id,
+                    messageReplyDialogMessage.id,
+                    messageReplyBody.trim(),
+                )
+            } else if (actions.provider === 'webchat') {
+                await ConversationsService.replyToWebchatMessage(
+                    selectedConversation.id,
+                    messageReplyDialogMessage.id,
+                    messageReplyBody.trim(),
+                )
+            } else {
+                throw new Error('channel.messageReplyUnsupported')
+            }
+            await refreshSelectedConversation()
+            setMessageReplyDialogMessage(null)
+            setMessageReplyBody('')
+            pushConversationToast(
+                'success',
+                'Respuesta enviada',
+                actions.provider === 'webchat'
+                    ? 'La respuesta citada quedó enviada en el Webchat.'
+                    : 'La respuesta citada se envió por WhatsApp.',
+            )
+        } catch (error) {
+            console.error(error)
+            pushConversationToast(
+                'danger',
+                'No fue posible responder',
+                actions.provider === 'webchat'
+                    ? 'La respuesta citada no pudo enviarse en el Webchat.'
+                    : 'La respuesta citada no pudo enviarse por WhatsApp.',
+            )
+        } finally {
+            setChannelActionLoadingKey(null)
+        }
+    }, [
+        messageReplyBody,
+        messageReplyDialogMessage,
+        pushConversationToast,
+        refreshSelectedConversation,
+        selectedConversation,
+    ])
+
+    const openMessageEditDialog = useCallback(
+        (message: ConversationMessageDetail) => {
+            setMessageEditDialogMessage(message)
+            setMessageEditBody(
+                message.body?.trim() || message.normalizedText?.trim() || '',
+            )
+        },
+        [],
+    )
+
+    const submitMessageEdit = useCallback(async () => {
+        if (
+            !selectedConversation ||
+            !messageEditDialogMessage ||
+            !messageEditBody.trim()
+        ) {
+            return
+        }
+
+        const actions = extractChannelMessageActions(
+            messageEditDialogMessage,
+            selectedConversation,
+        )
+        const actionKey = `edit:${messageEditDialogMessage.id}`
+        setChannelActionLoadingKey(actionKey)
+        try {
+            if (actions.provider === 'whatsapp_qr') {
+                await ConversationsService.editWhatsappMessage(
+                    selectedConversation.id,
+                    messageEditDialogMessage.id,
+                    messageEditBody.trim(),
+                )
+            } else if (actions.provider === 'webchat') {
+                await ConversationsService.editWebchatMessage(
+                    selectedConversation.id,
+                    messageEditDialogMessage.id,
+                    messageEditBody.trim(),
+                )
+            } else {
+                throw new Error('channel.messageEditUnsupported')
+            }
+            await refreshSelectedConversation()
+            setMessageEditDialogMessage(null)
+            setMessageEditBody('')
+            pushConversationToast(
+                'success',
+                'Mensaje editado',
+                actions.provider === 'webchat'
+                    ? 'El mensaje se actualizó en el Webchat.'
+                    : 'El mensaje se actualizó en WhatsApp.',
+            )
+        } catch (error) {
+            console.error(error)
+            pushConversationToast(
+                'danger',
+                'No fue posible editar',
+                actions.provider === 'webchat'
+                    ? 'El mensaje no pudo editarse en el Webchat.'
+                    : 'El mensaje no pudo editarse en WhatsApp.',
+            )
+        } finally {
+            setChannelActionLoadingKey(null)
+        }
+    }, [
+        messageEditBody,
+        messageEditDialogMessage,
+        pushConversationToast,
+        refreshSelectedConversation,
+        selectedConversation,
+    ])
+
+    const deleteChannelMessage = useCallback(
+        async (message: ConversationMessageDetail) => {
+            if (!selectedConversation) {
+                return
+            }
+            const actions = extractChannelMessageActions(message, selectedConversation)
+            const confirmationMessage =
+                actions.provider === 'webchat'
+                    ? '¿Eliminar este mensaje del Webchat?'
+                    : '¿Eliminar este mensaje para todos en WhatsApp?'
+            if (!window.confirm(confirmationMessage)) {
+                return
+            }
+
+            const actionKey = `delete:${message.id}`
+            setChannelActionLoadingKey(actionKey)
+            try {
+                if (actions.provider === 'whatsapp_qr') {
+                    await ConversationsService.deleteWhatsappMessage(
+                        selectedConversation.id,
+                        message.id,
+                    )
+                } else if (actions.provider === 'webchat') {
+                    await ConversationsService.deleteWebchatMessage(
+                        selectedConversation.id,
+                        message.id,
+                    )
+                } else {
+                    throw new Error('channel.messageDeleteUnsupported')
+                }
+                await refreshSelectedConversation()
+                pushConversationToast(
+                    'success',
+                    'Mensaje eliminado',
+                    actions.provider === 'webchat'
+                        ? 'El mensaje se eliminó en el Webchat.'
+                        : 'El mensaje se eliminó en WhatsApp.',
+                )
+            } catch (error) {
+                console.error(error)
+                pushConversationToast(
+                    'danger',
+                    'No fue posible eliminar',
+                    actions.provider === 'webchat'
+                        ? 'El mensaje no pudo eliminarse en el Webchat.'
+                        : 'El mensaje no pudo eliminarse en WhatsApp.',
+                )
+            } finally {
+                setChannelActionLoadingKey(null)
+            }
+        },
+        [pushConversationToast, refreshSelectedConversation, selectedConversation],
+    )
+
+    const toggleChannelMessageStar = useCallback(
+        async (message: ConversationMessageDetail) => {
+            if (!selectedConversation) {
+                return
+            }
+
+            const actions = extractChannelMessageActions(message, selectedConversation)
+            const nextStarred = !actions.starred
+            const actionKey = `star:${message.id}`
+            setChannelActionLoadingKey(actionKey)
+            try {
+                if (actions.provider === 'whatsapp_qr') {
+                    await ConversationsService.toggleWhatsappMessageStar(
+                        selectedConversation.id,
+                        message.id,
+                        nextStarred,
+                    )
+                } else if (actions.provider === 'webchat') {
+                    await ConversationsService.toggleWebchatMessageStar(
+                        selectedConversation.id,
+                        message.id,
+                        nextStarred,
+                    )
+                } else {
+                    throw new Error('channel.messageStarUnsupported')
+                }
+                await refreshSelectedConversation()
+                pushConversationToast(
+                    'success',
+                    nextStarred ? 'Mensaje destacado' : 'Mensaje sin destacar',
+                )
+            } catch (error) {
+                console.error(error)
+                pushConversationToast(
+                    'danger',
+                    'No fue posible actualizar el destacado',
+                )
+            } finally {
+                setChannelActionLoadingKey(null)
+            }
+        },
+        [pushConversationToast, refreshSelectedConversation, selectedConversation],
+    )
+
+    const runChannelChatAction = useCallback(
+        async (
+            conversationId: string,
+            actionKey: string,
+            action: () => Promise<unknown>,
+            successTitle: string,
+            successMessage?: string,
+        ) => {
+            setActionLoading(actionKey)
+            try {
+                await action()
+                if (selectedConversation?.id === conversationId) {
+                    await refreshSelectedConversation()
+                } else {
+                    const detail =
+                        await ConversationsService.fetchConversation(conversationId)
+                    setItems((current) => upsertConversationSummary(current, detail))
+                }
+                setIsConversationMenuOpen(false)
+                pushConversationToast('success', successTitle, successMessage)
+            } catch (error) {
+                console.error(error)
+                pushConversationToast(
+                    'danger',
+                    'No fue posible ejecutar la acción del chat',
+                )
+            } finally {
+                setActionLoading(null)
+            }
+        },
+        [
+            pushConversationToast,
+            refreshSelectedConversation,
+            selectedConversation,
+        ],
+    )
 
     const runAction = useCallback(
         async (
@@ -4899,55 +5783,392 @@ const ConversationsV2 = () => {
                                             Videollamada
                                         </span>
                                     </button>
-                                    <button
-                                        type="button"
-                                        className="directory-item"
-                                        data-testid={`admin-conversation-menu-pin-${menuConversation.id}`}
-                                        onClick={async () => {
-                                            const updated = isConversationPinned(
-                                                menuConversation.id,
-                                            )
-                                                ? await ConversationsService.unpinConversation(
-                                                      menuConversation.id,
-                                                  )
-                                                : await ConversationsService.pinConversation(
-                                                      menuConversation.id,
-                                                  )
-                                            syncConversation(updated)
-                                            setIsConversationMenuOpen(false)
-                                        }}
-                                    >
-                                        <span className="directory-action-label">
-                                            <TbPinned size={16} />
-                                            {isConversationPinned(menuConversation.id)
-                                                ? 'Quitar fijado'
-                                                : 'Fijar chat'}
-                                        </span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        className="directory-item"
-                                        data-testid={`admin-conversation-menu-read-toggle-${menuConversation.id}`}
-                                        onClick={async () => {
-                                            const updated =
-                                                getUnreadCount(menuConversation.id) > 0
-                                                    ? await ConversationsService.markConversationRead(
+                                    {!isWhatsappQrConversation(menuConversation) ? (
+                                        <button
+                                            type="button"
+                                            className="directory-item"
+                                            data-testid={`admin-conversation-menu-pin-${menuConversation.id}`}
+                                            onClick={async () => {
+                                                const updated = isConversationPinned(
+                                                    menuConversation.id,
+                                                )
+                                                    ? await ConversationsService.unpinConversation(
                                                           menuConversation.id,
                                                       )
-                                                    : await ConversationsService.markConversationUnread(
+                                                    : await ConversationsService.pinConversation(
                                                           menuConversation.id,
                                                       )
-                                            syncConversation(updated)
-                                            setIsConversationMenuOpen(false)
-                                        }}
-                                    >
-                                        <span className="directory-action-label">
-                                            <TbChecks size={16} />
-                                            {getUnreadCount(menuConversation.id) > 0
-                                                ? 'Marcar como leído'
-                                                : 'Marcar como no leído'}
-                                        </span>
-                                    </button>
+                                                syncConversation(updated)
+                                                setIsConversationMenuOpen(false)
+                                            }}
+                                        >
+                                            <span className="directory-action-label">
+                                                <TbPinned size={16} />
+                                                {isConversationPinned(menuConversation.id)
+                                                    ? 'Quitar fijado'
+                                                    : 'Fijar chat'}
+                                            </span>
+                                        </button>
+                                    ) : null}
+                                    {!isWhatsappQrConversation(menuConversation) ? (
+                                        <button
+                                            type="button"
+                                            className="directory-item"
+                                            data-testid={`admin-conversation-menu-read-toggle-${menuConversation.id}`}
+                                            onClick={async () => {
+                                                const updated =
+                                                    getUnreadCount(menuConversation.id) > 0
+                                                        ? await ConversationsService.markConversationRead(
+                                                              menuConversation.id,
+                                                          )
+                                                        : await ConversationsService.markConversationUnread(
+                                                              menuConversation.id,
+                                                          )
+                                                syncConversation(updated)
+                                                setIsConversationMenuOpen(false)
+                                            }}
+                                        >
+                                            <span className="directory-action-label">
+                                                <TbChecks size={16} />
+                                                {getUnreadCount(menuConversation.id) > 0
+                                                    ? 'Marcar como leído'
+                                                    : 'Marcar como no leído'}
+                                            </span>
+                                        </button>
+                                    ) : null}
+                                    {isWhatsappQrConversation(menuConversation) ? (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-whatsapp-archive-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'whatsapp-archive',
+                                                        () =>
+                                                            ConversationsService.toggleWhatsappChatArchive(
+                                                                menuConversation.id,
+                                                                !menuConversation.channelState
+                                                                    ?.archived,
+                                                            ),
+                                                        menuConversation.channelState?.archived
+                                                            ? 'Chat desarchivado'
+                                                            : 'Chat archivado',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbFolder size={16} />
+                                                    {menuConversation.channelState?.archived
+                                                        ? 'Desarchivar chat'
+                                                        : 'Archivar chat'}
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-whatsapp-read-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'whatsapp-read',
+                                                        () =>
+                                                            ConversationsService.toggleWhatsappChatReadState(
+                                                                menuConversation.id,
+                                                                !menuConversation.channelState
+                                                                    ?.read,
+                                                            ),
+                                                        menuConversation.channelState?.read
+                                                            ? 'Chat marcado como no leído'
+                                                            : 'Chat marcado como leído',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbChecks size={16} />
+                                                    {menuConversation.channelState?.read
+                                                        ? 'Marcar como no leído'
+                                                        : 'Marcar como leído'}
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-whatsapp-pin-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'whatsapp-pin',
+                                                        () =>
+                                                            ConversationsService.toggleWhatsappChatPinState(
+                                                                menuConversation.id,
+                                                                !menuConversation.channelState
+                                                                    ?.pinned,
+                                                            ),
+                                                        menuConversation.channelState?.pinned
+                                                            ? 'Chat desfijado'
+                                                            : 'Chat fijado',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbPinned size={16} />
+                                                    {menuConversation.channelState?.pinned
+                                                        ? 'Quitar fijado'
+                                                        : 'Fijar chat'}
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-whatsapp-mute-8h-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'whatsapp-mute-8h',
+                                                        () =>
+                                                            ConversationsService.setWhatsappChatMuteState(
+                                                                menuConversation.id,
+                                                                '8h',
+                                                            ),
+                                                        'Chat silenciado',
+                                                        'Se silenció por 8 horas.',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbPhoneCheck size={16} />
+                                                    Silenciar 8h
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-whatsapp-mute-7d-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'whatsapp-mute-7d',
+                                                        () =>
+                                                            ConversationsService.setWhatsappChatMuteState(
+                                                                menuConversation.id,
+                                                                '7d',
+                                                            ),
+                                                        'Chat silenciado',
+                                                        'Se silenció por 7 días.',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbPhoneCheck size={16} />
+                                                    Silenciar 7d
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-whatsapp-unmute-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'whatsapp-unmute',
+                                                        () =>
+                                                            ConversationsService.setWhatsappChatMuteState(
+                                                                menuConversation.id,
+                                                                'off',
+                                                            ),
+                                                        'Silencio quitado',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbPhoneCheck size={16} />
+                                                    Quitar silencio
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-whatsapp-delete-${menuConversation.id}`}
+                                                onClick={() => {
+                                                    if (
+                                                        !window.confirm(
+                                                            '¿Eliminar el chat en WhatsApp? El historial del CRM se conserva.',
+                                                        )
+                                                    ) {
+                                                        return
+                                                    }
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'whatsapp-delete',
+                                                        () =>
+                                                            ConversationsService.deleteWhatsappChat(
+                                                                menuConversation.id,
+                                                            ),
+                                                        'Chat eliminado',
+                                                    )
+                                                }}
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbX size={16} />
+                                                    Eliminar chat
+                                                </span>
+                                            </button>
+                                        </>
+                                    ) : isWebchatConversation(menuConversation) ? (
+                                        <>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-webchat-archive-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'webchat-archive',
+                                                        () =>
+                                                            ConversationsService.toggleWebchatChatArchive(
+                                                                menuConversation.id,
+                                                                !menuConversation.channelState
+                                                                    ?.archived,
+                                                            ),
+                                                        menuConversation.channelState?.archived
+                                                            ? 'Chat desarchivado'
+                                                            : 'Chat archivado',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbFolder size={16} />
+                                                    {menuConversation.channelState?.archived
+                                                        ? 'Desarchivar chat'
+                                                        : 'Archivar chat'}
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-webchat-mute-8h-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'webchat-mute-8h',
+                                                        () =>
+                                                            ConversationsService.setWebchatChatMuteState(
+                                                                menuConversation.id,
+                                                                '8h',
+                                                            ),
+                                                        'Chat silenciado',
+                                                        'Se silenció por 8 horas.',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbPhoneCheck size={16} />
+                                                    Silenciar 8h
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-webchat-mute-7d-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'webchat-mute-7d',
+                                                        () =>
+                                                            ConversationsService.setWebchatChatMuteState(
+                                                                menuConversation.id,
+                                                                '7d',
+                                                            ),
+                                                        'Chat silenciado',
+                                                        'Se silenció por 7 días.',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbPhoneCheck size={16} />
+                                                    Silenciar 7d
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-webchat-unmute-${menuConversation.id}`}
+                                                onClick={() =>
+                                                    void runChannelChatAction(
+                                                        menuConversation.id,
+                                                        'webchat-unmute',
+                                                        () =>
+                                                            ConversationsService.setWebchatChatMuteState(
+                                                                menuConversation.id,
+                                                                'off',
+                                                            ),
+                                                        'Silencio quitado',
+                                                    )
+                                                }
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbPhoneCheck size={16} />
+                                                    Quitar silencio
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="directory-item"
+                                                data-testid={`admin-conversation-menu-webchat-delete-${menuConversation.id}`}
+                                                onClick={async () => {
+                                                    if (
+                                                        !window.confirm(
+                                                            '¿Eliminar este chat del CRM? La conversación se oculta del panel.',
+                                                        )
+                                                    ) {
+                                                        return
+                                                    }
+                                                    setActionLoading('webchat-delete')
+                                                    try {
+                                                        await ConversationsService.deleteWebchatChat(
+                                                            menuConversation.id,
+                                                        )
+                                                        setItems((current) =>
+                                                            current.filter(
+                                                                (item) =>
+                                                                    item.id !==
+                                                                    menuConversation.id,
+                                                            ),
+                                                        )
+                                                        if (
+                                                            selectedConversation?.id ===
+                                                            menuConversation.id
+                                                        ) {
+                                                            setSelectedConversation(null)
+                                                            navigate(
+                                                                '/app/crm/conversations',
+                                                            )
+                                                        }
+                                                        setIsConversationMenuOpen(false)
+                                                        pushConversationToast(
+                                                            'success',
+                                                            'Chat eliminado',
+                                                        )
+                                                    } catch (error) {
+                                                        console.error(error)
+                                                        pushConversationToast(
+                                                            'danger',
+                                                            'No fue posible eliminar el chat',
+                                                        )
+                                                    } finally {
+                                                        setActionLoading(null)
+                                                    }
+                                                }}
+                                            >
+                                                <span className="directory-action-label">
+                                                    <TbX size={16} />
+                                                    Eliminar chat
+                                                </span>
+                                            </button>
+                                        </>
+                                    ) : null}
                                     <button
                                         type="button"
                                         className="directory-item"
@@ -6078,6 +7299,219 @@ const ConversationsV2 = () => {
                         )}
                     </div>
                 </Drawer>
+                <Dialog
+                    isOpen={Boolean(reactionDialogMessage)}
+                    onClose={() => setReactionDialogMessage(null)}
+                    onRequestClose={() => setReactionDialogMessage(null)}
+                    width={420}
+                >
+                    <div className="conversation-whatsapp-dialog">
+                        <h5>Reaccionar al mensaje</h5>
+                        <p>
+                            Elegí una reacción rápida o ingresá un emoji para enviarlo
+                            por WhatsApp.
+                        </p>
+                        <div className="conversation-whatsapp-reaction-grid">
+                            {DEFAULT_WHATSAPP_REACTION_OPTIONS.map((emoji) => (
+                                <button
+                                    key={emoji}
+                                    type="button"
+                                    className={`conversation-whatsapp-reaction-chip ${
+                                        reactionValue === emoji ? 'is-active' : ''
+                                    }`}
+                                    onClick={() => setReactionValue(emoji)}
+                                >
+                                    {emoji}
+                                </button>
+                            ))}
+                        </div>
+                        <input
+                            className="conversation-whatsapp-emoji-input"
+                            value={reactionValue}
+                            onChange={(event) => setReactionValue(event.target.value)}
+                            placeholder="Emoji"
+                            maxLength={8}
+                        />
+                        <div className="conversation-whatsapp-dialog-actions">
+                            <button
+                                type="button"
+                                className="conversation-secondary-btn"
+                                onClick={() => setReactionDialogMessage(null)}
+                                disabled={Boolean(channelActionLoadingKey)}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                className="conversation-primary-btn"
+                                onClick={() => void submitReaction()}
+                                disabled={Boolean(channelActionLoadingKey) || !reactionValue.trim()}
+                            >
+                                Enviar reacción
+                            </button>
+                        </div>
+                    </div>
+                </Dialog>
+                <Dialog
+                    isOpen={Boolean(forwardDialogMessage)}
+                    onClose={() => setForwardDialogMessage(null)}
+                    onRequestClose={() => setForwardDialogMessage(null)}
+                    width={520}
+                >
+                    <div className="conversation-whatsapp-dialog">
+                        <h5>Reenviar mensaje</h5>
+                        <p>Seleccioná la conversación de WhatsApp a la que querés reenviarlo.</p>
+                        {forwardTargetsLoading ? (
+                            <div className="conversation-whatsapp-dialog-loading">
+                                <Spinner size={28} />
+                            </div>
+                        ) : forwardTargets.length ? (
+                            <div className="conversation-whatsapp-forward-list">
+                                {forwardTargets.map((conversation) => (
+                                    <button
+                                        key={conversation.id}
+                                        type="button"
+                                        className={`conversation-whatsapp-forward-option ${
+                                            forwardTargetConversationId === conversation.id
+                                                ? 'is-active'
+                                                : ''
+                                        }`}
+                                        onClick={() =>
+                                            setForwardTargetConversationId(conversation.id)
+                                        }
+                                    >
+                                        <strong>
+                                            {getConversationDisplayTitle(conversation)}
+                                        </strong>
+                                        <span>
+                                            {conversation.inboxAccount?.displayName ||
+                                                'WhatsApp'}
+                                            {conversation.latestMessage?.body
+                                                ? ` · ${conversation.latestMessage.body.slice(0, 80)}`
+                                                : ''}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="conversation-whatsapp-empty">
+                                No hay otras conversaciones de WhatsApp disponibles.
+                            </p>
+                        )}
+                        <div className="conversation-whatsapp-dialog-actions">
+                            <button
+                                type="button"
+                                className="conversation-secondary-btn"
+                                onClick={() => setForwardDialogMessage(null)}
+                                disabled={Boolean(channelActionLoadingKey)}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                className="conversation-primary-btn"
+                                onClick={() => void submitForward()}
+                                disabled={
+                                    Boolean(channelActionLoadingKey) ||
+                                    !forwardTargetConversationId
+                                }
+                            >
+                                Reenviar
+                            </button>
+                        </div>
+                    </div>
+                </Dialog>
+                <Dialog
+                    isOpen={Boolean(messageReplyDialogMessage)}
+                    onClose={() => setMessageReplyDialogMessage(null)}
+                    onRequestClose={() => setMessageReplyDialogMessage(null)}
+                    width={520}
+                >
+                    <div className="conversation-whatsapp-dialog">
+                        <h5>Responder citando mensaje</h5>
+                        <p>
+                            Esta respuesta se enviará citando el mensaje seleccionado.
+                        </p>
+                        {messageReplyDialogMessage?.body ? (
+                            <div className="conversation-whatsapp-quoted">
+                                <div className="conversation-whatsapp-quoted-preview">
+                                    {messageReplyDialogMessage.body}
+                                </div>
+                            </div>
+                        ) : null}
+                        <textarea
+                            className="conversation-whatsapp-textarea"
+                            value={messageReplyBody}
+                            onChange={(event) =>
+                                setMessageReplyBody(event.target.value)
+                            }
+                            rows={5}
+                            placeholder="Escribí la respuesta…"
+                        />
+                        <div className="conversation-whatsapp-dialog-actions">
+                            <button
+                                type="button"
+                                className="conversation-secondary-btn"
+                                onClick={() => setMessageReplyDialogMessage(null)}
+                                disabled={Boolean(channelActionLoadingKey)}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                className="conversation-primary-btn"
+                                onClick={() => void submitMessageReply()}
+                                disabled={
+                                    Boolean(channelActionLoadingKey) ||
+                                    !messageReplyBody.trim()
+                                }
+                            >
+                                Enviar respuesta
+                            </button>
+                        </div>
+                    </div>
+                </Dialog>
+                <Dialog
+                    isOpen={Boolean(messageEditDialogMessage)}
+                    onClose={() => setMessageEditDialogMessage(null)}
+                    onRequestClose={() => setMessageEditDialogMessage(null)}
+                    width={520}
+                >
+                    <div className="conversation-whatsapp-dialog">
+                        <h5>Editar mensaje enviado</h5>
+                        <p>Esta edición se aplicará al mensaje ya enviado.</p>
+                        <textarea
+                            className="conversation-whatsapp-textarea"
+                            value={messageEditBody}
+                            onChange={(event) =>
+                                setMessageEditBody(event.target.value)
+                            }
+                            rows={5}
+                            placeholder="Texto actualizado…"
+                        />
+                        <div className="conversation-whatsapp-dialog-actions">
+                            <button
+                                type="button"
+                                className="conversation-secondary-btn"
+                                onClick={() => setMessageEditDialogMessage(null)}
+                                disabled={Boolean(channelActionLoadingKey)}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                className="conversation-primary-btn"
+                                onClick={() => void submitMessageEdit()}
+                                disabled={
+                                    Boolean(channelActionLoadingKey) ||
+                                    !messageEditBody.trim()
+                                }
+                            >
+                                Guardar edición
+                            </button>
+                        </div>
+                    </div>
+                </Dialog>
             </div>
         </AdaptableCard>
     )

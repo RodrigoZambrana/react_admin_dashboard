@@ -18,6 +18,18 @@ export class WebchatAdapter {
       conversationId: normalized.conversationId,
       guestId: payload?.guestId || normalized.userId,
       text: normalized.text,
+      locale:
+        typeof payload?.locale === 'string'
+          ? payload.locale
+          : typeof normalized?.metadata?.locale === 'string'
+            ? normalized.metadata.locale
+            : undefined,
+      currency:
+        typeof payload?.currency === 'string'
+          ? payload.currency
+          : typeof normalized?.metadata?.currency === 'string'
+            ? normalized.metadata.currency
+            : undefined,
       attachments: normalized.attachments,
     })
 

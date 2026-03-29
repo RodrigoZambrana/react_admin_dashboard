@@ -14,6 +14,7 @@ import {
   CustomerStatus,
   CustomerAddress,
   OrderItem,
+  ProductRelationType,
   ProductType,
   ProductMode,
   ProductAttributeType,
@@ -64,6 +65,7 @@ import type {
   CmsContentSectionDto,
   CmsContentAssetDto,
   CmsContentEntryDto,
+  CmsRenderablePageDto,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -96,7 +98,10 @@ import {
 import { buildPhoneLookupCandidates, normalizePhoneNumber } from '../common/utils/phone'
 import { StorefrontSecurityService } from './security/storefront-security.service'
 import { CmsService } from '../cms/cms.service'
+import { CmsPagesService } from '../cms/cms-pages.service'
+import { GrowthService } from '../growth/growth.service'
 import { buildAddressPayload, normalizeCountryLabel } from '../common/orders/address'
+import { ensureDefaultShippingOptions } from '../common/shipping/default-shipping-options'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -272,6 +277,161 @@ const deriveCountryCode = (countryName?: string | null): string | null => {
   return sanitized.slice(0, 2).toUpperCase() || null
 }
 
+type StorefrontNavigationItem = StorefrontConfig['navigation']['primary'][number]
+
+const normalizeNavigationHref = (href?: string | null): string | null => {
+  if (!href || typeof href !== 'string') {
+    return null
+  }
+  const trimmed = href.trim()
+  if (!trimmed) {
+    return null
+  }
+  if (/^(https?:\/\/|mailto:|tel:|#)/i.test(trimmed)) {
+    return trimmed
+  }
+  return trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`
+}
+
+const mapCmsNavigationItems = (value: unknown): StorefrontNavigationItem[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  const mapped: StorefrontNavigationItem[] = []
+
+  for (const [index, item] of value.entries()) {
+    if (!item || typeof item !== 'object') {
+      continue
+    }
+    const record = item as Record<string, unknown>
+    const label =
+      typeof record.label === 'string' && record.label.trim().length > 0
+        ? record.label.trim()
+        : null
+    if (!label) {
+      continue
+    }
+
+    const href =
+      typeof record.href === 'string' && record.href.trim().length > 0
+        ? normalizeNavigationHref(record.href)
+        : null
+    const children = mapCmsNavigationItems(record.items)
+
+    mapped.push({
+        id: `cms-nav-${index}-${label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+        label,
+        href: href ?? '#',
+        external: Boolean(href && /^https?:\/\//i.test(href)),
+        items: children.length > 0 ? children : undefined,
+      })
+  }
+
+  return mapped
+}
+
+const buildNavigationItemKey = (item: StorefrontNavigationItem) =>
+  `${item.label.trim().toLowerCase()}::${normalizeNavigationHref(item.href) ?? ''}`
+
+const collectNavigationItemKeys = (
+  items: StorefrontNavigationItem[],
+  output = new Set<string>(),
+): Set<string> => {
+  for (const item of items) {
+    output.add(buildNavigationItemKey(item))
+    if (Array.isArray(item.items) && item.items.length > 0) {
+      collectNavigationItemKeys(item.items, output)
+    }
+  }
+
+  return output
+}
+
+const pruneNavigationItems = (
+  items: StorefrontNavigationItem[],
+  seen: Set<string>,
+): StorefrontNavigationItem[] => {
+  const pruned: StorefrontNavigationItem[] = []
+
+  for (const item of items) {
+    const key = buildNavigationItemKey(item)
+    if (seen.has(key)) {
+      continue
+    }
+
+    seen.add(key)
+    const nextChildren =
+      Array.isArray(item.items) && item.items.length > 0
+        ? pruneNavigationItems(item.items, seen)
+        : undefined
+
+    pruned.push({
+      ...item,
+      items: nextChildren && nextChildren.length > 0 ? nextChildren : undefined,
+    })
+  }
+
+  return pruned
+}
+
+const mergeNavigationItems = (
+  baseItems: StorefrontNavigationItem[],
+  legacyItems: StorefrontNavigationItem[],
+  options?: {
+    mode?: 'flat' | 'grouped'
+    groupLabel?: string
+  },
+) => {
+  const merged = [...baseItems]
+  const seen = collectNavigationItemKeys(baseItems)
+  const uniqueLegacyItems = pruneNavigationItems(legacyItems, seen)
+
+  if (!uniqueLegacyItems.length) {
+    return merged
+  }
+
+  const mode = options?.mode === 'flat' ? 'flat' : 'grouped'
+  const groupLabel =
+    typeof options?.groupLabel === 'string' && options.groupLabel.trim().length > 0
+      ? options.groupLabel.trim()
+      : 'Información'
+
+  if (mode === 'flat') {
+    merged.push(...uniqueLegacyItems)
+    return merged
+  }
+
+  const normalizedGroupLabel = groupLabel.trim().toLowerCase()
+  const existingGroupIndex = merged.findIndex(
+    (item) => item.label.trim().toLowerCase() === normalizedGroupLabel,
+  )
+
+  if (existingGroupIndex >= 0) {
+    const existingGroup = merged[existingGroupIndex]
+    const groupSeen = collectNavigationItemKeys(existingGroup.items ?? [])
+    const nextItems = pruneNavigationItems(uniqueLegacyItems, groupSeen)
+
+    if (nextItems.length > 0) {
+      merged[existingGroupIndex] = {
+        ...existingGroup,
+        items: [...(existingGroup.items ?? []), ...nextItems],
+      }
+    }
+
+    return merged
+  }
+
+  merged.push({
+    id: `cms-nav-group-${normalizedGroupLabel.replace(/[^a-z0-9]+/g, '-')}`,
+    label: groupLabel,
+    href: '#',
+    items: uniqueLegacyItems,
+  })
+
+  return merged
+}
+
 const mergeDeep = <T>(target: T, source: Record<string, unknown>): T => {
   if (typeof target !== 'object' || target === null) {
     return target
@@ -344,6 +504,17 @@ type ProductWithVariants = Prisma.ProductGetPayload<{
   include: {
     images: true
     category: true
+    installServiceProduct: true
+    productRelationsFrom: {
+      include: {
+        relatedProduct: {
+          include: {
+            images: true
+            category: true
+          }
+        }
+      }
+    }
     options: {
       include: {
         values: true
@@ -402,6 +573,8 @@ export class StorefrontService implements OnModuleInit {
     private readonly publishedProductResolver: StorefrontPublishedProductResolverService,
     private readonly security: StorefrontSecurityService,
     private readonly cms: CmsService,
+    private readonly cmsPages: CmsPagesService,
+    private readonly growth: GrowthService,
   ) {}
 
   private defaultCustomerPassword!: string
@@ -1220,15 +1393,51 @@ export class StorefrontService implements OnModuleInit {
         googleIntegration.recaptcha.storefront.enabled &&
         Boolean(googleIntegration.recaptcha.storefront.siteKey)
 
-      const integrations = {
+      const integrations: NonNullable<StorefrontConfig['integrations']> = {
         google: {
           enabled: storefrontGoogleEnabled,
+          analytics: {
+            enabled: false,
+            measurementId: null as string | null,
+          },
+          tagManager: {
+            enabled: false,
+            containerId: null as string | null,
+          },
+          ads: {
+            enabled: false,
+            conversionId: null as string | null,
+            conversionLabel: null as string | null,
+          },
+          searchConsole: {
+            verificationToken: null as string | null,
+          },
         },
         recaptcha: {
           enabled: storefrontRecaptchaEnabled,
           siteKey: storefrontRecaptchaEnabled ? googleIntegration.recaptcha.storefront.siteKey : null,
         },
+        meta: {
+          pixel: {
+            enabled: false,
+            pixelId: null as string | null,
+          },
+        },
+        insights: {
+          content: {
+            enabled: false,
+          },
+        },
       }
+
+      const growthPublicConfig = await this.growth.getPublicConfig()
+      const googleIntegrations = integrations.google!
+      googleIntegrations.analytics = growthPublicConfig.google.analytics
+      googleIntegrations.tagManager = growthPublicConfig.google.tagManager
+      googleIntegrations.ads = growthPublicConfig.google.ads
+      googleIntegrations.searchConsole = growthPublicConfig.google.searchConsole
+      integrations.meta = growthPublicConfig.meta
+      integrations.insights = growthPublicConfig.insights
 
       const mergedResilienceFlag =
         typeof merged.resilience?.snapshotFallbackEnabled === 'boolean'
@@ -1239,10 +1448,15 @@ export class StorefrontService implements OnModuleInit {
         snapshotFallbackEnabled: Boolean(mergedResilienceFlag) && snapshotFallbackEnabled,
       }
 
+      const navigation = await this.resolveStorefrontNavigation(
+        merged.navigation ?? DEFAULT_STOREFRONT_CONFIG.navigation,
+      )
+
       return {
         ...merged,
         layouts,
         defaultLayout,
+        navigation,
         companyProfile,
         payments,
         integrations,
@@ -1253,9 +1467,7 @@ export class StorefrontService implements OnModuleInit {
 
   async listShippingOptions(): Promise<StorefrontShippingOptionDto[]> {
     return this.getOrSetPublicCache('storefront:shipping-options', PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
-      const rows = await this.prisma.shippingOption.findMany({
-        orderBy: { id: 'asc' },
-      })
+      const rows = await ensureDefaultShippingOptions(this.prisma)
 
       return rows.map((row) => ({
         id: row.id,
@@ -1266,6 +1478,44 @@ export class StorefrontService implements OnModuleInit {
         img: row.img ?? null,
       }))
     })
+  }
+
+  private async resolveStorefrontNavigation(
+    baseNavigation: StorefrontConfig['navigation'],
+  ): Promise<StorefrontConfig['navigation']> {
+    try {
+      const rootPage = await this.cmsPages.getPublicPageByPath('', 'es')
+      const headerSection = rootPage.sections.find((section) => section.type === 'SITE_HEADER')
+      const headerSettings =
+        (headerSection?.settings as Record<string, unknown> | null) ?? null
+      const legacyItems = mapCmsNavigationItems(
+        headerSettings?.items,
+      )
+
+      if (!legacyItems.length) {
+        return baseNavigation
+      }
+
+      const navigationMode =
+        typeof headerSettings?.navigationMode === 'string' &&
+        headerSettings.navigationMode.trim().toLowerCase() === 'flat'
+          ? 'flat'
+          : 'grouped'
+      const navigationGroupLabel =
+        typeof headerSettings?.navigationGroupLabel === 'string'
+          ? headerSettings.navigationGroupLabel
+          : undefined
+
+      return {
+        ...baseNavigation,
+        primary: mergeNavigationItems(baseNavigation.primary ?? [], legacyItems, {
+          mode: navigationMode,
+          groupLabel: navigationGroupLabel,
+        }),
+      }
+    } catch {
+      return baseNavigation
+    }
   }
 
   async getCurrencySettings() {
@@ -1617,6 +1867,56 @@ export class StorefrontService implements OnModuleInit {
     })
   }
 
+  async getCmsPage(path: string, locale = 'es'): Promise<CmsRenderablePageDto> {
+    const page = await this.cmsPages.getPublicPageByPath(path, locale)
+    return {
+      id: page.id,
+      path: page.path,
+      title: page.title,
+      summary: page.summary,
+      locale: page.locale,
+      seo: {
+        title: page.seoTitle,
+        description: page.seoDescription,
+      },
+      layoutKey: page.layoutKey,
+      legacySource: page.legacySource,
+      sections: page.sections.map((section) => ({
+        id: section.id,
+        type: section.type,
+        key: section.key,
+        name: section.name,
+        sortOrder: section.sortOrder,
+        settings: (section.settings as Record<string, unknown> | null) ?? null,
+        blocks: section.blocks.map((block) => ({
+          id: block.id,
+          type: block.type,
+          key: block.key,
+          name: block.name,
+          sortOrder: block.sortOrder,
+          content: (block.content as Record<string, unknown> | null) ?? null,
+          media: block.media
+            ? {
+                id: block.media.id,
+                url: block.media.url,
+                type: block.media.type,
+                alt: block.media.alt,
+                title: block.media.title,
+                mimeType: block.media.mimeType,
+                fileName: block.media.fileName,
+                sizeBytes: block.media.sizeBytes,
+                width: block.media.width,
+                height: block.media.height,
+                source: block.media.source,
+                metadata:
+                  (block.media.metadata as Record<string, unknown> | null) ?? null,
+              }
+            : null,
+        })),
+      })),
+    }
+  }
+
   private mapCmsContentSection(section: any): CmsContentSectionDto {
     const entries: CmsContentEntryDto[] = section.entries.map((entry) => {
       const primaryAsset = entry.assets[0] ?? null
@@ -1729,6 +2029,22 @@ export class StorefrontService implements OnModuleInit {
                 orderBy: { sortOrder: 'asc' },
               },
               category: true,
+              installServiceProduct: true,
+              productRelationsFrom: {
+                where: { isActive: true },
+                orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+                include: {
+                  relatedProduct: {
+                    include: {
+                      images: {
+                        where: { variantId: null },
+                        orderBy: { sortOrder: 'asc' },
+                      },
+                      category: true,
+                    },
+                  },
+                },
+              },
               options: {
                 include: {
                   values: {
@@ -1766,6 +2082,22 @@ export class StorefrontService implements OnModuleInit {
                   orderBy: { sortOrder: 'asc' },
                 },
                 category: true,
+                installServiceProduct: true,
+                productRelationsFrom: {
+                  where: { isActive: true },
+                  orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+                  include: {
+                    relatedProduct: {
+                      include: {
+                        images: {
+                          where: { variantId: null },
+                          orderBy: { sortOrder: 'asc' },
+                        },
+                        category: true,
+                      },
+                    },
+                  },
+                },
               },
             })
 
@@ -1797,6 +2129,83 @@ export class StorefrontService implements OnModuleInit {
               )
             : null
         const detail = this.toProductDetail(product, publishedParametricDefinition)
+
+        const relationGroups = new Map<
+          ProductRelationType,
+          Array<ProductWithVariants['productRelationsFrom'][number]['relatedProduct']>
+        >()
+        for (const relation of product.productRelationsFrom ?? []) {
+          if (!relation?.isActive || !relation.relatedProduct) {
+            continue
+          }
+          const bucket = relationGroups.get(relation.type) ?? []
+          bucket.push(relation.relatedProduct)
+          relationGroups.set(relation.type, bucket)
+        }
+
+        const relationProducts = Array.from(
+          new Map(
+            (product.productRelationsFrom ?? [])
+              .filter((entry) => entry?.isActive && entry.relatedProduct)
+              .map((entry) => [entry.relatedProduct.id, entry.relatedProduct]),
+          ).values(),
+        )
+        const relationPublishedDefinitions = await this.resolvePublishedParametricDefinitions(
+          relationProducts,
+        )
+
+        const mapRelatedGroup = (type: ProductRelationType) =>
+          (relationGroups.get(type) ?? [])
+            .filter(
+              (item) =>
+                item.published &&
+                item.productType === ProductType.PHYSICAL &&
+                item.id !== product.id,
+            )
+            .map((item) =>
+              this.toProductSummary(
+                item,
+                relationPublishedDefinitions.get(item.id) ?? null,
+              ),
+            )
+
+        detail.frequentlyBoughtTogether = mapRelatedGroup(
+          ProductRelationType.FREQUENTLY_BOUGHT_TOGETHER,
+        )
+        detail.suggestedAddOns = mapRelatedGroup(ProductRelationType.SUGGESTED_ADD_ON)
+
+        const installationRelation = (product.productRelationsFrom ?? []).find(
+          (entry) =>
+            entry?.isActive &&
+            entry.type === ProductRelationType.INSTALLATION_ADD_ON &&
+            entry.relatedProduct &&
+            entry.relatedProduct.productType === ProductType.SERVICE,
+        )
+        const installationServiceProduct =
+          installationRelation?.relatedProduct ??
+          (product.installServiceProduct &&
+          product.installServiceProduct.productType === ProductType.SERVICE
+            ? product.installServiceProduct
+            : null)
+
+        detail.installationAddOn = installationServiceProduct
+          ? {
+              id: installationServiceProduct.id,
+              name: installationServiceProduct.name,
+              productCode: installationServiceProduct.productCode ?? null,
+              shortDescription: installationServiceProduct.description ?? null,
+              price: money(
+                decimalToNumber(installationServiceProduct.salePrice),
+                installationServiceProduct.currency ?? product.currency ?? 'USD',
+              ),
+            }
+          : null
+
+        const relatedRelations = mapRelatedGroup(ProductRelationType.RELATED)
+        if (relatedRelations.length) {
+          detail.relatedProducts = relatedRelations
+          return detail
+        }
 
         const related = await this.prisma.product.findMany({
           where: {
@@ -3786,6 +4195,9 @@ export class StorefrontService implements OnModuleInit {
         alt: image.name,
       })),
       relatedProducts: [],
+      frequentlyBoughtTogether: [],
+      suggestedAddOns: [],
+      installationAddOn: null,
       attributes: attributes.length ? attributes : undefined,
       variants: variants.length ? variants : undefined,
       publishedParametricOptions:

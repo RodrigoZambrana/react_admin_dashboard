@@ -28,8 +28,8 @@ export class InboxController {
   constructor(private readonly inboxService: InboxService) {}
 
   @Get('accounts')
-  listAccounts() {
-    return this.inboxService.listAccounts()
+  listAccounts(@Query('channel') channel?: string) {
+    return this.inboxService.listAccounts({ channel })
   }
 
   @Get('accounts/:accountId/mailboxes')
@@ -113,6 +113,7 @@ export class InboxController {
       {
         remoteId,
         threadRemoteId: body.threadRemoteId,
+        mailbox: body.mailbox,
       },
       {
         seen: body.seen,
@@ -134,6 +135,7 @@ export class InboxController {
       {
         remoteId,
         threadRemoteId: body.threadRemoteId,
+        mailbox: body.mailbox,
       },
       body.targetMailbox,
     )
@@ -148,6 +150,7 @@ export class InboxController {
     return this.inboxService.markAsSpam(accountId, {
       remoteId,
       threadRemoteId: body.threadRemoteId,
+      mailbox: body.mailbox,
     })
   }
 

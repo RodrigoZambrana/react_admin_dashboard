@@ -146,7 +146,17 @@ const MailList = () => {
     const selectedCategory = mailState.selectedCategory
 
     const inboxState = mailState.inbox
+    const inboxAccounts = inboxState.accounts
     const selectedInboxAccountId = inboxState.selectedAccountId
+    const selectedInboxAccount = useMemo(
+        () =>
+            selectedInboxAccountId
+                ? inboxAccounts.find(
+                      (account) => account.id === selectedInboxAccountId,
+                  ) ?? null
+                : null,
+        [inboxAccounts, selectedInboxAccountId],
+    )
     const selectedInboxMailboxId = inboxState.selectedMailboxId
     const inboxMessagesKey =
         selectedInboxAccountId && selectedInboxMailboxId
@@ -359,6 +369,12 @@ const MailList = () => {
         if (!queryAccountId) {
             return
         }
+        if (
+            inboxAccounts.length > 0 &&
+            !inboxAccounts.some((account) => account.id === queryAccountId)
+        ) {
+            return
+        }
         if (selectedInboxAccountId !== queryAccountId) {
             dispatch(
                 setSelectedInboxContext({
@@ -373,6 +389,7 @@ const MailList = () => {
         }
     }, [
         dispatch,
+        inboxAccounts,
         queryAccountId,
         queryMailboxId,
         selectedInboxAccountId,
@@ -419,7 +436,11 @@ const MailList = () => {
     }, [hasRealMailboxContext, location.pathname])
 
     useEffect(() => {
-        if (!selectedInboxAccountId || !selectedInboxMailboxId) {
+        if (
+            !selectedInboxAccountId ||
+            !selectedInboxAccount ||
+            !selectedInboxMailboxId
+        ) {
             return
         }
         dispatch(
@@ -428,10 +449,19 @@ const MailList = () => {
                 mailbox: selectedInboxMailboxId,
             }),
         )
-    }, [dispatch, selectedInboxAccountId, selectedInboxMailboxId])
+    }, [
+        dispatch,
+        selectedInboxAccount,
+        selectedInboxAccountId,
+        selectedInboxMailboxId,
+    ])
 
     useEffect(() => {
-        if (!selectedInboxAccountId || !selectedInboxMailboxId) {
+        if (
+            !selectedInboxAccountId ||
+            !selectedInboxAccount ||
+            !selectedInboxMailboxId
+        ) {
             if (pollTimerRef.current) {
                 window.clearTimeout(pollTimerRef.current)
                 pollTimerRef.current = null
@@ -473,7 +503,12 @@ const MailList = () => {
                 pollTimerRef.current = null
             }
         }
-    }, [dispatch, selectedInboxAccountId, selectedInboxMailboxId])
+    }, [
+        dispatch,
+        selectedInboxAccount,
+        selectedInboxAccountId,
+        selectedInboxMailboxId,
+    ])
 
     const parseHtml = (content: string) => {
         if (!content) {

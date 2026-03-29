@@ -34,6 +34,12 @@ export class CreateWebchatSessionDto {
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
+  @MaxLength(8)
+  currency?: string
+
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
   @MaxLength(512)
   page?: string
 

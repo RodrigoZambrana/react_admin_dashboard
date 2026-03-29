@@ -52,4 +52,9 @@ export class WhatsappQrController {
   syncConfigToAdapter() {
     return this.whatsappQr.syncConfigToAdapter()
   }
+
+  @Post('backfill')
+  backfillHistory() {
+    return this.whatsappQr.backfillHistory()
+  }
 }

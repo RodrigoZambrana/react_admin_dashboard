@@ -14,9 +14,18 @@ import { StorefrontSecurityService } from './security/storefront-security.servic
 import { OrdersModule } from '../orders/orders.module'
 import { StorefrontPublishedProductResolverService } from './storefront-published-product-resolver.service'
 import { CmsModule } from '../cms/cms.module'
+import { GrowthModule } from '../growth/growth.module'
 
 @Module({
-  imports: [CurrencyModule, NotificationsModule, PricingModule, EmailModule, OrdersModule, CmsModule],
+  imports: [
+    CurrencyModule,
+    NotificationsModule,
+    PricingModule,
+    EmailModule,
+    OrdersModule,
+    CmsModule,
+    GrowthModule,
+  ],
   controllers: [StorefrontController],
   providers: [
     StorefrontService,

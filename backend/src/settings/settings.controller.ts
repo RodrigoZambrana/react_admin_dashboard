@@ -162,6 +162,7 @@ import {
   persistShippingLogo,
   deleteShippingLogo,
 } from '../common/uploads/shipping'
+import { ensureDefaultShippingOptions } from '../common/shipping/default-shipping-options'
 import { sanitizeRichText } from '../common/utils/sanitize'
 import {
   MercadoPagoService,
@@ -1103,7 +1104,7 @@ export class SettingsController {
   @Get('shipping-options')
   @UseGuards(JwtAuthGuard)
   getShippingOptions() {
-    return this.prisma.shippingOption.findMany({ orderBy: { id: 'asc' } })
+    return ensureDefaultShippingOptions(this.prisma)
   }
 
   @Post('shipping-options/create')

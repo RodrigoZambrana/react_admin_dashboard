@@ -1,15 +1,213 @@
 import { normalizeMetaPayload } from '../../normalization/unified-message.js'
+import {
+  extractMetaWebhookEvents,
+  validateMetaWebhookSignature,
+  validateMetaWebhookVerification,
+} from './meta.webhook.js'
+import { MetaSender } from './meta.sender.js'
 
-const META_GRAPH_BASE_URL = 'https://graph.facebook.com/v23.0'
+const cleanString = (value) => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const normalized = value.trim()
+  return normalized.length ? normalized : null
+}
 
 export class MetaAdapter {
-  constructor(clients, config) {
+  constructor(clients, config, options = {}) {
     this.clients = clients
     this.config = config
+    this.sender = options.sender || new MetaSender(config, options)
   }
 
-  async handleInbound(payload) {
+  getEffectiveConfig() {
+    return {
+      enabled: this.config.metaEnabled !== false,
+      messengerEnabled:
+        this.config.metaEnabled !== false &&
+        this.config.metaMessengerEnabled !== false,
+      instagramEnabled:
+        this.config.metaEnabled !== false &&
+        this.config.metaInstagramEnabled !== false,
+      publicBaseUrl: cleanString(this.config.metaPublicBaseUrl),
+      pageId: cleanString(this.config.metaPageId),
+      instagramBusinessAccountId: cleanString(
+        this.config.instagramBusinessAccountId,
+      ),
+      appId: cleanString(this.config.metaAppId),
+      verifyToken: cleanString(this.config.metaVerifyToken),
+      appSecret: cleanString(this.config.metaAppSecret),
+      pageAccessToken: cleanString(this.config.metaPageAccessToken),
+      messengerPageAccessToken: cleanString(
+        this.config.messengerPageAccessToken,
+      ),
+      instagramAccessToken: cleanString(this.config.instagramAccessToken),
+    }
+  }
+
+  getStatus() {
+    const enabled = this.config.metaEnabled !== false
+    const messengerEnabled = enabled && this.config.metaMessengerEnabled !== false
+    const instagramEnabled = enabled && this.config.metaInstagramEnabled !== false
+    const publicBaseUrl = cleanString(this.config.metaPublicBaseUrl)
+    const publicWebhookUrl = publicBaseUrl
+      ? `${publicBaseUrl.replace(/\/$/, '')}/webhooks/meta`
+      : null
+    const verifyTokenPresent = Boolean(cleanString(this.config.metaVerifyToken))
+    const appSecretPresent = Boolean(cleanString(this.config.metaAppSecret))
+    const messengerPageAccessTokenPresent = Boolean(
+      cleanString(this.config.messengerPageAccessToken) ||
+        cleanString(this.config.metaPageAccessToken),
+    )
+    const instagramAccessTokenPresent = Boolean(
+      cleanString(this.config.instagramAccessToken) ||
+        cleanString(this.config.metaPageAccessToken) ||
+        cleanString(this.config.messengerPageAccessToken),
+    )
+    const pageId = cleanString(this.config.metaPageId)
+    const instagramBusinessAccountId = cleanString(
+      this.config.instagramBusinessAccountId,
+    )
+
+    return {
+      driver: 'meta',
+      enabled,
+      messengerEnabled,
+      instagramEnabled,
+      appId: cleanString(this.config.metaAppId),
+      graphVersion: cleanString(this.config.metaGraphVersion) || 'v23.0',
+      graphBaseUrl:
+        cleanString(this.config.metaGraphBaseUrl) || 'https://graph.facebook.com',
+      publicBaseUrl,
+      publicWebhookUrl,
+      verifyTokenPresent,
+      appSecretPresent,
+      webhookVerificationReady: verifyTokenPresent,
+      signatureValidationReady: appSecretPresent,
+      webhookInboundReady: verifyTokenPresent && appSecretPresent,
+      messenger: {
+        enabled: messengerEnabled,
+        pageId,
+        pageAccessTokenPresent: messengerPageAccessTokenPresent,
+        outboundReady: messengerEnabled && messengerPageAccessTokenPresent,
+      },
+      instagram: {
+        enabled: instagramEnabled,
+        businessAccountId: instagramBusinessAccountId,
+        accessTokenPresent: instagramAccessTokenPresent,
+        outboundReady:
+          instagramEnabled &&
+          instagramAccessTokenPresent &&
+          Boolean(instagramBusinessAccountId),
+      },
+      capabilities: {
+        text: true,
+        attachments: true,
+        postbacks: true,
+        quickReplies: true,
+      },
+    }
+  }
+
+  updateConfig(input = {}) {
+    if (Object.prototype.hasOwnProperty.call(input, 'enabled')) {
+      this.config.metaEnabled = input.enabled === true
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'messengerEnabled')) {
+      this.config.metaMessengerEnabled = input.messengerEnabled === true
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'instagramEnabled')) {
+      this.config.metaInstagramEnabled = input.instagramEnabled === true
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'publicBaseUrl')) {
+      this.config.metaPublicBaseUrl = cleanString(input.publicBaseUrl)
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'pageId')) {
+      this.config.metaPageId = cleanString(input.pageId)
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'instagramBusinessAccountId')) {
+      this.config.instagramBusinessAccountId = cleanString(
+        input.instagramBusinessAccountId,
+      )
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'appId')) {
+      this.config.metaAppId = cleanString(input.appId)
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'verifyToken')) {
+      this.config.metaVerifyToken = cleanString(input.verifyToken)
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'appSecret')) {
+      this.config.metaAppSecret = cleanString(input.appSecret)
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'pageAccessToken')) {
+      this.config.metaPageAccessToken = cleanString(input.pageAccessToken)
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'messengerPageAccessToken')) {
+      this.config.messengerPageAccessToken = cleanString(
+        input.messengerPageAccessToken,
+      )
+    }
+    if (Object.prototype.hasOwnProperty.call(input, 'instagramAccessToken')) {
+      this.config.instagramAccessToken = cleanString(input.instagramAccessToken)
+    }
+
+    return this.getStatus()
+  }
+
+  verifyWebhook(searchParams) {
+    return validateMetaWebhookVerification(searchParams, this.config.metaVerifyToken)
+  }
+
+  validateSignature(rawBody, signatureHeader) {
+    return validateMetaWebhookSignature(rawBody, signatureHeader, this.config.metaAppSecret)
+  }
+
+  async handleWebhook(payload) {
+    const events = extractMetaWebhookEvents(payload, {
+      tenantKey: this.config.clientSlug || 'default',
+    })
+
+    const results = []
+    let ignored = 0
+
+    for (const event of events) {
+      if (event.type === 'status') {
+        ignored += 1
+        continue
+      }
+
+      if (!this.isPlatformEnabled(event.platform)) {
+        ignored += 1
+        continue
+      }
+
+      results.push(await this.handleInboundEvent(event.payload))
+    }
+
+    return {
+      ok: true,
+      totalEvents: events.length,
+      processedEvents: results.length,
+      ignoredEvents: ignored,
+      results,
+    }
+  }
+
+  async handleInboundEvent(payload) {
     const normalized = normalizeMetaPayload(payload)
+    if (!this.isPlatformEnabled(normalized.channel)) {
+      return {
+        normalized,
+        conversation: null,
+        ai: null,
+        skipped: true,
+      }
+    }
+    if (!normalized.text && (!Array.isArray(normalized.attachments) || !normalized.attachments.length)) {
+      throw new Error('Meta inbound event requires text or attachments')
+    }
+
     const projection = await this.clients.conversations.ingestInboundMessage({
       tenantKey: normalized.tenantKey,
       channel: normalized.channel,
@@ -34,6 +232,24 @@ export class MetaAdapter {
       const aiResult = await this.clients.ai.respond({
         ...normalized,
         conversationId: projection.conversationId,
+        locale: projection?.preferences?.locale || normalized?.metadata?.locale || undefined,
+        currency:
+          projection?.preferences?.currency || normalized?.metadata?.currency || undefined,
+        metadata: {
+          ...(normalized?.metadata && typeof normalized.metadata === 'object'
+            ? normalized.metadata
+            : {}),
+          locale:
+            projection?.preferences?.locale ||
+            (normalized?.metadata && typeof normalized.metadata === 'object'
+              ? normalized.metadata.locale || null
+              : null),
+          currency:
+            projection?.preferences?.currency ||
+            (normalized?.metadata && typeof normalized.metadata === 'object'
+              ? normalized.metadata.currency || null
+              : null),
+        },
       })
       const responseText =
         aiResult?.response?.finalUserText?.trim() ||
@@ -52,6 +268,8 @@ export class MetaAdapter {
             aiMemory: aiResult?.response?.memory || null,
           },
           toolCalls: aiResult?.response?.toolCalls ?? [],
+          needsHuman: aiResult?.response?.needsHuman ?? false,
+          grounding: aiResult?.response?.grounding ?? null,
         })
       }
       ai = aiResult?.response ?? null
@@ -62,6 +280,14 @@ export class MetaAdapter {
       conversation: projection,
       ai,
     }
+  }
+
+  async handleInbound(payload) {
+    if (Array.isArray(payload?.entry) && payload?.object) {
+      return this.handleWebhook(payload)
+    }
+
+    return this.handleInboundEvent(payload)
   }
 
   async handleStatus(payload) {
@@ -116,137 +342,18 @@ export class MetaAdapter {
   }
 
   async sendOutbound(payload) {
-    const channel = this.normalizeChannel(payload?.channel)
-    const text = String(payload?.text || '').trim()
-    const recipientId = String(payload?.recipientId || '').trim()
-
-    if (!text) {
-      throw new Error('text is required for meta outbound messages')
+    const channel = this.normalizeChannel(payload?.channel || payload?.platform)
+    if (!this.isPlatformEnabled(channel)) {
+      throw new Error(`Meta platform ${channel} is disabled`)
     }
-
-    if (!recipientId) {
-      throw new Error('recipientId is required for meta outbound messages')
-    }
-
-    const result = await this.sendViaMetaGraph(channel, recipientId, text, payload)
+    const result = await this.sender.sendMessage({
+      ...payload,
+      channel,
+      platform: channel,
+    })
     return {
       ...result,
       channel,
-    }
-  }
-
-  async sendViaMetaGraph(channel, recipientId, text, payload) {
-    if (channel === 'whatsapp') {
-      return this.sendWhatsappMessage(recipientId, text, payload)
-    }
-
-    if (channel === 'facebook' || channel === 'instagram') {
-      return this.sendMessengerStyleMessage(channel, recipientId, text, payload)
-    }
-
-    return this.buildSimulatedResponse(channel, payload)
-  }
-
-  async sendWhatsappMessage(recipientId, text, payload) {
-    const token = this.config.whatsappAccessToken
-    const phoneNumberId = this.config.whatsappPhoneNumberId
-
-    if (!token || !phoneNumberId) {
-      return this.buildSimulatedResponse('whatsapp', payload)
-    }
-
-    const response = await fetch(
-      `${META_GRAPH_BASE_URL}/${phoneNumberId}/messages`,
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${token}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: recipientId,
-          type: 'text',
-          text: { body: text },
-        }),
-      },
-    )
-
-    const raw = await response.text()
-    const parsed = raw ? JSON.parse(raw) : {}
-
-    if (!response.ok) {
-      throw new Error(parsed?.error?.message || 'Failed to send WhatsApp message')
-    }
-
-    const remoteId = parsed?.messages?.[0]?.id || `wa:${Date.now()}`
-
-    return {
-      provider: 'meta-graph',
-      remoteId,
-      providerMessageId: remoteId,
-      threadRemoteId: payload?.threadId || recipientId,
-      deliveryStatus: 'accepted',
-      metadata: parsed,
-    }
-  }
-
-  async sendMessengerStyleMessage(channel, recipientId, text, payload) {
-    const token =
-      channel === 'instagram'
-        ? this.config.instagramAccessToken
-        : this.config.messengerPageAccessToken
-
-    if (!token) {
-      return this.buildSimulatedResponse(channel, payload)
-    }
-
-    const response = await fetch(`${META_GRAPH_BASE_URL}/me/messages`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${token}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        recipient: { id: recipientId },
-        message: { text },
-        messaging_type: 'RESPONSE',
-      }),
-    })
-
-    const raw = await response.text()
-    const parsed = raw ? JSON.parse(raw) : {}
-
-    if (!response.ok) {
-      throw new Error(
-        parsed?.error?.message || `Failed to send ${channel} message`,
-      )
-    }
-
-    const remoteId = parsed?.message_id || `meta:${Date.now()}`
-
-    return {
-      provider: 'meta-graph',
-      remoteId,
-      providerMessageId: remoteId,
-      threadRemoteId: payload?.threadId || recipientId,
-      deliveryStatus: 'accepted',
-      metadata: parsed,
-    }
-  }
-
-  buildSimulatedResponse(channel, payload) {
-    const remoteId = `sim:${channel}:${Date.now()}`
-    return {
-      provider: 'meta-simulated',
-      remoteId,
-      providerMessageId: remoteId,
-      threadRemoteId: payload?.threadId || payload?.recipientId || null,
-      deliveryStatus: 'accepted',
-      metadata: {
-        simulated: true,
-      },
     }
   }
 
@@ -276,7 +383,7 @@ export class MetaAdapter {
     if (normalized === 'facebook') {
       return 'facebook'
     }
-    return 'whatsapp'
+    return 'facebook'
   }
 
   normalizeDeliveryStatus(status) {
@@ -295,5 +402,18 @@ export class MetaAdapter {
       default:
         return 'accepted'
     }
+  }
+
+  isPlatformEnabled(platform) {
+    if (this.config.metaEnabled === false) {
+      return false
+    }
+
+    const normalized = this.normalizeChannel(platform)
+    if (normalized === 'instagram') {
+      return this.config.metaInstagramEnabled !== false
+    }
+
+    return this.config.metaMessengerEnabled !== false
   }
 }

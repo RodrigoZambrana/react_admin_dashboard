@@ -4,7 +4,7 @@ import {
   Logger,
 } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
-import { InboxChannelType, Prisma } from '@prisma/client'
+import { ConversationChannel, InboxChannelType, Prisma } from '@prisma/client'
 import { PrismaService } from '../../prisma/prisma.service'
 import { SecureConfigService } from '../../common/security/secure-config.service'
 import { UpdateWhatsappQrConfigDto } from './dto/update-whatsapp-qr-config.dto'
@@ -53,10 +53,30 @@ type ChannelAdapterStatus = {
     presence: boolean
     media: boolean
   } | null
+  history?: {
+    knownChatsCount: number
+    bufferedMessagesCount: number
+    lastBackfillResult?: {
+      importedMessages: number
+      importedConversations: number
+      duplicateMessages: number
+      skippedMessages: number
+      authBootstrapCandidates: number
+      bootstrappedFromAuth: number
+      completedAt?: string | null
+    } | null
+  } | null
 }
 
 const WHATSAPP_QR_CONFIG_KEY = 'whatsapp_qr_channel_config'
 const DEFAULT_WHATSAPP_QR_ADDRESS = 'whatsapp-qr-primary'
+const ADOPTABLE_WHATSAPP_QR_STATES = new Set([
+  'connected',
+  'qr_ready',
+  'connecting',
+  'reconnecting',
+  'stopped',
+])
 
 @Injectable()
 export class WhatsappQrService {
@@ -69,8 +89,8 @@ export class WhatsappQrService {
   ) {}
 
   async getOverview() {
-    const config = await this.getConfig()
     const status = await this.getAdapterStatusSafe()
+    const config = await this.resolveConfigForOverview(status)
     const inboxAccount = await this.ensureInboxAccountForConfig(config, {
       syncAddress: status.connectedPhone,
     })
@@ -161,12 +181,69 @@ export class WhatsappQrService {
     return this.getOverview()
   }
 
+  async backfillHistory() {
+    const config = await this.getConfig()
+    const inboxAccount = await this.ensureInboxAccountForConfig(config)
+    await this.pushConfigToAdapter(config, inboxAccount)
+
+    const backfill = await this.fetchFromAdapter<{
+      importedMessages: number
+      importedConversations: number
+      duplicateMessages: number
+      skippedMessages: number
+    }>('/channels/whatsapp-qr/backfill', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    })
+
+    const cleanup = await this.cleanupNonQrWhatsappData(inboxAccount?.id ?? null)
+
+    return {
+      overview: await this.getOverview(),
+      backfill,
+      cleanup,
+    }
+  }
+
   async getConfig() {
-    const record =
-      await this.secureConfig.getJson<WhatsappQrStoredConfig>(
-        WHATSAPP_QR_CONFIG_KEY,
-      )
+    const record = await this.getStoredConfigRecord()
     return this.normalizeConfig(record?.value ?? {})
+  }
+
+  private async getStoredConfigRecord() {
+    return this.secureConfig.getJson<WhatsappQrStoredConfig>(
+      WHATSAPP_QR_CONFIG_KEY,
+    )
+  }
+
+  private async resolveConfigForOverview(status: ChannelAdapterStatus) {
+    const record = await this.getStoredConfigRecord()
+    if (record?.value) {
+      return this.normalizeConfig(record.value)
+    }
+
+    if (!this.shouldAdoptAdapterState(status)) {
+      return this.normalizeConfig({})
+    }
+
+    const adopted = this.normalizeConfig({
+      enabled: true,
+      displayName: 'WhatsApp QR',
+      address: this.cleanString(status.connectedPhone) || DEFAULT_WHATSAPP_QR_ADDRESS,
+      autoStart: true,
+    })
+    await this.secureConfig.setJson<WhatsappQrStoredConfig>(
+      WHATSAPP_QR_CONFIG_KEY,
+      adopted,
+    )
+    return adopted
+  }
+
+  private shouldAdoptAdapterState(status: ChannelAdapterStatus) {
+    return (
+      status.enabled === true ||
+      ADOPTABLE_WHATSAPP_QR_STATES.has(this.cleanString(status.state) || '')
+    )
   }
 
   private normalizeConfig(raw: WhatsappQrConfigInput): WhatsappQrStoredConfig {
@@ -231,8 +308,11 @@ export class WhatsappQrService {
       return null
     }
 
+    let inboxAccount: Awaited<ReturnType<typeof this.prisma.inboxAccount.update>> | null =
+      null
+
     if (existing) {
-      return this.prisma.inboxAccount.update({
+      inboxAccount = await this.prisma.inboxAccount.update({
         where: { id: existing.id },
         data: {
           displayName: config.displayName,
@@ -241,17 +321,31 @@ export class WhatsappQrService {
           metadata: metadata as Prisma.InputJsonValue,
         },
       })
+    } else {
+      inboxAccount = await this.prisma.inboxAccount.create({
+        data: {
+          channel: InboxChannelType.WHATSAPP,
+          displayName: config.displayName,
+          address: desiredAddress,
+          active: config.enabled,
+          metadata: metadata as Prisma.InputJsonValue,
+        },
+      })
     }
 
-    return this.prisma.inboxAccount.create({
-      data: {
-        channel: InboxChannelType.WHATSAPP,
-        displayName: config.displayName,
-        address: desiredAddress,
-        active: config.enabled,
-        metadata: metadata as Prisma.InputJsonValue,
-      },
-    })
+    if (config.enabled && inboxAccount) {
+      await this.prisma.inboxAccount.updateMany({
+        where: {
+          channel: InboxChannelType.WHATSAPP,
+          id: { not: inboxAccount.id },
+        },
+        data: {
+          active: false,
+        },
+      })
+    }
+
+    return inboxAccount
   }
 
   private async getAdapterStatusSafe(): Promise<ChannelAdapterStatus> {
@@ -388,5 +482,63 @@ export class WhatsappQrService {
       return null
     }
     return value as Record<string, unknown>
+  }
+
+  private async cleanupNonQrWhatsappData(activeInboxAccountId: string | null) {
+    const conversationsToDelete = await this.prisma.conversation.findMany({
+      where: {
+        channel: ConversationChannel.WHATSAPP,
+        ...(activeInboxAccountId
+          ? {
+              OR: [
+                { inboxAccountId: null },
+                { inboxAccountId: { not: activeInboxAccountId } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    const conversationIds = conversationsToDelete.map((entry) => entry.id)
+    if (conversationIds.length) {
+      await this.prisma.conversation.deleteMany({
+        where: {
+          id: {
+            in: conversationIds,
+          },
+        },
+      })
+    }
+
+    const inboxesToDelete = await this.prisma.inboxAccount.findMany({
+      where: {
+        channel: InboxChannelType.WHATSAPP,
+        ...(activeInboxAccountId
+          ? { id: { not: activeInboxAccountId } }
+          : {}),
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    const inboxIds = inboxesToDelete.map((entry) => entry.id)
+    if (inboxIds.length) {
+      await this.prisma.inboxAccount.deleteMany({
+        where: {
+          id: {
+            in: inboxIds,
+          },
+        },
+      })
+    }
+
+    return {
+      deletedConversations: conversationIds.length,
+      deletedInboxAccounts: inboxIds.length,
+    }
   }
 }

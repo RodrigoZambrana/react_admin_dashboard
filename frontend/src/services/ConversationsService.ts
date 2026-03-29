@@ -36,6 +36,21 @@ export type ConversationSummary = {
         displayName: string | null
         address: string | null
         channel: string
+        transport?: string | null
+    } | null
+    channelState?: {
+        transport: string | null
+        archived: boolean | null
+        read: boolean | null
+        pinned: boolean | null
+        muted: boolean | null
+        mutePreset: string | null
+        muteDurationMs: number | null
+        mutedUntil: string | null
+        deleted: boolean | null
+        threadId: string | null
+        updatedAt: string | null
+        updatedByUserId: number | null
     } | null
     queue: {
         id: string
@@ -534,6 +549,365 @@ const ConversationsService = {
             },
         })
         return response.data
+    },
+
+    async reactToWhatsappMessage(
+        conversationId: string,
+        messageId: string,
+        emoji: string,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            emoji: string
+            provider: string
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/whatsapp/reaction`,
+            method: 'post',
+            data: {
+                emoji,
+            },
+        })
+        return response.data
+    },
+
+    async reactToWebchatMessage(
+        conversationId: string,
+        messageId: string,
+        emoji: string,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            emoji: string
+            provider: string
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/webchat/reaction`,
+            method: 'post',
+            data: {
+                emoji,
+            },
+        })
+        return response.data
+    },
+
+    async replyToWebchatMessage(
+        conversationId: string,
+        messageId: string,
+        body: string,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            quotedMessageId: string
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/webchat/reply`,
+            method: 'post',
+            data: {
+                body,
+            },
+        })
+        return response.data
+    },
+
+    async replyToWhatsappMessage(
+        conversationId: string,
+        messageId: string,
+        body: string,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            quotedMessageId: string
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/whatsapp/reply`,
+            method: 'post',
+            data: {
+                body,
+            },
+        })
+        return response.data
+    },
+
+    async editWebchatMessage(
+        conversationId: string,
+        messageId: string,
+        body: string,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            body: string
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/webchat/edit`,
+            method: 'post',
+            data: {
+                body,
+            },
+        })
+        return response.data
+    },
+
+    async editWhatsappMessage(
+        conversationId: string,
+        messageId: string,
+        body: string,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            body: string
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/whatsapp/edit`,
+            method: 'post',
+            data: {
+                body,
+            },
+        })
+        return response.data
+    },
+
+    async deleteWebchatMessage(conversationId: string, messageId: string) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            deleted: boolean
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/webchat/delete`,
+            method: 'post',
+        })
+        return response.data
+    },
+
+    async deleteWhatsappMessage(conversationId: string, messageId: string) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            deleted: boolean
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/whatsapp/delete`,
+            method: 'post',
+        })
+        return response.data
+    },
+
+    async toggleWhatsappMessageStar(
+        conversationId: string,
+        messageId: string,
+        starred: boolean,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            starred: boolean
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/whatsapp/star`,
+            method: 'post',
+            data: {
+                starred,
+            },
+        })
+        return response.data
+    },
+
+    async toggleWebchatMessageStar(
+        conversationId: string,
+        messageId: string,
+        starred: boolean,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            messageId: string
+            starred: boolean
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/webchat/star`,
+            method: 'post',
+            data: {
+                starred,
+            },
+        })
+        return response.data
+    },
+
+    async forwardWhatsappMessage(
+        conversationId: string,
+        messageId: string,
+        targetConversationId: string,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            sourceConversationId: string
+            sourceMessageId: string
+            targetConversationId: string
+            forwardedMessageId: string
+        }>({
+            url: `/conversations/${conversationId}/messages/${messageId}/whatsapp/forward`,
+            method: 'post',
+            data: {
+                targetConversationId,
+            },
+        })
+        return response.data
+    },
+
+    async toggleWhatsappChatArchive(
+        conversationId: string,
+        archived: boolean,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            archived: boolean
+        }>({
+            url: `/conversations/${conversationId}/whatsapp/archive`,
+            method: 'post',
+            data: {
+                archived,
+            },
+        })
+        return response.data
+    },
+
+    async toggleWebchatChatArchive(
+        conversationId: string,
+        archived: boolean,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            archived: boolean
+        }>({
+            url: `/conversations/${conversationId}/webchat/archive`,
+            method: 'post',
+            data: {
+                archived,
+            },
+        })
+        return response.data
+    },
+
+    async toggleWhatsappChatReadState(
+        conversationId: string,
+        read: boolean,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            read: boolean
+        }>({
+            url: `/conversations/${conversationId}/whatsapp/read-state`,
+            method: 'post',
+            data: {
+                read,
+            },
+        })
+        return response.data
+    },
+
+    async toggleWhatsappChatPinState(
+        conversationId: string,
+        pinned: boolean,
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            pinned: boolean
+        }>({
+            url: `/conversations/${conversationId}/whatsapp/pin-state`,
+            method: 'post',
+            data: {
+                pinned,
+            },
+        })
+        return response.data
+    },
+
+    async setWhatsappChatMuteState(
+        conversationId: string,
+        preset: 'off' | '8h' | '7d',
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            muted: boolean
+            mutePreset: string | null
+            muteDurationMs: number | null
+            mutedUntil: string | null
+        }>({
+            url: `/conversations/${conversationId}/whatsapp/mute-state`,
+            method: 'post',
+            data: {
+                preset,
+            },
+        })
+        return response.data
+    },
+
+    async setWebchatChatMuteState(
+        conversationId: string,
+        preset: 'off' | '8h' | '7d',
+    ) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            muted: boolean
+            mutePreset: string | null
+            muteDurationMs: number | null
+            mutedUntil: string | null
+        }>({
+            url: `/conversations/${conversationId}/webchat/mute-state`,
+            method: 'post',
+            data: {
+                preset,
+            },
+        })
+        return response.data
+    },
+
+    async deleteWebchatChat(conversationId: string) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            deleted: boolean
+        }>({
+            url: `/conversations/${conversationId}/webchat/delete`,
+            method: 'post',
+        })
+        return response.data
+    },
+
+    async deleteWhatsappChat(conversationId: string) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            conversationId: string
+            deleted: boolean
+        }>({
+            url: `/conversations/${conversationId}/whatsapp/delete`,
+            method: 'post',
+        })
+        return response.data
+    },
+
+    async downloadWhatsappMessageMedia(
+        conversationId: string,
+        messageId: string,
+        attachmentIndex: number,
+    ) {
+        return ApiService.fetchData<Blob>({
+            url: `/conversations/${conversationId}/messages/${messageId}/whatsapp/media/${attachmentIndex}`,
+            method: 'get',
+            responseType: 'blob',
+        })
     },
 
     async recordConversationSuggestionFeedback(

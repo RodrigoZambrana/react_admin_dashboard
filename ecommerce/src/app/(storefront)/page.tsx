@@ -1,46 +1,30 @@
 import type { Metadata } from "next";
-import loadable from "next/dynamic";
-import AppLayout from "@component/layout/layout-1";
-import Navbar from "@component/navbar/Navbar";
-import Section1 from "@sections/market-1/Section1";
-import SectionStories from "@sections/market-1/SectionStories";
+import CmsPageShell from "@/components/cms/CmsPageShell";
+import LegacyStorefrontHomePage from "@/components/cms/LegacyStorefrontHomePage";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 
-const SectionCmsHighlights = loadable(() => import("@sections/market-1/SectionCmsHighlights"));
-const Section10 = loadable(() => import("@sections/market-1/Section10"));
-const Section12 = loadable(() => import("@sections/market-1/Section12"));
-const Section2 = loadable(() => import("@sections/market-1/Section2"));
-const Section5 = loadable(() => import("@sections/market-1/Section5"));
-const Section6 = loadable(() => import("@sections/market-1/Section6"));
+export const revalidate = 120;
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return buildStorefrontPageMetadata();
+  const { StorefrontApi } = await import("@/lib/api/storefront");
+  try {
+    const page = await StorefrontApi.getCmsPage("");
+    return buildStorefrontPageMetadata({
+      title: page.seo?.title ?? page.title,
+      description: page.seo?.description ?? page.summary ?? undefined,
+    });
+  } catch {
+    return buildStorefrontPageMetadata();
+  }
 }
 
-export const revalidate = 300;
-export const dynamic = "force-static";
-
-export default async function StorefrontHomePage() {
+export default async function StorefrontRootPage() {
   const { StorefrontApi } = await import("@/lib/api/storefront");
-  const homeContentSections = await StorefrontApi.listContentSections().catch(
-    (): import("@/types/storefront").CmsContentSection[] => [],
-  );
-  const homeStoriesSection = homeContentSections.find((section) => section.key === "HOME_STORIES") ?? null;
-  const homeHighlightsSection =
-    homeContentSections.find((section) => section.key === "HOME_HIGHLIGHTS") ?? null;
-  const stories = homeStoriesSection?.entries ?? [];
-
-  return (
-    <AppLayout navbar={<Navbar />}>
-      <SectionStories stories={stories} />
-      <SectionCmsHighlights section={homeHighlightsSection} />
-      <Section1 />
-      <Section10 />
-      <Section12 />
-      <Section2 />
-      <Section5 />
-      <Section6 />
-      {/* <Section8 /> */}
-    </AppLayout>
-  );
+  try {
+    const page = await StorefrontApi.getCmsPage("");
+    return <CmsPageShell page={page} />;
+  } catch {
+    return <LegacyStorefrontHomePage />;
+  }
 }

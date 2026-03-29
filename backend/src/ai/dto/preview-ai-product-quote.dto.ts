@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer'
-import { IsArray, IsInt, IsNumber, IsOptional, ValidateNested, Min } from 'class-validator'
+import { IsArray, IsInt, IsNumber, IsOptional, IsString, MaxLength, ValidateNested, Min } from 'class-validator'
 
 export class PreviewAiProductQuoteItemDto {
   @IsOptional()
@@ -62,4 +62,9 @@ export class PreviewAiProductQuoteDto {
   @ValidateNested({ each: true })
   @Type(() => PreviewAiProductQuoteItemDto)
   items?: PreviewAiProductQuoteItemDto[]
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5)
+  targetCurrency?: string
 }

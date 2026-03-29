@@ -28,6 +28,10 @@ import {
     HiOutlineCode,
     HiOutlineShoppingBag,
     HiOutlineSparkles,
+    HiOutlineMail,
+    HiOutlinePhotograph,
+    HiOutlineGlobeAlt,
+    HiOutlineChatAlt2,
 } from 'react-icons/hi'
 import { MdOutlineWindow } from 'react-icons/md'
 import type { JSX } from 'react'
@@ -69,6 +73,10 @@ const navigationIcon: NavigationIcons = {
     settings: <HiOutlineAdjustments />,
     products: <HiOutlineShoppingBag />,
     ai: <HiOutlineSparkles />,
+    emailChannel: <HiOutlineMail />,
+    whatsapp: <HiOutlineChatAlt2 />,
+    meta: <HiOutlineGlobeAlt />,
+    media: <HiOutlinePhotograph />,
     aberturas: <MdOutlineWindow size={24} />,
     signOut: (
         <span className="text-xl opacity-50">

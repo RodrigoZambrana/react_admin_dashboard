@@ -130,6 +130,13 @@ enum InstallationPricePresentationMode {
   HIDDEN
 }
 
+enum ProductRelationType {
+  RELATED
+  FREQUENTLY_BOUGHT_TOGETHER
+  SUGGESTED_ADD_ON
+  INSTALLATION_ADD_ON
+}
+
 enum ProductAttributeType {
   COLOR
   SIZE
@@ -142,10 +149,46 @@ enum CmsEntryStatus {
   ARCHIVED
 }
 
+enum CmsPageScope {
+  GENERAL_SITE
+  STOREFRONT
+}
+
 enum CmsEntryAssetType {
   IMAGE
   VIDEO
   EMBED
+}
+
+enum CmsPageSectionType {
+  SITE_HEADER
+  HERO
+  RICH_TEXT
+  MEDIA_GRID
+  MEDIA_CAROUSEL
+  CONTENT_SPLIT
+  CTA_BANNER
+  FAQ
+  FEATURE_GRID
+  SITE_FOOTER
+}
+
+enum CmsPageBlockType {
+  TEXT
+  RICH_TEXT
+  IMAGE
+  BUTTON
+  LIST_ITEM
+  FAQ_ITEM
+  CARD
+}
+
+enum CmsMediaType {
+  IMAGE
+  VIDEO
+  DOCUMENT
+  EMBED
+  AUDIO
 }
 
 enum InboxChannelType {
@@ -215,6 +258,13 @@ enum ConversationParticipantRole {
   OPERATOR
   AGENT
   SYSTEM
+}
+
+enum ConversationExternalIdentityKind {
+  USER
+  THREAD
+  CANONICAL
+  ALIAS
 }
 
 enum ConversationMessageAuthorType {
@@ -596,6 +646,7 @@ model Customer {
   linkedIn                      String?
   phones                        CustomerPhone[]
   preferredLocale               String                           @default("es")
+  preferredCurrency             String                           @default("UYU")
   createdAt                     DateTime                         @default(now())
   updatedAt                     DateTime                         @updatedAt
   orders                        Order[]
@@ -775,6 +826,8 @@ model Product {
   variants                  ProductVariant[]
   wishlistItems             WishlistItem[]
   cmsEntries                CmsEntry[]
+  productRelationsFrom      ProductRelation[]               @relation("ProductRelationSource")
+  productRelationsTo        ProductRelation[]               @relation("ProductRelationTarget")
   createdAt                 DateTime                      @default(now())
   updatedAt                 DateTime                      @updatedAt
   orderItems                OrderItem[]
@@ -785,6 +838,24 @@ model Product {
   compatibilityRules        ParametricCompatibilityRule[]
 
   @@index([installServiceProductId])
+}
+
+model ProductRelation {
+  id               Int                 @id @default(autoincrement())
+  productId        Int
+  product          Product             @relation("ProductRelationSource", fields: [productId], references: [id], onDelete: Cascade)
+  relatedProductId Int
+  relatedProduct   Product             @relation("ProductRelationTarget", fields: [relatedProductId], references: [id], onDelete: Cascade)
+  type             ProductRelationType
+  sortOrder        Int                 @default(0)
+  isActive         Boolean             @default(true)
+  metadata         Json?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([productId, relatedProductId, type])
+  @@index([productId, type, isActive, sortOrder])
+  @@index([relatedProductId, type, isActive])
 }
 
 model ProductImage {
@@ -961,6 +1032,95 @@ model CmsEntryAsset {
   updatedAt   DateTime          @updatedAt
 
   @@index([entryId, isActive, sortOrder])
+}
+
+model CmsPage {
+  id              Int                @id @default(autoincrement())
+  path            String             @unique
+  title           String
+  summary         String?
+  scope           CmsPageScope       @default(GENERAL_SITE)
+  locale          String             @default("es")
+  status          CmsEntryStatus     @default(DRAFT)
+  visible         Boolean            @default(true)
+  seoTitle        String?
+  seoDescription  String?
+  layoutKey       String?
+  legacySource    String?
+  aliases         CmsPageAlias[]
+  sections        CmsPageSection[]
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([scope, status, locale, visible])
+}
+
+model CmsPageAlias {
+  id          Int      @id @default(autoincrement())
+  pageId      Int
+  page        CmsPage  @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  path        String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([pageId])
+}
+
+model CmsPageSection {
+  id          Int                @id @default(autoincrement())
+  pageId       Int
+  page         CmsPage            @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  type         CmsPageSectionType
+  key          String?
+  name         String?
+  sortOrder    Int                @default(0)
+  visible      Boolean            @default(true)
+  settings     Json?
+  blocks       CmsPageBlock[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  @@index([pageId, sortOrder, visible])
+}
+
+model CmsPageBlock {
+  id          Int              @id @default(autoincrement())
+  sectionId    Int
+  section      CmsPageSection   @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  type         CmsPageBlockType
+  key          String?
+  name         String?
+  sortOrder    Int              @default(0)
+  visible      Boolean          @default(true)
+  content      Json?
+  mediaId      Int?
+  media        CmsMedia?        @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([sectionId, sortOrder, visible])
+  @@index([mediaId])
+}
+
+model CmsMedia {
+  id          Int           @id @default(autoincrement())
+  url         String
+  type        CmsMediaType  @default(IMAGE)
+  alt         String?
+  title       String?
+  mimeType    String?
+  fileName    String?
+  sizeBytes   Int?
+  width       Int?
+  height      Int?
+  source      String?
+  metadata    Json?
+  isActive    Boolean       @default(true)
+  blocks      CmsPageBlock[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([type, isActive, createdAt])
 }
 
 model SystemConfig {
@@ -1702,6 +1862,7 @@ model Conversation {
   createdAt           DateTime                   @default(now())
   updatedAt           DateTime                   @updatedAt
   participants        ConversationParticipant[]
+  externalIdentities  ConversationExternalIdentity[]
   messages            ConversationMessage[]
   handoffEvents       ConversationHandoffEvent[]
   toolCalls           ConversationToolCall[]
@@ -1718,6 +1879,24 @@ model Conversation {
   @@index([assignedToUserId, status, lastMessageAt])
   @@index([customerId, lastMessageAt])
   @@index([inboxAccountId, channel, lastMessageAt])
+}
+
+model ConversationExternalIdentity {
+  id              String                           @id @default(cuid())
+  conversationId  String
+  conversation    Conversation                     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tenantKey       String
+  channel         ConversationChannel
+  kind            ConversationExternalIdentityKind
+  value           String
+  normalizedValue String
+  metadata        Json?
+  createdAt       DateTime                         @default(now())
+  updatedAt       DateTime                         @updatedAt
+
+  @@unique([tenantKey, channel, kind, normalizedValue])
+  @@index([conversationId, kind])
+  @@index([tenantKey, channel, normalizedValue])
 }
 
 model ConversationReadState {

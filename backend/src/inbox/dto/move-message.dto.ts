@@ -5,6 +5,10 @@ export class MoveMessageDto {
   @IsString()
   threadRemoteId?: string
 
+  @IsOptional()
+  @IsString()
+  mailbox?: string
+
   @IsString()
   targetMailbox!: string
 }

@@ -40,6 +40,19 @@ export type WhatsappQrChannelStatus = {
         presence: boolean
         media: boolean
     } | null
+    history?: {
+        knownChatsCount: number
+        bufferedMessagesCount: number
+        lastBackfillResult?: {
+            importedMessages: number
+            importedConversations: number
+            duplicateMessages: number
+            skippedMessages: number
+            authBootstrapCandidates: number
+            bootstrappedFromAuth: number
+            completedAt?: string | null
+        } | null
+    } | null
 }
 
 export type WhatsappQrOverview = {
@@ -61,6 +74,22 @@ export type WhatsappQrOverview = {
         inboxActiveMatchesConfig: boolean
         inboxAddressMatchesConfig: boolean
         inboxTransportMatches: boolean
+    }
+}
+
+export type WhatsappQrBackfillResult = {
+    overview: WhatsappQrOverview
+    backfill: {
+        importedMessages: number
+        importedConversations: number
+        duplicateMessages: number
+        skippedMessages: number
+        authBootstrapCandidates: number
+        bootstrappedFromAuth: number
+    }
+    cleanup: {
+        deletedConversations: number
+        deletedInboxAccounts: number
     }
 }
 
@@ -106,5 +135,11 @@ export const apiResetWhatsappQrSession = () =>
 export const apiSyncWhatsappQrConfig = () =>
     ApiService.fetchData<WhatsappQrOverview>({
         url: '/settings/channels/whatsapp-qr/sync',
+        method: 'post',
+    })
+
+export const apiBackfillWhatsappQrHistory = () =>
+    ApiService.fetchData<WhatsappQrBackfillResult>({
+        url: '/settings/channels/whatsapp-qr/backfill',
         method: 'post',
     })

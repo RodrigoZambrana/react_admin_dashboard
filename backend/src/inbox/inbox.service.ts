@@ -229,7 +229,9 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     return this.events.streamEvents(filters)
   }
 
-  async listAccounts(options: { includeInactive?: boolean } = {}) {
+  async listAccounts(options: { includeInactive?: boolean; channel?: string } = {}) {
+    const normalizedChannel =
+      typeof options.channel === 'string' ? options.channel.trim().toUpperCase() : null
     const where: Prisma.InboxAccountWhereInput | undefined = options.includeInactive
       ? undefined
       : { active: true }
@@ -240,6 +242,10 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     })
 
     return accounts.filter((account) => {
+      if (normalizedChannel && account.channel !== normalizedChannel) {
+        return false
+      }
+
       if (account.channel !== InboxChannelType.EMAIL) {
         return true
       }
@@ -250,6 +256,9 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
 
   async listMailboxes(accountId: string) {
     const account = await this.getAccountOrThrow(accountId)
+    if (account.channel !== InboxChannelType.EMAIL) {
+      return []
+    }
     const adapter = this.resolveAdapter(account)
     const channelAccount = this.mapAccount(account)
     const [mailboxes, syncStates, persistedCounts] = await Promise.all([
@@ -902,13 +911,23 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     const adapter = this.resolveAdapter(account)
     const channelAccount = this.mapAccount(account)
 
-    if (adapter.moveMessage) {
-      await adapter.moveMessage(channelAccount, identifier, targetMailbox)
-    } else {
+    const providerResult = adapter.moveMessage
+      ? (await adapter.moveMessage(channelAccount, identifier, targetMailbox)) ??
+        null
+      : null
+
+    if (!adapter.moveMessage) {
       this.logger.warn(
         `Channel adapter ${account.channel} does not implement moveMessage. Persisting move locally only.`,
       )
     }
+
+    const effectiveTargetMailbox =
+      providerResult?.mailbox?.trim() || targetMailbox
+    const effectiveRemoteId =
+      providerResult?.remoteId?.trim() || identifier.remoteId
+    const effectiveThreadRemoteId =
+      providerResult?.threadRemoteId ?? identifier.threadRemoteId
 
     const summary = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.inboxMessage.findUnique({
@@ -923,7 +942,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
       })
 
       const provider = this.resolveProvider(account)
-      const folder = this.resolveFolder(targetMailbox)
+      const folder = this.resolveFolder(effectiveTargetMailbox)
       const queueResolution: QueueResolution =
         existing?.queue
           ? { slug: existing.queue.slug, matchedRule: 'persisted' }
@@ -934,7 +953,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
         deriveMessageUid({
           provider,
           folder,
-          remoteId: identifier.remoteId,
+          remoteId: effectiveRemoteId,
         })
       const isSpamTarget = folder.toLowerCase().includes('spam') || folder.toLowerCase().includes('junk')
       const metadataSource =
@@ -943,37 +962,40 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
         queue: queueResolution.slug,
         queueRule: queueResolution.matchedRule,
       })
-
-      const messageRecord = await tx.inboxMessage.upsert({
-        where: {
-          messageUid_provider_folder: {
-            messageUid,
-            provider,
-            folder,
-          },
-        },
-        update: {
-          provider,
-          folder,
-          isSpam: isSpamTarget,
-          queue: { connect: { id: queueId } },
-          metadata: updatedMetadata ? toJsonUpdate(updatedMetadata) : undefined,
-        },
-        create: this.buildMinimalMessage(
-          account,
-          identifier,
-          { spam: isSpamTarget },
-          folder,
-          provider,
-          messageUid,
-          queueId,
-          queueResolution,
-        ),
-        include: { queue: true },
-      })
+      const messageRecord = existing
+        ? await tx.inboxMessage.update({
+            where: { id: existing.id },
+            data: {
+              provider,
+              remoteId: effectiveRemoteId,
+              threadRemoteId: effectiveThreadRemoteId ?? null,
+              folder,
+              isSpam: isSpamTarget,
+              queue: { connect: { id: queueId } },
+              metadata: updatedMetadata ? toJsonUpdate(updatedMetadata) : undefined,
+            },
+            include: { queue: true },
+          })
+        : await tx.inboxMessage.create({
+            data: this.buildMinimalMessage(
+              account,
+              {
+                ...identifier,
+                remoteId: effectiveRemoteId,
+                threadRemoteId: effectiveThreadRemoteId,
+              },
+              { spam: isSpamTarget },
+              folder,
+              provider,
+              messageUid,
+              queueId,
+              queueResolution,
+            ),
+            include: { queue: true },
+          })
 
       await this.recordEvent(tx, messageRecord.id, InboxMessageEventType.MOVED, {
-        targetMailbox,
+        targetMailbox: effectiveTargetMailbox,
         queue: queueResolution.slug,
       })
 
@@ -993,20 +1015,30 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     const adapter = this.resolveAdapter(account)
     const channelAccount = this.mapAccount(account)
 
-    let movedFolder: string | undefined
+    let providerResult:
+      | {
+          remoteId?: string | null
+          threadRemoteId?: string | null
+          mailbox?: string | null
+        }
+      | null = null
     if (adapter.markAsSpam) {
-      await adapter.markAsSpam(channelAccount, identifier)
-      movedFolder = 'Spam'
+      providerResult =
+        (await adapter.markAsSpam(channelAccount, identifier)) ?? null
     } else if (adapter.moveMessage) {
-      await adapter.moveMessage(channelAccount, identifier, 'Junk')
-      movedFolder = 'Junk'
+      providerResult =
+        (await adapter.moveMessage(channelAccount, identifier, 'Junk')) ?? null
     } else {
       this.logger.warn(
         `Channel adapter ${account.channel} does not implement spam handling. Persisting spam flag locally only.`,
       )
     }
 
-    const targetFolder = movedFolder ?? 'Spam'
+    const targetFolder = providerResult?.mailbox?.trim() || 'Spam'
+    const effectiveRemoteId =
+      providerResult?.remoteId?.trim() || identifier.remoteId
+    const effectiveThreadRemoteId =
+      providerResult?.threadRemoteId ?? identifier.threadRemoteId
 
     const summary = await this.prisma.$transaction(async (tx) => {
       const existing = await tx.inboxMessage.findUnique({
@@ -1032,7 +1064,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
         deriveMessageUid({
           provider,
           folder,
-          remoteId: identifier.remoteId,
+          remoteId: effectiveRemoteId,
         })
       const metadataSource =
         (existing?.metadata as Record<string, unknown> | null) ?? undefined
@@ -1040,34 +1072,37 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
         queue: queueResolution.slug,
         queueRule: queueResolution.matchedRule,
       })
-
-      const messageRecord = await tx.inboxMessage.upsert({
-        where: {
-          messageUid_provider_folder: {
-            messageUid,
-            provider,
-            folder,
-          },
-        },
-        update: {
-          provider,
-          folder,
-          isSpam: true,
-          queue: { connect: { id: queueId } },
-          metadata: updatedMetadata ? toJsonUpdate(updatedMetadata) : undefined,
-        },
-        create: this.buildMinimalMessage(
-          account,
-          identifier,
-          { spam: true },
-          folder,
-          provider,
-          messageUid,
-          queueId,
-          queueResolution,
-        ),
-        include: { queue: true },
-      })
+      const messageRecord = existing
+        ? await tx.inboxMessage.update({
+            where: { id: existing.id },
+            data: {
+              provider,
+              remoteId: effectiveRemoteId,
+              threadRemoteId: effectiveThreadRemoteId ?? null,
+              folder,
+              isSpam: true,
+              queue: { connect: { id: queueId } },
+              metadata: updatedMetadata ? toJsonUpdate(updatedMetadata) : undefined,
+            },
+            include: { queue: true },
+          })
+        : await tx.inboxMessage.create({
+            data: this.buildMinimalMessage(
+              account,
+              {
+                ...identifier,
+                remoteId: effectiveRemoteId,
+                threadRemoteId: effectiveThreadRemoteId,
+              },
+              { spam: true },
+              folder,
+              provider,
+              messageUid,
+              queueId,
+              queueResolution,
+            ),
+            include: { queue: true },
+          })
 
       await this.recordEvent(tx, messageRecord.id, InboxMessageEventType.FLAG_UPDATED, {
         spam: true,
