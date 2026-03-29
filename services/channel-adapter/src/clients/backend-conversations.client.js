@@ -71,6 +71,50 @@ export class BackendConversationsClient {
     return response.json()
   }
 
+  async importChannelHistoryMessage(payload) {
+    const response = await fetch(
+      `${this.baseUrl}/conversations/internal/history-message`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-ai-internal-token': this.internalToken,
+        },
+        body: JSON.stringify(payload),
+      },
+    )
+
+    if (!response.ok) {
+      throw new Error(
+        `importChannelHistoryMessage ${response.status}: ${JSON.stringify(await toJson(response))}`,
+      )
+    }
+
+    return response.json()
+  }
+
+  async bootstrapChannelThread(payload) {
+    const response = await fetch(
+      `${this.baseUrl}/conversations/internal/bootstrap-thread`,
+      {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-ai-internal-token': this.internalToken,
+        },
+        body: JSON.stringify(payload),
+      },
+    )
+
+    if (!response.ok) {
+      throw new Error(
+        `bootstrapChannelThread ${response.status}: ${JSON.stringify(await toJson(response))}`,
+      )
+    }
+
+    return response.json()
+  }
+
   async syncOutboundStatus(payload) {
     const response = await fetch(
       `${this.baseUrl}/conversations/internal/outbound-status`,

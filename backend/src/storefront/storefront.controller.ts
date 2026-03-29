@@ -88,6 +88,14 @@ export class StorefrontController {
     return this.storefront.listContentSections(locale)
   }
 
+  @Get('content/pages/resolve')
+  getCmsPage(
+    @Query('path') path?: string,
+    @Query('locale') locale?: string,
+  ) {
+    return this.storefront.getCmsPage(path ?? '', locale)
+  }
+
   @Get('categories')
   listCategories(): Promise<StorefrontCategoryTree[]> {
     return this.storefront.listCategories()

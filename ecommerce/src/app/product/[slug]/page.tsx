@@ -83,6 +83,9 @@ export default async function ProductDetails({
 
   if (productDetail) {
     product = mapProductDetailToProduct(productDetail);
+    frequentlyBought = Array.isArray(productDetail.frequentlyBoughtTogether)
+      ? productDetail.frequentlyBoughtTogether.map(mapProductSummaryToProduct)
+      : [];
 
     try {
       const recommendations = await StorefrontApi.getRecommendations(productDetail.id, 8);
@@ -93,6 +96,10 @@ export default async function ProductDetails({
       if (!isApiError(recommendationError)) {
         console.warn("[product] Failed to load recommendations.", recommendationError);
       }
+    }
+
+    if (Array.isArray(productDetail.relatedProducts) && productDetail.relatedProducts.length > 0) {
+      relatedProducts = productDetail.relatedProducts.map(mapProductSummaryToProduct);
     }
   }
 
@@ -107,6 +114,12 @@ export default async function ProductDetails({
         shops={shops}
         relatedProducts={relatedProducts}
         frequentlyBought={frequentlyBought}
+        suggestedAddOns={
+          Array.isArray(productDetail?.suggestedAddOns)
+            ? productDetail.suggestedAddOns.map(mapProductSummaryToProduct)
+            : []
+        }
+        installationAddOn={productDetail?.installationAddOn ?? null}
       />
     </Fragment>
   );

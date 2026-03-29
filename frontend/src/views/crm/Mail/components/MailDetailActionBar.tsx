@@ -31,7 +31,7 @@ import {
     type Mail,
 } from '../store'
 import { initialState as initialMailState } from '../store/mailSlice'
-import { groupList, labelList } from '../constants'
+import { dynamicMailboxIconMap, groupList, labelList } from '../constants'
 import {
     resolveLabelBadge,
     translateMailboxLabel as translateMailboxLabelHelper,
@@ -42,6 +42,7 @@ import {
 } from '../utils/localMailState'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { useTranslation } from 'react-i18next'
+import type { InboxMailboxDto } from '@/services/InboxService'
 
 type MailDetailActionBarProps = {
     mail?: Partial<Mail>
@@ -86,6 +87,9 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
     const inboxState = mailState.inbox
     const selectedAccountId = inboxState.selectedAccountId
     const selectedMailboxId = inboxState.selectedMailboxId
+    const selectedAccountMailboxes: InboxMailboxDto[] = selectedAccountId
+        ? inboxState.mailboxesByAccount[selectedAccountId] ?? []
+        : []
 
     const mailId = mail?.id
     const remoteId =
@@ -107,6 +111,29 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
             : undefined) ??
         selectedMailboxId ??
         'INBOX'
+    const moveMailboxOptions =
+        selectedAccountMailboxes.length > 0
+            ? selectedAccountMailboxes
+                  .filter((mailbox) => mailbox.id !== effectiveMailbox)
+                  .map((mailbox) => {
+                      const normalizedType = String(
+                          mailbox.type || mailbox.id || '',
+                      ).toLowerCase()
+                      return {
+                          value: mailbox.id,
+                          label: mailbox.label || mailbox.id,
+                          icon:
+                              dynamicMailboxIconMap[normalizedType] ||
+                              dynamicMailboxIconMap[
+                                  String(mailbox.id || '').toLowerCase()
+                              ],
+                          translationValue: mailbox.type || mailbox.id,
+                      }
+                  })
+            : groupList.map((group) => ({
+                  ...group,
+                  translationValue: group.value,
+              }))
 
     const persistLocalState = (patch: LocalMailState) => {
         if (mailId === undefined || mailId === null) {
@@ -168,12 +195,14 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
         }
         const body: {
             threadRemoteId?: string
+            mailbox?: string
             seen?: boolean
             starred?: boolean
             spam?: boolean
             metadata?: Record<string, unknown>
         } = {
             threadRemoteId,
+            mailbox: effectiveMailbox,
         }
         if (updates.seen !== undefined) {
             body.seen = updates.seen
@@ -220,6 +249,7 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
                     currentMailbox: effectiveMailbox,
                     body: {
                         threadRemoteId,
+                        mailbox: effectiveMailbox,
                         targetMailbox: target,
                     },
                 }),
@@ -536,19 +566,19 @@ const MailDetailActionBar = (props: MailDetailActionBarProps) => {
                                 </Button>
                             }
                         >
-                            {groupList.map((group) => (
+                            {moveMailboxOptions.map((group) => (
                                 <Dropdown.Item
                                     key={group.value}
                                     eventKey={group.value}
                                     onSelect={() => onMoveTo(group.value)}
                                 >
                                     <span className="text-xl ltr:mr-2 rtl:ml-2">
-                                        {group.icon}
+                                        {group.icon ?? <HiOutlineFolderDownload />}
                                     </span>
                                     <span>
                                         {translateMailboxLabelHelper(
                                             t,
-                                            group.value,
+                                            group.translationValue || group.value,
                                             group.label,
                                         )}
                                     </span>

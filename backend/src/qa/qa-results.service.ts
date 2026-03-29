@@ -95,14 +95,33 @@ export class QaResultsService {
     await mkdir(path.join(this.resultsDir, 'runs'), { recursive: true })
     const entries = await readdir(path.join(this.resultsDir, 'runs'))
     const candidates = entries
-      .filter((entry) => entry.endsWith('.json'))
+      .filter(
+        (entry) =>
+          entry.endsWith('.json') &&
+          !entry.endsWith('.conversation-quality.json'),
+      )
       .sort()
       .reverse()
-      .slice(0, limit)
 
-    const runs = await Promise.all(
-      candidates.map((entry) => this.readJsonFile<QaRunSnapshot>(path.join(this.resultsDir, 'runs', entry))),
+    const runs = (
+      await Promise.all(
+        candidates.map(async (entry) => {
+          try {
+            const run = await this.readJsonFile<Partial<QaRunSnapshot>>(
+              path.join(this.resultsDir, 'runs', entry),
+            )
+            if (!this.isRunSnapshot(run)) {
+              return null
+            }
+            return run
+          } catch {
+            return null
+          }
+        }),
+      )
     )
+      .filter((run): run is QaRunSnapshot => Boolean(run))
+      .slice(0, limit)
 
     return runs.map((run) => ({
       id: run.id,
@@ -154,6 +173,16 @@ export class QaResultsService {
 
   private async readManifest() {
     return this.readJsonFile<QaManifest>(this.manifestPath)
+  }
+
+  private isRunSnapshot(run: Partial<QaRunSnapshot> | null | undefined): run is QaRunSnapshot {
+    return Boolean(
+      run &&
+        typeof run.id === 'string' &&
+        typeof run.status === 'string' &&
+        typeof run.startedAt === 'string' &&
+        Array.isArray(run.blocks),
+    )
   }
 
   private async readJsonFile<T>(filePath: string): Promise<T> {

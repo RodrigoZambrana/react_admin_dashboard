@@ -250,6 +250,27 @@ const ProductEdit = () => {
                                 DEFAULT_SALES_UNIT) as SalesUnit,
                     }
                   : null,
+              relations: Array.isArray((productData as any).relations)
+                  ? (productData as any).relations.map((relation: any, index: number) => ({
+                        id: Number(relation.id),
+                        type: relation.type,
+                        sortOrder:
+                            typeof relation.sortOrder === 'number'
+                                ? relation.sortOrder
+                                : index,
+                        isActive: relation.isActive !== false,
+                        name:
+                            typeof relation.name === 'string' ? relation.name : null,
+                        productCode:
+                            typeof relation.productCode === 'string'
+                                ? relation.productCode
+                                : null,
+                        productType:
+                            typeof relation.productType === 'string'
+                                ? relation.productType
+                                : null,
+                    }))
+                  : [],
               mode: ((productData as any).mode ?? 'simple') as ProductMode,
               parametricDraft: (productData as any).parametricDraft ?? null,
           }

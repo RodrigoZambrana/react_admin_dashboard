@@ -19,6 +19,7 @@ import PricingFields from './PricingFields'
 import OrganizationFields from './OrganizationFields'
 import ProductImages from './ProductImages'
 import PublicationFields from './PublicationFields'
+import ProductRelationsFields from './ProductRelationsFields'
 import cloneDeep from 'lodash/cloneDeep'
 import { HiOutlineTrash } from 'react-icons/hi'
 import { AiOutlineSave } from 'react-icons/ai'
@@ -38,7 +39,12 @@ import { toast } from '@/components/ui/toast'
 import Notification from '@/components/ui/Notification'
 import VariantConfigurator from './VariantConfigurator'
 import type { ParametricConfiguratorDraft } from './parametricTypes'
-import type { ProductMode, ProductAttribute, ProductVariant } from './types'
+import type {
+    ProductMode,
+    ProductAttribute,
+    ProductRelation,
+    ProductVariant,
+} from './types'
 import { clientConfig } from '@/configs/clientConfig'
 
 const sanitizeCurrencyCode = (value?: string | null): CurrencyCode | undefined => {
@@ -109,6 +115,7 @@ type InitialData = {
         taxRate: string
         unitOfMeasure: SalesUnit
     } | null
+    relations?: ProductRelation[]
 }
 
 export type FormModel = Omit<InitialData, 'tags' | 'permanentStock'> & {
@@ -265,6 +272,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         installationPricePresentationMode: null,
         hasInstallationServiceOverride: false,
         installationService: null,
+        relations: [],
     })
 
     const initialData = providedInitialData ?? defaultInitialDataRef.current
@@ -323,6 +331,9 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     const [variantRows, setVariantRows] = useState<ProductVariant[]>(initialData.variants ?? [])
     const [parametricDraft, setParametricDraft] = useState<ParametricConfiguratorDraft | null>(
         initialData.parametricDraft ?? null,
+    )
+    const [relations, setRelations] = useState<ProductRelation[]>(
+        initialData.relations ?? [],
     )
 
     const formRef = useRef<FormikRef | null>(null)
@@ -444,6 +455,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
     }, [initialData.variants])
 
     useEffect(() => {
+        setRelations(initialData.relations ?? [])
+    }, [initialData.relations])
+
+    useEffect(() => {
         if (formRef.current) {
             formRef.current.setFieldValue('mode', mode, false)
         }
@@ -460,6 +475,12 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
             formRef.current.setFieldValue('variants', variantRows, false)
         }
     }, [variantRows])
+
+    useEffect(() => {
+        if (formRef.current) {
+            formRef.current.setFieldValue('relations', relations, false)
+        }
+    }, [relations])
 
     useEffect(() => {
         if (!availableModes.includes(mode)) {
@@ -554,6 +575,7 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     mode,
                     attributes: attributeDefinitions,
                     variants: variantRows,
+                    relations,
                     parametricDraft,
                 }}
                 validationSchema={validationSchema(t)}
@@ -742,6 +764,15 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         mode,
                         attributes: attributePayload,
                         variants: variantPayload,
+                        relations: relations.map((relation, index) => ({
+                            id: Number(relation.id),
+                            type: relation.type,
+                            sortOrder: index,
+                            isActive: relation.isActive !== false,
+                            name: relation.name ?? null,
+                            productCode: relation.productCode ?? null,
+                            productType: relation.productType ?? null,
+                        })),
                         parametricDraft,
                     }
                     delete (submitData as Record<string, unknown>).hasInstallationServiceOverride
@@ -780,6 +811,11 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                         <InstallationFields
                                             values={values as any}
                                             setFieldValue={setFieldValue}
+                                        />
+                                        <ProductRelationsFields
+                                            value={relations}
+                                            onChange={setRelations}
+                                            currentProductId={Number(values.id ?? 0)}
                                         />
                                         <VariantConfigurator
                                             mode={mode}

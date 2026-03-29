@@ -19,6 +19,8 @@ import type {
   WebchatScope,
 } from "@/types/conversations";
 import { useSession } from "@/state/session-context";
+import { useI18n } from "@/state/i18n-context";
+import { useCurrency } from "@/state/currency-context";
 
 type WebchatMessage = WebchatTranscriptMessage & {
   pending?: boolean;
@@ -85,8 +87,15 @@ const mapTranscriptMessage = (
   id: message.id,
   role: message.role,
   kind: message.kind ?? "text",
+  authorKind: message.authorKind,
+  messageKind: message.messageKind,
   text: message.text,
   createdAt: message.createdAt,
+  quotedMessage: message.quotedMessage,
+  reactions: message.reactions,
+  editedAt: message.editedAt,
+  deleted: message.deleted,
+  deletedAt: message.deletedAt,
   messageElements: message.messageElements,
   messageContextOrigin: message.messageContextOrigin,
   attachments: message.attachments,
@@ -126,6 +135,8 @@ const resolveCustomerDisplayName = (
 
 export function WebchatProvider({ children }: { children: React.ReactNode }) {
   const { session: authSession, status: authStatus } = useSession();
+  const { locale } = useI18n();
+  const { currency } = useCurrency();
   const customer = authSession?.customer;
   const desiredScope = resolveDesiredScope(Boolean(customer));
   const [isOpen, setIsOpen] = useState(false);
@@ -258,7 +269,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [applySessionSnapshot, authStatus, customer?.email, desiredScope]);
+  }, [applySessionSnapshot, authStatus, clearSessionSnapshot, customer?.email, desiredScope]);
 
   const syncSession = useCallback(
     async (
@@ -338,7 +349,8 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
       name: resolveCustomerDisplayName(customer),
       email: customer?.email || null,
       authenticated: Boolean(customer),
-      locale: customer?.preferredLocale || "es-UY",
+      locale: customer?.preferredLocale || locale || "es-UY",
+      currency,
       page: typeof window !== "undefined" ? window.location.pathname : "/",
     });
 
@@ -351,8 +363,10 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
     return applied;
   }, [
     applySessionSnapshot,
+    currency,
     customer,
     desiredScope,
+    locale,
     session,
   ]);
 
@@ -395,7 +409,8 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
         name: resolveCustomerDisplayName(customer),
         email: customer?.email || null,
         authenticated: false,
-        locale: customer?.preferredLocale || "es-UY",
+        locale: customer?.preferredLocale || locale || "es-UY",
+        currency,
         page: typeof window !== "undefined" ? window.location.pathname : "/",
       });
 
@@ -412,7 +427,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
         setIsSyncing(false);
       }
     }
-  }, [applySessionSnapshot, clearSessionSnapshot, customer, desiredScope]);
+  }, [applySessionSnapshot, clearSessionSnapshot, currency, customer, desiredScope, locale]);
 
   const sendMessage = useCallback(
     async (input: WebchatSendInput) => {
@@ -442,12 +457,16 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
           userId: activeSession.participant.guestId,
           scope: activeSession.scope,
           text: trimmed,
+          locale: activeSession.participant.locale || locale || "es-UY",
+          currency: activeSession.participant.currency || currency,
           attachments,
           metadata: {
             page:
               typeof window !== "undefined"
                 ? window.location.pathname
                 : activeSession.context.page,
+            locale: activeSession.participant.locale || locale || "es-UY",
+            currency: activeSession.participant.currency || currency,
           },
         });
 
@@ -520,7 +539,7 @@ export function WebchatProvider({ children }: { children: React.ReactNode }) {
         setIsSending(false);
       }
     },
-    [ensureSession, syncSession],
+    [currency, ensureSession, locale, syncSession],
   );
 
   useEffect(() => {

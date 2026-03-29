@@ -112,6 +112,27 @@ const createPaymentSettlement = () => ({
   dispatch: vi.fn().mockResolvedValue(undefined),
 })
 
+const createCmsPages = () => ({
+  getPublicPageByPath: vi.fn(),
+})
+
+const createGrowth = () => ({
+  getPublicConfig: vi.fn().mockResolvedValue({
+    google: {
+      analytics: { enabled: false, measurementId: null },
+      tagManager: { enabled: false, containerId: null },
+      ads: { enabled: false, conversionId: null, conversionLabel: null },
+      searchConsole: { verificationToken: null },
+    },
+    meta: {
+      pixel: { enabled: false, pixelId: null },
+    },
+    insights: {
+      content: { enabled: false },
+    },
+  }),
+})
+
 describe('StorefrontService.createOrder', () => {
   let prisma: ReturnType<typeof createPrisma>
   let service: StorefrontService
@@ -119,6 +140,8 @@ describe('StorefrontService.createOrder', () => {
   let parametricPricing: ReturnType<typeof createParametricPricing>
   let publishedProductResolver: ReturnType<typeof createPublishedProductResolver>
   let paymentSettlement: ReturnType<typeof createPaymentSettlement>
+  let cmsPages: ReturnType<typeof createCmsPages>
+  let growth: ReturnType<typeof createGrowth>
 
   beforeEach(() => {
     prisma = createPrisma()
@@ -129,6 +152,8 @@ describe('StorefrontService.createOrder', () => {
     parametricPricing = createParametricPricing()
     publishedProductResolver = createPublishedProductResolver()
     paymentSettlement = createPaymentSettlement()
+    cmsPages = createCmsPages()
+    growth = createGrowth()
 
     service = new StorefrontService(
       prisma as any,
@@ -146,6 +171,8 @@ describe('StorefrontService.createOrder', () => {
       publishedProductResolver as any,
       { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
       {} as any,
+      cmsPages as any,
+      growth as any,
     )
 
     vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
@@ -1532,6 +1559,41 @@ describe('StorefrontService.createOrder', () => {
       ]),
     )
   })
+
+  it('groups CMS informational navigation under a configurable label without duplicating base links', async () => {
+    cmsPages.getPublicPageByPath.mockResolvedValue({
+      sections: [
+        {
+          type: 'SITE_HEADER',
+          settings: {
+            navigationMode: 'grouped',
+            navigationGroupLabel: 'Información',
+            items: [
+              { label: 'Inicio', href: '/' },
+              { label: 'Cortinas Roller', href: '/cortinas-roller.html' },
+              { label: 'Bandas Verticales', href: '/bandas-verticales.html' },
+            ],
+          },
+        },
+      ],
+    })
+
+    const result = await (service as any).resolveStorefrontNavigation({
+      primary: [
+        { label: 'Inicio', href: '/' },
+        { label: 'Tienda', href: '/tienda' },
+      ],
+    })
+
+    expect(result.primary).toHaveLength(3)
+    expect(result.primary[2]).toMatchObject({
+      label: 'Información',
+      items: [
+        { label: 'Cortinas Roller', href: '/cortinas-roller.html' },
+        { label: 'Bandas Verticales', href: '/bandas-verticales.html' },
+      ],
+    })
+  })
 })
 
 describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
@@ -1557,6 +1619,8 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
       createPublishedProductResolver() as any,
       { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
       {} as any,
+      {} as any,
+      createGrowth() as any,
     )
   })
 
@@ -1742,6 +1806,8 @@ describe('StorefrontService customer-facing order DTOs', () => {
       createPublishedProductResolver() as any,
       { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
       {} as any,
+      {} as any,
+      createGrowth() as any,
     )
   })
 

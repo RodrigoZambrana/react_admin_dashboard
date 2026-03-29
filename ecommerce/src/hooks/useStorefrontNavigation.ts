@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 import { useStorefrontCategories } from "@/hooks/useStorefrontCategories";
 import { useTranslation } from "@/state/i18n-context";
 import {
@@ -13,7 +14,27 @@ const HOME_PATH = process.env.NEXT_PUBLIC_STOREFRONT_HOME_PATH || "/";
 
 const normalizePath = (path: string) => (path.startsWith("/") ? path : `/${path}`);
 
+type ConfigNavigationItem = {
+  label: string;
+  href: string;
+  external?: boolean;
+  items?: ConfigNavigationItem[];
+};
+
+const mapNavigationItems = (
+  items: ConfigNavigationItem[],
+): StorefrontNavigationNode[] =>
+  items
+    .map((item) => ({
+      title: item.label,
+      url: item.href,
+      extLink: Boolean(item.external),
+      child: Array.isArray(item.items) && item.items.length > 0 ? mapNavigationItems(item.items) : undefined,
+    }))
+    .filter((item) => item.title);
+
 export const useStorefrontNavigation = () => {
+  const storefrontConfig = useStorefrontConfig();
   const categories = useStorefrontCategories();
   const categoriesForMenu = categories;
   const categoryIcons = useMemo(() => categories.map(() => "category"), [categories]);
@@ -22,18 +43,33 @@ export const useStorefrontNavigation = () => {
 
   const navItems = useMemo<StorefrontNavigationNode[]>(() => {
     const categoryChildren = categoriesForMenu.map((category) => buildCategoryNavigationNode(category, t));
+    const configuredPrimary = mapNavigationItems(storefrontConfig.navigation?.primary ?? []);
 
-    return [
-      { title: t("Home"), url: homePath },
-      { title: t("Store"), url: "/shop" },
-      {
-        title: t("Products"),
-        child: categoryChildren.length > 0 ? categoryChildren : undefined,
-        url: "/shop"
-      },
-      { title: t("Contact"), url: "/contact" }
-    ];
-  }, [categoriesForMenu, homePath, t]);
+    return configuredPrimary.map((item) => {
+      const normalizedTitle = item.title.trim().toLowerCase();
+      const normalizedUrl = item.url?.trim().toLowerCase() ?? "";
+      const isCategoriesNode =
+        normalizedUrl === "/categories" ||
+        normalizedTitle === "categorías" ||
+        normalizedTitle === "categories";
+
+      if (!isCategoriesNode) {
+        if (normalizedUrl === "/") {
+          return {
+            ...item,
+            url: homePath,
+          };
+        }
+        return item;
+      }
+
+      return {
+        ...item,
+        url: "/shop",
+        child: categoryChildren.length > 0 ? categoryChildren : item.child,
+      };
+    });
+  }, [categoriesForMenu, homePath, storefrontConfig.navigation?.primary, t]);
 
   return {
     homePath,

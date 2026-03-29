@@ -7,6 +7,7 @@ import {
 import type { SalesUnit } from '@/constants/product.constant'
 import type {
     ProductAttribute,
+    ProductRelation,
     ProductVariant,
     ProductMode,
 } from '@/views/sales/ProductForm/types'
@@ -56,6 +57,7 @@ type ProductData = {
         taxRate?: number | null
         unitOfMeasure?: SalesUnit | null
     } | null
+    relations?: ProductRelation[]
     attributes?: ProductAttribute[]
     variants?: ProductVariant[]
     parametricDraft?: ParametricConfiguratorDraft | null
@@ -280,6 +282,34 @@ const mapApiProductToState = (payload: Record<string, unknown>): ProductData => 
                           null,
                   }
                 : null,
+        relations: Array.isArray(payload.relations)
+            ? (payload.relations as Record<string, unknown>[])
+                  .map((relation, index) => ({
+                      id: Number(relation.id),
+                      type: relation.type as ProductRelation['type'],
+                      sortOrder:
+                          typeof relation.sortOrder === 'number'
+                              ? relation.sortOrder
+                              : index,
+                      isActive:
+                          relation.isActive === undefined
+                              ? true
+                              : Boolean(relation.isActive),
+                      name:
+                          typeof relation.name === 'string'
+                              ? relation.name
+                              : null,
+                      productCode:
+                          typeof relation.productCode === 'string'
+                              ? relation.productCode
+                              : null,
+                      productType:
+                          typeof relation.productType === 'string'
+                              ? relation.productType
+                              : null,
+                  }))
+                  .filter((relation) => Number.isFinite(relation.id) && relation.id > 0)
+            : [],
         attributes,
         variants,
         parametricDraft,

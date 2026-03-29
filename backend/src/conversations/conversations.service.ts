@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config'
 import {
   ConversationChannel,
   ConversationControlMode,
+  ConversationExternalIdentityKind,
   ConversationHandoffEventType,
   ConversationMessageAuthorType,
   ConversationMessageKind,
@@ -36,6 +37,8 @@ import { AgentReplyDto } from './dto/agent-reply.dto'
 import { DispatchWebchatMessageDto } from './dto/dispatch-webchat-message.dto'
 import { GetWebchatSessionDto } from './dto/get-webchat-session.dto'
 import { IngestInboundMessageDto } from './dto/ingest-inbound-message.dto'
+import { ImportChannelHistoryMessageDto } from './dto/import-channel-history-message.dto'
+import { BootstrapChannelThreadDto } from './dto/bootstrap-channel-thread.dto'
 import { SyncOutboundStatusDto } from './dto/sync-outbound-status.dto'
 import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-session.dto'
 import { RerouteConversationDto } from './dto/reroute-conversation.dto'
@@ -43,7 +46,27 @@ import { ListConversationContactsDto } from './dto/list-conversation-contacts.dt
 import { StartContactConversationDto } from './dto/start-contact-conversation.dto'
 import { ConversationAiSuggestionFeedbackDto } from './dto/conversation-ai-suggestion-feedback.dto'
 import { ConversationMessageAttachmentDto } from './dto/conversation-message-attachment.dto'
+import { ReactWhatsappMessageDto } from './dto/react-whatsapp-message.dto'
+import { ForwardWhatsappMessageDto } from './dto/forward-whatsapp-message.dto'
+import { ReplyWhatsappMessageDto } from './dto/reply-whatsapp-message.dto'
+import { EditWhatsappMessageDto } from './dto/edit-whatsapp-message.dto'
+import { ReplyWebchatMessageDto } from './dto/reply-webchat-message.dto'
+import { EditWebchatMessageDto } from './dto/edit-webchat-message.dto'
+import { ReactWebchatMessageDto } from './dto/react-webchat-message.dto'
+import { ToggleWebchatMessageStarDto } from './dto/toggle-webchat-message-star.dto'
+import { ToggleWebchatChatArchiveDto } from './dto/toggle-webchat-chat-archive.dto'
+import { SetWebchatChatMuteDto } from './dto/set-webchat-chat-mute.dto'
+import { ToggleWhatsappMessageStarDto } from './dto/toggle-whatsapp-message-star.dto'
+import { ToggleWhatsappChatArchiveDto } from './dto/toggle-whatsapp-chat-archive.dto'
+import { ToggleWhatsappChatReadDto } from './dto/toggle-whatsapp-chat-read.dto'
+import { ToggleWhatsappChatPinDto } from './dto/toggle-whatsapp-chat-pin.dto'
+import { SetWhatsappChatMuteDto } from './dto/set-whatsapp-chat-mute.dto'
 import { validateConversationAttachment } from './conversation-attachment-policy'
+import {
+  buildConversationIdentityCandidates,
+  resolveConversationCanonicalExternalUserId,
+  shouldReuseClosedConversationByIdentity,
+} from './conversation-identity'
 import {
   type AiConversationRole,
   normalizeAiConversationRole,
@@ -92,6 +115,14 @@ const NON_REASONING_MESSAGE_KINDS = new Set([
   'channel_system',
   'system_event',
 ])
+const DEFAULT_WHATSAPP_QR_ADDRESS = 'whatsapp-qr-primary'
+
+type WebchatMessageReactionEntry = {
+  emoji: string
+  actorUserId: number | null
+  actorType: 'operator'
+  createdAt: string
+}
 
 const isInternalAssistantSubject = (value?: string | null) => {
   const normalized = String(value || '').trim().toLowerCase()
@@ -118,6 +149,15 @@ export class ConversationsService {
     const pageSize = query.pageSize ?? 20
     const where: Prisma.ConversationWhereInput = {}
     const andFilters: Prisma.ConversationWhereInput[] = []
+
+    andFilters.push({
+      NOT: {
+        metadata: {
+          path: ['webchatChatState', 'deleted'],
+          equals: true,
+        },
+      },
+    })
 
     if (query.scope) {
       where.scope = this.mapScope(query.scope)
@@ -229,6 +269,7 @@ export class ConversationsService {
               displayName: true,
               address: true,
               channel: true,
+              metadata: true,
             },
           },
           participants: {
@@ -360,6 +401,7 @@ export class ConversationsService {
             displayName: true,
             address: true,
             channel: true,
+            metadata: true,
           },
         },
         participants: {
@@ -471,6 +513,14 @@ export class ConversationsService {
       },
     })
 
+    if (
+      conversation?.channel === ConversationChannel.WEBCHAT &&
+      this.asRecord(this.asRecord(conversation.metadata)?.webchatChatState)?.deleted ===
+        true
+    ) {
+      return null
+    }
+
     if (!conversation) {
       return null
     }
@@ -501,32 +551,44 @@ export class ConversationsService {
     return {
       ...this.mapConversationSummary(conversation, readState),
       aiSuggestions,
-      messages: conversation.messages.map((message) => ({
-        id: message.id,
-        authorType: this.normalizeEnum(message.authorType),
-        authorKind: this.resolveConversationMessageAuthorKind(message),
-        authorLabel: this.resolveConversationMessageAuthorLabel(
-          message,
-          conversation,
-        ),
-        kind: this.normalizeEnum(message.kind),
-        messageKind: this.resolveConversationMessageKind(message),
-        body: message.body ?? null,
-        normalizedText: message.normalizedText ?? null,
-        payload: message.payload ?? null,
-        metadata: message.metadata ?? null,
-        sentAt: message.sentAt,
-        receivedAt: message.receivedAt,
-        createdAt: message.createdAt,
-        queue: message.inboxMessage?.queue ?? null,
-        transportEvents:
-          message.inboxMessage?.events?.map((event) => ({
-            id: String(event.id),
-            type: this.normalizeEnum(event.type),
-            payload: event.payload ?? null,
-            occurredAt: event.occurredAt,
-          })) ?? [],
-      })),
+      messages: conversation.messages.map((message) => {
+        const enrichedOutput = this.enrichConversationMessageOutput(
+          conversation.id,
+          message.id,
+          message.payload,
+          message.metadata,
+          conversation.channel,
+          this.extractInboxTransport(conversation.inboxAccount?.metadata),
+          message.authorType,
+        )
+
+        return {
+          id: message.id,
+          authorType: this.normalizeEnum(message.authorType),
+          authorKind: this.resolveConversationMessageAuthorKind(message),
+          authorLabel: this.resolveConversationMessageAuthorLabel(
+            message,
+            conversation,
+          ),
+          kind: this.normalizeEnum(message.kind),
+          messageKind: this.resolveConversationMessageKind(message),
+          body: message.body ?? null,
+          normalizedText: message.normalizedText ?? null,
+          payload: enrichedOutput.payload,
+          metadata: enrichedOutput.metadata,
+          sentAt: message.sentAt,
+          receivedAt: message.receivedAt,
+          createdAt: message.createdAt,
+          queue: message.inboxMessage?.queue ?? null,
+          transportEvents:
+            message.inboxMessage?.events?.map((event) => ({
+              id: String(event.id),
+              type: this.normalizeEnum(event.type),
+              payload: event.payload ?? null,
+              occurredAt: event.occurredAt,
+            })) ?? [],
+        }
+      }),
       handoffEvents: (conversation.handoffEvents ?? []).map((event) => ({
         id: event.id,
         type: this.normalizeEnum(event.type),
@@ -1168,6 +1230,8 @@ export class ConversationsService {
             name: true,
             email: true,
             phoneNumber: true,
+            preferredLocale: true,
+            preferredCurrency: true,
           },
         })
       : null
@@ -1177,6 +1241,19 @@ export class ConversationsService {
       },
     })
     const scope = this.mapConversationScopeFromRole(conversationRole)
+
+    const resolvedLocale = this.resolveConversationLocalePreference(
+      null,
+      null,
+      input.locale?.trim() || null,
+      customer,
+    )
+    const resolvedCurrency = this.resolveConversationCurrencyPreference(
+      null,
+      null,
+      input.currency?.trim() || null,
+      customer,
+    )
 
     const conversation = await this.prisma.conversation.create({
       data: {
@@ -1192,7 +1269,8 @@ export class ConversationsService {
         externalThreadId: `webchat:${guestId}`,
         externalChannelRef: input.page?.trim() || null,
         metadata: {
-          locale: input.locale?.trim() || 'es-UY',
+          locale: resolvedLocale,
+          currency: resolvedCurrency,
           page: input.page?.trim() || null,
           source: 'webchat-session',
         },
@@ -1205,7 +1283,8 @@ export class ConversationsService {
             displayName: input.name?.trim() || customer?.name || 'Guest',
             metadata: {
               email,
-              locale: input.locale?.trim() || 'es-UY',
+              locale: resolvedLocale,
+              currency: resolvedCurrency,
             },
           },
         },
@@ -1231,7 +1310,8 @@ export class ConversationsService {
       controlMode: ConversationControlMode.AI,
       needsHuman: false,
       metadata: {
-        locale: input.locale?.trim() || 'es-UY',
+        locale: resolvedLocale,
+        currency: resolvedCurrency,
         page: input.page?.trim() || null,
       },
       participants: [
@@ -1241,7 +1321,8 @@ export class ConversationsService {
           displayName: input.name?.trim() || customer?.name || null,
           metadata: {
             email,
-            locale: input.locale?.trim() || 'es-UY',
+            locale: resolvedLocale,
+            currency: resolvedCurrency,
           },
           customer: customer
             ? {
@@ -1260,6 +1341,103 @@ export class ConversationsService {
     return value?.trim() || this.config.get<string>('CLIENT_SLUG') || 'default'
   }
 
+  private sanitizeCurrencyCode(value?: string | null) {
+    if (typeof value !== 'string') {
+      return null
+    }
+    const normalized = value.trim().toUpperCase()
+    return /^[A-Z]{3,5}$/.test(normalized) ? normalized : null
+  }
+
+  private resolveConversationLocalePreference(
+    conversationMetadata?: Prisma.JsonValue | null,
+    participantMetadata?: Prisma.JsonValue | null,
+    inputLocale?: string | null,
+    customer?: { preferredLocale?: string | null } | null,
+  ) {
+    const explicitInput = typeof inputLocale === 'string' ? inputLocale.trim() : ''
+    if (explicitInput) {
+      return explicitInput
+    }
+
+    const participant = this.asRecord(participantMetadata)
+    if (typeof participant?.locale === 'string' && participant.locale.trim()) {
+      return participant.locale.trim()
+    }
+
+    const conversation = this.asRecord(conversationMetadata)
+    if (typeof conversation?.locale === 'string' && conversation.locale.trim()) {
+      return conversation.locale.trim()
+    }
+
+    if (typeof customer?.preferredLocale === 'string' && customer.preferredLocale.trim()) {
+      return customer.preferredLocale.trim()
+    }
+
+    return 'es-UY'
+  }
+
+  private resolveConversationCurrencyPreference(
+    conversationMetadata?: Prisma.JsonValue | null,
+    participantMetadata?: Prisma.JsonValue | null,
+    inputCurrency?: string | null,
+    customer?: { preferredCurrency?: string | null } | null,
+  ) {
+    const explicitInput = this.sanitizeCurrencyCode(inputCurrency)
+    if (explicitInput) {
+      return explicitInput
+    }
+
+    const participant = this.asRecord(participantMetadata)
+    const participantCurrency = this.sanitizeCurrencyCode(
+      typeof participant?.currency === 'string' ? participant.currency : null,
+    )
+    if (participantCurrency) {
+      return participantCurrency
+    }
+
+    const conversation = this.asRecord(conversationMetadata)
+    const conversationCurrency = this.sanitizeCurrencyCode(
+      typeof conversation?.currency === 'string' ? conversation.currency : null,
+    )
+    if (conversationCurrency) {
+      return conversationCurrency
+    }
+
+    const customerCurrency = this.sanitizeCurrencyCode(customer?.preferredCurrency)
+    if (customerCurrency) {
+      return customerCurrency
+    }
+
+    return 'UYU'
+  }
+
+  private buildConversationPreferencePayload(input: {
+    conversationMetadata?: Prisma.JsonValue | null
+    participantMetadata?: Prisma.JsonValue | null
+    inputLocale?: string | null
+    inputCurrency?: string | null
+    customer?: {
+      preferredLocale?: string | null
+      preferredCurrency?: string | null
+    } | null
+  }) {
+    const locale = this.resolveConversationLocalePreference(
+      input.conversationMetadata,
+      input.participantMetadata,
+      input.inputLocale,
+      input.customer,
+    )
+    const currency = this.resolveConversationCurrencyPreference(
+      input.conversationMetadata,
+      input.participantMetadata,
+      input.inputCurrency,
+      input.customer,
+    )
+
+    return { locale, currency }
+  }
+
   async getWebchatSession(id: string, query: GetWebchatSessionDto) {
     const conversation = await this.prisma.conversation.findUnique({
       where: { id },
@@ -1276,6 +1454,8 @@ export class ConversationsService {
                 id: true,
                 name: true,
                 email: true,
+                preferredLocale: true,
+                preferredCurrency: true,
               },
             },
           },
@@ -1345,6 +1525,8 @@ export class ConversationsService {
         id?: number | null
         name?: string | null
         email?: string | null
+        preferredLocale?: string | null
+        preferredCurrency?: string | null
       } | null
     }>
     messages: Array<{
@@ -1395,13 +1577,33 @@ export class ConversationsService {
         locale:
           typeof participantMetadata?.locale === 'string'
             ? participantMetadata.locale
-            : 'es-UY',
+            : typeof conversationMetadata?.locale === 'string' &&
+                conversationMetadata.locale.trim()
+              ? conversationMetadata.locale
+              : typeof participant?.customer?.preferredLocale === 'string' &&
+                  participant.customer.preferredLocale.trim()
+                ? participant.customer.preferredLocale
+              : 'es-UY',
+        currency:
+          this.sanitizeCurrencyCode(
+            typeof participantMetadata?.currency === 'string'
+              ? participantMetadata.currency
+              : typeof conversationMetadata?.currency === 'string'
+                ? conversationMetadata.currency
+                : participant?.customer?.preferredCurrency ?? null,
+          ) ?? 'UYU',
       },
       context: {
         page:
           typeof conversationMetadata?.page === 'string'
             ? conversationMetadata.page
             : null,
+        currency:
+          this.sanitizeCurrencyCode(
+            typeof conversationMetadata?.currency === 'string'
+              ? conversationMetadata.currency
+              : null,
+          ) ?? null,
       },
       messages: conversation.messages
         .filter(
@@ -1411,8 +1613,17 @@ export class ConversationsService {
             message.authorType === ConversationMessageAuthorType.OPERATOR,
         )
         .map((message) => {
-          const payload = this.asRecord(message.payload)
-          const metadata = this.asRecord(message.metadata)
+          const enrichedOutput = this.enrichConversationMessageOutput(
+            conversation.id,
+            message.id,
+            message.payload ?? null,
+            message.metadata ?? null,
+            ConversationChannel.WEBCHAT,
+            'webchat',
+            message.authorType,
+          )
+          const payload = this.asRecord(enrichedOutput.payload)
+          const metadata = this.asRecord(enrichedOutput.metadata)
           const rawAttachments =
             Array.isArray(payload?.attachments) && payload?.attachments.length > 0
               ? payload.attachments
@@ -1431,13 +1642,27 @@ export class ConversationsService {
             messageKind: this.resolveConversationMessageKind(message),
             text: message.body ?? message.normalizedText ?? '',
             createdAt: message.createdAt,
+            quotedMessage: this.asRecord(payload?.quotedMessage) ??
+              this.asRecord(metadata?.quotedMessage) ??
+              null,
+            editedAt:
+              typeof metadata?.editedAt === 'string' ? metadata.editedAt : null,
+            deleted:
+              payload?.deleted === true ||
+              metadata?.deleted === true ||
+              metadata?.deletedForEveryone === true,
+            deletedAt:
+              typeof metadata?.deletedAt === 'string' ? metadata.deletedAt : null,
+            reactions: this.summarizeWebchatMessageReactions(
+              enrichedOutput.metadata,
+            ),
             messageElements: this.extractStoredMessageElements(
-              message.payload,
-              message.metadata,
+              enrichedOutput.payload,
+              enrichedOutput.metadata,
             ),
             messageContextOrigin: this.extractStoredMessageContextOrigin(
-              message.payload,
-              message.metadata,
+              enrichedOutput.payload,
+              enrichedOutput.metadata,
             ),
             attachments: rawAttachments
               .map((entry) => this.asRecord(entry))
@@ -1473,6 +1698,7 @@ export class ConversationsService {
         scope: true,
         customerId: true,
         externalUserId: true,
+        metadata: true,
       },
     })
 
@@ -1546,12 +1772,31 @@ export class ConversationsService {
       },
     })
 
+    const conversationMetadata = this.asRecord(conversation.metadata)
+    const resolvedLocale = this.resolveConversationLocalePreference(
+      conversation.metadata,
+      null,
+      input.locale?.trim() || null,
+      null,
+    )
+    const resolvedCurrency = this.resolveConversationCurrencyPreference(
+      conversation.metadata,
+      null,
+      input.currency?.trim() || null,
+      null,
+    )
+
     await this.prisma.conversation.update({
       where: { id: conversation.id },
       data: {
         lastMessageAt: message.createdAt,
         lastInboundAt: message.createdAt,
         status: ConversationStatus.WAITING_INTERNAL,
+        metadata: this.toJsonValue({
+          ...conversationMetadata,
+          locale: resolvedLocale,
+          currency: resolvedCurrency,
+        }),
       },
     })
 
@@ -1629,6 +1874,12 @@ export class ConversationsService {
       const channel = this.mapChannel(input.channel)
       const inboxChannel = this.mapInboxChannel(input.channel)
       const tenantKey = input.tenantKey.trim()
+      const canonicalUserId =
+        resolveConversationCanonicalExternalUserId({
+          channel,
+          userId: input.userId.trim(),
+          threadId: input.threadId?.trim() || null,
+        }) || input.userId.trim()
       const receivedAt = input.receivedAt ?? new Date()
       const customer = await this.resolveInboundCustomer(tx, input)
       const inboxAccount = await this.resolveInboundInboxAccount(
@@ -1653,13 +1904,28 @@ export class ConversationsService {
           channel,
           threadId: input.threadId?.trim() || null,
           inboxAccountId: inboxAccount?.id ?? null,
-          userId: input.userId.trim(),
+          userId: canonicalUserId,
         })
       }
 
       const previousAssignedToUserId = conversation?.assignedToUserId ?? null
 
       if (!conversation) {
+        const preferences = this.buildConversationPreferencePayload({
+          inputLocale:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).locale === 'string'
+              ? ((input.metadata as Record<string, unknown>).locale as string)
+              : null,
+          inputCurrency:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).currency === 'string'
+              ? ((input.metadata as Record<string, unknown>).currency as string)
+              : null,
+          customer,
+        })
         createdConversation = true
         conversation = await tx.conversation.create({
           data: {
@@ -1674,44 +1940,100 @@ export class ConversationsService {
               `Inbound ${input.channel}`,
             customerId: customer?.id ?? null,
             inboxAccountId: inboxAccount?.id ?? null,
-            externalUserId: input.userId.trim(),
+            externalUserId: canonicalUserId,
             externalThreadId:
               input.threadId?.trim() ||
-              `${input.channel}:${input.userId.trim()}`,
+              `${input.channel}:${canonicalUserId}`,
             externalChannelRef:
               ((input.metadata as Record<string, unknown> | null)?.threadId as
                 string | null) ?? null,
             metadata: {
               source: 'channel-adapter',
               queueSlug: queue?.slug ?? null,
+              locale: preferences.locale,
+              currency: preferences.currency,
               ...(input.metadata ?? {}),
             },
             assignedToUserId: autoAssignedUserId,
           },
         })
       } else {
+        const preferences = this.buildConversationPreferencePayload({
+          conversationMetadata: conversation.metadata,
+          inputLocale:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).locale === 'string'
+              ? ((input.metadata as Record<string, unknown>).locale as string)
+              : null,
+          inputCurrency:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).currency === 'string'
+              ? ((input.metadata as Record<string, unknown>).currency as string)
+              : null,
+          customer,
+        })
         conversation = await tx.conversation.update({
           where: { id: conversation.id },
           data: {
             customerId: conversation.customerId ?? customer?.id ?? null,
             inboxAccountId: conversation.inboxAccountId ?? inboxAccount?.id ?? null,
             subject: conversation.subject ?? input.subject?.trim() ?? null,
+            externalUserId: canonicalUserId,
+            externalThreadId:
+              input.threadId?.trim() ||
+              conversation.externalThreadId ||
+              `${input.channel}:${canonicalUserId}`,
+            externalChannelRef:
+              ((input.metadata as Record<string, unknown> | null)?.threadId as
+                string | null) ??
+              conversation.externalChannelRef ??
+              null,
             assignedToUserId:
               conversation.assignedToUserId ?? autoAssignedUserId ?? null,
             metadata: {
               ...(this.asRecord(conversation.metadata) ?? {}),
               ...(input.metadata ?? {}),
               queueSlug: queue?.slug ?? this.asRecord(conversation.metadata)?.queueSlug ?? null,
+              locale: preferences.locale,
+              currency: preferences.currency,
             },
           },
         })
       }
 
+      const preferences = this.buildConversationPreferencePayload({
+        conversationMetadata: conversation.metadata,
+        inputLocale:
+          typeof input.metadata === 'object' &&
+          input.metadata &&
+          typeof (input.metadata as Record<string, unknown>).locale === 'string'
+            ? ((input.metadata as Record<string, unknown>).locale as string)
+            : null,
+        inputCurrency:
+          typeof input.metadata === 'object' &&
+          input.metadata &&
+          typeof (input.metadata as Record<string, unknown>).currency === 'string'
+            ? ((input.metadata as Record<string, unknown>).currency as string)
+            : null,
+        customer,
+      })
+
+      await this.syncConversationExternalIdentities(tx, conversation.id, {
+        tenantKey,
+        channel,
+        userId: canonicalUserId,
+        threadId: input.threadId?.trim() || null,
+      })
+
       await this.ensureInboundParticipant(tx, conversation.id, customer?.id ?? null, {
-        externalUserId: input.userId.trim(),
+        externalUserId: canonicalUserId,
         displayName:
           input.displayName?.trim() || customer?.name || null,
         email: input.email?.trim() || customer?.email || null,
+        locale: preferences.locale,
+        currency: preferences.currency,
       })
 
       const duplicateMessage =
@@ -1877,6 +2199,7 @@ export class ConversationsService {
               address: inboxAccount.address ?? null,
             }
           : null,
+        preferences,
       }
     })
 
@@ -1886,6 +2209,488 @@ export class ConversationsService {
 
     const { shouldCaptureKnowledge: _shouldCaptureKnowledge, ...publicResult } = result
     return publicResult
+  }
+
+  async importChannelHistoryMessage(input: ImportChannelHistoryMessageDto) {
+    const attachments = this.normalizeConversationAttachments(input.attachments)
+    const normalizedText =
+      input.text?.trim() ||
+      input.subject?.trim() ||
+      this.buildAttachmentSummary(attachments) ||
+      ''
+    const inputMetadata = this.asRecord(input.metadata)
+    const messageElements = this.buildStoredMessageElements({
+      text: normalizedText,
+      attachments,
+      explicitElements: inputMetadata?.messageElements,
+    })
+    const messageContextOrigin = this.buildStoredMessageContextOrigin({
+      text: input.text?.trim() || input.subject?.trim() || null,
+      messageElements,
+      explicitOrigin: inputMetadata?.messageContextOrigin,
+    })
+    const authorKind = this.resolveHistoryAuthorKind(input)
+    const messageKind = this.resolveHistoryMessageKind(input, authorKind, attachments)
+    const messageAuthorType = this.mapInboundAuthorType(authorKind)
+
+    if (!normalizedText) {
+      throw new BadRequestException('conversation.historyImportContentRequired')
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const channel = this.mapChannel(input.channel)
+      const inboxChannel = this.mapInboxChannel(input.channel)
+      const tenantKey = input.tenantKey.trim()
+      const canonicalUserId =
+        resolveConversationCanonicalExternalUserId({
+          channel,
+          userId: input.userId.trim(),
+          threadId: input.threadId?.trim() || null,
+        }) || input.userId.trim()
+      const occurredAt = input.occurredAt ?? new Date()
+      const customer = await this.resolveInboundCustomer(tx, input)
+      const inboxAccount = await this.resolveInboundInboxAccount(
+        tx,
+        input,
+        inboxChannel,
+      )
+
+      let conversation =
+        input.conversationId?.trim()
+          ? await tx.conversation.findUnique({
+              where: { id: input.conversationId.trim() },
+            })
+          : null
+
+      if (!conversation) {
+        conversation = await this.findInboundConversation(tx, {
+          tenantKey,
+          channel,
+          threadId: input.threadId?.trim() || null,
+          inboxAccountId: inboxAccount?.id ?? null,
+          userId: canonicalUserId,
+        })
+      }
+
+      const createdConversation = !conversation
+      if (!conversation) {
+        const preferences = this.buildConversationPreferencePayload({
+          inputLocale:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).locale === 'string'
+              ? ((input.metadata as Record<string, unknown>).locale as string)
+              : null,
+          inputCurrency:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).currency === 'string'
+              ? ((input.metadata as Record<string, unknown>).currency as string)
+              : null,
+          customer,
+        })
+        conversation = await tx.conversation.create({
+          data: {
+            tenantKey,
+            scope: ConversationScope.CUSTOMER_PUBLIC,
+            conversationRole: 'CUSTOMER_PUBLIC' as ConversationRole,
+            channel,
+            status:
+              input.direction === 'outbound'
+                ? ConversationStatus.WAITING_CUSTOMER
+                : ConversationStatus.WAITING_INTERNAL,
+            controlMode: ConversationControlMode.AI,
+            subject: input.subject?.trim() || `History ${input.channel}`,
+            customerId: customer?.id ?? null,
+            inboxAccountId: inboxAccount?.id ?? null,
+            externalUserId: canonicalUserId,
+            externalThreadId:
+              input.threadId?.trim() ||
+              `${input.channel}:${canonicalUserId}`,
+            externalChannelRef:
+              ((input.metadata as Record<string, unknown> | null)?.threadId as
+                string | null) ?? null,
+            metadata: {
+              source: 'channel-history-import',
+              historyImport: true,
+              locale: preferences.locale,
+              currency: preferences.currency,
+              ...(input.metadata ?? {}),
+            },
+          },
+        })
+      } else {
+        const preferences = this.buildConversationPreferencePayload({
+          conversationMetadata: conversation.metadata,
+          inputLocale:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).locale === 'string'
+              ? ((input.metadata as Record<string, unknown>).locale as string)
+              : null,
+          inputCurrency:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).currency === 'string'
+              ? ((input.metadata as Record<string, unknown>).currency as string)
+              : null,
+          customer,
+        })
+        conversation = await tx.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            customerId: conversation.customerId ?? customer?.id ?? null,
+            inboxAccountId: conversation.inboxAccountId ?? inboxAccount?.id ?? null,
+            subject: conversation.subject ?? input.subject?.trim() ?? null,
+            externalUserId: canonicalUserId,
+            externalThreadId:
+              input.threadId?.trim() ||
+              conversation.externalThreadId ||
+              `${input.channel}:${canonicalUserId}`,
+            externalChannelRef:
+              ((input.metadata as Record<string, unknown> | null)?.threadId as
+                string | null) ??
+              conversation.externalChannelRef ??
+              null,
+            metadata: {
+              ...(this.asRecord(conversation.metadata) ?? {}),
+              historyImport: true,
+              locale: preferences.locale,
+              currency: preferences.currency,
+              ...(input.metadata ?? {}),
+            },
+          },
+        })
+      }
+
+      const preferences = this.buildConversationPreferencePayload({
+        conversationMetadata: conversation.metadata,
+        inputLocale:
+          typeof input.metadata === 'object' &&
+          input.metadata &&
+          typeof (input.metadata as Record<string, unknown>).locale === 'string'
+            ? ((input.metadata as Record<string, unknown>).locale as string)
+            : null,
+        inputCurrency:
+          typeof input.metadata === 'object' &&
+          input.metadata &&
+          typeof (input.metadata as Record<string, unknown>).currency === 'string'
+            ? ((input.metadata as Record<string, unknown>).currency as string)
+            : null,
+        customer,
+      })
+
+      await this.syncConversationExternalIdentities(tx, conversation.id, {
+        tenantKey,
+        channel,
+        userId: canonicalUserId,
+        threadId: input.threadId?.trim() || null,
+      })
+
+      await this.ensureInboundParticipant(tx, conversation.id, customer?.id ?? null, {
+        externalUserId: canonicalUserId,
+        displayName:
+          input.displayName?.trim() || customer?.name || null,
+        email: input.email?.trim() || customer?.email || null,
+        locale: preferences.locale,
+        currency: preferences.currency,
+      })
+
+      const duplicateMessage =
+        input.externalMessageId?.trim()
+          ? await tx.conversationMessage.findFirst({
+              where: {
+                conversationId: conversation.id,
+                externalMessageId: input.externalMessageId.trim(),
+              },
+            })
+          : null
+
+      if (duplicateMessage) {
+        return {
+          conversationId: conversation.id,
+          duplicate: true,
+          createdConversation,
+          preferences,
+        }
+      }
+
+      const inboxMessage =
+        inboxAccount != null
+          ? await tx.inboxMessage.create({
+              data: {
+                accountId: inboxAccount.id,
+                channel: inboxChannel,
+                provider:
+                  ((input.metadata as Record<string, unknown> | null)
+                    ?.provider as string | null) || 'channel-history-import',
+                messageUid:
+                  input.externalMessageId?.trim() ||
+                  `${input.channel}:${randomUUID()}`,
+                remoteId:
+                  input.externalMessageId?.trim() ||
+                  `${input.channel}:${randomUUID()}`,
+                threadRemoteId: input.threadId?.trim() || null,
+                subject: input.subject?.trim() || null,
+                snippet: normalizedText.slice(0, 280),
+                previewText: normalizedText.slice(0, 280),
+                fromAddress:
+                  input.direction === 'outbound'
+                    ? inboxAccount.address ?? null
+                    : input.email?.trim() || input.userId.trim(),
+                fromName:
+                  input.direction === 'outbound'
+                    ? inboxAccount.displayName ?? null
+                    : input.displayName?.trim() || null,
+                toAddresses:
+                  input.direction === 'outbound'
+                    ? [input.userId.trim()]
+                    : [inboxAccount.address ?? ''].filter((entry) => entry.length > 0),
+                ccAddresses: [],
+                bccAddresses: [],
+                replyToAddresses: [],
+                direction:
+                  input.direction === 'outbound'
+                    ? InboxMessageDirection.OUTBOUND
+                    : InboxMessageDirection.INBOUND,
+                folder: input.direction === 'outbound' ? 'sent' : 'inbox',
+                queueId: null,
+                sentAt: input.direction === 'outbound' ? occurredAt : null,
+                receivedAt: input.direction === 'inbound' ? occurredAt : null,
+                metadata: this.toJsonValue({
+                  source: 'channel-history-import',
+                  historyImport: true,
+                  hasAttachments: attachments.length > 0,
+                  attachments: attachments.length > 0 ? attachments : null,
+                  messageElements: messageElements.length > 0 ? messageElements : null,
+                  messageContextOrigin:
+                    messageContextOrigin.length > 0
+                      ? messageContextOrigin
+                      : null,
+                  ...(input.metadata ?? {}),
+                }),
+              },
+            })
+          : null
+
+      const kind = this.mapInboundMessageKind(messageKind, channel, attachments)
+
+      const message = await tx.conversationMessage.create({
+        data: {
+          conversationId: conversation.id,
+          authorType: messageAuthorType,
+          kind,
+          authorCustomerId:
+            messageAuthorType === ConversationMessageAuthorType.CUSTOMER
+              ? customer?.id ?? null
+              : null,
+          externalMessageId: input.externalMessageId?.trim() || null,
+          inboxMessageId: inboxMessage?.id ?? null,
+          body: normalizedText,
+          normalizedText,
+          payload: this.toJsonValue({
+            subject: input.subject?.trim() || null,
+            authorKind,
+            messageKind,
+            attachments: attachments.length > 0 ? attachments : null,
+            messageElements: messageElements.length > 0 ? messageElements : null,
+            messageContextOrigin:
+              messageContextOrigin.length > 0 ? messageContextOrigin : null,
+          }),
+          metadata: this.toJsonValue({
+            source: 'channel-history-import',
+            channel: input.channel,
+            authorKind,
+            messageKind,
+            historyImport: true,
+            hasAttachments: attachments.length > 0,
+            attachments: attachments.length > 0 ? attachments : null,
+            messageElements: messageElements.length > 0 ? messageElements : null,
+            messageContextOrigin:
+              messageContextOrigin.length > 0 ? messageContextOrigin : null,
+            ...(input.metadata ?? {}),
+          }),
+          sentAt: input.direction === 'outbound' ? occurredAt : null,
+          receivedAt: input.direction === 'inbound' ? occurredAt : null,
+        },
+        select: {
+          id: true,
+          createdAt: true,
+        },
+      })
+
+      const isReasoningCustomerMessage =
+        input.direction === 'inbound' &&
+        messageAuthorType === ConversationMessageAuthorType.CUSTOMER &&
+        !NON_REASONING_AUTHOR_KINDS.has(authorKind) &&
+        !NON_REASONING_MESSAGE_KINDS.has(messageKind)
+
+      await tx.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          lastMessageAt: occurredAt,
+          ...(input.direction === 'inbound'
+            ? {
+                lastInboundAt: occurredAt,
+                status: isReasoningCustomerMessage
+                  ? ConversationStatus.WAITING_INTERNAL
+                  : conversation.status,
+              }
+            : {
+                lastOutboundAt: occurredAt,
+                status: ConversationStatus.WAITING_CUSTOMER,
+              }),
+        },
+      })
+
+      return {
+        conversationId: conversation.id,
+        messageId: message.id,
+        duplicate: false,
+        createdConversation,
+        preferences,
+      }
+    })
+  }
+
+  async bootstrapChannelThread(input: BootstrapChannelThreadDto) {
+    return this.prisma.$transaction(async (tx) => {
+      const channel = this.mapChannel(input.channel)
+      const tenantKey = input.tenantKey.trim()
+      const canonicalUserId =
+        resolveConversationCanonicalExternalUserId({
+          channel,
+          userId: input.userId.trim(),
+          threadId: input.threadId.trim(),
+        }) || input.userId.trim()
+      const inboxAccount = await this.resolveInboundInboxAccount(
+        tx,
+        input,
+        this.mapInboxChannel(input.channel),
+      )
+      const customer = await this.resolveInboundCustomer(tx, input)
+
+      let conversation = await this.findInboundConversation(tx, {
+        tenantKey,
+        channel,
+        threadId: input.threadId.trim(),
+        inboxAccountId: inboxAccount?.id ?? null,
+        userId: canonicalUserId,
+      })
+
+      const createdConversation = !conversation
+      if (!conversation) {
+        const preferences = this.buildConversationPreferencePayload({
+          inputLocale:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).locale === 'string'
+              ? ((input.metadata as Record<string, unknown>).locale as string)
+              : null,
+          inputCurrency:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).currency === 'string'
+              ? ((input.metadata as Record<string, unknown>).currency as string)
+              : null,
+          customer,
+        })
+        conversation = await tx.conversation.create({
+          data: {
+            tenantKey,
+            scope: ConversationScope.CUSTOMER_PUBLIC,
+            conversationRole: 'CUSTOMER_PUBLIC' as ConversationRole,
+            channel,
+            status: ConversationStatus.WAITING_CUSTOMER,
+            controlMode: ConversationControlMode.AI,
+            subject:
+              input.displayName?.trim() ||
+              `Chat ${input.channel}`,
+            customerId: customer?.id ?? null,
+            inboxAccountId: inboxAccount?.id ?? null,
+            externalUserId: canonicalUserId,
+            externalThreadId: input.threadId.trim(),
+            metadata: {
+              source: 'channel-thread-bootstrap',
+              bootstrapOnly: true,
+              locale: preferences.locale,
+              currency: preferences.currency,
+              ...(input.metadata ?? {}),
+            },
+          },
+        })
+      } else if (!conversation.inboxAccountId && inboxAccount?.id) {
+        const preferences = this.buildConversationPreferencePayload({
+          conversationMetadata: conversation.metadata,
+          inputLocale:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).locale === 'string'
+              ? ((input.metadata as Record<string, unknown>).locale as string)
+              : null,
+          inputCurrency:
+            typeof input.metadata === 'object' &&
+            input.metadata &&
+            typeof (input.metadata as Record<string, unknown>).currency === 'string'
+              ? ((input.metadata as Record<string, unknown>).currency as string)
+              : null,
+          customer,
+        })
+        conversation = await tx.conversation.update({
+          where: { id: conversation.id },
+          data: {
+            inboxAccountId: inboxAccount.id,
+            customerId: conversation.customerId ?? customer?.id ?? null,
+            externalUserId: canonicalUserId,
+            externalThreadId: input.threadId.trim(),
+            metadata: {
+              ...(this.asRecord(conversation.metadata) ?? {}),
+              locale: preferences.locale,
+              currency: preferences.currency,
+            },
+          },
+        })
+      }
+
+      const preferences = this.buildConversationPreferencePayload({
+        conversationMetadata: conversation.metadata,
+        inputLocale:
+          typeof input.metadata === 'object' &&
+          input.metadata &&
+          typeof (input.metadata as Record<string, unknown>).locale === 'string'
+            ? ((input.metadata as Record<string, unknown>).locale as string)
+            : null,
+        inputCurrency:
+          typeof input.metadata === 'object' &&
+          input.metadata &&
+          typeof (input.metadata as Record<string, unknown>).currency === 'string'
+            ? ((input.metadata as Record<string, unknown>).currency as string)
+            : null,
+        customer,
+      })
+
+      await this.syncConversationExternalIdentities(tx, conversation.id, {
+        tenantKey,
+        channel,
+        userId: canonicalUserId,
+        threadId: input.threadId.trim(),
+      })
+
+      await this.ensureInboundParticipant(tx, conversation.id, customer?.id ?? null, {
+        externalUserId: canonicalUserId,
+        displayName:
+          input.displayName?.trim() || customer?.name || null,
+        email: input.email?.trim() || customer?.email || null,
+        locale: preferences.locale,
+        currency: preferences.currency,
+      })
+
+      return {
+        conversationId: conversation.id,
+        createdConversation,
+        preferences,
+      }
+    })
   }
 
   async takeoverConversation(
@@ -2273,6 +3078,1147 @@ export class ConversationsService {
     }
 
     return this.getConversation(id, actorUserId)
+  }
+
+  async reactToWhatsappMessage(
+    conversationId: string,
+    messageId: string,
+    input: ReactWhatsappMessageDto,
+    actorUserId: number,
+  ) {
+    const context = await this.requireWhatsappQrMessageContext(
+      conversationId,
+      messageId,
+    )
+
+    const payload = this.extractWhatsappMessageActionPayload(context)
+    const result = await this.callWhatsappQrAdapterJson(
+      '/channels/whatsapp-qr/message/reaction',
+      {
+        threadId: payload.threadId,
+        messageId: payload.messageId,
+        messageKey: payload.messageKey,
+        messageSnapshot: payload.messageSnapshot,
+        emoji: input.emoji,
+      },
+      'conversation.whatsappQrReactionFailed',
+    )
+
+    if (context.message.inboxMessageId) {
+      await this.prisma.inboxMessageEvent.create({
+        data: {
+          messageId: context.message.inboxMessageId,
+          type: InboxMessageEventType.SYNCED,
+          payload: this.toJsonValue({
+            action: 'reaction_sent',
+            emoji: input.emoji,
+            actorUserId,
+            provider: 'whatsapp-qr',
+            threadRemoteId: result?.threadRemoteId ?? payload.threadId ?? null,
+            providerMessageId: result?.messageId ?? payload.messageId ?? null,
+          }),
+        },
+      })
+    }
+
+    return {
+      ok: true,
+      conversationId,
+      messageId,
+      emoji: input.emoji,
+      provider: 'whatsapp-qr',
+    }
+  }
+
+  async replyToWebchatMessage(
+    conversationId: string,
+    messageId: string,
+    input: ReplyWebchatMessageDto,
+    actorUserId: number,
+  ) {
+    const sourceContext = await this.requireWebchatMessageContext(
+      conversationId,
+      messageId,
+    )
+    const outboundBody = input.body.trim()
+    if (!outboundBody) {
+      throw new BadRequestException('conversation.replyBodyRequired')
+    }
+
+    const dispatch = await this.dispatchOutboundMessageSafely(
+      sourceContext.conversation,
+      outboundBody,
+      'admin-reply',
+      {
+        quotedMessageId: sourceContext.message.id,
+        quotedMessagePreview:
+          sourceContext.message.body?.trim() ||
+          sourceContext.message.normalizedText?.trim() ||
+          null,
+      },
+    )
+    const outbound = dispatch.outbound
+    const nextOperatorStatus = dispatch.failed
+      ? ConversationStatus.WAITING_INTERNAL
+      : ConversationStatus.WAITING_CUSTOMER
+
+    const persistedMessage = await this.prisma.$transaction(async (tx) => {
+      const message = await tx.conversationMessage.create({
+        data: {
+          conversationId: sourceContext.conversation.id,
+          authorType: ConversationMessageAuthorType.OPERATOR,
+          kind: outbound.kind,
+          authorUserId: actorUserId,
+          externalMessageId: outbound.externalMessageId ?? null,
+          inboxMessageId: outbound.inboxMessageId ?? null,
+          body: outboundBody,
+          normalizedText: outboundBody,
+          sentAt: outbound.sentAt,
+          metadata: this.toJsonValue({
+            source: 'admin-reply',
+            authorKind: 'operator_human',
+            messageKind: 'human_message',
+            ...(outbound.metadata ?? {}),
+            quotedMessageId: sourceContext.message.id,
+            quotedMessagePreview:
+              sourceContext.message.body?.trim() ||
+              sourceContext.message.normalizedText?.trim() ||
+              null,
+          }),
+          payload: this.toJsonValue({
+            authorKind: 'operator_human',
+            messageKind: 'human_message',
+            quotedMessageId: sourceContext.message.id,
+            quotedMessagePreview:
+              sourceContext.message.body?.trim() ||
+              sourceContext.message.normalizedText?.trim() ||
+              null,
+          }),
+        },
+        select: {
+          id: true,
+          createdAt: true,
+        },
+      })
+
+      await tx.conversation.update({
+        where: { id: sourceContext.conversation.id },
+        data: {
+          controlMode: ConversationControlMode.HUMAN,
+          assignedToUserId: actorUserId,
+          lastMessageAt: message.createdAt,
+          lastOutboundAt: message.createdAt,
+          status: nextOperatorStatus,
+        },
+      })
+
+      await tx.conversationReadState.upsert({
+        where: {
+          conversationId_userId: {
+            conversationId: sourceContext.conversation.id,
+            userId: actorUserId,
+          },
+        },
+        update: {
+          lastReadAt: message.createdAt,
+          manualUnread: false,
+        },
+        create: {
+          conversationId: sourceContext.conversation.id,
+          userId: actorUserId,
+          lastReadAt: message.createdAt,
+          manualUnread: false,
+        },
+      })
+
+      return message
+    })
+
+    await this.captureKnowledgeMessage(persistedMessage.id, {
+      actorUserId,
+    })
+
+    return {
+      ok: true,
+      conversationId: sourceContext.conversation.id,
+      messageId: persistedMessage.id,
+      quotedMessageId: sourceContext.message.id,
+    }
+  }
+
+  async replyToWhatsappMessage(
+    conversationId: string,
+    messageId: string,
+    input: ReplyWhatsappMessageDto,
+    actorUserId: number,
+  ) {
+    const sourceContext = await this.requireWhatsappQrMessageContext(
+      conversationId,
+      messageId,
+    )
+    const sourcePayload = this.extractWhatsappMessageActionPayload(sourceContext)
+    if (!sourcePayload.threadId) {
+      throw new BadRequestException('conversation.whatsappThreadRequired')
+    }
+
+    const outboundBody = input.body.trim()
+    if (!outboundBody) {
+      throw new BadRequestException('conversation.replyBodyRequired')
+    }
+
+    const adapterPayload = await this.callWhatsappQrAdapterJson(
+      '/channels/whatsapp-qr/message/reply',
+      {
+        threadId: sourcePayload.threadId,
+        messageId: sourcePayload.messageId,
+        messageKey: sourcePayload.messageKey,
+        messageSnapshot: sourcePayload.messageSnapshot,
+        text: outboundBody,
+      },
+      'conversation.whatsappQrReplyFailed',
+    )
+
+    const latestInboxMessage = sourceContext.conversation.messages[0]?.inboxMessage ?? null
+    const persistedMessage = await this.prisma.$transaction(async (tx) => {
+      const inboxMessage = await tx.inboxMessage.create({
+        data: {
+          accountId: sourceContext.conversation.inboxAccountId!,
+          channel: InboxChannelType.WHATSAPP,
+          provider:
+            typeof adapterPayload?.provider === 'string'
+              ? adapterPayload.provider
+              : 'whatsapp-qr',
+          messageUid:
+            (typeof adapterPayload?.remoteId === 'string' && adapterPayload.remoteId) ||
+            `waqr:${randomUUID()}`,
+          remoteId:
+            (typeof adapterPayload?.remoteId === 'string' && adapterPayload.remoteId) ||
+            `waqr:${randomUUID()}`,
+          threadRemoteId:
+            (typeof adapterPayload?.threadRemoteId === 'string' &&
+              adapterPayload.threadRemoteId) ||
+            sourcePayload.threadId,
+          subject: sourceContext.conversation.subject ?? null,
+          snippet: outboundBody.slice(0, 280),
+          previewText: outboundBody.slice(0, 280),
+          fromAddress: sourceContext.conversation.inboxAccount?.address ?? null,
+          fromName: sourceContext.conversation.inboxAccount?.displayName ?? null,
+          toAddresses: sourceContext.conversation.externalUserId
+            ? [sourceContext.conversation.externalUserId]
+            : [],
+          ccAddresses: [],
+          bccAddresses: [],
+          replyToAddresses: [],
+          direction: InboxMessageDirection.OUTBOUND,
+          folder: 'sent',
+          queueId: latestInboxMessage?.queueId ?? null,
+          sentAt: new Date(),
+          metadata: this.toJsonValue({
+            source: 'admin-reply',
+            deliveryStatus:
+              typeof adapterPayload?.deliveryStatus === 'string'
+                ? adapterPayload.deliveryStatus
+                : 'accepted',
+            providerMessageId:
+              (typeof adapterPayload?.providerMessageId === 'string' &&
+                adapterPayload.providerMessageId) ||
+              (typeof adapterPayload?.remoteId === 'string' ? adapterPayload.remoteId : null),
+            quotedMessageId: sourceContext.message.id,
+            ...(this.asRecord(adapterPayload?.metadata) ?? {}),
+          }),
+        },
+        select: {
+          id: true,
+        },
+      })
+
+      await tx.inboxMessageEvent.create({
+        data: {
+          messageId: inboxMessage.id,
+          type: InboxMessageEventType.SENT,
+          payload: this.toJsonValue({
+            channel: this.normalizeEnum(sourceContext.conversation.channel),
+            deliveryStatus:
+              typeof adapterPayload?.deliveryStatus === 'string'
+                ? adapterPayload.deliveryStatus
+                : 'accepted',
+            providerMessageId:
+              (typeof adapterPayload?.providerMessageId === 'string' &&
+                adapterPayload.providerMessageId) ||
+              (typeof adapterPayload?.remoteId === 'string' ? adapterPayload.remoteId : null),
+            action: 'reply',
+            quotedMessageId: sourceContext.message.id,
+          }),
+        },
+      })
+
+      const message = await tx.conversationMessage.create({
+        data: {
+          conversationId: sourceContext.conversation.id,
+          authorType: ConversationMessageAuthorType.OPERATOR,
+          kind: ConversationMessageKind.TEXT,
+          authorUserId: actorUserId,
+          externalMessageId:
+            (typeof adapterPayload?.remoteId === 'string' && adapterPayload.remoteId) || null,
+          inboxMessageId: inboxMessage.id,
+          body: outboundBody,
+          normalizedText: outboundBody,
+          sentAt: new Date(),
+          metadata: this.toJsonValue({
+            source: 'admin-reply',
+            authorKind: 'operator_human',
+            messageKind: 'human_message',
+            deliveryStatus:
+              typeof adapterPayload?.deliveryStatus === 'string'
+                ? adapterPayload.deliveryStatus
+                : 'accepted',
+            provider:
+              typeof adapterPayload?.provider === 'string'
+                ? adapterPayload.provider
+                : 'whatsapp-qr',
+            providerMessageId:
+              (typeof adapterPayload?.providerMessageId === 'string' &&
+                adapterPayload.providerMessageId) ||
+              (typeof adapterPayload?.remoteId === 'string' ? adapterPayload.remoteId : null),
+            threadRemoteId:
+              (typeof adapterPayload?.threadRemoteId === 'string' &&
+                adapterPayload.threadRemoteId) ||
+              sourcePayload.threadId,
+            quotedMessageId: sourceContext.message.id,
+            quotedMessagePreview:
+              sourceContext.message.body?.trim() ||
+              sourceContext.message.normalizedText?.trim() ||
+              null,
+            ...(this.asRecord(adapterPayload?.metadata) ?? {}),
+          }),
+          payload: this.toJsonValue({
+            authorKind: 'operator_human',
+            messageKind: 'human_message',
+            quotedMessageId: sourceContext.message.id,
+            quotedMessagePreview:
+              sourceContext.message.body?.trim() ||
+              sourceContext.message.normalizedText?.trim() ||
+              null,
+          }),
+        },
+        select: {
+          id: true,
+          createdAt: true,
+        },
+      })
+
+      await tx.conversation.update({
+        where: { id: sourceContext.conversation.id },
+        data: {
+          controlMode: ConversationControlMode.HUMAN,
+          assignedToUserId: actorUserId,
+          lastMessageAt: message.createdAt,
+          lastOutboundAt: message.createdAt,
+          status: ConversationStatus.WAITING_CUSTOMER,
+        },
+      })
+
+      return message
+    })
+
+    return {
+      ok: true,
+      conversationId: sourceContext.conversation.id,
+      messageId: persistedMessage.id,
+      quotedMessageId: sourceContext.message.id,
+    }
+  }
+
+  async editWebchatMessage(
+    conversationId: string,
+    messageId: string,
+    input: EditWebchatMessageDto,
+    actorUserId: number,
+  ) {
+    const context = await this.requireWebchatMessageContext(
+      conversationId,
+      messageId,
+    )
+
+    if (context.message.authorType !== ConversationMessageAuthorType.OPERATOR) {
+      throw new BadRequestException('conversation.webchatEditOwnMessageRequired')
+    }
+
+    const updatedBody = input.body.trim()
+    if (!updatedBody) {
+      throw new BadRequestException('conversation.replyBodyRequired')
+    }
+
+    const messageMetadata = this.asRecord(context.message.metadata) ?? {}
+    const updatedMetadata = {
+      ...messageMetadata,
+      editedAt: new Date().toISOString(),
+      editedByUserId: actorUserId,
+    }
+
+    await this.prisma.conversationMessage.update({
+      where: { id: context.message.id },
+      data: {
+        body: updatedBody,
+        normalizedText: updatedBody,
+        metadata: this.toJsonValue(updatedMetadata),
+      },
+    })
+
+    return {
+      ok: true,
+      conversationId,
+      messageId,
+      body: updatedBody,
+    }
+  }
+
+  async reactToWebchatMessage(
+    conversationId: string,
+    messageId: string,
+    input: ReactWebchatMessageDto,
+    actorUserId: number,
+  ) {
+    const context = await this.requireWebchatMessageContext(
+      conversationId,
+      messageId,
+    )
+    const emoji = input.emoji.trim()
+    if (!emoji) {
+      throw new BadRequestException('conversation.reactionEmojiRequired')
+    }
+
+    const messageMetadata = this.asRecord(context.message.metadata) ?? {}
+    const webchatState = this.asRecord(messageMetadata.webchatState) ?? {}
+    const reactions = this.normalizeWebchatMessageReactions(webchatState.reactions)
+      .filter((entry) => entry.actorUserId !== actorUserId)
+      .concat({
+        emoji,
+        actorUserId,
+        actorType: 'operator',
+        createdAt: new Date().toISOString(),
+      })
+
+    await this.prisma.conversationMessage.update({
+      where: { id: context.message.id },
+      data: {
+        metadata: this.toJsonValue({
+          ...messageMetadata,
+          webchatState: {
+            ...webchatState,
+            reactions,
+            reactionsUpdatedAt: new Date().toISOString(),
+            reactionsUpdatedByUserId: actorUserId,
+          },
+        }),
+      },
+    })
+
+    return {
+      ok: true,
+      conversationId,
+      messageId,
+      emoji,
+      provider: 'webchat',
+    }
+  }
+
+  async toggleWebchatMessageStar(
+    conversationId: string,
+    messageId: string,
+    input: ToggleWebchatMessageStarDto,
+    actorUserId: number,
+  ) {
+    const context = await this.requireWebchatMessageContext(
+      conversationId,
+      messageId,
+    )
+    const messageMetadata = this.asRecord(context.message.metadata) ?? {}
+    const webchatState = this.asRecord(messageMetadata.webchatState) ?? {}
+
+    await this.prisma.conversationMessage.update({
+      where: { id: context.message.id },
+      data: {
+        metadata: this.toJsonValue({
+          ...messageMetadata,
+          webchatState: {
+            ...webchatState,
+            starred: input.starred,
+            starredUpdatedAt: new Date().toISOString(),
+            starredUpdatedByUserId: actorUserId,
+          },
+        }),
+      },
+    })
+
+    return {
+      ok: true,
+      conversationId,
+      messageId,
+      starred: input.starred,
+    }
+  }
+
+  async editWhatsappMessage(
+    conversationId: string,
+    messageId: string,
+    input: EditWhatsappMessageDto,
+    actorUserId: number,
+  ) {
+    const context = await this.requireWhatsappQrMessageContext(
+      conversationId,
+      messageId,
+    )
+    const payload = this.extractWhatsappMessageActionPayload(context)
+
+    if (!payload.fromMe) {
+      throw new BadRequestException('conversation.whatsappQrEditOwnMessageRequired')
+    }
+
+    const updatedBody = input.body.trim()
+    if (!updatedBody) {
+      throw new BadRequestException('conversation.replyBodyRequired')
+    }
+
+    await this.callWhatsappQrAdapterJson(
+      '/channels/whatsapp-qr/message/edit',
+      {
+        threadId: payload.threadId,
+        messageId: payload.messageId,
+        messageKey: payload.messageKey,
+        messageSnapshot: payload.messageSnapshot,
+        fromMe: true,
+        text: updatedBody,
+      },
+      'conversation.whatsappQrEditFailed',
+    )
+
+    const messageMetadata = this.asRecord(context.message.metadata) ?? {}
+    const updatedMetadata = {
+      ...messageMetadata,
+      editedAt: new Date().toISOString(),
+      editedByUserId: actorUserId,
+    }
+
+    await this.prisma.conversationMessage.update({
+      where: { id: context.message.id },
+      data: {
+        body: updatedBody,
+        normalizedText: updatedBody,
+        metadata: this.toJsonValue(updatedMetadata),
+      },
+    })
+
+    if (context.message.inboxMessageId) {
+      await this.prisma.inboxMessageEvent.create({
+        data: {
+          messageId: context.message.inboxMessageId,
+          type: InboxMessageEventType.SYNCED,
+          payload: this.toJsonValue({
+            action: 'message_edited',
+            actorUserId,
+            provider: 'whatsapp-qr',
+          }),
+        },
+      })
+    }
+
+    return {
+      ok: true,
+      conversationId,
+      messageId,
+      body: updatedBody,
+    }
+  }
+
+  async deleteWebchatMessage(
+    conversationId: string,
+    messageId: string,
+    actorUserId: number,
+  ) {
+    const context = await this.requireWebchatMessageContext(
+      conversationId,
+      messageId,
+    )
+
+    if (context.message.authorType !== ConversationMessageAuthorType.OPERATOR) {
+      throw new BadRequestException('conversation.webchatDeleteOwnMessageRequired')
+    }
+
+    const messageMetadata = this.asRecord(context.message.metadata) ?? {}
+    const nextPayload = {
+      authorKind: 'operator_human',
+      messageKind: 'human_message',
+      deleted: true,
+    }
+
+    await this.prisma.conversationMessage.update({
+      where: { id: context.message.id },
+      data: {
+        body: 'Mensaje eliminado',
+        normalizedText: 'Mensaje eliminado',
+        payload: this.toJsonValue(nextPayload),
+        metadata: this.toJsonValue({
+          ...Object.fromEntries(
+            Object.entries(messageMetadata).filter(([key]) => key !== 'attachments'),
+          ),
+          deleted: true,
+          deletedAt: new Date().toISOString(),
+          deletedByUserId: actorUserId,
+        }),
+      },
+    })
+
+    return {
+      ok: true,
+      conversationId,
+      messageId,
+      deleted: true,
+    }
+  }
+
+  async toggleWebchatChatArchive(
+    conversationId: string,
+    input: ToggleWebchatChatArchiveDto,
+    actorUserId: number,
+  ) {
+    return this.applyWebchatChatAction(conversationId, actorUserId, {
+      archived: input.archived,
+    })
+  }
+
+  async setWebchatChatMuteState(
+    conversationId: string,
+    input: SetWebchatChatMuteDto,
+    actorUserId: number,
+  ) {
+    const preset = input.preset ?? 'off'
+    const muteDurationMs =
+      preset === '8h'
+        ? 8 * 60 * 60 * 1000
+        : preset === '7d'
+          ? 7 * 24 * 60 * 60 * 1000
+          : null
+
+    return this.applyWebchatChatAction(conversationId, actorUserId, {
+      muted: muteDurationMs != null,
+      mutePreset: preset,
+      muteDurationMs,
+      mutedUntil:
+        muteDurationMs != null
+          ? new Date(Date.now() + muteDurationMs).toISOString()
+          : null,
+    })
+  }
+
+  async deleteWebchatChat(conversationId: string, actorUserId: number) {
+    return this.applyWebchatChatAction(conversationId, actorUserId, {
+      deleted: true,
+      deletedAt: new Date().toISOString(),
+      deletedByUserId: actorUserId,
+    })
+  }
+
+  async deleteWhatsappMessage(
+    conversationId: string,
+    messageId: string,
+    actorUserId: number,
+  ) {
+    const context = await this.requireWhatsappQrMessageContext(
+      conversationId,
+      messageId,
+    )
+    const payload = this.extractWhatsappMessageActionPayload(context)
+
+    if (!payload.fromMe) {
+      throw new BadRequestException('conversation.whatsappQrDeleteOwnMessageRequired')
+    }
+
+    await this.callWhatsappQrAdapterJson(
+      '/channels/whatsapp-qr/message/delete',
+      {
+        threadId: payload.threadId,
+        messageId: payload.messageId,
+        messageKey: payload.messageKey,
+        messageSnapshot: payload.messageSnapshot,
+        fromMe: true,
+      },
+      'conversation.whatsappQrDeleteFailed',
+    )
+
+    const messageMetadata = this.asRecord(context.message.metadata) ?? {}
+    const nextPayload = {
+      authorKind: 'operator_human',
+      messageKind: 'human_message',
+      deleted: true,
+    }
+    await this.prisma.conversationMessage.update({
+      where: { id: context.message.id },
+      data: {
+        body: 'Mensaje eliminado',
+        normalizedText: 'Mensaje eliminado',
+        payload: this.toJsonValue(nextPayload),
+        metadata: this.toJsonValue({
+          ...Object.fromEntries(
+            Object.entries(messageMetadata).filter(([key]) => key !== 'attachments'),
+          ),
+          deletedAt: new Date().toISOString(),
+          deletedByUserId: actorUserId,
+          deletedForEveryone: true,
+        }),
+      },
+    })
+
+    if (context.message.inboxMessageId) {
+      await this.prisma.inboxMessageEvent.create({
+        data: {
+          messageId: context.message.inboxMessageId,
+          type: InboxMessageEventType.SYNCED,
+          payload: this.toJsonValue({
+            action: 'message_deleted',
+            actorUserId,
+            provider: 'whatsapp-qr',
+          }),
+        },
+      })
+    }
+
+    return {
+      ok: true,
+      conversationId,
+      messageId,
+      deleted: true,
+    }
+  }
+
+  async toggleWhatsappMessageStar(
+    conversationId: string,
+    messageId: string,
+    input: ToggleWhatsappMessageStarDto,
+    actorUserId: number,
+  ) {
+    const context = await this.requireWhatsappQrMessageContext(
+      conversationId,
+      messageId,
+    )
+    const payload = this.extractWhatsappMessageActionPayload(context)
+
+    await this.callWhatsappQrAdapterJson(
+      '/channels/whatsapp-qr/message/star',
+      {
+        threadId: payload.threadId,
+        messageId: payload.messageId,
+        messageKey: payload.messageKey,
+        messageSnapshot: payload.messageSnapshot,
+        fromMe: payload.fromMe,
+        starred: input.starred,
+      },
+      'conversation.whatsappQrStarFailed',
+    )
+
+    const messageMetadata = this.asRecord(context.message.metadata) ?? {}
+    const whatsappState = this.asRecord(messageMetadata.whatsappState) ?? {}
+    await this.prisma.conversationMessage.update({
+      where: { id: context.message.id },
+      data: {
+        metadata: this.toJsonValue({
+          ...messageMetadata,
+          whatsappState: {
+            ...whatsappState,
+            starred: input.starred,
+            starredUpdatedAt: new Date().toISOString(),
+            starredUpdatedByUserId: actorUserId,
+          },
+        }),
+      },
+    })
+
+    return {
+      ok: true,
+      conversationId,
+      messageId,
+      starred: input.starred,
+    }
+  }
+
+  async forwardWhatsappMessage(
+    conversationId: string,
+    messageId: string,
+    input: ForwardWhatsappMessageDto,
+    actorUserId: number,
+  ) {
+    const sourceContext = await this.requireWhatsappQrMessageContext(
+      conversationId,
+      messageId,
+    )
+    const targetConversation = await this.requireConversationForOutbound(
+      input.targetConversationId,
+    )
+
+    if (!this.isWhatsappQrConversation(targetConversation)) {
+      throw new BadRequestException('conversation.whatsappQrTargetRequired')
+    }
+
+    if (targetConversation.id === sourceContext.conversation.id) {
+      throw new BadRequestException('conversation.whatsappQrForwardSameConversation')
+    }
+
+    const sourcePayload = this.extractWhatsappMessageActionPayload(sourceContext)
+    const targetRecipientId =
+      targetConversation.externalUserId?.trim() ||
+      targetConversation.participants
+        .map((participant) => participant.externalUserId)
+        .find((value) => value?.trim()) ||
+      null
+    const targetThreadId =
+      targetConversation.externalThreadId?.trim() ||
+      targetConversation.messages[0]?.inboxMessage?.threadRemoteId?.trim() ||
+      null
+
+    if (!targetRecipientId && !targetThreadId) {
+      throw new BadRequestException('conversation.whatsappRecipientRequired')
+    }
+
+    const adapterPayload = await this.callWhatsappQrAdapterJson(
+      '/channels/whatsapp-qr/message/forward',
+      {
+        sourceConversationId: sourceContext.conversation.id,
+        sourceMessageId: sourceContext.message.id,
+        targetConversationId: targetConversation.id,
+        targetRecipientId,
+        targetThreadId,
+        text:
+          sourceContext.message.body?.trim() ||
+          sourceContext.message.normalizedText?.trim() ||
+          null,
+        messageSnapshot: sourcePayload.messageSnapshot,
+      },
+      'conversation.whatsappQrForwardFailed',
+    )
+    const adapterRemoteId =
+      typeof adapterPayload?.remoteId === 'string' &&
+      adapterPayload.remoteId.trim().length > 0
+        ? adapterPayload.remoteId.trim()
+        : `waqr:${randomUUID()}`
+    const adapterProviderMessageId =
+      typeof adapterPayload?.providerMessageId === 'string' &&
+      adapterPayload.providerMessageId.trim().length > 0
+        ? adapterPayload.providerMessageId.trim()
+        : adapterRemoteId
+    const adapterThreadRemoteId =
+      typeof adapterPayload?.threadRemoteId === 'string' &&
+      adapterPayload.threadRemoteId.trim().length > 0
+        ? adapterPayload.threadRemoteId.trim()
+        : targetConversation.externalThreadId || null
+    const adapterDeliveryStatus =
+      typeof adapterPayload?.deliveryStatus === 'string' &&
+      adapterPayload.deliveryStatus.trim().length > 0
+        ? adapterPayload.deliveryStatus.trim()
+        : 'accepted'
+    const adapterProvider =
+      typeof adapterPayload?.provider === 'string' &&
+      adapterPayload.provider.trim().length > 0
+        ? adapterPayload.provider.trim()
+        : 'whatsapp-qr'
+
+    const attachments = this.extractConversationMessageAttachments(
+      sourceContext.message.payload,
+      sourceContext.message.metadata,
+    )
+    const forwardedBody =
+      sourceContext.message.body?.trim() ||
+      sourceContext.message.normalizedText?.trim() ||
+      this.buildAttachmentSummary(attachments) ||
+      'Mensaje reenviado'
+    const storedMessageElements = this.buildStoredMessageElements({
+      text: forwardedBody,
+      attachments,
+    })
+    const storedMessageContextOrigin = this.buildStoredMessageContextOrigin({
+      text: forwardedBody,
+      messageElements: storedMessageElements,
+    })
+    const latestInboxMessage = targetConversation.messages[0]?.inboxMessage ?? null
+
+    const persistedMessage = await this.prisma.$transaction(async (tx) => {
+      const inboxMessage = await tx.inboxMessage.create({
+        data: {
+          accountId: targetConversation.inboxAccountId!,
+          channel: InboxChannelType.WHATSAPP,
+          provider: adapterProvider,
+          messageUid: adapterRemoteId,
+          remoteId: adapterRemoteId,
+          threadRemoteId: adapterThreadRemoteId,
+          subject: targetConversation.subject ?? null,
+          snippet: forwardedBody.slice(0, 280),
+          previewText: forwardedBody.slice(0, 280),
+          fromAddress: targetConversation.inboxAccount?.address ?? null,
+          fromName: targetConversation.inboxAccount?.displayName ?? null,
+          toAddresses: targetRecipientId ? [targetRecipientId] : [],
+          ccAddresses: [],
+          bccAddresses: [],
+          replyToAddresses: [],
+          direction: InboxMessageDirection.OUTBOUND,
+          folder: 'sent',
+          queueId: latestInboxMessage?.queueId ?? null,
+          sentAt: new Date(),
+          metadata: this.toJsonValue({
+            source: 'admin-forward',
+            deliveryStatus: adapterDeliveryStatus,
+            providerMessageId: adapterProviderMessageId,
+            attachments: attachments.length > 0 ? attachments : null,
+            ...(this.asRecord(adapterPayload?.metadata) ?? {}),
+          }),
+        },
+        select: {
+          id: true,
+        },
+      })
+
+      await tx.inboxMessageEvent.create({
+        data: {
+          messageId: inboxMessage.id,
+          type: InboxMessageEventType.SENT,
+          payload: this.toJsonValue({
+            channel: this.normalizeEnum(targetConversation.channel),
+            deliveryStatus: adapterDeliveryStatus,
+            providerMessageId: adapterProviderMessageId,
+            action: 'forward',
+            forwardedFromConversationId: sourceContext.conversation.id,
+            forwardedFromMessageId: sourceContext.message.id,
+          }),
+        },
+      })
+
+      const message = await tx.conversationMessage.create({
+        data: {
+          conversationId: targetConversation.id,
+          authorType: ConversationMessageAuthorType.OPERATOR,
+          kind: ConversationMessageKind.TEXT,
+          authorUserId: actorUserId,
+          externalMessageId: adapterRemoteId,
+          inboxMessageId: inboxMessage.id,
+          body: forwardedBody,
+          normalizedText: forwardedBody,
+          sentAt: new Date(),
+          metadata: this.toJsonValue({
+            source: 'admin-forward',
+            authorKind: 'operator_human',
+            messageKind: 'human_message',
+            deliveryStatus: adapterDeliveryStatus,
+            provider: adapterProvider,
+            providerMessageId: adapterProviderMessageId,
+            threadRemoteId: adapterThreadRemoteId,
+            forwardedFromConversationId: sourceContext.conversation.id,
+            forwardedFromMessageId: sourceContext.message.id,
+            attachments: attachments.length > 0 ? attachments : null,
+            messageElements:
+              storedMessageElements.length > 0 ? storedMessageElements : null,
+            messageContextOrigin:
+              storedMessageContextOrigin.length > 0
+                ? storedMessageContextOrigin
+                : null,
+            ...(this.asRecord(adapterPayload?.metadata) ?? {}),
+          }),
+          payload: this.toJsonValue({
+            authorKind: 'operator_human',
+            messageKind: 'human_message',
+            attachments: attachments.length > 0 ? attachments : null,
+            messageElements:
+              storedMessageElements.length > 0 ? storedMessageElements : null,
+            messageContextOrigin:
+              storedMessageContextOrigin.length > 0
+                ? storedMessageContextOrigin
+                : null,
+          }),
+        },
+        select: {
+          id: true,
+          createdAt: true,
+        },
+      })
+
+      await tx.conversation.update({
+        where: { id: targetConversation.id },
+        data: {
+          controlMode:
+            targetConversation.scope === ConversationScope.ADMIN_INTERNAL
+              ? ConversationControlMode.AI
+              : ConversationControlMode.HUMAN,
+          assignedToUserId: actorUserId,
+          lastMessageAt: message.createdAt,
+          lastOutboundAt: message.createdAt,
+          status:
+            targetConversation.scope === ConversationScope.ADMIN_INTERNAL
+              ? ConversationStatus.WAITING_INTERNAL
+              : ConversationStatus.WAITING_CUSTOMER,
+        },
+      })
+
+      return message
+    })
+
+    return {
+      ok: true,
+      sourceConversationId: sourceContext.conversation.id,
+      sourceMessageId: sourceContext.message.id,
+      targetConversationId: targetConversation.id,
+      forwardedMessageId: persistedMessage.id,
+    }
+  }
+
+  async toggleWhatsappChatArchive(
+    conversationId: string,
+    input: ToggleWhatsappChatArchiveDto,
+    actorUserId: number,
+  ) {
+    return this.applyWhatsappQrChatAction(
+      conversationId,
+      '/channels/whatsapp-qr/chat/archive',
+      {
+        archived: input.archived,
+      },
+      actorUserId,
+      'conversation.whatsappQrArchiveFailed',
+      {
+        archived: input.archived,
+      },
+    )
+  }
+
+  async toggleWhatsappChatReadState(
+    conversationId: string,
+    input: ToggleWhatsappChatReadDto,
+    actorUserId: number,
+  ) {
+    return this.applyWhatsappQrChatAction(
+      conversationId,
+      '/channels/whatsapp-qr/chat/read-state',
+      {
+        read: input.read,
+      },
+      actorUserId,
+      'conversation.whatsappQrReadStateFailed',
+      {
+        read: input.read,
+      },
+    )
+  }
+
+  async toggleWhatsappChatPinState(
+    conversationId: string,
+    input: ToggleWhatsappChatPinDto,
+    actorUserId: number,
+  ) {
+    return this.applyWhatsappQrChatAction(
+      conversationId,
+      '/channels/whatsapp-qr/chat/pin-state',
+      {
+        pinned: input.pinned,
+      },
+      actorUserId,
+      'conversation.whatsappQrPinStateFailed',
+      {
+        pinned: input.pinned,
+      },
+    )
+  }
+
+  async setWhatsappChatMuteState(
+    conversationId: string,
+    input: SetWhatsappChatMuteDto,
+    actorUserId: number,
+  ) {
+    const preset = input.preset ?? 'off'
+    const muteDurationMs =
+      preset === '8h'
+        ? 8 * 60 * 60 * 1000
+        : preset === '7d'
+          ? 7 * 24 * 60 * 60 * 1000
+          : null
+
+    return this.applyWhatsappQrChatAction(
+      conversationId,
+      '/channels/whatsapp-qr/chat/mute-state',
+      {
+        muteDurationMs,
+      },
+      actorUserId,
+      'conversation.whatsappQrMuteStateFailed',
+      {
+        muted: muteDurationMs != null,
+        mutePreset: preset,
+        muteDurationMs,
+        mutedUntil:
+          muteDurationMs != null
+            ? new Date(Date.now() + muteDurationMs).toISOString()
+            : null,
+      },
+    )
+  }
+
+  async deleteWhatsappChat(conversationId: string, actorUserId: number) {
+    return this.applyWhatsappQrChatAction(
+      conversationId,
+      '/channels/whatsapp-qr/chat/delete',
+      {
+        deleted: true,
+      },
+      actorUserId,
+      'conversation.whatsappQrChatDeleteFailed',
+      {
+        deleted: true,
+      },
+    )
+  }
+
+  async downloadWhatsappMessageMedia(
+    conversationId: string,
+    messageId: string,
+    attachmentIndex: number,
+    _actorUserId: number,
+  ) {
+    if (!Number.isInteger(attachmentIndex) || attachmentIndex < 0) {
+      throw new BadRequestException('conversation.attachmentIndexInvalid')
+    }
+
+    const context = await this.requireWhatsappQrMessageContext(
+      conversationId,
+      messageId,
+    )
+    const attachments = this.extractConversationMessageAttachments(
+      context.message.payload,
+      context.message.metadata,
+    )
+    const attachment = attachments[attachmentIndex] ?? null
+    if (!attachment) {
+      throw new NotFoundException('conversation.attachmentNotFound')
+    }
+
+    const payload = this.extractWhatsappMessageActionPayload(context)
+    const media = await this.callWhatsappQrAdapterBinary(
+      '/channels/whatsapp-qr/message/media',
+      {
+        threadId: payload.threadId,
+        messageId: payload.messageId,
+        messageKey: payload.messageKey,
+        messageSnapshot: payload.messageSnapshot,
+      },
+      'conversation.whatsappQrMediaDownloadFailed',
+    )
+
+    return {
+      buffer: media.buffer,
+      contentType:
+        media.contentType ||
+        (typeof attachment.contentType === 'string'
+          ? attachment.contentType
+          : 'application/octet-stream'),
+      fileName:
+        media.fileName ||
+        (typeof attachment.fileName === 'string' ? attachment.fileName : null) ||
+        'whatsapp-media',
+    }
   }
 
   async recordConversationSuggestionFeedback(
@@ -2795,6 +4741,7 @@ export class ConversationsService {
         displayName: string | null
         address: string | null
         channel: InboxChannelType
+        metadata?: Prisma.JsonValue | null
       } | null
       participants: Array<{
         id: string
@@ -2907,8 +4854,14 @@ export class ConversationsService {
         ? {
             ...conversation.inboxAccount,
             channel: this.normalizeEnum(conversation.inboxAccount.channel),
+            transport:
+              typeof this.asRecord(conversation.inboxAccount.metadata)?.transport ===
+              'string'
+                ? (this.asRecord(conversation.inboxAccount.metadata)?.transport as string)
+                : null,
           }
         : null,
+      channelState: this.extractConversationChannelState(conversation.metadata),
       queue:
         queue != null
           ? {
@@ -2974,29 +4927,68 @@ export class ConversationsService {
 
   private async resolveInboundCustomer(
     tx: Prisma.TransactionClient,
-    input: IngestInboundMessageDto,
+    input:
+      | IngestInboundMessageDto
+      | ImportChannelHistoryMessageDto
+      | BootstrapChannelThreadDto,
   ) {
+    const channel = this.mapChannel(input.channel)
     const email =
       input.email?.trim().toLowerCase() ||
       (input.channel === 'email' ? input.userId.trim().toLowerCase() : null)
+    const phoneDigits =
+      resolveConversationCanonicalExternalUserId({
+        channel,
+        userId: input.userId?.trim() || '',
+        threadId: input.threadId?.trim() || null,
+      }) ||
+      input.userId?.trim().replace(/\D+/g, '') ||
+      null
 
-    if (!email) {
+    if (!email && !phoneDigits) {
       return null
     }
 
     return tx.customer.findFirst({
-      where: { email },
+      where: {
+        OR: [
+          email ? { email } : undefined,
+          phoneDigits
+            ? {
+                OR: [
+                  { phoneNumber: phoneDigits },
+                  { phoneNumber: { endsWith: phoneDigits } },
+                  {
+                    phones: {
+                      some: {
+                        OR: [
+                          { phone: phoneDigits },
+                          { phone: { endsWith: phoneDigits } },
+                        ],
+                      },
+                    },
+                  },
+                ],
+              }
+            : undefined,
+        ].filter(Boolean) as Prisma.CustomerWhereInput[],
+      },
       select: {
         id: true,
         name: true,
         email: true,
+        preferredLocale: true,
+        preferredCurrency: true,
       },
     })
   }
 
   private async resolveInboundInboxAccount(
     tx: Prisma.TransactionClient,
-    input: IngestInboundMessageDto,
+    input:
+      | IngestInboundMessageDto
+      | ImportChannelHistoryMessageDto
+      | BootstrapChannelThreadDto,
     channel: InboxChannelType,
   ) {
     if (input.inboxAccountId?.trim()) {
@@ -3046,9 +5038,84 @@ export class ConversationsService {
       })
     }
 
+    const metadata = this.asRecord(input.metadata)
+    const transport =
+      typeof metadata?.transport === 'string' ? metadata.transport.trim().toLowerCase() : null
+    if (channel === InboxChannelType.WHATSAPP && transport === 'whatsapp_qr') {
+      const requestedAddress =
+        input.inboxAddress?.trim() || DEFAULT_WHATSAPP_QR_ADDRESS
+      const existingWhatsappQr = await tx.inboxAccount.findFirst({
+        where: {
+          channel,
+          OR: [
+            { address: requestedAddress },
+            {
+              metadata: {
+                path: ['transport'],
+                equals: 'whatsapp_qr',
+              },
+            },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+      })
+
+      let inboxAccount:
+        | {
+            id: string
+            channel: InboxChannelType
+            displayName: string | null
+            address: string | null
+            active: boolean
+            metadata: Prisma.JsonValue | null
+          }
+        | null = null
+
+      if (existingWhatsappQr) {
+        inboxAccount = await tx.inboxAccount.update({
+          where: { id: existingWhatsappQr.id },
+          data: {
+            displayName: existingWhatsappQr.displayName || 'WhatsApp QR',
+            address: requestedAddress,
+            active: true,
+            metadata: {
+              ...this.asRecord(existingWhatsappQr.metadata),
+              source: 'conversation-hub',
+              transport: 'whatsapp_qr',
+            } as Prisma.InputJsonValue,
+          },
+        })
+      } else {
+        inboxAccount = await tx.inboxAccount.create({
+          data: {
+            channel,
+            address: requestedAddress,
+            displayName: 'WhatsApp QR',
+            active: true,
+            metadata: {
+              source: 'conversation-hub',
+              transport: 'whatsapp_qr',
+            } as Prisma.InputJsonValue,
+          },
+        })
+      }
+
+      await tx.inboxAccount.updateMany({
+        where: {
+          channel: InboxChannelType.WHATSAPP,
+          id: { not: inboxAccount.id },
+        },
+        data: {
+          active: false,
+        },
+      })
+
+      return inboxAccount
+    }
+
     const fallbackAddress =
       input.inboxAddress?.trim() ||
-      (this.asRecord(input.metadata)?.pageId as string | undefined) ||
+      (metadata?.pageId as string | undefined) ||
       `${input.tenantKey.trim()}:${input.channel}`
 
     return tx.inboxAccount.upsert({
@@ -3082,7 +5149,10 @@ export class ConversationsService {
 
   private async resolveInboundQueue(
     tx: Prisma.TransactionClient,
-    input: IngestInboundMessageDto,
+    input:
+      | IngestInboundMessageDto
+      | ImportChannelHistoryMessageDto
+      | BootstrapChannelThreadDto,
   ) {
     const slug = (
       input.queueSlug?.trim().toLowerCase() ||
@@ -3210,6 +5280,18 @@ export class ConversationsService {
       userId: string
     },
   ) {
+    const canonicalUserId =
+      resolveConversationCanonicalExternalUserId({
+        channel: input.channel,
+        userId: input.userId,
+        threadId: input.threadId,
+      }) || input.userId
+    const identityCandidates = buildConversationIdentityCandidates({
+      channel: input.channel,
+      userId: input.userId,
+      threadId: input.threadId,
+    })
+
     if (input.threadId) {
       const byThread = await tx.conversation.findFirst({
         where: {
@@ -3223,16 +5305,107 @@ export class ConversationsService {
       }
     }
 
+    if (identityCandidates.length > 0) {
+      const byIdentity = await tx.conversation.findFirst({
+        where: {
+          tenantKey: input.tenantKey,
+          channel: input.channel,
+          ...(input.inboxAccountId
+            ? { inboxAccountId: input.inboxAccountId }
+            : {}),
+          externalIdentities: {
+            some: {
+              OR: identityCandidates.map((candidate) => ({
+                kind: candidate.kind,
+                normalizedValue: candidate.normalizedValue,
+              })),
+            },
+          },
+        },
+        orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+      })
+      if (byIdentity) {
+        return byIdentity
+      }
+    }
+
     return tx.conversation.findFirst({
       where: {
         tenantKey: input.tenantKey,
         channel: input.channel,
-        externalUserId: input.userId,
+        externalUserId: canonicalUserId,
         inboxAccountId: input.inboxAccountId,
-        status: { not: ConversationStatus.CLOSED },
+        ...(shouldReuseClosedConversationByIdentity(input.channel)
+          ? {}
+          : {
+              status: { not: ConversationStatus.CLOSED },
+            }),
       },
       orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
     })
+  }
+
+  private async syncConversationExternalIdentities(
+    tx: Prisma.TransactionClient,
+    conversationId: string,
+    input: {
+      tenantKey: string
+      channel: ConversationChannel
+      userId: string
+      threadId?: string | null
+    },
+  ) {
+    const candidates = buildConversationIdentityCandidates({
+      channel: input.channel,
+      userId: input.userId,
+      threadId: input.threadId ?? null,
+    })
+
+    for (const candidate of candidates) {
+      const existing = await tx.conversationExternalIdentity.findUnique({
+        where: {
+          tenantKey_channel_kind_normalizedValue: {
+            tenantKey: input.tenantKey,
+            channel: input.channel,
+            kind: candidate.kind,
+            normalizedValue: candidate.normalizedValue,
+          },
+        },
+      })
+
+      if (existing) {
+        if (
+          existing.conversationId !== conversationId ||
+          existing.value !== candidate.value
+        ) {
+          await tx.conversationExternalIdentity.update({
+            where: { id: existing.id },
+            data: {
+              conversationId,
+              value: candidate.value,
+              metadata: candidate.metadata
+                ? (candidate.metadata as Prisma.InputJsonValue)
+                : Prisma.JsonNull,
+            },
+          })
+        }
+        continue
+      }
+
+      await tx.conversationExternalIdentity.create({
+        data: {
+          conversationId,
+          tenantKey: input.tenantKey,
+          channel: input.channel,
+          kind: candidate.kind,
+          value: candidate.value,
+          normalizedValue: candidate.normalizedValue,
+          metadata: candidate.metadata
+            ? (candidate.metadata as Prisma.InputJsonValue)
+            : Prisma.JsonNull,
+        },
+      })
+    }
   }
 
   private async ensureInboundParticipant(
@@ -3243,6 +5416,8 @@ export class ConversationsService {
       externalUserId: string
       displayName: string | null
       email: string | null
+      locale?: string | null
+      currency?: string | null
     },
   ) {
     const existing = await tx.conversationParticipant.findFirst({
@@ -3257,6 +5432,29 @@ export class ConversationsService {
     })
 
     if (existing) {
+      if (
+        existing.externalUserId !== input.externalUserId ||
+        existing.displayName !== input.displayName ||
+        this.asRecord(existing.metadata)?.email !== input.email ||
+        this.asRecord(existing.metadata)?.locale !== input.locale ||
+        this.asRecord(existing.metadata)?.currency !== input.currency ||
+        existing.customerId !== customerId
+      ) {
+        return tx.conversationParticipant.update({
+          where: { id: existing.id },
+          data: {
+            customerId,
+            externalUserId: input.externalUserId,
+            displayName: input.displayName,
+            metadata: {
+              ...(this.asRecord(existing.metadata) ?? {}),
+              email: input.email,
+              locale: input.locale ?? null,
+              currency: input.currency ?? null,
+            },
+          },
+        })
+      }
       return existing
     }
 
@@ -3269,6 +5467,8 @@ export class ConversationsService {
         displayName: input.displayName,
         metadata: {
           email: input.email,
+          locale: input.locale ?? null,
+          currency: input.currency ?? null,
         },
       },
     })
@@ -3647,14 +5847,19 @@ export class ConversationsService {
       throw new BadRequestException('conversation.whatsappInboxRequired')
     }
 
+    const latestInboxMessage = conversation.messages[0]?.inboxMessage ?? null
     const recipientId =
       conversation.externalUserId?.trim() ||
       conversation.participants
         .map((participant) => participant.externalUserId)
         .find((value) => value?.trim()) ||
       null
+    const threadId =
+      conversation.externalThreadId?.trim() ||
+      latestInboxMessage?.threadRemoteId?.trim() ||
+      null
 
-    if (!recipientId) {
+    if (!recipientId && !threadId) {
       throw new BadRequestException('conversation.whatsappRecipientRequired')
     }
 
@@ -3679,7 +5884,7 @@ export class ConversationsService {
           inboxAccountId: conversation.inboxAccountId,
           inboxAddress: conversation.inboxAccount?.address ?? null,
           recipientId,
-          threadId: conversation.externalThreadId ?? null,
+          threadId,
           text: body,
           metadata,
         }),
@@ -3713,13 +5918,13 @@ export class ConversationsService {
           previewText: body.slice(0, 280),
           fromAddress: conversation.inboxAccount?.address ?? null,
           fromName: conversation.inboxAccount?.displayName ?? null,
-          toAddresses: [recipientId],
+          toAddresses: recipientId ? [recipientId] : [],
           ccAddresses: [],
           bccAddresses: [],
           replyToAddresses: [],
           direction: InboxMessageDirection.OUTBOUND,
           folder: 'sent',
-          queueId: conversation.messages[0]?.inboxMessage?.queueId ?? null,
+          queueId: latestInboxMessage?.queueId ?? null,
           sentAt: new Date(),
           metadata: this.toJsonValue({
             source: metadata.source ?? 'conversation-hub',
@@ -3755,6 +5960,438 @@ export class ConversationsService {
       deliveryStatus: payload?.deliveryStatus || 'accepted',
       provider: payload?.provider || 'whatsapp-qr',
       inboxMessageId: createdInboxMessage.id,
+    }
+  }
+
+  private async callWhatsappQrAdapterJson(
+    route: string,
+    payload: Record<string, unknown>,
+    fallbackErrorCode: string,
+  ) {
+    const channelAdapterBaseUrl =
+      this.config.get<string>('CHANNEL_ADAPTER_BASE_URL') ||
+      'http://channel-adapter:4200'
+
+    const response = await fetch(`${channelAdapterBaseUrl.replace(/\/$/, '')}${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-ai-internal-token':
+          this.config.get<string>('AI_INTERNAL_TOKEN') ||
+          'local-ai-internal-token',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const rawText = await response.text()
+    let body: Record<string, unknown> | null = null
+    if (rawText) {
+      try {
+        body = JSON.parse(rawText) as Record<string, unknown>
+      } catch {
+        body = null
+      }
+    }
+
+    if (!response.ok) {
+      throw new BadRequestException(body?.message || fallbackErrorCode)
+    }
+
+    return body
+  }
+
+  private async callWhatsappQrAdapterBinary(
+    route: string,
+    payload: Record<string, unknown>,
+    fallbackErrorCode: string,
+  ) {
+    const channelAdapterBaseUrl =
+      this.config.get<string>('CHANNEL_ADAPTER_BASE_URL') ||
+      'http://channel-adapter:4200'
+
+    const response = await fetch(`${channelAdapterBaseUrl.replace(/\/$/, '')}${route}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-ai-internal-token':
+          this.config.get<string>('AI_INTERNAL_TOKEN') ||
+          'local-ai-internal-token',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const rawText = await response.text()
+      let body: Record<string, unknown> | null = null
+      if (rawText) {
+        try {
+          body = JSON.parse(rawText) as Record<string, unknown>
+        } catch {
+          body = null
+        }
+      }
+      throw new BadRequestException(body?.message || fallbackErrorCode)
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer())
+    const contentDisposition = response.headers.get('content-disposition')
+    const contentType = response.headers.get('content-type')
+    const fileNameMatch =
+      contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i) ||
+      contentDisposition?.match(/filename="?([^"]+)"?/i)
+
+    return {
+      buffer,
+      contentType,
+      fileName: fileNameMatch?.[1] ? decodeURIComponent(fileNameMatch[1]) : null,
+    }
+  }
+
+  private async requireWhatsappQrConversationContext(conversationId: string) {
+    const conversation = await this.requireConversationForOutbound(conversationId)
+
+    if (!this.isWhatsappQrConversation(conversation)) {
+      throw new BadRequestException('conversation.whatsappQrConversationRequired')
+    }
+
+    const latestMessage = await this.prisma.conversationMessage.findFirst({
+      where: {
+        conversationId,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+      select: {
+        id: true,
+        conversationId: true,
+        inboxMessageId: true,
+        externalMessageId: true,
+        authorType: true,
+        kind: true,
+        body: true,
+        normalizedText: true,
+        payload: true,
+        metadata: true,
+        createdAt: true,
+        inboxMessage: {
+          select: {
+            id: true,
+            remoteId: true,
+            threadRemoteId: true,
+            metadata: true,
+          },
+        },
+      },
+    })
+
+    return {
+      conversation,
+      latestMessage,
+    }
+  }
+
+  private async applyWhatsappQrChatAction(
+    conversationId: string,
+    route: string,
+    actionPayload: Record<string, unknown>,
+    actorUserId: number,
+    fallbackErrorCode: string,
+    statePatch: Record<string, unknown>,
+  ) {
+    const context = await this.requireWhatsappQrConversationContext(conversationId)
+    const threadId =
+      context.conversation.externalThreadId?.trim() ||
+      context.latestMessage?.inboxMessage?.threadRemoteId?.trim() ||
+      null
+
+    if (!threadId) {
+      throw new BadRequestException('conversation.whatsappThreadRequired')
+    }
+
+    const latestPayload = context.latestMessage
+      ? this.extractWhatsappMessageActionPayload({
+          conversation: context.conversation,
+          message: context.latestMessage,
+        })
+      : null
+
+    const adapterPayload = await this.callWhatsappQrAdapterJson(
+      route,
+      {
+        threadId,
+        messageId: latestPayload?.messageId ?? null,
+        messageKey: latestPayload?.messageKey ?? null,
+        messageSnapshot: latestPayload?.messageSnapshot ?? null,
+        fromMe: latestPayload?.fromMe ?? false,
+        ...actionPayload,
+      },
+      fallbackErrorCode,
+    )
+
+    const conversationMetadata = this.asRecord(context.conversation.metadata) ?? {}
+    const existingState = this.asRecord(conversationMetadata.whatsappQrChatState) ?? {}
+    const nextState = {
+      ...existingState,
+      ...statePatch,
+      threadId,
+      transport: 'whatsapp_qr',
+      updatedAt: new Date().toISOString(),
+      updatedByUserId: actorUserId,
+    }
+
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        metadata: this.toJsonValue({
+          ...conversationMetadata,
+          whatsappQrChatState: nextState,
+        }),
+      },
+    })
+
+    if (context.latestMessage?.inboxMessageId) {
+      await this.prisma.inboxMessageEvent.create({
+        data: {
+          messageId: context.latestMessage.inboxMessageId,
+          type: InboxMessageEventType.SYNCED,
+          payload: this.toJsonValue({
+            action: route.split('/').pop(),
+            actorUserId,
+            provider: 'whatsapp-qr',
+            threadRemoteId:
+              (typeof adapterPayload?.threadRemoteId === 'string' &&
+                adapterPayload.threadRemoteId) ||
+              threadId,
+            ...statePatch,
+          }),
+        },
+      })
+    }
+
+    return {
+      ok: true,
+      conversationId,
+      ...statePatch,
+    }
+  }
+
+  private async applyWebchatChatAction(
+    conversationId: string,
+    actorUserId: number,
+    statePatch: Record<string, unknown>,
+  ) {
+    const conversation = await this.requireConversationForOutbound(conversationId)
+
+    if (conversation.channel !== ConversationChannel.WEBCHAT) {
+      throw new BadRequestException('conversation.webchatConversationRequired')
+    }
+
+    const conversationMetadata = this.asRecord(conversation.metadata) ?? {}
+    const existingState = this.asRecord(conversationMetadata.webchatChatState) ?? {}
+    const nextState = {
+      ...existingState,
+      ...statePatch,
+      transport: 'webchat',
+      updatedAt: new Date().toISOString(),
+      updatedByUserId: actorUserId,
+    }
+
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        metadata: this.toJsonValue({
+          ...conversationMetadata,
+          webchatChatState: nextState,
+        }),
+      },
+    })
+
+    return {
+      ok: true,
+      conversationId,
+      ...statePatch,
+    }
+  }
+
+  private normalizeWebchatMessageReactions(
+    input: unknown,
+  ): WebchatMessageReactionEntry[] {
+    if (!Array.isArray(input)) {
+      return []
+    }
+
+    return input
+      .map((entry) => this.asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+      .map((entry) => ({
+        emoji:
+          typeof entry.emoji === 'string' && entry.emoji.trim().length > 0
+            ? entry.emoji.trim()
+            : null,
+        actorUserId:
+          typeof entry.actorUserId === 'number' &&
+          Number.isFinite(entry.actorUserId)
+            ? entry.actorUserId
+            : null,
+        actorType: 'operator' as const,
+        createdAt:
+          typeof entry.createdAt === 'string' && entry.createdAt.trim().length > 0
+            ? entry.createdAt
+            : new Date().toISOString(),
+      }))
+      .filter(
+        (entry): entry is WebchatMessageReactionEntry =>
+          Boolean(entry.emoji),
+      )
+  }
+
+  private summarizeWebchatMessageReactions(metadata: unknown) {
+    const webchatState = this.asRecord(this.asRecord(metadata)?.webchatState)
+    const reactions = this.normalizeWebchatMessageReactions(webchatState?.reactions)
+    const counters = new Map<string, { emoji: string; count: number }>()
+
+    for (const reaction of reactions) {
+      const current = counters.get(reaction.emoji) ?? {
+        emoji: reaction.emoji,
+        count: 0,
+      }
+      current.count += 1
+      counters.set(reaction.emoji, current)
+    }
+
+    return Array.from(counters.values())
+  }
+
+  private async requireWhatsappQrMessageContext(
+    conversationId: string,
+    messageId: string,
+  ) {
+    const conversation = await this.requireConversationForOutbound(conversationId)
+
+    if (!this.isWhatsappQrConversation(conversation)) {
+      throw new BadRequestException('conversation.whatsappQrConversationRequired')
+    }
+
+    const message = await this.prisma.conversationMessage.findFirst({
+      where: {
+        id: messageId,
+        conversationId,
+      },
+      select: {
+        id: true,
+        conversationId: true,
+        inboxMessageId: true,
+        externalMessageId: true,
+        authorType: true,
+        kind: true,
+        body: true,
+        normalizedText: true,
+        payload: true,
+        metadata: true,
+        createdAt: true,
+        inboxMessage: {
+          select: {
+            id: true,
+            remoteId: true,
+            threadRemoteId: true,
+            metadata: true,
+          },
+        },
+      },
+    })
+
+    if (!message) {
+      throw new NotFoundException('conversation.messageNotFound')
+    }
+
+    return {
+      conversation,
+      message,
+    }
+  }
+
+  private async requireWebchatMessageContext(
+    conversationId: string,
+    messageId: string,
+  ) {
+    const conversation = await this.requireConversationForOutbound(conversationId)
+
+    if (conversation.channel !== ConversationChannel.WEBCHAT) {
+      throw new BadRequestException('conversation.webchatConversationRequired')
+    }
+
+    const message = await this.prisma.conversationMessage.findFirst({
+      where: {
+        id: messageId,
+        conversationId,
+      },
+      select: {
+        id: true,
+        conversationId: true,
+        inboxMessageId: true,
+        externalMessageId: true,
+        authorType: true,
+        kind: true,
+        body: true,
+        normalizedText: true,
+        payload: true,
+        metadata: true,
+        createdAt: true,
+      },
+    })
+
+    if (!message) {
+      throw new NotFoundException('conversation.messageNotFound')
+    }
+
+    return {
+      conversation,
+      message,
+    }
+  }
+
+  private extractWhatsappMessageActionPayload(context: {
+    conversation: Awaited<ReturnType<ConversationsService['requireConversationForOutbound']>>
+    message: {
+      externalMessageId?: string | null
+      authorType: ConversationMessageAuthorType
+      payload?: Prisma.JsonValue | null
+      metadata?: Prisma.JsonValue | null
+      inboxMessage?: {
+        remoteId: string
+        threadRemoteId: string | null
+        metadata: Prisma.JsonValue | null
+      } | null
+    }
+  }) {
+    const messageMetadata = this.asRecord(context.message.metadata)
+    const inboxMetadata = this.asRecord(context.message.inboxMessage?.metadata)
+    const whatsappRecord =
+      this.asRecord(messageMetadata?.whatsapp) ||
+      this.asRecord(inboxMetadata?.whatsapp)
+    const messageKey = this.asRecord(whatsappRecord?.messageKey)
+    const messageSnapshot =
+      whatsappRecord?.messageSnapshot ?? inboxMetadata?.messageSnapshot ?? null
+    const threadId =
+      context.conversation.externalThreadId?.trim() ||
+      context.message.inboxMessage?.threadRemoteId?.trim() ||
+      (typeof messageKey?.remoteJid === 'string' ? messageKey.remoteJid.trim() : null) ||
+      null
+    const messageId =
+      context.message.externalMessageId?.trim() ||
+      context.message.inboxMessage?.remoteId?.trim() ||
+      (typeof messageKey?.id === 'string' ? messageKey.id.trim() : null) ||
+      null
+
+    return {
+      threadId,
+      messageId,
+      messageKey,
+      messageSnapshot,
+      fromMe:
+        messageKey?.fromMe === true ||
+        context.message.authorType === ConversationMessageAuthorType.OPERATOR ||
+        context.message.authorType === ConversationMessageAuthorType.AGENT,
     }
   }
 
@@ -4499,6 +7136,351 @@ export class ConversationsService {
     return metadata?.transport === 'whatsapp_qr'
   }
 
+  private extractInboxTransport(metadata: Prisma.JsonValue | null | undefined) {
+    const record = this.asRecord(metadata)
+    return typeof record?.transport === 'string'
+      ? record.transport.trim().toLowerCase()
+      : null
+  }
+
+  private resolveConversationMessageActionProvider(
+    channel: ConversationChannel,
+    inboxTransport: string | null,
+  ) {
+    if (
+      channel === ConversationChannel.WHATSAPP &&
+      inboxTransport === 'whatsapp_qr'
+    ) {
+      return 'whatsapp_qr'
+    }
+
+    if (channel === ConversationChannel.WEBCHAT) {
+      return 'webchat'
+    }
+
+    return null
+  }
+
+  private buildConversationMessageChannelActions(input: {
+    provider: 'whatsapp_qr' | 'webchat'
+    authorType: ConversationMessageAuthorType
+    payload: Record<string, unknown> | null
+    metadata: Record<string, unknown> | null
+    attachments: Array<Record<string, unknown>>
+  }) {
+    const { provider, authorType, payload, metadata, attachments } = input
+    const messageKind =
+      typeof payload?.messageKind === 'string'
+        ? payload.messageKind
+        : typeof metadata?.messageKind === 'string'
+          ? metadata.messageKind
+          : null
+    const isHumanMessage = !messageKind || messageKind === 'human_message'
+    const hasAttachments = attachments.length > 0
+
+    if (provider === 'whatsapp_qr') {
+      const whatsappRecord = this.asRecord(metadata?.whatsapp)
+      const whatsappState = this.asRecord(metadata?.whatsappState)
+      const messageKey = this.asRecord(whatsappRecord?.messageKey)
+      const fromMe = messageKey?.fromMe === true
+
+      return {
+        provider,
+        canReply:
+          Boolean(messageKey?.id) &&
+          Boolean(
+            whatsappRecord?.messageSnapshot || hasAttachments || metadata?.whatsapp,
+          ),
+        canReact: whatsappRecord?.canReact === true,
+        canForward: whatsappRecord?.canForward === true || hasAttachments,
+        canDownloadMedia: attachments.some((attachment) => {
+          const attachmentMetadata = this.asRecord(attachment.metadata)
+          return attachmentMetadata?.downloadable === true
+        }),
+        canEdit: fromMe && isHumanMessage,
+        canDelete: fromMe,
+        canStar: Boolean(messageKey?.id),
+        starred: whatsappState?.starred === true,
+      }
+    }
+
+    const webchatState = this.asRecord(metadata?.webchatState)
+    const deleted =
+      payload?.deleted === true ||
+      metadata?.deleted === true ||
+      metadata?.deletedForEveryone === true
+
+    return {
+      provider,
+      canReply:
+        !deleted &&
+        (authorType === ConversationMessageAuthorType.CUSTOMER ||
+          authorType === ConversationMessageAuthorType.OPERATOR ||
+          authorType === ConversationMessageAuthorType.AGENT),
+      canReact: !deleted,
+      canForward: false,
+      canDownloadMedia: attachments.some(
+        (attachment) =>
+          typeof attachment.url === 'string' ||
+          typeof attachment.content === 'string',
+      ),
+      canEdit:
+        authorType === ConversationMessageAuthorType.OPERATOR &&
+        isHumanMessage &&
+        !deleted &&
+        !hasAttachments,
+      canDelete:
+        authorType === ConversationMessageAuthorType.OPERATOR &&
+        isHumanMessage &&
+        !deleted,
+      canStar: !deleted,
+      starred: webchatState?.starred === true,
+    }
+  }
+
+  private extractConversationChannelState(metadata: Prisma.JsonValue | null | undefined) {
+    const root = this.asRecord(metadata)
+    const webchatState = this.asRecord(root?.webchatChatState)
+    if (webchatState) {
+      return {
+        transport: 'webchat',
+        archived:
+          typeof webchatState.archived === 'boolean'
+            ? webchatState.archived
+            : null,
+        read: null,
+        pinned: null,
+        muted:
+          typeof webchatState.muted === 'boolean' ? webchatState.muted : null,
+        mutePreset:
+          typeof webchatState.mutePreset === 'string'
+            ? webchatState.mutePreset
+            : null,
+        muteDurationMs:
+          typeof webchatState.muteDurationMs === 'number' &&
+          Number.isFinite(webchatState.muteDurationMs)
+            ? webchatState.muteDurationMs
+            : null,
+        mutedUntil:
+          typeof webchatState.mutedUntil === 'string'
+            ? webchatState.mutedUntil
+            : null,
+        deleted:
+          typeof webchatState.deleted === 'boolean'
+            ? webchatState.deleted
+            : null,
+        threadId: null,
+        updatedAt:
+          typeof webchatState.updatedAt === 'string'
+            ? webchatState.updatedAt
+            : null,
+        updatedByUserId:
+          typeof webchatState.updatedByUserId === 'number' &&
+          Number.isFinite(webchatState.updatedByUserId)
+            ? webchatState.updatedByUserId
+            : null,
+      }
+    }
+
+    const state = this.asRecord(root?.whatsappQrChatState)
+    if (!state) {
+      return null
+    }
+
+    return {
+      transport:
+        typeof state.transport === 'string' ? state.transport : 'whatsapp_qr',
+      archived:
+        typeof state.archived === 'boolean' ? state.archived : null,
+      read: typeof state.read === 'boolean' ? state.read : null,
+      pinned:
+        typeof state.pinned === 'boolean' ? state.pinned : null,
+      muted:
+        typeof state.muted === 'boolean' ? state.muted : null,
+      mutePreset:
+        typeof state.mutePreset === 'string' ? state.mutePreset : null,
+      muteDurationMs:
+        typeof state.muteDurationMs === 'number' &&
+        Number.isFinite(state.muteDurationMs)
+          ? state.muteDurationMs
+          : null,
+      mutedUntil:
+        typeof state.mutedUntil === 'string' ? state.mutedUntil : null,
+      deleted:
+        typeof state.deleted === 'boolean' ? state.deleted : null,
+      threadId:
+        typeof state.threadId === 'string' ? state.threadId : null,
+      updatedAt:
+        typeof state.updatedAt === 'string' ? state.updatedAt : null,
+      updatedByUserId:
+        typeof state.updatedByUserId === 'number' &&
+        Number.isFinite(state.updatedByUserId)
+          ? state.updatedByUserId
+          : null,
+    }
+  }
+
+  private enrichConversationMessageOutput(
+    conversationId: string,
+    messageId: string,
+    payload: Prisma.JsonValue | null,
+    metadata: Prisma.JsonValue | null,
+    channel: ConversationChannel,
+    inboxTransport: string | null,
+    authorType: ConversationMessageAuthorType,
+  ) {
+    const payloadRecord = this.asRecord(payload)
+    const metadataRecord = this.asRecord(metadata)
+    const enrichedPayload = payloadRecord ? { ...payloadRecord } : null
+    const enrichedMetadata = metadataRecord ? { ...metadataRecord } : null
+    const baseAttachments = this.extractConversationMessageAttachments(
+      payload,
+      metadata,
+    )
+
+    if (baseAttachments.length > 0) {
+      const enrichedAttachments = baseAttachments.map((attachment, index) => {
+        const attachmentRecord = { ...attachment }
+        const attachmentMetadata = this.asRecord(attachmentRecord.metadata)
+        const transport =
+          typeof attachmentMetadata?.transport === 'string'
+            ? attachmentMetadata.transport.trim().toLowerCase()
+            : null
+        const hasExistingUrl =
+          typeof attachmentRecord.url === 'string' && attachmentRecord.url.trim().length > 0
+        const canDownload =
+          transport === 'whatsapp_qr' &&
+          attachmentMetadata?.downloadable === true &&
+          !hasExistingUrl
+        const downloadUrl = canDownload
+          ? `/api/conversations/${conversationId}/messages/${messageId}/whatsapp/media/${index}`
+          : null
+
+        attachmentRecord.metadata = attachmentMetadata
+          ? {
+              ...attachmentMetadata,
+              ...(downloadUrl
+                ? {
+                    downloadUrl,
+                  }
+                : {}),
+            }
+          : attachmentMetadata
+
+        return attachmentRecord
+      })
+
+      if (enrichedPayload) {
+        enrichedPayload.attachments = enrichedAttachments
+      }
+      if (enrichedMetadata) {
+        enrichedMetadata.attachments = enrichedAttachments
+      }
+    }
+
+    if (enrichedMetadata) {
+      const provider = this.resolveConversationMessageActionProvider(
+        channel,
+        inboxTransport,
+      )
+      if (provider) {
+        const channelActions = this.buildConversationMessageChannelActions({
+          provider,
+          authorType,
+          payload: enrichedPayload,
+          metadata: enrichedMetadata,
+          attachments: this.extractConversationMessageAttachments(payload, metadata),
+        })
+
+        enrichedMetadata.channelActions = channelActions
+
+        if (provider === 'whatsapp_qr') {
+          const whatsappRecord = this.asRecord(enrichedMetadata.whatsapp)
+          const whatsappState = this.asRecord(enrichedMetadata.whatsappState)
+          if (whatsappRecord) {
+            enrichedMetadata.whatsapp = {
+              ...whatsappRecord,
+              actions: {
+                canReact: channelActions.canReact,
+                canReply: channelActions.canReply,
+                canForward: channelActions.canForward,
+                canDownloadMedia: channelActions.canDownloadMedia,
+                canEdit: channelActions.canEdit,
+                canDelete: channelActions.canDelete,
+                canStar: channelActions.canStar,
+              },
+            }
+          }
+          if (whatsappState) {
+            enrichedMetadata.whatsappState = {
+              ...whatsappState,
+            }
+          }
+        }
+      }
+    }
+
+    const quotedMessageId =
+      typeof enrichedPayload?.quotedMessageId === 'string'
+        ? enrichedPayload.quotedMessageId
+        : typeof enrichedMetadata?.quotedMessageId === 'string'
+          ? enrichedMetadata.quotedMessageId
+          : null
+    const quotedMessagePreview =
+      typeof enrichedPayload?.quotedMessagePreview === 'string'
+        ? enrichedPayload.quotedMessagePreview
+        : typeof enrichedMetadata?.quotedMessagePreview === 'string'
+          ? enrichedMetadata.quotedMessagePreview
+          : null
+    if (quotedMessageId || quotedMessagePreview) {
+      const quotedMessage = {
+        id: quotedMessageId,
+        preview: quotedMessagePreview,
+      }
+      if (enrichedPayload) {
+        enrichedPayload.quotedMessage = quotedMessage
+      }
+      if (enrichedMetadata) {
+        enrichedMetadata.quotedMessage = quotedMessage
+      }
+    }
+
+    return {
+      payload: enrichedPayload,
+      metadata: enrichedMetadata,
+    }
+  }
+
+  private extractConversationMessageAttachments(
+    payload: Prisma.JsonValue | null | undefined,
+    metadata: Prisma.JsonValue | null | undefined,
+  ) {
+    const payloadRecord = this.asRecord(payload)
+    const metadataRecord = this.asRecord(metadata)
+    const source = Array.isArray(payloadRecord?.attachments)
+      ? payloadRecord.attachments
+      : Array.isArray(metadataRecord?.attachments)
+        ? metadataRecord.attachments
+        : []
+
+    return source
+      .map((entry) => this.asRecord(entry))
+      .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+      .map((entry) => ({
+        ...entry,
+        assetType:
+          typeof entry.assetType === 'string' ? entry.assetType : null,
+        fileName:
+          typeof entry.fileName === 'string' ? entry.fileName : null,
+        contentType:
+          typeof entry.contentType === 'string' ? entry.contentType : null,
+        textContent:
+          typeof entry.textContent === 'string' ? entry.textContent : null,
+        url: typeof entry.url === 'string' ? entry.url : null,
+        metadata: this.asRecord(entry.metadata),
+      }))
+  }
+
   private asRecord(input: unknown): Record<string, unknown> | null {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
       return null
@@ -4863,8 +7845,58 @@ export class ConversationsService {
     return 'customer_human'
   }
 
+  private resolveHistoryAuthorKind(input: ImportChannelHistoryMessageDto) {
+    const metadataRecord = this.asRecord(input.metadata)
+    const explicitAuthorKind =
+      typeof input.authorKind === 'string' && input.authorKind.trim().length > 0
+        ? input.authorKind.trim().toLowerCase()
+        : typeof metadataRecord?.authorKind === 'string' &&
+            metadataRecord.authorKind.trim().length > 0
+          ? metadataRecord.authorKind.trim().toLowerCase()
+          : null
+
+    if (explicitAuthorKind) {
+      return explicitAuthorKind
+    }
+
+    return input.direction === 'outbound' ? 'operator_human' : 'customer_human'
+  }
+
   private resolveInboundMessageKind(
     input: IngestInboundMessageDto,
+    authorKind: string,
+    attachments: ConversationMessageAttachmentDto[],
+  ) {
+    const metadataRecord = this.asRecord(input.metadata)
+    const explicitMessageKind =
+      typeof input.messageKind === 'string' && input.messageKind.trim().length > 0
+        ? input.messageKind.trim().toLowerCase()
+        : typeof metadataRecord?.messageKind === 'string' &&
+            metadataRecord.messageKind.trim().length > 0
+          ? metadataRecord.messageKind.trim().toLowerCase()
+          : null
+
+    if (explicitMessageKind) {
+      return explicitMessageKind
+    }
+
+    if (authorKind === 'channel_system') {
+      return 'channel_system'
+    }
+
+    if (authorKind === 'business_auto') {
+      return 'business_auto_reply'
+    }
+
+    if (!input.text?.trim() && attachments.length > 0) {
+      return 'attachment_only'
+    }
+
+    return 'human_message'
+  }
+
+  private resolveHistoryMessageKind(
+    input: ImportChannelHistoryMessageDto,
     authorKind: string,
     attachments: ConversationMessageAttachmentDto[],
   ) {

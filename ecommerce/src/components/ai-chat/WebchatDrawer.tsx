@@ -616,6 +616,15 @@ export default function WebchatDrawer() {
                     })
                   ) : null}
 
+                  {message.quotedMessage?.preview ? (
+                    <div className={styles.quotedMessage}>
+                      <div className={styles.quotedMessageLabel}>Mensaje citado</div>
+                      <div className={styles.quotedMessagePreview}>
+                        {message.quotedMessage.preview}
+                      </div>
+                    </div>
+                  ) : null}
+
                   {hasMessageText ? (
                     <div className={`${styles.messageContent} ${message.pending ? styles.pendingMessage : ""}`}>
                       <div className={styles.messageText}>{renderableText}</div>
@@ -669,8 +678,29 @@ export default function WebchatDrawer() {
                     </div>
                   ) : null}
 
+                  {Array.isArray(message.reactions) && message.reactions.length > 0 ? (
+                    <div
+                      className={styles.messageReactions}
+                      data-testid={`storefront-webchat-reactions-${message.id}`}
+                    >
+                      {message.reactions.map((reaction) => (
+                        <span
+                          key={`${message.id}:${reaction.emoji}`}
+                          className={styles.messageReactionChip}
+                        >
+                          <span>{reaction.emoji}</span>
+                          <span>{reaction.count}</span>
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
+
                   {message.pending ? (
                     <div className={styles.pendingMeta}>Pendiente</div>
+                  ) : message.deleted ? (
+                    <div className={styles.pendingMeta}>Eliminado</div>
+                  ) : message.editedAt ? (
+                    <div className={styles.pendingMeta}>Editado</div>
                   ) : null}
                 </div>
               </div>

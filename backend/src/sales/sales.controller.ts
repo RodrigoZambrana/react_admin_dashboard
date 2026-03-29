@@ -19,6 +19,7 @@ import {
   InstallationResolutionMode,
   Prisma,
   ProductAttributeType,
+  ProductRelationType,
   ProductMode,
   ProductType,
   SalesUnit,
@@ -76,6 +77,13 @@ type NormalizedAttribute = {
   name: string
   sortOrder: number
   values: NormalizedAttributeValue[]
+}
+
+type NormalizedProductRelation = {
+  relatedProductId: number
+  type: ProductRelationType
+  sortOrder: number
+  isActive: boolean
 }
 
 type NormalizedVariantAttribute = {
@@ -278,6 +286,117 @@ export class SalesController {
         input.unitOfMeasure && Object.values(SalesUnit).includes(input.unitOfMeasure)
           ? input.unitOfMeasure
           : SalesUnit.UNIT,
+    }
+  }
+
+  private normalizeProductRelationsPayload(
+    input?: UpsertProductDto['relations'] | UpdateProductDto['relations'],
+  ): NormalizedProductRelation[] | undefined {
+    if (input === undefined) {
+      return undefined
+    }
+    if (!Array.isArray(input) || !input.length) {
+      return []
+    }
+
+    const unique = new Map<string, NormalizedProductRelation>()
+    for (const [index, entry] of input.entries()) {
+      const relatedProductId = Number(entry?.id)
+      if (!Number.isFinite(relatedProductId) || relatedProductId <= 0) {
+        continue
+      }
+
+      const type = entry?.type as ProductRelationType | undefined
+      if (!type || !Object.values(ProductRelationType).includes(type)) {
+        throw new BadRequestException('Invalid product relation type')
+      }
+
+      const normalized: NormalizedProductRelation = {
+        relatedProductId,
+        type,
+        sortOrder:
+          Number.isFinite(Number(entry?.sortOrder)) && Number(entry.sortOrder) >= 0
+            ? Number(entry.sortOrder)
+            : index,
+        isActive: entry?.isActive !== false,
+      }
+      unique.set(`${type}:${relatedProductId}`, normalized)
+    }
+
+    return Array.from(unique.values())
+  }
+
+  private async syncProductRelations(
+    tx: Prisma.TransactionClient,
+    productId: number,
+    relations: NormalizedProductRelation[] | undefined,
+    options: {
+      installationServiceProductId?: number | null
+    } = {},
+  ) {
+    if (relations !== undefined) {
+      await tx.productRelation.deleteMany({
+        where: {
+          productId,
+          type: {
+            in: [
+              ProductRelationType.RELATED,
+              ProductRelationType.FREQUENTLY_BOUGHT_TOGETHER,
+              ProductRelationType.SUGGESTED_ADD_ON,
+            ],
+          },
+        },
+      })
+
+      if (relations.length) {
+        const filtered = relations.filter(
+          (entry) =>
+            entry.relatedProductId !== productId &&
+            entry.type !== ProductRelationType.INSTALLATION_ADD_ON,
+        )
+        if (filtered.length) {
+          await tx.productRelation.createMany({
+            data: filtered.map((entry) => ({
+              productId,
+              relatedProductId: entry.relatedProductId,
+              type: entry.type,
+              sortOrder: entry.sortOrder,
+              isActive: entry.isActive,
+            })),
+            skipDuplicates: true,
+          })
+        }
+      }
+    }
+
+    await tx.productRelation.deleteMany({
+      where: {
+        productId,
+        type: ProductRelationType.INSTALLATION_ADD_ON,
+        metadata: {
+          path: ['autoManaged'],
+          equals: true,
+        },
+      },
+    })
+
+    if (
+      Number.isFinite(Number(options.installationServiceProductId)) &&
+      Number(options.installationServiceProductId) > 0
+    ) {
+      await tx.productRelation.create({
+        data: {
+          productId,
+          relatedProductId: Number(options.installationServiceProductId),
+          type: ProductRelationType.INSTALLATION_ADD_ON,
+          sortOrder: 0,
+          isActive: true,
+          metadata: {
+            autoManaged: true,
+            source: 'installation_service',
+          },
+        },
+      })
     }
   }
 
@@ -2099,6 +2218,19 @@ export class SalesController {
           },
         },
         installServiceProduct: true,
+        productRelationsFrom: {
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+          include: {
+            relatedProduct: {
+              select: {
+                id: true,
+                name: true,
+                productCode: true,
+                productType: true,
+              },
+            },
+          },
+        },
         options: {
           include: {
             values: {
@@ -2271,6 +2403,17 @@ export class SalesController {
             unitOfMeasure: data.installServiceProduct.unitOfMeasure,
           }
         : null,
+      relations: data.productRelationsFrom
+        .filter((entry) => entry.type !== ProductRelationType.INSTALLATION_ADD_ON)
+        .map((entry) => ({
+          id: entry.relatedProductId,
+          type: entry.type,
+          sortOrder: entry.sortOrder,
+          isActive: entry.isActive,
+          name: entry.relatedProduct?.name ?? null,
+          productCode: entry.relatedProduct?.productCode ?? null,
+          productType: entry.relatedProduct?.productType ?? null,
+        })),
       imgList,
       attributes,
       variants,
@@ -2317,10 +2460,12 @@ export class SalesController {
       dto.installationService,
       dto.name,
     )
+    const normalizedRelations = this.normalizeProductRelationsPayload(dto.relations)
     const coverImage = dto.img || dto.imgList?.[0]?.img || null
     let createdProductId: number | null = null
 
     await this.prisma.$transaction(async (tx) => {
+      let installationServiceProductId: number | null = null
       const product = await tx.product.create({
         data: {
           name: dto.name,
@@ -2374,7 +2519,12 @@ export class SalesController {
           where: { id: product.id },
           data: { installServiceProductId: serviceProduct.id },
         })
+        installationServiceProductId = serviceProduct.id
       }
+
+      await this.syncProductRelations(tx, product.id, normalizedRelations, {
+        installationServiceProductId,
+      })
 
       if (dto.imgList && dto.imgList.length) {
         await this.replaceProductImages(tx, product.id, dto.imgList)
@@ -2476,6 +2626,7 @@ export class SalesController {
             dto.installationService,
             dto.name || 'Servicio de instalación',
           )
+    const normalizedRelations = this.normalizeProductRelationsPayload(dto.relations)
     const updateData: Prisma.ProductUpdateInput = {
       name: dto.name,
       productCode: dto.productCode,
@@ -2528,6 +2679,9 @@ export class SalesController {
         data: updateData,
       })
 
+      let resolvedInstallationServiceProductId =
+        existingProduct.installServiceProductId ?? null
+
       if (installationServiceProvided) {
         if (installationServiceData) {
           if (existingProduct.installServiceProductId) {
@@ -2555,6 +2709,7 @@ export class SalesController {
                       : undefined,
               },
             })
+            resolvedInstallationServiceProductId = existingProduct.installServiceProductId
           } else {
             const serviceProduct = await tx.product.create({
               data: {
@@ -2583,6 +2738,7 @@ export class SalesController {
               where: { id: updated.id },
               data: { installServiceProductId: serviceProduct.id },
             })
+            resolvedInstallationServiceProductId = serviceProduct.id
           }
         } else if (existingProduct.installServiceProductId) {
           await tx.product.update({
@@ -2590,8 +2746,13 @@ export class SalesController {
             data: { installServiceProductId: null },
           })
           await tx.product.delete({ where: { id: existingProduct.installServiceProductId } })
+          resolvedInstallationServiceProductId = null
         }
       }
+
+      await this.syncProductRelations(tx, updated.id, normalizedRelations, {
+        installationServiceProductId: resolvedInstallationServiceProductId,
+      })
 
       if (dto.imgList) {
         await this.replaceProductImages(tx, updated.id, dto.imgList)

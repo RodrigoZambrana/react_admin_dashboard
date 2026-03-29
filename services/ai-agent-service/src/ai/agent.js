@@ -51,6 +51,12 @@ import {
   buildCustomerScheduleSearchWindow,
   findCustomerScheduleOverlap,
 } from './intents/customer-schedule-resolution.js'
+import {
+  formatChatMoney,
+  inferChatLocaleFromText,
+  localePrefersEnglish,
+  normalizeChatLocale,
+} from './locale-format.js'
 import { orchestrateCustomerNlu } from './nlu/nlu-orchestrator.js'
 import { shouldCallAI } from './should-call-ai.js'
 import {
@@ -234,16 +240,32 @@ const sanitizeCommercialConditionTopicLabel = (value) => {
   return clean
 }
 
-const formatPublicMoney = (currency, amount) => {
-  if (!currency || typeof amount !== 'number' || !Number.isFinite(amount)) {
-    return null
-  }
-
-  return `${String(currency).toUpperCase()} ${new Intl.NumberFormat('es-UY', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(amount)}`
+const resolveUnifiedLocale = (unifiedMessage = {}) => {
+  const metadata =
+    unifiedMessage?.metadata && typeof unifiedMessage.metadata === 'object'
+      ? unifiedMessage.metadata
+      : {}
+  return normalizeChatLocale(
+    unifiedMessage?.locale ||
+      metadata?.locale ||
+      inferChatLocaleFromText(unifiedMessage?.text, 'es-UY'),
+  )
 }
+
+const resolveUnifiedCurrency = (unifiedMessage = {}) => {
+  const metadata =
+    unifiedMessage?.metadata && typeof unifiedMessage.metadata === 'object'
+      ? unifiedMessage.metadata
+      : {}
+  const candidate = unifiedMessage?.currency || metadata?.currency || 'UYU'
+  const normalized = String(candidate || '')
+    .trim()
+    .toUpperCase()
+  return /^[A-Z]{3,5}$/.test(normalized) ? normalized : 'UYU'
+}
+
+const formatPublicMoney = (currency, amount, locale = 'es-UY') =>
+  formatChatMoney(currency, amount, { locale })
 
 const buildToolCallFingerprint = (entry) => {
   const target =
@@ -2903,6 +2925,7 @@ export class AiAgentRuntime {
             backendClient: scopedBackendClient,
             tenantTopicTaxonomy,
             tenantKey: unifiedMessage.tenantKey || null,
+            unifiedMessage,
             variationSeed: customerVariationSeed,
           })
     const deterministicScheduleResolutionResponse =
@@ -2930,6 +2953,7 @@ export class AiAgentRuntime {
             backendClient: scopedBackendClient,
             tenantTopicTaxonomy,
             tenantKey: unifiedMessage.tenantKey || null,
+            unifiedMessage,
           })
     const deterministicKnowledgeResponse = this.buildDeterministicKnowledgeResponse({
       role,
@@ -2948,6 +2972,7 @@ export class AiAgentRuntime {
       interpretation: turnInterpretation,
       tenantTopicTaxonomy,
       variationSeed: customerVariationSeed,
+      unifiedMessage,
     })
     const deterministicConversationResponse =
       protectedCustomerDataResponse ||
@@ -4858,6 +4883,7 @@ export class AiAgentRuntime {
     backendClient,
     tenantTopicTaxonomy = [],
     tenantKey = null,
+    unifiedMessage = null,
     variationSeed = '',
   }) {
     if (
@@ -4887,6 +4913,9 @@ export class AiAgentRuntime {
     ) {
       return null
     }
+
+    const locale = resolveUnifiedLocale(unifiedMessage)
+    const targetCurrency = resolveUnifiedCurrency(unifiedMessage)
 
     const commerceMode = this.getCustomerCapabilityMode('customer.quote')
     if (capabilityModeBlocksAutomaticResolution(commerceMode)) {
@@ -4950,6 +4979,8 @@ export class AiAgentRuntime {
       backendClient,
       tenantKey,
       role,
+      locale,
+      targetCurrency,
     })
     if (!resolution) {
       return null
@@ -4959,6 +4990,7 @@ export class AiAgentRuntime {
       interpretation,
       tenantTopicTaxonomy,
       variationSeed,
+      locale,
       wordingOverrides: this.getCustomerWordingOverrides(),
     })
     if (!text) {
@@ -5031,6 +5063,7 @@ export class AiAgentRuntime {
     backendClient,
     tenantTopicTaxonomy = [],
     tenantKey = null,
+    unifiedMessage = null,
   }) {
     if (
       !(role === 'customer_public' || role === 'customer_authenticated') ||
@@ -5039,6 +5072,10 @@ export class AiAgentRuntime {
     ) {
       return null
     }
+
+    const locale = resolveUnifiedLocale(unifiedMessage)
+    const prefersEnglish = localePrefersEnglish(locale)
+    const targetCurrency = resolveUnifiedCurrency(unifiedMessage)
 
     const stableTopicLabel =
       sanitizeCommercialConditionTopicLabel(interpretation?.contextTopic?.label) ||
@@ -5062,15 +5099,17 @@ export class AiAgentRuntime {
     let preview = null
     let productMatch = null
 
-    try {
-      const resolution = await resolveCustomerQuoteResolution({
-        input,
-        interpretation,
-        operationalContext,
-        backendClient,
-        tenantKey,
-        role,
-      })
+      try {
+        const resolution = await resolveCustomerQuoteResolution({
+          input,
+          interpretation,
+          operationalContext,
+          backendClient,
+          tenantKey,
+          role,
+          locale,
+          targetCurrency,
+        })
       if (resolution?.preview) {
         preview = resolution.preview
         productMatch = resolution.productMatch || null
@@ -5095,6 +5134,7 @@ export class AiAgentRuntime {
           preview = await backendClient.previewProductQuote({
             productId: Number(candidate.id),
             quantity: 1,
+            targetCurrency,
           })
           productMatch = candidate
         }
@@ -5127,23 +5167,36 @@ export class AiAgentRuntime {
     const publicInstallationAmountLabel = formatPublicMoney(
       publicInstallationCurrency,
       publicInstallationAmount,
+      locale,
     )
 
-    let text = `La instalación para ${topicLabel} se confirma según el producto y el alcance del trabajo. Si querés, la dejamos considerada en la solicitud para que te lo confirmen con la cotización.`
+    let text = prefersEnglish
+      ? `Installation for ${topicLabel} is confirmed according to the product and the scope of the work. If you want, I can leave it included in the request so it gets confirmed with the quote.`
+      : `La instalación para ${topicLabel} se confirma según el producto y el alcance del trabajo. Si querés, la dejamos considerada en la solicitud para que te lo confirmen con la cotización.`
 
     if (mode === 'INCLUDED') {
-      text = `En principio, la instalación para ${topicLabel} queda contemplada en esta opción. De todos modos, el alcance final se confirma según el trabajo a realizar.`
+      text = prefersEnglish
+        ? `In principle, installation for ${topicLabel} is included in this option. In any case, the final scope is confirmed according to the actual work to be done.`
+        : `En principio, la instalación para ${topicLabel} queda contemplada en esta opción. De todos modos, el alcance final se confirma según el trabajo a realizar.`
     } else if (mode === 'OPTIONAL_ADD_ON') {
-      text = `La instalación para ${topicLabel} puede agregarse como un servicio adicional. Si querés, la dejamos contemplada aparte dentro de la solicitud.`
+      text = prefersEnglish
+        ? `Installation for ${topicLabel} can be added as an additional service. If you want, I can leave it included separately in the request.`
+        : `La instalación para ${topicLabel} puede agregarse como un servicio adicional. Si querés, la dejamos contemplada aparte dentro de la solicitud.`
     } else if (mode === 'SEPARATE_SERVICE') {
-      text = `La instalación para ${topicLabel} se maneja como un servicio separado y se confirma según el alcance del trabajo. Si querés, la dejamos considerada en la solicitud.`
+      text = prefersEnglish
+        ? `Installation for ${topicLabel} is handled as a separate service and is confirmed according to the scope of the work. If you want, I can leave it considered in the request.`
+        : `La instalación para ${topicLabel} se maneja como un servicio separado y se confirma según el alcance del trabajo. Si querés, la dejamos considerada en la solicitud.`
     } else if (mode === 'NOT_OFFERED') {
-      text = `En principio, no tengo instalación incluida para ${topicLabel}. Si querés, un asesor puede confirmarte alternativas según el caso.`
+      text = prefersEnglish
+        ? `At the moment, I do not have installation included for ${topicLabel}. If you want, an advisor can confirm alternatives for your case.`
+        : `En principio, no tengo instalación incluida para ${topicLabel}. Si querés, un asesor puede confirmarte alternativas según el caso.`
     } else if (
       installation?.needsMeasurements ||
       preview?.needsConfiguration
     ) {
-      text = `La instalación para ${topicLabel} se confirma según el producto y el alcance del trabajo. Si querés, pasame las medidas aproximadas y lo dejamos encaminado.`
+      text = prefersEnglish
+        ? `Installation for ${topicLabel} is confirmed according to the product and the scope of the work. If you want, send me the approximate measurements and I will leave it ready to continue.`
+        : `La instalación para ${topicLabel} se confirma según el producto y el alcance del trabajo. Si querés, pasame las medidas aproximadas y lo dejamos encaminado.`
     }
 
     if (
@@ -5153,8 +5206,12 @@ export class AiAgentRuntime {
     ) {
       text =
         mode === 'SEPARATE_SERVICE'
-          ? `La instalación para ${topicLabel} se maneja como un servicio separado. Hoy se toma a partir de ${publicInstallationAmountLabel}, sujeto al alcance final del trabajo.`
-          : `La instalación para ${topicLabel} puede agregarse como un servicio adicional. Hoy se maneja a partir de ${publicInstallationAmountLabel}, sujeto al alcance final del trabajo.`
+          ? prefersEnglish
+            ? `Installation for ${topicLabel} is handled as a separate service. Right now it starts from ${publicInstallationAmountLabel}, subject to the final scope of the work.`
+            : `La instalación para ${topicLabel} se maneja como un servicio separado. Hoy se toma a partir de ${publicInstallationAmountLabel}, sujeto al alcance final del trabajo.`
+          : prefersEnglish
+            ? `Installation for ${topicLabel} can be added as an additional service. Right now it starts from ${publicInstallationAmountLabel}, subject to the final scope of the work.`
+            : `La instalación para ${topicLabel} puede agregarse como un servicio adicional. Hoy se maneja a partir de ${publicInstallationAmountLabel}, sujeto al alcance final del trabajo.`
     }
 
     return {
@@ -5204,9 +5261,11 @@ export class AiAgentRuntime {
       return null
     }
 
+    const locale = resolveUnifiedLocale(unifiedMessage)
+
     if (intentKey === 'customer.cancellation') {
       return {
-        text: buildCustomerScheduleCancellationText(scheduleContext),
+        text: buildCustomerScheduleCancellationText(scheduleContext, { locale }),
         toolCalls: [],
         needsHuman: false,
         grounding: {
@@ -5225,6 +5284,7 @@ export class AiAgentRuntime {
       intentKey,
       scheduleContext,
       variationSeed,
+      locale,
       wordingOverrides: this.getCustomerWordingOverrides(),
     })
     if (confirmationClarifyText) {
@@ -5305,6 +5365,7 @@ export class AiAgentRuntime {
           text: buildCustomerScheduleUnavailableText({
             scheduleContext,
           }, {
+            locale,
             variationSeed,
             wordingOverrides: this.getCustomerWordingOverrides(),
           }),
@@ -5346,6 +5407,7 @@ export class AiAgentRuntime {
           scheduleContext,
           appointment,
         }, {
+          locale,
           variationSeed,
           wordingOverrides: this.getCustomerWordingOverrides(),
         }),
@@ -5394,6 +5456,7 @@ export class AiAgentRuntime {
     interpretation = null,
     tenantTopicTaxonomy = [],
     variationSeed = '',
+    unifiedMessage = null,
   }) {
     const effectiveIntentKey = intentKey
     const quoteTopicType = String(interpretation?.topic?.type || '')
@@ -5562,6 +5625,7 @@ export class AiAgentRuntime {
       config: this.activeConfig,
       interpretation,
       tenantTopicTaxonomy,
+      locale: resolveUnifiedLocale(unifiedMessage || { text: input }),
       variationSeed,
       wordingOverrides: this.getCustomerWordingOverrides(),
     })

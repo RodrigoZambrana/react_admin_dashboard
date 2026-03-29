@@ -9,6 +9,7 @@ import { H6 } from "@component/Typography";
 import AvailableShops from "@component/products/AvailableShops";
 import RelatedProducts from "@component/products/RelatedProducts";
 import FrequentlyBought from "@component/products/FrequentlyBought";
+import InstallationAddOnPanel from "@component/products/InstallationAddOnPanel";
 import ProductDescription from "@component/products/ProductDescription";
 import ProductSpecifications from "@component/products/ProductSpecifications";
 import Product from "@models/product.model";
@@ -19,6 +20,18 @@ type Props = {
   shops: Shop[];
   relatedProducts: Product[];
   frequentlyBought: Product[];
+  suggestedAddOns: Product[];
+  installationAddOn?: {
+    id: number;
+    name: string;
+    productCode?: string | null;
+    shortDescription?: string | null;
+    price: {
+      amount: number;
+      currency: string;
+      formatted?: string;
+    };
+  } | null;
   description?: string;
   descriptionHtml?: string;
   specifications?: Array<{ label: string; value: string }>;
@@ -29,13 +42,14 @@ export default function ProductView({
   shops,
   relatedProducts,
   frequentlyBought,
+  suggestedAddOns,
+  installationAddOn,
   description,
   descriptionHtml,
   specifications
 }: Props) {
   const t = useTranslation();
   const [selectedOption, setSelectedOption] = useState("description");
-  const showFrequentlyBoughtSection = false; // hide Frequently Bought Together section
   const showAvailableShopsSection = false; // hide Available Shops section
   const handleOptionClick = (opt: any) => () => setSelectedOption(opt);
 
@@ -77,15 +91,28 @@ export default function ProductView({
       </Box>
 
       {/* FREQUENTLY BOUGHT TOGETHER PRODUCTS */}
-      {showFrequentlyBoughtSection && frequentlyBought && (
+      {frequentlyBought?.length ? (
         <FrequentlyBought products={frequentlyBought} />
-      )}
+      ) : null}
+
+      {/* INSTALLATION */}
+      {installationAddOn ? (
+        <InstallationAddOnPanel installationAddOn={installationAddOn} />
+      ) : null}
+
+      {/* SUGGESTED ADD-ONS */}
+      {suggestedAddOns?.length ? (
+        <RelatedProducts
+          products={suggestedAddOns}
+          title={t("product.addOns.title", { defaultMessage: "Complementos sugeridos" })}
+        />
+      ) : null}
 
       {/* AVAILABLE SHOPS */}
       {showAvailableShopsSection && shops && <AvailableShops shops={shops} />}
 
       {/* RELATED PRODUCTS */}
-      {relatedProducts && <RelatedProducts products={relatedProducts} />}
+      {relatedProducts?.length ? <RelatedProducts products={relatedProducts} /> : null}
     </Fragment>
   );
 }

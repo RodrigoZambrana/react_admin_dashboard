@@ -2,6 +2,12 @@ export type ProductMode = 'simple' | 'variable' | 'parametric'
 
 export type ProductAttributeType = 'COLOR' | 'SIZE' | 'MATERIAL'
 
+export type ProductRelationType =
+    | 'RELATED'
+    | 'FREQUENTLY_BOUGHT_TOGETHER'
+    | 'SUGGESTED_ADD_ON'
+    | 'INSTALLATION_ADD_ON'
+
 export type ProductAttributeValue = {
     id?: number
     key: string
@@ -56,4 +62,14 @@ export type ProductVariant = {
     inheritImages: boolean
     attributes: ProductVariantAttribute[]
     images: ProductVariantImage[]
+}
+
+export type ProductRelation = {
+    id: number
+    type: ProductRelationType
+    sortOrder?: number
+    isActive?: boolean
+    name?: string | null
+    productCode?: string | null
+    productType?: string | null
 }

@@ -7,6 +7,7 @@ import {
   InstallationResolutionMode,
   ProductAttributeType,
   ProductMode,
+  ProductRelationType,
   SalesUnit,
 } from '@prisma/client'
 
@@ -130,6 +131,24 @@ class InstallationServicePayload {
   @IsOptional()
   @IsEnum(SalesUnit)
   unitOfMeasure?: SalesUnit
+}
+
+class ProductRelationPayload {
+  @IsNumber()
+  @Type(() => Number)
+  id!: number
+
+  @IsEnum(ProductRelationType)
+  type!: ProductRelationType
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  sortOrder?: number
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean
 }
 
 class ProductVariantAttributePayload {
@@ -302,6 +321,12 @@ export class UpsertProductDto {
   installationService?: InstallationServicePayload | null
 
   @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductRelationPayload)
+  relations?: ProductRelationPayload[]
+
+  @IsOptional()
   @IsString()
   @IsSafeString()
   currency?: string
@@ -434,6 +459,12 @@ export class UpdateProductDto {
   @ValidateNested()
   @Type(() => InstallationServicePayload)
   installationService?: InstallationServicePayload | null
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ProductRelationPayload)
+  relations?: ProductRelationPayload[]
 
   @IsOptional()
   @IsString()

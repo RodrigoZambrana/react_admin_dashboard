@@ -180,6 +180,57 @@ Guardar:
 - errores de reconexión
 - export/backups manuales
 
+## Reconciliación después de desconexión o restore
+
+### Problema real
+
+En WhatsApp QR, el historial que expone la sesión conectada puede cambiar después de:
+
+- logout / relink
+- cambio de dispositivo
+- restore sin backup cloud
+- pérdida parcial de mensajes en el teléfono
+
+Eso no puede implicar pérdida automática del historial ya persistido en el sistema.
+
+### Resultado buscado
+
+- el sistema preserva el historial interno aunque el proveedor remoto vuelva con menos mensajes
+- si el mismo número vuelve a escribir, se intenta merge con la identidad y conversación previas
+- el canal remoto aporta eventos nuevos, no reescribe por completo la historia del CRM
+
+### Diseño recomendado
+
+- separar:
+  - identidad canónica del customer
+  - aliases de identidad del canal
+  - mensajes persistidos del sistema
+  - visibilidad actual del proveedor
+
+Persistir aliases del canal:
+
+- número normalizado
+- JIDs observados
+- thread ids históricos
+
+Estados útiles de reconciliación:
+
+- `provider_present`
+- `provider_missing`
+- `system_only`
+- `merged`
+
+### Fuente de verdad
+
+- backend/CRM: historial persistido, customer matching y auditoría
+- adapter QR: estado de sesión y eventos nuevos del proveedor
+
+### Regla operativa
+
+- nunca borrar historial interno porque el proveedor ya no lo exponga
+- preferir merge cuando el número canónico matchee
+- dejar explícito cuándo el mensaje vive solo del lado sistema
+
 ## Riesgos y mitigaciones
 
 ### Riesgo: bloqueo por automatización visible

@@ -76,10 +76,37 @@ export interface StorefrontConfig {
   integrations?: {
     google?: {
       enabled: boolean
+      analytics?: {
+        enabled: boolean
+        measurementId: string | null
+      }
+      tagManager?: {
+        enabled: boolean
+        containerId: string | null
+      }
+      ads?: {
+        enabled: boolean
+        conversionId: string | null
+        conversionLabel: string | null
+      }
+      searchConsole?: {
+        verificationToken: string | null
+      }
     }
     recaptcha?: {
       enabled: boolean
       siteKey: string | null
+    }
+    meta?: {
+      pixel?: {
+        enabled: boolean
+        pixelId: string | null
+      }
+    }
+    insights?: {
+      content?: {
+        enabled: boolean
+      }
     }
   }
   resilience?: {
@@ -241,6 +268,15 @@ export interface ProductDetailDto extends ProductSummaryDto {
   specifications?: Array<{ label: string; value: string }>
   gallery: ImageAssetDto[]
   relatedProducts: ProductSummaryDto[]
+  frequentlyBoughtTogether: ProductSummaryDto[]
+  suggestedAddOns: ProductSummaryDto[]
+  installationAddOn?: {
+    id: number
+    name: string
+    productCode?: string | null
+    shortDescription?: string | null
+    price: MoneyDto
+  } | null
   meta?: Record<string, unknown>
   attributes?: ProductAttributeDefinitionDto[]
   variants?: ProductVariantDto[]
@@ -290,6 +326,56 @@ export interface CmsContentSectionDto {
   name: string
   description?: string | null
   entries: CmsContentEntryDto[]
+}
+
+export interface CmsRenderableMediaDto {
+  id: number
+  url: string
+  type: string
+  alt?: string | null
+  title?: string | null
+  mimeType?: string | null
+  fileName?: string | null
+  sizeBytes?: number | null
+  width?: number | null
+  height?: number | null
+  source?: string | null
+  metadata?: Record<string, unknown> | null
+}
+
+export interface CmsRenderableBlockDto {
+  id: number
+  type: string
+  key?: string | null
+  name?: string | null
+  sortOrder: number
+  content?: Record<string, unknown> | null
+  media?: CmsRenderableMediaDto | null
+}
+
+export interface CmsRenderableSectionDto {
+  id: number
+  type: string
+  key?: string | null
+  name?: string | null
+  sortOrder: number
+  settings?: Record<string, unknown> | null
+  blocks: CmsRenderableBlockDto[]
+}
+
+export interface CmsRenderablePageDto {
+  id: number
+  path: string
+  title: string
+  summary?: string | null
+  locale: string
+  seo?: {
+    title?: string | null
+    description?: string | null
+  } | null
+  layoutKey?: string | null
+  legacySource?: string | null
+  sections: CmsRenderableSectionDto[]
 }
 
 export interface ProductListFilters {

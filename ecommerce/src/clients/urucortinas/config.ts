@@ -1,5 +1,4 @@
 import type { StorefrontClientVariantConfig } from "../types";
-import { buildDefaultPublicNavigation } from "@/lib/storefront/public-navigation";
 
 const config: StorefrontClientVariantConfig = {
   slug: "urucortinas",
@@ -26,7 +25,6 @@ const config: StorefrontClientVariantConfig = {
         href: "/contact"
       }
     },
-    navigation: buildDefaultPublicNavigation(),
     seo: {
       siteName: "UruCortinas",
       defaultTitle: "UruCortinas",

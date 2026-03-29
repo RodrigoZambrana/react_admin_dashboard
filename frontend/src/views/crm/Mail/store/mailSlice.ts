@@ -682,8 +682,10 @@ export const getMail = createAsyncThunk(
 export const fetchInboxAccounts = createAsyncThunk(
     `${SLICE_NAME}/fetchInboxAccounts`,
     async () => {
-        const response = await apiGetInboxAccounts()
-        return response.data
+        const response = await apiGetInboxAccounts({ channel: 'EMAIL' })
+        return Array.isArray(response.data)
+            ? response.data.filter((account) => account.channel === 'EMAIL')
+            : []
     },
 )
 
@@ -791,6 +793,7 @@ export const updateInboxMessageFlags = createAsyncThunk(
         mailbox: string
         body: {
             threadRemoteId?: string
+            mailbox?: string
             seen?: boolean
             starred?: boolean
             spam?: boolean
@@ -821,7 +824,7 @@ export const moveInboxMessage = createAsyncThunk(
         accountId: string
         remoteId: string
         currentMailbox: string
-        body: { threadRemoteId?: string; targetMailbox: string }
+        body: { threadRemoteId?: string; mailbox?: string; targetMailbox: string }
     }) => {
         const response = await apiMoveInboxMessage({
             accountId,
@@ -848,7 +851,7 @@ export const markInboxMessageSpam = createAsyncThunk(
         accountId: string
         remoteId: string
         currentMailbox: string
-        body?: { threadRemoteId?: string }
+        body?: { threadRemoteId?: string; mailbox?: string }
     }) => {
         const response = await apiMarkInboxMessageSpam({
             accountId,
@@ -1044,8 +1047,19 @@ const mailSlice = createSlice({
             .addCase(fetchInboxAccounts.fulfilled, (state, action) => {
                 state.inbox.accountsLoading = false
                 state.inbox.accounts = action.payload
-                if (!state.inbox.selectedAccountId && action.payload.length > 0) {
-                    state.inbox.selectedAccountId = action.payload[0].id
+                const hasSelectedAccount =
+                    !!state.inbox.selectedAccountId &&
+                    action.payload.some(
+                        (account) => account.id === state.inbox.selectedAccountId,
+                    )
+
+                if (!hasSelectedAccount) {
+                    state.inbox.selectedAccountId = action.payload[0]?.id
+                }
+
+                if (action.payload.length === 0) {
+                    state.inbox.selectedAccountId = undefined
+                    state.inbox.selectedMailboxId = undefined
                 }
             })
             .addCase(fetchInboxAccounts.rejected, (state) => {

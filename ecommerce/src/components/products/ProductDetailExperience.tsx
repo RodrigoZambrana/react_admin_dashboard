@@ -12,13 +12,27 @@ type Props = {
   shops: Shop[];
   relatedProducts: Product[];
   frequentlyBought: Product[];
+  suggestedAddOns: Product[];
+  installationAddOn?: {
+    id: number;
+    name: string;
+    productCode?: string | null;
+    shortDescription?: string | null;
+    price: {
+      amount: number;
+      currency: string;
+      formatted?: string;
+    };
+  } | null;
 };
 
 export default function ProductDetailExperience({
   product,
   shops,
   relatedProducts,
-  frequentlyBought
+  frequentlyBought,
+  suggestedAddOns,
+  installationAddOn
 }: Props) {
   const [publishedSelectionState, setPublishedSelectionState] = useState<{
     specifications: Array<{ label: string; value: string }>;
@@ -59,6 +73,8 @@ export default function ProductDetailExperience({
         shops={shops}
         relatedProducts={relatedProducts}
         frequentlyBought={frequentlyBought}
+        suggestedAddOns={suggestedAddOns}
+        installationAddOn={installationAddOn}
         description={product.description}
         descriptionHtml={product.descriptionHtml}
         specifications={activeSpecifications}

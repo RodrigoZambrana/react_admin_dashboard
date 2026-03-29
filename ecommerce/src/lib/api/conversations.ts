@@ -32,6 +32,7 @@ export const ConversationsApi = {
     name?: string | null;
     email?: string | null;
     locale?: string;
+    currency?: string;
     page?: string | null;
     authenticated?: boolean;
   }): Promise<WebchatSession> {
@@ -53,6 +54,8 @@ export const ConversationsApi = {
     userId?: string;
     scope?: "customer_public" | "customer_authenticated";
     text?: string;
+    locale?: string;
+    currency?: string;
     attachments?: WebchatMessageAttachment[];
     metadata?: Record<string, unknown>;
   }): Promise<WebchatSendMessageResult> {

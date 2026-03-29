@@ -109,7 +109,7 @@ describe('OpenAiUsageService', () => {
       value: {
         currentUsageUsd: 9.5,
       },
-    })
+    } as any)
 
     vi.stubGlobal(
       'fetch',

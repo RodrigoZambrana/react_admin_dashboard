@@ -189,6 +189,270 @@
   box-shadow: 0 12px 24px rgba(99, 56, 246, 0.22);
 }
 
+.crm-conversations-v2 .conversation-whatsapp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-media-placeholder {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  color: #475569;
+  font-size: 13px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-quoted {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid #22c55e;
+  background: #f8fafc;
+  border-radius: 10px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-quoted-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-quoted-preview {
+  font-size: 13px;
+  color: #334155;
+  white-space: pre-wrap;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-action-btn {
+  border: 1px solid #e6e8ef;
+  background: #fff;
+  color: #334155;
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-action-btn.is-danger {
+  border-color: #fecaca;
+  color: #b91c1c;
+  background: #fff5f5;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.crm-conversations-v2 .conversation-message-action-menu {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.crm-conversations-v2 .conversation-message-action-toggle {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.crm-conversations-v2 .conversation-message-action-toggle:hover {
+  border-color: #cbd5e1;
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.crm-conversations-v2 .conversation-message-action-toggle:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.crm-conversations-v2 .conversation-message-action-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+}
+
+.crm-conversations-v2 .conversation-message-action-item.is-danger {
+  color: #b91c1c;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-dialog h5 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #141b27;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-dialog p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-textarea {
+  width: 100%;
+  min-height: 120px;
+  border-radius: 14px;
+  border: 1px solid #dbe2ea;
+  background: #fff;
+  color: #111827;
+  padding: 12px 14px;
+  resize: vertical;
+  font-size: 14px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-reaction-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-reaction-chip {
+  min-width: 56px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  font-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-reaction-chip.is-active {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  box-shadow: inset 0 0 0 1px #c4b5fd;
+}
+
+.crm-conversations-v2 .conversation-message-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.crm-conversations-v2 .conversation-message-reaction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid #dbe4ee;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-emoji-input {
+  width: 100%;
+  min-height: 44px;
+  border-radius: 14px;
+  border: 1px solid #dbe1eb;
+  padding: 0 14px;
+  font-size: 14px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.crm-conversations-v2 .conversation-primary-btn,
+.crm-conversations-v2 .conversation-secondary-btn {
+  border-radius: 12px;
+  min-height: 42px;
+  padding: 0 16px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.crm-conversations-v2 .conversation-primary-btn {
+  background: #6338f6;
+  color: #fff;
+}
+
+.crm-conversations-v2 .conversation-primary-btn:disabled,
+.crm-conversations-v2 .conversation-secondary-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.crm-conversations-v2 .conversation-secondary-btn {
+  background: #fff;
+  color: #334155;
+  border-color: #dbe1eb;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-forward-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-forward-option {
+  border: 1px solid #e6e8ef;
+  border-radius: 14px;
+  background: #fff;
+  padding: 12px 14px;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-forward-option strong {
+  font-size: 14px;
+  color: #111827;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-forward-option span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-forward-option.is-active {
+  border-color: #c4b5fd;
+  background: #f5f3ff;
+  box-shadow: inset 0 0 0 1px #c4b5fd;
+}
+
+.crm-conversations-v2 .conversation-whatsapp-dialog-loading,
+.crm-conversations-v2 .conversation-whatsapp-empty {
+  min-height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .crm-conversations-v2 .search-wrap .input-group {
   position: relative;
   display: flex;
@@ -1053,9 +1317,10 @@
 }
 
 .crm-conversations-v2 .message-content-operator {
-  background: linear-gradient(135deg, #6338f6 0%, #8b5cf6 100%);
-  color: #fff;
-  box-shadow: 0 18px 36px rgba(99, 56, 246, 0.2);
+  background: linear-gradient(135deg, #fff7ed 0%, #fde7d8 100%);
+  color: #431407;
+  border: 1px solid #f2d3bf;
+  box-shadow: 0 18px 36px rgba(194, 120, 58, 0.12);
 }
 
 .crm-conversations-v2 .message-content-operator .file-attach,
@@ -1072,6 +1337,51 @@
   margin-top: 12px;
   border-top: 1px solid rgba(15, 23, 42, 0.12);
   padding-top: 12px;
+}
+
+.crm-conversations-v2 .conversation-ai-debug-panel {
+  margin-top: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.crm-conversations-v2 .conversation-ai-debug-panel[open] {
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.crm-conversations-v2 .conversation-ai-debug-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #334155;
+}
+
+.crm-conversations-v2 .conversation-ai-debug-summary::-webkit-details-marker {
+  display: none;
+}
+
+.crm-conversations-v2 .conversation-ai-debug-panel[open] .conversation-ai-debug-summary svg {
+  transform: rotate(180deg);
+}
+
+.crm-conversations-v2 .conversation-ai-debug-summary svg {
+  transition: transform 0.18s ease;
+}
+
+.crm-conversations-v2 .conversation-ai-debug-panel-body {
+  padding: 0 12px 12px;
+}
+
+.crm-conversations-v2 .conversation-ai-debug-panel-body .conversation-ai-debug:first-child {
+  margin-top: 0;
 }
 
 .crm-conversations-v2 .conversation-ai-debug-title {

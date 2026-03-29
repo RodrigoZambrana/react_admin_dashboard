@@ -16,12 +16,35 @@ const config = {
   aiAgentBaseUrl: process.env.AI_AGENT_BASE_URL || 'http://ai-agent-service:4100',
   redisUrl: process.env.REDIS_URL || 'redis://redis:6379',
   internalToken: process.env.AI_INTERNAL_TOKEN || 'local-ai-internal-token',
-  metaVerifyToken: process.env.META_VERIFY_TOKEN || '',
-  metaAppSecret: process.env.META_APP_SECRET || '',
+  metaVerifyToken: process.env.META_VERIFY_TOKEN || process.env.VERIFY_TOKEN || '',
+  metaAppSecret: process.env.META_APP_SECRET || process.env.APP_SECRET || '',
+  metaAppId: process.env.META_APP_ID || '',
+  metaPageId: process.env.META_PAGE_ID || '',
+  metaPageAccessToken:
+    process.env.META_PAGE_ACCESS_TOKEN || process.env.PAGE_ACCESS_TOKEN || '',
+  metaEnabled: process.env.META_CHANNEL_ENABLED !== 'false',
+  metaMessengerEnabled: process.env.META_MESSENGER_ENABLED !== 'false',
+  metaInstagramEnabled: process.env.META_INSTAGRAM_ENABLED !== 'false',
+  metaPublicBaseUrl: process.env.META_PUBLIC_BASE_URL || '',
   whatsappPhoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || '',
   whatsappAccessToken: process.env.WHATSAPP_ACCESS_TOKEN || '',
-  instagramAccessToken: process.env.INSTAGRAM_ACCESS_TOKEN || '',
-  messengerPageAccessToken: process.env.MESSENGER_PAGE_ACCESS_TOKEN || '',
+  instagramAccessToken:
+    process.env.INSTAGRAM_ACCESS_TOKEN ||
+    process.env.META_INSTAGRAM_ACCESS_TOKEN ||
+    process.env.PAGE_ACCESS_TOKEN ||
+    '',
+  instagramBusinessAccountId:
+    process.env.INSTAGRAM_BUSINESS_ACCOUNT_ID ||
+    process.env.META_INSTAGRAM_BUSINESS_ACCOUNT_ID ||
+    '',
+  messengerPageAccessToken:
+    process.env.MESSENGER_PAGE_ACCESS_TOKEN ||
+    process.env.META_MESSENGER_PAGE_ACCESS_TOKEN ||
+    process.env.PAGE_ACCESS_TOKEN ||
+    '',
+  metaGraphVersion: process.env.META_GRAPH_VERSION || 'v23.0',
+  metaGraphBaseUrl: process.env.META_GRAPH_BASE_URL || 'https://graph.facebook.com',
+  metaSenderMaxRetries: process.env.META_SENDER_MAX_RETRIES || '2',
   clientSlug: process.env.CLIENT_SLUG || 'urucortinas',
   whatsappRuntimeDir: process.env.WHATSAPP_QR_RUNTIME_DIR || '/app/runtime/whatsapp-qr',
 }
@@ -36,15 +59,48 @@ const json = (res, statusCode, body) => {
   res.end(JSON.stringify(body))
 }
 
-const readBody = async (req) => {
+const binary = (res, statusCode, content, headers = {}) => {
+  const buffer = Buffer.isBuffer(content) ? content : Buffer.from(content)
+  res.writeHead(statusCode, {
+    'content-length': buffer.byteLength,
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'content-type,x-ai-internal-token',
+    ...headers,
+  })
+  res.end(buffer)
+}
+
+const text = (res, statusCode, body, headers = {}) => {
+  const payload = typeof body === 'string' ? body : String(body || '')
+  res.writeHead(statusCode, {
+    'content-type': 'text/plain; charset=utf-8',
+    'content-length': Buffer.byteLength(payload),
+    'access-control-allow-origin': '*',
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'content-type,x-ai-internal-token,x-hub-signature-256,x-hub-signature',
+    ...headers,
+  })
+  res.end(payload)
+}
+
+const readRawBody = async (req) => {
   const chunks = []
   for await (const chunk of req) {
     chunks.push(chunk)
   }
   if (!chunks.length) {
+    return Buffer.alloc(0)
+  }
+  return Buffer.concat(chunks)
+}
+
+const readBody = async (req) => {
+  const raw = await readRawBody(req)
+  if (!raw.length) {
     return null
   }
-  return JSON.parse(Buffer.concat(chunks).toString('utf8'))
+  return JSON.parse(raw.toString('utf8'))
 }
 
 const clients = {
@@ -78,12 +134,15 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
+    const requestUrl = new URL(req.url, 'http://localhost')
+    const pathname = requestUrl.pathname
+
     if (req.method === 'OPTIONS') {
       json(res, 200, { ok: true })
       return
     }
 
-    if (req.method === 'GET' && req.url === '/health') {
+    if (req.method === 'GET' && pathname === '/health') {
       json(res, 200, {
         status: 'ok',
         service: config.service,
@@ -92,14 +151,14 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'GET' && req.url === '/channels') {
+    if (req.method === 'GET' && pathname === '/channels') {
       json(res, 200, {
         channels: ['webchat', 'email', 'whatsapp_qr', 'whatsapp_meta', 'instagram', 'messenger'],
       })
       return
     }
 
-    if (req.method === 'GET' && req.url === '/channels/whatsapp-qr/status') {
+    if (req.method === 'GET' && pathname === '/channels/whatsapp-qr/status') {
       if (!requireInternalToken(req, res)) {
         return
       }
@@ -107,7 +166,32 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'PUT' && req.url === '/channels/whatsapp-qr/config') {
+    if (req.method === 'GET' && pathname === '/channels/meta/status') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      json(res, 200, metaAdapter.getStatus())
+      return
+    }
+
+    if (req.method === 'GET' && pathname === '/channels/meta/config/effective') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      json(res, 200, metaAdapter.getEffectiveConfig())
+      return
+    }
+
+    if (req.method === 'PUT' && pathname === '/channels/meta/config') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, metaAdapter.updateConfig(body || {}))
+      return
+    }
+
+    if (req.method === 'PUT' && pathname === '/channels/whatsapp-qr/config') {
       if (!requireInternalToken(req, res)) {
         return
       }
@@ -117,7 +201,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/channels/whatsapp-qr/session/start') {
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/session/start') {
       if (!requireInternalToken(req, res)) {
         return
       }
@@ -125,7 +209,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/channels/whatsapp-qr/session/stop') {
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/session/stop') {
       if (!requireInternalToken(req, res)) {
         return
       }
@@ -133,7 +217,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/channels/whatsapp-qr/session/reconnect') {
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/session/reconnect') {
       if (!requireInternalToken(req, res)) {
         return
       }
@@ -141,7 +225,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/channels/whatsapp-qr/session/reset') {
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/session/reset') {
       if (!requireInternalToken(req, res)) {
         return
       }
@@ -149,7 +233,129 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/webhooks/webchat') {
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/backfill') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      json(res, 200, await whatsappQrAdapter.backfillHistory())
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/message/reaction') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.reactToMessage(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/message/reply') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.replyToMessage(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/message/edit') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.editMessage(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/message/delete') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.deleteMessage(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/message/star') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.setMessageStar(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/message/forward') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.forwardMessage(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/message/media') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      const result = await whatsappQrAdapter.downloadMessageMedia(body || {})
+      binary(res, 200, result.buffer, {
+        'content-type': result.contentType || 'application/octet-stream',
+        'content-disposition': `inline; filename*=UTF-8''${encodeURIComponent(
+          result.fileName || 'whatsapp-media',
+        )}`,
+      })
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/chat/archive') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.archiveChat(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/chat/read-state') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.setChatRead(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/chat/pin-state') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.setChatPin(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/chat/mute-state') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.setChatMute(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/channels/whatsapp-qr/chat/delete') {
+      if (!requireInternalToken(req, res)) {
+        return
+      }
+      const body = await readBody(req)
+      json(res, 200, await whatsappQrAdapter.deleteChat(body || {}))
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/webhooks/webchat') {
       try {
         const body = await readBody(req)
         const result = await webchatAdapter.handleInbound(body)
@@ -167,7 +373,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/webhooks/email') {
+    if (req.method === 'POST' && pathname === '/webhooks/email') {
       const body = await readBody(req)
       const result = await emailAdapter.handleInbound(body)
       json(res, 202, {
@@ -178,7 +384,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/webhooks/email/status') {
+    if (req.method === 'POST' && pathname === '/webhooks/email/status') {
       const body = await readBody(req)
       const result = await emailAdapter.handleStatus(body)
       json(res, 202, {
@@ -189,21 +395,27 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/webhooks/meta') {
-      const body = await readBody(req)
-      const hasStatuses =
-        Array.isArray(body?.statuses) ||
-        Boolean(
-          body?.entry?.some((entry) =>
-            (entry?.changes || []).some(
-              (change) => Array.isArray(change?.value?.statuses) && change.value.statuses.length,
-            ),
-          ),
-        )
-      const result =
-        hasStatuses
-          ? await metaAdapter.handleStatus(body)
-          : await metaAdapter.handleInbound(body)
+    if (req.method === 'GET' && pathname === '/webhooks/meta') {
+      const verification = metaAdapter.verifyWebhook(requestUrl.searchParams)
+      text(res, verification.statusCode, verification.body)
+      return
+    }
+
+    if (req.method === 'POST' && pathname === '/webhooks/meta') {
+      const rawBody = await readRawBody(req)
+      const signatureHeader =
+        req.headers['x-hub-signature-256'] || req.headers['x-hub-signature']
+
+      if (!metaAdapter.validateSignature(rawBody, signatureHeader)) {
+        json(res, 401, {
+          ok: false,
+          message: 'invalid meta signature',
+        })
+        return
+      }
+
+      const body = rawBody.length ? JSON.parse(rawBody.toString('utf8')) : {}
+      const result = await metaAdapter.handleWebhook(body)
       json(res, 202, {
         ok: true,
         status: 'accepted',
@@ -212,7 +424,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/dispatch/meta') {
+    if (req.method === 'POST' && pathname === '/dispatch/meta') {
       if (!requireInternalToken(req, res)) {
         return
       }
@@ -226,7 +438,7 @@ const server = http.createServer(async (req, res) => {
       return
     }
 
-    if (req.method === 'POST' && req.url === '/dispatch/whatsapp-qr') {
+    if (req.method === 'POST' && pathname === '/dispatch/whatsapp-qr') {
       if (!requireInternalToken(req, res)) {
         return
       }

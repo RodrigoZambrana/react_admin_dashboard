@@ -15,6 +15,8 @@ import { I18nProvider } from "@/state/i18n-context";
 import ToastProvider from "@context/ToastContext";
 import NetworkStatusBanner from "@/components/status/NetworkStatusBanner";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
+import { getStorefrontConfig } from "@/lib/storefront-config";
+import GrowthScripts from "@/components/GrowthScripts";
 
 const publicSans = localFont({
   src: [
@@ -36,7 +38,9 @@ export async function generateMetadata(): Promise<Metadata> {
   return buildStorefrontPageMetadata();
 }
 
-export default function RootLayout({ children }: PropsWithChildren) {
+export default async function RootLayout({ children }: PropsWithChildren) {
+  const storefrontConfig = await getStorefrontConfig();
+
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={publicSans.className}>
@@ -48,6 +52,7 @@ export default function RootLayout({ children }: PropsWithChildren) {
                   {children}
                   <NetworkStatusBanner />
                   <NProgressBar />
+                  <GrowthScripts config={storefrontConfig} />
                 </CartProvider>
               </ToastProvider>
             </ThemeProvider>

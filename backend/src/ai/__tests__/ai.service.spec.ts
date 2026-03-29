@@ -254,6 +254,29 @@ const createPrisma = () => ({
   }),
 })
 
+const createCurrencyConversion = () => ({
+  normalizeCurrency: vi.fn((value?: string | null) => value?.trim().toUpperCase() ?? null),
+  getEnabledCurrencies: vi.fn().mockResolvedValue(['UYU', 'USD']),
+  getBaseCurrency: vi.fn().mockResolvedValue('UYU'),
+  buildRatesSnapshot: vi.fn().mockResolvedValue({
+    base: 'UYU',
+    generatedAt: '2026-03-22T10:00:00.000Z',
+    rates: { UYU: 1, USD: 0.025 },
+  }),
+  convertWithSnapshot: vi.fn((amount: string | number, from?: string, to?: string) => {
+    const numericAmount = Number(amount ?? 0)
+    return {
+      amount: {
+        toNumber: () => numericAmount,
+      },
+      currency: (to ?? from ?? 'UYU').toUpperCase(),
+      rate: {
+        toNumber: () => 1,
+      },
+    }
+  }),
+})
+
 const createService = () => {
   const prisma = createPrisma()
   prisma.$transaction = vi.fn(async (operationsOrCallback) => {
@@ -264,6 +287,8 @@ const createService = () => {
   })
   const salesDocuments = {
     updateDocumentStatus: vi.fn().mockResolvedValue(true),
+    getDocumentDetails: vi.fn(),
+    replaceDocument: vi.fn().mockResolvedValue(true),
     previewSalesUnitPricing: vi.fn().mockImplementation((input) => {
       const quantity = Number(input.quantity ?? 1)
       const unit = String(input.unitOfMeasure ?? 'UNIT')
@@ -390,6 +415,7 @@ const createService = () => {
     prisma as never,
     { get: vi.fn() } as never,
     { getJson: vi.fn() } as never,
+    createCurrencyConversion() as never,
     salesDocuments as never,
     paymentSettlement as never,
     new AberturasParserService(aberturasGlossary as never) as never,
@@ -707,7 +733,7 @@ describe('AiService', () => {
       chargeScope: InstallationChargeScope.PER_QUOTE,
       pricePresentationMode: InstallationPricePresentationMode.FROM_BASE,
       amount: 150,
-      currency: 'USD',
+      currency: 'UYU',
       serviceProduct: {
         id: 500,
         name: 'Instalación roller',
@@ -1079,7 +1105,6 @@ describe('AiService', () => {
           name: 'Corrediza Probba',
           price: 234,
           qty: 1,
-          currency: 'USD',
         },
       ],
     })
@@ -1143,6 +1168,7 @@ describe('AiService', () => {
         }),
       } as never,
       secureConfig as never,
+      createCurrencyConversion() as never,
       { updateDocumentStatus: vi.fn(), sendBudget: vi.fn(), confirmBudget: vi.fn() } as never,
       { apply: vi.fn(), dispatch: vi.fn() } as never,
       { listGrouped: vi.fn(), getConfig: vi.fn() } as never,

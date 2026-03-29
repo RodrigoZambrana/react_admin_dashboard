@@ -20,7 +20,7 @@ const createController = () => {
   const knowledge = {} as any
 
   return {
-    controller: new AiController(ai, config, knowledge),
+    controller: new AiController(ai, config, knowledge, {} as any),
     ai,
   }
 }
@@ -59,6 +59,6 @@ describe('AiController internal role enforcement', () => {
       controller.listProducts({ search: 'roller' } as any, 'customer_public', 'test-token'),
     ).resolves.toEqual({ items: [] })
 
-    expect(ai.listProducts).toHaveBeenCalledWith({ search: 'roller' })
+    expect(ai.listProducts).toHaveBeenCalledWith({ search: 'roller' }, 'customer_public')
   })
 })

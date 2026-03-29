@@ -152,3 +152,20 @@ Pendientes de ese slice, priorizados:
 4. modelar instalación variable por medida/tipo/producto relacionado
 5. completar paridad de ejecución en storefront, admin y WhatsApp
 6. endurecer sanitización backend por proceso crítico
+
+Pendientes operativos del canal Meta:
+1. definir la URL pública real del `channel-adapter`
+2. terminar la suscripción del webhook en Meta usando el `Callback URL`
+   `/webhooks/meta` y el `Verify Token` configurado
+
+## Pendientes estratégicos ya priorizados para próximas iteraciones
+
+1. convertir `General Site / Storefront` en scopes persistidos de CMS
+2. unificar locale e idioma del chat según el usuario
+3. unificar moneda de respuesta del chat según preferencia/contexto del usuario
+4. reconciliación de historial e identidad después de desconexión o restore de WhatsApp
+5. estructura `frequently bought together` y relación de instalación como add-on comercial
+6. capa posterior de `Growth / Insights` para Google y Meta
+
+Referencia consolidada:
+- [PLATFORM_NEXT_ITERATIONS_ROADMAP.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/PLATFORM_NEXT_ITERATIONS_ROADMAP.md)

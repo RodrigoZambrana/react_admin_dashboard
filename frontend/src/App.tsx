@@ -5,6 +5,7 @@ import store, { persistor } from './store'
 import Theme from '@/components/template/Theme'
 import Layout from '@/components/layouts'
 import NetworkStatusBanner from '@/components/shared/status/NetworkStatusBanner'
+import AppErrorBoundary from '@/components/shared/status/AppErrorBoundary'
 import mockServer from './mock'
 import appConfig from '@/configs/app.config'
 import './locales'
@@ -21,8 +22,10 @@ function App() {
             <PersistGate loading={null} persistor={persistor}>
                 <BrowserRouter>
                     <Theme>
-                        <Layout />
-                        <NetworkStatusBanner />
+                        <AppErrorBoundary>
+                            <Layout />
+                            <NetworkStatusBanner />
+                        </AppErrorBoundary>
                     </Theme>
                 </BrowserRouter>
             </PersistGate>

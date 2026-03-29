@@ -6,6 +6,10 @@ export class UpdateFlagsDto {
   threadRemoteId?: string
 
   @IsOptional()
+  @IsString()
+  mailbox?: string
+
+  @IsOptional()
   @IsBoolean()
   seen?: boolean
 

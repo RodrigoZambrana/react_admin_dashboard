@@ -20,5 +20,10 @@ export async function buildStorefrontPageMetadata({
     description: description ?? config.seo?.defaultDescription ?? "Storefront configurado para el proyecto.",
     authors: [{ name: siteName }],
     keywords: [siteName, "ecommerce", "storefront"],
+    verification: config.integrations?.google?.searchConsole?.verificationToken
+      ? {
+          google: config.integrations.google.searchConsole.verificationToken,
+        }
+      : undefined,
   };
 }

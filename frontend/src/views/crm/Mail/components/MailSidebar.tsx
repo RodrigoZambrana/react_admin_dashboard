@@ -151,6 +151,15 @@ const MailSidebarBootstrap = () => {
     const inboxAccounts = inboxState.accounts
     const inboxAccountsLoading = inboxState.accountsLoading
     const selectedInboxAccountId = inboxState.selectedAccountId
+    const selectedInboxAccount = useMemo(
+        () =>
+            selectedInboxAccountId
+                ? inboxAccounts.find(
+                      (account) => account.id === selectedInboxAccountId,
+                  ) ?? null
+                : null,
+        [inboxAccounts, selectedInboxAccountId],
+    )
     const inboxMailboxesByAccount = inboxState.mailboxesByAccount
     const selectedInboxMailboxId = inboxState.selectedMailboxId
     const mailboxesStatusMap = inboxState.mailboxesRequestStatus
@@ -189,6 +198,30 @@ const MailSidebarBootstrap = () => {
             return
         }
 
+        if (
+            inboxAccounts.length > 0 &&
+            !inboxAccounts.some((account) => account.id === queryAccountId)
+        ) {
+            const fallbackAccountId = inboxAccounts[0]?.id
+            if (fallbackAccountId) {
+                dispatch(
+                    setSelectedInboxContext({
+                        accountId: fallbackAccountId,
+                        mailboxId: queryMailboxId || undefined,
+                    }),
+                )
+                const nextSearch = new URLSearchParams()
+                nextSearch.set('account', fallbackAccountId)
+                if (queryMailboxId) {
+                    nextSearch.set('mailbox', queryMailboxId)
+                }
+                navigate(`/app/crm/mail/inbox?${nextSearch.toString()}`, {
+                    replace: true,
+                })
+            }
+            return
+        }
+
         if (selectedInboxAccountId !== queryAccountId) {
             dispatch(
                 setSelectedInboxContext({
@@ -204,8 +237,10 @@ const MailSidebarBootstrap = () => {
         }
     }, [
         dispatch,
+        navigate,
         queryAccountId,
         queryMailboxId,
+        inboxAccounts,
         selectedInboxAccountId,
         selectedInboxMailboxId,
     ])
@@ -260,7 +295,11 @@ const MailSidebarBootstrap = () => {
     }, [dispatch, inboxAccountsLoading, inboxAccounts.length])
 
     useEffect(() => {
-        if (!selectedInboxAccountId) {
+        if (
+            !selectedInboxAccountId ||
+            inboxAccountsLoading ||
+            !selectedInboxAccount
+        ) {
             return
         }
         if (
@@ -271,7 +310,13 @@ const MailSidebarBootstrap = () => {
             return
         }
         dispatch(fetchInboxMailboxes({ accountId: selectedInboxAccountId }))
-    }, [dispatch, selectedInboxAccountId, selectedMailboxesStatus])
+    }, [
+        dispatch,
+        inboxAccountsLoading,
+        selectedInboxAccount,
+        selectedInboxAccountId,
+        selectedMailboxesStatus,
+    ])
 
     useEffect(() => {
         if (!selectedInboxAccountId || accountMailboxes.length === 0) {

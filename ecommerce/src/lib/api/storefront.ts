@@ -17,6 +17,7 @@ import type {
   ProductDetail,
   ProductListQuery,
   CmsContentSection,
+  CmsRenderablePage,
   ProductSummary,
   StorefrontShippingOption,
   StorefrontConfig
@@ -200,6 +201,16 @@ export const StorefrontApi = {
     return apiFetch<CmsContentSection[]>("content/sections", {
       params: locale ? { locale } : undefined,
       cache: "no-store"
+    });
+  },
+
+  async getCmsPage(path = "", locale?: string): Promise<CmsRenderablePage> {
+    return apiFetch<CmsRenderablePage>("content/pages/resolve", {
+      params: {
+        path,
+        ...(locale ? { locale } : {}),
+      },
+      cache: "no-store",
     });
   },
 

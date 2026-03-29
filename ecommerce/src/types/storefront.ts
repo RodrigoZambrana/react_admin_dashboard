@@ -131,10 +131,37 @@ export interface StorefrontConfig {
   integrations?: {
     google?: {
       enabled: boolean;
+      analytics?: {
+        enabled: boolean;
+        measurementId: string | null;
+      };
+      tagManager?: {
+        enabled: boolean;
+        containerId: string | null;
+      };
+      ads?: {
+        enabled: boolean;
+        conversionId: string | null;
+        conversionLabel: string | null;
+      };
+      searchConsole?: {
+        verificationToken: string | null;
+      };
     };
     recaptcha?: {
       enabled: boolean;
       siteKey: string | null;
+    };
+    meta?: {
+      pixel?: {
+        enabled: boolean;
+        pixelId: string | null;
+      };
+    };
+    insights?: {
+      content?: {
+        enabled: boolean;
+      };
     };
   };
   resilience?: {
@@ -268,6 +295,56 @@ export interface CmsContentSection {
   entries: CmsContentEntry[];
 }
 
+export interface CmsRenderableMedia {
+  id: number;
+  url: string;
+  type: string;
+  alt?: string | null;
+  title?: string | null;
+  mimeType?: string | null;
+  fileName?: string | null;
+  sizeBytes?: number | null;
+  width?: number | null;
+  height?: number | null;
+  source?: string | null;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface CmsRenderableBlock {
+  id: number;
+  type: string;
+  key?: string | null;
+  name?: string | null;
+  sortOrder: number;
+  content?: Record<string, unknown> | null;
+  media?: CmsRenderableMedia | null;
+}
+
+export interface CmsRenderableSection {
+  id: number;
+  type: string;
+  key?: string | null;
+  name?: string | null;
+  sortOrder: number;
+  settings?: Record<string, unknown> | null;
+  blocks: CmsRenderableBlock[];
+}
+
+export interface CmsRenderablePage {
+  id: number;
+  path: string;
+  title: string;
+  summary?: string | null;
+  locale: string;
+  seo?: {
+    title?: string | null;
+    description?: string | null;
+  } | null;
+  layoutKey?: string | null;
+  legacySource?: string | null;
+  sections: CmsRenderableSection[];
+}
+
 export interface ProductImage extends ImageAsset {
   sortOrder?: number;
   isPrimary?: boolean;
@@ -304,6 +381,15 @@ export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
   specifications?: Array<{ label: string; value: string }>;
   gallery: ProductImage[];
   relatedProducts: ProductSummary[];
+  frequentlyBoughtTogether: ProductSummary[];
+  suggestedAddOns: ProductSummary[];
+  installationAddOn?: {
+    id: number;
+    name: string;
+    productCode?: string | null;
+    shortDescription?: string | null;
+    price: Money;
+  } | null;
   meta?: {
     weight?: string;
     dimensions?: string;

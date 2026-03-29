@@ -17,6 +17,18 @@ const toRemotePattern = (value: string | undefined | null) => {
   }
 };
 
+const toOrigin = (value: string | undefined | null) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+};
+
 const remotePatterns = [
   toRemotePattern(process.env.NEXT_PUBLIC_STOREFRONT_API_URL),
   toRemotePattern(process.env.STOREFRONT_API_URL),
@@ -37,6 +49,58 @@ const remotePatterns = [
       candidate?.hostname === pattern.hostname
   ) === index;
 });
+
+const backendOrigin =
+  toOrigin(process.env.STOREFRONT_API_URL) ??
+  toOrigin(process.env.NEXT_PUBLIC_STOREFRONT_API_URL) ??
+  "http://localhost:4000";
+
+const legacyAssetRewrites = [
+  {
+    source: "/uploads/:path*",
+    destination: `${backendOrigin}/uploads/:path*`
+  },
+  {
+    source: "/img/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/img/:path*`
+  },
+  {
+    source: "/css/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/css/:path*`
+  },
+  {
+    source: "/js/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/js/:path*`
+  },
+  {
+    source: "/lib/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/lib/:path*`
+  },
+  {
+    source: "/assets/css/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/assets/css/:path*`
+  },
+  {
+    source: "/assets/img/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/assets/img/:path*`
+  },
+  {
+    source: "/assets/js/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/assets/js/:path*`
+  },
+  {
+    source: "/assets/webfonts/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/assets/webfonts/:path*`
+  },
+  {
+    source: "/catalogo/assets/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/catalogo/assets/:path*`
+  },
+  {
+    source: "/construccion.urucortinas.com.uy/:path*",
+    destination: `${backendOrigin}/uploads/cms/legacy-assets/construccion.urucortinas.com.uy/:path*`
+  }
+];
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -59,6 +123,9 @@ const nextConfig: NextConfig = {
         ]
       }
     ];
+  },
+  async rewrites() {
+    return legacyAssetRewrites;
   },
   webpack(config) {
     config.resolve = config.resolve ?? {};

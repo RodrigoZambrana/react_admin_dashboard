@@ -216,6 +216,24 @@ const baseAppsRoute: Routes = [
         },
     },
     {
+        key: 'appsSettings.metaChannels',
+        path: `${APP_PREFIX_PATH}/settings/channels/meta`,
+        component: lazy(() => import('@/views/settings/MetaChannelsSettings')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Meta Channels',
+        },
+    },
+    {
+        key: 'appsSettings.growth',
+        path: `${APP_PREFIX_PATH}/settings/growth`,
+        component: lazy(() => import('@/views/settings/GrowthSettings')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Growth & Insights',
+        },
+    },
+    {
         key: 'appsAi.home',
         path: `${APP_PREFIX_PATH}/settings/ai`,
         component: lazy(() => import('@/views/settings/AiHome')),
@@ -696,12 +714,30 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
+        key: 'appsCms.pages',
+        path: `${APP_PREFIX_PATH}/cms/pages`,
+        component: lazy(() => import('@/views/cms/PageManager')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'CMS Pages',
+        },
+    },
+    {
+        key: 'appsCms.media',
+        path: `${APP_PREFIX_PATH}/cms/media`,
+        component: lazy(() => import('@/views/cms/MediaManager')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'CMS Media',
+        },
+    },
+    {
         key: 'appsCms.content',
         path: `${APP_PREFIX_PATH}/cms/content`,
         component: lazy(() => import('@/views/cms/ContentManager')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
         meta: {
-            header: 'CMS Content',
+            header: 'CMS Legacy Content',
         },
     },
     // Users

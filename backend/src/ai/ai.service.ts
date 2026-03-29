@@ -14,6 +14,7 @@ import {
 import { randomUUID } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
 import { SecureConfigService } from '../common/security/secure-config.service'
+import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
 import { findOrderStatusById, listOrderStatuses, matchOrderStatus } from '../common/constants/order-statuses'
 import { OrderPaymentSettlementService } from '../orders/order-payment-settlement.service'
 import { SalesDocumentsService } from '../orders/sales-documents.service'
@@ -113,6 +114,7 @@ export class AiService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly secureConfig: SecureConfigService,
+    private readonly currencyConversion: CurrencyConversionService,
     private readonly salesDocuments: SalesDocumentsService,
     private readonly paymentSettlement: OrderPaymentSettlementService,
     private readonly aberturasParser: AberturasParserService,
@@ -1272,6 +1274,42 @@ export class AiService {
     if (salePrice === null || !Number.isFinite(salePrice)) {
       throw new BadRequestException('pricing.preview.invalidSalePrice')
     }
+    const targetCurrency =
+      this.currencyConversion.normalizeCurrency(input.targetCurrency) ||
+      this.currencyConversion.normalizeCurrency(product.currency) ||
+      'UYU'
+    const sourceCurrency =
+      this.currencyConversion.normalizeCurrency(product.currency) || targetCurrency
+    const fxCurrencies = new Set<string>([sourceCurrency, targetCurrency])
+    if (installationPolicy.serviceProduct?.currency) {
+      const normalizedInstallationCurrency = this.currencyConversion.normalizeCurrency(
+        installationPolicy.serviceProduct.currency,
+      )
+      if (normalizedInstallationCurrency) {
+        fxCurrencies.add(normalizedInstallationCurrency)
+      }
+    }
+    const fxSnapshot =
+      fxCurrencies.size > 1
+        ? await this.currencyConversion.buildRatesSnapshot(Array.from(fxCurrencies))
+        : null
+    const convertAmount = (amount: number | null, fromCurrency?: string | null) => {
+      if (!Number.isFinite(Number(amount))) {
+        return null
+      }
+      const normalizedFrom =
+        this.currencyConversion.normalizeCurrency(fromCurrency) || targetCurrency
+      if (!fxSnapshot || normalizedFrom === targetCurrency) {
+        return Number(amount)
+      }
+      const converted = this.currencyConversion.convertWithSnapshot(
+        Number(amount),
+        normalizedFrom,
+        targetCurrency,
+        fxSnapshot,
+      )
+      return this.decimalToNumber(converted.amount)
+    }
     const previewSourceItems = this.buildPreviewItemsFromInput(input)
 
     const previewItems = previewSourceItems.map((item) => {
@@ -1321,8 +1359,8 @@ export class AiService {
             : null,
         measurementPerUnit: preview.measurementPerUnit,
         effectiveQuantity: preview.effectiveQuantity,
-        derivedUnitPrice: preview.derivedUnitPrice,
-        totalAmount: preview.totalAmount,
+        derivedUnitPrice: convertAmount(preview.derivedUnitPrice, product.currency),
+        totalAmount: convertAmount(preview.totalAmount, product.currency),
         missingMeasurements: preview.missingMeasurements,
       }
     })
@@ -1350,7 +1388,8 @@ export class AiService {
         productCode: product.productCode,
         mode: product.mode,
         unitOfMeasure,
-        currency: product.currency,
+        currency: sourceCurrency,
+        targetCurrency,
         published: product.published,
       },
       available:
@@ -1362,8 +1401,8 @@ export class AiService {
         (sum, entry) => sum + (Number(entry.quantity) || 0),
         0,
       ),
-      unitAmount: salePrice,
-      currency: product.currency,
+      unitAmount: convertAmount(salePrice, product.currency),
+      currency: targetCurrency,
       effectiveQuantity:
         Number.isFinite(effectiveQuantity) && effectiveQuantity > 0
           ? effectiveQuantity
@@ -1393,12 +1432,12 @@ export class AiService {
               installationPolicy.mode === InstallationResolutionMode.UNKNOWN,
             serviceProduct: null,
             amount: null,
-            currency: product.currency,
+            currency: targetCurrency,
             totalAmountWithInstallation:
               installationPolicy.mode === InstallationResolutionMode.INCLUDED &&
               Number.isFinite(totalAmount) &&
               totalAmount > 0
-                ? totalAmount
+                ? convertAmount(totalAmount, product.currency)
                 : null,
             needsMeasurements: false,
           }
@@ -1415,13 +1454,18 @@ export class AiService {
           Number(installationPreview.totalAmount) > 0
             ? Number(installationPreview.totalAmount)
             : null
+        const convertedProductTotal = convertAmount(totalAmount, product.currency)
+        const convertedInstallationAmount = convertAmount(
+          installationAmount,
+          installationPreview?.currency || installationPolicy.serviceProduct.currency,
+        )
         const totalAmountWithInstallation =
-          Number.isFinite(totalAmount) && totalAmount > 0
+          Number.isFinite(Number(convertedProductTotal)) && Number(convertedProductTotal) > 0
             ? installationPolicy.mode === InstallationResolutionMode.INCLUDED
-              ? totalAmount
-              : installationAmount !== null
-                ? totalAmount + installationAmount
-                : totalAmount
+              ? Number(convertedProductTotal)
+              : convertedInstallationAmount !== null
+                ? Number(convertedProductTotal) + Number(convertedInstallationAmount)
+                : Number(convertedProductTotal)
             : null
 
         return {
@@ -1436,15 +1480,15 @@ export class AiService {
             id: installationPolicy.serviceProduct.id,
             name: installationPolicy.serviceProduct.name,
             productCode: installationPolicy.serviceProduct.productCode,
-            currency: installationPolicy.serviceProduct.currency,
+            currency: targetCurrency,
             unitOfMeasure: installationPolicy.serviceProduct.unitOfMeasure,
-            unitAmount: this.decimalToNumber(installationPolicy.serviceProduct.salePrice),
+            unitAmount: convertAmount(
+              this.decimalToNumber(installationPolicy.serviceProduct.salePrice),
+              installationPolicy.serviceProduct.currency,
+            ),
           },
-          amount: installationAmount,
-          currency:
-            installationPreview?.currency ||
-            installationPolicy.serviceProduct.currency ||
-            product.currency,
+          amount: convertedInstallationAmount,
+          currency: targetCurrency,
           totalAmountWithInstallation,
           needsMeasurements: Boolean(installationPreview?.needsMeasurements),
         }

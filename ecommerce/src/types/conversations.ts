@@ -16,9 +16,11 @@ export type WebchatSession = {
     name: string | null;
     email: string | null;
     locale: string;
+    currency: string;
   };
   context: {
     page: string | null;
+    currency?: string | null;
   };
   aiState?: WebchatAiState | null;
   messages: WebchatTranscriptMessage[];
@@ -28,8 +30,21 @@ export type WebchatTranscriptMessage = {
   id: string;
   role: "customer" | "agent";
   kind?: string | null;
+  authorKind?: string | null;
+  messageKind?: string | null;
   text: string;
   createdAt: string;
+  quotedMessage?: {
+    id?: string | null;
+    preview?: string | null;
+  } | null;
+  reactions?: Array<{
+    emoji: string;
+    count: number;
+  }>;
+  editedAt?: string | null;
+  deleted?: boolean;
+  deletedAt?: string | null;
   messageElements?: Array<{
     kind?: string | null;
     source?: string | null;

@@ -109,6 +109,19 @@ const normalizeBase = (channel, scope, payload, options = {}) => {
     attachments,
   })
 
+  const locale =
+    typeof payload?.locale === 'string'
+      ? payload.locale.trim()
+      : typeof metadata?.locale === 'string'
+        ? metadata.locale.trim()
+        : ''
+  const currency =
+    typeof payload?.currency === 'string'
+      ? payload.currency.trim().toUpperCase()
+      : typeof metadata?.currency === 'string'
+        ? metadata.currency.trim().toUpperCase()
+        : ''
+
   return {
     channel,
     scope,
@@ -141,6 +154,8 @@ const normalizeBase = (channel, scope, payload, options = {}) => {
     messageElements,
     metadata: {
       ...metadata,
+      ...(locale ? { locale } : {}),
+      ...(currency ? { currency } : {}),
       authorKind,
       messageKind,
     },
