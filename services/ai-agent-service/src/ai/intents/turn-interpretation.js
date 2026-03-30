@@ -1,27 +1,47 @@
 import {
   detectCustomerFaqSubtype,
   extractCurrentCustomerTurnText,
+  extractSemanticCustomerTurnText,
   extractRequestedTopicLabel,
 } from './customer-faq-heuristics.js'
 import {
+  BASE_CONVERSATIONAL_ES_SIGNALS,
+  countStemMatches,
+  detectStandaloneAttachmentArtifactKind,
+  hasMultimodalReferenceSignal,
+  hasQuantityOnlyFollowUpSignal,
+  looksLikeOpeningStructureSignal,
+  looksLikeQuoteExpansionSignal,
+  hasReengagementReferenceSignal,
+  hasScheduleAdministrativeSignal,
+} from './customer-semantic-signals.js'
+import {
+  looksLikeCommercialConditionQuestion,
   looksLikeConfiguredProductInterest,
   looksLikeGenericPriceInquiry,
   looksLikeQuoteRequirementsQuestion,
   looksLikeQuoteWaitingFollowUp,
 } from './customer-intent-patterns.js'
 import {
+  looksLikeCustomerScheduleAvailabilityRequest,
+  looksLikeCustomerSupportServiceRequest,
+} from './customer-operational-heuristics.js'
+import {
   buildCustomerQuoteContext,
   extractCustomerQuoteLeadText,
   extractCustomerQuotedMeasurements,
 } from './customer-quote-context.js'
 import { buildCustomerScheduleContext } from './customer-schedule-context.js'
+import { buildCustomerSupportContext } from './customer-support-context.js'
 import { resolveConversationThreads } from './conversation-thread-resolver.js'
 import {
   extractTenantFamilyLabel,
   extractTenantVariantLabels,
   findBestTenantTopicMatch,
   findTenantTopicMatches,
+  isContextualTopicDescriptorMatch,
 } from './customer-topic-taxonomy.js'
+import { buildConversationContext } from '../conversation/conversation-context.js'
 
 const normalizeText = (value) =>
   String(value || '')
@@ -103,14 +123,81 @@ const FAQ_TOPIC_LABELS = {
 }
 
 const looksLikeVariantFollowUp = (currentTurnText) =>
-  /\b((que|qué)\s+(tipos|opciones|variantes|lineas|líneas|modelos)\s+(tienen|hay|manejan)|cuales\s+(tienen|hay|manejan)|cu[aá]les\s+(tienen|hay|manejan)|((que|qué)\s+(versiones|formatos)\s+(tienen|hay)))\b/i.test(
+  /\b((que|qué)\s+(tipos|opciones|variantes|lineas|líneas|modelos)\s+(tienen|hay|manejan)|cuales\s+(tienen|hay|manejan)|cu[aá]les\s+(tienen|hay|manejan)|((que|qué)\s+(versiones|formatos)\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\s+(las\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\b/i.test(
     String(currentTurnText || ''),
   )
 
-const looksLikeScheduleSeedInput = (currentTurnText) =>
-  /\b(coordinar|agendar|programar|visita|cita|instalaci[oó]n|colocaci[oó]n|disponibilidad|pasar|venir)\b/i.test(
-    String(currentTurnText || ''),
+const SCHEDULE_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.schedule
+
+const looksLikeScheduleSeedInput = (currentTurnText) => {
+  const text = String(currentTurnText || '')
+  if (looksLikeCommercialConditionQuestion(text)) {
+    return false
+  }
+
+  return looksLikeCustomerScheduleAvailabilityRequest(text)
+}
+
+const looksLikeScheduleAdministrativePayload = (currentTurnText) =>
+  hasScheduleAdministrativeSignal(currentTurnText)
+
+const looksLikeScheduleAcknowledgement = (currentTurnText) =>
+  /^(si|sí|dale|ok|perfecto|listo)$/i.test(String(currentTurnText || '').trim())
+
+const shouldCarrySupportContext = ({
+  role,
+  currentTurnText,
+  normalizedCurrentTurnText,
+  intentDetection = null,
+  previousIntentKey = null,
+  previousSupportContext = null,
+  previousScheduleContext = null,
+  previousConversationContext = null,
+  quoteContext = null,
+  tenantTopicTaxonomy = [],
+  followUpDetected = false,
+  attachmentArtifactTurn = false,
+}) => {
+  if (!isCustomerRole(role)) {
+    return false
+  }
+
+  if (intentDetection?.intent === 'customer.support_request') {
+    return true
+  }
+
+  const hasPreviousSupportLane =
+    previousIntentKey === 'customer.support_request' ||
+    Boolean(previousSupportContext) ||
+    (previousScheduleContext && previousScheduleContext.reason === 'revisión técnica') ||
+    previousConversationContext?.activeDomain === 'support'
+
+  if (!hasPreviousSupportLane) {
+    return false
+  }
+
+  const strongQuotePivot =
+    intentDetection?.intent === 'customer.quote' &&
+    (looksLikeGenericPriceInquiry(normalizedCurrentTurnText) ||
+      Boolean(quoteContext?.measurements) ||
+      Number(quoteContext?.quantity?.total || 0) > 0)
+
+  const explicitSupportSignal = looksLikeCustomerSupportServiceRequest(currentTurnText, {
+    tenantTopicTaxonomy,
+  })
+
+  if (strongQuotePivot && !explicitSupportSignal) {
+    return false
+  }
+
+  return (
+    explicitSupportSignal ||
+    followUpDetected ||
+    attachmentArtifactTurn ||
+    looksLikeScheduleAdministrativePayload(currentTurnText) ||
+    looksLikeScheduleAcknowledgement(currentTurnText)
   )
+}
 
 const looksLikeShortTopicOnlyFollowUp = (currentTurnText) => {
   const normalized = normalizeText(currentTurnText)
@@ -130,9 +217,7 @@ const looksLikeMeasurementOnlyFollowUp = (currentTurnText) =>
   Boolean(extractCustomerQuotedMeasurements(currentTurnText))
 
 const looksLikeQuantityOnlyFollowUp = (currentTurnText) =>
-  /^\s*\d{1,4}(?:\s+(?:unidades?|items?|item|piezas?))?\s*$/iu.test(
-    String(currentTurnText || ''),
-  )
+  hasQuantityOnlyFollowUpSignal(currentTurnText)
 
 const isCustomerRole = (role) =>
   String(role || '') === 'customer_public' ||
@@ -151,7 +236,11 @@ const looksLikeEllipticFollowUp = (currentTurnText) => {
 
   return /^(y|tambien|también|eso|esta|este|ese|esa|cuanto|cuánto|demora|tarda|sirve|incluye|viene|puede venir|se puede)/.test(
     normalized,
-  ) || looksLikeVariantFollowUp(currentTurnText) || looksLikeShortTopicOnlyFollowUp(currentTurnText)
+  ) ||
+    hasMultimodalReferenceSignal(currentTurnText) ||
+    hasReengagementReferenceSignal(currentTurnText) ||
+    looksLikeVariantFollowUp(currentTurnText) ||
+    looksLikeShortTopicOnlyFollowUp(currentTurnText)
 }
 
 const looksLikeReferentialFollowUp = (currentTurnText) =>
@@ -169,6 +258,7 @@ const looksLikePriceOrQuoteTurn = (value) =>
   looksLikeGenericPriceInquiry(String(value || ''))
 
 const selectPreferredTopicMatchFromInput = (value, tenantTopicTaxonomy = []) => {
+  const normalizedInput = normalizeText(value)
   const matches = findTenantTopicMatches(value, tenantTopicTaxonomy, {
     kinds: ['product_family', 'product_topic', 'product_variant'],
     limit: 6,
@@ -177,10 +267,15 @@ const selectPreferredTopicMatchFromInput = (value, tenantTopicTaxonomy = []) => 
     return null
   }
 
+  const filteredMatches = matches.filter(
+    (match) => !isContextualTopicDescriptorMatch(match, normalizedInput),
+  )
+  const candidatePool = filteredMatches.length > 0 ? filteredMatches : matches
+
   return (
-    matches.find((match) => match.kind === 'product_topic') ||
-    matches.find((match) => match.kind === 'product_variant') ||
-    matches[0]
+    candidatePool.find((match) => match.kind === 'product_topic') ||
+    candidatePool.find((match) => match.kind === 'product_variant') ||
+    candidatePool[0]
   )
 }
 
@@ -296,6 +391,32 @@ const resolveTopicLabel = (label, tenantTopicTaxonomy = []) => {
   return cleanLabel
 }
 
+const isAberturasScopedTopic = (topic, tenantTopicTaxonomy = []) => {
+  const topicLabel = String(topic?.label || '').trim()
+  if (!topicLabel) {
+    return false
+  }
+
+  if (/\babertur/.test(normalizeText(topicLabel))) {
+    return true
+  }
+
+  return (
+    extractTenantFamilyLabel(topicLabel, tenantTopicTaxonomy) === 'aberturas' ||
+    extractTenantFamilyLabel(topic?.familyLabel || '', tenantTopicTaxonomy) === 'aberturas'
+  )
+}
+
+const buildAberturasCanonicalTopic = (tenantTopicTaxonomy = []) => {
+  const resolvedLabel = resolveTopicLabel('aberturas', tenantTopicTaxonomy) || 'aberturas'
+  return buildCanonicalTopic({
+    label: resolvedLabel,
+    type: inferTopicType(resolvedLabel, null, tenantTopicTaxonomy),
+    confidence: 0.82,
+    source: 'opening_structure_heuristic',
+  })
+}
+
 const buildRetrievalQuery = ({
   currentTurnText,
   intentKey,
@@ -404,9 +525,13 @@ export const buildTurnInterpretation = ({
 }) => {
   const rawInterpretationInput = originalInput || effectiveInput || normalizedInput || ''
   const normalizedInterpretationInput = normalizedInput || effectiveInput || originalInput || ''
-  const currentTurnText = extractCurrentCustomerTurnText(rawInterpretationInput)
-  const normalizedCurrentTurnText = extractCurrentCustomerTurnText(
+  const rawCurrentTurnText = extractCurrentCustomerTurnText(rawInterpretationInput)
+  const currentTurnText = extractSemanticCustomerTurnText(rawInterpretationInput)
+  const normalizedCurrentTurnText = extractSemanticCustomerTurnText(
     normalizedInterpretationInput,
+  )
+  const attachmentArtifactTurn = Boolean(
+    detectStandaloneAttachmentArtifactKind(rawCurrentTurnText),
   )
   const topicDetectionInput =
     intentDetection?.intent === 'customer.quote' ||
@@ -438,10 +563,21 @@ export const buildTurnInterpretation = ({
     typeof previousTaskState.scheduleContext === 'object'
       ? previousTaskState.scheduleContext
       : null
+  const previousSupportContext =
+    previousTaskState?.supportContext &&
+    typeof previousTaskState.supportContext === 'object'
+      ? previousTaskState.supportContext
+      : null
+  const previousConversationContext =
+    previousTaskState?.conversationContext &&
+    typeof previousTaskState.conversationContext === 'object'
+      ? previousTaskState.conversationContext
+      : null
   const followUpDetected =
     isCustomerRole(role) &&
     Boolean(previousIntentKey) &&
-    (looksLikeEllipticFollowUp(normalizedCurrentTurnText) ||
+    (attachmentArtifactTurn ||
+      looksLikeEllipticFollowUp(normalizedCurrentTurnText) ||
       looksLikeReferentialFollowUp(normalizedCurrentTurnText) ||
       measurementOnlyFollowUp ||
       quantityOnlyFollowUp ||
@@ -451,7 +587,9 @@ export const buildTurnInterpretation = ({
     Boolean(previousIntentKey) &&
     intentDetection?.intent === previousIntentKey
 
-  const faqSubtype = detectCustomerFaqSubtype(normalizedCurrentTurnText)
+  const faqSubtype = detectCustomerFaqSubtype(normalizedCurrentTurnText, {
+    previousIntentKey,
+  })
   const threadResolution = resolveConversationThreads({
     currentTurnText,
     previousTaskState,
@@ -461,6 +599,7 @@ export const buildTurnInterpretation = ({
   })
   const requestedTopicLabel = measurementOnlyFollowUp
     || quantityOnlyFollowUp
+    || quoteWaitingFollowUp
     ? null
     : extractRequestedTopicLabel(normalizedTopicDetectionInput)
   const requestedTopicMatch =
@@ -474,6 +613,8 @@ export const buildTurnInterpretation = ({
     : resolveTopicLabel(requestedTopicLabel, tenantTopicTaxonomy)
   const preferStandaloneVariantTopic =
     requestedTopicMatch?.kind === 'product_variant' && !previousTopic?.label
+  const openingStructureSignal = looksLikeOpeningStructureSignal(currentTurnText)
+  const quoteExpansionSignal = looksLikeQuoteExpansionSignal(currentTurnText)
 
   let canonicalTopic = null
   if (FAQ_TOPIC_LABELS[faqSubtype]) {
@@ -524,13 +665,20 @@ export const buildTurnInterpretation = ({
     }
   }
 
-  if (!canonicalTopic && followUpDetected && previousTopic?.label) {
+  if (!canonicalTopic && (followUpDetected || attachmentArtifactTurn) && previousTopic?.label) {
     canonicalTopic = buildCanonicalTopic({
       label: previousTopic.label,
       type: previousTopic.type || 'unknown',
       confidence: 0.66,
       source: 'conversation_memory',
     })
+  }
+
+  if (
+    openingStructureSignal &&
+    !isAberturasScopedTopic(canonicalTopic, tenantTopicTaxonomy)
+  ) {
+    canonicalTopic = buildAberturasCanonicalTopic(tenantTopicTaxonomy)
   }
 
   if (
@@ -553,6 +701,28 @@ export const buildTurnInterpretation = ({
     })
   }
 
+  if (
+    !canonicalTopic &&
+    quoteExpansionSignal &&
+    previousTopic?.label
+  ) {
+    canonicalTopic = buildCanonicalTopic({
+      label: previousTopic.label,
+      type: previousTopic.type || 'unknown',
+      confidence: 0.74,
+      source: 'quote_expansion_memory',
+    })
+  }
+
+  if (attachmentArtifactTurn && previousTopic?.label) {
+    canonicalTopic = buildCanonicalTopic({
+      label: previousTopic.label,
+      type: previousTopic.type || 'unknown',
+      confidence: 0.78,
+      source: 'attachment_memory',
+    })
+  }
+
   const retrievalQuery = buildRetrievalQuery({
     currentTurnText: normalizedCurrentTurnText,
     intentKey: intentDetection?.intent || null,
@@ -563,7 +733,8 @@ export const buildTurnInterpretation = ({
   })
   const shouldCarryQuoteContextFromMemory =
     Boolean(previousTopic?.label) &&
-    (followUpDetected ||
+    (attachmentArtifactTurn ||
+      followUpDetected ||
       looksLikeQuoteRequirementsQuestion(normalizedCurrentTurnText) ||
       looksLikeConfiguredProductInterest(
         normalizedCurrentTurnText,
@@ -588,19 +759,75 @@ export const buildTurnInterpretation = ({
   })
   const shouldBuildScheduleContext =
     isCustomerRole(role) &&
-    (intentDetection?.intent === 'customer.schedule_request' ||
-      looksLikeScheduleSeedInput(currentTurnText) ||
-      previousIntentKey === 'customer.schedule_request' ||
-      Boolean(previousScheduleContext))
+    (() => {
+      const explicitScheduleSignal =
+        intentDetection?.intent === 'customer.schedule_request' ||
+        looksLikeScheduleSeedInput(currentTurnText)
+      const contextualScheduleSignal =
+        looksLikeScheduleAdministrativePayload(currentTurnText) &&
+        (previousIntentKey === 'customer.schedule_request' ||
+          previousConversationContext?.activeDomain === 'schedule' ||
+          previousSupportContext?.wantsVisit === true ||
+          previousIntentKey === 'customer.support_request')
+      const carriedScheduleLane =
+        (previousConversationContext?.activeDomain === 'schedule' ||
+          previousIntentKey === 'customer.schedule_request') &&
+        (looksLikeScheduleAdministrativePayload(currentTurnText) ||
+          looksLikeScheduleAcknowledgement(currentTurnText))
+
+      return explicitScheduleSignal || contextualScheduleSignal || carriedScheduleLane
+    })()
   const scheduleContext = shouldBuildScheduleContext
     ? buildCustomerScheduleContext({
         currentTurnText,
         previousScheduleContext,
         previousQuoteContext,
         currentTopic: canonicalTopic,
+        previousIntentKey,
+        previousCanonicalTopic: previousTopic,
         nluAnalysis,
       })
     : null
+  const supportContext =
+    shouldCarrySupportContext({
+      role,
+      currentTurnText,
+      normalizedCurrentTurnText,
+      intentDetection,
+      previousIntentKey,
+      previousSupportContext,
+      previousScheduleContext,
+      previousConversationContext,
+      quoteContext,
+      tenantTopicTaxonomy,
+      followUpDetected,
+      attachmentArtifactTurn,
+    })
+      ? buildCustomerSupportContext({
+          currentTurnText,
+          previousSupportContext,
+          previousScheduleContext,
+          currentScheduleContext: scheduleContext,
+          currentTopic: canonicalTopic,
+          previousQuoteContext,
+        })
+      : null
+  const conversationContext = buildConversationContext({
+    role,
+    currentTurnText,
+    inboundClassification,
+    intentDetection,
+    previousConversationContext,
+    topic: canonicalTopic,
+    quoteContext,
+    supportContext,
+    scheduleContext,
+    followUp: {
+      detected: Boolean(followUpDetected),
+    },
+    threadResolution,
+    nluAnalysis,
+  })
 
   return {
     originalInput: String(originalInput || ''),
@@ -641,7 +868,9 @@ export const buildTurnInterpretation = ({
             : extractTopicTokens(previousTopic.label || ''),
         }
       : null,
+    conversationContext,
     quoteContext,
+    supportContext,
     scheduleContext,
     retrievalQuery,
     operationalQuery: retrievalQuery,

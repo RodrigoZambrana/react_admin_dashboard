@@ -106,6 +106,18 @@ export class UpdateAiRuntimeConfigDto {
   customerGroundedRewriteMaxChars?: number | null
 
   @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  customerDecisionAssistEnabled?: boolean
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.6)
+  @Max(0.98)
+  customerDecisionAssistMinConfidence?: number | null
+
+  @IsOptional()
   @IsIn(customerCapabilityProfiles)
   customerCapabilityProfile?: (typeof customerCapabilityProfiles)[number]
 
@@ -125,4 +137,14 @@ export class UpdateAiRuntimeConfigDto {
   @IsString()
   @MaxLength(20000)
   customerWordingOverridesJson?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40000)
+  customerWordingRegistryJson?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40000)
+  customerHybridIntentRegistryJson?: string | null
 }

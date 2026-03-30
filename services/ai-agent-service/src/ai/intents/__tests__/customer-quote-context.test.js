@@ -6,6 +6,7 @@ import {
   extractCustomerQuoteLeadText,
   extractCustomerQuotedMeasurementItems,
   extractCustomerQuotedMeasurements,
+  extractCustomerQuotedQuantity,
 } from '../customer-quote-context.js'
 
 const CUSTOMER_TOPIC_TAXONOMY = [
@@ -273,6 +274,33 @@ test('extractCustomerQuotedMeasurementItems parses quote line items with quantit
   assert.equal(items[1]?.widthMm, 1500)
 })
 
+test('extractCustomerQuotedMeasurementItems parses inline multi-item measurements with plain meter suffixes', () => {
+  const items = extractCustomerQuotedMeasurementItems(
+    'son 2 unidades de 1,50m x 2m y 2 unidades de 2m x 2m',
+  )
+
+  assert.equal(items.length, 2)
+  assert.equal(items[0]?.quantity, 2)
+  assert.equal(items[0]?.widthMm, 1500)
+  assert.equal(items[0]?.heightMm, 2000)
+  assert.equal(items[1]?.quantity, 2)
+  assert.equal(items[1]?.widthMm, 2000)
+  assert.equal(items[1]?.heightMm, 2000)
+})
+
+test('extractCustomerQuotedMeasurementItems does not misread exact aberturas dimensions as a quantity prefix', () => {
+  const text =
+    'Quiero cotización para una ventana corrediza probba color blanco con 4mm de 1819x1457'
+  const items = extractCustomerQuotedMeasurementItems(text)
+  const quantity = extractCustomerQuotedQuantity(text, items)
+
+  assert.equal(items.length, 1)
+  assert.equal(items[0]?.widthMm, 1819)
+  assert.equal(items[0]?.heightMm, 1457)
+  assert.equal(items[0]?.quantity, null)
+  assert.equal(quantity, null)
+})
+
 test('extractCustomerQuoteLeadText stops before measurement section introducers', () => {
   const leadText = extractCustomerQuoteLeadText(`
     Buenos días. Solicito presupuesto por un total de 14 cortinas roller blancas.
@@ -343,6 +371,15 @@ test('buildCustomerQuoteContext captures a bare quantity follow-up when the prev
   assert.equal(context?.completionStatus, 'ready_for_pricing_or_handoff')
 })
 
+test('extractCustomerQuotedQuantity captures leading product quantities without requiring the unidades word', () => {
+  const quantity = extractCustomerQuotedQuantity(
+    '2 cortinas roller blackout que costo tienen',
+  )
+
+  assert.equal(quantity?.total, 2)
+  assert.equal(quantity?.source, 'explicit_total')
+})
+
 test('buildCustomerQuoteContext marks multi-item quote intake as ready for handoff once minimum fields are complete', () => {
   const context = buildCustomerQuoteContext({
     currentTurnText: `
@@ -370,6 +407,63 @@ test('buildCustomerQuoteContext marks multi-item quote intake as ready for hando
   assert.equal(context?.color, 'blanco')
   assert.deepEqual(context?.missingFields, [])
   assert.equal(context?.completionStatus, 'ready_for_pricing_or_handoff')
+})
+
+test('buildCustomerQuoteContext keeps inline multi-item persiana requests as ready for handoff when quantities and measurements are already present', () => {
+  const context = buildCustomerQuoteContext({
+    currentTurnText:
+      'Buenas tardes, estoy buscando presupuesto solamente de esteras de persiana como esas, son 2 unidades de 1,50m x 2m y 2 unidades de 2m x 2m. Presupuesto en aluminio y otro con PVC, muchas gracias',
+    topic: {
+      label: 'persianas',
+      type: 'product_family',
+      familyLabel: 'persianas',
+    },
+    previousTopic: null,
+    previousQuoteContext: null,
+    tenantTopicTaxonomy: CUSTOMER_TOPIC_TAXONOMY,
+    tenantQuoteProfiles: [
+      {
+        key: 'quote_profile:persianas',
+        label: 'Persianas',
+        appliesToTopicLabels: ['persianas'],
+        familyLabel: 'persianas',
+        pricingStrategy: 'handoff_only',
+        closureMode: 'collect_then_handoff',
+        measurementCarrierTerms: ['persiana', 'persianas', 'estera', 'esteras'],
+        attributes: [
+          {
+            key: 'measurements',
+            label: 'las medidas aproximadas (ancho por alto)',
+            required: true,
+            captureKind: 'measurements',
+          },
+          {
+            key: 'quantity',
+            label: 'cuántas unidades necesitás',
+            required: true,
+            captureKind: 'quantity',
+          },
+          {
+            key: 'material',
+            label: 'si las querés en PVC o aluminio',
+            required: false,
+            captureKind: 'enum',
+            subjectPrefix: 'en',
+            options: [
+              { value: 'pvc', label: 'PVC', aliases: ['pvc'] },
+              { value: 'aluminio', label: 'aluminio', aliases: ['aluminio'] },
+            ],
+          },
+        ],
+      },
+    ],
+  })
+
+  assert.equal(context?.measurementItems?.length, 2)
+  assert.equal(context?.quantity?.total, 4)
+  assert.equal(context?.capturedAttributes?.material?.value, 'aluminio')
+  assert.deepEqual(context?.missingFields, [])
+  assert.equal(context?.completionStatus, 'ready_for_handoff')
 })
 
 test('buildCustomerQuoteContext derives aberturas series, glass and color slots from taxonomy plus text', () => {

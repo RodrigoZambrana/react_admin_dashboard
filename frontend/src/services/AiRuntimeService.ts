@@ -37,8 +37,45 @@ export type AiRuntimeConfigResponse = {
     customerContentMode: 'enabled' | 'deterministic_only' | 'handoff_only'
     customerCommerceMode: 'enabled' | 'deterministic_only' | 'handoff_only'
     customerSchedulingMode: 'enabled' | 'deterministic_only' | 'handoff_only'
-    customerWordingOverrides?: Record<string, string | string[]> | null
+    customerWordingRegistry?: Record<
+        string,
+        | string
+        | string[]
+        | {
+              messages: string | string[]
+              goal?: string | null
+              mustAskQuestion?: boolean
+              maxChars?: number | null
+              allowHybridRewrite?: boolean
+          }
+    > | null
+    customerWordingRegistryJson?: string | null
+    customerWordingOverrides?: Record<
+        string,
+        | string
+        | string[]
+        | {
+              messages: string | string[]
+              goal?: string | null
+              mustAskQuestion?: boolean
+              maxChars?: number | null
+              allowHybridRewrite?: boolean
+          }
+    > | null
     customerWordingOverridesJson?: string | null
+    customerHybridIntentRegistry?: Array<{
+        id?: string
+        intent: string
+        confidence?: number
+        priority?: number
+        examples?: string[]
+        includesAny?: string[]
+        includesAll?: string[]
+        regexAny?: string[]
+        regexAll?: string[]
+        decisionPath?: string[]
+    }> | null
+    customerHybridIntentRegistryJson?: string | null
     roleCatalog?: Array<{
         key: string
         type: 'customer' | 'admin'
@@ -102,6 +139,8 @@ export type UpdateAiRuntimeConfigPayload = {
     customerCommerceMode: 'enabled' | 'deterministic_only' | 'handoff_only'
     customerSchedulingMode: 'enabled' | 'deterministic_only' | 'handoff_only'
     customerWordingOverridesJson?: string | null
+    customerWordingRegistryJson?: string | null
+    customerHybridIntentRegistryJson?: string | null
 }
 
 export const apiGetAiRuntimeConfig = () => {

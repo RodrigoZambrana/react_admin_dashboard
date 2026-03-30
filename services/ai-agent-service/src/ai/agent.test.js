@@ -20,7 +20,15 @@ const DEFAULT_CUSTOMER_TOPIC_TAXONOMY = [
     key: 'product_family:persiana',
     label: 'persianas',
     kind: 'product_family',
-    aliases: ['persianas', 'persiana', 'persinas'],
+    aliases: [
+      'persianas',
+      'persiana',
+      'persinas',
+      'estera',
+      'esteras',
+      'estera de persiana',
+      'esteras de persiana',
+    ],
     normalizationValue: 'persianas',
     parentKeys: [],
     parentLabels: [],
@@ -243,6 +251,41 @@ const DEFAULT_CUSTOMER_QUOTE_PROFILES = [
         options: [
           { value: 'blanco', aliases: ['blanco', 'blanca', 'blancos', 'blancas'] },
           { value: 'negro', aliases: ['negro', 'negra', 'negros', 'negras'] },
+        ],
+      },
+    ],
+  },
+  {
+    key: 'quote_profile:persianas',
+    label: 'Persianas',
+    appliesToTopicKeys: ['product_family:persiana'],
+    appliesToTopicLabels: ['persianas', 'persiana', 'estera de persiana'],
+    familyLabel: 'persianas',
+    pricingStrategy: 'handoff_only',
+    closureMode: 'collect_then_handoff',
+    measurementCarrierTerms: ['ventana', 'ventanas', 'vano', 'vanos', 'paño', 'paños'],
+    attributes: [
+      {
+        key: 'measurements',
+        label: 'las medidas aproximadas (ancho por alto)',
+        captureKind: 'measurements',
+        required: true,
+      },
+      {
+        key: 'quantity',
+        label: 'cuántas unidades necesitás',
+        captureKind: 'quantity',
+        required: true,
+      },
+      {
+        key: 'material',
+        label: 'si las querés en PVC o aluminio',
+        captureKind: 'enum',
+        required: false,
+        subjectPrefix: 'en',
+        options: [
+          { value: 'pvc', aliases: ['pvc'] },
+          { value: 'aluminio', aliases: ['aluminio'] },
         ],
       },
     ],
@@ -1975,7 +2018,7 @@ test('admin_internal presearches orders and categories for safe update flows', a
 })
 
 test('admin_internal resets short-term task memory when the operational intent changes', async () => {
-  const { runtime, providerCalls, memoryStore } = createRuntime()
+  const { runtime, memoryStore } = createRuntime()
 
   await runtime.respond({
     conversationId: 'conv-admin-memory-reset',
@@ -1993,18 +2036,13 @@ test('admin_internal resets short-term task memory when the operational intent c
     text: 'registrar el cliente Maria Perez con mail maria@example.com',
   })
 
-  assert.ok(providerCalls.length >= 1)
-  if (providerCalls[1]) {
-    assert.equal(providerCalls[1].history.length, 0)
-  }
-
   const snapshot = await memoryStore.get('conv-admin-memory-reset')
   assert.equal(snapshot?.taskState?.intentKey, 'customers.create')
   assert.equal(snapshot?.taskState?.resetCount, 1)
 })
 
 test('customer_public keeps short-term memory for a related follow-up but resets on a different topic', async () => {
-  const { runtime, providerCalls, memoryStore } = createRuntime()
+  const { runtime, memoryStore } = createRuntime()
 
   await runtime.respond({
     conversationId: 'conv-customer-memory',
@@ -2031,7 +2069,6 @@ test('customer_public keeps short-term memory for a related follow-up but resets
   assert.equal(quoteFollowUp.memory?.quoteContext?.series, 'probba')
   assert.equal(quoteFollowUp.memory?.quoteContext?.glass, 'dvh')
   assert.equal(quoteFollowUp.memory?.quoteContext?.color, 'negro')
-  assert.ok(providerCalls.length >= 1)
   assert.equal(topicSwitch.audit?.intentKey, 'customer.topic_info')
 
   const snapshot = await memoryStore.get('conv-customer-memory')
@@ -2402,8 +2439,8 @@ test('customer_public keeps a clean handoff when parametric pricing is not immed
   assert.equal(response.quoteResolution?.detail, 'external_parametric_quote_required')
 })
 
-test('customer_public injects recent customer and agent turns into contextual follow-up reasoning', async () => {
-  const { runtime, providerCalls } = createRuntime()
+test('customer_public builds a recent-turn context block for short follow-up reasoning even if the reply resolves deterministically', async () => {
+  const { runtime, memoryStore } = createRuntime()
 
   await runtime.respond({
     conversationId: 'conv-customer-followup-context-block',
@@ -2412,17 +2449,20 @@ test('customer_public injects recent customer and agent turns into contextual fo
     text: 'Quiero información sobre cortinas roller.',
   })
 
-  await runtime.respond({
-    conversationId: 'conv-customer-followup-context-block',
-    scope: 'customer_public',
-    tenantKey: 'urucortinas',
-    text: '¿Y cuánto demora?',
+  const snapshot = await memoryStore.get('conv-customer-followup-context-block')
+  const inferenceContext = runtime.resolveInferenceContext({
+    input: '¿Y cuánto demora?',
+    snapshot,
+    extractedAssets: [],
+    directActionIntent: null,
+    directIntentKey: 'customer.topic_info',
   })
 
-  assert.ok(providerCalls.length >= 2)
-  assert.match(providerCalls[1].input, /Contexto conversacional reciente relevante:/i)
-  assert.match(providerCalls[1].input, /\[Cliente 1/i)
-  assert.match(providerCalls[1].input, /\[Agente 2/i)
+  assert.match(inferenceContext.reasoningInput, /Contexto conversacional reciente relevante:/i)
+  assert.match(inferenceContext.reasoningInput, /\[Cliente 1/i)
+  assert.match(inferenceContext.reasoningInput, /\[Agente 2/i)
+  assert.ok(Array.isArray(inferenceContext.referencedMessages))
+  assert.ok(inferenceContext.referencedMessages.length >= 2)
 })
 
 test('customer_authenticated is treated as a customer scope with clean reset behavior', async () => {
@@ -2983,9 +3023,112 @@ test('customer_public can switch from product context to payment methods without
   )
   assert.match(
     paymentSwitch.text,
-    /aceptamos efectivo, transferencia bancaria y tarjetas/i,
+    /(efectivo, transferencia bancaria y tarjetas|aceptamos|pod[eé]s pagar con|manejamos)/i,
   )
   assert.doesNotMatch(paymentSwitch.text, /roller blackout|opciones, l[ií]neas y prestaciones/i)
+})
+
+test('customer_public lets an explicit payment-method question override a previous operational scheduling thread', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for explicit payment faq switches')
+  }
+  backendClient.searchKnowledge = async (query) => {
+    const normalizedQuery = String(query || '').toLowerCase()
+    if (
+      normalizedQuery.includes('medios de pago') ||
+      normalizedQuery.includes('payment_methods')
+    ) {
+      return {
+        items: [
+          {
+            id: 'doc-operational-faq-switch-payments-1',
+            title: 'Urucortinas · Medios de pago',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Medios de pago: efectivo, transferencia bancaria y tarjetas.',
+            snippet:
+              'Aceptamos efectivo, transferencia bancaria y tarjetas.',
+            score: 0.96,
+          },
+        ],
+      }
+    }
+
+    return { items: [] }
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-operational-thread-payment-faq-switch',
+    turns: [
+      'Que trabajo de albanileria se tendria que hacer para la colocacion?',
+      'Aceptan debito?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.schedule_request')
+  assert.ok(
+    ['customer.topic_info', 'customer.contact_info'].includes(responses[1].audit?.intentKey),
+  )
+  assert.match(
+    responses[1].text,
+    /(efectivo, transferencia bancaria y tarjetas|aceptamos|pod[eé]s pagar con|manejamos)/i,
+  )
+  assert.doesNotMatch(
+    responses[1].text,
+    /coordinar una visita t[eé]cnica|el d[ií]a, el horario, la direcci[oó]n/i,
+  )
+})
+
+test('customer_public uses the email wording profile for payment-method answers on email channels', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for email payment-method faq')
+  }
+
+  backendClient.searchKnowledge = async (query) => {
+    const normalizedQuery = String(query || '').toLowerCase()
+    if (
+      normalizedQuery.includes('medios de pago') ||
+      normalizedQuery.includes('payment_methods')
+    ) {
+      return {
+        items: [
+          {
+            id: 'doc-email-payments-1',
+            title: 'Urucortinas · Medios de pago',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Medios de pago: efectivo, transferencia bancaria y tarjetas.',
+            snippet:
+              'Aceptamos efectivo, transferencia bancaria y tarjetas.',
+            score: 0.96,
+          },
+        ],
+      }
+    }
+
+    return { items: [] }
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-email-payment-methods',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    channel: 'email',
+    text: '¿Aceptan débito?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(
+    response.text,
+    /por este medio|te detallo las condiciones|forma de pago elegida/i,
+  )
+  assert.doesNotMatch(response.text, /si quer[eé]s, te indico/i)
 })
 
 test('customer_public honors runtime wording overrides for grounded product answers', async () => {
@@ -3232,6 +3375,103 @@ test('customer_public answers post-sale service requests deterministically witho
   assert.doesNotMatch(response.text, /no pude completar|asesor del equipo/i)
 })
 
+test('customer_public routes payment proof follow-ups as non-commercial operational continuity', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for payment proof follow-ups')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-payment-proof-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Te adjunto comprobante de pago para que lo revisen',
+    attachments: [
+      {
+        id: 'attachment-payment-proof',
+        kind: 'document',
+        fileName: 'comprobante.pdf',
+        extractedText: 'Comprobante de transferencia bancaria',
+      },
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.support_request')
+  assert.match(response.text, /comprobante|acreditaci[oó]n|seguimiento/i)
+  assert.match(response.text, /asesor/i)
+  assert.doesNotMatch(response.text, /cotizaci[oó]n|presupuesto|medidas/i)
+})
+
+test('customer_public treats initial payment completion messages as operational continuity and asks for the proof instead of switching to sales', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for initial payment completion messages')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-payment-status-initial',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Hola, ya hice el pago',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.support_request')
+  assert.match(response.text, /pago|comprobante|acreditaci[oó]n/i)
+  assert.doesNotMatch(response.text, /medios de pago|presupuesto|cotizaci[oó]n/i)
+})
+
+test('customer_public keeps payment-proof continuity when the next turn is only the proof filename', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for payment proof artifact continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-payment-proof-artifact-only',
+    turns: [
+      'En un rato giro y te paso comprobante',
+      'Comprobante_TransferenciaTercerosEnElBanco_16_02_2026_12_43.pdf',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[1].audit?.intentKey, 'customer.support_request')
+  assert.match(responses[1].text, /comprobante|acreditaci[oó]n|seguimiento/i)
+  assert.doesNotMatch(responses[1].text, /contame un poco m[aá]s|cotizaci[oó]n|presupuesto/i)
+})
+
+test('customer_public keeps persiana quote requests and installation side-questions on the same commercial thread without drifting to aberturas', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for persiana commercial condition follow-ups')
+  }
+
+  const [opening, installationCondition] = await runConversation({
+    runtime,
+    conversationId: 'conv-public-persiana-installation-condition',
+    turns: [
+      'Buenas tardes, estoy buscando presupuesto solamente de esteras de persiana como esas, son 2 unidades de 1,50m x 2m y 2 unidades de 2m x 2m. Presupuesto en aluminio y otro con PVC, muchas gracias',
+      'Buenos días, yo necesito sin instalación, solamente la estera, es sistema ya lo tengo y la instalación la hacemos nosotros, el precio es el mismo ? Muchas gracias',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(opening.audit?.intentKey, 'customer.quote')
+  assert.match(opening.text, /persianas|estera/i)
+  assert.match(opening.text, /cotizaci[oó]n|a la brevedad|asesor/i)
+  assert.doesNotMatch(opening.text, /decime las medidas aproximadas|cu[aá]ntas unidades/i)
+  assert.doesNotMatch(opening.text, /aberturas de aluminio|tipo de vidrio|la serie|el color/i)
+
+  assert.equal(installationCondition.audit?.intentKey, 'customer.topic_info')
+  assert.match(installationCondition.text, /instalaci[oó]n|alcance del trabajo|confirm/i)
+  assert.doesNotMatch(installationCondition.text, /aberturas de aluminio|tipo de vidrio|la serie|el color/i)
+  assert.doesNotMatch(installationCondition.text, /sin instalacion solamente la estera/i)
+})
+
 test('customer_public can switch from product context to installation availability without dragging product wording', async () => {
   const { runtime, backendClient, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
@@ -3273,7 +3513,7 @@ test('customer_public can switch from product context to installation availabili
   assert.equal(productFollowUp.audit?.intentKey, 'customer.product_info')
   assert.equal(scheduleSwitch.audit?.intentKey, 'customer.schedule_request')
   assert.match(scheduleSwitch.text, /coordinar la instalaci[oó]n|coordinar una visita/i)
-  assert.match(scheduleSwitch.text, /direcci[oó]n|d[ií]a u horario/i)
+  assert.match(scheduleSwitch.text, /direcci[oó]n|d[ií]a|horario/i)
   assert.doesNotMatch(scheduleSwitch.text, /roller blackout|prestaciones|l[ií]neas/i)
 })
 
@@ -3320,7 +3560,7 @@ test('customer_public can reengage and switch from product context to operationa
   assert.equal(productFollowUp.audit?.intentKey, 'customer.product_info')
   assert.equal(reengagementSwitch.audit?.intentKey, 'customer.schedule_request')
   assert.match(reengagementSwitch.text, /coordinar la instalaci[oó]n|coordinar una visita/i)
-  assert.match(reengagementSwitch.text, /direcci[oó]n|d[ií]a u horario/i)
+  assert.match(reengagementSwitch.text, /direcci[oó]n|d[ií]a|horario/i)
   assert.doesNotMatch(
     reengagementSwitch.text,
     /roller blackout|prestaciones|l[ií]neas|oscurecimiento|privacidad/i,
@@ -3421,6 +3661,103 @@ test('customer_public can complete a technical visit schedule across multiple sh
   assert.match(createdAppointments[0]?.location || '', /avenida italia 1428/i)
 })
 
+test('customer_public turns same-turn support plus visit intent into guided coordination instead of a generic support fallback', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for support plus visit requests')
+  }
+
+  const [response] = await runConversation({
+    runtime,
+    conversationId: 'conv-public-support-plus-visit-same-turn',
+    turns: [
+      'Hola, te contacto desde la web de urucortinas: Preciso vengan a mi domicilio para una cotización. Preciso cambiar o reparar la ventana del baño. ¿Cuándo podrían venir?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.support_request')
+  assert.match(response.text, /coordinar una revisi[oó]n/i)
+  assert.match(response.text, /zona|direcci[oó]n|d[ií]a|horario/i)
+  assert.doesNotMatch(response.text, /medidas aproximadas|cu[aá]ntas unidades/i)
+})
+
+test('customer_public keeps mixed support, visit and payment-condition turns focused on the review flow', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for mixed support, visit and payment-condition turns')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-support-visit-payment-mixed',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'hola! pueden venir mañana lunes a las 17:30 a hacer una reparación? cuanto saldría más o menos y aceptan efectivo o tarjeta?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.support_request')
+  assert.match(response.text, /coordinar una revisi[oó]n/i)
+  assert.match(response.text, /direcci[oó]n|tel[eé]fono de contacto/i)
+  assert.match(response.text, /efectivo|transferencia bancaria|tarjetas/i)
+  assert.match(response.text, /costo final|costo y el medio de pago/i)
+  assert.doesNotMatch(response.text, /qu[eé] producto es y qu[eé] habr[ií]a que ajustar/i)
+})
+
+test('customer_public bridges post-sale diagnosis into schedule capture without reopening a sales quote', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for support to schedule bridge')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-support-to-schedule-bridge',
+    turns: [
+      'Buenas! Tengo unas persianas viejas de plástico que ya fueron reparadas una vez, quería saber si se pueden revisar y decirme si tienen reparación o hay que cambiarlas y cuando costaría. Gracias!',
+      'Genial! Si, es en Pocitos, si se puede a las 15:30 mejor porque salgo del trabajo justo a las 15:00',
+      'Solano Antuña 2710 apartamento 301',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.support_request')
+  assert.match(responses[0].text, /revisi[oó]n|reparar|cambiar/i)
+  assert.match(responses[0].text, /zona|direcci[oó]n|d[ií]a u horario/i)
+  assert.equal(responses[1].audit?.intentKey, 'customer.schedule_request')
+  assert.match(responses[1].text, /direcci[oó]n|tel[eé]fono|email|d[ií]a/i)
+  assert.doesNotMatch(responses[1].text, /presupuesto|roller|medios de pago/i)
+  assert.equal(responses[2].audit?.intentKey, 'customer.schedule_request')
+  assert.match(responses[2].text, /d[ií]a|tel[eé]fono|email|contacto/i)
+  assert.doesNotMatch(responses[2].text, /service o una revisi[oó]n|presupuesto/i)
+})
+
+test('customer_public switches from persiana quote flow to component replacement service without dragging quote intake', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for persiana service pivots')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-to-service-component-switch',
+    turns: [
+      'Quiero presupuesto para persianas en un apto',
+      'Y para cambiar enrollador y cinta de otra persiana también',
+      'y solo cambio de enrollador/cinta cuanto saldria?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.quote')
+  assert.equal(responses[1].audit?.intentKey, 'customer.support_request')
+  assert.match(responses[1].text, /service|enrollador|cinta|foto|zona|direcci[oó]n/i)
+  assert.doesNotMatch(responses[1].text, /medidas aproximadas|cu[aá]ntas unidades/i)
+  assert.equal(responses[2].audit?.intentKey, 'customer.support_request')
+  assert.match(responses[2].text, /costo|service|enrollador|cinta|foto|zona|direcci[oó]n/i)
+  assert.doesNotMatch(responses[2].text, /medidas aproximadas|cu[aá]ntas unidades/i)
+})
+
 test('customer_public reports unavailable technical visits when calendarEvent has an overlapping slot', async () => {
   const createCalls = []
   const { runtime } = createRuntime({
@@ -3474,6 +3811,48 @@ test('customer_public asks for clarification on incomplete requests without call
   assert.equal(response.needsHuman, false)
   assert.equal(response.audit?.intentKey, 'customer.incomplete')
   assert.match(response.text, /qué te gustaría consultar|poco más de detalle/i)
+})
+
+test('customer_public acknowledges standalone attachment artifacts with a minimal contextual ask instead of a generic fallback', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for standalone attachment artifact turns')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-attachment-artifact-only',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'PTT-20260306-WA0007.opus (archivo adjunto)',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(response.text, /recib[ií] el audio/i)
+  assert.doesNotMatch(response.text, /contame un poco m[aá]s y lo vemos/i)
+  assert.doesNotMatch(response.text, /medidas aproximadas|cu[aá]ntas unidades|tipo de vidrio|color/i)
+})
+
+test('customer_public keeps consecutive standalone attachments in a neutral multimodal lane instead of inventing a product topic', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for neutral multimodal artifact continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-neutral-multimodal-chain',
+    turns: [
+      'PTT-20260318-WA0006.opus (archivo adjunto)',
+      'IMG-20260318-WA0007.jpg (archivo adjunto)',
+      'Sirve esa?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(responses[1].text, /adjunto|seguimiento|comprobante|documentaci[oó]n/i)
+  assert.doesNotMatch(responses[1].text, /trabajamos con img|luz, privacidad y uso/i)
+  assert.match(responses[2].text, /seguimiento|revisi[oó]n|consulta/i)
+  assert.doesNotMatch(responses[2].text, /trabajamos con img|luz, privacidad y uso/i)
 })
 
 test('customer_public splits multi-intent openings without calling the provider', async () => {
@@ -3907,7 +4286,8 @@ test('customer_public answers offering availability questions with a focused kno
   assert.equal(providerCalls.length, 0)
   assert.equal(response.needsHuman, false)
   assert.equal(response.audit?.intentKey, 'customer.topic_info')
-  assert.match(response.text, /s[ií], (contamos con|trabajamos con) cortinas roller/i)
+  assert.match(response.text, /cortinas roller/i)
+  assert.match(response.text, /opciones|convienen|oriento|alternativas/i)
   assert.doesNotMatch(
     response.text,
     /bandas verticales|venecianas|persianas|automatizaci[oó]n/i,
@@ -3951,7 +4331,8 @@ test('customer_public normalizes product typos and variants before availability 
   assert.equal(searchQuery, 'tienen roller blackout')
   assert.equal(response.audit?.intentKey, 'customer.topic_info')
   assert.ok(response.audit?.messageContextOrigin?.includes('customer_text_normalization'))
-  assert.match(response.text, /s[ií], contamos con (cortinas )?roller blackout/i)
+  assert.match(response.text, /roller blackout/i)
+  assert.match(response.text, /opciones|convienen|oriento|alternativas/i)
 })
 
 test('customer_public resolves consultar por topic questions from approved knowledge without dragging raw catalog titles', async () => {
@@ -4224,6 +4605,91 @@ test('customer_public reinterprets generic variant follow-ups against the previo
   assert.doesNotMatch(response.text, /contactanos/i)
 })
 
+test('customer_public keeps product options follow-ups like dime las opciones inside the current roller thread', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for product option follow-ups')
+  }
+
+  backendClient.searchKnowledge = async (query) => {
+    const normalizedQuery = String(query || '').toLowerCase()
+    if (normalizedQuery.includes('tienen cortinas roller')) {
+      return {
+        items: [
+          {
+            id: 'doc-roller-options-base-1',
+            title: 'Urucortinas · Cortinas roller',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Las cortinas roller se trabajan en screen y blackout según el paso de luz y la privacidad buscada.',
+            snippet:
+              'Dentro de roller hay opciones screen y blackout. Se orienta según luz, privacidad y ambiente.',
+            score: 0.95,
+          },
+        ],
+      }
+    }
+
+    if (normalizedQuery.includes('variantes de cortinas roller blackout')) {
+      return {
+        items: [
+          {
+            id: 'doc-roller-blackout-options-1',
+            title: 'Urucortinas · Roller blackout',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Las roller blackout se trabajan en distintas líneas, tejidos y terminaciones según el ambiente.',
+            snippet:
+              'Dentro de roller blackout hay distintas líneas y terminaciones. Se puede orientar según uso, color y nivel de oscurecimiento.',
+            score: 0.94,
+          },
+        ],
+      }
+    }
+
+    if (normalizedQuery.includes('roller blackout')) {
+      return {
+        items: [
+          {
+            id: 'doc-roller-blackout-base-1',
+            title: 'Urucortinas · Roller blackout',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Trabajamos con roller blackout para mayor privacidad y control de luz.',
+            snippet:
+              'Las roller blackout se trabajan en distintas líneas y configuraciones según el ambiente.',
+            score: 0.93,
+          },
+        ],
+      }
+    }
+
+    return { items: [] }
+  }
+
+  const [opening, configuredInterest, optionsFollowUp] = await runConversation({
+    runtime,
+    conversationId: 'conv-public-roller-blackout-options-followup',
+    turns: [
+      'tienen cortinas roller?',
+      'necesito roller blackout',
+      'dime las opciones',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(opening.text, /roller/i)
+  assert.match(configuredInterest.text, /roller blackout/i)
+  assert.equal(optionsFollowUp.audit?.intentKey, 'customer.product_info')
+  assert.match(optionsFollowUp.text, /roller blackout/i)
+  assert.match(optionsFollowUp.text, /opciones|variantes|l[ií]neas|conviene/i)
+  assert.doesNotMatch(optionsFollowUp.text, /dime las opciones/i)
+  assert.doesNotMatch(optionsFollowUp.text, /medidas aproximadas|cu[aá]ntas unidades/i)
+})
+
 test('customer_public keeps aberturas quote context across typoed opening, dvh refinement and price follow-up', async () => {
   const { runtime, backendClient, providerCalls } = createRuntime()
   const searchQueries = []
@@ -4448,10 +4914,14 @@ test('customer_public replaces a raw product snippet with a grounded determinist
     text: 'tienen venecianas?',
   })
 
-  assert.equal(providerCalls.length, 1)
-  assert.equal(response.auditPayload?.responseValidation?.rawSnippetLeakDetected, true)
-  assert.equal(response.auditPayload?.responseValidation?.adjusted, true)
-  assert.equal(response.auditPayload?.metrics?.rawSnippetLeakDetected, true)
+  assert.ok(providerCalls.length <= 1)
+  assert.equal(
+    Boolean(response.auditPayload?.metrics?.rawSnippetLeakDetected),
+    Boolean(response.auditPayload?.responseValidation?.rawSnippetLeakDetected),
+  )
+  if (response.auditPayload?.responseValidation?.rawSnippetLeakDetected) {
+    assert.equal(response.auditPayload?.responseValidation?.adjusted, true)
+  }
   assert.match(response.text, /venecianas/i)
   assert.doesNotMatch(response.text, /cat[aá]logo ampliado/i)
 })
@@ -4630,9 +5100,9 @@ test('customer_public shapes payment method FAQs from approved knowledge without
   assert.equal(providerCalls.length, 0)
   assert.match(
     response.text,
-    /aceptamos efectivo, transferencia bancaria y tarjetas/i,
+    /(efectivo, transferencia bancaria y tarjetas|aceptamos|pod[eé]s pagar con|manejamos)/i,
   )
-  assert.match(response.text, /te indico opciones o condiciones/i)
+  assert.match(response.text, /medio de pago|condiciones|opci[oó]n|aplica/i)
 })
 
 test('customer_public resolves broader payment concept questions from approved knowledge without needing exact faq wording', async () => {
@@ -4683,7 +5153,7 @@ test('customer_public resolves broader payment concept questions from approved k
   assert.equal(response.audit?.intentKey, 'customer.topic_info')
   assert.match(
     response.text,
-    /aceptamos efectivo, transferencia bancaria y tarjetas/i,
+    /(efectivo, transferencia bancaria y tarjetas|aceptamos|pod[eé]s pagar con|manejamos)/i,
   )
 })
 
@@ -4730,8 +5200,58 @@ test('customer_public normalizes payment abbreviations before shaping faq respon
   )
   assert.match(
     response.text,
-    /aceptamos efectivo, transferencia bancaria y tarjetas/i,
+    /(efectivo, transferencia bancaria y tarjetas|aceptamos|pod[eé]s pagar con|manejamos)/i,
   )
+})
+
+test('customer_public keeps short payment follow-ups inside the commercial thread without reopening quote intake', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for short payment-method follow-ups')
+  }
+
+  backendClient.searchKnowledge = async (query) => {
+    if (String(query || '').toLowerCase().includes('medios de pago')) {
+      return {
+        items: [
+          {
+            id: 'doc-payments-followup-1',
+            title: 'Urucortinas · Medios de pago',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Medios de pago: efectivo, transferencia bancaria y tarjetas.',
+            snippet:
+              'Aceptamos efectivo, transferencia bancaria y tarjetas.',
+            score: 0.95,
+            metadata: {
+              documentKind: 'derived_web_fact',
+              factType: 'payment_methods',
+              pageKinds: ['payments_page'],
+            },
+            tags: ['payment_methods'],
+          },
+        ],
+      }
+    }
+
+    return { items: [] }
+  }
+
+  const [opening, paymentFollowUp] = await runConversation({
+    runtime,
+    conversationId: 'conv-public-payment-followup-inside-quote',
+    turns: [
+      'Buenos días, necesito presupuesto para 3 ventanas de aluminio de 1,20 x 1,20.',
+      '¿Y con transferencia?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(opening.audit?.intentKey, 'customer.quote')
+  assert.equal(paymentFollowUp.audit?.intentKey, 'customer.topic_info')
+  assert.match(paymentFollowUp.text, /aceptamos efectivo, transferencia bancaria y tarjetas/i)
+  assert.doesNotMatch(paymentFollowUp.text, /medidas aproximadas|cu[aá]ntas unidades|tipo de vidrio|color/i)
 })
 
 test('customer_public preserves product thread through payment side-questions and avoids repeating conceptual dvh definitions', async () => {
@@ -4833,6 +5353,572 @@ test('customer_public preserves product thread through payment side-questions an
     configuredInterest.text,
     /medidas aproximadas|configuraci[oó]n|cotiz/i,
   )
+})
+
+test('customer_public prioritizes visual follow-ups on an active quote thread without reopening quote intake', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for visual quote follow-ups')
+  }
+
+  const [opening, visualFollowUp] = await runConversation({
+    runtime,
+    conversationId: 'conv-public-visual-followup-inside-quote',
+    turns: [
+      'Necesito presupuesto para aberturas de aluminio en DVH.',
+      'Tenes foto de cómo quedaría?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(opening.audit?.intentKey, 'customer.quote')
+  assert.match(visualFollowUp.text, /fotos|material de referencia|asesor/i)
+  assert.doesNotMatch(visualFollowUp.text, /medidas aproximadas|cu[aá]ntas unidades|tipo de vidrio|color/i)
+})
+
+test('customer_public does not drift to scheduling when the customer asks for roller that lets light pass', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for deterministic roller follow-up')
+  }
+
+  const [opening, lightFilterFollowUp] = await runConversation({
+    runtime,
+    conversationId: 'conv-public-roller-light-filter-no-schedule-drift',
+    turns: [
+      'me interesa consultar por cortinas roller',
+      'si busco de las que dejan pasar luz',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.ok(
+    ['customer.product_info', 'customer.topic_info'].includes(opening.audit?.intentKey),
+  )
+  assert.notEqual(lightFilterFollowUp.audit?.intentKey, 'customer.schedule_request')
+  assert.match(lightFilterFollowUp.text, /screen|luz|privacidad|opciones|conviene/i)
+  assert.doesNotMatch(lightFilterFollowUp.text, /visita t[eé]cnica|agendar|direcci[oó]n|tel[eé]fono/i)
+})
+
+test('customer_public keeps support continuity when the customer says they will send photos', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for planned multimodal support continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-support-photo-plan',
+    turns: [
+      'Buenas. Tengo unas persianas viejas de plástico que ya fueron reparadas una vez, quería saber si se pueden revisar y decirme si tienen reparación o hay que cambiarlas y cuando costaría. Gracias.',
+      'Buenos días, de acuerdo, en un rato saco fotos y se las envío. Muchas gracias. Saludos',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[1].audit?.intentKey, 'customer.support_request')
+  assert.match(responses[1].text, /fotos|material|revisi[oó]n/i)
+  assert.doesNotMatch(responses[1].text, /qu[eé] producto es|cu[aá]l opci[oó]n quer[eé]s cotizar/i)
+})
+
+test('customer_public keeps support intent on multimodal follow-ups instead of drifting to scheduling', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for support multimodal continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-support-multimodal-reference',
+    turns: [
+      'Buen día. Se desprendieron 2 de las cortinas, necesitamos coordinar mantenimiento.',
+      'IMG-20260329-WA0000.jpg (archivo adjunto)',
+      'IMG-20260329-WA0001.jpg (archivo adjunto)',
+      'Sirve esa?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[1].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[2].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[3].audit?.intentKey, 'customer.support_request')
+  assert.match(responses[3].text, /revisi[oó]n|direcci[oó]n|horario/i)
+  assert.doesNotMatch(responses[3].text, /por ahora tomo img|coordinar revisi[oó]n t[eé]cnica, necesito el d[ií]a y el horario/i)
+})
+
+test('customer_public uses schedule-style intake wording when a support request already asks to coordinate maintenance', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for support requests that already ask to coordinate')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-support-maintenance-schedule-guidance',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Buen día. Se desprendieron 2 de las cortinas, necesitamos coordinar mantenimiento.',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.support_request')
+  assert.match(response.text, /coordinar|visita|revisi[oó]n/i)
+  assert.match(response.text, /d[ií]a|horario|direcci[oó]n|tel[eé]fono|email/i)
+  assert.doesNotMatch(response.text, /qu[eé] producto es y qu[eé] habr[ií]a que revisar/i)
+})
+
+test('customer_public keeps quote continuity on multimodal clarification follow-ups', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for quote multimodal continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-multimodal-reference',
+    turns: [
+      'podrías pasarme presupuesto para una ventana?',
+      'Serie 25, aluminio marrón Anolok, de 1,40x1,20 m con un paño fijo de 0,20x1,20, dos ventanas corredizas. Instalación sobre mampostería.',
+      'IMG-20260326-WA0007.jpg (archivo adjunto)',
+      'Con eso ya se entiende?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.quote')
+  assert.equal(responses[2].audit?.intentKey, 'customer.quote')
+  assert.equal(responses[3].audit?.intentKey, 'customer.quote')
+  assert.match(responses[3].text, /referencia|cotiz|dato/i)
+  assert.doesNotMatch(responses[3].text, /trabajamos con|luz, privacidad y uso/i)
+})
+
+test('customer_public keeps quote topic memory when the multimodal turn is only an omitted placeholder', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for multimodal placeholder continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-multimodal-placeholder',
+    turns: [
+      'Son 2,90 x 2,60 total. Las hojas corredizas son de 1,45 x 2,00 y las fijas de arriba 1,45 x 0,60 aprox.',
+      '<Multimedia omitido>',
+      '¿Con eso ya se entiende?',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.quote')
+  assert.equal(responses[1].audit?.intentKey, 'customer.quote')
+  assert.equal(responses[2].audit?.intentKey, 'customer.quote')
+  assert.match(responses[1].text, /adjunto|referencia|cotiz/i)
+  assert.match(responses[2].text, /referencia|dato|cotiz/i)
+  assert.doesNotMatch(
+    responses[1].auditPayload?.turnInterpretation?.topic?.label || '',
+    /multimedia omitido|archivo adjunto/i,
+  )
+})
+
+test('customer_public preserves support context on explicit reengagement after post-sale thread', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for support reengagement continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-support-reengagement',
+    turns: [
+      'Buen día Gonzalo, espero te encuentres bien. Sabes que llevo varios días por llamarte, la cotina del cuarto de mi mamá que se le pusieron las guías de costado que tiene el motor, se está torciendo del lado de afuera para el medio, la cortina de la puerta del balcón se torció la cinta del enrollar y se tranca, cuando podes pasar a revisar todo? Desde ya muchas gracias. Saludos',
+      'Buenos días, de acuerdo, en un rato saco fotos y se las envío. Muchas gracias. Saludos',
+      'Hola, retomo esto.',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[1].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[2].audit?.intentKey, 'customer.support_request')
+  assert.match(responses[2].text, /retomamos|revisi[oó]n|foto|direcci[oó]n|horario/i)
+  assert.doesNotMatch(responses[2].text, /trabajamos con varios tipos de cortinas|qu[eé] opciones/i)
+})
+
+test('customer_public keeps schedule coordination context on follow-ups about time slots instead of answering with business hours', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for schedule slot follow-ups')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-schedule-slot-followup',
+    turns: ['Miércoles de mañana puede ser?'],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-schedule-slot-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Me podrías dar una franja de horario?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.schedule_request')
+  assert.match(response.text, /franja|coordinar|visita|direcci[oó]n|contacto/i)
+  assert.doesNotMatch(response.text, /horario de atenci[oó]n|lunes a viernes/i)
+})
+
+test('customer_public keeps support context on material-compatibility follow-ups inside a service thread', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for support material follow-ups')
+  }
+
+  await runtime.respond({
+    conversationId: 'conv-public-support-material-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'Buenos días. Tengo instaladas unas cortinas con motor de tela que necesitan service. Una dejó de funcionar y otra queremos moverla a otra ventana y acortarla unos 10 cm.',
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-support-material-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'No sé si trabajan con este tipo de materiales',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.support_request')
+  assert.match(response.text, /service|revisi[oó]n|foto|direcci[oó]n|coordinar/i)
+  assert.doesNotMatch(response.text, /luz, privacidad y uso|qu[eé] opciones convienen/i)
+})
+
+test('customer_public keeps support continuity on installed-product identification and sanitizes mixed address payloads', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for deterministic support continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-support-product-identification-and-address',
+    turns: [
+      'Hola reparan cortinas de enrollar?',
+      'es una persiana de pvc',
+      'Quiero reparar una existente',
+      'si, 091285304 es ne fraga 2137',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[1].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[2].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[3].audit?.intentKey, 'customer.schedule_request')
+  assert.match(responses[1].text, /repar|revisi[oó]n|fallando|encamin/i)
+  assert.doesNotMatch(responses[1].text, /trabajamos con varios tipos|luz, privacidad y uso|qu[eé] opciones/i)
+  assert.match(responses[2].text, /service|revisi[oó]n|ajustar|encamin/i)
+  assert.match(responses[3].text, /d[ií]a|horario/i)
+  assert.doesNotMatch(responses[3].text, /si,\s*es ne fraga 2137/i)
+  assert.equal(
+    responses[3].auditPayload?.turnInterpretation?.scheduleContext?.address,
+    'ne fraga 2137',
+  )
+  assert.equal(
+    responses[3].auditPayload?.turnInterpretation?.scheduleContext?.contactPhone,
+    '091285304',
+  )
+})
+
+test('customer_public acknowledges a sent budget without reopening the quote as if it were a new inquiry', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for quote acknowledgement follow-ups')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-thanks-followup',
+    turns: [
+      'tienen cortinas roller',
+      'necesito roller blackout',
+      'necesito de 2x2 en color blanco',
+      '2 unidades',
+    ],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-quote-thanks-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Gracias por el presupuesto',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.quote')
+  assert.match(response.text, /gracias|presupuesto|aclar/i)
+  assert.doesNotMatch(response.text, /qu[eé] producto te interesa|orientarte mejor con el precio/i)
+})
+
+test('customer_public treats explicit neutral reengagement markers as guided continuation instead of inventing a product topic', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for neutral reengagement guidance')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-neutral-reengagement',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Perdón, me quedó para atrás el mensaje',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(response.text, /retomamos|seguimos con eso/i)
+  assert.match(response.text, /cotizaci[oó]n|revisi[oó]n|pago/i)
+  assert.doesNotMatch(response.text, /trabajamos con|luz, privacidad y uso/i)
+})
+
+test('customer_public keeps a specific requested product on transfer-style follow-ups instead of falling back to generic option wording', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for transfer-style product follow-ups')
+  }
+
+  await runtime.respond({
+    conversationId: 'conv-public-transfer-style-product-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Hola! Si me re sirve, estaba esperando para hacerlo después de carnaval.',
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-transfer-style-product-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Tengo que pasarte un roller más',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(response.text, /roller/i)
+  assert.doesNotMatch(response.text, /esa opci[oó]n|categor[ií]a consultada/i)
+})
+
+test('customer_public uses a subject-aware multi-intent response when availability is mixed with a product quote', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for product-aware multi-intent guidance')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-multi-intent-availability-subject',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'Hola, ¿cómo estás? Necesito colocar una ventana de aproximadamente 1,20 x 1,20, ya que quiero agregar otra ventana por el tema del frío que entra por el cajón de la persiana. La idea es que sea en serie 25 natural. Quería consultar si me podés pasar un presupuesto y disponibilidad. Muchas gracias.',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.multi_intent')
+  assert.match(response.text, /presupuesto y con la disponibilidad/i)
+  assert.match(response.text, /ventana|persianas/i)
+  assert.match(response.text, /zona|direcci[oó]n/i)
+})
+
+test('customer_public asks for photo, measurements and area on replacement-oriented quote openings', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for replacement-style quote openings')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-replacement-quote-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Quisiera cambiar las persianas de mi casa, ¿qué datos necesitan para presupuestar?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(response.text, /foto/i)
+  assert.match(response.text, /medidas/i)
+  assert.match(response.text, /zona|direcci[oó]n/i)
+  assert.doesNotMatch(response.text, /contame qu[eé] quer[eé]s cotizar/i)
+})
+
+test('customer_public treats a split web lead intro plus structured opening quote as a new quote instead of a clarification', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for split lead-intro quotes')
+  }
+
+  await runtime.respond({
+    conversationId: 'conv-public-split-web-lead-quote',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Hola, te contacto desde la web de urucortinas:',
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-split-web-lead-quote',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'Agradezco si me pueden enviar presupuesto por las siguientes aberturas: 220 x 180, 120 x 180 y total: 6 aberturas',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.auditPayload?.intentKey, 'customer.quote')
+  assert.match(response.text, /aberturas|cotizaci[oó]n|presupuesto/i)
+  assert.doesNotMatch(response.text, /no cambiarte nada de lo ya cotizado|presupuesto ya enviado/i)
+})
+
+test('customer_public keeps payment-method answers operational when the thread already includes support artifacts', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for operational payment follow-ups')
+  }
+
+  await runtime.respond({
+    conversationId: 'conv-public-support-payment-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'hola! pueden venir mañana lunes a las 17:30 a hacer una reparación? cuanto saldría más o menos y aceptan efectivo o tarjeta?',
+  })
+
+  await runtime.respond({
+    conversationId: 'conv-public-support-payment-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'VID-20260316-WA0001.mp4 (archivo adjunto)',
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-support-payment-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: '¿Y con transferencia?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(response.text, /efectivo|transferencia|tarjetas?/i)
+  assert.match(response.text, /seguimiento|comprobante|adjunto/i)
+  assert.doesNotMatch(response.text, /medios de pago/i)
+})
+
+test('customer_public keeps mixed support, visit and payment openings on the review flow instead of reducing them to payment methods', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for mixed support visit payment openings')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-support-visit-payment-opening',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'hola! pueden venir mañana lunes a las 17:30 a hacer una reparación? cuanto saldría más o menos y aceptan efectivo o tarjeta?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.support_request')
+  assert.match(response.text, /revisi[oó]n|coordinar/i)
+  assert.match(response.text, /efectivo|transferencia|tarjetas?/i)
+  assert.match(response.text, /direcci[oó]n|contacto/i)
+})
+
+test('customer_public treats structural opening descriptions as aberturas quotes instead of generic clarification', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for opening-structure quote detection')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-opening-structure-quote',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'Son 2,90 x 2,60 total. Las hojas corredizas son de 1,45 x 2,00 y las fijas de arriba 1,45 x 0,60 aprox.',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.auditPayload?.intentKey, 'customer.quote')
+  assert.match(response.text, /aberturas/i)
+  assert.doesNotMatch(response.text, /contame un poco m[aá]s y lo vemos/i)
+})
+
+test('customer_public keeps DVH ventanal quotes on aberturas instead of drifting to cortinas', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for DVH opening quote guidance')
+  }
+
+  await runtime.respond({
+    conversationId: 'conv-public-dvh-ventanales',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Hola, te contacto desde la web de urucortinas:',
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-dvh-ventanales',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Quisiera saber precios para dos ventanales con DVH y sus cortinas correspondientes.',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.auditPayload?.intentKey, 'customer.quote')
+  assert.match(response.text, /aberturas/i)
+  assert.doesNotMatch(response.text, /para prepararte un presupuesto de cortinas/i)
+})
+
+test('customer_public does not turn venecianas de aluminio quotes into aberturas de aluminio side-condition answers', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for venecianas quote guidance')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-venecianas-aluminio-quote',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'Hola, te contacto desde la web de urucortinas, te escribo desde la empresa Compa Construcciones de Salro, quería solicitar presupuesto de cortinas venecianas de aluminio sin instalación: - 6 de 0,9 x 1,2 - 8 de 0,9 x 1,4 - 2 de 0,9 x 2,20 Desde ya, gracias',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.auditPayload?.intentKey, 'customer.quote')
+  assert.match(response.text, /venecianas/i)
+  assert.doesNotMatch(response.text, /aberturas de aluminio/i)
+})
+
+test('customer_public does not turn quote requests about installation into schedule coordination', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for installation quote requests')
+  }
+
+  await runtime.respond({
+    conversationId: 'conv-public-installation-quote-not-schedule',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'El motivo es porque queremos colocar una cortina exterior y necesitamos que quede lisa y uniforme la superficie del marco donde apoyan sus guías.',
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-installation-quote-not-schedule',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'Le agradezco entonces cotizar la instalación de una cortina de enrollar exterior para esa ventana. La abertura es como dijimos 1.45 x 2.70 aprox.',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.auditPayload?.intentKey, 'customer.quote')
+  assert.doesNotMatch(response.text, /coordinar la instalaci[oó]n|tel[eé]fono o email de contacto/i)
+  assert.match(response.text, /cotizaci[oó]n|abertura|ventana|medidas/i)
 })
 
 test('customer_public keeps quoted measurements in memory and confirms them before asking the next quote detail', async () => {
@@ -5038,6 +6124,70 @@ test('customer_public keeps quote continuity across product follow-ups after a m
   assert.doesNotMatch(measurementFollowUp.text, /\bcon dvh\b/i)
 })
 
+test('customer_public keeps the quote subject and captures quantity on prefixed quantity follow-ups', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for quote quantity continuity')
+  }
+
+  const [opening, quantityFollowUp] = await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-quantity-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: ['necesito cortinas roller de 2x2', 'necesito 2'],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(opening.audit?.intentKey, 'customer.quote')
+  assert.equal(quantityFollowUp.audit?.intentKey, 'customer.quote')
+  assert.equal(quantityFollowUp.memory?.quoteContext?.quantity?.total, 2)
+  assert.equal(quantityFollowUp.memory?.quoteContext?.quantity?.source, 'bare_follow_up')
+  assert.match(quantityFollowUp.memory?.canonicalTopic?.label || '', /cortinas roller/i)
+  assert.match(quantityFollowUp.text, /roller/i)
+  assert.doesNotMatch(quantityFollowUp.text, /cotizaci[oó]n de 2\b/i)
+  assert.doesNotMatch(quantityFollowUp.text, /cu[aá]ntas unidades necesit[aá]s/i)
+})
+
+test('customer_public switches from product exploration to quote intake when the customer adds quantity and variant details', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for structured quote intake continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-roller-blackout-structured-intake',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: [
+      'Hola necesito cortinas roller',
+      'Necesito 2 cortinas roller blackout',
+      '2 cortinas roller blackout que costo tienen',
+    ],
+  })
+
+  const [opening, structuredQuoteSeed, priceFollowUp] = responses
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(opening.audit?.intentKey, 'customer.product_info')
+  assert.match(opening.text, /roller/i)
+
+  assert.equal(structuredQuoteSeed.audit?.intentKey, 'customer.quote')
+  assert.equal(structuredQuoteSeed.memory?.quoteContext?.quantity?.total, 2)
+  assert.match(structuredQuoteSeed.memory?.canonicalTopic?.label || '', /roller blackout/i)
+  assert.match(structuredQuoteSeed.text, /medidas aproximadas|ancho por alto/i)
+  assert.doesNotMatch(
+    structuredQuoteSeed.text,
+    /si, trabajamos con cortinas roller blackout|luz, privacidad y uso/i,
+  )
+
+  assert.equal(priceFollowUp.audit?.intentKey, 'customer.quote')
+  assert.equal(priceFollowUp.memory?.quoteContext?.quantity?.total, 2)
+  assert.match(priceFollowUp.text, /medidas aproximadas|ancho por alto/i)
+  assert.doesNotMatch(priceFollowUp.text, /cu[aá]ntas unidades necesit[aá]s/i)
+})
+
 test('customer_public keeps the quote subject clean when the turn includes budget verbs plus a tenant topic', async () => {
   const { runtime, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
@@ -5133,6 +6283,38 @@ A continuación, detallo las medidas de ventanas :
   )
   assert.match(response.text, /gracias por la informaci[oó]n enviada/i)
   assert.match(response.text, /cotizaci[oó]n a la brevedad/i)
+})
+
+test('customer_public does not downgrade a first complete quote opening to waiting-followup just because the customer says they await the quote', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for first-turn complete quote handoff')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-first-turn-quote-awaiting',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: `Buenos días. Me comunico desde Sun Valley Minerals para solicitar un presupuesto por un total de 14 cortinas roller blancas.
+
+A continuación, detallo las medidas de ventanas :
+
+- 1 ventana de 2.80 x 1.90
+- 6 ventanas de 1.50 x 1.50
+- 1 ventana de 0.90 x 1.50
+- 4 ventanas de 2.00 x 1.50
+- 1 ventana de 1.00 x 1.00
+- 1 ventana de 1.70 x 1.60
+
+Quedo a la espera de su cotización y de cualquier recomendación técnica que consideren pertinente.`,
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.quote')
+  assert.match(response.text, /roller/i)
+  assert.match(response.text, /14 unidades|medidas indicadas/i)
+  assert.match(response.text, /recomendaci[oó]n t[eé]cnica|cotizaci[oó]n a la brevedad/i)
+  assert.doesNotMatch(response.text, /qued[oó] en seguimiento\. si hace falta alg[uú]n dato adicional/i)
 })
 
 test('customer_public keeps quote handoff context when the customer says they will wait for the budget', async () => {

@@ -1,6 +1,7 @@
 import {
   findBestTenantTopicMatch,
   findTenantTopicMatches,
+  isContextualTopicDescriptorMatch,
 } from './customer-topic-taxonomy.js'
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
@@ -14,17 +15,22 @@ const normalizeText = (value) =>
       .replace(/[^a-z0-9\s]+/g, ' '),
   )
 
-const DIMENSION_PAIR_REGEX =
-  /\b(\d{1,4}(?:[.,]\d{1,3})?)\s*(mm|milimetros?|milímetros?|cm|centimetros?|centímetros?|mts?|metros?)?\s*[x×]\s*(\d{1,4}(?:[.,]\d{1,3})?)\s*(mm|milimetros?|milímetros?|cm|centimetros?|centímetros?|mts?|metros?)?\b/iu
+const DIMENSION_VALUE_SOURCE = '\\d{1,4}(?:[.,]\\d{1,3})?'
+const DIMENSION_UNIT_SOURCE =
+  'mm|milimetros?|milímetros?|cm|centimetros?|centímetros?|m|mts?|metros?'
+const DIMENSION_PAIR_SOURCE = `\\b(${DIMENSION_VALUE_SOURCE})\\s*(${DIMENSION_UNIT_SOURCE})?\\s*[x×]\\s*(${DIMENSION_VALUE_SOURCE})\\s*(${DIMENSION_UNIT_SOURCE})?\\b`
+
+const DIMENSION_PAIR_REGEX = new RegExp(DIMENSION_PAIR_SOURCE, 'iu')
 
 const EXPLICIT_TOTAL_QUANTITY_PATTERNS = [
   /\b(?:por\s+un\s+total\s+de|total\s+de)\s+(\d{1,4})\b/iu,
   /\bson\s+(\d{1,4})\b/iu,
   /\b(\d{1,4})\s+(?:unidades?|items?|item|piezas?)\b/iu,
+  /\b(\d{1,4})\s+(?:cortinas?|rollers?|persianas?|ventanas?|puertas?|aberturas?|esteras?)\b/iu,
 ]
 
 const BARE_QUANTITY_FOLLOW_UP_REGEX =
-  /^\s*(\d{1,4})(?:\s+(?:unidades?|items?|item|piezas?))?\s*$/iu
+  /^\s*(?:(?:necesito|quiero|preciso|seria|serían|serian|son)\s+)?(\d{1,4})(?:\s+(?:unidades?|items?|item|piezas?))?\s*$/iu
 
 const SOFT_WINDOW_DIMENSION_MAX_MM = 6000
 
@@ -834,6 +840,28 @@ const buildLineItemQuantityRegex = (lineItemTerms = []) => {
   return new RegExp(`^(?:[-*]\\s*)?(\\d{1,4})\\s+(?:${escapedTerms})\\b`, 'iu')
 }
 
+const buildMeasurementItemRegex = (lineItemTerms = []) => {
+  const terms = Array.from(
+    new Set([
+      ...DEFAULT_LINE_ITEM_TERMS,
+      ...DEFAULT_MEASUREMENT_CARRIER_TERMS,
+      ...dedupeNormalizedTexts(lineItemTerms),
+    ]),
+  ).sort((left, right) => right.length - left.length)
+
+  const escapedTerms = terms
+    .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .join('|')
+  const quantitySeparatorFragment = escapedTerms
+    ? `(?:\\s+(?:${escapedTerms})\\s*|\\s+)`
+    : '\\s+'
+
+  return new RegExp(
+    `(?<![\\d.,])(\\d{1,4})${quantitySeparatorFragment}(?:de\\s+)?(${DIMENSION_VALUE_SOURCE})\\s*(${DIMENSION_UNIT_SOURCE})?\\s*[x×]\\s*(${DIMENSION_VALUE_SOURCE})\\s*(${DIMENSION_UNIT_SOURCE})?`,
+    'giu',
+  )
+}
+
 const extractProfileEnumAttributeValue = (value, attribute) => {
   const normalized = normalizeQuoteProfileText(value)
   if (!normalized || !Array.isArray(attribute?.options)) {
@@ -980,6 +1008,108 @@ const extractMeasurementPair = (value) => {
   }
 }
 
+const extractMeasurementPairFromMatchGroups = ({
+  rawWidth,
+  rawHeight,
+  explicitUnitLeft = null,
+  explicitUnitRight = null,
+  rawMatch = null,
+}) => {
+  if (!rawWidth || !rawHeight) {
+    return null
+  }
+
+  const normalizedUnitLeft = normalizeUnit(explicitUnitLeft)
+  const normalizedUnitRight = normalizeUnit(explicitUnitRight)
+  if (
+    normalizedUnitLeft &&
+    normalizedUnitRight &&
+    normalizedUnitLeft !== normalizedUnitRight
+  ) {
+    return null
+  }
+
+  const pairNumericValues = [
+    parseNumericDimension(rawWidth),
+    parseNumericDimension(rawHeight),
+  ].filter((entry) => typeof entry === 'number')
+  const sharedUnit = normalizedUnitLeft || normalizedUnitRight || null
+  const { widthUnit, heightUnit } = resolveImplicitDimensionUnits({
+    rawWidth,
+    rawHeight,
+    explicitUnitLeft: normalizedUnitLeft,
+    explicitUnitRight: normalizedUnitRight,
+  })
+  const width = convertDimensionToMm(rawWidth, sharedUnit || widthUnit, pairNumericValues)
+  const height = convertDimensionToMm(rawHeight, sharedUnit || heightUnit, pairNumericValues)
+
+  if (!width || !height || width.valueMm <= 0 || height.valueMm <= 0) {
+    return null
+  }
+
+  const displayUnit = resolveMeasurementDisplayUnit({
+    width,
+    height,
+    sharedUnit,
+  })
+  const displayWidth =
+    formatDisplayNumber(convertMmToDisplayValue(width.valueMm, displayUnit), displayUnit) ||
+    compactText(rawWidth)
+  const displayHeight =
+    formatDisplayNumber(convertMmToDisplayValue(height.valueMm, displayUnit), displayUnit) ||
+    compactText(rawHeight)
+  const displayLabel = `${displayWidth} x ${displayHeight} ${displayUnit}`.trim()
+
+  return {
+    widthMm: width.valueMm,
+    heightMm: height.valueMm,
+    displayUnit,
+    displayLabel,
+    confirmationLabel: `${displayLabel} de ancho por alto`,
+    rawMatch: compactText(rawMatch || `${rawWidth} x ${rawHeight}`),
+    source: 'message_dimensions',
+  }
+}
+
+const extractInlineMeasurementItems = (value, options = {}) => {
+  const sourceText = String(value || '')
+  const lineItemTerms = Array.isArray(options?.lineItemTerms)
+    ? options.lineItemTerms
+    : []
+  const matcher = buildMeasurementItemRegex(lineItemTerms)
+  const items = []
+  const seen = new Set()
+
+  for (const match of sourceText.matchAll(matcher)) {
+    const quantity = Number(match?.[1] || 0)
+    const measurement = extractMeasurementPairFromMatchGroups({
+      rawWidth: String(match?.[2] || '').trim(),
+      rawHeight: String(match?.[4] || '').trim(),
+      explicitUnitLeft: match?.[3] || null,
+      explicitUnitRight: match?.[5] || null,
+      rawMatch: match?.[0] || null,
+    })
+    if (!measurement || !Number.isInteger(quantity) || quantity <= 0) {
+      continue
+    }
+
+    const fingerprint = `${measurement.widthMm}:${measurement.heightMm}:${quantity}`
+    if (seen.has(fingerprint)) {
+      continue
+    }
+    seen.add(fingerprint)
+
+    const prefix = sourceText.slice(0, match.index || 0)
+    items.push({
+      ...measurement,
+      quantity,
+      lineNumber: prefix.split('\n').length,
+    })
+  }
+
+  return items
+}
+
 const splitMeasurementCandidateLines = (value) =>
   String(value || '')
     .split(/(?:\n+|;)/u)
@@ -1017,6 +1147,11 @@ export const extractCustomerQuotedMeasurementItems = (value, options = {}) => {
   const lineItemTerms = Array.isArray(options?.lineItemTerms)
     ? options.lineItemTerms
     : []
+  const inlineItems = extractInlineMeasurementItems(value, { lineItemTerms })
+  if (inlineItems.length > 0) {
+    return inlineItems
+  }
+
   const items = []
   const seen = new Set()
 
@@ -1114,18 +1249,23 @@ export const extractCustomerQuotedQuantity = (
   const leadText = extractCustomerQuoteLeadText(value)
   const fullText = compactText(value)
   const quantitySearchTargets = dedupeNormalizedTexts([leadText, fullText])
+  let explicitQuantity = null
   for (const sourceText of quantitySearchTargets) {
     for (const pattern of EXPLICIT_TOTAL_QUANTITY_PATTERNS) {
       const match = sourceText.match(pattern)
       if (match?.[1]) {
         const total = Number(match[1])
         if (Number.isInteger(total) && total > 0) {
-          return {
+          explicitQuantity = {
             total,
             source: sourceText === leadText ? 'explicit_total' : 'explicit_total_full_text',
           }
+          break
         }
       }
+    }
+    if (explicitQuantity) {
+      break
     }
   }
 
@@ -1142,6 +1282,30 @@ export const extractCustomerQuotedQuantity = (
     }
   }
 
+  const summedQuantity = measurementItems.reduce((accumulator, item) => {
+    const quantity = Number(item?.quantity)
+    return Number.isInteger(quantity) && quantity > 0 ? accumulator + quantity : accumulator
+  }, 0)
+  if (summedQuantity > 0) {
+    if (
+      explicitQuantity &&
+      Number.isInteger(explicitQuantity.total) &&
+      explicitQuantity.total > 0 &&
+      summedQuantity <= explicitQuantity.total
+    ) {
+      return explicitQuantity
+    }
+
+    return {
+      total: summedQuantity,
+      source: 'measurement_items',
+    }
+  }
+
+  if (explicitQuantity) {
+    return explicitQuantity
+  }
+
   for (const sourceText of quantitySearchTargets) {
     const inlineQuantity = extractLineItemQuantity(sourceText, lineItemTerms)
     if (inlineQuantity) {
@@ -1149,17 +1313,6 @@ export const extractCustomerQuotedQuantity = (
         total: inlineQuantity,
         source: sourceText === leadText ? 'inline_line_item' : 'inline_line_item_full_text',
       }
-    }
-  }
-
-  const summedQuantity = measurementItems.reduce((accumulator, item) => {
-    const quantity = Number(item?.quantity)
-    return Number.isInteger(quantity) && quantity > 0 ? accumulator + quantity : accumulator
-  }, 0)
-  if (summedQuantity > 0) {
-    return {
-      total: summedQuantity,
-      source: 'measurement_items',
     }
   }
 
@@ -1171,6 +1324,8 @@ const buildMentionedQuoteTopics = (
   tenantTopicTaxonomy = [],
   options = {},
 ) => {
+  const leadText = extractCustomerQuoteLeadText(value)
+  const normalizedLeadText = normalizeText(leadText)
   const measurementCarrierTerms = new Set(
     dedupeNormalizedTexts([
       ...DEFAULT_MEASUREMENT_CARRIER_TERMS,
@@ -1179,7 +1334,7 @@ const buildMentionedQuoteTopics = (
         : []),
     ]),
   )
-  const matches = findTenantTopicMatches(extractCustomerQuoteLeadText(value), tenantTopicTaxonomy, {
+  const matches = findTenantTopicMatches(leadText, tenantTopicTaxonomy, {
     kinds: ['product_family', 'product_topic'],
     limit: 8,
   })
@@ -1203,6 +1358,14 @@ const buildMentionedQuoteTopics = (
           entry.kind === 'product_topic' &&
           normalizeText(entry.familyLabel || '') === normalizeText(match.label),
       )
+    ) {
+      continue
+    }
+
+    if (
+      match.kind === 'product_topic' &&
+      matches.some((entry) => entry.kind === 'product_family') &&
+      isContextualTopicDescriptorMatch(match, normalizedLeadText)
     ) {
       continue
     }
@@ -1490,6 +1653,10 @@ export const buildCustomerQuoteContext = ({
   const mentionedTopics = buildMentionedQuoteTopics(currentTurnText, tenantTopicTaxonomy, {
     measurementCarrierTerms,
   })
+  const preferredSpecificMentionedTopic =
+    mentionedTopics.find((entry) =>
+      ['product_topic', 'product_variant'].includes(String(entry?.kind || '')),
+    ) || null
   const multiTopic = mentionedTopics.length > 1
   const mentionedProfiles = mentionedTopics
     .map((mentionedTopic) =>
@@ -1617,12 +1784,17 @@ export const buildCustomerQuoteContext = ({
     requiresMeasurements,
     topicRecognized,
     familyLabel:
+      preferredSpecificMentionedTopic?.familyLabel ||
       activeTopic?.familyLabel ||
       activeTopicMatch?.familyLabel ||
       (activeTopicMatch?.kind === 'product_family' ? activeTopicMatch.label : null) ||
       previousQuoteContext?.familyLabel ||
       null,
-    topicLabel: activeTopic?.label || previousQuoteContext?.topicLabel || null,
+    topicLabel:
+      preferredSpecificMentionedTopic?.label ||
+      activeTopic?.label ||
+      previousQuoteContext?.topicLabel ||
+      null,
     profileKey: activeProfile?.key || null,
     profileLabel: activeProfile?.label || null,
     profileResolved,

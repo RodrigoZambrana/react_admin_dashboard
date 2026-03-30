@@ -4,7 +4,13 @@ import {
   looksLikeCommercialConditionQuestion,
   looksLikeConfiguredProductInterest,
   looksLikeGenericPriceInquiry,
+  looksLikeLightFilterPreferenceRequest,
+  looksLikePaymentOperationalUpdate,
+  looksLikePaymentProofArtifact,
+  looksLikeQuoteClarificationRequest,
+  looksLikeQuoteExpansionFollowUp,
   looksLikeQuoteRequirementsQuestion,
+  looksLikeStructuredQuoteSeed,
   looksLikeQuoteWaitingFollowUp,
 } from '../customer-intent-patterns.js'
 
@@ -22,6 +28,28 @@ const TENANT_TAXONOMY = [
     aliases: ['dvh', 'doble vidrio', 'doble vidrio hermetico'],
     parentLabels: ['aberturas'],
     familyLabel: 'aberturas',
+  },
+  {
+    key: 'product_family:cortina',
+    label: 'cortinas',
+    kind: 'product_family',
+    aliases: ['cortinas', 'cortina'],
+  },
+  {
+    key: 'product_topic:cortinas-roller',
+    label: 'cortinas roller',
+    kind: 'product_topic',
+    aliases: ['cortinas roller', 'roller'],
+    parentLabels: ['cortinas'],
+    familyLabel: 'cortinas',
+  },
+  {
+    key: 'product_variant:blackout',
+    label: 'blackout',
+    kind: 'product_variant',
+    aliases: ['blackout'],
+    parentLabels: ['cortinas roller', 'cortinas'],
+    familyLabel: 'cortinas',
   },
 ]
 
@@ -62,6 +90,19 @@ test('looksLikeQuoteWaitingFollowUp detects wait-for-quote acknowledgements with
   )
 })
 
+test('looksLikeQuoteClarificationRequest detects requests to clarify an already sent budget', () => {
+  assert.equal(
+    looksLikeQuoteClarificationRequest(
+      'Sobre el presupuesto enviado no me quedó claro el total final. ¿Me lo pueden aclarar?',
+    ),
+    true,
+  )
+  assert.equal(
+    looksLikeQuoteClarificationRequest('Necesito cotizar roller blackout'),
+    false,
+  )
+})
+
 test('looksLikeConfiguredProductInterest detects configured interest with tenant topic hints', () => {
   assert.equal(
     looksLikeConfiguredProductInterest(
@@ -76,14 +117,112 @@ test('looksLikeConfiguredProductInterest detects configured interest with tenant
   )
 })
 
+test('looksLikeStructuredQuoteSeed detects quote openings that already include quantity or measurements', () => {
+  assert.equal(
+    looksLikeStructuredQuoteSeed(
+      'Necesito 2 cortinas roller blackout',
+      TENANT_TAXONOMY,
+    ),
+    true,
+  )
+  assert.equal(
+    looksLikeStructuredQuoteSeed(
+      'Quiero una ventana de 1,20x1,20 con DVH',
+      TENANT_TAXONOMY,
+    ),
+    true,
+  )
+  assert.equal(
+    looksLikeStructuredQuoteSeed('Necesito cortinas roller', TENANT_TAXONOMY),
+    false,
+  )
+})
+
 test('looksLikeCommercialConditionQuestion detects side questions about installation or shipping conditions', () => {
   assert.equal(looksLikeCommercialConditionQuestion('¿Incluye instalación?'), true)
+  assert.equal(
+    looksLikeCommercialConditionQuestion(
+      'Yo necesito sin instalación, la hacemos nosotros. ¿El precio es el mismo?',
+    ),
+    true,
+  )
   assert.equal(
     looksLikeCommercialConditionQuestion('¿La garantía viene incluida?'),
     true,
   )
   assert.equal(
     looksLikeCommercialConditionQuestion('¿Qué medios de pago aceptan?'),
+    false,
+  )
+  assert.equal(
+    looksLikeCommercialConditionQuestion(
+      'Quería presupuesto de cortinas venecianas de aluminio sin instalación',
+    ),
+    false,
+  )
+})
+
+test('looksLikeLightFilterPreferenceRequest detects light-filter needs without treating bare pasar as enough', () => {
+  assert.equal(
+    looksLikeLightFilterPreferenceRequest('si busco de las que dejan pasar luz'),
+    true,
+  )
+  assert.equal(
+    looksLikeLightFilterPreferenceRequest('quiero algo donde entre luz'),
+    true,
+  )
+  assert.equal(
+    looksLikeLightFilterPreferenceRequest('cuando pueden pasar'),
+    false,
+  )
+})
+
+test('looksLikeQuoteClarificationRequest does not confuse structured quote submissions with total item counts', () => {
+  assert.equal(
+    looksLikeQuoteClarificationRequest(
+      'Agradezco si me pueden enviar presupuesto por las siguientes aberturas 220 x 180, 120 x 180 y total: 6 aberturas',
+    ),
+    false,
+  )
+})
+
+test('looksLikePaymentOperationalUpdate detects payment completion and proof follow-ups as operational continuity', () => {
+  assert.equal(looksLikePaymentOperationalUpdate('Hola, ya hice el pago'), true)
+  assert.equal(looksLikePaymentOperationalUpdate('Te transferí recién'), true)
+  assert.equal(
+    looksLikePaymentOperationalUpdate('Perfecto, te mando comprobante'),
+    true,
+  )
+  assert.equal(
+    looksLikePaymentOperationalUpdate('¿Qué medios de pago aceptan?'),
+    false,
+  )
+  assert.equal(
+    looksLikePaymentOperationalUpdate('¿Puedo abonar con débito o transferencia?'),
+    false,
+  )
+})
+
+test('looksLikePaymentProofArtifact detects standalone proof filenames as operational continuity', () => {
+  assert.equal(
+    looksLikePaymentProofArtifact(
+      'Comprobante_TransferenciaTercerosEnElBanco_16_02_2026_12_43.pdf',
+    ),
+    true,
+  )
+  assert.equal(looksLikePaymentProofArtifact('catalogo_roller_blackout.pdf'), false)
+})
+
+test('looksLikeQuoteExpansionFollowUp detects add-one-more turns inside quote conversations', () => {
+  assert.equal(
+    looksLikeQuoteExpansionFollowUp(
+      'Tengo que pasarte un roller más',
+      TENANT_TAXONOMY,
+    ),
+    true,
+  )
+  assert.equal(
+    looksLikeQuoteExpansionFollowUp('Quiero saber si trabajan con roller', TENANT_TAXONOMY),
     false,
   )
 })

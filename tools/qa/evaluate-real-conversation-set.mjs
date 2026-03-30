@@ -100,6 +100,9 @@ const toRegExp = (value) => {
   if (regexMatch) {
     return new RegExp(regexMatch[1], regexMatch[2]);
   }
+  if (raw.includes("|")) {
+    return new RegExp(raw, "i");
+  }
   return new RegExp(escapeRegExp(raw), "i");
 };
 

@@ -14,7 +14,7 @@ const TAXONOMY = [
     key: 'product_family:abertura',
     label: 'aberturas',
     kind: 'product_family',
-    aliases: ['aberturas', 'abertura', 'ventana', 'ventanas'],
+    aliases: ['aberturas', 'abertura', 'abertruas', 'ventana', 'ventanas'],
     familyLabel: 'aberturas',
   },
   {
@@ -22,6 +22,15 @@ const TAXONOMY = [
     label: 'cortinas roller',
     kind: 'product_topic',
     aliases: ['cortinas roller', 'roller'],
+    parentKeys: ['product_family:cortina'],
+    parentLabels: ['cortinas'],
+    familyLabel: 'cortinas',
+  },
+  {
+    key: 'product_topic:cortinas-venecianas',
+    label: 'cortinas venecianas',
+    kind: 'product_topic',
+    aliases: ['cortinas venecianas', 'venecianas', 'veneciana'],
     parentKeys: ['product_family:cortina'],
     parentLabels: ['cortinas'],
     familyLabel: 'cortinas',
@@ -103,4 +112,35 @@ test('resolveConversationThreads keeps the selected roller thread through varian
   assert.equal(fourthTurn.measurementOnlyTurn, true)
   assert.match(fourthTurn.activeThread?.resolvedLabel || '', /roller/i)
   assert.match(fourthTurn.activeThread?.resolvedLabel || '', /blackout/i)
+})
+
+test('resolveConversationThreads switches to the explicit aberturas family when the turn names a new family plus a configuration term', () => {
+  const previous = resolveConversationThreads({
+    currentTurnText: 'cortinas roller',
+    tenantTopicTaxonomy: TAXONOMY,
+  })
+
+  const switched = resolveConversationThreads({
+    currentTurnText: 'y abertruas en aluminio tienen?',
+    previousTaskState: {
+      conversationThreads: previous.threads,
+      activeThreadKey: previous.activeThreadKey,
+    },
+    tenantTopicTaxonomy: TAXONOMY,
+  })
+
+  assert.equal(switched.switchDetected, true)
+  assert.match(switched.activeThread?.resolvedLabel || '', /aberturas/i)
+})
+
+test('resolveConversationThreads keeps venecianas de aluminio on the venecianas thread instead of opening aberturas de aluminio', () => {
+  const resolution = resolveConversationThreads({
+    currentTurnText:
+      'Quería solicitar presupuesto de cortinas venecianas de aluminio sin instalación',
+    tenantTopicTaxonomy: TAXONOMY,
+  })
+
+  assert.equal(resolution.requiresDisambiguation, false)
+  assert.match(resolution.activeThread?.resolvedLabel || '', /venecianas/i)
+  assert.doesNotMatch(resolution.activeThread?.resolvedLabel || '', /aberturas de aluminio/i)
 })

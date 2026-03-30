@@ -1,22 +1,50 @@
 import {
   looksLikeGenericPriceInquiry,
+  looksLikePaymentOperationalUpdate,
   looksLikeQuoteRequirementsQuestion,
 } from './customer-intent-patterns.js'
 import { hasTenantTopicSignal } from './customer-topic-taxonomy.js'
+import {
+  detectStandaloneAttachmentArtifactKind,
+  hasMultimodalPlaceholderSignal,
+  hasQuantityOnlyFollowUpSignal,
+  hasReengagementReferenceSignal,
+  normalizeSemanticText,
+} from './customer-semantic-signals.js'
 
 export const extractCurrentCustomerTurnText = (value) =>
   String(value || '')
     .split(/\n+\s*Contexto conversacional reciente relevante:\s*/iu)[0]
-    .trim()
-
-const normalizeText = (value) =>
-  extractCurrentCustomerTurnText(value)
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]+/g, ' ')
+    .replace(/<se edit[oó]\s+este\s+mensaje\.?>/giu, ' ')
+    .replace(/<multimedia\s+omitido>/giu, ' ')
+    .replace(/<imagen\s+omitida>/giu, ' ')
+    .replace(/<audio\s+omitido>/giu, ' ')
+    .replace(/<video\s+omitido>/giu, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+export const extractSemanticCustomerTurnText = (value) => {
+  const current = extractCurrentCustomerTurnText(value)
+  if (!current) {
+    return ''
+  }
+
+  if (
+    hasMultimodalPlaceholderSignal(current) ||
+    detectStandaloneAttachmentArtifactKind(current)
+  ) {
+    return ''
+  }
+
+  return current
+}
+
+export const stripPlaceholderOnlyCustomerTurnText = (value) => {
+  return extractSemanticCustomerTurnText(value)
+}
+
+const normalizeText = (value) =>
+  normalizeSemanticText(stripPlaceholderOnlyCustomerTurnText(value))
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
@@ -97,7 +125,7 @@ const BUSINESS_FAQ_DEFINITIONS = [
   {
     subtype: 'contact',
     directPatterns: [
-      /\b(telefono|teléfono|celular|whatsapp|numero de contacto|número de contacto|correo|mail|email|contacto)\b/,
+      /\b(telefono|teléfono|celular|whatsapp|numero de contacto|número de contacto|correo|mail|email|datos? de contacto)\b/,
       /\b(tienen|manejan)\s+(telefono|teléfono|whatsapp|mail|email)\b/,
       /\b(hablar con alguien|comunicarme|comunicarse|llamar)\b/,
     ],
@@ -119,7 +147,66 @@ const BUSINESS_FAQ_DEFINITIONS = [
     knowledgeTagStems: ['contact', 'phone', 'email', 'whatsapp'],
     knowledgeCueStems: ['whatsapp', 'telefono', 'email', '@'],
   },
-] 
+]
+
+const PAYMENT_METHOD_SHORT_FOLLOW_UP_PATTERNS = [
+  /^(?:y\s+)?con\s+(transferencia|transferencia bancaria|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\??$/iu,
+  /^(?:y\s+)?(transferencia|transferencia bancaria|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\??$/iu,
+  /^(?:aceptan|manejan|trabajan con)\s+(transferencia|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\??$/iu,
+]
+
+const PAYMENT_METHOD_CONTEXT_INTENTS = new Set([
+  'customer.quote',
+  'customer.price_inquiry',
+  'customer.product_info',
+  'customer.topic_info',
+  'customer.schedule_request',
+  'customer.support_request',
+])
+
+const looksLikeShortPaymentMethodFollowUp = (input, options = {}) => {
+  const normalizedInput = normalizeText(input)
+  if (!normalizedInput || looksLikePaymentOperationalUpdate(normalizedInput)) {
+    return false
+  }
+
+  if (
+    PAYMENT_METHOD_SHORT_FOLLOW_UP_PATTERNS.some((pattern) =>
+      pattern.test(normalizedInput),
+    )
+  ) {
+    return true
+  }
+
+  const previousIntentKey =
+    typeof options?.previousIntentKey === 'string'
+      ? options.previousIntentKey.trim()
+      : ''
+
+  if (!PAYMENT_METHOD_CONTEXT_INTENTS.has(previousIntentKey)) {
+    return false
+  }
+
+  const inputTokens = tokenizeSignalText(normalizedInput)
+  const paymentDefinition = BUSINESS_FAQ_DEFINITIONS.find(
+    (definition) => definition.subtype === 'payment_methods',
+  )
+  if (!paymentDefinition) {
+    return false
+  }
+
+  const conceptMatches = countStemMatches(
+    inputTokens,
+    paymentDefinition.conceptStems,
+  )
+  const shortQuestionLike =
+    normalizedInput.length <= 48 &&
+    (/^\s*y\b/.test(normalizedInput) ||
+      /\?$/.test(String(input || '').trim()) ||
+      /\bcon\b/.test(normalizedInput))
+
+  return conceptMatches >= 1 && shortQuestionLike
+}
 
 const CUSTOMER_TRANSACTIONAL_PATTERNS = [
   /\b(stock|disponibilidad|pedido|orden|envio|entrega|comprar|quiero una|quiero uno|medida|medidas)\b/,
@@ -165,6 +252,24 @@ const COMMON_CUSTOMER_SIGNAL_TOKENS = new Set([
   'cotizacion',
   'presupuesto',
 ])
+
+const PRIVATE_ACCOUNT_FAQ_GUARD_PATTERNS = [
+  /\b(mi direccion|direccion de entrega|domicilio de entrega)\b/u,
+  /\b(mi factura|mis facturas|factura de mi pedido|facturas de mi cuenta)\b/u,
+  /\b(mi correo|mi email|mail del sistema|correo del sistema|email del sistema)\b/u,
+  /\b(mi cuenta|datos de cuenta|mis datos)\b/u,
+]
+
+const looksLikePrivateAccountFaqGuard = (input) => {
+  const normalizedInput = normalizeText(input)
+  if (!normalizedInput) {
+    return false
+  }
+
+  return PRIVATE_ACCOUNT_FAQ_GUARD_PATTERNS.some((pattern) =>
+    pattern.test(normalizedInput),
+  )
+}
 
 const singularizeToken = (token) => {
   const value = String(token || '').trim()
@@ -281,6 +386,10 @@ const detectBusinessFaqSubtype = (input, options = {}) => {
     ? options.retrievalItems
     : []
 
+  if (looksLikeShortPaymentMethodFollowUp(input, options)) {
+    return 'payment_methods'
+  }
+
   let bestMatch = null
   for (const definition of BUSINESS_FAQ_DEFINITIONS) {
     const score = scoreBusinessFaqDefinition(definition, input, retrievalItems)
@@ -316,7 +425,7 @@ export const looksLikeCustomerAvailabilityQuestion = (text) =>
   )
 
 export const looksLikeCustomerVariantQuestion = (text) =>
-  /\b((que|qué)\s+(tipos|opciones|variantes|lineas|líneas|modelos)\s+(tienen|hay|manejan)|cuales\s+(tienen|hay|manejan)|cu[aá]les\s+(tienen|hay|manejan)|((que|qué)\s+(versiones|formatos)\s+(tienen|hay)))\b/i.test(
+  /\b((que|qué)\s+(tipos|opciones|variantes|lineas|líneas|modelos)\s+(tienen|hay|manejan)|cuales\s+(tienen|hay|manejan)|cu[aá]les\s+(tienen|hay|manejan)|((que|qué)\s+(versiones|formatos)\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\s+(las\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\b/i.test(
     extractCurrentCustomerTurnText(text),
   )
 
@@ -424,6 +533,10 @@ export const looksLikeCustomerUnintelligibleText = (text) => {
 }
 
 export const detectCustomerFaqSubtype = (input, options = {}) => {
+  if (looksLikePrivateAccountFaqGuard(input)) {
+    return null
+  }
+
   const businessSubtype = detectBusinessFaqSubtype(input, options)
   if (businessSubtype) {
     return businessSubtype
@@ -471,14 +584,26 @@ const normalizeRequestedTopicLabel = (value) =>
           /^(?:precio|precios|presupuesto|presupuestos|cotizacion|cotización|cotizaciones|costo|costos|valor|valores|importe|importes|monto|montos)\s+/iu,
           '',
         )
+        .replace(
+          /^(?:tengo\s+que\s+(?:pasarte|mandarte|sumarte|agregarte)|te\s+(?:paso|mando|sumo|agrego)|(?:pasarte|mandarte|sumarte|agregarte))\s+(?:un|una|otro|otra)\s+/iu,
+          '',
+        )
         .replace(/^(?:(?:si|sí|y|las|los|la|el)\s+){1,4}/iu, '')
-        .replace(/^(de|del|la|las|el|los)\s+/iu, ''),
+        .replace(/^(de|del|la|las|el|los)\s+/iu, '')
+        .replace(/\s+(?:mas|más)$/iu, ''),
     ),
   )
 
 export const extractRequestedTopicLabel = (input) => {
   const currentInput = extractCurrentCustomerTurnText(input)
-  if (looksLikeQuoteRequirementsQuestion(currentInput)) {
+  const semanticInput = extractSemanticCustomerTurnText(input)
+  if (
+    !semanticInput ||
+    hasQuantityOnlyFollowUpSignal(semanticInput) ||
+    hasReengagementReferenceSignal(currentInput) ||
+    looksLikeQuoteRequirementsQuestion(semanticInput) ||
+    looksLikePaymentOperationalUpdate(semanticInput)
+  ) {
     return null
   }
 
@@ -495,7 +620,7 @@ export const extractRequestedTopicLabel = (input) => {
   ]
 
   for (const pattern of patterns) {
-    const match = currentInput.match(pattern)
+    const match = semanticInput.match(pattern)
     if (match?.[1]) {
       const candidate = normalizeRequestedTopicLabel(match[1])
       if (candidate && !isGenericRequestedTopicLabel(candidate)) {
@@ -504,7 +629,7 @@ export const extractRequestedTopicLabel = (input) => {
     }
   }
 
-  const shortFollowUpMatch = currentInput.match(
+  const shortFollowUpMatch = semanticInput.match(
     /^(?:y\s+)?([a-záéíóúñ0-9][a-záéíóúñ0-9\s-]{1,48})\??$/iu,
   )
   if (shortFollowUpMatch?.[1]) {
@@ -512,7 +637,7 @@ export const extractRequestedTopicLabel = (input) => {
     if (
       candidate &&
       !isGenericRequestedTopicLabel(candidate) &&
-      !/\b(info|informacion|consulta|consultar|ayuda|algo|eso|esto|mismo|estoy|buscando|busco|necesito|quiero|me interesa|me interesan|que tipos tienen|qué tipos tienen|que opciones tienen|qué opciones tienen|que variantes tienen|qué variantes tienen|cuales tienen|cuáles tienen|que tipos hay|qué tipos hay|que opciones hay|qué opciones hay|que variantes hay|qué variantes hay|que datos necesitas para cotizar|qué datos necesitas para cotizar|que informacion necesitas para cotizar|qué información necesitas para cotizar|que medidas necesitas para cotizar|qué medidas necesitas para cotizar)\b/iu.test(
+      !/\b(info|informacion|consulta|consultar|ayuda|algo|eso|esto|mismo|estoy|buscando|busco|necesito|quiero|me interesa|me interesan|que tipos tienen|qué tipos tienen|que opciones tienen|qué opciones tienen|que variantes tienen|qué variantes tienen|cuales tienen|cuáles tienen|que tipos hay|qué tipos hay|que opciones hay|qué opciones hay|que variantes hay|qué variantes hay|que datos necesitas para cotizar|qué datos necesitas para cotizar|que informacion necesitas para cotizar|qué información necesitas para cotizar|que medidas necesitas para cotizar|qué medidas necesitas para cotizar|(?:dime|decime|mostrame|mu[eé]strame|pasame)\s+(?:las\s+)?(?:opciones|variantes|tipos|modelos|versiones|formatos))\b/iu.test(
         candidate,
       )
     ) {

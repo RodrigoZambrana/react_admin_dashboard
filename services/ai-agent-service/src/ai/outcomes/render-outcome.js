@@ -1,12 +1,22 @@
 import {
+  looksLikePaymentOperationalUpdate,
+  looksLikePaymentProofArtifact,
+  looksLikePaymentProofFollowUpRequest,
+  looksLikeQuoteClarificationRequest,
   looksLikeQuoteRequirementsQuestion,
   looksLikeQuoteWaitingFollowUp,
 } from '../intents/customer-intent-patterns.js'
+import { looksLikeCustomerSupportComponentReplacementRequest } from '../intents/customer-operational-heuristics.js'
 import {
   formatQuoteResolutionAmount,
   formatQuoteResolutionArea,
 } from '../intents/customer-quote-resolution.js'
-import { extractTenantFamilyLabel } from '../intents/customer-topic-taxonomy.js'
+import {
+  extractTenantFamilyLabel,
+  findBestTenantTopicMatch,
+  isContextualTopicDescriptorMatch,
+} from '../intents/customer-topic-taxonomy.js'
+import { detectStandaloneAttachmentArtifactKind } from '../intents/customer-semantic-signals.js'
 import { localePrefersEnglish, normalizeChatLocale } from '../locale-format.js'
 import { pickWordingVariant } from './wording-registry.js'
 
@@ -19,6 +29,19 @@ const normalizeLightInput = (value) =>
     .trim()
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+
+const looksLikeMetaQuoteQuestion = (value) => {
+  const normalized = normalizeLightInput(value)
+  if (!normalized) {
+    return false
+  }
+
+  return (
+    /\b(?:en|de)?\s*que\s+pued(?:o|es|e|en)\s+cotizar\b/u.test(normalized) ||
+    /\bque\s+me\s+pued(?:e|en)\s+cotizar\b/u.test(normalized) ||
+    /\ben\s+que\s+trabajan\b/u.test(normalized)
+  )
+}
 
 const trimTrailingSentencePunctuation = (value) =>
   compactText(String(value || '').replace(/[,\s.;:]+$/g, ''))
@@ -173,6 +196,23 @@ export const buildCustomerUnintelligibleText = () =>
 
 export const buildCustomerIncompleteText = (input) => {
   const normalized = normalizeLightInput(input)
+  const attachmentArtifactKind = detectStandaloneAttachmentArtifactKind(input)
+
+  if (attachmentArtifactKind === 'audio') {
+    return 'Recibí el audio. Si querés, decime en una línea qué necesitás revisar y lo seguimos por acá.'
+  }
+
+  if (attachmentArtifactKind === 'image') {
+    return 'Recibí la imagen. Si querés, contame en una línea qué necesitás ver o cotizar y seguimos por acá.'
+  }
+
+  if (attachmentArtifactKind === 'video') {
+    return 'Recibí el video. Si querés, decime en una línea qué necesitás revisar o cotizar y seguimos por acá.'
+  }
+
+  if (attachmentArtifactKind === 'document') {
+    return 'Recibí el archivo. Si querés, indicame en una línea qué necesitás revisar y lo seguimos por acá.'
+  }
 
   if (/^(necesito|preciso)\b/.test(normalized)) {
     return 'Claro. ¿Qué necesitas exactamente?'
@@ -187,18 +227,22 @@ export const buildCustomerIncompleteText = (input) => {
 
 const resolveQuoteSubjectLabel = (interpretation = null, tenantTopicTaxonomy = []) => {
   const currentTopicType = String(interpretation?.topic?.type || '')
-  const currentTopic =
+  const currentTopicRaw =
     interpretation?.topic &&
     ['product_family', 'product_topic', 'product_variant'].includes(currentTopicType)
       ? interpretation.topic.label
       : null
-  const currentContextTopic =
+  const currentContextTopicRaw =
     interpretation?.contextTopic &&
     ['product_family', 'product_topic', 'product_variant'].includes(
       String(interpretation.contextTopic.type || ''),
     )
       ? interpretation.contextTopic.label
       : null
+  const currentTopic = looksLikeMetaQuoteQuestion(currentTopicRaw) ? null : currentTopicRaw
+  const currentContextTopic = looksLikeMetaQuoteQuestion(currentContextTopicRaw)
+    ? null
+    : currentContextTopicRaw
   const referenceText = [
     currentContextTopic,
     currentTopic,
@@ -209,6 +253,41 @@ const resolveQuoteSubjectLabel = (interpretation = null, tenantTopicTaxonomy = [
     extractTenantFamilyLabel(referenceText, tenantTopicTaxonomy) ||
     interpretation?.quoteContext?.familyLabel ||
     null
+  const currentTurnSpecificTopic = findBestTenantTopicMatch(
+    interpretation?.currentTurnText || '',
+    tenantTopicTaxonomy,
+    {
+      kinds: ['product_topic', 'product_variant'],
+    },
+  )
+  const currentTurnSpecificTopicIsContextualDescriptor = isContextualTopicDescriptorMatch(
+    currentTurnSpecificTopic,
+    interpretation?.currentTurnText || '',
+  )
+  const currentTurnSpecificTopicAlias = normalizeLightInput(
+    currentTurnSpecificTopic?.matchedAlias || '',
+  )
+  const currentTurnSpecificTopicConflictsWithContext =
+    currentTurnSpecificTopic?.kind === 'product_topic' &&
+    currentTurnSpecificTopicAlias &&
+    !currentTurnSpecificTopicAlias.includes(' ') &&
+    currentTurnSpecificTopic?.familyLabel &&
+    familyLabel &&
+    normalizeLightInput(currentTurnSpecificTopic.familyLabel) !==
+      normalizeLightInput(familyLabel) &&
+    new RegExp(
+      `\\b(?:en|con|sin|otro\\s+con|otra\\s+con)\\s+${currentTurnSpecificTopicAlias.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`,
+      'i',
+    ).test(normalizeLightInput(interpretation?.currentTurnText || ''))
+
+  if (
+    currentTurnSpecificTopic?.label &&
+    !currentTurnSpecificTopicIsContextualDescriptor &&
+    !currentTurnSpecificTopicConflictsWithContext &&
+    (currentTopicType === 'product_family' || !currentTopic)
+  ) {
+    return currentTurnSpecificTopic.label
+  }
 
   if (
     currentTopic &&
@@ -219,9 +298,15 @@ const resolveQuoteSubjectLabel = (interpretation = null, tenantTopicTaxonomy = [
     return `${familyLabel} ${currentTopic}`.replace(/\s+/g, ' ').trim()
   }
 
+  const quoteContextTopicLabel = looksLikeMetaQuoteQuestion(
+    interpretation?.quoteContext?.topicLabel,
+  )
+    ? null
+    : interpretation?.quoteContext?.topicLabel
+
   return (
     currentTopic ||
-    interpretation?.quoteContext?.topicLabel ||
+    quoteContextTopicLabel ||
     familyLabel ||
     currentContextTopic ||
     interpretation?.quoteContext?.familyLabel ||
@@ -249,6 +334,70 @@ const formatQuoteMissingFields = (missingAttributes = []) => {
     return `${labels[0]} y ${labels[1]}`
   }
   return `${labels.slice(0, -1).join(', ')} y ${labels.at(-1)}`
+}
+
+const formatQuoteMeasurementSummary = (quoteContext = null) => {
+  const items = Array.isArray(quoteContext?.measurementItems)
+    ? quoteContext.measurementItems.filter((entry) => entry?.displayLabel)
+    : []
+
+  if (items.length > 1) {
+    return 'con las medidas indicadas'
+  }
+
+  const singleMeasurement =
+    compactText(quoteContext?.measurements?.displayLabel || '') ||
+    compactText(items[0]?.displayLabel || '')
+
+  if (!singleMeasurement) {
+    return null
+  }
+
+  return `de ${singleMeasurement}`
+}
+
+const buildQuoteHandoffSummary = ({
+  quoteContext = null,
+  subject = 'la configuración solicitada',
+}) => {
+  const quantity =
+    typeof quoteContext?.quantity?.total === 'number' &&
+    Number.isFinite(quoteContext.quantity.total) &&
+    quoteContext.quantity.total > 0
+      ? quoteContext.quantity.total
+      : null
+  const measurementSummary = formatQuoteMeasurementSummary(quoteContext)
+
+  if (quantity && measurementSummary) {
+    return `para ${quantity} ${quantity === 1 ? 'unidad' : 'unidades'} de ${subject} ${measurementSummary}`.replace(
+      /\s+/g,
+      ' ',
+    ).trim()
+  }
+
+  if (quantity) {
+    return `para ${quantity} ${quantity === 1 ? 'unidad' : 'unidades'} de ${subject}`.replace(
+      /\s+/g,
+      ' ',
+    ).trim()
+  }
+
+  if (measurementSummary) {
+    return `para ${subject} ${measurementSummary}`.replace(/\s+/g, ' ').trim()
+  }
+
+  return `para ${subject}`
+}
+
+const buildQuoteTechnicalReviewTail = (interpretation = null, locale = 'es-UY') => {
+  const currentTurnText = compactText(interpretation?.currentTurnText || '')
+  if (!/\b(dividir|partes|apertura|recomendacion|recomendación|tecnica|técnica)\b/i.test(currentTurnText)) {
+    return ''
+  }
+
+  return localePrefersEnglish(locale)
+    ? ' If any technical recommendation or split suggestion is needed, an advisor will include it in the follow-up.'
+    : ' Si hace falta alguna recomendación técnica o definir cómo conviene dividirlo, un asesor lo revisa en el seguimiento.'
 }
 
 const buildQuoteAttributeMaps = (quoteContext = null) => {
@@ -379,12 +528,52 @@ const buildQuoteProgressText = ({
           'Perfecto. Quedó en seguimiento. Si hace falta algún dato adicional, te lo piden por aquí.',
       })
     }
-    return pickWordingVariant({
+    const quantity = Number(quoteContext?.quantity?.total || 0)
+    const measurementItems = Array.isArray(quoteContext?.measurementItems)
+      ? quoteContext.measurementItems
+      : []
+    const detailParts = []
+
+    if (quantity > 0) {
+      detailParts.push(quantity === 1 ? '1 unidad' : `${quantity} unidades`)
+    }
+
+    if (measurementItems.length > 1) {
+      detailParts.push(
+        measurementItems.length === 1
+          ? 'la medida indicada'
+          : `${measurementItems.length} medidas indicadas`,
+      )
+    } else if (measurementLabel) {
+      detailParts.push(measurementLabel)
+    }
+
+    const handoffIntro =
+      detailParts.length > 0
+        ? decoratedSubject
+          ? `Perfecto. Ya tengo ${detailParts.join(' y ')} para ${decoratedSubject}.`
+          : `Perfecto. Ya tengo ${detailParts.join(' y ')} para la solicitud.`
+        : decoratedSubject
+          ? `Perfecto. Ya quedó encaminada la solicitud de ${decoratedSubject}.`
+          : 'Perfecto. Ya quedó encaminada la solicitud.'
+
+    const readyHandoffClose = pickWordingVariant({
       key: 'customer.quote.handoff_ready',
       variationSeed,
       overrides: wordingOverrides,
       fallback:
-        'Gracias por la información enviada. Le enviamos la cotización a la brevedad. Si hace falta algún dato adicional, un asesor del equipo se comunica para continuar.',
+        'Le enviamos la cotización a la brevedad. Si hace falta algún dato adicional, un asesor del equipo se comunica para continuar.',
+    })
+    return `${handoffIntro} ${readyHandoffClose}`.trim()
+  }
+
+  if (looksLikeQuoteClarificationRequest(currentTurnText)) {
+    return pickWordingVariant({
+      key: 'customer.quote.clarification_followup',
+      variationSeed,
+      overrides: wordingOverrides,
+      fallback:
+        'Claro. Para no cambiarte nada de lo ya cotizado, dejo la aclaración en seguimiento para revisión del total y de los detalles a la brevedad.',
     })
   }
 
@@ -536,6 +725,26 @@ export const buildCustomerQuoteRequestText = (input, options = {}) => {
     interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
       ? interpretation.quoteContext
       : null
+  const quoteWaitingFollowUp =
+    looksLikeQuoteWaitingFollowUp(normalized) &&
+    Boolean(
+      quoteContext?.measurements ||
+        (Array.isArray(quoteContext?.measurementItems) &&
+          quoteContext.measurementItems.length > 0) ||
+        Number(quoteContext?.quantity?.total || 0) > 0 ||
+        interpretation?.contextTopic?.label,
+    )
+
+  if (quoteWaitingFollowUp) {
+    return buildCustomerQuoteWaitingFollowUpText({
+      input,
+      variationSeed: options?.variationSeed,
+      wordingOverrides: options?.wordingOverrides,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+    })
+  }
+
   const quoteProgressText = buildQuoteProgressText({
     mode: 'quote',
     currentTurnText: input,
@@ -586,6 +795,10 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
     options?.interpretation && typeof options.interpretation === 'object'
       ? options.interpretation
       : null
+  const interpretedSubject = resolveQuoteSubjectLabel(
+    interpretation,
+    Array.isArray(options?.tenantTopicTaxonomy) ? options.tenantTopicTaxonomy : [],
+  )
   const quoteContext =
     interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
       ? interpretation.quoteContext
@@ -593,8 +806,8 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
   const locale = normalizeChatLocale(options?.locale)
   const prefersEnglish = localePrefersEnglish(locale)
   const baseSubject =
+    interpretedSubject ||
     compactText(resolution.subjectLabel || '') ||
-    resolveQuoteSubjectLabel(interpretation, Array.isArray(options?.tenantTopicTaxonomy) ? options.tenantTopicTaxonomy : []) ||
     'la configuración solicitada'
   const exactProductLabel = compactText(resolution?.productMatch?.name || '')
   const resolvedSubjectBase =
@@ -603,6 +816,11 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
       : baseSubject
   const decoratedSubject =
     buildDecoratedQuoteSubject(resolvedSubjectBase, quoteContext) || resolvedSubjectBase
+  const handoffSummary = buildQuoteHandoffSummary({
+    quoteContext,
+    subject: decoratedSubject,
+  })
+  const technicalReviewTail = buildQuoteTechnicalReviewTail(interpretation, locale)
   const quantity =
     typeof resolution.quantity === 'number' && Number.isFinite(resolution.quantity)
       ? resolution.quantity
@@ -631,28 +849,28 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
     if (resolution.productNotFoundSubtype === 'catalog_present_but_strategy_unavailable') {
       return (
         prefersEnglish
-          ? `I already have the information needed for a quote for ${decoratedSubject}. Right now I cannot find a published configuration with immediate pricing to resolve it automatically. ${readyHandoffClose}`
-          : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. En este momento no encuentro una configuración publicada con precio inmediato para resolverla automáticamente. ${readyHandoffClose}`
+          ? `I already have the information needed ${handoffSummary}. Right now I cannot find a published configuration with immediate pricing to resolve it automatically.${technicalReviewTail} ${readyHandoffClose}`
+          : `Ya tengo los datos necesarios ${handoffSummary}. En este momento no encuentro una configuración publicada con precio inmediato para resolverla automáticamente.${technicalReviewTail} ${readyHandoffClose}`
       ).trim()
     }
     if (resolution.productNotFoundSubtype === 'catalog_present_without_immediate_price') {
       return (
         prefersEnglish
-          ? `I already have the information needed for a quote for ${decoratedSubject}. There is a catalog option, but it does not have an immediate published price to answer you right away. ${readyHandoffClose}`
-          : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Existe una opción en catálogo, pero no tiene un precio inmediato publicado para responderte en el momento. ${readyHandoffClose}`
+          ? `I already have the information needed ${handoffSummary}. There is a catalog option, but it does not have an immediate published price to answer you right away.${technicalReviewTail} ${readyHandoffClose}`
+          : `Ya tengo los datos necesarios ${handoffSummary}. Existe una opción en catálogo, pero no tiene un precio inmediato publicado para responderte en el momento.${technicalReviewTail} ${readyHandoffClose}`
       ).trim()
     }
     if (resolution.productNotFoundSubtype === 'catalog_missing_but_known_in_knowledge') {
       return (
         prefersEnglish
-          ? `I can guide you with the general information available about ${decoratedSubject}, but I do not currently have a published configuration with immediate pricing. ${readyHandoffClose}`
-          : `Puedo orientarte con información general disponible sobre ${decoratedSubject}, pero ahora no tengo una configuración publicada con precio inmediato. ${readyHandoffClose}`
+          ? `I can guide you with the general information available about ${decoratedSubject}, but I do not currently have a published configuration with immediate pricing.${technicalReviewTail} ${readyHandoffClose}`
+          : `Puedo orientarte con información general disponible sobre ${decoratedSubject}, pero ahora no tengo una configuración publicada con precio inmediato.${technicalReviewTail} ${readyHandoffClose}`
       ).trim()
     }
     return (
       prefersEnglish
-        ? `I already have the information needed for a quote for ${decoratedSubject}. Right now I cannot find a published option with immediate pricing for that configuration. ${readyHandoffClose}`
-        : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. En este momento no encuentro una opción publicada con precio inmediato para esa configuración. ${readyHandoffClose}`
+        ? `I already have the information needed ${handoffSummary}. Right now I cannot find a published option with immediate pricing for that configuration.${technicalReviewTail} ${readyHandoffClose}`
+        : `Ya tengo los datos necesarios ${handoffSummary}. En este momento no encuentro una opción publicada con precio inmediato para esa configuración.${technicalReviewTail} ${readyHandoffClose}`
     ).trim()
   }
 
@@ -660,18 +878,18 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
     if (resolution.detail === 'immediate_preview_unavailable') {
       return (
         prefersEnglish
-          ? `I already have the information needed for a quote for ${decoratedSubject}. Since there is no reliable automatic calculation available right now, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
-          : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Como no hay una resolución automática confiable para calcularla en este momento, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
+          ? `I already have the information needed ${handoffSummary}. Since there is no reliable automatic calculation available right now,${technicalReviewTail} ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
+          : `Ya tengo los datos necesarios ${handoffSummary}. Como no hay una resolución automática confiable para calcularla en este momento,${technicalReviewTail} ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
       ).trim()
     }
     if (resolution.detail === 'external_parametric_quote_required') {
       return (
         prefersEnglish
-          ? `I already have the information needed for a quote for ${decoratedSubject}. Since this configuration requires external review and quoting, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
-          : `Ya tengo los datos necesarios para la cotización de ${decoratedSubject}. Como esta configuración requiere revisión y cotización externa, ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
+          ? `I already have the information needed ${handoffSummary}. Since this configuration requires external review and quoting,${technicalReviewTail} ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
+          : `Ya tengo los datos necesarios ${handoffSummary}. Como esta configuración requiere revisión y cotización externa,${technicalReviewTail} ${readyHandoffClose.charAt(0).toLowerCase()}${readyHandoffClose.slice(1)}`
       ).trim()
     }
-    return readyHandoffClose
+    return `${readyHandoffClose}${technicalReviewTail}`.trim()
   }
 
   if (resolution.status !== 'resolved' || !totalAmount) {
@@ -768,19 +986,350 @@ export const buildCustomerQuoteResolutionText = (resolution, options = {}) => {
 
 export const buildCustomerSupportRequestText = (input, options = {}) => {
   const normalized = normalizeLightInput(input)
+  const interpretation =
+    options?.interpretation && typeof options.interpretation === 'object'
+      ? options.interpretation
+      : null
+  const supportContext =
+    interpretation?.supportContext && typeof interpretation.supportContext === 'object'
+      ? interpretation.supportContext
+      : null
+  const scheduleContext =
+    interpretation?.scheduleContext && typeof interpretation.scheduleContext === 'object'
+      ? interpretation.scheduleContext
+      : null
+  const supportTopicLabel = compactText(
+    interpretation?.topic?.label || interpretation?.contextTopic?.label || '',
+  )
+  const supportSubject =
+    /\bpersiana/.test(normalized) || /persiana/.test(supportTopicLabel)
+      ? 'una persiana'
+      : /\bcortina/.test(normalized) || /cortina/.test(supportTopicLabel)
+        ? 'una cortina'
+        : supportTopicLabel
+          ? `el producto ${supportTopicLabel}`
+          : 'el producto instalado'
+  const supportReviewStemPattern =
+    /\b(repar\w*|revisi\w*|service|cambi\w*|ajust\w*|mover|acortar)\b/
+  const supportVisitStemPattern =
+    /\b(cuando|cuándo|podr\w*|pued\w*|venir|pasar|domicilio|visita|coordinar|manana|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|a las|\d{1,2}:\d{2})\b/
+  const supportPaymentStemPattern =
+    /\b(efectivo|tarjeta|tarjetas|transferencia|debito|d[eé]bito|credito|cr[eé]dito)\b/
+  const supportMaterialCompatibilityPattern =
+    /\b(trabajan con|manejan|sirve|se puede|pueden)\b.*\b(material|materiales|tipo|este tipo|eso|esto)\b/
+  const supportProductIdentificationPattern =
+    /^(?:es|son)\s+(?:una|un|unas|unos)?\s*(?:cortina|cortinas|persiana|persianas|abertura|aberturas|ventana|ventanas|puerta|puertas|roller)\b/
+  const hasSupportVisitSignal = supportVisitStemPattern.test(normalized)
+  const hasSupportPaymentSignal = supportPaymentStemPattern.test(normalized)
+  const firstMissingSupportField = Array.isArray(supportContext?.missingFields)
+    ? supportContext.missingFields[0] || null
+    : null
+  const scheduleReason =
+    supportReviewStemPattern.test(normalized) || looksLikeCustomerSupportComponentReplacementRequest(normalized)
+      ? 'una revisión técnica'
+      : scheduleContext?.reason || 'la visita técnica'
+  const scheduleKnownParts = formatScheduleKnownParts(scheduleContext)
+  const buildSupportVisitCaptureText = ({
+    includePaymentMethods = false,
+    includeCostTail = false,
+  } = {}) => {
+    const requestedFields = []
+
+    if (scheduleContext?.missingFields?.includes('address')) {
+      requestedFields.push('la dirección')
+    }
+    if (scheduleContext?.missingFields?.includes('contact')) {
+      requestedFields.push('un teléfono o email de contacto')
+    }
+    if (scheduleContext?.missingFields?.includes('day')) {
+      requestedFields.push('qué día te queda bien')
+    }
+    if (scheduleContext?.missingFields?.includes('time')) {
+      requestedFields.push('qué horario te queda mejor')
+    }
+
+    if (!requestedFields.length) {
+      if (!scheduleKnownParts.length) {
+        requestedFields.push('la dirección y un teléfono o email de contacto')
+      } else if (
+        !scheduleContext?.address ||
+        (!scheduleContext?.contactPhone && !scheduleContext?.contactEmail)
+      ) {
+        requestedFields.push('la dirección y un teléfono o email de contacto')
+      }
+    }
+
+    const fieldsText =
+      requestedFields.length === 0
+        ? null
+        : requestedFields.length === 1
+          ? requestedFields[0]
+          : `${requestedFields.slice(0, -1).join(', ')} y ${requestedFields.at(-1)}`
+    const capturedText = scheduleKnownParts.length
+      ? ` Por ahora tomo ${scheduleKnownParts.join(' · ')}.`
+      : ''
+    const paymentText = includePaymentMethods
+      ? ' Aceptamos efectivo, transferencia bancaria y tarjetas.'
+      : ''
+    const costText = includeCostTail
+      ? ' El costo final y el medio de pago te lo confirmamos según lo que haya que revisar.'
+      : ''
+
+    if (!fieldsText) {
+      return `Claro. Podemos coordinar una revisión para ver qué conviene hacer.${paymentText}${capturedText}${costText}`.trim()
+    }
+
+    return `Claro. Podemos coordinar una revisión para ver qué conviene hacer.${paymentText} Si te sirve, pasame ${fieldsText}.${capturedText}${costText}`.trim()
+  }
+
+  if (
+    looksLikePaymentProofFollowUpRequest(normalized) ||
+    looksLikePaymentProofArtifact(normalized)
+  ) {
+    return 'Perfecto. Tomo el comprobante y lo dejo en seguimiento para que un asesor revise la acreditación y continúe el caso a la brevedad.'
+  }
+
+  if (looksLikePaymentOperationalUpdate(normalized)) {
+    return 'Perfecto. Si ya realizaste el pago, podés enviarnos el comprobante por acá y lo dejo en seguimiento para confirmar la acreditación a la brevedad.'
+  }
+
+  if (
+    supportContext?.productType &&
+    firstMissingSupportField === 'issue' &&
+    interpretation?.conversationContext?.waitForMore
+  ) {
+    return pickWordingVariant({
+      key: 'customer.support.issue_followup_soft',
+      variationSeed: String(options?.variationSeed || ''),
+      variables: {
+        subject: supportContext.productType,
+      },
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback: `Bien. Si es ${supportContext.productType}, contame qué habría que reparar o qué está fallando y seguimos desde ahí.`,
+    })
+  }
+
+  if (firstMissingSupportField === 'product_type') {
+    return pickWordingVariant({
+      key: 'customer.support.ask_product_type',
+      variationSeed: String(options?.variationSeed || ''),
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback:
+        'Claro. Para orientarte mejor, decime qué tipo de cortina, persiana o abertura es y lo seguimos.',
+    })
+  }
+
+  if (firstMissingSupportField === 'issue') {
+    return pickWordingVariant({
+      key: 'customer.support.ask_issue',
+      variationSeed: String(options?.variationSeed || ''),
+      variables: {
+        subject: supportContext?.productType || supportSubject,
+      },
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback: `Perfecto. Si es ${supportContext?.productType || supportSubject}, contame qué problema tiene o qué habría que revisar.`,
+    })
+  }
+
+  if (supportContext?.wantsVisit && supportContext?.issueSummary && !hasSupportPaymentSignal) {
+    if (scheduleContext) {
+      return buildCustomerScheduleProgressText(
+        {
+          ...scheduleContext,
+          reason: scheduleReason,
+        },
+        {
+          locale: options?.locale,
+          variationSeed: String(options?.variationSeed || ''),
+          wordingOverrides: options?.wordingOverrides || null,
+          channel: options?.channel || null,
+          channelProfile: options?.channelProfile || null,
+          currentTurnText: input,
+        },
+      )
+    }
+
+    return pickWordingVariant({
+      key: 'customer.support.review_visit',
+      variationSeed: String(options?.variationSeed || ''),
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback: buildSupportVisitCaptureText(),
+    })
+  }
+
+  if (
+    supportProductIdentificationPattern.test(normalized) &&
+    !hasSupportVisitSignal &&
+    !hasSupportPaymentSignal &&
+    !supportReviewStemPattern.test(normalized)
+  ) {
+    return pickWordingVariant({
+      key: 'customer.support.product_identification',
+      variationSeed: String(options?.variationSeed || ''),
+      variables: {
+        subject: supportSubject,
+      },
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback: `Bien. Si es ${supportSubject}, contame qué habría que reparar o qué está fallando, y lo encaminamos.`,
+    })
+  }
+
+  if (
+    supportContext?.wantsVisit &&
+    hasSupportPaymentSignal &&
+    (hasSupportVisitSignal || scheduleContext)
+  ) {
+    return pickWordingVariant({
+      key: 'customer.support.review_visit_payment',
+      variationSeed: String(options?.variationSeed || ''),
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback: buildSupportVisitCaptureText({
+        includePaymentMethods: true,
+        includeCostTail: true,
+      }),
+    })
+  }
+
+  if (scheduleContext && hasSupportVisitSignal && !hasSupportPaymentSignal) {
+    return buildCustomerScheduleProgressText(
+      {
+        ...scheduleContext,
+        reason: scheduleReason,
+      },
+      {
+        locale: options?.locale,
+        variationSeed: String(options?.variationSeed || ''),
+        wordingOverrides: options?.wordingOverrides || null,
+        channel: options?.channel || null,
+        channelProfile: options?.channelProfile || null,
+        currentTurnText: input,
+      },
+    )
+  }
+
+  if (
+    scheduleContext &&
+    supportContext?.wantsVisit &&
+    ['day', 'time', 'address', 'contact'].includes(String(firstMissingSupportField || ''))
+  ) {
+    return buildCustomerScheduleProgressText(
+      {
+        ...scheduleContext,
+        reason: scheduleReason,
+      },
+      {
+        locale: options?.locale,
+        variationSeed: String(options?.variationSeed || ''),
+        wordingOverrides: options?.wordingOverrides || null,
+        channel: options?.channel || null,
+        channelProfile: options?.channelProfile || null,
+        currentTurnText: input,
+      },
+    )
+  }
+
+  if (looksLikeCustomerSupportComponentReplacementRequest(normalized)) {
+    if (/\b(cuanto|cuánto|costaria|costaría|costo|precio|saldria|saldría)\b/.test(normalized)) {
+      return pickWordingVariant({
+        key: 'customer.support.component_replacement_priced',
+        variationSeed: String(options?.variationSeed || ''),
+        variables: {
+          subject: supportSubject,
+        },
+        overrides: options?.wordingOverrides || null,
+        channel: options?.channel || null,
+        channelProfile: options?.channelProfile || null,
+        fallback: `Claro. Si es por cambio de enrollador o cinta de ${supportSubject}, lo trabajamos como service. Para pasarte un costo más exacto necesito confirmar si es solo eso o si hay algo más para revisar. Si querés, mandame una foto y la zona o dirección, y lo encaminamos.`,
+      })
+    }
+
+    return pickWordingVariant({
+      key: 'customer.support.component_replacement',
+      variationSeed: String(options?.variationSeed || ''),
+      variables: {
+        subject: supportSubject,
+      },
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback: `Claro. Si es por cambio de enrollador o cinta de ${supportSubject}, lo trabajamos como service. Si querés, mandame una foto y la zona o dirección, y lo encaminamos.`,
+    })
+  }
+
+  if (
+    /\b(revisar|revision|revisión|cambiar|costaria|costaría|costaria|coste|costaría)\b/.test(
+      normalized,
+    ) &&
+    /\b(cortina|cortinas|persiana|persianas|motor|producto|ventana|ventanas|abertura|aberturas|puerta|puertas)\b/.test(
+      normalized,
+    )
+  ) {
+    return pickWordingVariant({
+      key: 'customer.support.review_or_change',
+      variationSeed: String(options?.variationSeed || ''),
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback:
+        'Claro. Podemos coordinar una revisión para ver si conviene reparar o cambiarlo. Si te sirve, pasame la zona o dirección y qué día u horario te queda mejor.',
+    })
+  }
+
+  if (
+    supportReviewStemPattern.test(normalized) &&
+    hasSupportVisitSignal
+  ) {
+    if (scheduleContext) {
+      return buildCustomerScheduleProgressText(scheduleContext, {
+        locale: options?.locale,
+        variationSeed: String(options?.variationSeed || ''),
+        wordingOverrides: options?.wordingOverrides || null,
+        channel: options?.channel || null,
+        channelProfile: options?.channelProfile || null,
+        currentTurnText: input,
+      })
+    }
+
+    return pickWordingVariant({
+      key: 'customer.support.review_visit',
+      variationSeed: String(options?.variationSeed || ''),
+      overrides: options?.wordingOverrides || null,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback: buildSupportVisitCaptureText(),
+    })
+  }
+
+  if (supportMaterialCompatibilityPattern.test(normalized)) {
+    return 'Sí, lo podemos revisar como service sobre lo ya instalado. Si querés, mandame una foto y la zona o dirección, y coordinamos cómo seguir.'
+  }
 
   if (/\b(mover|acortar|ajustar|cambiar de ventana)\b/.test(normalized)) {
-    return 'Claro. Si necesitas mover, acortar o ajustar una instalación existente, cuéntanos qué producto es y coordinamos cómo seguir.'
+    return 'Claro. Si necesitás mover, acortar o ajustar una instalación existente, mandame una foto y la zona o dirección, y coordinamos cómo seguir.'
   }
 
   if (/\b(dejo de funcionar|dejó de funcionar|no funciona|no anda)\b/.test(normalized)) {
-    return 'Claro. Si se trata de un producto ya instalado, cuéntanos qué dejó de funcionar y coordinamos la revisión.'
+    return 'Claro. Si es un producto ya instalado, lo trabajamos como revisión técnica. Si querés, mandame una foto y la zona o dirección, y coordinamos cómo seguir.'
   }
 
   return pickWordingVariant({
     key: 'customer.support.followup',
     variationSeed: String(options?.variationSeed || ''),
     overrides: options?.wordingOverrides || null,
+    channel: options?.channel || null,
+    channelProfile: options?.channelProfile || null,
     fallback:
       'Claro. Si necesitas service o una revisión, cuéntanos qué producto es y qué hay que ajustar, y coordinamos cómo seguir.',
   })
@@ -853,32 +1402,27 @@ export const buildCustomerScheduleProgressText = (
   const prefersEnglish = localePrefersEnglish(locale)
   const variationSeed = String(options?.variationSeed || '')
   const wordingOverrides = options?.wordingOverrides || null
+  const currentTurnText = String(options?.currentTurnText || '')
   const missingFields = Array.isArray(scheduleContext?.missingFields)
     ? scheduleContext.missingFields
     : []
   const knownParts = formatScheduleKnownParts(scheduleContext)
   const reason =
     formatScheduleReasonForSentence(scheduleContext?.reason || 'la visita técnica')
+  const requestedField =
+    typeof options?.nextUsefulField === 'string' && options.nextUsefulField.trim()
+      ? options.nextUsefulField.trim()
+      : missingFields[0] || null
 
-  if (!missingFields.length) {
-    return pickWordingVariant({
-      key: 'customer.schedule.progress.ready',
-      variationSeed,
-      overrides: wordingOverrides,
-      variables: { reason },
-      fallback: prefersEnglish
-        ? `Perfect. I already have what I need to coordinate ${reason}. I am checking availability and will confirm the booking shortly.`
-        : `Perfecto. Ya tengo lo necesario para coordinar ${reason}. Estoy validando la disponibilidad y te confirmo el agendamiento.`,
-    })
-  }
-
-  if (missingFields.length === 1) {
-    switch (missingFields[0]) {
+  const renderSingleScheduleFieldAsk = (field) => {
+    switch (field) {
       case 'day':
         return pickWordingVariant({
           key: 'customer.schedule.progress.ask_day',
           variationSeed,
           overrides: wordingOverrides,
+          channel: options?.channel || null,
+          channelProfile: options?.channelProfile || null,
           variables: { reason },
           fallback: prefersEnglish
             ? `Perfect. To coordinate ${reason}, tell me what day works for you.`
@@ -889,6 +1433,8 @@ export const buildCustomerScheduleProgressText = (
           key: 'customer.schedule.progress.ask_time',
           variationSeed,
           overrides: wordingOverrides,
+          channel: options?.channel || null,
+          channelProfile: options?.channelProfile || null,
           variables: { reason },
           fallback: prefersEnglish
             ? `Perfect. To coordinate ${reason}, tell me a specific time that works for you.`
@@ -899,6 +1445,8 @@ export const buildCustomerScheduleProgressText = (
           key: 'customer.schedule.progress.ask_address',
           variationSeed,
           overrides: wordingOverrides,
+          channel: options?.channel || null,
+          channelProfile: options?.channelProfile || null,
           variables: { reason },
           fallback: prefersEnglish
             ? `Perfect. To coordinate ${reason}, send me the address where we would need to go.`
@@ -909,13 +1457,54 @@ export const buildCustomerScheduleProgressText = (
           key: 'customer.schedule.progress.ask_contact',
           variationSeed,
           overrides: wordingOverrides,
+          channel: options?.channel || null,
+          channelProfile: options?.channelProfile || null,
           variables: { reason },
           fallback: prefersEnglish
             ? `Perfect. To coordinate ${reason}, send me a phone number or email for contact.`
             : `Perfecto. Para coordinar ${reason}, pasame un teléfono o email de contacto.`,
         })
       default:
-        break
+        return null
+    }
+  }
+
+  if (!missingFields.length) {
+    return pickWordingVariant({
+      key: 'customer.schedule.progress.ready',
+      variationSeed,
+      overrides: wordingOverrides,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      variables: { reason },
+      fallback: prefersEnglish
+        ? `Perfect. I already have what I need to coordinate ${reason}. I am checking availability and will confirm the booking shortly.`
+        : `Perfecto. Ya tengo lo necesario para coordinar ${reason}. Estoy validando la disponibilidad y te confirmo el agendamiento.`,
+    })
+  }
+
+  if (
+    missingFields.includes('time') &&
+    /\b(franja|a\s+que\s+hora|a\s+qué\s+hora|temprano|temprana)\b/i.test(
+      currentTurnText,
+    )
+  ) {
+    return pickWordingVariant({
+      key: 'customer.schedule.availability_followup',
+      variationSeed,
+      overrides: wordingOverrides,
+      channel: options?.channel || null,
+      channelProfile: options?.channelProfile || null,
+      fallback: prefersEnglish
+        ? 'I cannot confirm an exact time slot from here yet. If you want, send me the address and a contact phone number and I will leave the visit ready to coordinate.'
+        : 'Todavía no te puedo confirmar una franja exacta por acá. Si querés, pasame la dirección y un teléfono de contacto y lo dejamos encaminado para coordinar la visita.',
+    })
+  }
+
+  if (requestedField) {
+    const singleFieldResponse = renderSingleScheduleFieldAsk(requestedField)
+    if (singleFieldResponse) {
+      return singleFieldResponse
     }
   }
 
@@ -970,6 +1559,8 @@ export const buildCustomerScheduleCreatedText = ({
     key: 'customer.schedule.created',
     variationSeed,
     overrides: options?.wordingOverrides,
+    channel: options?.channel || null,
+    channelProfile: options?.channelProfile || null,
     variables: { timeText },
     fallback: prefersEnglish
       ? `Perfect. The technical visit is now scheduled for ${timeText}.`
@@ -993,6 +1584,8 @@ export const buildCustomerScheduleUnavailableText = ({
     key: 'customer.schedule.unavailable',
     variationSeed,
     overrides: options?.wordingOverrides,
+    channel: options?.channel || null,
+    channelProfile: options?.channelProfile || null,
     variables: { scheduleText },
     fallback: prefersEnglish
       ? `I no longer have availability for ${scheduleText}. If you want, send me another day or time option and I will check it.`
@@ -1039,24 +1632,49 @@ export const buildCustomerMaterialFollowUpText = ({
   subject = 'esa opción',
   variationSeed = '',
   wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
 } = {}) =>
   pickWordingVariant({
     key: 'customer.fallback.material_followup',
     variationSeed,
     overrides: wordingOverrides,
+    channel,
+    channelProfile,
     variables: { subject },
     fallback: `Puedo dejar en seguimiento tu pedido para que un asesor te comparta fotos o material de referencia sobre ${subject} por este mismo canal.`,
+  })
+
+export const buildCustomerLightFilterGuidanceText = ({
+  subject = 'esa opción',
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+} = {}) =>
+  pickWordingVariant({
+    key: 'customer.product.light_filter_guidance.roller',
+    variationSeed,
+    overrides: wordingOverrides,
+    channel,
+    channelProfile,
+    variables: { topic: subject },
+    fallback: `Si buscás ${subject} que deje pasar luz, normalmente se orienta a screen. Si querés, te cuento la diferencia con blackout y cuál conviene más según privacidad y ambiente.`,
   })
 
 export const buildCustomerInformationThenHandoffText = ({
   subject = 'esa opción',
   variationSeed = '',
   wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
 } = {}) =>
   pickWordingVariant({
     key: 'customer.fallback.information_then_handoff',
     variationSeed,
     overrides: wordingOverrides,
+    channel,
+    channelProfile,
     variables: { subject },
     fallback: `Puedo orientarte con la información general disponible sobre ${subject}. Si querés, además dejo la consulta en seguimiento para que un asesor la amplíe por este canal.`,
   })
@@ -1065,31 +1683,302 @@ export const buildCustomerQuoteHandoffText = ({
   subject = 'la configuración solicitada',
   variationSeed = '',
   wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
 } = {}) =>
   pickWordingVariant({
     key: 'customer.fallback.quote_handoff',
     variationSeed,
     overrides: wordingOverrides,
+    channel,
+    channelProfile,
     variables: { subject },
     fallback: `Ya tengo la información necesaria de ${subject}. Dejo la solicitud en seguimiento para que un asesor la revise y te responda a la brevedad.`,
   })
 
 export const buildCustomerQuoteWaitingFollowUpText = ({
+  input = '',
   variationSeed = '',
   wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
 } = {}) =>
   pickWordingVariant({
-    key: 'customer.quote.waiting_followup',
+    key: /\b(gracias|muchas gracias)\b.*\b(presupuesto|cotizacion|cotización)\b/i.test(
+      String(input || ''),
+    )
+      ? 'customer.quote.waiting_followup_ack'
+      : 'customer.quote.waiting_followup',
     variationSeed,
     overrides: wordingOverrides,
+    channel,
+    channelProfile,
     fallback:
       'Perfecto. Quedó en seguimiento. Si hace falta algún dato adicional, te lo piden por aquí.',
+  })
+
+export const buildCustomerMultimodalSupportArtifactText = ({
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+  referenceOnly = false,
+} = {}) =>
+  pickWordingVariant({
+    key: referenceOnly
+      ? 'customer.multimodal.support_artifact_reference'
+      : 'customer.multimodal.support_artifact_received',
+    variationSeed,
+    overrides: wordingOverrides,
+    channel,
+    channelProfile,
+    fallback: referenceOnly
+      ? 'Sí, con eso ya queda mejor orientada la revisión y lo dejo en seguimiento. Si querés, pasame la zona o dirección y qué día u horario te sirve y lo dejamos encaminado.'
+      : 'Recibí el adjunto y lo dejo en seguimiento para revisar el caso. Si querés, pasame la zona o dirección y qué día u horario te sirve.',
+  })
+
+export const buildCustomerMultimodalGenericArtifactText = ({
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+  referenceOnly = false,
+  artifactKind = null,
+} = {}) => {
+  const artifactLabel =
+    artifactKind === 'audio'
+      ? 'el audio'
+      : artifactKind === 'image'
+        ? 'la imagen'
+        : artifactKind === 'video'
+          ? 'el video'
+          : artifactKind === 'document'
+            ? 'el archivo'
+            : 'el adjunto'
+  const artifactReferenceLabel =
+    artifactKind === 'audio'
+      ? 'ese audio'
+      : artifactKind === 'image'
+        ? 'esa imagen'
+        : artifactKind === 'video'
+          ? 'ese video'
+          : artifactKind === 'document'
+            ? 'ese archivo'
+            : 'eso'
+
+  return pickWordingVariant({
+    key: referenceOnly
+      ? 'customer.multimodal.generic_artifact_reference'
+      : 'customer.multimodal.generic_artifact_received',
+    variationSeed,
+    overrides: wordingOverrides,
+    channel,
+    channelProfile,
+    variables: {
+      artifactLabel,
+      artifactReferenceLabel,
+    },
+    fallback: referenceOnly
+      ? artifactKind === 'audio'
+        ? 'Sí, con ese audio ya tengo una mejor referencia. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+        : artifactKind === 'image'
+          ? 'Sí, con esa imagen ya tengo una mejor referencia. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+          : artifactKind === 'video'
+            ? 'Sí, con ese video ya tengo una mejor referencia. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+            : artifactKind === 'document'
+              ? 'Sí, con ese archivo ya tengo una mejor referencia. Si es un comprobante o documentación, lo dejo en seguimiento. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+              : 'Sí, con eso ya tengo una mejor referencia. Si es un comprobante o documentación, lo dejo en seguimiento. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+      : artifactKind === 'audio'
+        ? 'Recibí el audio. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+        : artifactKind === 'image'
+          ? 'Recibí la imagen. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+          : artifactKind === 'video'
+            ? 'Recibí el video. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+            : artifactKind === 'document'
+            ? 'Recibí el archivo. Si esto es un comprobante o documentación, lo dejo en seguimiento. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.'
+              : 'Recibí el adjunto. Si esto es un comprobante o documentación, lo dejo en seguimiento. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.',
+  })
+}
+
+export const buildCustomerMultimodalGenericArtifactPlannedText = ({
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+} = {}) =>
+  pickWordingVariant({
+    key: 'customer.multimodal.generic_artifact_planned',
+    variationSeed,
+    overrides: wordingOverrides,
+    channel,
+    channelProfile,
+    fallback:
+      'Dale, enviámelo cuando puedas. Si es un comprobante o documentación, lo dejo en seguimiento. Si es por una revisión o consulta, decime en una línea qué necesitás y seguimos por acá.',
+  })
+
+export const buildCustomerMultimodalSupportArtifactPlannedText = ({
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+} = {}) =>
+  pickWordingVariant({
+    key: 'customer.multimodal.support_artifact_planned',
+    variationSeed,
+    overrides: wordingOverrides,
+    channel,
+    channelProfile,
+    fallback:
+      'Perfecto. Cuando me pases las fotos o el material lo revisamos con más contexto. Si querés, además decime la zona o dirección y qué día u horario te sirve.',
+  })
+
+export const buildCustomerMultimodalQuoteArtifactText = ({
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+  referenceOnly = false,
+  interpretation = null,
+} = {}) =>
+  (() => {
+    const quoteContext =
+      interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
+        ? interpretation.quoteContext
+        : null
+    const subjectLabel =
+      compactText(
+        quoteContext?.topicLabel ||
+          quoteContext?.familyLabel ||
+          interpretation?.topic?.label ||
+          interpretation?.contextTopic?.label ||
+          '',
+      ) || 'la cotización'
+    const missingFields = Array.isArray(quoteContext?.missingFields)
+      ? quoteContext.missingFields
+      : []
+    const nextStep = missingFields.includes('measurements')
+      ? 'Si querés, confirmame las medidas y seguimos.'
+      : missingFields.includes('quantity')
+        ? 'Si querés, confirmame cuántas unidades necesitás y seguimos.'
+        : missingFields.includes('color')
+          ? 'Si querés, confirmame el color o terminación y seguimos.'
+          : missingFields.includes('series')
+            ? 'Si querés, confirmame la línea o serie y seguimos.'
+            : missingFields.includes('glass')
+            ? 'Si querés, confirmame el tipo de vidrio y seguimos.'
+            : 'Lo dejo sumado como referencia para la cotización y seguimos por acá.'
+
+    return pickWordingVariant({
+      key: referenceOnly
+        ? 'customer.multimodal.quote_artifact_reference'
+        : 'customer.multimodal.quote_artifact_received',
+      variationSeed,
+      overrides: wordingOverrides,
+      channel,
+      channelProfile,
+      variables: {
+        subject: subjectLabel,
+        nextStep,
+      },
+      fallback: referenceOnly
+        ? `Sí, con eso ya tengo mejor referencia para ${subjectLabel} y la sumo a la cotización. ${nextStep}`
+        : `Recibí el adjunto. Lo sumo como referencia para ${subjectLabel} y dejo el caso en seguimiento. ${nextStep}`,
+    })
+  })()
+
+export const buildCustomerMultimodalQuoteArtifactPlannedText = ({
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+  interpretation = null,
+} = {}) =>
+  (() => {
+    const quoteContext =
+      interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
+        ? interpretation.quoteContext
+        : null
+    const subjectLabel =
+      compactText(
+        quoteContext?.topicLabel ||
+          quoteContext?.familyLabel ||
+          interpretation?.topic?.label ||
+          interpretation?.contextTopic?.label ||
+          '',
+      ) || 'la cotización'
+    const missingFields = Array.isArray(quoteContext?.missingFields)
+      ? quoteContext.missingFields
+      : []
+    const nextStep = missingFields.includes('measurements')
+      ? 'Si querés, además confirmame las medidas.'
+      : missingFields.includes('quantity')
+        ? 'Si querés, además confirmame cuántas unidades necesitás.'
+        : missingFields.includes('color')
+          ? 'Si querés, además confirmame el color o terminación.'
+          : missingFields.includes('series')
+            ? 'Si querés, además confirmame la línea o serie.'
+            : missingFields.includes('glass')
+              ? 'Si querés, además confirmame el tipo de vidrio.'
+              : 'Con eso la dejo mejor encaminada.'
+
+    return pickWordingVariant({
+      key: 'customer.multimodal.quote_artifact_planned',
+      variationSeed,
+      overrides: wordingOverrides,
+      channel,
+      channelProfile,
+      variables: {
+        subject: subjectLabel,
+        nextStep,
+      },
+      fallback: `Perfecto. Cuando me pases las fotos o el material lo tomo como referencia para ${subjectLabel} y lo dejo en seguimiento. ${nextStep}`,
+    })
+  })()
+
+export const buildCustomerReengagementFollowUpText = ({
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+  kind = 'quote',
+} = {}) =>
+  pickWordingVariant({
+    key:
+      kind === 'support'
+        ? 'customer.reengagement.support_followup'
+        : 'customer.reengagement.quote_followup',
+    variationSeed,
+    overrides: wordingOverrides,
+    channel,
+    channelProfile,
+    fallback:
+      kind === 'support'
+        ? 'Claro, retomamos con la revisión. Si querés, pasame la zona o dirección y qué día u horario te sirve, o mandame una foto si todavía no la enviaste.'
+        : 'Claro, retomamos con esa cotización. Si querés, confirmame la opción o el dato que faltaba y seguimos desde ahí.',
+  })
+
+export const buildCustomerReengagementNeutralText = ({
+  variationSeed = '',
+  wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
+} = {}) =>
+  pickWordingVariant({
+    key: 'customer.reengagement.neutral_followup',
+    variationSeed,
+    overrides: wordingOverrides,
+    channel,
+    channelProfile,
+    fallback:
+      'Claro, retomamos por acá. Decime si esto sigue por una cotización, una revisión o un pago, y te encamino desde ahí.',
   })
 
 export const buildCustomerCapabilityHandoffText = ({
   capability = 'content',
   variationSeed = '',
   wordingOverrides = null,
+  channel = null,
+  channelProfile = null,
 } = {}) => {
   const key =
     capability === 'commerce'
@@ -1109,6 +1998,8 @@ export const buildCustomerCapabilityHandoffText = ({
     key,
     variationSeed,
     overrides: wordingOverrides,
+    channel,
+    channelProfile,
     fallback,
   })
 }
@@ -1119,16 +2010,45 @@ export const buildCustomerConfirmationText = () =>
 export const buildCustomerCancellationText = () =>
   'Entendido. Dejamos eso sin efecto. Si quieres, dime cómo seguimos.'
 
-export const buildCustomerMultiIntentText = (classification = null) => {
+export const buildCustomerMultiIntentText = (
+  classification = null,
+  { input = '', interpretation = null } = {},
+) => {
   const focusAreas = Array.isArray(classification?.focusAreas)
     ? classification.focusAreas.filter((entry) => entry?.key && entry?.label)
     : []
+  const normalizedInput = String(input || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const subjectLabel = compactText(
+    interpretation?.quoteContext?.topicLabel ||
+      interpretation?.quoteContext?.familyLabel ||
+      interpretation?.topic?.label ||
+      interpretation?.contextTopic?.label ||
+      '',
+  )
 
   if (
     focusAreas.some((entry) => entry.key === 'contact') &&
     focusAreas.some((entry) => entry.key === 'general_help')
   ) {
     return 'Hola. Claro, cuéntanos tu consulta. Si prefieres, también podemos dejarte los datos de contacto o derivarlo con un asesor.'
+  }
+
+  if (
+    focusAreas.some((entry) => entry.key === 'pricing') &&
+    /disponibilidad/.test(normalizedInput)
+  ) {
+    const subject =
+      /\bpersian/.test(normalizedInput)
+        ? 'la ventana o las persianas'
+        : /\b(abertur|ventan|ventanal|dvh|pvc)\b/.test(normalizedInput)
+          ? subjectLabel || 'la abertura'
+          : subjectLabel || 'el producto'
+    return `Puedo ayudarte con el presupuesto y con la disponibilidad para ${subject}. Si te sirve, pasame la zona o dirección y vemos cómo coordinarlo; y para ${subject} seguimos con los datos que ya tengas.`
   }
 
   if (focusAreas.some((entry) => entry.key === 'appointment')) {
@@ -1152,6 +2072,8 @@ export const renderCustomerDeterministicText = ({
   variationSeed = '',
   wordingOverrides = null,
   locale = 'es-UY',
+  channel = null,
+  channelProfile = null,
 }) => {
   switch (intentKey) {
     case 'customer.clarify_request':
@@ -1168,6 +2090,8 @@ export const renderCustomerDeterministicText = ({
         tenantTopicTaxonomy,
         variationSeed,
         wordingOverrides,
+        channel,
+        channelProfile,
       })
     case 'customer.quote':
       return buildCustomerQuoteRequestText(input, {
@@ -1175,11 +2099,16 @@ export const renderCustomerDeterministicText = ({
         tenantTopicTaxonomy,
         variationSeed,
         wordingOverrides,
+        channel,
+        channelProfile,
       })
     case 'customer.support_request':
       return buildCustomerSupportRequestText(input, {
+        interpretation,
         variationSeed,
         wordingOverrides,
+        channel,
+        channelProfile,
       })
     case 'customer.schedule_request':
       return interpretation?.scheduleContext
@@ -1187,6 +2116,9 @@ export const renderCustomerDeterministicText = ({
             locale,
             variationSeed,
             wordingOverrides,
+            channel,
+            channelProfile,
+            currentTurnText: input,
           })
         : buildCustomerScheduleRequestText(input, { locale })
     case 'customer.auth_required':
@@ -1202,7 +2134,10 @@ export const renderCustomerDeterministicText = ({
     case 'customer.contact_info':
       return buildCustomerContactFallbackText()
     case 'customer.multi_intent':
-      return buildCustomerMultiIntentText(inboundClassification)
+      return buildCustomerMultiIntentText(inboundClassification, {
+        input,
+        interpretation,
+      })
     case 'customer.repetition':
       return buildCustomerRepetitionText()
     case 'customer.confirmation':

@@ -227,6 +227,45 @@ test('detectIntent can use nluAnalysis as a fallback for base customer intents',
   assert.ok(detection.decisionPath.includes('nlu:nlpjs:frustration'))
 })
 
+test('detectIntent can use configured hybrid intent registry as a customer fallback', () => {
+  const detection = detectIntent({
+    role: 'customer_public',
+    input: 'me quedó medio raro el precio final',
+    actionCatalog: [],
+    inboundClassification: {
+      category: 'other',
+      confidence: 0.22,
+      suggestedIntent: null,
+      decisionPath: [],
+    },
+    customerHybridIntentRegistry: {
+      rules: [
+        {
+          id: 'quote_clarification_runtime',
+          intent: 'customer.quote',
+          confidence: 0.92,
+          priority: 80,
+          examples: ['me quedó medio raro el precio final'],
+          regexAny: ['\\bprecio\\b.*\\bfinal\\b'],
+        },
+      ],
+    },
+    legacy: {
+      deriveIntentKey,
+      findActionIntent,
+      inferActionIntentFromConversationContext,
+    },
+  })
+
+  assert.equal(detection.intent, 'customer.quote')
+  assert.equal(detection.confidence, 0.92)
+  assert.ok(
+    detection.decisionPath.includes(
+      'runtime:customer_hybrid_intent_registry:quote_clarification_runtime',
+    ),
+  )
+})
+
 test('detectIntent resolves post-sale service requests before generic customer fallback', () => {
   const detection = detectIntent({
     role: 'customer_public',
@@ -260,6 +299,21 @@ test('detectIntent resolves installation availability questions without mixing t
   assert.equal(detection.intent, 'customer.schedule_request')
   assert.equal(detection.source, 'rule')
   assert.ok(detection.decisionPath.includes('classifier:schedule_request'))
+})
+
+test('detectIntent does not misclassify dejar pasar luz as a schedule request', () => {
+  const detection = detectIntent({
+    role: 'customer_public',
+    input: 'Busco de las que dejan pasar luz',
+    actionCatalog: [],
+    legacy: {
+      deriveIntentKey,
+      findActionIntent,
+      inferActionIntentFromConversationContext,
+    },
+  })
+
+  assert.notEqual(detection.intent, 'customer.schedule_request')
 })
 
 test('detectIntent resolves courtesy and acknowledgements as shared light customer turns', () => {
@@ -487,6 +541,44 @@ test('detectIntent resolves broad product family inquiries without relying on le
 
   assert.equal(detection.intent, 'customer.product_info')
   assert.ok(detection.decisionPath.includes('registry:customer_product_info_fallback'))
+})
+
+test('detectIntent does not turn standalone attachment artifacts into product_info fallback topics', () => {
+  const detection = detectIntent({
+    role: 'customer_public',
+    input: 'IMG-20260318-WA0007.jpg (archivo adjunto)',
+    actionCatalog: [],
+    legacy: {
+      deriveIntentKey,
+      findActionIntent,
+      inferActionIntentFromConversationContext,
+    },
+  })
+
+  assert.notEqual(detection.intent, 'customer.product_info')
+  assert.doesNotMatch(
+    (detection.decisionPath || []).join(' '),
+    /registry:customer_product_info_fallback/,
+  )
+})
+
+test('detectIntent does not turn explicit reengagement markers into product_info fallback topics', () => {
+  const detection = detectIntent({
+    role: 'customer_public',
+    input: 'Perdón, me quedó para atrás el mensaje',
+    actionCatalog: [],
+    legacy: {
+      deriveIntentKey,
+      findActionIntent,
+      inferActionIntentFromConversationContext,
+    },
+  })
+
+  assert.notEqual(detection.intent, 'customer.product_info')
+  assert.doesNotMatch(
+    (detection.decisionPath || []).join(' '),
+    /registry:customer_product_info_fallback/,
+  )
 })
 
 test('detectIntent keeps broad family price questions in deterministic price guidance', () => {

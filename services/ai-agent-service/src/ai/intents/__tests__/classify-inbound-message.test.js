@@ -2,6 +2,30 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { classifyInboundMessage } from '../classify-inbound-message.js'
 
+const TENANT_TOPIC_TAXONOMY = [
+  {
+    key: 'product_family:cortina',
+    label: 'cortinas',
+    kind: 'product_family',
+    aliases: ['cortinas', 'cortina'],
+  },
+  {
+    key: 'product_topic:cortinas-roller',
+    label: 'cortinas roller',
+    kind: 'product_topic',
+    aliases: ['cortinas roller', 'roller'],
+    familyLabel: 'cortinas',
+  },
+  {
+    key: 'product_variant:blackout',
+    label: 'blackout',
+    kind: 'product_variant',
+    aliases: ['blackout'],
+    familyLabel: 'cortinas',
+    parentLabels: ['cortinas roller', 'cortinas'],
+  },
+]
+
 test('classifyInboundMessage detects incomplete customer requests', () => {
   const result = classifyInboundMessage({
     role: 'customer_public',
@@ -54,6 +78,87 @@ test('classifyInboundMessage detects direct contact requests', () => {
 
   assert.equal(result.category, 'contact')
   assert.equal(result.suggestedIntent, 'customer.contact_info')
+})
+
+test('classifyInboundMessage does not confuse lead-intro phrasing with contact faq', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input:
+      'Hola, te contacto desde la web de urucortinas: Buen día. Necesito saber por favor si hacen trabajos a medida con colocación. Gracias',
+  })
+
+  assert.notEqual(result.category, 'contact')
+  assert.notEqual(result.suggestedIntent, 'customer.contact_info')
+})
+
+test('classifyInboundMessage treats a bare web lead intro as a clarification seed instead of contact info', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Hola, te contacto desde la web de urucortinas:',
+  })
+
+  assert.equal(result.category, 'generic_help_request')
+  assert.equal(result.suggestedIntent, 'customer.clarify_request')
+})
+
+test('classifyInboundMessage upgrades replacement budgeting requests to quote intent', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Quisiera cambiar las persianas de mi casa, que datos necesitan para presupuestar?',
+  })
+
+  assert.equal(result.category, 'price_inquiry')
+  assert.equal(result.suggestedIntent, 'customer.quote')
+  assert.ok(result.decisionPath.includes('classifier:replacement_quote_request'))
+})
+
+test('classifyInboundMessage upgrades structured product-interest turns with quantity into quote intake', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Necesito 2 cortinas roller blackout',
+    tenantTopicTaxonomy: TENANT_TOPIC_TAXONOMY,
+  })
+
+  assert.equal(result.category, 'price_inquiry')
+  assert.equal(result.suggestedIntent, 'customer.quote')
+  assert.ok(result.decisionPath.includes('classifier:structured_quote_seed'))
+})
+
+test('classifyInboundMessage treats address and phone payload as schedule follow-up when recent context is operational', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Es en avenida italia 1428. A las 14 estoy en casa. Mi teléfono es 099123456.',
+    recentTurns: [
+      {
+        role: 'customer',
+        text: 'Necesito saber si hacen trabajos a medida con colocación.',
+      },
+    ],
+  })
+
+  assert.equal(result.category, 'schedule_request')
+  assert.equal(result.suggestedIntent, 'customer.schedule_request')
+  assert.ok(
+    result.decisionPath.includes('classifier:schedule_request_contextual_followup'),
+  )
+})
+
+test('classifyInboundMessage keeps short product identification turns inside a recent support thread', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'es una persiana de pvc',
+    recentTurns: [
+      { role: 'customer', text: 'Hola reparan cortinas de enrollar?' },
+      {
+        role: 'agent',
+        text: 'Claro. Si necesitás una revisión o ajuste, contame qué producto es y qué habría que revisar, y coordinamos cómo seguir.',
+      },
+    ],
+  })
+
+  assert.equal(result.category, 'support_request')
+  assert.equal(result.suggestedIntent, 'customer.support_request')
+  assert.ok(result.decisionPath.includes('classifier:support_request'))
 })
 
 test('classifyInboundMessage requires authentication for protected customer documents in public scope', () => {
@@ -163,6 +268,17 @@ test('classifyInboundMessage keeps empty customer input as incomplete rather tha
   assert.ok(result.decisionPath.includes('classifier:empty_input'))
 })
 
+test('classifyInboundMessage treats standalone attachment artifact labels as incomplete context rather than product content', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'PTT-20260306-WA0007.opus (archivo adjunto)',
+  })
+
+  assert.equal(result.category, 'incomplete')
+  assert.equal(result.suggestedIntent, 'customer.incomplete')
+  assert.ok(result.decisionPath.includes('classifier:attachment_artifact_only'))
+})
+
 test('classifyInboundMessage detects courtesy and acknowledgements without pending confirmation', () => {
   const thanks = classifyInboundMessage({
     role: 'customer_public',
@@ -221,6 +337,60 @@ test('classifyInboundMessage detects post-sale service requests without treating
   assert.ok(result.decisionPath.includes('classifier:support_request'))
 })
 
+test('classifyInboundMessage treats payment proof follow-ups as operational support instead of sales', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Te adjunto comprobante de pago para que lo revisen',
+  })
+
+  assert.equal(result.category, 'support_request')
+  assert.equal(result.suggestedIntent, 'customer.support_request')
+  assert.ok(
+    result.decisionPath.includes('classifier:payment_followup_support_request'),
+  )
+})
+
+test('classifyInboundMessage treats initial payment completion updates as operational support instead of product or faq flow', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Hola, ya hice el pago',
+  })
+
+  assert.equal(result.category, 'support_request')
+  assert.equal(result.suggestedIntent, 'customer.support_request')
+  assert.ok(result.decisionPath.includes('classifier:payment_operational_update'))
+})
+
+test('classifyInboundMessage treats standalone payment proof filenames as operational support continuity', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Comprobante_TransferenciaTercerosEnElBanco_16_02_2026_12_43.pdf',
+  })
+
+  assert.equal(result.category, 'support_request')
+  assert.equal(result.suggestedIntent, 'customer.support_request')
+  assert.ok(result.decisionPath.includes('classifier:payment_proof_artifact'))
+})
+
+test('classifyInboundMessage switches to support when a quote thread pivots to component replacement service', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'y solo cambio de enrollador/cinta cuanto saldria?',
+    recentTurns: [
+      { role: 'customer', text: 'Quiero presupuesto para persianas en un apto' },
+      {
+        role: 'agent',
+        text: 'Claro. Para prepararte un presupuesto de persianas, decime las medidas aproximadas (ancho por alto) y cuántas unidades necesitás.',
+      },
+      { role: 'customer', text: 'Y para cambiar enrollador y cinta de otra persiana también' },
+    ],
+  })
+
+  assert.equal(result.category, 'support_request')
+  assert.equal(result.suggestedIntent, 'customer.support_request')
+  assert.ok(result.decisionPath.includes('classifier:support_request'))
+})
+
 test('classifyInboundMessage detects scheduling availability requests tied to visits or installation', () => {
   const result = classifyInboundMessage({
     role: 'customer_public',
@@ -231,6 +401,73 @@ test('classifyInboundMessage detects scheduling availability requests tied to vi
   assert.equal(result.category, 'schedule_request')
   assert.equal(result.suggestedIntent, 'customer.schedule_request')
   assert.ok(result.decisionPath.includes('classifier:schedule_request'))
+})
+
+test('classifyInboundMessage does not route light-filter product wording to scheduling just because it includes pasar', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'si busco de las que dejan pasar luz',
+  })
+
+  assert.notEqual(result.category, 'schedule_request')
+  assert.notEqual(result.suggestedIntent, 'customer.schedule_request')
+})
+
+test('classifyInboundMessage treats quote-expansion follow-ups as quote continuity instead of generic product info', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Tengo que pasarte un roller más',
+    tenantTopicTaxonomy: [
+      {
+        key: 'product_topic:cortinas-roller',
+        label: 'cortinas roller',
+        kind: 'product_topic',
+        aliases: ['cortinas roller', 'roller'],
+        familyLabel: 'cortinas',
+      },
+    ],
+  })
+
+  assert.equal(result.category, 'price_inquiry')
+  assert.equal(result.suggestedIntent, 'customer.quote')
+  assert.ok(result.decisionPath.includes('classifier:quote_expansion_followup'))
+})
+
+test('classifyInboundMessage treats structural opening descriptions with measurements as quote requests', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input:
+      'Son 2,90 x 2,60 total. Las hojas corredizas son de 1,45 x 2,00 y las fijas de arriba 1,45 x 0,60 aprox.',
+  })
+
+  assert.equal(result.category, 'price_inquiry')
+  assert.equal(result.suggestedIntent, 'customer.quote')
+  assert.ok(result.decisionPath.includes('classifier:opening_structure_quote'))
+})
+
+test('classifyInboundMessage does not mistake good-afternoon greetings plus installation conditions for scheduling', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input:
+      'Buenas tardes. Era para ver un presupuesto para sustituir esta ventana de hierro por una de PVC. Ustedes la colocan?',
+  })
+
+  assert.notEqual(result.category, 'schedule_request')
+  assert.notEqual(result.suggestedIntent, 'customer.schedule_request')
+})
+
+test('classifyInboundMessage treats installation preparation on an opening as quote context instead of support', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input:
+      'El motivo es porque queremos colocar una cortina exterior y necesitamos que quede lisa y uniforme la superficie del marco donde apoyan sus guías.',
+  })
+
+  assert.equal(result.category, 'price_inquiry')
+  assert.equal(result.suggestedIntent, 'customer.quote')
+  assert.ok(
+    result.decisionPath.includes('classifier:opening_installation_assessment_quote'),
+  )
 })
 
 test('classifyInboundMessage keeps short administrative follow-ups inside an active schedule thread', () => {

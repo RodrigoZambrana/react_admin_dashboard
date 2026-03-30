@@ -75,6 +75,20 @@ type AiActionCatalogEntry = {
   confirmationPrompt?: string
 }
 
+type StoredAiRuntimeWordingEntry =
+  | string
+  | string[]
+  | {
+      messages: string | string[]
+      goal?: string | null
+      mustAskQuestion?: boolean
+      maxChars?: number | null
+      allowHybridRewrite?: boolean
+      channels?: Record<string, StoredAiRuntimeWordingEntry>
+      channelProfiles?: Record<string, StoredAiRuntimeWordingEntry>
+      profiles?: Record<string, StoredAiRuntimeWordingEntry>
+    }
+
 type StoredAiRuntimeConfig = {
   enabled: boolean
   provider: 'mock' | 'openai' | 'ollama'
@@ -103,7 +117,24 @@ type StoredAiRuntimeConfig = {
   customerContentMode?: 'enabled' | 'deterministic_only' | 'handoff_only'
   customerCommerceMode?: 'enabled' | 'deterministic_only' | 'handoff_only'
   customerSchedulingMode?: 'enabled' | 'deterministic_only' | 'handoff_only'
-  customerWordingOverrides?: Record<string, string | string[]> | null
+  customerDecisionAssistEnabled?: boolean
+  customerDecisionAssistMinConfidence?: number | null
+  customerWordingRegistry?: Record<string, StoredAiRuntimeWordingEntry> | null
+  customerWordingOverrides?: Record<string, StoredAiRuntimeWordingEntry> | null
+  customerHybridIntentRegistry?:
+    | Array<{
+        id?: string
+        intent: string
+        confidence?: number
+        priority?: number
+        examples?: string[]
+        includesAny?: string[]
+        includesAll?: string[]
+        regexAny?: string[]
+        regexAll?: string[]
+        decisionPath?: string[]
+      }>
+    | null
 }
 
 @Injectable()
@@ -121,14 +152,80 @@ export class AiService {
     private readonly parametricPricing: ParametricPricingService,
   ) {}
 
-  private normalizeRuntimeWordingOverrides(
+  private normalizeRuntimeWordingEntry(
+    rawValue: unknown,
+  ): Exclude<StoredAiRuntimeWordingEntry, string | string[]> | string | string[] | null {
+    if (typeof rawValue === 'string') {
+      const normalizedValue = rawValue.trim()
+      return normalizedValue ? normalizedValue : null
+    }
+
+    if (Array.isArray(rawValue)) {
+      const normalizedValues = rawValue
+        .filter((entry) => typeof entry === 'string')
+        .map((entry) => entry.trim())
+        .filter(Boolean)
+      return normalizedValues.length ? normalizedValues : null
+    }
+
+    if (!rawValue || typeof rawValue !== 'object') {
+      return null
+    }
+
+    const normalizedMessages = Array.isArray((rawValue as { messages?: unknown }).messages)
+      ? ((rawValue as { messages?: unknown }).messages as unknown[])
+          .filter((entry) => typeof entry === 'string')
+          .map((entry) => String(entry).trim())
+          .filter(Boolean)
+      : typeof (rawValue as { messages?: unknown }).messages === 'string'
+        ? [String((rawValue as { messages?: string }).messages).trim()].filter(Boolean)
+        : []
+
+    if (!normalizedMessages.length) {
+      return null
+    }
+
+    const normalizedChannels = this.normalizeRuntimeWordingRegistry(
+      (rawValue as { channels?: unknown }).channels,
+    )
+    const normalizedChannelProfiles = this.normalizeRuntimeWordingRegistry(
+      (rawValue as { channelProfiles?: unknown; profiles?: unknown }).channelProfiles ??
+        (rawValue as { profiles?: unknown }).profiles,
+    )
+
+    return {
+      messages: normalizedMessages,
+      goal:
+        typeof (rawValue as { goal?: unknown }).goal === 'string' &&
+        String((rawValue as { goal?: string }).goal).trim()
+          ? String((rawValue as { goal?: string }).goal).trim()
+          : null,
+      mustAskQuestion: (rawValue as { mustAskQuestion?: unknown }).mustAskQuestion === true,
+      maxChars:
+        Number.isFinite(Number((rawValue as { maxChars?: unknown }).maxChars)) &&
+        Number((rawValue as { maxChars?: unknown }).maxChars) > 0
+          ? Math.max(80, Math.min(400, Number((rawValue as { maxChars?: unknown }).maxChars)))
+          : null,
+      allowHybridRewrite:
+        (rawValue as { allowHybridRewrite?: unknown }).allowHybridRewrite === true,
+      ...(normalizedChannels ? { channels: normalizedChannels } : {}),
+      ...(normalizedChannelProfiles ? { channelProfiles: normalizedChannelProfiles } : {}),
+    }
+  }
+
+  private normalizeRuntimeWordingRegistry(
     value: unknown,
-  ): Record<string, string | string[]> | null {
+  ): StoredAiRuntimeConfig['customerWordingRegistry'] | null {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return null
     }
 
-    const entries: Array<[string, string | string[]]> = []
+    const entries: Array<
+      [
+        string,
+        NonNullable<StoredAiRuntimeConfig['customerWordingRegistry']>[string],
+      ]
+    > = []
 
     for (const [key, rawValue] of Object.entries(value)) {
       const normalizedKey = String(key || '').trim()
@@ -136,31 +233,18 @@ export class AiService {
         continue
       }
 
-      if (typeof rawValue === 'string') {
-        const normalizedValue = rawValue.trim()
-        if (normalizedValue) {
-          entries.push([normalizedKey, normalizedValue])
-        }
-        continue
-      }
-
-      if (Array.isArray(rawValue)) {
-        const normalizedValues = rawValue
-          .filter((entry) => typeof entry === 'string')
-          .map((entry) => entry.trim())
-          .filter(Boolean)
-        if (normalizedValues.length) {
-          entries.push([normalizedKey, normalizedValues])
-        }
+      const normalizedEntry = this.normalizeRuntimeWordingEntry(rawValue)
+      if (normalizedEntry) {
+        entries.push([normalizedKey, normalizedEntry])
       }
     }
 
     return entries.length ? Object.fromEntries(entries) : null
   }
 
-  private parseRuntimeWordingOverridesJson(
+  private parseRuntimeWordingRegistryJson(
     value: string | null | undefined,
-  ): Record<string, string | string[]> | null | undefined {
+  ): StoredAiRuntimeConfig['customerWordingRegistry'] | null | undefined {
     if (value === undefined) {
       return undefined
     }
@@ -172,9 +256,112 @@ export class AiService {
 
     try {
       const parsed = JSON.parse(trimmed)
-      return this.normalizeRuntimeWordingOverrides(parsed)
+      return this.normalizeRuntimeWordingRegistry(parsed)
     } catch (error) {
-      throw new BadRequestException('customerWordingOverridesJson.invalid_json')
+      throw new BadRequestException('customerWordingRegistryJson.invalid_json')
+    }
+  }
+
+  private normalizeRuntimeHybridIntentRegistry(
+    value: unknown,
+  ): StoredAiRuntimeConfig['customerHybridIntentRegistry'] | null {
+    const rawRules = Array.isArray(value)
+      ? value
+      : value && typeof value === 'object' && Array.isArray((value as { rules?: unknown }).rules)
+        ? ((value as { rules?: unknown[] }).rules ?? [])
+        : []
+
+    const entries = rawRules
+      .map((rawRule, index) => {
+        if (!rawRule || typeof rawRule !== 'object' || Array.isArray(rawRule)) {
+          return null
+        }
+
+        const intent =
+          typeof (rawRule as { intent?: unknown }).intent === 'string' &&
+          String((rawRule as { intent?: string }).intent).trim()
+            ? String((rawRule as { intent?: string }).intent).trim()
+            : null
+        if (!intent) {
+          return null
+        }
+
+        const normalizeStringArray = (candidate: unknown) =>
+          Array.isArray(candidate)
+            ? candidate
+                .filter((entry) => typeof entry === 'string')
+                .map((entry) => String(entry).trim())
+                .filter(Boolean)
+            : []
+
+        const examples = normalizeStringArray((rawRule as { examples?: unknown }).examples)
+        const includesAny = normalizeStringArray((rawRule as { includesAny?: unknown }).includesAny)
+        const includesAll = normalizeStringArray((rawRule as { includesAll?: unknown }).includesAll)
+        const regexAny = normalizeStringArray((rawRule as { regexAny?: unknown }).regexAny)
+        const regexAll = normalizeStringArray((rawRule as { regexAll?: unknown }).regexAll)
+
+        if (
+          !examples.length &&
+          !includesAny.length &&
+          !includesAll.length &&
+          !regexAny.length &&
+          !regexAll.length
+        ) {
+          return null
+        }
+
+        return {
+          id:
+            typeof (rawRule as { id?: unknown }).id === 'string' &&
+            String((rawRule as { id?: string }).id).trim()
+              ? String((rawRule as { id?: string }).id).trim()
+              : `runtime_rule_${index + 1}`,
+          intent,
+          confidence:
+            Number.isFinite(Number((rawRule as { confidence?: unknown }).confidence))
+              ? Math.max(
+                  0,
+                  Math.min(1, Number((rawRule as { confidence?: unknown }).confidence)),
+                )
+              : 0.84,
+          priority:
+            Number.isFinite(Number((rawRule as { priority?: unknown }).priority))
+              ? Number((rawRule as { priority?: unknown }).priority)
+              : 50,
+          examples,
+          includesAny,
+          includesAll,
+          regexAny,
+          regexAll,
+          decisionPath: normalizeStringArray(
+            (rawRule as { decisionPath?: unknown }).decisionPath,
+          ),
+        }
+      })
+      .filter(Boolean)
+
+    return entries.length
+      ? (entries as NonNullable<StoredAiRuntimeConfig['customerHybridIntentRegistry']>)
+      : null
+  }
+
+  private parseRuntimeHybridIntentRegistryJson(
+    value: string | null | undefined,
+  ): StoredAiRuntimeConfig['customerHybridIntentRegistry'] | null | undefined {
+    if (value === undefined) {
+      return undefined
+    }
+
+    const trimmed = String(value || '').trim()
+    if (!trimmed) {
+      return null
+    }
+
+    try {
+      const parsed = JSON.parse(trimmed)
+      return this.normalizeRuntimeHybridIntentRegistry(parsed)
+    } catch {
+      throw new BadRequestException('customerHybridIntentRegistryJson.invalid_json')
     }
   }
 
@@ -2681,14 +2868,26 @@ export class AiService {
         resolved.customerGroundedRewriteEnabled ?? false,
       customerGroundedRewriteMaxChars:
         resolved.customerGroundedRewriteMaxChars ?? 220,
+      customerDecisionAssistEnabled:
+        resolved.customerDecisionAssistEnabled ?? false,
+      customerDecisionAssistMinConfidence:
+        resolved.customerDecisionAssistMinConfidence ?? 0.82,
       customerCapabilityProfile:
         resolved.customerCapabilityProfile ?? 'full_assistant',
       customerContentMode: resolved.customerContentMode ?? 'enabled',
       customerCommerceMode: resolved.customerCommerceMode ?? 'enabled',
       customerSchedulingMode: resolved.customerSchedulingMode ?? 'enabled',
+      customerWordingRegistry: resolved.customerWordingRegistry ?? null,
+      customerWordingRegistryJson: resolved.customerWordingRegistry
+        ? JSON.stringify(resolved.customerWordingRegistry, null, 2)
+        : '',
       customerWordingOverrides: resolved.customerWordingOverrides ?? null,
       customerWordingOverridesJson: resolved.customerWordingOverrides
         ? JSON.stringify(resolved.customerWordingOverrides, null, 2)
+        : '',
+      customerHybridIntentRegistry: resolved.customerHybridIntentRegistry ?? null,
+      customerHybridIntentRegistryJson: resolved.customerHybridIntentRegistry
+        ? JSON.stringify({ rules: resolved.customerHybridIntentRegistry }, null, 2)
         : '',
       roleCatalog: this.getRoleCatalog(),
       usage,
@@ -2725,14 +2924,26 @@ export class AiService {
         resolved.customerGroundedRewriteEnabled ?? false,
       customerGroundedRewriteMaxChars:
         resolved.customerGroundedRewriteMaxChars ?? 220,
+      customerDecisionAssistEnabled:
+        resolved.customerDecisionAssistEnabled ?? false,
+      customerDecisionAssistMinConfidence:
+        resolved.customerDecisionAssistMinConfidence ?? 0.82,
       customerCapabilityProfile:
         resolved.customerCapabilityProfile ?? 'full_assistant',
       customerContentMode: resolved.customerContentMode ?? 'enabled',
       customerCommerceMode: resolved.customerCommerceMode ?? 'enabled',
       customerSchedulingMode: resolved.customerSchedulingMode ?? 'enabled',
+      customerWordingRegistry: resolved.customerWordingRegistry ?? null,
+      customerWordingRegistryJson: resolved.customerWordingRegistry
+        ? JSON.stringify(resolved.customerWordingRegistry, null, 2)
+        : '',
       customerWordingOverrides: resolved.customerWordingOverrides ?? null,
       customerWordingOverridesJson: resolved.customerWordingOverrides
         ? JSON.stringify(resolved.customerWordingOverrides, null, 2)
+        : '',
+      customerHybridIntentRegistry: resolved.customerHybridIntentRegistry ?? null,
+      customerHybridIntentRegistryJson: resolved.customerHybridIntentRegistry
+        ? JSON.stringify({ rules: resolved.customerHybridIntentRegistry }, null, 2)
         : '',
       roleCatalog: this.getRoleCatalog(),
       usage,
@@ -2792,12 +3003,25 @@ export class AiService {
             input.customerGroundedRewriteEnabled,
           customerGroundedRewriteMaxChars:
             input.customerGroundedRewriteMaxChars,
+          customerDecisionAssistEnabled:
+            input.customerDecisionAssistEnabled,
+          customerDecisionAssistMinConfidence:
+            input.customerDecisionAssistMinConfidence,
           customerCapabilityProfile: input.customerCapabilityProfile,
           customerContentMode: input.customerContentMode,
           customerCommerceMode: input.customerCommerceMode,
           customerSchedulingMode: input.customerSchedulingMode,
+          customerWordingRegistry:
+            this.parseRuntimeWordingRegistryJson(
+              input.customerWordingRegistryJson ?? input.customerWordingOverridesJson,
+            ),
           customerWordingOverrides:
-            this.parseRuntimeWordingOverridesJson(input.customerWordingOverridesJson),
+            this.parseRuntimeWordingRegistryJson(
+              input.customerWordingRegistryJson ?? input.customerWordingOverridesJson,
+            ),
+          customerHybridIntentRegistry: this.parseRuntimeHybridIntentRegistryJson(
+            input.customerHybridIntentRegistryJson,
+          ),
         }).filter(([, value]) => value !== undefined),
       ),
     }
@@ -3459,13 +3683,29 @@ export class AiService {
         stored?.customerGroundedRewriteMaxChars ??
         this.readNumberFromEnv('AI_CUSTOMER_GROUNDED_REWRITE_MAX_CHARS') ??
         220,
+      customerDecisionAssistEnabled:
+        stored?.customerDecisionAssistEnabled ??
+        ((this.config.get<string>('AI_CUSTOMER_DECISION_ASSIST_ENABLED') ?? 'false') ===
+          'true'),
+      customerDecisionAssistMinConfidence:
+        stored?.customerDecisionAssistMinConfidence ??
+        this.readNumberFromEnv('AI_CUSTOMER_DECISION_ASSIST_MIN_CONFIDENCE') ??
+        0.82,
       customerCapabilityProfile:
         stored?.customerCapabilityProfile ?? 'full_assistant',
       customerContentMode: stored?.customerContentMode ?? 'enabled',
       customerCommerceMode: stored?.customerCommerceMode ?? 'enabled',
       customerSchedulingMode: stored?.customerSchedulingMode ?? 'enabled',
+      customerWordingRegistry:
+        this.normalizeRuntimeWordingRegistry(
+          stored?.customerWordingRegistry ?? stored?.customerWordingOverrides,
+        ) ?? null,
       customerWordingOverrides:
-        this.normalizeRuntimeWordingOverrides(stored?.customerWordingOverrides) ?? null,
+        this.normalizeRuntimeWordingRegistry(
+          stored?.customerWordingRegistry ?? stored?.customerWordingOverrides,
+        ) ?? null,
+      customerHybridIntentRegistry:
+        this.normalizeRuntimeHybridIntentRegistry(stored?.customerHybridIntentRegistry) ?? null,
     }
   }
 

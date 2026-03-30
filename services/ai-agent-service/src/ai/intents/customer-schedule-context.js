@@ -1,3 +1,9 @@
+import {
+  BASE_CONVERSATIONAL_ES_SIGNALS,
+  hasScheduleAdministrativeSignal,
+  normalizeSemanticText,
+} from './customer-semantic-signals.js'
+
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
 const normalizeText = (value) =>
@@ -48,11 +54,11 @@ const TIME_PREFERENCE_PATTERNS = [
 const PHONE_FALLBACK_REGEX = /\b(?:\+?\d[\d\s-]{6,}\d)\b/u
 
 const DEFAULT_DURATION_MINUTES = 60
+const SCHEDULE_REASON_LABELS = BASE_CONVERSATIONAL_ES_SIGNALS.schedule.reasonLabels
+const SCHEDULE_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.schedule
 
 const looksLikeScheduleAdministrativeFollowUp = (input) =>
-  /\b(hoy|mañana|pasado mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{4})?|a las|hora|horario|despues de las|después de las|por la mañana|por la tarde|por la noche|direccion|dirección|ubicacion|ubicación|avenida|av\.|calle|ruta|telefono|teléfono|celular|whatsapp|mail|email|correo)\b/iu.test(
-    String(input || ''),
-  )
+  hasScheduleAdministrativeSignal(input)
 
 const looksLikeAddressValue = (value) => {
   const normalized = normalizeText(value)
@@ -64,6 +70,17 @@ const looksLikeAddressValue = (value) => {
     /\b(avenida|av|av\.|calle|ruta|camino|bulevar|blvr|esquina|esq|km|kilometro|kilómetro|manzana|solar|apto|apartamento|local)\b/iu.test(
       normalized,
     ) || /\d/.test(normalized)
+  )
+}
+
+const hasStreetAddressShape = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  return /\b[a-záéíóúñ.'-]{3,}(?:\s+[a-záéíóúñ.'-]{2,}){0,4}\s+\d{1,5}(?![.,]\d)\b/iu.test(
+    String(value || ''),
   )
 }
 
@@ -135,6 +152,13 @@ const extractContactName = (input) => {
   return null
 }
 
+const stripAddressLeadIn = (value) =>
+  compactText(
+    String(value || '')
+      .replace(/^(?:si|sí|dale|perfecto|ok|bueno|bien)\b[\s,.:;-]*/iu, '')
+      .replace(/^(?:es|seria|sería)\b\s*/iu, ''),
+  )
+
 const sanitizeAddressValue = (value) => {
   const sanitized = compactText(
     String(value || '')
@@ -144,15 +168,21 @@ const sanitizeAddressValue = (value) => {
       .replace(/[,\s.;:]+$/g, ''),
   )
 
-  return sanitized || null
+  const strippedLeadIn = stripAddressLeadIn(sanitized)
+  return strippedLeadIn || null
 }
 
 const extractAddress = (input) => {
-  for (const pattern of ADDRESS_PATTERNS) {
+  for (const [index, pattern] of ADDRESS_PATTERNS.entries()) {
     const match = String(input || '').match(pattern)
     if (match?.[1]) {
       const value = sanitizeAddressValue(match[1])
-      if (value.length >= 8 && looksLikeAddressValue(value)) {
+      const requiresExplicitStreetShape = index === 1
+      if (
+        value.length >= 8 &&
+        looksLikeAddressValue(value) &&
+        (!requiresExplicitStreetShape || hasStreetAddressShape(value))
+      ) {
         return value
       }
     }
@@ -177,7 +207,8 @@ const extractAddress = (input) => {
   if (
     residualCandidate &&
     residualCandidate.length >= 8 &&
-    looksLikeAddressValue(residualCandidate)
+    looksLikeAddressValue(residualCandidate) &&
+    hasStreetAddressShape(residualCandidate)
   ) {
     return residualCandidate
   }
@@ -311,6 +342,8 @@ const inferScheduleReason = ({
   previousScheduleContext = null,
   previousQuoteContext = null,
   currentTopic = null,
+  previousIntentKey = null,
+  previousCanonicalTopic = null,
 }) => {
   const normalizedInput = normalizeText(currentTurnText)
 
@@ -323,13 +356,17 @@ const inferScheduleReason = ({
   }
 
   if (/\binstalacion|instalación|colocacion|colocación\b/.test(normalizedInput)) {
-    return 'instalación'
+    return SCHEDULE_REASON_LABELS.installation
   }
   if (/\bvisita\b/.test(normalizedInput)) {
-    return 'visita técnica'
+    return SCHEDULE_REASON_LABELS.technicalVisit
   }
 
-  return previousScheduleContext?.reason || 'visita técnica'
+  if (previousIntentKey === 'customer.support_request') {
+    return SCHEDULE_REASON_LABELS.technicalReview
+  }
+
+  return previousScheduleContext?.reason || SCHEDULE_REASON_LABELS.technicalVisit
 }
 
 const inferSchedulePurpose = ({
@@ -337,6 +374,8 @@ const inferSchedulePurpose = ({
   previousScheduleContext = null,
   previousQuoteContext = null,
   currentTopic = null,
+  previousIntentKey = null,
+  previousCanonicalTopic = null,
 }) => {
   if (
     looksLikeScheduleAdministrativeFollowUp(currentTurnText) &&
@@ -348,8 +387,16 @@ const inferSchedulePurpose = ({
 
   const topicLabel =
     compactText(currentTopic?.label || '') ||
+    compactText(previousCanonicalTopic?.label || '') ||
     compactText(previousQuoteContext?.topicLabel || '') ||
     compactText(previousQuoteContext?.familyLabel || '')
+
+  if (previousIntentKey === 'customer.support_request') {
+    if (topicLabel) {
+      return `revisar ${topicLabel}`
+    }
+    return SCHEDULE_REASON_LABELS.supportSchedulePurpose
+  }
 
   if (topicLabel) {
     return `cotizar ${topicLabel}`
@@ -383,6 +430,8 @@ export const buildCustomerScheduleContext = ({
   previousScheduleContext = null,
   previousQuoteContext = null,
   currentTopic = null,
+  previousIntentKey = null,
+  previousCanonicalTopic = null,
   nluAnalysis = null,
   now = new Date(),
 }) => {
@@ -406,6 +455,8 @@ export const buildCustomerScheduleContext = ({
       previousScheduleContext: previous,
       previousQuoteContext,
       currentTopic,
+      previousIntentKey,
+      previousCanonicalTopic,
     }) || previous?.reason || 'visita técnica'
   const purpose =
     inferSchedulePurpose({
@@ -413,6 +464,8 @@ export const buildCustomerScheduleContext = ({
       previousScheduleContext: previous,
       previousQuoteContext,
       currentTopic,
+      previousIntentKey,
+      previousCanonicalTopic,
     }) || previous?.purpose || reason
 
   const hasExactDate = Boolean(date?.date && date?.exact)

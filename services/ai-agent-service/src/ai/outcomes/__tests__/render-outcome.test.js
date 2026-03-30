@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildCustomerSupportRequestText,
   buildCustomerScheduleCreatedText,
   renderCustomerDeterministicText,
   renderExecutionOutcome,
@@ -183,4 +184,21 @@ test('renderCustomerDeterministicText keeps customer deterministic follow-up wor
     }),
     /empecemos por la visita/i,
   )
+})
+
+test('buildCustomerSupportRequestText asks only for the missing support issue once the product is known', () => {
+  const text = buildCustomerSupportRequestText('es una persiana de pvc', {
+    interpretation: {
+      supportContext: {
+        productType: 'persiana de pvc',
+        missingFields: ['issue'],
+      },
+      conversationContext: {
+        mode: 'flow',
+      },
+    },
+  })
+
+  assert.match(text, /persiana de pvc/i)
+  assert.match(text, /problema|revisar/i)
 })

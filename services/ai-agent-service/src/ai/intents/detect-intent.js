@@ -6,6 +6,8 @@ import {
   looksLikeGenericPriceInquiry,
 } from './customer-intent-patterns.js'
 import { hasTenantTopicSignal } from './customer-topic-taxonomy.js'
+import { hasReengagementReferenceSignal } from './customer-semantic-signals.js'
+import { matchCustomerHybridIntentRegistry } from './hybrid-intent-registry.js'
 
 const normalizeText = (value) =>
   String(value || '')
@@ -44,48 +46,63 @@ const CUSTOMER_INTENT_FALLBACK_RULES = [
   {
     intent: 'customer.topic_info',
     decisionPath: ['registry:customer_commercial_conditions'],
-    matches: ({ normalizedReasoningInput }) =>
-      looksLikeCommercialConditionQuestion(normalizedReasoningInput),
+    matches: ({ normalizedInput }) => looksLikeCommercialConditionQuestion(normalizedInput),
   },
   {
     intent: 'customer.quote',
     decisionPath: ['registry:customer_quote_fallback'],
-    matches: ({ normalizedReasoningInput }) =>
-      looksLikeGenericPriceInquiry(normalizedReasoningInput),
+    matches: ({ normalizedInput }) => looksLikeGenericPriceInquiry(normalizedInput),
   },
   {
     intent: 'customer.order_status',
     decisionPath: ['registry:customer_order_status_fallback'],
-    matches: ({ normalizedReasoningInput }) =>
+    matches: ({ normalizedInput }) =>
       /\b(pedido|orden|estado|seguimiento|envio|envío|entrega)\b/.test(
-        normalizedReasoningInput,
+        normalizedInput,
       ),
   },
   {
     intent: 'customer.support_request',
     decisionPath: ['registry:customer_support_fallback'],
-    matches: ({ normalizedReasoningInput }) =>
+    matches: ({ normalizedInput }) =>
       /\b(problema|soporte|reclamo|garantia|garantía|no funciona|no anda|service|servicio tecnico|servicio técnico|reparacion|reparación|reparar|dejo de funcionar|dejó de funcionar)\b/.test(
-        normalizedReasoningInput,
+        normalizedInput,
       ),
   },
   {
     intent: 'customer.schedule_request',
     decisionPath: ['registry:customer_schedule_request_fallback'],
-    matches: ({ normalizedReasoningInput }) =>
-      /\b(coordinar|agendar|programar|visita|cita|instalacion|instalación|colocacion|colocación|disponibilidad|pasar|venir|direccion|dirección)\b/.test(
-        normalizedReasoningInput,
-      ),
+    matches: ({ normalizedInput }) =>
+      /\b(coordinar|agendar|programar|visita|cita|instalacion|instalación|colocacion|colocación|disponibilidad|venir|direccion|dirección)\b/.test(
+        normalizedInput,
+      ) ||
+      /\b(pasar a medir|pasar a ver|pasar por)\b/.test(normalizedInput),
   },
   {
     intent: 'customer.product_info',
     decisionPath: ['registry:customer_product_info_fallback'],
-    matches: ({ normalizedReasoningInput, tenantTopicTaxonomy }) =>
-      /\b(producto|productos|servicio|servicios|modelo|modelos|linea|línea|lineas|líneas|variante|variantes|version|versión|versiones)\b/.test(
-        normalizedReasoningInput,
-      ) ||
-      hasTenantTopicSignal(normalizedReasoningInput, tenantTopicTaxonomy) ||
-      Boolean(extractRequestedTopicLabel(normalizedReasoningInput)),
+    matches: ({
+      normalizedInput,
+      rawInput,
+      rawReasoningInput,
+      tenantTopicTaxonomy,
+    }) => {
+      const semanticSource = String(rawInput || rawReasoningInput || normalizedInput || '')
+      if (
+        /\barchivo adjunto\b/.test(normalizedInput) ||
+        hasReengagementReferenceSignal(semanticSource)
+      ) {
+        return false
+      }
+
+      return (
+        /\b(producto|productos|servicio|servicios|modelo|modelos|linea|línea|lineas|líneas|variante|variantes|version|versión|versiones)\b/.test(
+          normalizedInput,
+        ) ||
+        hasTenantTopicSignal(normalizedInput, tenantTopicTaxonomy) ||
+        Boolean(extractRequestedTopicLabel(semanticSource))
+      )
+    },
   },
 ]
 
@@ -453,6 +470,8 @@ const matchCustomerRestrictedIntent = ({
 
 const matchCustomerFallbackIntent = ({
   role,
+  rawInput = '',
+  rawReasoningInput = '',
   normalizedInput,
   normalizedReasoningInput,
   inboundClassification,
@@ -479,6 +498,8 @@ const matchCustomerFallbackIntent = ({
   for (const rule of CUSTOMER_INTENT_FALLBACK_RULES) {
     if (
       rule.matches({
+        rawInput,
+        rawReasoningInput,
         normalizedInput,
         normalizedReasoningInput,
         tenantTopicTaxonomy,
@@ -489,6 +510,29 @@ const matchCustomerFallbackIntent = ({
   }
 
   return null
+}
+
+const matchConfiguredCustomerFallbackIntent = ({
+  role,
+  input,
+  reasoningInput = null,
+  inboundClassification,
+  directActionIntent,
+  customerHybridIntentRegistry = [],
+}) => {
+  if (
+    String(role || '').startsWith(ADMIN_OPERATIONAL_ROLE_PREFIX) ||
+    directActionIntent?.key ||
+    inboundClassification?.suggestedIntent
+  ) {
+    return null
+  }
+
+  return matchCustomerHybridIntentRegistry({
+    registry: customerHybridIntentRegistry,
+    input,
+    reasoningInput,
+  })
 }
 
 const detectLightIntentKeywords = (intent) => {
@@ -537,6 +581,32 @@ const matchNlpCustomerIntent = ({
   }
 }
 
+const matchClassifiedCustomerIntent = ({
+  role,
+  directActionIntent,
+  inboundClassification = null,
+}) => {
+  if (
+    String(role || '').startsWith(ADMIN_OPERATIONAL_ROLE_PREFIX) ||
+    directActionIntent?.key ||
+    !inboundClassification?.suggestedIntent
+  ) {
+    return null
+  }
+
+  return {
+    intent: inboundClassification.suggestedIntent,
+    keywords: [String(inboundClassification.category || 'classified_customer_intent')],
+    confidence:
+      typeof inboundClassification.confidence === 'number'
+        ? Math.min(Math.max(inboundClassification.confidence, 0), 0.93)
+        : 0.72,
+    decisionPath: Array.isArray(inboundClassification.decisionPath)
+      ? inboundClassification.decisionPath
+      : ['classifier:suggested_intent'],
+  }
+}
+
 const inferConfidence = ({ intent, directActionIntent, actionIntent, source }) => {
   if (directActionIntent) {
     return 0.92
@@ -574,6 +644,7 @@ export const detectIntent = ({
   inboundClassification = null,
   tenantTopicTaxonomy = [],
   nluAnalysis = null,
+  customerHybridIntentRegistry = [],
   legacy = {},
 }) => {
   const effectiveInput = String(input || '')
@@ -592,11 +663,21 @@ export const detectIntent = ({
   const directActionIntent = findCatalogActionIntent(normalizedInput, actionCatalog)
   const customerFallbackIntent = matchCustomerFallbackIntent({
     role,
+    rawInput: effectiveInput,
+    rawReasoningInput: effectiveReasoningInput,
     normalizedInput,
     normalizedReasoningInput,
     inboundClassification: resolvedInboundClassification,
     directActionIntent,
     tenantTopicTaxonomy,
+  })
+  const configuredCustomerFallbackIntent = matchConfiguredCustomerFallbackIntent({
+    role,
+    input: effectiveInput,
+    reasoningInput: effectiveReasoningInput,
+    inboundClassification: resolvedInboundClassification,
+    directActionIntent,
+    customerHybridIntentRegistry,
   })
   const registryIntent = matchRegisteredIntent({
     role,
@@ -619,13 +700,26 @@ export const detectIntent = ({
     tenantTopicTaxonomy,
     nluAnalysis,
   })
+  const classifiedCustomerIntent = matchClassifiedCustomerIntent({
+    role,
+    directActionIntent,
+    inboundClassification: resolvedInboundClassification,
+  })
   const preferredCustomerFallbackIntent =
-    nlpCustomerIntent &&
+    configuredCustomerFallbackIntent ||
+    (nlpCustomerIntent &&
     (!customerFallbackIntent ||
       customerFallbackIntent.intent === 'customer.product_info') &&
     nlpCustomerIntent.intent !== customerFallbackIntent?.intent
       ? nlpCustomerIntent
-      : customerFallbackIntent
+      : customerFallbackIntent) ||
+    (classifiedCustomerIntent &&
+    (!customerFallbackIntent ||
+      customerFallbackIntent.intent === 'customer.product_info') &&
+    classifiedCustomerIntent.intent !== customerFallbackIntent?.intent
+      ? classifiedCustomerIntent
+      : customerFallbackIntent) ||
+    classifiedCustomerIntent
   const directIntent =
     preferredCustomerFallbackIntent?.intent ||
     (shouldUseLegacyDeriveIntent(role) && legacy.deriveIntentKey
