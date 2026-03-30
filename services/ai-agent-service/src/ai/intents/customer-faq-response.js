@@ -15,6 +15,7 @@ import {
   normalizeTenantTopicTaxonomy,
 } from './customer-topic-taxonomy.js'
 import { pickWordingVariant } from '../outcomes/wording-registry.js'
+import { looksLikeQuoteExpansionSignal } from './customer-semantic-signals.js'
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
@@ -166,6 +167,22 @@ const hasExplicitPaymentTerms = (text) =>
   /\b(efectivo|transferencia|tarjeta|tarjetas|cuotas|financiacion|financiación|debito|débito|credito|crédito)\b/i.test(
     normalizeText(text || ''),
   )
+
+export const DEFAULT_OPERATIONAL_PAYMENT_METHODS_INLINE =
+  'efectivo, transferencia bancaria y tarjetas'
+
+export const resolveOperationalPaymentMethodsInline = (input = '') => {
+  const normalized = normalizeText(input)
+  if (!normalized) {
+    return DEFAULT_OPERATIONAL_PAYMENT_METHODS_INLINE
+  }
+
+  if (hasExplicitPaymentTerms(normalized)) {
+    return DEFAULT_OPERATIONAL_PAYMENT_METHODS_INLINE
+  }
+
+  return DEFAULT_OPERATIONAL_PAYMENT_METHODS_INLINE
+}
 
 const looksLikePriceOrQuoteTurn = (text) =>
   looksLikeGenericPriceInquiry(normalizeText(text || ''))
@@ -530,6 +547,7 @@ const toInlineBusinessAnswer = (statement) =>
       .replace(/^(horario de atencion|horario de atención)\s*[:\-]?\s*/iu, '')
       .replace(/^(direccion|dirección|ubicacion|ubicación)\s*[:\-]?\s*/iu, '')
       .replace(/^(medios de pago|formas de pago)\s*[:\-]?\s*/iu, '')
+      .replace(/^(disponibles?)\s*[:\-]?\s*/iu, '')
       .replace(/^(telefono|teléfono|whatsapp|contacto)\s*[:\-]?\s*/iu, '')
       .replace(/^(aceptamos)\s+/iu, '')
       .replace(/^(puedes contactarnos en)\s+/iu, '')
@@ -544,6 +562,11 @@ const buildShapedCustomerFaqResponse = ({
   tenantTopicTaxonomy = [],
   variationSeed = '',
   wordingOverrides = null,
+  previousIntentKey = null,
+  preferOperationalPaymentFollowUp = false,
+  preferOperationalScheduleFollowUp = false,
+  channel = null,
+  channelProfile = null,
 }) => {
   const firstEvidence = evidence[0]?.text || null
   const secondEvidence = evidence[1]?.text || null
@@ -552,6 +575,17 @@ const buildShapedCustomerFaqResponse = ({
   }
 
   if (faqSubtype === 'business_hours') {
+    if (preferOperationalScheduleFollowUp) {
+      return pickWordingVariant({
+        key: 'customer.schedule.availability_followup',
+        variationSeed,
+        overrides: wordingOverrides,
+        channel,
+        channelProfile,
+        fallback:
+          'Todavía no te puedo confirmar una franja exacta por acá. Si querés, pasame la dirección y un teléfono de contacto y lo dejamos encaminado para coordinar la visita.',
+      })
+    }
     return `Nuestro horario de atención es ${toInlineBusinessAnswer(firstEvidence)}`
   }
 
@@ -583,7 +617,34 @@ const buildShapedCustomerFaqResponse = ({
   }
 
   if (faqSubtype === 'payment_methods') {
-    return `Aceptamos ${toInlineBusinessAnswer(firstEvidence)} Si quieres, te indico opciones o condiciones según el medio de pago.`
+    const inlineAnswer = toInlineBusinessAnswer(firstEvidence).replace(/[.!?]+$/u, '')
+    if (
+      previousIntentKey === 'customer.support_request' ||
+      preferOperationalPaymentFollowUp
+    ) {
+      return pickWordingVariant({
+        key: 'customer.faq.payment_methods_operational_followup',
+        variationSeed,
+        variables: {
+          paymentMethods: inlineAnswer,
+        },
+        overrides: wordingOverrides,
+        channel,
+        channelProfile,
+        fallback: `Aceptamos ${inlineAnswer}. Si ya mandaste el material o el comprobante, lo dejo en seguimiento y seguimos por acá.`,
+      })
+    }
+    return pickWordingVariant({
+      key: 'customer.faq.payment_methods',
+      variationSeed,
+      variables: {
+        paymentMethods: inlineAnswer,
+      },
+      overrides: wordingOverrides,
+      channel,
+      channelProfile,
+      fallback: `Aceptamos ${inlineAnswer}. Si querés, te indico opciones o condiciones según el medio de pago.`,
+    })
   }
 
   if (faqSubtype === 'contact') {
@@ -664,10 +725,30 @@ const buildTopicSpecificKnowledgeFallbackText = (
   const tenantTopicTaxonomy = Array.isArray(options?.tenantTopicTaxonomy)
     ? options.tenantTopicTaxonomy
     : []
-  const requestedTopicLabel =
+  const extractedRequestedTopicLabel = extractRequestedTopicLabel(detectionInput)
+  const quoteContextTopicLabel =
+    typeof interpretation?.quoteContext?.topicLabel === 'string' &&
+    interpretation.quoteContext.topicLabel.trim()
+      ? interpretation.quoteContext.topicLabel.trim()
+      : null
+  const interpretationTopicLabel =
     typeof interpretation?.topic?.label === 'string' && interpretation.topic.label.trim()
       ? interpretation.topic.label.trim()
-      : extractRequestedTopicLabel(detectionInput)
+      : null
+  const shouldPreferQuoteContextTopic =
+    looksLikeQuoteExpansionSignal(detectionInput) &&
+    quoteContextTopicLabel &&
+    (!extractedRequestedTopicLabel ||
+      normalizeText(quoteContextTopicLabel).includes(
+        normalizeText(extractedRequestedTopicLabel),
+      ))
+  const requestedTopicLabel =
+    shouldPreferQuoteContextTopic
+      ? quoteContextTopicLabel
+      : extractedRequestedTopicLabel &&
+          String(interpretation?.topic?.type || '') === 'product_family'
+        ? extractedRequestedTopicLabel
+        : interpretationTopicLabel || extractedRequestedTopicLabel
   const normalizedRequestedTopic = normalizeText(requestedTopicLabel || '')
   const taxonomyTopicMatch = findBestTenantTopicMatch(
     requestedTopicLabel || interpretation?.topic?.label || '',
@@ -710,6 +791,8 @@ const buildTopicSpecificKnowledgeFallbackText = (
       : null
   const variationSeed = String(options?.variationSeed || '')
   const wordingOverrides = options?.wordingOverrides || null
+  const channel = options?.channel || null
+  const channelProfile = options?.channelProfile || null
 
   if (quoteRequirementsQuestion) {
     return buildQuoteGuidanceText({
@@ -831,6 +914,8 @@ const buildTopicSpecificKnowledgeFallbackText = (
         key: 'customer.faq.product_availability',
         variationSeed,
         overrides: wordingOverrides,
+        channel,
+        channelProfile,
         variables: { topic: displayTopicLabel },
         fallback: `Sí, contamos con ${displayTopicLabel}. Si quieres, te amplío beneficios, usos y opciones según lo que necesitas.`,
       })
@@ -859,6 +944,8 @@ const buildTopicSpecificKnowledgeFallbackText = (
           key: 'customer.faq.product_family_options',
           variationSeed,
           overrides: wordingOverrides,
+          channel,
+          channelProfile,
           variables: { topic: displayTopicLabel },
           fallback: `Perfecto, trabajamos con varios tipos de ${displayTopicLabel}. ¿Tenés alguno en mente o querés que te cuente opciones?`,
         })
@@ -872,6 +959,8 @@ const buildTopicSpecificKnowledgeFallbackText = (
           key: 'customer.faq.product_variant_with_evidence',
           variationSeed,
           overrides: wordingOverrides,
+          channel,
+          channelProfile,
           variables: {
             topic: resolvedLabel,
             evidence: primaryEvidence,
@@ -884,6 +973,8 @@ const buildTopicSpecificKnowledgeFallbackText = (
           key: 'customer.faq.product_general_with_evidence',
           variationSeed,
           overrides: wordingOverrides,
+          channel,
+          channelProfile,
           variables: {
             topic: displayTopicLabel,
             evidence: primaryEvidence,
@@ -895,6 +986,8 @@ const buildTopicSpecificKnowledgeFallbackText = (
         key: 'customer.faq.product_general',
         variationSeed,
         overrides: wordingOverrides,
+        channel,
+        channelProfile,
         variables: { topic: displayTopicLabel },
         fallback: `Sí, trabajamos con ${displayTopicLabel}. Si quieres, te cuento opciones, líneas y prestaciones según lo que necesitas.`,
       })
@@ -984,6 +1077,8 @@ export const buildGenericCustomerKnowledgeFallbackText = (
         key: 'customer.faq.product_availability',
         variationSeed: String(options?.variationSeed || ''),
         overrides: options?.wordingOverrides || null,
+        channel: options?.channel || null,
+        channelProfile: options?.channelProfile || null,
         variables: { topic: 'esa opción' },
         fallback:
           'Sí, contamos con esa opción. Si quieres, te amplío beneficios, usos y opciones según lo que necesitas.',
@@ -1002,6 +1097,9 @@ export const buildCustomerFaqKnowledgeResponse = ({
   tenantTopicTaxonomy = [],
   variationSeed = '',
   wordingOverrides = null,
+  previousIntentKey = null,
+  channel = null,
+  channelProfile = null,
 }) => {
   const detectionInput =
     typeof interpretation?.normalizedCurrentTurn === 'string' &&
@@ -1009,6 +1107,20 @@ export const buildCustomerFaqKnowledgeResponse = ({
       ? interpretation.normalizedCurrentTurn.trim()
       : input
   const faqSubtype = detectCustomerFaqSubtype(detectionInput, { retrievalItems })
+  const inheritedIntentKey =
+    typeof interpretation?.followUp?.inheritedIntentKey === 'string'
+      ? interpretation.followUp.inheritedIntentKey
+      : null
+  const preferOperationalPaymentFollowUp =
+    faqSubtype === 'payment_methods' &&
+    (previousIntentKey === 'customer.support_request' ||
+      inheritedIntentKey === 'customer.support_request' ||
+      Boolean(interpretation?.followUp?.detected))
+  const preferOperationalScheduleFollowUp =
+    faqSubtype === 'business_hours' &&
+    (previousIntentKey === 'customer.schedule_request' ||
+      inheritedIntentKey === 'customer.schedule_request' ||
+      Boolean(interpretation?.scheduleContext))
   const evidence = selectCustomerFaqEvidence({
     input: detectionInput,
     retrievalItems,
@@ -1046,6 +1158,11 @@ export const buildCustomerFaqKnowledgeResponse = ({
       tenantTopicTaxonomy,
       variationSeed,
       wordingOverrides,
+      previousIntentKey,
+      preferOperationalPaymentFollowUp,
+      preferOperationalScheduleFollowUp,
+      channel,
+      channelProfile,
     })
   )
 }

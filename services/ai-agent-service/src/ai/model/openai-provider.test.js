@@ -45,3 +45,66 @@ test('serializes prior agent turns as AIMessage instead of ToolMessage', async (
   assert.ok(capturedMessages[2] instanceof AIMessage)
   assert.ok(capturedMessages[3] instanceof HumanMessage)
 })
+
+test('flattens structured content arrays returned by the provider instead of leaking raw JSON', async () => {
+  const provider = new OpenAIProvider({
+    openAiApiKey: 'test-key',
+    modelName: 'gpt-4o-mini',
+    temperature: 0.2,
+  })
+
+  provider.client = {
+    invoke: async () => ({
+      content: [
+        { type: 'text', text: 'Primera parte.' },
+        { type: 'output_text', text: 'Segunda parte.' },
+      ],
+      tool_calls: [],
+    }),
+    bindTools() {
+      return this
+    },
+  }
+
+  const response = await provider.generate({
+    systemPrompt: 'system',
+    history: [],
+    input: 'mensaje actual',
+    tools: [],
+  })
+
+  assert.equal(response.text, 'Primera parte. Segunda parte.')
+})
+
+test('uses per-call client overrides without replacing the default client', async () => {
+  const provider = new OpenAIProvider({
+    openAiApiKey: 'test-key',
+    modelName: 'gpt-4o-mini',
+    temperature: 0.2,
+  })
+
+  let overrideClientUsed = false
+  provider.createClient = (overrides = {}) => ({
+    invoke: async () => {
+      overrideClientUsed = overrides.modelName === 'gpt-4.1-mini'
+      return { content: 'ok override', tool_calls: [] }
+    },
+    bindTools() {
+      return this
+    },
+  })
+
+  const response = await provider.generate({
+    systemPrompt: 'system',
+    history: [],
+    input: 'mensaje actual',
+    tools: [],
+    options: {
+      modelName: 'gpt-4.1-mini',
+      temperature: 0.1,
+    },
+  })
+
+  assert.equal(response.text, 'ok override')
+  assert.equal(overrideClientUsed, true)
+})

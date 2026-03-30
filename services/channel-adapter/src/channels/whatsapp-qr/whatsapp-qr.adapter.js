@@ -18,6 +18,10 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys'
 import pino from 'pino'
 import QRCode from 'qrcode'
+import {
+  estimateInboundCompletionDelay,
+  InboundTurnCoalescer,
+} from '../../runtime/inbound-turn-coalescer.js'
 
 const DEFAULT_CONFIG = Object.freeze({
   enabled: false,
@@ -533,10 +537,16 @@ const extractAttachments = (message) => {
 }
 
 export class WhatsappQrAdapter {
-  constructor(clients, config) {
+  constructor(clients, config, options = {}) {
     this.clients = clients
     this.config = config
     this.logger = pino({ level: 'silent' })
+    this.coalescer =
+      options.coalescer ||
+      new InboundTurnCoalescer({
+        quietWindowMs: options.quietWindowMs,
+        maxWindowMs: options.maxWindowMs,
+      })
     this.runtimeConfig = { ...DEFAULT_CONFIG, tenantKey: config.clientSlug || 'urucortinas' }
     this.status = DEFAULT_STATUS()
     this.sock = null
@@ -561,6 +571,82 @@ export class WhatsappQrAdapter {
     this.groupMetadataCache = new Map()
     this.pollVoteAggregates = new Map()
     this.lastBackfillResult = null
+  }
+
+  buildLiveInboundCoalescerKey({ projection, externalUserId, remoteJid }) {
+    return [
+      'whatsapp',
+      projection?.conversationId || 'conversation',
+      externalUserId || remoteJid || 'user',
+    ].join(':')
+  }
+
+  async processBufferedLiveInbound(items = []) {
+    const lastItem = items.at(-1)
+    if (!lastItem) {
+      return null
+    }
+
+    const projection = lastItem.projection
+    const combinedText = items
+      .map((entry) => String(entry?.text || '').trim())
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+    const combinedAttachments = items.flatMap((entry) =>
+      Array.isArray(entry?.attachments) ? entry.attachments : [],
+    )
+
+    const aiResult = await this.clients.ai.respond({
+      channel: 'whatsapp',
+      tenantKey: this.runtimeConfig.tenantKey,
+      conversationId: projection.conversationId,
+      userId: lastItem.externalUserId,
+      scope: 'customer_public',
+      authLevel: 'anonymous',
+      authenticated: false,
+      authorKind: 'customer_human',
+      messageKind: combinedText ? 'human_message' : 'attachment_only',
+      text: combinedText,
+      attachments: combinedAttachments,
+      locale: projection?.preferences?.locale || undefined,
+      currency: projection?.preferences?.currency || undefined,
+      metadata: {
+        transport: 'whatsapp_qr',
+        remoteJid: lastItem.remoteJid ? jidNormalizedUser(lastItem.remoteJid) : null,
+        providerMessageId: lastItem.providerMessageId || null,
+        locale: projection?.preferences?.locale || null,
+        currency: projection?.preferences?.currency || null,
+        coalescedInboundCount: items.length,
+      },
+    })
+
+    const responseText =
+      aiResult?.response?.finalUserText?.trim() ||
+      aiResult?.response?.text?.trim()
+
+    if (!responseText) {
+      return aiResult?.response ?? null
+    }
+
+    await this.clients.conversations.replyAsAgent(projection.conversationId, {
+      body: responseText,
+      finalUserText: responseText,
+      debugSummary: aiResult?.response?.debugSummary ?? null,
+      auditPayload: aiResult?.response?.auditPayload ?? null,
+      metadata: {
+        provider: aiResult?.response?.provider || 'mock',
+        model: aiResult?.response?.model || null,
+        channel: 'whatsapp',
+        deliveryStatus: 'pending_external',
+        transport: 'whatsapp_qr',
+        aiMemory: aiResult?.response?.memory || null,
+        coalescedInboundCount: items.length,
+      },
+      toolCalls: aiResult?.response?.toolCalls ?? [],
+    })
+
+    return aiResult?.response ?? null
   }
 
   async init() {
@@ -1522,52 +1608,28 @@ export class WhatsappQrAdapter {
           continue
         }
 
-        const aiResult = await this.clients.ai.respond({
-          channel: 'whatsapp',
-          tenantKey: this.runtimeConfig.tenantKey,
-          conversationId: projection.conversationId,
-          userId: externalUserId,
-          scope: 'customer_public',
-          authLevel: 'anonymous',
-          authenticated: false,
-          authorKind: 'customer_human',
-          messageKind: text ? 'human_message' : 'attachment_only',
-          text,
-          attachments,
-          locale: projection?.preferences?.locale || undefined,
-          currency: projection?.preferences?.currency || undefined,
-          metadata: {
-            transport: 'whatsapp_qr',
-            remoteJid: remoteJid ? jidNormalizedUser(remoteJid) : null,
+        await this.coalescer.enqueue(
+          this.buildLiveInboundCoalescerKey({
+            projection,
+            externalUserId,
+            remoteJid,
+          }),
+          {
+            projection,
+            text,
+            attachments,
+            externalUserId,
+            remoteJid,
             providerMessageId: message?.key?.id || null,
-            locale: projection?.preferences?.locale || null,
-            currency: projection?.preferences?.currency || null,
           },
-        })
-
-        const responseText =
-          aiResult?.response?.finalUserText?.trim() ||
-          aiResult?.response?.text?.trim()
-
-        if (!responseText) {
-          continue
-        }
-
-        await this.clients.conversations.replyAsAgent(projection.conversationId, {
-          body: responseText,
-          finalUserText: responseText,
-          debugSummary: aiResult?.response?.debugSummary ?? null,
-          auditPayload: aiResult?.response?.auditPayload ?? null,
-          metadata: {
-            provider: aiResult?.response?.provider || 'mock',
-            model: aiResult?.response?.model || null,
-            channel: 'whatsapp',
-            deliveryStatus: 'pending_external',
-            transport: 'whatsapp_qr',
-            aiMemory: aiResult?.response?.memory || null,
+          (items) => this.processBufferedLiveInbound(items),
+          {
+            flushDelayMs: estimateInboundCompletionDelay({
+              text,
+              attachments,
+            }),
           },
-          toolCalls: aiResult?.response?.toolCalls ?? [],
-        })
+        )
       } catch (error) {
         this.status.lastError =
           error instanceof Error ? error.message : 'whatsapp_qr_ingest_failed'

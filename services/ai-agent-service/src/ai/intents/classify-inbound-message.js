@@ -6,6 +6,12 @@ import {
 } from './customer-faq-heuristics.js'
 import {
   looksLikeGenericPriceInquiry,
+  looksLikeInstalledReplacementAssessmentRequest,
+  looksLikeQuoteExpansionFollowUp,
+  looksLikeStructuredQuoteSeed,
+  looksLikePaymentProofArtifact,
+  looksLikePaymentOperationalUpdate,
+  looksLikePaymentProofFollowUpRequest,
   looksLikeQuoteRequirementsQuestion,
 } from './customer-intent-patterns.js'
 import {
@@ -18,15 +24,60 @@ import {
   hasTenantTopicSignal,
 } from './customer-topic-taxonomy.js'
 import { normalizeCustomerTextForIntent } from './customer-text-normalizer.js'
+import {
+  detectStandaloneAttachmentArtifactKind,
+  hasMultimodalPlaceholderSignal,
+  looksLikeOpeningStructureSignal,
+  hasScheduleAdministrativeSignal,
+  normalizeSemanticText,
+} from './customer-semantic-signals.js'
 
-const normalizeText = (value) =>
-  String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+const normalizeText = normalizeSemanticText
+const DIMENSION_PAIR_REGEX = /\b\d+(?:[.,]\d+)?\s*x\s*\d+(?:[.,]\d+)?\b/u
+const MULTIMODAL_PLACEHOLDER_PHRASE_REGEX =
+  /\b(?:multimedia omitido|imagen omitida|audio omitido|video omitido)\b/gu
+const WEB_LEAD_INTRO_ONLY_REGEX =
+  /^(?:hola|buen dia|buenos dias|buenas tardes|buenas noches)?\s*(?:[,!:.-]\s*)?(?:te contacto|te escribo|me contacto)\s+desde\s+la\s+web(?:\s+de\s+urucortinas)?\s*:?\s*$/iu
+
+const looksLikeInstallationQuoteContext = (normalizedInput) =>
+  /\b(cotiz\w*|presupuest\w*|precio|precios|costo|costos|valor|importe)\b/u.test(
+    normalizedInput,
+  ) &&
+  /\b(instalacion|instalación|colocacion|colocación|colocar)\b/u.test(normalizedInput) &&
+  (DIMENSION_PAIR_REGEX.test(normalizedInput) ||
+    /\b(ventana|ventanas|abertura|aberturas|marco|marcos|guia|gu[ií]a|guias|gu[ií]as)\b/u.test(
+      normalizedInput,
+    ))
+
+const looksLikeOpeningInstallationAssessmentContext = (normalizedInput) => {
+  const hasRelevantProduct =
+    /\b(cortina|cortinas|persiana|persianas|ventana|ventanas|abertura|aberturas)\b/u.test(
+      normalizedInput,
+    )
+  const hasOpeningContext =
+    looksLikeOpeningStructureSignal(normalizedInput) ||
+    /\b(marco|marcos|guia|gu[ií]a|guias|gu[ií]as|ventana|ventanas|abertura|aberturas)\b/u.test(
+      normalizedInput,
+    )
+  const hasInstallationAssessmentSignal =
+    /\b(superficie|exterior|colocar|colocacion|colocación|instalacion|instalación|uniforme|lisa)\b/u.test(
+      normalizedInput,
+    )
+  const hasRepairSignal =
+    /\b(repar\w*|service|servicio|ajust\w*|arregl\w*|romp\w*|tranc\w*|fall\w*|mantenimiento)\b/u.test(
+      normalizedInput,
+    )
+
+  return (
+    hasRelevantProduct &&
+    hasOpeningContext &&
+    hasInstallationAssessmentSignal &&
+    !hasRepairSignal
+  )
+}
+
+const stripMultimodalPlaceholderPhrases = (value) =>
+  normalizeText(value).replace(MULTIMODAL_PLACEHOLDER_PHRASE_REGEX, '').trim()
 
 const looksLikeRawNoiseInput = (value) => {
   const rawInput = String(value || '').trim()
@@ -73,7 +124,7 @@ const ACTIONABLE_HINTS =
   /\b(cotiz|presupuesto|precio|precios|pedido|orden|envio|entrega|agendar|agenda|visita|cita|comprar|quiero una|quiero uno|medida|medidas|soporte|reclamo|problema|service|repar|instalacion|instalación|coordinar|disponibilidad)\b/
 
 const CONTACT_PATTERNS = [
-  /\b(tienen telefono|tienen teléfono|tienen whatsapp|numero de contacto|número de contacto|telefono|teléfono|whatsapp|llamar|contacto|comunicarme|comunicarse|hablar con alguien)\b/,
+  /\b(tienen telefono|tienen teléfono|tienen whatsapp|numero de contacto|número de contacto|datos de contacto|telefono|teléfono|whatsapp|llamar|comunicarme|comunicarse|hablar con alguien)\b/,
 ]
 
 const GENERIC_HELP_PATTERNS = [
@@ -248,10 +299,7 @@ const looksLikeScheduleAdministrativeFollowUp = (
     return false
   }
 
-  const hasAdministrativeSignal =
-    /\b(a que hora|que hora|que dia|que dia|qué día|a las \d{1,2}(?::\d{2})?|hoy|manana|mañana|pasado manana|pasado mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|direccion|dirección|ubicacion|ubicación|avenida|av\b|calle|ruta|telefono|teléfono|whatsapp|email|correo|contacto)\b/u.test(
-      normalizedInput,
-    )
+  const hasAdministrativeSignal = hasScheduleAdministrativeSignal(normalizedInput)
 
   if (!hasAdministrativeSignal) {
     return false
@@ -264,7 +312,7 @@ const looksLikeScheduleAdministrativeFollowUp = (
     }
 
     const normalizedTurn = normalizeText(turn.text)
-    return /\b(coordinar|agendar|programar|visita|cita|disponibilidad|te propongo uno|proponga uno|terminar de coordinar|seguir con la visita)\b/u.test(
+    return /\b(coordinar|agendar|programar|visita|cita|disponibilidad|te propongo uno|proponga uno|terminar de coordinar|seguir con la visita|instalacion|instalación|colocacion|colocación|reparacion|reparación|revision|revisión|service|trabajos? a medida|a medida)\b/u.test(
       normalizedTurn,
     )
   })
@@ -365,6 +413,18 @@ export const classifyInboundMessage = ({
     })
   }
 
+  if (
+    hasMultimodalPlaceholderSignal(input) &&
+    !stripMultimodalPlaceholderPhrases(input)
+  ) {
+    return buildClassification({
+      category: 'incomplete',
+      confidence: 0.72,
+      suggestedIntent: isCustomerRole(role) ? 'customer.incomplete' : null,
+      decisionPath: ['classifier:multimodal_placeholder_only'],
+    })
+  }
+
   if (!isCustomerRole(role)) {
     return buildClassification({
       category: ACTIONABLE_HINTS.test(normalizedInput) ? 'actionable_intent' : 'other',
@@ -374,6 +434,15 @@ export const classifyInboundMessage = ({
           ? 'classifier:actionable_intent'
           : 'classifier:other',
       ],
+    })
+  }
+
+  if (WEB_LEAD_INTRO_ONLY_REGEX.test(String(input || '').trim())) {
+    return buildClassification({
+      category: 'generic_help_request',
+      confidence: 0.82,
+      suggestedIntent: 'customer.clarify_request',
+      decisionPath: ['classifier:web_lead_intro_only'],
     })
   }
 
@@ -466,12 +535,104 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (looksLikeCustomerSupportServiceRequest(normalizedInput)) {
+  if (
+    looksLikeOpeningInstallationAssessmentContext(normalizedInput) &&
+    !looksLikeGenericPriceInquiry(normalizedInput)
+  ) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.83,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:opening_installation_assessment_quote'],
+    })
+  }
+
+  if (
+    looksLikeCustomerSupportServiceRequest(normalizedInput, {
+      recentTurns,
+      tenantTopicTaxonomy,
+    })
+  ) {
     return buildClassification({
       category: 'support_request',
       confidence: 0.92,
       suggestedIntent: 'customer.support_request',
       decisionPath: ['classifier:support_request'],
+    })
+  }
+
+  if (looksLikeQuoteExpansionFollowUp(normalizedInput, tenantTopicTaxonomy)) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.9,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:quote_expansion_followup'],
+    })
+  }
+
+  if (looksLikeStructuredQuoteSeed(normalizedInput, tenantTopicTaxonomy)) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.91,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:structured_quote_seed'],
+    })
+  }
+
+  if (
+    looksLikeOpeningStructureSignal(input) &&
+    (DIMENSION_PAIR_REGEX.test(normalizedInput) || looksLikeGenericPriceInquiry(normalizedInput))
+  ) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.9,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:opening_structure_quote'],
+    })
+  }
+
+  if (looksLikeInstalledReplacementAssessmentRequest(normalizedInput)) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.9,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:replacement_quote_request'],
+    })
+  }
+
+  if (looksLikePaymentProofFollowUpRequest(normalizedInput)) {
+    return buildClassification({
+      category: 'support_request',
+      confidence: 0.91,
+      suggestedIntent: 'customer.support_request',
+      decisionPath: ['classifier:payment_followup_support_request'],
+    })
+  }
+
+  if (looksLikePaymentProofArtifact(normalizedInput)) {
+    return buildClassification({
+      category: 'support_request',
+      confidence: 0.9,
+      suggestedIntent: 'customer.support_request',
+      decisionPath: ['classifier:payment_proof_artifact'],
+    })
+  }
+
+  if (looksLikePaymentOperationalUpdate(normalizedInput)) {
+    return buildClassification({
+      category: 'support_request',
+      confidence: 0.9,
+      suggestedIntent: 'customer.support_request',
+      decisionPath: ['classifier:payment_operational_update'],
+    })
+  }
+
+  if (looksLikeInstallationQuoteContext(normalizedInput)) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.9,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:installation_quote_context'],
     })
   }
 
@@ -499,6 +660,15 @@ export const classifyInboundMessage = ({
       confidence: 0.9,
       suggestedIntent: 'customer.frustration',
       decisionPath: ['classifier:frustration'],
+    })
+  }
+
+  if (detectStandaloneAttachmentArtifactKind(input)) {
+    return buildClassification({
+      category: 'incomplete',
+      confidence: 0.91,
+      suggestedIntent: 'customer.incomplete',
+      decisionPath: ['classifier:attachment_artifact_only'],
     })
   }
 

@@ -50,7 +50,9 @@ type FormValues = {
     customerContentMode: 'enabled' | 'deterministic_only' | 'handoff_only'
     customerCommerceMode: 'enabled' | 'deterministic_only' | 'handoff_only'
     customerSchedulingMode: 'enabled' | 'deterministic_only' | 'handoff_only'
+    customerWordingRegistryJson: string
     customerWordingOverridesJson: string
+    customerHybridIntentRegistryJson: string
 }
 
 const initialFormState: FormValues = {
@@ -76,7 +78,9 @@ const initialFormState: FormValues = {
     customerContentMode: 'enabled',
     customerCommerceMode: 'enabled',
     customerSchedulingMode: 'enabled',
+    customerWordingRegistryJson: '',
     customerWordingOverridesJson: '',
+    customerHybridIntentRegistryJson: '',
 }
 
 const capabilityProfilePresets: Record<
@@ -159,7 +163,10 @@ const toFormValues = (data: AiRuntimeConfigResponse): FormValues => ({
     customerContentMode: data.customerContentMode ?? 'enabled',
     customerCommerceMode: data.customerCommerceMode ?? 'enabled',
     customerSchedulingMode: data.customerSchedulingMode ?? 'enabled',
+    customerWordingRegistryJson:
+        data.customerWordingRegistryJson ?? data.customerWordingOverridesJson ?? '',
     customerWordingOverridesJson: data.customerWordingOverridesJson ?? '',
+    customerHybridIntentRegistryJson: data.customerHybridIntentRegistryJson ?? '',
 })
 
 const AiRuntimeSettings = () => {
@@ -381,8 +388,12 @@ const AiRuntimeSettings = () => {
                             customerCommerceMode: values.customerCommerceMode,
                             customerSchedulingMode:
                                 values.customerSchedulingMode,
+                            customerWordingRegistryJson:
+                                values.customerWordingRegistryJson.trim() || null,
                             customerWordingOverridesJson:
                                 values.customerWordingOverridesJson.trim() || null,
+                            customerHybridIntentRegistryJson:
+                                values.customerHybridIntentRegistryJson.trim() || null,
                         }
 
                         const response: AxiosResponse<AiRuntimeConfigResponse> =
@@ -674,16 +685,48 @@ const AiRuntimeSettings = () => {
                                     </div>
 
                                     <FormItem
-                                        label="Overrides de wording customer"
+                                        label="Registry de response templates customer"
                                         extra={
-                                            'JSON opcional por clave del wording registry. Acepta string o array de variantes. Ejemplo: {"customer.quote.handoff_ready":["Gracias por la información enviada..."],"customer.faq.product_general":"Sí, trabajamos con {topic}. Si querés, te cuento opciones."}'
+                                            'JSON configurable por clave del response template registry. Cada entrada puede ser string, array o un objeto con messages, goal, mustAskQuestion, maxChars y allowHybridRewrite. Esto separa contenido reusable de la lógica del runtime.'
+                                        }
+                                    >
+                                        <Field
+                                            as="textarea"
+                                            name="customerWordingRegistryJson"
+                                            rows={10}
+                                            className="input min-h-[240px] w-full rounded-2xl border border-gray-200 px-4 py-3 font-mono text-sm"
+                                            placeholder={`{\n  "customer.quote.clarification_followup": {\n    "messages": [\n      "Claro. Para no cambiarte nada de lo ya cotizado, lo dejo en seguimiento para que te aclaren el total."\n    ],\n    "goal": "Aclarar un presupuesto ya emitido sin reiniciar el flujo.",\n    "allowHybridRewrite": true,\n    "maxChars": 220\n  }\n}`}
+                                            data-testid="ai-runtime-wording-registry-json"
+                                        />
+                                    </FormItem>
+
+                                    <FormItem
+                                        label="Intent registry híbrido customer"
+                                        extra={
+                                            'JSON opcional con reglas configurables (regex + frases + ejemplos) para complementar la detección base. Se usa como capa de alta precisión antes del fallback genérico, sin delegar la decisión de negocio al LLM.'
+                                        }
+                                    >
+                                        <Field
+                                            as="textarea"
+                                            name="customerHybridIntentRegistryJson"
+                                            rows={10}
+                                            className="input min-h-[240px] w-full rounded-2xl border border-gray-200 px-4 py-3 font-mono text-sm"
+                                            placeholder={`{\n  "rules": [\n    {\n      "id": "quote_clarification_runtime",\n      "intent": "customer.quote",\n      "confidence": 0.92,\n      "priority": 80,\n      "examples": [\n        "me quedó medio raro el precio final",\n        "no entendí bien el total del presupuesto"\n      ],\n      "regexAny": [\n        "\\\\bpresupuesto\\\\b.*\\\\b(total|claro|raro|duda)\\\\b"\n      ]\n    }\n  ]\n}`}
+                                            data-testid="ai-runtime-hybrid-intent-registry-json"
+                                        />
+                                    </FormItem>
+
+                                    <FormItem
+                                        label="Compat legacy · wording overrides"
+                                        extra={
+                                            'Se mantiene por compatibilidad. Si completas el registry estructurado, esta capa queda para parches puntuales.'
                                         }
                                     >
                                         <Field
                                             as="textarea"
                                             name="customerWordingOverridesJson"
-                                            rows={8}
-                                            className="input min-h-[200px] w-full rounded-2xl border border-gray-200 px-4 py-3 font-mono text-sm"
+                                            rows={6}
+                                            className="input min-h-[160px] w-full rounded-2xl border border-gray-200 px-4 py-3 font-mono text-sm"
                                             placeholder='{"customer.quote.handoff_ready":["Gracias por la información enviada. Le enviamos la cotización a la brevedad."]}'
                                             data-testid="ai-runtime-wording-overrides-json"
                                         />

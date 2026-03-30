@@ -1203,4 +1203,89 @@ describe('AiService', () => {
       adminGreetingDefault: 'Hola. Decime qué gestión quieres resolver.',
     })
   })
+
+  it('persists configurable wording registry and hybrid intent registry in runtime config', async () => {
+    const secureConfig = {
+      getJson: vi.fn().mockResolvedValue(null),
+      setJson: vi.fn().mockResolvedValue(undefined),
+    }
+    const service = new AiService(
+      createPrisma() as never,
+      {
+        get: vi.fn((key: string) => {
+          if (key === 'AI_MODEL_PROVIDER') return 'openai'
+          if (key === 'AI_MODEL_NAME') return 'gpt-4o-mini'
+          return undefined
+        }),
+      } as never,
+      secureConfig as never,
+      createCurrencyConversion() as never,
+      { updateDocumentStatus: vi.fn(), sendBudget: vi.fn(), confirmBudget: vi.fn() } as never,
+      { apply: vi.fn(), dispatch: vi.fn() } as never,
+      { listGrouped: vi.fn(), getConfig: vi.fn() } as never,
+      { searchMatrixDefault: vi.fn() } as never,
+    )
+
+    await service.updateRuntimeConfig({
+      customerWordingRegistryJson: JSON.stringify({
+        'customer.quote.clarification_followup': {
+          messages: ['Claro. Lo dejo en seguimiento para que te aclaren el total.'],
+          goal: 'Aclarar un presupuesto ya emitido sin reiniciar el flujo.',
+          allowHybridRewrite: true,
+          maxChars: 180,
+          channelProfiles: {
+            email: {
+              messages: ['Queda en seguimiento para aclararte el total por este medio.'],
+              maxChars: 220,
+            },
+          },
+        },
+      }),
+      customerHybridIntentRegistryJson: JSON.stringify({
+        rules: [
+          {
+            id: 'quote_clarification_runtime',
+            intent: 'customer.quote',
+            confidence: 0.92,
+            priority: 80,
+            examples: ['me quedó medio raro el precio final'],
+          },
+        ],
+      }),
+    })
+
+    expect(secureConfig.setJson).toHaveBeenCalledWith(
+      'AI_RUNTIME_CONFIG',
+      expect.objectContaining({
+        customerWordingRegistry: {
+          'customer.quote.clarification_followup': {
+            messages: ['Claro. Lo dejo en seguimiento para que te aclaren el total.'],
+            goal: 'Aclarar un presupuesto ya emitido sin reiniciar el flujo.',
+            allowHybridRewrite: true,
+            maxChars: 180,
+            mustAskQuestion: false,
+            channels: null,
+            channelProfiles: {
+              email: {
+                messages: ['Queda en seguimiento para aclararte el total por este medio.'],
+                goal: null,
+                allowHybridRewrite: false,
+                maxChars: 220,
+                mustAskQuestion: false,
+                channels: null,
+                channelProfiles: null,
+              },
+            },
+          },
+        },
+        customerHybridIntentRegistry: [
+          expect.objectContaining({
+            id: 'quote_clarification_runtime',
+            intent: 'customer.quote',
+            confidence: 0.92,
+          }),
+        ],
+      }),
+    )
+  })
 })

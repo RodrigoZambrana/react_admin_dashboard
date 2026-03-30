@@ -15,10 +15,17 @@ Cerrar el gap entre el estado actual y un chatbot reusable que sea:
 - quote profiles por tenant
 - handoff enriquecido
 - agenda customer con captura multi-turno
+- `conversationContext` explícito
+- `supportContext` explícito
+- orchestrator `conversation-first / flow-second`
+- `AI-assisted decision engine` acotado por acciones permitidas
+- coalescing natural de fragmentos inbound en chat
 - wording híbrido con overrides fuera de código
 - capability profiles y kill switches
 - instalación modelada como política estructurada
 - ABM de perfiles y políticas desde UI
+- runtime AI con `response template registry` configurable
+- runtime AI con `intent registry híbrido` configurable para customer fallback
 
 ## Prioridad 1: mayor valor para cerrar fluidez + correctitud
 
@@ -33,7 +40,127 @@ Implementación:
 - usar el corpus real de WhatsApp como benchmark de calidad
 - medir coherencia, continuidad, correctitud, cambio de tema y cierre útil por turno
 - separar errores de estado/contexto de errores de wording
+- verificar que el agente responda natural pero mantenga dirección
+- verificar que detecte correctamente cuándo pasar de conversación exploratoria a flujo guiado
 - agregar fallback mínimo universal cuando no se pueda cerrar la resolución final
+
+Estado 2026-03-29:
+- set muestra y set profundo del runtime base ya quedaron en `100`
+- los desvíos de `payment proof continuity` y `quote -> service pivot` quedaron cerrados
+- el próximo gap real pasa a ser la capa de `rewrite híbrido`, que todavía puede empeorar respuestas correctas de la base
+- criterio nuevo fijado:
+  - señales conversacionales reusables en español -> base semántica
+  - vocabulario de soporte/producto -> capa de dominio
+  - aliases y reglas comerciales -> capa tenant/configurable
+  - verbos ambiguos no pueden gatillar flujo por sí solos; necesitan frase operacional o contexto activo
+  - response templates customer -> configurables fuera de código
+  - hybrid intent registry customer -> configurable fuera de código
+  - LLM -> interpretación y lenguaje, no decisión de negocio
+
+Actualización 2026-03-29 sobre corpus ampliado:
+- corpus reingestado: `149` conversaciones reales de WhatsApp
+- proposals derivados: `466`
+- benchmark `deep mixed`: `47` escenarios
+- benchmark `category_focus`: `21` escenarios
+- score promedio base `deep mixed`: `90`
+- score promedio assisted `deep mixed`: `90`
+- score promedio base `category_focus`: `91`
+- score promedio assisted `category_focus`: `90`
+- mejoras concretas cerradas:
+  - follow-ups cortos de pago
+  - follow-ups visuales/materiales en hilos comerciales
+  - adjuntos puros con continuidad mínima útil
+  - soporte + visita + condición de pago en un mismo turno
+  - dirección/teléfono/horario reaprovechados como continuidad de agenda en hilos operativos
+  - aclaración de presupuesto ya emitido sin reiniciar intake
+- gaps que siguen prioritarios:
+  - multimodal con poco o nulo texto extraído
+  - reenganches largos de postventa que todavía pueden caer a presupuesto genérico
+  - utilidad real del `rewrite híbrido` en casos compuestos
+  - naturalidad más rica sin perder dirección
+  - artefacto de revisión profunda disponible en:
+    - [runtime-real-question-answer-review-2026-03-29.md](/Users/rodrigo/git/personal/react_admin_dashboard/.qa/external-real-conversations/whatsapp/generated/deep-2026-03-29/runtime-real-question-answer-review-2026-03-29.md)
+
+Actualización 2026-03-30 sobre cierre del slice profundo:
+
+- deep current: `46` escenarios
+- score promedio base: `100`
+- score promedio assisted: `100`
+- delta promedio: `+0`
+- regresiones assisted: `0`
+- mejora assisted localizada: no necesaria para sostener el score final del set actual
+- arquitectura cerrada en esta pasada:
+  - `conversationContext`
+  - `supportContext`
+  - clasificación explícita de modo conversacional
+  - orchestrator con política `understand first -> choose lane -> ask next useful thing`
+  - `decision assist` configurable desde runtime AI
+  - perfiles de wording por canal:
+    - `chat`
+    - `email`
+  - espera natural y coalescing de mensajes cortos antes de responder
+- criterio de test fijado:
+  - memoria/contexto no necesitan una llamada obligatoria al provider para considerarse correctos
+  - el bloque contextual y el guard de snippets crudos se testean por estado y salida, no por dependencia artificial del LLM
+
+Artefactos vigentes para revisión real:
+
+- [runtime-real-set-evaluation-deep-current.md](/Users/rodrigo/git/personal/react_admin_dashboard/.qa/external-real-conversations/whatsapp/generated/deep-2026-03-29/runtime-real-set-evaluation-deep-current.md)
+- [runtime-real-question-answer-review-current.md](/Users/rodrigo/git/personal/react_admin_dashboard/.qa/external-real-conversations/whatsapp/generated/deep-2026-03-29/runtime-real-question-answer-review-current.md)
+
+### Próximos Pasos Del MVP De Respuesta Automatizada Por IA
+
+Objetivo inmediato:
+
+- consolidar un agente que responda naturalmente
+- mantenga dirección
+- detecte cuándo pasar a flujo o handoff
+- sostenga continuidad útil en webchat y WhatsApp
+
+Siguiente corte recomendado:
+
+1. corpus real + prueba manual continua
+   - seguir usando WhatsApp real y pruebas manuales como fuente principal de ajuste
+   - abrir desvíos solo cuando aparezcan en conversación real o benchmark
+2. decisión asistida acotada
+   - ampliar el `decision assist` solo en carriles donde mejore continuidad sin perder control
+   - mantener lista cerrada de acciones permitidas
+3. perfiles por canal
+   - consolidar `chat` y `email` con distinto tono, estructura y longitud desde el registry
+4. fallback operativo mínimo universal
+   - si no puede cerrar la resolución final, identificar necesidad, pedir el dato crítico faltante y dejar continuidad clara para operador
+5. límite explícito del MVP
+   - no buscar cobertura de “todos los casos”
+   - sí buscar comprensión robusta de clases de conversación:
+     - cotización
+     - aclaración
+     - agenda
+     - soporte/postventa
+     - pago/comprobante
+     - reenganche
+
+Puntos que quedaron cerrados:
+
+- continuidad multimodal de cotización
+- reenganches largos de postventa sin volver a presupuesto genérico
+- follow-ups cortos de medios de pago sin degradación del carril assisted
+- preguntas de franja u horario dentro de una coordinación ya abierta
+- follow-ups de soporte sobre compatibilidad de materiales o viabilidad de revisión
+- agradecimientos sobre presupuesto ya emitido sin reabrir el intake
+- subject de quote saneado frente a preguntas meta o texto no temático
+- `response template registry` ya usable por perfil de canal:
+  - `chat`
+  - `email`
+
+Regla operativa nueva para siguientes iteraciones:
+
+- no expandir `rewrite híbrido` por intención completa
+- expandirlo sólo por `wordingKey` y subtipo conversacional probado
+- bloquear rewrite en carriles:
+  - multimodal
+  - soporte operativo
+  - follow-up corto de pagos
+  - reemplazo / assessment sobre instalado
 
 ### 1. Estado compartido entre soporte/postventa y agenda
 Problema:
@@ -44,12 +171,24 @@ Resultado buscado:
 
 Implementación:
 - estado operativo explícito por conversación
+- `supportContext` explícito, análogo a `quoteContext` y `scheduleContext`
+- `conversationContext` superior para decidir si el hilo está en exploración, flujo o aclaración
 - motivo inferido persistente
+- producto instalado persistido
+- problema o necesidad persistida
 - slots de agenda reaprovechables desde soporte, cotización y visita técnica
+- regla estricta:
+  - no volver a preguntar un dato ya presente en estado
+
+Decisión de arquitectura:
+- mantener la pila actual `LLM + reglas + orchestrator`
+- no incorporar un framework externo tipo Rasa como pieza central en esta etapa
+- evaluar Rasa sólo como NLU auxiliar futuro si se justifica por dataset etiquetado o fallback local
 
 ### 2. Rewrites híbridos adicionales sobre claves seguras
 Problema:
 - todavía hay respuestas correctas pero demasiado rígidas o repetitivas
+- en paralelo, la capa asistida todavía puede degradar algunas respuestas que la base ya resuelve correctamente
 
 Resultado buscado:
 - más naturalidad sin perder control semántico
@@ -58,6 +197,9 @@ Implementación:
 - ampliar solo en claves de bajo riesgo
 - mantener fuente de verdad determinística
 - IA opcional solo para variación superficial grounded
+- mantener perfiles de salida por canal en el registry:
+  - `chat` más ágil
+  - `email` más formal y estructurado
 
 ### 3. Fallbacks operativos más ricos
 Problema:

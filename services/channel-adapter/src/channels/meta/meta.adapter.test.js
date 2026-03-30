@@ -55,6 +55,8 @@ const createAdapter = () =>
           },
         }),
       },
+      quietWindowMs: 10,
+      maxWindowMs: 20,
     },
   )
 

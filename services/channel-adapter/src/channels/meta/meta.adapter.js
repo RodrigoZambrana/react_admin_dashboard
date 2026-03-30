@@ -5,6 +5,10 @@ import {
   validateMetaWebhookVerification,
 } from './meta.webhook.js'
 import { MetaSender } from './meta.sender.js'
+import {
+  estimateInboundCompletionDelay,
+  InboundTurnCoalescer,
+} from '../../runtime/inbound-turn-coalescer.js'
 
 const cleanString = (value) => {
   if (typeof value !== 'string') {
@@ -19,6 +23,102 @@ export class MetaAdapter {
     this.clients = clients
     this.config = config
     this.sender = options.sender || new MetaSender(config, options)
+    this.coalescer =
+      options.coalescer ||
+      new InboundTurnCoalescer({
+        quietWindowMs: options.quietWindowMs,
+        maxWindowMs: options.maxWindowMs,
+      })
+  }
+
+  buildCoalescerKey({ normalized, projection }) {
+    return [
+      normalized?.channel || 'meta',
+      projection?.conversationId || normalized?.conversationId || 'conversation',
+      normalized?.userId || normalized?.metadata?.threadId || 'user',
+    ].join(':')
+  }
+
+  async processBufferedInboundEvents(items = []) {
+    const lastItem = items.at(-1)
+    if (!lastItem) {
+      return {
+        normalized: null,
+        conversation: null,
+        ai: null,
+      }
+    }
+
+    const normalizedMessages = items.map((entry) => entry.normalized).filter(Boolean)
+    const latestNormalized = lastItem.normalized
+    const projection = lastItem.projection
+    const combinedText = normalizedMessages
+      .map((entry) => String(entry?.text || '').trim())
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+    const combinedAttachments = normalizedMessages.flatMap((entry) =>
+      Array.isArray(entry?.attachments) ? entry.attachments : [],
+    )
+
+    const aiResult = await this.clients.ai.respond({
+      ...latestNormalized,
+      conversationId: projection.conversationId,
+      text: combinedText,
+      attachments: combinedAttachments,
+      locale:
+        projection?.preferences?.locale || latestNormalized?.metadata?.locale || undefined,
+      currency:
+        projection?.preferences?.currency ||
+        latestNormalized?.metadata?.currency ||
+        undefined,
+      metadata: {
+        ...(latestNormalized?.metadata && typeof latestNormalized.metadata === 'object'
+          ? latestNormalized.metadata
+          : {}),
+        locale:
+          projection?.preferences?.locale ||
+          (latestNormalized?.metadata && typeof latestNormalized.metadata === 'object'
+            ? latestNormalized.metadata.locale || null
+            : null),
+        currency:
+          projection?.preferences?.currency ||
+          (latestNormalized?.metadata && typeof latestNormalized.metadata === 'object'
+            ? latestNormalized.metadata.currency || null
+            : null),
+        coalescedInboundCount: normalizedMessages.length,
+      },
+    })
+
+    const responseText =
+      aiResult?.response?.finalUserText?.trim() ||
+      aiResult?.response?.text?.trim()
+    if (responseText) {
+      await this.clients.conversations.replyAsAgent(projection.conversationId, {
+        body: responseText,
+        finalUserText: responseText,
+        debugSummary: aiResult?.response?.debugSummary ?? null,
+        auditPayload: aiResult?.response?.auditPayload ?? null,
+        metadata: {
+          provider: aiResult?.response?.provider || 'mock',
+          model: aiResult?.response?.model || null,
+          channel: latestNormalized.channel,
+          deliveryStatus: 'pending_external',
+          aiMemory: aiResult?.response?.memory || null,
+          coalescedInboundCount: normalizedMessages.length,
+        },
+        toolCalls: aiResult?.response?.toolCalls ?? [],
+        needsHuman: aiResult?.response?.needsHuman ?? false,
+        grounding: aiResult?.response?.grounding ?? null,
+      })
+    }
+
+    return {
+      normalized: latestNormalized,
+      conversation: projection,
+      ai: aiResult?.response ?? null,
+      coalescedInboundCount: normalizedMessages.length,
+    }
   }
 
   getEffectiveConfig() {
@@ -227,58 +327,27 @@ export class MetaAdapter {
       attachments: normalized.attachments,
     })
 
-    let ai = null
     if (projection.controlMode !== 'human') {
-      const aiResult = await this.clients.ai.respond({
-        ...normalized,
-        conversationId: projection.conversationId,
-        locale: projection?.preferences?.locale || normalized?.metadata?.locale || undefined,
-        currency:
-          projection?.preferences?.currency || normalized?.metadata?.currency || undefined,
-        metadata: {
-          ...(normalized?.metadata && typeof normalized.metadata === 'object'
-            ? normalized.metadata
-            : {}),
-          locale:
-            projection?.preferences?.locale ||
-            (normalized?.metadata && typeof normalized.metadata === 'object'
-              ? normalized.metadata.locale || null
-              : null),
-          currency:
-            projection?.preferences?.currency ||
-            (normalized?.metadata && typeof normalized.metadata === 'object'
-              ? normalized.metadata.currency || null
-              : null),
+      return this.coalescer.enqueue(
+        this.buildCoalescerKey({ normalized, projection }),
+        {
+          normalized,
+          projection,
         },
-      })
-      const responseText =
-        aiResult?.response?.finalUserText?.trim() ||
-        aiResult?.response?.text?.trim()
-      if (responseText) {
-        await this.clients.conversations.replyAsAgent(projection.conversationId, {
-          body: responseText,
-          finalUserText: responseText,
-          debugSummary: aiResult?.response?.debugSummary ?? null,
-          auditPayload: aiResult?.response?.auditPayload ?? null,
-          metadata: {
-            provider: aiResult?.response?.provider || 'mock',
-            model: aiResult?.response?.model || null,
-            channel: normalized.channel,
-            deliveryStatus: 'pending_external',
-            aiMemory: aiResult?.response?.memory || null,
-          },
-          toolCalls: aiResult?.response?.toolCalls ?? [],
-          needsHuman: aiResult?.response?.needsHuman ?? false,
-          grounding: aiResult?.response?.grounding ?? null,
-        })
-      }
-      ai = aiResult?.response ?? null
+        (items) => this.processBufferedInboundEvents(items),
+        {
+          flushDelayMs: estimateInboundCompletionDelay({
+            text: normalized.text,
+            attachments: normalized.attachments,
+          }),
+        },
+      )
     }
 
     return {
       normalized,
       conversation: projection,
-      ai,
+      ai: null,
     }
   }
 

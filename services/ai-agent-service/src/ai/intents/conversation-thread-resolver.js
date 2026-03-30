@@ -1,5 +1,9 @@
 import { extractCustomerQuotedMeasurements, extractCustomerQuoteLeadText } from './customer-quote-context.js'
-import { findTenantTopicMatches, normalizeCustomerTopicText } from './customer-topic-taxonomy.js'
+import {
+  findTenantTopicMatches,
+  isContextualTopicDescriptorMatch,
+  normalizeCustomerTopicText,
+} from './customer-topic-taxonomy.js'
 
 const normalizeText = normalizeCustomerTopicText
 
@@ -107,6 +111,25 @@ const buildPrioritizedBaseMatches = (leadText, taxonomy = [], measurementCarrier
     limit: 12,
   })
   const carriers = new Set(normalizeCarrierTerms(measurementCarrierTerms))
+  const normalizedLeadText = normalizeText(leadText)
+  const isConfigurationOnlyWithoutFamilyCompanion = (match) =>
+    isContextualTopicDescriptorMatch(match, normalizedLeadText) &&
+    !matches.some(
+      (entry) =>
+        entry !== match &&
+        entry?.kind === 'product_family' &&
+        normalizeText(entry.label || '') === normalizeText(match?.familyLabel || ''),
+    )
+  const nonConfigurationOnlyTopicKeys = new Set(
+    matches
+      .filter(
+        (entry) =>
+          entry?.kind === 'product_topic' &&
+          !isConfigurationOnlyWithoutFamilyCompanion(entry),
+      )
+      .map((entry) => String(entry.key || ''))
+      .filter(Boolean),
+  )
   const prioritized = []
 
   for (const match of matches) {
@@ -135,9 +158,14 @@ const buildPrioritizedBaseMatches = (leadText, taxonomy = [], measurementCarrier
         (entry) =>
           entry !== match &&
           entry.kind === 'product_topic' &&
-          normalizeText(entry.familyLabel || '') === normalizeText(match.label),
+          normalizeText(entry.familyLabel || '') === normalizeText(match.label) &&
+          nonConfigurationOnlyTopicKeys.has(String(entry.key || '')),
       )
     ) {
+      continue
+    }
+
+    if (isConfigurationOnlyWithoutFamilyCompanion(match)) {
       continue
     }
 

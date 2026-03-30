@@ -16,10 +16,20 @@ import {
 import { sanitizeUserInput } from './security/sanitize-input.js'
 import { interpretMessageElements } from './message-elements/interpret-message-elements.js'
 import { buildMessageContext } from './message-elements/build-message-context.js'
+import { analyzeMessage } from './nlp/analyze-message.js'
+import { classifyConversationMode } from './classification/classify-conversation-mode.js'
+import { assistNextStep } from './orchestrator/assist-next-step.js'
+import { decideNextStep } from './orchestrator/decide-next-step.js'
+import { handleConversationalMode } from './conversation/handle-conversational-mode.js'
+import { generateResponse } from './nlp/generate-response.js'
+import { validateResponseGuardrails } from './guardrails/validate-response.js'
 import { detectIntent } from './intents/detect-intent.js'
 import { classifyInboundMessage } from './intents/classify-inbound-message.js'
 import { classifyCustomerProtectedDataRequest } from './intents/customer-protected-data.js'
-import { detectCustomerFaqSubtype } from './intents/customer-faq-heuristics.js'
+import {
+  detectCustomerFaqSubtype,
+  extractRequestedTopicLabel,
+} from './intents/customer-faq-heuristics.js'
 import { buildTurnInterpretation } from './intents/turn-interpretation.js'
 import { resolveCustomerQuoteResolution } from './intents/customer-quote-resolution.js'
 import {
@@ -33,17 +43,29 @@ import {
   buildContextualProductReference,
   buildCustomerFaqKnowledgeResponse,
   buildGenericCustomerKnowledgeFallbackText,
+  resolveOperationalPaymentMethodsInline,
 } from './intents/customer-faq-response.js'
 import {
   looksLikeCommercialConditionQuestion,
   looksLikeConfiguredProductInterest,
   looksLikeGenericPriceInquiry,
   looksLikeInformationExpansionRequest,
+  looksLikeInstalledReplacementAssessmentRequest,
+  looksLikeLightFilterPreferenceRequest,
   looksLikeMaterialFollowUpRequest,
+  looksLikePaymentOperationalUpdate,
+  looksLikePaymentProofArtifact,
+  looksLikePaymentProofFollowUpRequest,
   looksLikeQuoteRequirementsQuestion,
   looksLikeQuoteWaitingFollowUp,
 } from './intents/customer-intent-patterns.js'
 import { normalizeCustomerTextForIntent } from './intents/customer-text-normalizer.js'
+import {
+  detectStandaloneAttachmentArtifactKind,
+  hasMultimodalPlannedArtifactSignal,
+  hasMultimodalReferenceSignal,
+  hasReengagementReferenceSignal,
+} from './intents/customer-semantic-signals.js'
 import {
   buildCustomerScheduleAppointmentPayload,
   buildCustomerScheduleCancellationText,
@@ -67,12 +89,22 @@ import {
 import { AGENT_STATE_EVENTS } from './state/state-types.js'
 import { applyAgentStateEvents } from './state/transition-state.js'
 import {
+  buildCustomerSupportRequestText,
   buildCustomerCapabilityHandoffText,
   buildCustomerInformationThenHandoffText,
+  buildCustomerLightFilterGuidanceText,
   buildCustomerMaterialFollowUpText,
+  buildCustomerMultimodalQuoteArtifactPlannedText,
+  buildCustomerMultimodalQuoteArtifactText,
+  buildCustomerMultimodalGenericArtifactPlannedText,
+  buildCustomerMultimodalGenericArtifactText,
+  buildCustomerMultimodalSupportArtifactPlannedText,
+  buildCustomerMultimodalSupportArtifactText,
   buildCustomerQuoteHandoffText,
   buildCustomerQuoteWaitingFollowUpText,
   buildCustomerQuoteResolutionText,
+  buildCustomerReengagementFollowUpText,
+  buildCustomerReengagementNeutralText,
   buildCustomerScheduleCreatedText,
   buildCustomerScheduleUnavailableText,
   renderCustomerDeterministicText,
@@ -81,7 +113,12 @@ import {
   renderOperationDraftOutcome,
   renderOutcomeText,
 } from './outcomes/render-outcome.js'
-import { pickWordingVariant } from './outcomes/wording-registry.js'
+import {
+  getWordingTemplateMeta,
+  pickWordingVariant,
+  resolveWordingChannelProfile,
+} from './outcomes/wording-registry.js'
+import { collectCustomerHybridIntentHints } from './intents/hybrid-intent-registry.js'
 
 const STOP_TOKENS = new Set([
   'de',
@@ -332,9 +369,51 @@ const looksLikeAttachmentReference = (text) =>
   )
 
 const looksLikeScheduleContinuationInput = (text) =>
-  /\b(hoy|mañana|pasado mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{4})?|a las\s+\d{1,2}(?::\d{2})?|\d{1,2}:\d{2}|despues de las|después de las|por la mañana|por la tarde|por la noche|direccion|dirección|ubicacion|ubicación|avenida|av\.|calle|ruta|telefono|teléfono|celular|whatsapp|mail|email|correo)\b/i.test(
+  /\b(hoy|mañana|pasado mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{4})?|a las\s+\d{1,2}(?::\d{2})?|\d{1,2}:\d{2}|entre las|franja|temprano|temprana|despues de las|después de las|por la mañana|por la tarde|por la noche|direccion|dirección|ubicacion|ubicación|avenida|av\.|calle|ruta|telefono|teléfono|celular|whatsapp|mail|email|correo)\b/i.test(
     String(text || ''),
+  ) ||
+  /\b(a\s+que\s+hora|a\s+qué\s+hora)\b.*\b(pasan|pasar|podrian|podrían|pueden|venir)\b/i.test(
+    String(text || ''),
+  ) ||
+  /\b(podrian|podrían|pueden)\s+(pasar|venir)\b/i.test(String(text || ''))
+
+const looksLikeSupportContinuationInput = (text) => {
+  const value = String(text || '')
+  if (!value.trim()) {
+    return false
+  }
+
+  return (
+    /\b(trabajan con|manejan|sirve|se puede|pueden)\b.*\b(material|materiales|tipo|este tipo|eso|esto)\b/i.test(
+      value,
+    ) ||
+    /^(?:es|son)\s+(?:una|un|unas|unos)?\s*(?:cortina|cortinas|persiana|persianas|abertura|aberturas|ventana|ventanas|puerta|puertas|roller)\b/i.test(
+      value,
+    ) ||
+    (/\b(repar\w*|arregl\w*|service|revisi\w*)\b/i.test(value) &&
+      /\b(existent\w*|instalad\w*)\b/i.test(value)) ||
+    /\b(pueden venir a verlo|pueden verlo|venir a verlo|venir a revisarlo|venir a revisarla)\b/i.test(
+      value,
+    ) ||
+    /\b(c[oó]mo coordinamos una visita|si hace falta[, ]+\s*pueden venir)\b/i.test(value)
   )
+}
+
+const looksLikeExplicitFaqQuestionInput = (text) => {
+  const value = String(text || '').trim()
+  if (!value) {
+    return false
+  }
+
+  return (
+    /[?¿]/.test(value) ||
+    /\b(cual|cu[aá]l|como|cómo|donde|dónde|cuando|cuándo)\b/i.test(value) ||
+    /\b(medios de pago|formas de pago|horario|horarios)\b/i.test(value) ||
+    /\b(?:aceptan|manejan|trabajan con|tienen)\b.*\b(?:tarjeta|tarjetas|transferencia|efectivo|debito|d[eé]bito|credito|cr[eé]dito|telefono|tel[eé]fono|whatsapp|mail|email)\b/i.test(
+      value,
+    )
+  )
+}
 
 const NON_QUOTE_CONTINUATION_FAQ_SUBTYPES = new Set([
   'business_hours',
@@ -346,21 +425,14 @@ const NON_QUOTE_CONTINUATION_FAQ_SUBTYPES = new Set([
   'definition',
 ])
 
-const SAFE_CUSTOMER_HYBRID_REWRITE_KEYS = new Set([
-  'customer.quote.handoff_ready',
-  'customer.schedule.progress.ask_day',
-  'customer.schedule.progress.ask_time',
-  'customer.schedule.progress.ask_address',
-  'customer.schedule.progress.ask_contact',
-  'customer.schedule.confirmation.day_known',
-  'customer.schedule.confirmation.time_known',
-  'customer.schedule.confirmation.address_missing',
-  'customer.schedule.confirmation.full_missing',
-  'customer.support.followup',
-  'customer.product.info_offer',
-  'customer.product.options_offer',
-  'customer.fallback.material_followup',
-  'customer.fallback.information_then_handoff',
+const SAFE_CUSTOMER_HYBRID_REWRITE_KEYS = new Set()
+const WEAK_NEUTRAL_REENGAGEMENT_INTENTS = new Set([
+  'customer.other',
+  'unknown',
+  'customer.light',
+  'customer.clarify_request',
+  'customer.rephrase_request',
+  'customer.incomplete',
 ])
 
 const looksLikeShortContextualFollowUp = (text) => {
@@ -421,6 +493,16 @@ const looksLikeContextualReference = (text) =>
 
 const isGenericCustomerIntentKey = (intentKey) =>
   ['customer.other', 'unknown'].includes(String(intentKey || ''))
+
+const CONTEXTUAL_CUSTOMER_CONTINUATION_INTENTS = new Set([
+  'customer.other',
+  'unknown',
+  'customer.light',
+  'customer.clarify_request',
+  'customer.incomplete',
+  'customer.product_info',
+  'customer.topic_info',
+])
 
 const intentNamespace = (intentKey) => String(intentKey || '').split('.')[0] || 'other'
 
@@ -1049,6 +1131,103 @@ const sanitizeScheduleContextForAudit = (scheduleContext = null) => {
   }
 }
 
+const sanitizeSupportContextForAudit = (supportContext = null) => {
+  if (!supportContext || typeof supportContext !== 'object') {
+    return null
+  }
+
+  return {
+    productType:
+      typeof supportContext.productType === 'string' ? supportContext.productType : null,
+    issueSummary:
+      typeof supportContext.issueSummary === 'string' ? supportContext.issueSummary : null,
+    issueKind:
+      typeof supportContext.issueKind === 'string' ? supportContext.issueKind : null,
+    wantsVisit: Boolean(supportContext.wantsVisit),
+    address:
+      typeof supportContext.address === 'string' ? supportContext.address : null,
+    contactPhone:
+      typeof supportContext.contactPhone === 'string' ? supportContext.contactPhone : null,
+    contactEmail:
+      typeof supportContext.contactEmail === 'string' ? supportContext.contactEmail : null,
+    preferredDate:
+      supportContext.preferredDate && typeof supportContext.preferredDate === 'object'
+        ? {
+            dateLabel:
+              typeof supportContext.preferredDate.dateLabel === 'string'
+                ? supportContext.preferredDate.dateLabel
+                : null,
+            exact: Boolean(supportContext.preferredDate.exact),
+          }
+        : null,
+    preferredTime:
+      supportContext.preferredTime && typeof supportContext.preferredTime === 'object'
+        ? {
+            timeLabel:
+              typeof supportContext.preferredTime.timeLabel === 'string'
+                ? supportContext.preferredTime.timeLabel
+                : null,
+            exact: Boolean(supportContext.preferredTime.exact),
+          }
+        : null,
+    missingFields: Array.isArray(supportContext.missingFields)
+      ? supportContext.missingFields.filter((entry) => typeof entry === 'string')
+      : [],
+    stage: typeof supportContext.stage === 'string' ? supportContext.stage : null,
+    completionStatus:
+      typeof supportContext.completionStatus === 'string'
+        ? supportContext.completionStatus
+        : null,
+    existingInstallation: Boolean(supportContext.existingInstallation),
+  }
+}
+
+const sanitizeConversationContextForAudit = (conversationContext = null) => {
+  if (!conversationContext || typeof conversationContext !== 'object') {
+    return null
+  }
+
+  return {
+    mode: typeof conversationContext.mode === 'string' ? conversationContext.mode : null,
+    activeDomain:
+      typeof conversationContext.activeDomain === 'string'
+        ? conversationContext.activeDomain
+        : null,
+    responseStrategy:
+      typeof conversationContext.responseStrategy === 'string'
+        ? conversationContext.responseStrategy
+        : null,
+    nextUsefulField:
+      typeof conversationContext.nextUsefulField === 'string'
+        ? conversationContext.nextUsefulField
+        : null,
+    waitForMore: Boolean(conversationContext.waitForMore),
+    topicLabel:
+      typeof conversationContext.topicLabel === 'string'
+        ? conversationContext.topicLabel
+        : null,
+    userGoal:
+      typeof conversationContext.userGoal === 'string'
+        ? conversationContext.userGoal
+        : null,
+    confidence:
+      typeof conversationContext.confidence === 'number'
+        ? conversationContext.confidence
+        : null,
+    followUpDetected: Boolean(conversationContext.followUpDetected),
+    threadKey:
+      typeof conversationContext.threadKey === 'string'
+        ? conversationContext.threadKey
+        : null,
+    knownFacts:
+      conversationContext.knownFacts &&
+      typeof conversationContext.knownFacts === 'object' &&
+      !Array.isArray(conversationContext.knownFacts)
+        ? conversationContext.knownFacts
+        : {},
+  }
+}
+
 const sanitizeThreadForAudit = (thread = null) => {
   if (!thread || typeof thread !== 'object') {
     return null
@@ -1249,6 +1428,38 @@ const summarizeMatchesForUser = (toolName, results = []) => {
   return preview || null
 }
 
+const deriveOperationalMatches = (operationalContext = null) => {
+  const explicitMatches = Array.isArray(operationalContext?.matches)
+    ? operationalContext.matches.filter(
+        (entry) => typeof entry === 'string' && entry.trim().length > 0,
+      )
+    : []
+  if (explicitMatches.length > 0) {
+    return explicitMatches
+  }
+
+  const toolCalls = Array.isArray(operationalContext?.toolCalls)
+    ? operationalContext.toolCalls
+    : []
+
+  return toolCalls
+    .filter((entry) => {
+      if (entry?.status !== 'executed') {
+        return false
+      }
+      if (
+        entry.name === 'parse_aberturas' ||
+        entry.name === 'prepare_aberturas_quote' ||
+        entry.name === 'prepare_aberturas_insert'
+      ) {
+        return Boolean(entry.result?.itemCount)
+      }
+      return Array.isArray(entry.result) && entry.result.length > 0
+    })
+    .map((entry) => summarizeMatchesForUser(entry.name, entry.result))
+    .filter(Boolean)
+}
+
 const findActionIntent = (input, actionCatalog = []) => {
   let bestMatch = null
   let bestScore = -1
@@ -1393,8 +1604,396 @@ export class AiAgentRuntime {
     return getCustomerCapabilityMode(this.activeConfig, intentKey)
   }
 
+  resolveProviderOptions(kind = 'default') {
+    const source = this.activeConfig || this.config || {}
+    const defaultModel = source.modelName || this.provider?.modelName
+    const defaultTemperature =
+      typeof source.temperature === 'number' ? source.temperature : 0.2
+    const defaultMaxOutputTokens =
+      typeof source.openAiMaxOutputTokens === 'number'
+        ? source.openAiMaxOutputTokens
+        : 280
+
+    if (kind === 'interpretation') {
+      return {
+        modelName: source.openAiInterpretationModel || defaultModel,
+        temperature:
+          typeof source.openAiInterpretationTemperature === 'number'
+            ? source.openAiInterpretationTemperature
+            : 0,
+        maxOutputTokens: Math.max(120, Math.min(360, defaultMaxOutputTokens)),
+      }
+    }
+
+    if (kind === 'decision') {
+      return {
+        modelName:
+          source.openAiDecisionModel ||
+          source.openAiInterpretationModel ||
+          defaultModel,
+        temperature:
+          typeof source.openAiDecisionTemperature === 'number'
+            ? source.openAiDecisionTemperature
+            : typeof source.openAiInterpretationTemperature === 'number'
+              ? source.openAiInterpretationTemperature
+              : 0,
+        maxOutputTokens: Math.max(120, Math.min(240, defaultMaxOutputTokens)),
+      }
+    }
+
+    if (kind === 'rewrite') {
+      return {
+        modelName: source.openAiRewriteModel || defaultModel,
+        temperature:
+          typeof source.openAiRewriteTemperature === 'number'
+            ? source.openAiRewriteTemperature
+            : Math.min(defaultTemperature, 0.35),
+        maxOutputTokens: Math.max(120, Math.min(320, defaultMaxOutputTokens)),
+      }
+    }
+
+    if (kind === 'response') {
+      return {
+        modelName: source.openAiResponseModel || defaultModel,
+        temperature:
+          typeof source.openAiResponseTemperature === 'number'
+            ? source.openAiResponseTemperature
+            : Math.max(defaultTemperature, 0.35),
+        maxOutputTokens: Math.max(140, Math.min(320, defaultMaxOutputTokens)),
+      }
+    }
+
+    return {
+      modelName: defaultModel,
+      temperature: defaultTemperature,
+      maxOutputTokens: defaultMaxOutputTokens,
+    }
+  }
+
+  buildCustomerApprovedFacts({
+    intentKey,
+    interpretation = null,
+    response = null,
+    retrievalContext = null,
+  }) {
+    const facts = []
+    const topic =
+      interpretation?.topic?.label ||
+      interpretation?.contextTopic?.label ||
+      interpretation?.quoteContext?.topicLabel ||
+      interpretation?.quoteContext?.familyLabel ||
+      null
+    if (topic) {
+      facts.push(`Tema actual: ${topic}.`)
+    }
+    const quoteMissingFields = Array.isArray(interpretation?.quoteContext?.missingFields)
+      ? interpretation.quoteContext.missingFields
+      : []
+    if (quoteMissingFields.length) {
+      facts.push(`Datos faltantes de cotización: ${quoteMissingFields.join(', ')}.`)
+    }
+    if (interpretation?.supportContext?.productType) {
+      facts.push(`Producto de soporte: ${interpretation.supportContext.productType}.`)
+    }
+    if (interpretation?.supportContext?.issueSummary) {
+      facts.push(`Problema reportado: ${interpretation.supportContext.issueSummary}.`)
+    }
+    const scheduleReason = interpretation?.scheduleContext?.reasonLabel
+    if (scheduleReason) {
+      facts.push(`Motivo de agenda: ${scheduleReason}.`)
+    }
+    if (interpretation?.conversationContext?.activeDomain) {
+      facts.push(
+        `Dominio conversacional activo: ${interpretation.conversationContext.activeDomain}.`,
+      )
+    }
+    if (interpretation?.conversationContext?.nextUsefulField) {
+      facts.push(
+        `Siguiente dato útil: ${interpretation.conversationContext.nextUsefulField}.`,
+      )
+    }
+    if (interpretation?.followUp?.detected) {
+      facts.push('El turno actual es un follow-up sobre el hilo activo.')
+    }
+    if (response?.grounding?.grounded === true && Array.isArray(retrievalContext?.items)) {
+      retrievalContext.items.slice(0, 2).forEach((item) => {
+        const title = String(item?.title || '').trim()
+        const snippet = String(item?.snippet || item?.summary || '')
+          .replace(/\s+/g, ' ')
+          .trim()
+        if (title || snippet) {
+          facts.push(
+            `Fuente aprobada${title ? `: ${title}` : ''}${snippet ? ` :: ${snippet.slice(0, 160)}` : ''}`,
+          )
+        }
+      })
+    }
+    if (intentKey) {
+      facts.push(`Intención resuelta por backend: ${intentKey}.`)
+    }
+
+    return facts
+  }
+
+  shouldUseDecisionAssist({ role, conversationMode, interpretation = null }) {
+    return (
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      this.activeConfig?.customerDecisionAssistEnabled === true &&
+      typeof this.provider?.extractStructured === 'function' &&
+      ['flow', 'exploration', 'unclear'].includes(String(conversationMode?.mode || '')) &&
+      interpretation?.conversationContext?.waitForMore !== true
+    )
+  }
+
+  getDecisionAssistMinConfidence() {
+    const configured = Number(this.activeConfig?.customerDecisionAssistMinConfidence)
+    if (Number.isFinite(configured) && configured >= 0.6 && configured <= 0.98) {
+      return configured
+    }
+
+    return 0.82
+  }
+
+  buildDecisionAssistState({
+    intentKey,
+    inboundClassification = null,
+    interpretation = null,
+    conversationMode = null,
+    analysis = null,
+  }) {
+    return {
+      intent: intentKey || null,
+      inboundCategory: inboundClassification?.category || null,
+      activeDomain: interpretation?.conversationContext?.activeDomain || null,
+      mode: conversationMode?.mode || interpretation?.conversationContext?.mode || null,
+      nextUsefulField: interpretation?.conversationContext?.nextUsefulField || null,
+      responseStrategy: interpretation?.conversationContext?.responseStrategy || null,
+      knownFacts: interpretation?.conversationContext?.knownFacts || {},
+      interpretationConfidence:
+        typeof analysis?.confidence === 'number'
+          ? analysis.confidence
+          : typeof interpretation?.conversationContext?.confidence === 'number'
+            ? interpretation.conversationContext.confidence
+            : null,
+      quoteContext: interpretation?.quoteContext
+        ? {
+            missingFields: interpretation.quoteContext.missingFields || [],
+            quantity: interpretation.quoteContext.quantity || null,
+            measurements: interpretation.quoteContext.measurements || null,
+            topicLabel:
+              interpretation.quoteContext.topicLabel ||
+              interpretation.quoteContext.familyLabel ||
+              null,
+          }
+        : null,
+      supportContext: interpretation?.supportContext
+        ? {
+            productType: interpretation.supportContext.productType || null,
+            issueSummary: interpretation.supportContext.issueSummary || null,
+            missingFields: interpretation.supportContext.missingFields || [],
+            wantsVisit: interpretation.supportContext.wantsVisit === true,
+          }
+        : null,
+      scheduleContext: interpretation?.scheduleContext
+        ? {
+            missingFields: interpretation.scheduleContext.missingFields || [],
+            address: interpretation.scheduleContext.address || null,
+            preferredDate: interpretation.scheduleContext.date?.dateLabel || null,
+            preferredTime: interpretation.scheduleContext.time?.timeLabel || null,
+            reason: interpretation.scheduleContext.reasonLabel || null,
+          }
+        : null,
+    }
+  }
+
+  buildDecisionAssistRequirements(interpretation = null) {
+    const quoteMissing = Array.isArray(interpretation?.quoteContext?.missingFields)
+      ? interpretation.quoteContext.missingFields
+      : []
+    const supportMissing = Array.isArray(interpretation?.supportContext?.missingFields)
+      ? interpretation.supportContext.missingFields
+      : []
+    const scheduleMissing = Array.isArray(interpretation?.scheduleContext?.missingFields)
+      ? interpretation.scheduleContext.missingFields
+      : []
+    const executeFlowMissing =
+      scheduleMissing.length > 0
+        ? scheduleMissing
+        : supportMissing.length > 0
+          ? supportMissing
+          : quoteMissing
+
+    return {
+      execute_flow: executeFlowMissing,
+      conversational_mode: [],
+      ask_clarification: executeFlowMissing,
+      small_talk: [],
+    }
+  }
+
+  shouldAttemptControlledCustomerNaturalization({
+    role,
+    intentKey,
+    response,
+    decision = null,
+  }) {
+    if (
+      !(role === 'customer_public' || role === 'customer_authenticated') ||
+      typeof this.provider?.resolveClient !== 'function' ||
+      this.activeConfig?.customerControlledNaturalizationEnabled !== true ||
+      !response ||
+      !String(response.text || '').trim()
+    ) {
+      return false
+    }
+
+    if (
+      [
+        'customer.auth_required',
+        'customer.owned_document_request',
+        'customer.private_account_data',
+        'customer.sensitive',
+      ].includes(String(intentKey || ''))
+    ) {
+      return false
+    }
+
+    if (
+      capabilityModeBlocksProviderEnhancements(this.getCustomerCapabilityMode(intentKey))
+    ) {
+      return false
+    }
+
+    if (response?.needsHuman || response?.grounding?.fallbackReason) {
+      return false
+    }
+
+    if (
+      typeof response?.wordingKey === 'string' &&
+      response.wordingKey &&
+      !SAFE_CUSTOMER_HYBRID_REWRITE_KEYS.has(response.wordingKey)
+    ) {
+      return false
+    }
+
+    if (decision?.nextStep === 'conversational_mode' || decision?.nextStep === 'ask_clarification') {
+      return true
+    }
+
+    return [
+      'customer.product_info',
+      'customer.topic_info',
+      'customer.quote',
+      'customer.support_request',
+      'customer.schedule_request',
+      'customer.contact_info',
+      'customer.rephrase_request',
+      'customer.incomplete',
+    ].includes(String(intentKey || ''))
+  }
+
+  async maybeNaturalizeDeterministicCustomerResponse({
+    role,
+    intentKey,
+    input,
+    response,
+    decision = null,
+    interpretation = null,
+    retrievalContext = null,
+    channel = null,
+  }) {
+    if (
+      !this.shouldAttemptControlledCustomerNaturalization({
+        role,
+        intentKey,
+        response,
+        decision,
+      })
+    ) {
+      return response
+    }
+
+    const quota = await this.ensureProviderQuotaAvailable()
+    if (!quota.allowed) {
+      return response
+    }
+
+    const approvedFacts = this.buildCustomerApprovedFacts({
+      intentKey,
+      interpretation,
+      response,
+      retrievalContext,
+    })
+    const rewritten = await generateResponse({
+      provider: this.provider,
+      role,
+      input,
+      approvedDraft: response.text,
+      approvedFacts,
+      goal:
+        decision?.nextStep === 'ask_clarification'
+          ? 'Mantener una aclaración breve y concreta para orientar el próximo paso.'
+          : 'Responder natural, breve y guiando hacia el siguiente paso útil sin perder el sentido operativo.',
+      mustAskQuestion: decision?.nextStep === 'ask_clarification',
+      maxChars:
+        response?.grounding?.grounded === true
+          ? Math.max(
+              140,
+              Math.min(
+                400,
+                Number(this.activeConfig?.customerGroundedRewriteMaxChars || 240),
+              ),
+            )
+          : 260,
+      providerOptions: this.resolveProviderOptions(
+        response?.grounding?.grounded === true ? 'rewrite' : 'response',
+      ),
+      channel,
+      channelProfile: this.getResponseChannelProfile(channel),
+    })
+
+    const nextText = String(rewritten?.text || '').trim()
+    if (!nextText) {
+      return response
+    }
+
+    return {
+      ...response,
+      text: nextText,
+      finalUserText: nextText,
+      debug: {
+        ...(response?.debug || {}),
+        detail: response?.debug?.detail
+          ? `${response.debug.detail} Se aplicó una naturalización controlada posterior a la decisión determinística.`
+          : 'Se aplicó una naturalización controlada posterior a la decisión determinística.',
+      },
+    }
+  }
+
   getCustomerWordingOverrides() {
-    return this.activeConfig?.customerWordingOverrides || null
+    return (
+      this.activeConfig?.customerWordingRegistry ||
+      this.activeConfig?.customerWordingOverrides ||
+      null
+    )
+  }
+
+  getCustomerHybridIntentRegistry() {
+    return this.activeConfig?.customerHybridIntentRegistry || null
+  }
+
+  getResponseChannelProfile(channel = null) {
+    return resolveWordingChannelProfile(channel)
+  }
+
+  getCustomerWordingTemplateMeta(key, options = {}) {
+    return getWordingTemplateMeta({
+      key,
+      registry: this.getCustomerWordingOverrides(),
+      channel: options?.channel || null,
+      channelProfile:
+        options?.channelProfile || this.getResponseChannelProfile(options?.channel),
+    })
   }
 
   resolveCustomerHybridWordingKey({
@@ -1502,7 +2101,26 @@ export class AiAgentRuntime {
   shouldApplySafeCustomerHybridRewrite({
     wordingKey,
     input,
+    channel = null,
   }) {
+    const templateMeta = this.getCustomerWordingTemplateMeta(wordingKey, {
+      channel,
+    })
+    if (templateMeta.allowHybridRewrite === true && wordingKey) {
+      if (
+        wordingKey === 'customer.product.info_offer' ||
+        wordingKey === 'customer.product.options_offer'
+      ) {
+        return (
+          looksLikeShortContextualFollowUp(input) ||
+          looksLikeCustomerFollowUp(input) ||
+          looksLikeContextualReference(input)
+        )
+      }
+
+      return true
+    }
+
     if (!this.isSafeCustomerHybridWordingKey(wordingKey)) {
       return false
     }
@@ -1633,12 +2251,22 @@ export class AiAgentRuntime {
           runtimeConfig.customerGroundedRewriteEnabled,
         customerGroundedRewriteMaxChars:
           runtimeConfig.customerGroundedRewriteMaxChars,
+        customerDecisionAssistEnabled:
+          runtimeConfig.customerDecisionAssistEnabled,
+        customerDecisionAssistMinConfidence:
+          runtimeConfig.customerDecisionAssistMinConfidence,
         customerCapabilityProfile:
           runtimeConfig.customerCapabilityProfile,
         customerContentMode: runtimeConfig.customerContentMode,
         customerCommerceMode: runtimeConfig.customerCommerceMode,
         customerSchedulingMode: runtimeConfig.customerSchedulingMode,
+        customerWordingRegistry:
+          runtimeConfig.customerWordingRegistry ||
+          runtimeConfig.customerWordingOverrides ||
+          null,
         customerWordingOverrides: runtimeConfig.customerWordingOverrides || null,
+        customerHybridIntentRegistry:
+          runtimeConfig.customerHybridIntentRegistry || null,
         roleCatalog: getRoleCatalog(runtimeConfig.roleCatalog),
         updatedAt: runtimeConfig.updatedAt || null,
       }
@@ -2471,6 +3099,8 @@ export class AiAgentRuntime {
     )
     const snapshot = await this.memoryStore.get(conversationId)
     const previousSnapshot = snapshot ? structuredClone(snapshot) : null
+    const previousTaskState = previousSnapshot?.taskState ?? snapshot?.taskState ?? null
+    const priorIntentKey = previousTaskState?.intentKey || null
     const recentReasoningTurns = filterReasoningRelevantTurns(
       previousSnapshot?.turns ?? snapshot?.turns ?? [],
     )
@@ -2547,6 +3177,7 @@ export class AiAgentRuntime {
             inboundClassification,
           })
         : null
+    const customerHybridIntentRegistry = this.getCustomerHybridIntentRegistry()
     const initialIntentDetection = detectIntent({
       role,
       input: interpretedInput,
@@ -2555,6 +3186,7 @@ export class AiAgentRuntime {
       inboundClassification,
       tenantTopicTaxonomy,
       nluAnalysis,
+      customerHybridIntentRegistry,
       legacy: {
         deriveIntentKey,
         findActionIntent,
@@ -2586,6 +3218,7 @@ export class AiAgentRuntime {
       inboundClassification,
       tenantTopicTaxonomy,
       nluAnalysis,
+      customerHybridIntentRegistry,
       legacy: {
         deriveIntentKey,
         findActionIntent,
@@ -2603,7 +3236,7 @@ export class AiAgentRuntime {
       inboundClassification,
       directIntentKey,
       intentDetection,
-      previousTaskState: previousSnapshot?.taskState ?? snapshot?.taskState ?? null,
+      previousTaskState,
       referencedMessages: inferenceContext.referencedMessages,
       tenantTopicTaxonomy,
       tenantQuoteProfiles,
@@ -2629,6 +3262,35 @@ export class AiAgentRuntime {
           : []),
       ]),
     )
+    const allowLlmInterpretation =
+      roleConfig.type === 'customer' &&
+      !['greeting', 'courtesy', 'noise'].includes(
+        String(inboundClassification?.category || ''),
+      )
+    const llmInterpretation = await analyzeMessage({
+      provider: this.provider,
+      role,
+      input: turnInterpretation.currentTurnText || effectiveInput,
+      recentTurns: recentReasoningTurns,
+      inboundClassification,
+      intentKey,
+      interpretation: turnInterpretation,
+      intentRegistryHints: collectCustomerHybridIntentHints({
+        registry: customerHybridIntentRegistry,
+        input: turnInterpretation.currentTurnText || effectiveInput,
+        reasoningInput,
+      }),
+      allowModel: allowLlmInterpretation,
+      providerOptions: this.resolveProviderOptions('interpretation'),
+    })
+    const conversationMode = classifyConversationMode({
+      role,
+      input: turnInterpretation.currentTurnText || effectiveInput,
+      inboundClassification,
+      analysis: llmInterpretation,
+      intentKey,
+      interpretation: turnInterpretation,
+    })
     const taskMemory = this.resolveTaskMemory(
       snapshot,
       conversationId,
@@ -2959,15 +3621,18 @@ export class AiAgentRuntime {
       role,
       input: turnInterpretation.currentTurnText || reasoningInput,
       intentKey: taskMemory.intentKey,
+      previousIntentKey: priorIntentKey,
       retrievalContext,
       interpretation: turnInterpretation,
       tenantTopicTaxonomy,
       variationSeed: customerVariationSeed,
+      channel: unifiedMessage.channel || null,
     })
     const deterministicCustomerResponse = this.buildDeterministicCustomerResponse({
       role,
       input: turnInterpretation.currentTurnText || effectiveInput,
       intentKey: taskMemory.intentKey,
+      previousIntentKey: priorIntentKey,
       inboundClassification,
       interpretation: turnInterpretation,
       tenantTopicTaxonomy,
@@ -2996,6 +3661,45 @@ export class AiAgentRuntime {
     })
     const resolvedOperationalContext =
       deterministicResult?.operationalContext ?? operationalContext
+    const assistantDecision = await assistNextStep({
+      provider: this.provider,
+      allowModel: this.shouldUseDecisionAssist({
+        role,
+        conversationMode,
+        interpretation: turnInterpretation,
+      }),
+      conversation: [
+        ...recentReasoningTurns,
+        {
+          role: 'customer',
+          text: turnInterpretation.currentTurnText || effectiveInput,
+        },
+      ],
+      state: this.buildDecisionAssistState({
+        intentKey: taskMemory.intentKey,
+        inboundClassification,
+        interpretation: turnInterpretation,
+        conversationMode,
+        analysis: llmInterpretation,
+      }),
+      allowedActions: [
+        'execute_flow',
+        'conversational_mode',
+        'ask_clarification',
+        'small_talk',
+      ],
+      requiredFieldsByAction: this.buildDecisionAssistRequirements(turnInterpretation),
+      providerOptions: this.resolveProviderOptions('decision'),
+    })
+    const orchestratorDecision = decideNextStep({
+      role,
+      conversationMode,
+      deterministicResponse: deterministicResult?.response ?? null,
+      intentKey: taskMemory.intentKey,
+      interpretation: turnInterpretation,
+      assistantDecision,
+      assistantMinConfidence: this.getDecisionAssistMinConfidence(),
+    })
 
     if (deterministicResult?.response) {
       deterministicResult.response = await this.maybeRewriteGroundedCustomerResponse({
@@ -3006,7 +3710,19 @@ export class AiAgentRuntime {
         retrievalContext,
         runtimeConfig,
         interpretation: turnInterpretation,
+        channel: unifiedMessage.channel || null,
       })
+      deterministicResult.response =
+        await this.maybeNaturalizeDeterministicCustomerResponse({
+          role,
+          intentKey: taskMemory.intentKey,
+          input: turnInterpretation.currentTurnText || effectiveInput,
+          response: deterministicResult.response,
+          decision: orchestratorDecision,
+          interpretation: turnInterpretation,
+          retrievalContext,
+          channel: unifiedMessage.channel || null,
+        })
     }
 
     const aiDecision = shouldCallAI({
@@ -3046,6 +3762,8 @@ export class AiAgentRuntime {
           fallbackReason: 'budget_exceeded',
           interpretation: turnInterpretation,
           tenantTopicTaxonomy,
+          previousIntentKey: priorIntentKey,
+          channel: unifiedMessage.channel || null,
         })
         generatedResponse = this.appendAdminDebugSummary(generatedResponse, {
           stage: 'provider_generation',
@@ -3067,26 +3785,70 @@ export class AiAgentRuntime {
       } else {
         try {
           providerGenerationAttempted = true
-          generatedResponse = await this.provider.generate({
-            role,
-            systemPrompt: buildSystemPrompt(role, {
+          if (
+            orchestratorDecision.nextStep === 'conversational_mode' &&
+            orchestratorDecision.shouldGenerateLanguage &&
+            typeof this.provider?.resolveClient === 'function'
+          ) {
+            const approvedFacts = this.buildCustomerApprovedFacts({
+              intentKey: taskMemory.intentKey,
+              interpretation: turnInterpretation,
+              response: deterministicResult?.response ?? null,
+              retrievalContext,
+            })
+            const conversationalResponse = await handleConversationalMode({
+              provider: this.provider,
+              role,
+              input: turnInterpretation.currentTurnText || effectiveInput,
+              recentTurns: history,
+              interpretation: turnInterpretation,
+              approvedDraft: orchestratorDecision.shouldUseDeterministicDraft
+                ? deterministicResult?.response?.finalUserText ||
+                  deterministicResult?.response?.text ||
+                  null
+                : null,
+              approvedFacts,
+              providerOptions: this.resolveProviderOptions('response'),
+              channel: unifiedMessage.channel || null,
+              channelProfile: this.getResponseChannelProfile(unifiedMessage.channel),
+            })
+            if (conversationalResponse?.text) {
+              generatedResponse = {
+                text: conversationalResponse.text,
+                finalUserText: conversationalResponse.text,
+                toolCalls: [],
+                debug: {
+                  actionKey: taskMemory.intentKey,
+                  detail:
+                    'La respuesta se generó en modo conversacional controlado sobre facts aprobados y contexto reciente.',
+                },
+              }
+            }
+          }
+
+          if (!generatedResponse) {
+            generatedResponse = await this.provider.generate({
+              role,
+              systemPrompt: buildSystemPrompt(role, {
+                actionCatalog,
+                retrievalContext: retrievalContext.items,
+                operationalContext: resolvedOperationalContext.items,
+                taskSummary: taskMemory.taskSummary,
+                currentTask: taskMemory.currentTask,
+                blockedTools,
+                customInstructions:
+                  roleConfig.type === 'admin'
+                    ? runtimeConfig.adminInternalPrompt
+                    : runtimeConfig.customerPublicPrompt,
+              }),
+              history,
+              input: reasoningInput,
+              tools,
               actionCatalog,
               retrievalContext: retrievalContext.items,
-              operationalContext: resolvedOperationalContext.items,
-              taskSummary: taskMemory.taskSummary,
-              currentTask: taskMemory.currentTask,
-              blockedTools,
-              customInstructions:
-                roleConfig.type === 'admin'
-                  ? runtimeConfig.adminInternalPrompt
-                  : runtimeConfig.customerPublicPrompt,
-            }),
-            history,
-            input: reasoningInput,
-            tools,
-            actionCatalog,
-            retrievalContext: retrievalContext.items,
-          })
+              options: this.resolveProviderOptions('response'),
+            })
+          }
         } catch (error) {
           const providerFailure = classifyProviderFailure(error)
           const fallbackReason = providerFailure.reason
@@ -3101,6 +3863,8 @@ export class AiAgentRuntime {
             fallbackReason,
             interpretation: turnInterpretation,
             tenantTopicTaxonomy,
+            previousIntentKey: priorIntentKey,
+            channel: unifiedMessage.channel || null,
           })
 
           generatedResponse = this.appendAdminDebugSummary(generatedResponse, {
@@ -3146,19 +3910,67 @@ export class AiAgentRuntime {
       retrievalContext,
       interpretation: turnInterpretation,
       tenantTopicTaxonomy,
+      previousIntentKey: priorIntentKey,
+      channel: unifiedMessage.channel || null,
     })
+    const hasDeterministicConversationResponse = Boolean(deterministicResult?.response)
+    const guardrailMode = hasDeterministicConversationResponse ? null : conversationMode.mode
+    const guardrailMaxChars = hasDeterministicConversationResponse
+      ? role === 'customer_public' || role === 'customer_authenticated'
+        ? 420
+        : 360
+      : responseValidation.response?.grounding?.grounded === true
+        ? Math.max(
+            140,
+            Math.min(
+              420,
+              Number(runtimeConfig.customerGroundedRewriteMaxChars || 240),
+            ),
+          )
+        : 280
+
+    const guardrailedText = validateResponseGuardrails({
+      text: responseValidation.response?.text,
+      fallbackText: response?.text || deterministicResult?.response?.text || '',
+      mode: guardrailMode,
+      maxChars: guardrailMaxChars,
+      requireQuestion:
+        !hasDeterministicConversationResponse &&
+        (orchestratorDecision.nextStep === 'conversational_mode' ||
+          orchestratorDecision.nextStep === 'ask_clarification'),
+      fallbackQuestion:
+        conversationMode.mode === 'exploration'
+          ? '¿Qué necesitás resolver exactamente?'
+          : '¿Querés contarme un poco más para orientarte mejor?',
+    })
+    const responseAfterGuardrails = {
+      ...responseValidation.response,
+      text: guardrailedText.text,
+      finalUserText: guardrailedText.text,
+      debug: {
+        ...(responseValidation.response?.debug || {}),
+        detail: guardrailedText.issues.length
+          ? [
+              responseValidation.response?.debug?.detail,
+              `Guardrails aplicados: ${guardrailedText.issues.join(', ')}.`,
+            ]
+              .filter(Boolean)
+              .join(' ')
+          : responseValidation.response?.debug?.detail,
+      },
+    }
     const responseMetrics = this.buildConversationalMetrics({
       role,
       interpretation: turnInterpretation,
       inboundClassification,
       previousSnapshot,
-      response: responseValidation.response,
+      response: responseAfterGuardrails,
       validation: responseValidation.validation,
       providerGenerationAttempted,
     })
     const annotatedResponse = this.appendAdminDebugSummary(
       this.annotateOperationalMatches(
-        responseValidation.response,
+        responseAfterGuardrails,
         resolvedOperationalContext,
         role,
       ),
@@ -3182,6 +3994,9 @@ export class AiAgentRuntime {
         messageContextOrigin: messageContextAudit.messageContextOrigin,
         turnInterpretation,
         responseValidation: responseValidation.validation,
+        conversationAnalysis: llmInterpretation,
+        conversationMode,
+        orchestratorDecision,
         metrics: responseMetrics,
         detail: deterministicResult
           ? `La respuesta se resolvió por flujo determinístico de backend${extractedAssetContext.items.length ? ' usando contexto extraído de adjuntos' : ''} para evitar depender del modelo.`
@@ -3206,6 +4021,9 @@ export class AiAgentRuntime {
       messageElements: messageContextAudit.messageElements,
       messageContextOrigin: messageContextAudit.messageContextOrigin,
       turnInterpretation,
+      conversationAnalysis: llmInterpretation,
+      conversationMode,
+      orchestratorDecision,
       responseValidation: responseValidation.validation,
       metrics: responseMetrics,
       createdAt: new Date().toISOString(),
@@ -3684,10 +4502,18 @@ export class AiAgentRuntime {
   }
 
   annotateOperationalMatches(response, operationalContext, role) {
+    const matches = deriveOperationalMatches({
+      matches: operationalContext?.matches,
+      toolCalls: [
+        ...(Array.isArray(operationalContext?.toolCalls)
+          ? operationalContext.toolCalls
+          : []),
+        ...(Array.isArray(response?.toolCalls) ? response.toolCalls : []),
+      ],
+    })
     if (
       !(role.startsWith('admin_') || role === 'superadmin') ||
-      !Array.isArray(operationalContext?.matches) ||
-      operationalContext.matches.length === 0 ||
+      matches.length === 0 ||
       typeof response?.text !== 'string'
     ) {
       return response
@@ -3697,9 +4523,12 @@ export class AiAgentRuntime {
       return response
     }
 
+    const annotatedText = `Coincidencias encontradas: ${matches.join('; ')}.\n\n${response.text}`
+
     return {
       ...response,
-      text: `Coincidencias encontradas: ${operationalContext.matches.join('; ')}.\n\n${response.text}`,
+      finalUserText: annotatedText,
+      text: annotatedText,
     }
   }
 
@@ -3708,12 +4537,15 @@ export class AiAgentRuntime {
     const hasApprovedContext =
       Array.isArray(retrievalContext?.items) && retrievalContext.items.length > 0
     const normalized = (input || '').trim().toLowerCase()
+    const wordingKey = String(response?.wordingKey || '')
     const safeDeterministicConversation =
       response?.debug?.actionKey === 'customer.light' ||
       response?.debug?.actionKey === 'customer.clarify_request' ||
       response?.debug?.actionKey === 'customer.rephrase_request' ||
       response?.debug?.actionKey === 'customer.unintelligible' ||
       response?.debug?.actionKey === 'customer.incomplete' ||
+      response?.debug?.actionKey === 'customer.product_info' ||
+      response?.debug?.actionKey === 'customer.topic_info' ||
       response?.debug?.actionKey === 'customer.price_inquiry' ||
       response?.debug?.actionKey === 'customer.quote' ||
       response?.debug?.actionKey === 'customer.support_request' ||
@@ -3729,6 +4561,10 @@ export class AiAgentRuntime {
       response?.debug?.actionKey === 'customer.frustration' ||
       response?.debug?.actionKey === 'customer.sensitive' ||
       response?.debug?.actionKey === 'customer.out_of_scope' ||
+      response?.debug?.actionKey === 'customer.multimodal' ||
+      response?.debug?.actionKey === 'customer.reengagement' ||
+      wordingKey.startsWith('customer.multimodal.') ||
+      wordingKey.startsWith('customer.reengagement.') ||
       response?.debug?.actionKey === 'admin.light' ||
       response?.debug?.actionKey === 'admin.capabilities'
 
@@ -3839,6 +4675,8 @@ export class AiAgentRuntime {
     fallbackReason,
     interpretation = null,
     tenantTopicTaxonomy = [],
+    previousIntentKey = null,
+    channel = null,
   }) {
     return (
       this.buildCustomerKnowledgeFallbackResponse({
@@ -3849,6 +4687,8 @@ export class AiAgentRuntime {
         fallbackReason,
         interpretation,
         tenantTopicTaxonomy,
+        previousIntentKey,
+        channel,
       }) ||
       this.buildCustomerSearchFallbackResponse({
         role,
@@ -4904,6 +5744,12 @@ export class AiAgentRuntime {
       interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
         ? interpretation.quoteContext
         : null
+    const inheritedIntentKey =
+      typeof interpretation?.followUp?.inheritedIntentKey === 'string'
+        ? interpretation.followUp.inheritedIntentKey
+        : null
+    const channel = unifiedMessage?.channel || null
+    const channelProfile = this.getResponseChannelProfile(channel)
     const effectiveIntentKey = intentKey
     if (
       !quoteContext ||
@@ -4947,15 +5793,22 @@ export class AiAgentRuntime {
 
     if (
       looksLikeQuoteWaitingFollowUp(input) &&
+      (Boolean(interpretation?.followUp?.detected) ||
+        inheritedIntentKey === 'customer.quote' ||
+        Boolean(interpretation?.contextTopic?.label)) &&
       (Boolean(quoteContext?.measurements) ||
         (Array.isArray(quoteContext?.measurementItems) &&
           quoteContext.measurementItems.length > 0) ||
-        Number(quoteContext?.quantity?.total || 0) > 0)
+        Number(quoteContext?.quantity?.total || 0) > 0 ||
+        Boolean(interpretation?.contextTopic?.label))
     ) {
       return {
         text: buildCustomerQuoteWaitingFollowUpText({
+          input,
           variationSeed,
           wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
         }),
         toolCalls: [],
         needsHuman: true,
@@ -5452,6 +6305,7 @@ export class AiAgentRuntime {
     role,
     input,
     intentKey,
+    previousIntentKey = null,
     inboundClassification = null,
     interpretation = null,
     tenantTopicTaxonomy = [],
@@ -5505,35 +6359,139 @@ export class AiAgentRuntime {
         Boolean(
           interpretation?.quoteContext?.requiresMeasurements ||
             interpretation?.quoteContext?.familyLabel ||
-            interpretation?.quoteContext?.topicLabel,
+          interpretation?.quoteContext?.topicLabel,
         )) ||
         looksLikeQuoteRequirementsQuestion(input))
+    const standaloneAttachmentArtifactInput =
+      typeof unifiedMessage?.text === 'string' && unifiedMessage.text.trim()
+        ? unifiedMessage.text
+        : input
+    const standaloneAttachmentArtifactKind = detectStandaloneAttachmentArtifactKind(
+      standaloneAttachmentArtifactInput,
+    )
+    const channel = unifiedMessage?.channel || null
+    const channelProfile = this.getResponseChannelProfile(channel)
+    const inheritedIntentKey =
+      typeof interpretation?.followUp?.inheritedIntentKey === 'string'
+        ? interpretation.followUp.inheritedIntentKey
+        : null
+    const hasQuoteDetailContext = Boolean(
+      interpretation?.quoteContext?.topicLabel ||
+        interpretation?.quoteContext?.familyLabel ||
+        interpretation?.quoteContext?.measurements ||
+        Number(interpretation?.quoteContext?.quantity?.total || 0) > 0 ||
+        (interpretation?.quoteContext?.capturedAttributes &&
+          Object.keys(interpretation.quoteContext.capturedAttributes).length > 0),
+    )
+    const hasSupportContext =
+      effectiveIntentKey === 'customer.support_request' ||
+      inheritedIntentKey === 'customer.support_request' ||
+      previousIntentKey === 'customer.support_request'
+    const hasQuoteContext =
+      ['customer.quote', 'customer.price_inquiry'].includes(effectiveIntentKey) ||
+      (['customer.product_info', 'customer.topic_info'].includes(effectiveIntentKey) &&
+        hasQuoteDetailContext)
+    const hasExplicitMultimodalReferenceCue = hasMultimodalReferenceSignal(input)
+    const hasExplicitMultimodalArtifactPlanCue =
+      hasMultimodalPlannedArtifactSignal(input)
+    const hasExplicitReengagementCue = hasReengagementReferenceSignal(input)
+    const hasMultimodalFollowUpReference =
+      hasExplicitMultimodalReferenceCue &&
+      Boolean(
+        interpretation?.followUp?.detected ||
+          interpretation?.contextTopic?.label ||
+          hasQuoteDetailContext,
+      )
+    const hasMultimodalArtifactPlan =
+      hasExplicitMultimodalArtifactPlanCue &&
+      Boolean(
+        interpretation?.followUp?.detected ||
+          inheritedIntentKey ||
+          interpretation?.contextTopic?.label ||
+          hasQuoteDetailContext ||
+          effectiveIntentKey === 'customer.quote' ||
+          effectiveIntentKey === 'customer.support_request',
+      )
+    const hasReengagementReference =
+      hasExplicitReengagementCue &&
+      Boolean(
+        interpretation?.followUp?.detected ||
+          inheritedIntentKey ||
+          interpretation?.contextTopic?.label ||
+          hasQuoteDetailContext ||
+          effectiveIntentKey === 'customer.quote' ||
+          effectiveIntentKey === 'customer.support_request',
+      )
+    const inboundDecisionPath = Array.isArray(inboundClassification?.decisionPath)
+      ? inboundClassification.decisionPath
+      : []
+    const hasPaymentProofContinuitySignal =
+      inboundDecisionPath.some((entry) =>
+        [
+          'classifier:payment_followup_support_request',
+          'classifier:payment_proof_artifact',
+          'classifier:payment_operational_update',
+        ].includes(String(entry || '')),
+      ) ||
+      looksLikePaymentProofFollowUpRequest(input) ||
+      looksLikePaymentProofArtifact(input) ||
+      looksLikePaymentOperationalUpdate(input)
+    const currentFaqSubtype = detectCustomerFaqSubtype(input, {
+      previousIntentKey: hasSupportContext
+        ? 'customer.support_request'
+        : inheritedIntentKey || effectiveIntentKey,
+    })
+    const normalizedSupportInput = normalizeText(input)
+    const hasSupportReviewCue =
+      /\b(repar\w*|revisi\w*|service|cambi\w*|ajust\w*|mover|acortar)\b/.test(
+        normalizedSupportInput,
+      )
+    const hasSupportVisitCue =
+      /\b(cuando|cu[aá]ndo|podr\w*|pued\w*|venir|pasar|domicilio|visita|coordinar|manana|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|a las|\d{1,2}:\d{2}|entre las|los espero|las espero|te espero)\b/.test(
+        normalizedSupportInput,
+      )
+
+    const canUseNeutralContinuityResponse =
+      (standaloneAttachmentArtifactKind ||
+        hasExplicitMultimodalReferenceCue ||
+        hasExplicitMultimodalArtifactPlanCue ||
+        hasExplicitReengagementCue) &&
+      ['unknown', 'customer.other'].includes(String(effectiveIntentKey || ''))
+    const canUseTopicInfoDeterministicResponse =
+      effectiveIntentKey === 'customer.topic_info' &&
+      (hasSupportContext ||
+        hasQuoteContext ||
+        ['payment_methods', 'contact'].includes(String(currentFaqSubtype || '')))
 
     if (
       !(role === 'customer_public' || role === 'customer_authenticated') ||
-      ![
-        'customer.light',
-        'customer.clarify_request',
-        'customer.rephrase_request',
-        'customer.unintelligible',
-        'customer.incomplete',
-        'customer.product_info',
-        'customer.price_inquiry',
-        'customer.support_request',
-        'customer.schedule_request',
-        'customer.auth_required',
-        'customer.owned_document_request',
-        'customer.private_account_data',
-        'customer.contact_info',
-        'customer.multi_intent',
-        'customer.repetition',
-        'customer.confirmation',
-        'customer.cancellation',
-        'customer.frustration',
-        'customer.sensitive',
-        'customer.out_of_scope',
-        'customer.quote',
-      ].includes(effectiveIntentKey)
+      !(
+        [
+          'customer.light',
+          'customer.clarify_request',
+          'customer.rephrase_request',
+          'customer.unintelligible',
+          'customer.incomplete',
+          'customer.product_info',
+          'customer.price_inquiry',
+          'customer.support_request',
+          'customer.schedule_request',
+          'customer.auth_required',
+          'customer.owned_document_request',
+          'customer.private_account_data',
+          'customer.contact_info',
+          'customer.multi_intent',
+          'customer.repetition',
+          'customer.confirmation',
+          'customer.cancellation',
+          'customer.frustration',
+          'customer.sensitive',
+          'customer.out_of_scope',
+          'customer.quote',
+        ].includes(effectiveIntentKey) ||
+        canUseNeutralContinuityResponse ||
+        canUseTopicInfoDeterministicResponse
+      )
     ) {
       return null
     }
@@ -5603,6 +6561,479 @@ export class AiAgentRuntime {
       }
     }
 
+    const hasMaterialFollowUpContext =
+      Boolean(
+        interpretation?.followUp?.detected ||
+          interpretation?.contextTopic?.label ||
+          interpretation?.topic?.label ||
+          interpretation?.quoteContext?.topicLabel ||
+          interpretation?.quoteContext?.familyLabel,
+      )
+
+    if (
+      ['customer.quote', 'customer.product_info', 'customer.topic_info'].includes(
+        effectiveIntentKey,
+      ) &&
+      looksLikeMaterialFollowUpRequest(input) &&
+      hasMaterialFollowUpContext
+    ) {
+      const materialSubject =
+        interpretation?.topic?.label ||
+        interpretation?.contextTopic?.label ||
+        interpretation?.quoteContext?.topicLabel ||
+        interpretation?.quoteContext?.familyLabel ||
+        'esa opción'
+
+      return {
+        text: buildCustomerMaterialFollowUpText({
+          subject: materialSubject,
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+        }),
+        wordingKey: 'customer.fallback.material_followup',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          wordingKey: 'customer.fallback.material_followup',
+          detail:
+            'Se priorizó un follow-up visual o de material dentro del hilo activo sin reabrir intake de cotización.',
+        },
+      }
+    }
+
+    const hasProductFollowUpContext = Boolean(
+      interpretation?.followUp?.detected ||
+        interpretation?.contextTopic?.label ||
+        interpretation?.topic?.label,
+    )
+
+    const productFollowUpSubject =
+      interpretation?.topic?.label ||
+      interpretation?.contextTopic?.label ||
+      interpretation?.quoteContext?.topicLabel ||
+      interpretation?.quoteContext?.familyLabel ||
+      'esa opción'
+
+    if (
+      ['customer.product_info', 'customer.topic_info'].includes(effectiveIntentKey) &&
+      hasProductFollowUpContext &&
+      looksLikeLightFilterPreferenceRequest(input) &&
+      /\broller\b/i.test(String(productFollowUpSubject || ''))
+    ) {
+      return {
+        text: buildCustomerLightFilterGuidanceText({
+          subject: productFollowUpSubject,
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+        }),
+        wordingKey: 'customer.product.light_filter_guidance.roller',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          wordingKey: 'customer.product.light_filter_guidance.roller',
+          detail:
+            'Se priorizó guía contextual de variantes para roller con paso de luz, sin degradar la consulta a agenda ni a lookup de producto publicado.',
+        },
+      }
+    }
+
+    if (
+      ['customer.quote', 'customer.price_inquiry'].includes(effectiveIntentKey) &&
+      looksLikeInstalledReplacementAssessmentRequest(input)
+    ) {
+      const replacementSubjectLabel = compactText(
+        interpretation?.quoteContext?.topicLabel ||
+          interpretation?.quoteContext?.familyLabel ||
+          interpretation?.topic?.label ||
+          interpretation?.contextTopic?.label ||
+          '',
+      )
+      const replacementSubjectClause = replacementSubjectLabel
+        ? `el cambio de ${replacementSubjectLabel}`
+        : 'ese cambio'
+      return {
+        text: pickWordingVariant({
+          key: 'customer.quote.replacement_followup',
+          variationSeed,
+          overrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+          variables: {
+            subjectClause: replacementSubjectClause,
+          },
+          fallback:
+            `Perfecto. Para orientarte mejor con ${replacementSubjectClause}, pasame una foto y las medidas que tengas. Si querés, además decime la zona o dirección y lo dejamos encaminado.`,
+        }),
+        wordingKey: 'customer.quote.replacement_followup',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          wordingKey: 'customer.quote.replacement_followup',
+          detail:
+            'Se detectó un pedido de cambio o reemplazo sobre elementos ya instalados y se pidió foto, medidas y ubicación sin degradarlo a un quote genérico.',
+        },
+      }
+    }
+
+    if (
+      hasSupportContext &&
+      hasPaymentProofContinuitySignal &&
+      (hasMultimodalArtifactPlan ||
+        standaloneAttachmentArtifactKind ||
+        hasMultimodalFollowUpReference)
+    ) {
+      return {
+        text: buildCustomerSupportRequestText(input, {
+          interpretation,
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+        }),
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          detail:
+            'Se priorizó continuidad operativa de comprobante de pago sobre la rama multimodal genérica.',
+        },
+      }
+    }
+
+    if (
+      hasSupportContext &&
+      currentFaqSubtype === 'payment_methods' &&
+      !(hasSupportReviewCue && hasSupportVisitCue) &&
+      !hasPaymentProofContinuitySignal &&
+      !standaloneAttachmentArtifactKind &&
+      !hasMultimodalArtifactPlan &&
+      !hasMultimodalFollowUpReference
+    ) {
+      const paymentMethods = resolveOperationalPaymentMethodsInline(input)
+      return {
+        text: pickWordingVariant({
+          key: 'customer.faq.payment_methods_operational_followup',
+          variationSeed,
+          overrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+          variables: {
+            paymentMethods,
+          },
+          fallback: `Aceptamos ${paymentMethods}. Si ya mandaste el adjunto o el comprobante, lo dejo en seguimiento y continuamos por este canal.`,
+        }),
+        wordingKey: 'customer.faq.payment_methods_operational_followup',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          wordingKey: 'customer.faq.payment_methods_operational_followup',
+          detail:
+            'Se respondió una consulta operativa de medios de pago dentro de un hilo de soporte sin depender del buscador ni del proveedor.',
+        },
+      }
+    }
+
+    if (
+      hasMultimodalArtifactPlan &&
+      (hasSupportContext || hasQuoteContext)
+    ) {
+      return {
+        text: hasSupportContext
+          ? buildCustomerMultimodalSupportArtifactPlannedText({
+              variationSeed,
+              wordingOverrides: this.getCustomerWordingOverrides(),
+              channel,
+              channelProfile,
+            })
+          : buildCustomerMultimodalQuoteArtifactPlannedText({
+              variationSeed,
+              wordingOverrides: this.getCustomerWordingOverrides(),
+              channel,
+              channelProfile,
+              interpretation,
+            }),
+        wordingKey: hasSupportContext
+          ? 'customer.multimodal.support_artifact_planned'
+          : 'customer.multimodal.quote_artifact_planned',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          detail:
+            'Se mantuvo continuidad útil cuando el cliente anunció que enviará fotos o material dentro del hilo activo.',
+        },
+      }
+    }
+
+    if (hasExplicitMultimodalArtifactPlanCue && !hasSupportContext && !hasQuoteContext) {
+      return {
+        text: buildCustomerMultimodalGenericArtifactPlannedText({
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+        }),
+        wordingKey: 'customer.multimodal.generic_artifact_planned',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: 'customer.multimodal',
+          detail:
+            'Se mantuvo una continuidad multimodal neutra cuando el cliente anunció un adjunto sin suficiente contexto para asumir quote o soporte.',
+        },
+      }
+    }
+
+    if (
+      hasReengagementReference &&
+      (hasSupportContext || hasQuoteContext)
+    ) {
+      return {
+        text: buildCustomerReengagementFollowUpText({
+          kind: hasSupportContext ? 'support' : 'quote',
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+        }),
+        wordingKey: hasSupportContext
+          ? 'customer.reengagement.support_followup'
+          : 'customer.reengagement.quote_followup',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          detail:
+            'Se trató un reenganche explícito conservando el hilo previo en lugar de reiniciar la conversación.',
+        },
+      }
+    }
+
+    if (
+      hasExplicitReengagementCue &&
+      !hasSupportContext &&
+      !hasQuoteContext &&
+      WEAK_NEUTRAL_REENGAGEMENT_INTENTS.has(String(effectiveIntentKey || ''))
+    ) {
+      return {
+        text: buildCustomerReengagementNeutralText({
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+        }),
+        wordingKey: 'customer.reengagement.neutral_followup',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: 'customer.reengagement',
+          detail:
+            'Se retomó el hilo con una pregunta orientadora neutral cuando no había suficiente contexto para asumir quote o soporte.',
+        },
+      }
+    }
+
+    if (
+      standaloneAttachmentArtifactKind &&
+      (hasSupportContext || hasQuoteContext)
+    ) {
+      return {
+        text: hasSupportContext
+          ? buildCustomerMultimodalSupportArtifactText({
+              variationSeed,
+              wordingOverrides: this.getCustomerWordingOverrides(),
+              channel,
+              channelProfile,
+            })
+          : buildCustomerMultimodalQuoteArtifactText({
+              variationSeed,
+              wordingOverrides: this.getCustomerWordingOverrides(),
+              channel,
+              channelProfile,
+              interpretation,
+            }),
+        wordingKey: hasSupportContext
+          ? 'customer.multimodal.support_artifact_received'
+          : 'customer.multimodal.quote_artifact_received',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          detail:
+            'Se trató un adjunto como continuidad contextual del hilo activo, evitando volver a un intake genérico.',
+        },
+      }
+    }
+
+    if (standaloneAttachmentArtifactKind) {
+      return {
+        text: buildCustomerMultimodalGenericArtifactText({
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+          artifactKind: standaloneAttachmentArtifactKind,
+        }),
+        wordingKey: 'customer.multimodal.generic_artifact_received',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: 'customer.multimodal',
+          detail:
+            'Se respondió un adjunto sin contexto suficiente con una continuidad multimodal neutra, sin convertir el nombre del archivo en un tema.',
+        },
+      }
+    }
+
+    if (
+      hasMultimodalFollowUpReference &&
+      (hasSupportContext || hasQuoteContext)
+    ) {
+      return {
+        text: hasSupportContext
+          ? buildCustomerMultimodalSupportArtifactText({
+              variationSeed,
+              wordingOverrides: this.getCustomerWordingOverrides(),
+              channel,
+              channelProfile,
+              referenceOnly: true,
+            })
+          : buildCustomerMultimodalQuoteArtifactText({
+              variationSeed,
+              wordingOverrides: this.getCustomerWordingOverrides(),
+              channel,
+              channelProfile,
+              referenceOnly: true,
+              interpretation,
+            }),
+        wordingKey: hasSupportContext
+          ? 'customer.multimodal.support_artifact_reference'
+          : 'customer.multimodal.quote_artifact_reference',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: effectiveIntentKey,
+          detail:
+            'Se respondió una referencia multimodal corta manteniendo el hilo activo y el siguiente paso útil.',
+        },
+      }
+    }
+
+    if (hasExplicitMultimodalReferenceCue && !hasSupportContext && !hasQuoteContext) {
+      return {
+        text: buildCustomerMultimodalGenericArtifactText({
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+          referenceOnly: true,
+          artifactKind: standaloneAttachmentArtifactKind,
+        }),
+        wordingKey: 'customer.multimodal.generic_artifact_reference',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: 'customer.multimodal',
+          detail:
+            'Se respondió una referencia multimodal corta sin asumir un hilo comercial u operativo que no estaba suficientemente sustentado.',
+        },
+      }
+    }
+
+    if (
+      standaloneAttachmentArtifactKind &&
+      ['customer.incomplete', 'customer.product_info', 'customer.other', 'unknown'].includes(
+        effectiveIntentKey,
+      )
+    ) {
+      return {
+        text: renderCustomerDeterministicText({
+          intentKey: 'customer.incomplete',
+          input: standaloneAttachmentArtifactInput,
+          inboundClassification,
+          config: this.activeConfig,
+          interpretation,
+          tenantTopicTaxonomy,
+          locale: resolveUnifiedLocale(unifiedMessage || { text: standaloneAttachmentArtifactInput }),
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+        }),
+        toolCalls: [],
+        needsHuman: false,
+        grounding: {
+          grounded: false,
+          fallbackReason: null,
+        },
+        debug: {
+          actionKey: 'customer.incomplete',
+          detail:
+            'Se trató un adjunto puro sin contexto adicional como continuidad incompleta útil, evitando degradarlo a producto o consulta genérica.',
+        },
+      }
+    }
+
     if (effectiveIntentKey === 'customer.product_info') {
       return null
     }
@@ -5628,6 +7059,8 @@ export class AiAgentRuntime {
       locale: resolveUnifiedLocale(unifiedMessage || { text: input }),
       variationSeed,
       wordingOverrides: this.getCustomerWordingOverrides(),
+      channel,
+      channelProfile,
     })
     let detail = null
 
@@ -5884,10 +7317,12 @@ export class AiAgentRuntime {
     role,
     input,
     intentKey,
+    previousIntentKey = null,
     retrievalContext,
     interpretation = null,
     tenantTopicTaxonomy = [],
     variationSeed = '',
+    channel = null,
   }) {
     if (
       !(role === 'customer_public' || role === 'customer_authenticated') ||
@@ -5957,10 +7392,15 @@ export class AiAgentRuntime {
         tenantTopicTaxonomy,
         variationSeed,
         wordingOverrides: this.getCustomerWordingOverrides(),
+        previousIntentKey,
+        channel,
+        channelProfile: this.getResponseChannelProfile(channel),
       }) ||
       buildGenericCustomerKnowledgeFallbackText(intentKey, retrievalItems, input, {
         variationSeed,
         wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile: this.getResponseChannelProfile(channel),
       })
     if (!text) {
       return null
@@ -6011,6 +7451,29 @@ export class AiAgentRuntime {
       response,
       interpretation,
     })
+    const rewriteFaqSubtype = detectCustomerFaqSubtype(input, {
+      previousIntentKey:
+        typeof interpretation?.followUp?.inheritedIntentKey === 'string'
+          ? interpretation.followUp.inheritedIntentKey
+          : null,
+    })
+    if (
+      /^customer\.multimodal\./.test(String(wordingKey || '')) ||
+      wordingKey === 'customer.faq.payment_methods_operational_followup' ||
+      wordingKey === 'customer.quote.replacement_followup' ||
+      wordingKey === 'customer.reengagement.support_followup'
+    ) {
+      return false
+    }
+    if (
+      rewriteFaqSubtype === 'payment_methods' &&
+      (looksLikeShortContextualFollowUp(input) ||
+        looksLikeCustomerFollowUp(input) ||
+        looksLikeContextualReference(input) ||
+        Boolean(interpretation?.followUp?.detected))
+    ) {
+      return false
+    }
     const safeWordingKey = this.shouldApplySafeCustomerHybridRewrite({
       wordingKey,
       input,
@@ -6072,6 +7535,7 @@ export class AiAgentRuntime {
     retrievalContext,
     runtimeConfig,
     interpretation = null,
+    channel = null,
   }) {
     if (
       !this.shouldAttemptGroundedCustomerRewrite({
@@ -6095,6 +7559,10 @@ export class AiAgentRuntime {
     const safeWordingKey = this.shouldApplySafeCustomerHybridRewrite({
       wordingKey,
       input,
+      channel,
+    })
+    const templateMeta = this.getCustomerWordingTemplateMeta(wordingKey, {
+      channel,
     })
     const quota = await this.ensureProviderQuotaAvailable()
     if (!quota.allowed) {
@@ -6103,7 +7571,14 @@ export class AiAgentRuntime {
 
     const maxChars = Math.max(
       80,
-      Math.min(400, Number(runtimeConfig.customerGroundedRewriteMaxChars || 220)),
+      Math.min(
+        400,
+        Number(
+          templateMeta.maxChars ||
+            runtimeConfig.customerGroundedRewriteMaxChars ||
+            220,
+        ),
+      ),
     )
     const retrievalItems = Array.isArray(retrievalContext?.items)
       ? retrievalContext.items
@@ -6120,36 +7595,39 @@ export class AiAgentRuntime {
       .join('\n')
 
     try {
-      const rewritten = await this.provider.generate({
+      const rewritten = await generateResponse({
+        provider: this.provider,
         role,
-        systemPrompt: [
-          safeWordingKey
-            ? 'Reescribí una respuesta determinística de bajo riesgo para cliente final.'
-            : 'Reescribí una respuesta ya grounded para cliente final.',
-          safeWordingKey
-            ? 'Conservá exactamente el sentido operativo del borrador y solo variá la redacción.'
-            : 'Usá únicamente los hechos presentes en el borrador y en las fuentes aprobadas.',
-          'No inventes datos, productos, horarios, ubicaciones, teléfonos, precios ni condiciones.',
-          `Respondé en español, natural, breve y coherente, idealmente en 1 o 2 frases y dentro de ${maxChars} caracteres.`,
-          'Si el borrador ya es correcto, devolvelo casi igual pero mejor redactado.',
-        ].join(' '),
-        history: [],
         input: [
-          `Consulta original: ${String(input || '').trim()}`,
+          String(input || '').trim(),
           wordingKey ? `Clave semántica segura: ${wordingKey}` : null,
-          `Borrador grounded: ${String(response?.text || '').trim()}`,
           retrievalItems.length
             ? ['Fuentes aprobadas usadas:', sources].join('\n\n')
             : null,
         ]
           .filter(Boolean)
           .join('\n\n'),
-        tools: [],
+        approvedDraft: String(response?.text || '').trim(),
+        approvedFacts: this.buildCustomerApprovedFacts({
+          intentKey,
+          interpretation,
+          response,
+          retrievalContext,
+        }),
+        goal:
+          templateMeta.goal ||
+          (safeWordingKey
+            ? 'Variar la redacción de una respuesta segura sin cambiar su sentido operativo.'
+            : 'Mejorar naturalidad de una respuesta grounded sin perder facts aprobados.'),
+        mustAskQuestion: templateMeta.mustAskQuestion === true,
+        maxChars,
+        draftLabel: 'Borrador grounded',
+        providerOptions: this.resolveProviderOptions('rewrite'),
+        channel,
+        channelProfile: this.getResponseChannelProfile(channel),
       })
 
-      const rewrittenText = String(rewritten?.text || '')
-        .replace(/\s+/g, ' ')
-        .trim()
+      const rewrittenText = String(rewritten?.text || '').replace(/\s+/g, ' ').trim()
 
       if (!rewrittenText) {
         return response
@@ -6238,9 +7716,24 @@ export class AiAgentRuntime {
     topic,
     tenantTopicTaxonomy = [],
     variationSeed = '',
+    options = {},
   ) {
-    const label = compactText(topic?.label || '')
-    if (!label || !/^product_/.test(String(topic?.type || ''))) {
+    const fallbackTopicLabel =
+      typeof options?.fallbackTopicLabel === 'string'
+        ? options.fallbackTopicLabel
+        : null
+    const fallbackTopicType =
+      typeof options?.fallbackTopicType === 'string'
+        ? options.fallbackTopicType
+        : 'product_topic'
+    const topicType =
+      typeof topic?.type === 'string' && topic.type.trim()
+        ? topic.type
+        : fallbackTopicLabel
+          ? fallbackTopicType
+          : null
+    const label = compactText(topic?.label || fallbackTopicLabel || '')
+    if (!label || !/^product_/.test(String(topicType || ''))) {
       return null
     }
 
@@ -6252,7 +7745,7 @@ export class AiAgentRuntime {
       }) || label
 
     const wordingKey =
-      String(topic?.type || '') === 'product_family'
+      String(topicType || '') === 'product_family'
         ? 'customer.product.options_offer'
         : 'customer.product.info_offer'
     const text = pickWordingVariant({
@@ -6350,6 +7843,48 @@ export class AiAgentRuntime {
     return false
   }
 
+  resolveTopicGuardFallback({ input, interpretation = null }) {
+    const interpretedTopicLabel =
+      typeof interpretation?.topic?.label === 'string' && interpretation.topic.label.trim()
+        ? interpretation.topic.label.trim()
+        : null
+    if (interpretedTopicLabel) {
+      return {
+        label: interpretedTopicLabel,
+        type:
+          typeof interpretation?.topic?.type === 'string' && interpretation.topic.type.trim()
+            ? interpretation.topic.type.trim()
+            : 'product_topic',
+      }
+    }
+
+    const contextualTopicLabel =
+      typeof interpretation?.contextTopic?.label === 'string' &&
+      interpretation.contextTopic.label.trim()
+        ? interpretation.contextTopic.label.trim()
+        : null
+    if (contextualTopicLabel) {
+      return {
+        label: contextualTopicLabel,
+        type:
+          typeof interpretation?.contextTopic?.type === 'string' &&
+          interpretation.contextTopic.type.trim()
+            ? interpretation.contextTopic.type.trim()
+            : 'product_topic',
+      }
+    }
+
+    const requestedTopicLabel = extractRequestedTopicLabel(input)
+    if (!requestedTopicLabel) {
+      return null
+    }
+
+    return {
+      label: requestedTopicLabel,
+      type: 'product_topic',
+    }
+  }
+
   getLastAgentAuditPayload(snapshot) {
     const turns = Array.isArray(snapshot?.turns) ? snapshot.turns : []
     for (let index = turns.length - 1; index >= 0; index -= 1) {
@@ -6376,6 +7911,8 @@ export class AiAgentRuntime {
     retrievalContext = null,
     interpretation = null,
     tenantTopicTaxonomy = [],
+    previousIntentKey = null,
+    channel = null,
   }) {
     const validation = {
       applied: false,
@@ -6404,6 +7941,7 @@ export class AiAgentRuntime {
             role,
             input,
             intentKey: 'customer.clarify_request',
+            previousIntentKey,
             inboundClassification:
               inboundClassification && typeof inboundClassification === 'object'
                 ? inboundClassification
@@ -6451,6 +7989,38 @@ export class AiAgentRuntime {
       Array.isArray(retrievalContext?.items) &&
       retrievalContext.items.length > 0
     const stableText = compactText(nextResponse?.finalUserText || nextResponse?.text || '')
+    const topicGuardFallback = this.resolveTopicGuardFallback({
+      input,
+      interpretation,
+    })
+
+    const shouldReplaceGenericClarificationWithTopicGuard =
+      isCustomerRole &&
+      ['customer.topic_info', 'customer.product_info'].includes(intentKey) &&
+      topicGuardFallback?.label &&
+      /sobre qu[eé]\s+te gustar[ií]a informaci[oó]n/i.test(stableText)
+
+    if (shouldReplaceGenericClarificationWithTopicGuard) {
+      validation.applied = true
+      validation.adjusted = true
+      validation.issues.push('generic_clarification_with_clear_topic')
+      const canonicalTopicGuardResponse = this.buildCanonicalTopicGuardResponse(
+        intentKey,
+        interpretation?.topic,
+        tenantTopicTaxonomy,
+        '',
+        {
+          fallbackTopicLabel: topicGuardFallback.label,
+          fallbackTopicType: topicGuardFallback.type || 'product_topic',
+        },
+      )
+      if (canonicalTopicGuardResponse) {
+        nextResponse = this.appendValidationDetail(
+          canonicalTopicGuardResponse,
+          'Se reemplazó una aclaración genérica por una respuesta canónica del tópico ya detectado.',
+        )
+      }
+    }
 
     if (canValidateKnowledge) {
       const rawSnippetLeakDetected = this.detectRawKnowledgeLeak({
@@ -6467,23 +8037,32 @@ export class AiAgentRuntime {
                 role,
                 input,
                 intentKey,
+                previousIntentKey,
                 inboundClassification,
                 interpretation,
                 tenantTopicTaxonomy,
+                unifiedMessage: channel ? { channel } : null,
               })
             : null) ||
           this.buildCanonicalTopicGuardResponse(
             intentKey,
             interpretation?.topic,
             tenantTopicTaxonomy,
+            '',
+            {
+              fallbackTopicLabel: topicGuardFallback?.label || null,
+              fallbackTopicType: topicGuardFallback?.type || 'product_topic',
+            },
           ) ||
           this.buildDeterministicKnowledgeResponse({
             role,
             input,
             intentKey,
+            previousIntentKey,
             retrievalContext,
             interpretation,
             tenantTopicTaxonomy,
+            channel,
           }) ||
           this.buildCustomerKnowledgeFallbackResponse({
             role,
@@ -6493,6 +8072,8 @@ export class AiAgentRuntime {
             fallbackReason: null,
             interpretation,
             tenantTopicTaxonomy,
+            previousIntentKey,
+            channel,
           })
         if (deterministicKnowledgeResponse) {
           validation.adjusted = true
@@ -6523,23 +8104,32 @@ export class AiAgentRuntime {
                 role,
                 input,
                 intentKey,
+                previousIntentKey,
                 inboundClassification,
                 interpretation,
                 tenantTopicTaxonomy,
+                unifiedMessage: channel ? { channel } : null,
               })
             : null) ||
           this.buildCanonicalTopicGuardResponse(
             intentKey,
             interpretation?.topic,
             tenantTopicTaxonomy,
+            '',
+            {
+              fallbackTopicLabel: topicGuardFallback?.label || null,
+              fallbackTopicType: topicGuardFallback?.type || 'product_topic',
+            },
           ) ||
           this.buildDeterministicKnowledgeResponse({
             role,
             input,
             intentKey,
+            previousIntentKey,
             retrievalContext,
             interpretation,
             tenantTopicTaxonomy,
+            channel,
           }) ||
           this.buildCustomerKnowledgeFallbackResponse({
             role,
@@ -6549,6 +8139,8 @@ export class AiAgentRuntime {
             fallbackReason: null,
             interpretation,
             tenantTopicTaxonomy,
+            previousIntentKey,
+            channel,
           })
         if (deterministicKnowledgeResponse) {
           validation.adjusted = true
@@ -7090,8 +8682,14 @@ export class AiAgentRuntime {
               quoteContext: sanitizeQuoteContextForAudit(
                 context.turnInterpretation.quoteContext,
               ),
+              supportContext: sanitizeSupportContextForAudit(
+                context.turnInterpretation.supportContext,
+              ),
               scheduleContext: sanitizeScheduleContextForAudit(
                 context.turnInterpretation.scheduleContext,
+              ),
+              conversationContext: sanitizeConversationContextForAudit(
+                context.turnInterpretation.conversationContext,
               ),
             }
           : previousAuditPayload?.turnInterpretation ?? null,
@@ -7152,6 +8750,8 @@ export class AiAgentRuntime {
     interpretation = null,
     tenantTopicTaxonomy = [],
     variationSeed = '',
+    previousIntentKey = null,
+    channel = null,
   }) {
     if (
       !(role === 'customer_public' || role === 'customer_authenticated') ||
@@ -7203,6 +8803,8 @@ export class AiAgentRuntime {
           subject,
           variationSeed,
           wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile: this.getResponseChannelProfile(channel),
         }),
         wordingKey: 'customer.fallback.material_followup',
         toolCalls: [],
@@ -7227,6 +8829,8 @@ export class AiAgentRuntime {
           subject,
           variationSeed,
           wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile: this.getResponseChannelProfile(channel),
         }),
         wordingKey: 'customer.fallback.information_then_handoff',
         toolCalls: [],
@@ -7254,10 +8858,15 @@ export class AiAgentRuntime {
         tenantTopicTaxonomy,
         variationSeed,
         wordingOverrides: this.getCustomerWordingOverrides(),
+        previousIntentKey,
+        channel,
+        channelProfile: this.getResponseChannelProfile(channel),
       }) ||
       buildGenericCustomerKnowledgeFallbackText(intentKey, retrievalItems, input, {
         variationSeed,
         wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile: this.getResponseChannelProfile(channel),
       })
     if (!text) {
       return null
@@ -7912,6 +9521,16 @@ export class AiAgentRuntime {
       typeof previousTaskState.scheduleContext === 'object'
         ? previousTaskState.scheduleContext
         : null
+    const previousSupportContext =
+      previousTaskState?.supportContext &&
+      typeof previousTaskState.supportContext === 'object'
+        ? previousTaskState.supportContext
+        : null
+    const previousConversationContext =
+      previousTaskState?.conversationContext &&
+      typeof previousTaskState.conversationContext === 'object'
+        ? previousTaskState.conversationContext
+        : null
     const previousConversationThreads = Array.isArray(previousTaskState?.conversationThreads)
       ? previousTaskState.conversationThreads
       : []
@@ -7948,6 +9567,16 @@ export class AiAgentRuntime {
       typeof turnInterpretation.scheduleContext === 'object'
         ? turnInterpretation.scheduleContext
         : previousScheduleContext
+    let currentSupportContext =
+      turnInterpretation?.supportContext &&
+      typeof turnInterpretation.supportContext === 'object'
+        ? turnInterpretation.supportContext
+        : previousSupportContext
+    let currentConversationContext =
+      turnInterpretation?.conversationContext &&
+      typeof turnInterpretation.conversationContext === 'object'
+        ? turnInterpretation.conversationContext
+        : previousConversationContext
     let currentConversationThreads = Array.isArray(
       turnInterpretation?.threadResolution?.threads,
     )
@@ -7958,17 +9587,31 @@ export class AiAgentRuntime {
       turnInterpretation.threadResolution.activeThreadKey.trim()
         ? turnInterpretation.threadResolution.activeThreadKey.trim()
         : previousActiveThreadKey
+    const hasCurrentQuotePayload =
+      Boolean(currentQuoteContext?.measurements) ||
+      Number(currentQuoteContext?.quantity?.total || 0) > 0 ||
+      (currentQuoteContext?.capturedAttributes &&
+        Object.keys(currentQuoteContext.capturedAttributes).length > 0)
     const currentTurnTextForQuoteContinuation =
       turnInterpretation?.currentTurnText || input || ''
-    const quoteContinuationFaqSubtype =
-      String(currentIntentKey || '') === 'customer.topic_info'
-        ? detectCustomerFaqSubtype(currentTurnTextForQuoteContinuation)
-        : null
-    const quoteContinuationBlockedByFaq =
-      String(currentIntentKey || '') === 'customer.topic_info' &&
-      (NON_QUOTE_CONTINUATION_FAQ_SUBTYPES.has(quoteContinuationFaqSubtype) ||
-        looksLikeCommercialConditionQuestion(currentTurnTextForQuoteContinuation) ||
-        explicitResetRequested(currentTurnTextForQuoteContinuation))
+    const currentTurnLooksLikeAttachmentArtifact = Boolean(
+      detectStandaloneAttachmentArtifactKind(input),
+    )
+    const currentTurnHasMultimodalReferenceSignal = hasMultimodalReferenceSignal(
+      currentTurnTextForQuoteContinuation || input,
+    )
+    const currentTurnHasMultimodalPlannedArtifactSignal =
+      hasMultimodalPlannedArtifactSignal(currentTurnTextForQuoteContinuation || input)
+    const currentTurnHasReengagementSignal = hasReengagementReferenceSignal(
+      currentTurnTextForQuoteContinuation || input,
+    )
+    const currentTurnFaqSubtype = detectCustomerFaqSubtype(
+      currentTurnTextForQuoteContinuation,
+      {
+        previousIntentKey,
+      },
+    )
+    const quoteContinuationFaqSubtype = currentTurnFaqSubtype
     const measurementPromotableCustomerIntents = new Set([
       'customer.product_info',
       'customer.price_inquiry',
@@ -7981,6 +9624,30 @@ export class AiAgentRuntime {
       currentQuoteContext,
       previousQuoteContext,
     })
+    const currentTurnCarriesFreshQuotePayload =
+      Boolean(currentQuoteContext?.measurements) &&
+      Boolean(
+        currentQuoteContext?.measurements?.widthMm !==
+          previousQuoteContext?.measurements?.widthMm ||
+          currentQuoteContext?.measurements?.heightMm !==
+            previousQuoteContext?.measurements?.heightMm,
+      ) ||
+      (Number(currentQuoteContext?.quantity?.total || 0) > 0 &&
+        currentQuoteContext?.quantity?.total !== previousQuoteContext?.quantity?.total) ||
+      looksLikeQuoteRequirementsQuestion(currentTurnTextForQuoteContinuation) ||
+      looksLikeQuoteWaitingFollowUp(currentTurnTextForQuoteContinuation)
+    const currentTurnLooksLikeExplicitFaqSwitch =
+      !currentTurnCarriesFreshQuotePayload &&
+      NON_QUOTE_CONTINUATION_FAQ_SUBTYPES.has(quoteContinuationFaqSubtype)
+    const currentTurnLooksLikeCommercialConditionSwitch =
+      !currentTurnCarriesFreshQuotePayload &&
+      looksLikeCommercialConditionQuestion(currentTurnTextForQuoteContinuation)
+    const quoteContinuationBlockedByFaq =
+      !currentTurnCarriesFreshQuotePayload &&
+      (currentTurnLooksLikeExplicitFaqSwitch ||
+        currentTurnLooksLikeCommercialConditionSwitch ||
+        String(currentIntentKey || '') === 'customer.schedule_request' ||
+        explicitResetRequested(currentTurnTextForQuoteContinuation))
     const hasMeasurementDrivenTurnSignal =
       Boolean(currentQuoteContext?.measurements) &&
       Boolean(
@@ -8006,6 +9673,17 @@ export class AiAgentRuntime {
 
     if (shouldPromoteMeasurementProgressToQuote) {
       currentIntentKey = 'customer.quote'
+    }
+
+    const shouldDemoteQuoteToExplicitSideQuestion =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      currentIntentKey === 'customer.quote' &&
+      (previousIntentKey === 'customer.quote' || Boolean(previousQuoteContext)) &&
+      (currentTurnLooksLikeExplicitFaqSwitch ||
+        currentTurnLooksLikeCommercialConditionSwitch)
+
+    if (shouldDemoteQuoteToExplicitSideQuestion) {
+      currentIntentKey = 'customer.topic_info'
     }
 
     const quoteContinuationPromotableCustomerIntents = new Set([
@@ -8053,6 +9731,36 @@ export class AiAgentRuntime {
       currentIntentKey = 'customer.quote'
     }
 
+    const shouldPreserveQuoteIntentOnProductFollowUp =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      previousIntentKey === 'customer.quote' &&
+      ['customer.product_info', 'customer.topic_info'].includes(String(currentIntentKey || '')) &&
+      !quoteContinuationBlockedByFaq &&
+      (turnInterpretation?.followUp?.detected ||
+        looksLikeCustomerFollowUp(currentTurnTextForQuoteContinuation) ||
+        Boolean(currentCanonicalTopic))
+
+    if (shouldPreserveQuoteIntentOnProductFollowUp) {
+      currentIntentKey = 'customer.quote'
+    }
+
+    const shouldRestoreExplorationIntentAfterQuoteContextCarry =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      currentIntentKey === 'customer.quote' &&
+      ['customer.product_info', 'customer.topic_info'].includes(
+        String(intentDetection?.intent || ''),
+      ) &&
+      previousIntentKey !== 'customer.quote' &&
+      !currentTurnCarriesQuoteSignal &&
+      !currentTurnCarriesFreshQuotePayload &&
+      !turnInterpretation?.followUp?.detected &&
+      !currentTurnLooksLikeExplicitFaqSwitch &&
+      !currentTurnLooksLikeCommercialConditionSwitch
+
+    if (shouldRestoreExplorationIntentAfterQuoteContextCarry) {
+      currentIntentKey = intentDetection.intent
+    }
+
     const shouldDemoteStaleQuoteCarryOverToProductInfo =
       (role === 'customer_public' || role === 'customer_authenticated') &&
       currentIntentKey === 'customer.quote' &&
@@ -8093,16 +9801,110 @@ export class AiAgentRuntime {
       Boolean(currentScheduleContext) &&
       (scheduleProgressChanged ||
         looksLikeScheduleContinuationInput(currentTurnTextForScheduleContinuation))
+    const quoteMultimodalContinuationTurn =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      (previousIntentKey === 'customer.quote' ||
+        Boolean(
+          previousQuoteContext?.topicLabel ||
+            previousQuoteContext?.familyLabel ||
+            previousQuoteContext?.measurements ||
+            Number(previousQuoteContext?.quantity?.total || 0) > 0,
+        )) &&
+      (currentTurnLooksLikeAttachmentArtifact ||
+        currentTurnHasMultimodalReferenceSignal ||
+        currentTurnHasMultimodalPlannedArtifactSignal)
     const shouldPromoteScheduleContinuation =
       (role === 'customer_public' || role === 'customer_authenticated') &&
       (previousIntentKey === 'customer.schedule_request' ||
+        previousIntentKey === 'customer.support_request' ||
         Boolean(previousScheduleContext)) &&
       scheduleContinuationPromotableCustomerIntents.has(String(currentIntentKey || '')) &&
       !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
+      !quoteMultimodalContinuationTurn &&
       hasScheduleContinuationSignal
 
     if (shouldPromoteScheduleContinuation) {
       currentIntentKey = 'customer.schedule_request'
+    }
+
+    const shouldPreferQuoteOverSchedule =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      currentIntentKey === 'customer.schedule_request' &&
+      previousIntentKey !== 'customer.support_request' &&
+      !Boolean(
+        previousSupportContext?.issueSummary ||
+          previousSupportContext?.productType ||
+          previousSupportContext?.wantsVisit,
+      ) &&
+      !looksLikeScheduleContinuationInput(currentTurnTextForScheduleContinuation) &&
+      (quoteMultimodalContinuationTurn ||
+        (currentTurnCarriesQuoteSignal &&
+          (previousIntentKey === 'customer.quote' ||
+            Boolean(previousQuoteContext) ||
+            Boolean(currentQuoteContext?.measurements) ||
+            Number(currentQuoteContext?.quantity?.total || 0) > 0)))
+
+    if (shouldPreferQuoteOverSchedule) {
+      currentIntentKey = 'customer.quote'
+    }
+
+    const shouldPreserveSupportContinuation =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      previousIntentKey === 'customer.support_request' &&
+      (CONTEXTUAL_CUSTOMER_CONTINUATION_INTENTS.has(String(currentIntentKey || '')) ||
+        (String(currentIntentKey || '') === 'customer.schedule_request' &&
+          !looksLikeScheduleContinuationInput(currentTurnTextForScheduleContinuation))) &&
+      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
+      (currentTurnLooksLikeAttachmentArtifact ||
+        currentTurnHasMultimodalReferenceSignal ||
+        currentTurnHasMultimodalPlannedArtifactSignal ||
+        currentTurnHasReengagementSignal ||
+        looksLikeSupportContinuationInput(currentTurnTextForScheduleContinuation))
+
+    if (shouldPreserveSupportContinuation) {
+      currentIntentKey = 'customer.support_request'
+    }
+
+    const shouldPreferExplicitFaqSwitchOverOperationalContinuation =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      (previousIntentKey === 'customer.schedule_request' ||
+        previousIntentKey === 'customer.support_request' ||
+        Boolean(previousScheduleContext)) &&
+      currentTurnLooksLikeExplicitFaqSwitch &&
+      looksLikeExplicitFaqQuestionInput(currentTurnTextForScheduleContinuation) &&
+      !looksLikeScheduleContinuationInput(currentTurnTextForScheduleContinuation) &&
+      !currentTurnLooksLikeAttachmentArtifact &&
+      !currentTurnHasMultimodalReferenceSignal &&
+      !currentTurnHasMultimodalPlannedArtifactSignal
+
+    if (shouldPreferExplicitFaqSwitchOverOperationalContinuation) {
+      currentIntentKey =
+        currentTurnFaqSubtype === 'contact'
+          ? 'customer.contact_info'
+          : 'customer.topic_info'
+    }
+
+    const shouldPreserveQuoteContinuation =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      (previousIntentKey === 'customer.quote' ||
+        Boolean(
+          previousQuoteContext?.topicLabel ||
+            previousQuoteContext?.familyLabel ||
+            previousQuoteContext?.measurements ||
+            Number(previousQuoteContext?.quantity?.total || 0) > 0 ||
+            (previousQuoteContext?.capturedAttributes &&
+              Object.keys(previousQuoteContext.capturedAttributes).length > 0),
+        )) &&
+      CONTEXTUAL_CUSTOMER_CONTINUATION_INTENTS.has(String(currentIntentKey || '')) &&
+      String(currentIntentKey || '') !== 'customer.schedule_request' &&
+      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
+      (currentTurnLooksLikeAttachmentArtifact ||
+        currentTurnHasMultimodalReferenceSignal ||
+        currentTurnHasMultimodalPlannedArtifactSignal ||
+        currentTurnHasReengagementSignal)
+
+    if (shouldPreserveQuoteContinuation) {
+      currentIntentKey = 'customer.quote'
     }
 
     const shouldCarryQuoteTopicFromMemory =
@@ -8177,10 +9979,22 @@ export class AiAgentRuntime {
     const normalizedTurnForScheduleConfirmation = normalizeText(
       currentTurnTextForScheduleContinuation,
     )
+    const hasPendingScheduleData =
+      Boolean(currentScheduleContext) &&
+      Array.isArray(currentScheduleContext?.missingFields) &&
+      currentScheduleContext.missingFields.length > 0
+    const shouldTreatConfirmationAsScheduleContinuation =
+      (role === 'customer_public' || role === 'customer_authenticated') &&
+      Boolean(previousScheduleContext) &&
+      Boolean(currentScheduleContext) &&
+      hasPendingScheduleData &&
+      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
+      /^(si|sí|dale|ok|perfecto|listo)$/i.test(normalizedTurnForScheduleConfirmation)
     const shouldRestoreScheduleConfirmationIntent =
       (role === 'customer_public' || role === 'customer_authenticated') &&
       Boolean(previousScheduleContext) &&
       Boolean(currentScheduleContext) &&
+      !hasPendingScheduleData &&
       !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
       /^(si|sí|dale|ok|perfecto|confirmo|listo)$/i.test(
         normalizedTurnForScheduleConfirmation,
@@ -8194,7 +10008,9 @@ export class AiAgentRuntime {
         normalizedTurnForScheduleConfirmation,
       )
 
-    if (shouldRestoreScheduleConfirmationIntent) {
+    if (shouldTreatConfirmationAsScheduleContinuation) {
+      currentIntentKey = 'customer.schedule_request'
+    } else if (shouldRestoreScheduleConfirmationIntent) {
       currentIntentKey = 'customer.confirmation'
     } else if (shouldRestoreScheduleCancellationIntent) {
       currentIntentKey = 'customer.cancellation'
@@ -8233,10 +10049,15 @@ export class AiAgentRuntime {
       !(
         turnInterpretation?.quoteContext &&
         typeof turnInterpretation.quoteContext === 'object'
+      ) &&
+      !(
+        turnInterpretation?.supportContext &&
+        typeof turnInterpretation.supportContext === 'object'
       )
     ) {
       currentQuoteContext = null
       currentScheduleContext = null
+      currentSupportContext = null
       currentConversationThreads = []
       currentActiveThreadKey = null
     }
@@ -8245,16 +10066,18 @@ export class AiAgentRuntime {
       ? `${conversationId}:${Date.now()}`
       : previousTaskState?.taskId || `${conversationId}:1`
 
-    const nextSnapshot = snapshot ?? {
-      conversationId,
-      scope,
-      role,
-      turns: [],
-      summary: null,
-      compiledContext: null,
-      taskState: null,
-      updatedAt: now,
-    }
+    const nextSnapshot = snapshot
+      ? structuredClone(snapshot)
+      : {
+          conversationId,
+          scope,
+          role,
+          turns: [],
+          summary: null,
+          compiledContext: null,
+          taskState: null,
+          updatedAt: now,
+        }
 
     nextSnapshot.scope = scope
     nextSnapshot.role = role
@@ -8334,6 +10157,22 @@ export class AiAgentRuntime {
                 }))
             : []
         ),
+        ...(typeof currentSupportContext?.productType === 'string'
+          ? [
+              {
+                type: 'support_product_type',
+                value: currentSupportContext.productType,
+              },
+            ]
+          : []),
+        ...(typeof currentSupportContext?.issueSummary === 'string'
+          ? [
+              {
+                type: 'support_issue',
+                value: currentSupportContext.issueSummary,
+              },
+            ]
+          : []),
         ...currentTopicTokens.map((token) => ({
           type: 'topic_token',
           value: token,
@@ -8352,7 +10191,9 @@ export class AiAgentRuntime {
       topicTokens: currentTopicTokens,
       canonicalTopic: currentCanonicalTopic,
       quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
       scheduleContext: currentScheduleContext,
+      conversationContext: currentConversationContext,
       conversationThreads: currentConversationThreads,
       activeThreadKey: currentActiveThreadKey,
       taskSummary,
@@ -8370,7 +10211,9 @@ export class AiAgentRuntime {
       currentTask,
       canonicalTopic: currentCanonicalTopic,
       quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
       scheduleContext: currentScheduleContext,
+      conversationContext: currentConversationContext,
       conversationThreads: currentConversationThreads,
       activeThreadKey: currentActiveThreadKey,
       resetApplied: shouldReset,

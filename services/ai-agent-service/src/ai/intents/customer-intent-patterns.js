@@ -1,18 +1,17 @@
 import { hasTenantTopicSignal } from './customer-topic-taxonomy.js'
+import {
+  BASE_CONVERSATIONAL_ES_SIGNALS,
+  countStemMatches,
+  hasPhraseMatch,
+  hasStemMatch,
+  looksLikeQuoteExpansionSignal,
+  normalizeSemanticText,
+  tokenizeSemanticText,
+} from './customer-semantic-signals.js'
 
-const normalizeText = (value) =>
-  String(value || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+const normalizeText = normalizeSemanticText
 
-const tokenize = (value) => normalizeText(value).split(/\s+/).filter(Boolean)
-
-const hasStem = (tokens, stem) =>
-  tokens.some((token) => token === stem || token.startsWith(stem))
+const tokenize = tokenizeSemanticText
 
 const PRICE_DIRECT_PATTERNS = [
   /\b(precio|precios|presupuesto|presupuestos|cotizacion|cotizacion(?:es)?|cotización|cotizaciones|cotizar|cotizame|cotízame|cotizan|cotizamos|importe|importes|monto|montos|tarifa|tarifas|arancel|aranceles)\b/u,
@@ -54,12 +53,20 @@ const QUOTE_REQUIREMENTS_DIRECT_PATTERNS = [
   /\b(que|qué)\s+(datos|informacion|información|medidas|medida|detalle|detalles)\s+(necesitan|necesitas|precisan|preciso|piden|te paso|tengo que pasar)\b/u,
   /\b(para|a fin de)\s+(cotizar|presupuestar|hacer un presupuesto|hacer una cotizacion|hacer una cotización)\b/u,
   /\b(que|qué)\s+(necesitan|necesitas|precisan|piden)\s+para\s+(cotizar|presupuestar)\b/u,
+  /\b(?:en|de)?\s*que\s+pued(?:o|es|e|en)\s+cotizar\b/u,
 ]
 
 const QUOTE_WAITING_FOLLOW_UP_PATTERNS = [
   /\b(espero|aguardo)\s+(el|la)\s+(presupuesto|cotizacion|cotización|respuesta)\b/u,
   /\b(quedo|qued[oó])\s+(a la espera|esperando)\b.*\b(presupuesto|cotizacion|cotización|respuesta|asesor)\b/u,
   /\b(espero|aguardo)\b.*\b(presupuesto|cotizacion|cotización|respuesta|asesor)\b/u,
+  /\b(gracias|muchas gracias)\b.*\b(presupuesto|cotizacion|cotización)\b/u,
+]
+
+const QUOTE_CLARIFICATION_PATTERNS = [
+  /\b(presupuesto|cotizacion|cotización)\b.*\b(no me qued[oó] claro|aclar|explic|detalle|detall|total|final)\b/u,
+  /\b(no me qued[oó] claro|aclar|explic|detalle|detall)\b.*\b(presupuesto|cotizacion|cotización|total|final)\b/u,
+  /\b(presupuesto|cotizacion|cotización)\s+(enviado|mandado|pasado)\b/u,
 ]
 
 const INTEREST_VERB_PATTERNS = [
@@ -70,9 +77,23 @@ const CONFIGURATION_SIGNAL_PATTERNS = [
   /\b(color|medida|medidas|serie|linea|línea|modelo|tipo|version|versión|ancho|alto|material|terminacion|terminación|perfil|apertura|doble vidrio|dvh)\b/u,
 ]
 
+const QUOTE_SEED_DETAIL_PATTERNS = [
+  /\b\d{1,4}(?:[.,]\d+)?\s*x\s*\d{1,4}(?:[.,]\d+)?\b/u,
+  /\b\d{1,4}\s+(?:unidades?|items?|item|piezas?|cortinas?|rollers?|persianas?|ventanas?|puertas?|aberturas?|esteras?)\b/u,
+  /\b(?:son|serian|serían|necesito|quiero|preciso)\s+\d{1,4}\b/u,
+]
+
 const MATERIAL_FOLLOW_UP_PATTERNS = [
   /\b(foto|fotos|imagen|imagenes|imágenes|catalogo|catálogo|muestrario|referencias|material)\b/u,
   /\b(me podes enviar|me pod[eé]s enviar|me mandas|me mand[aá]s|podrias mandar|podr[ií]as mandar)\b.*\b(foto|fotos|imagen|imagenes|cat[aá]logo|material)\b/u,
+]
+
+const LIGHT_FILTER_PREFERENCE_PATTERNS = [
+  /\b(deja|dejan|deje|dejen)\s+pasar\s+luz\b/u,
+  /\b(deja|dejan|deje|dejen)\s+entrar\s+luz\b/u,
+  /\b(que|qué)\s+(deje|dejen)\s+pasar\s+luz\b/u,
+  /\b(paso|entrada)\s+(parcial|suave)\s+de\s+luz\b/u,
+  /\b(entre|pase)\s+luz\b/u,
 ]
 
 const INFORMATION_EXPANSION_PATTERNS = [
@@ -85,7 +106,15 @@ const COMMERCIAL_CONDITION_PATTERNS = [
   /\b(instalacion|instalación|colocacion|colocación|envio|envío|garantia|garantía)\b.*\b(incluye|incluido|incluida|incluidos|incluidas)\b/u,
   /\b(tiene|tienen|hay)\b.*\b(instalacion|instalación|colocacion|colocación|envio|envío|garantia|garantía)\b/u,
   /\b(es aparte|va aparte|se cobra aparte)\b.*\b(instalacion|instalación|colocacion|colocación|envio|envío)\b/u,
+  /\b(con|sin)\s+(instalacion|instalación|colocacion|colocación)\b.*\b(cambia|cambiaria|cambiaría|varia|varía|incluye|incluido|incluida|queda|seria|sería|sale|cuesta)\b/u,
+  /\b(cambia|cambiaria|cambiaría|varia|varía|incluye|incluido|incluida|queda|seria|sería|sale|cuesta)\b.*\b(con|sin)\s+(instalacion|instalación|colocacion|colocación)\b/u,
+  /\b(con|sin)\s+(instalacion|instalación|colocacion|colocación)\b.*\b(o|u)\b.*\b(con|sin)\s+(instalacion|instalación|colocacion|colocación)\b/u,
+  /\b(instalacion|instalación|colocacion|colocación)\b.*\b(mismo|igual|cambia|cambiaria|cambiaría|varia|varía|menor|mayor)\b/u,
+  /\b(precio|costo|valor|importe)\b.*\b(mismo|igual|cambia|cambiaria|cambiaría|varia|varía|menor|mayor)\b.*\b(instalacion|instalación|colocacion|colocación)\b/u,
 ]
+
+const PAYMENT_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.payment
+const hasStem = (tokens, stem) => hasStemMatch(tokens, stem)
 
 export const looksLikeGenericPriceInquiry = (value) => {
   const normalized = normalizeText(value)
@@ -146,6 +175,30 @@ export const looksLikeQuoteWaitingFollowUp = (value) => {
   )
 }
 
+export const looksLikeQuoteClarificationRequest = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const looksLikeStructuredQuoteSubmission =
+    /\b(enviar|mandar|pasar|solicitar|pedir|hacer)\b.*\b(presupuesto|cotizacion|cotización)\b/u.test(
+      normalized,
+    ) &&
+    (/\b\d{1,4}(?:[.,]\d{1,3})?\s*[x×]\s*\d{1,4}(?:[.,]\d{1,3})?\b/u.test(
+      normalized,
+    ) ||
+      /\btotal\s*:?\s*\d+\s+(aberturas?|ventanas?|puertas?|cortinas?|persianas?|unidades?)\b/u.test(
+        normalized,
+      ))
+
+  if (looksLikeStructuredQuoteSubmission) {
+    return false
+  }
+
+  return QUOTE_CLARIFICATION_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
 export const looksLikeConfiguredProductInterest = (
   value,
   tenantTopicTaxonomy = [],
@@ -175,6 +228,26 @@ export const looksLikeConfiguredProductInterest = (
   )
 }
 
+export const looksLikeStructuredQuoteSeed = (value, tenantTopicTaxonomy = []) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  if (!hasTenantTopicSignal(normalized, tenantTopicTaxonomy)) {
+    return false
+  }
+
+  const hasInterestVerb = INTEREST_VERB_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  )
+  const hasQuoteDetails = QUOTE_SEED_DETAIL_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  )
+
+  return hasQuoteDetails && (hasInterestVerb || looksLikeGenericPriceInquiry(normalized))
+}
+
 export const looksLikeMaterialFollowUpRequest = (value) => {
   const normalized = normalizeText(value)
   if (!normalized) {
@@ -182,6 +255,15 @@ export const looksLikeMaterialFollowUpRequest = (value) => {
   }
 
   return MATERIAL_FOLLOW_UP_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+export const looksLikeLightFilterPreferenceRequest = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  return LIGHT_FILTER_PREFERENCE_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
 export const looksLikeInformationExpansionRequest = (value) => {
@@ -200,4 +282,121 @@ export const looksLikeCommercialConditionQuestion = (value) => {
   }
 
   return COMMERCIAL_CONDITION_PATTERNS.some((pattern) => pattern.test(normalized))
+}
+
+export const looksLikeInstalledReplacementAssessmentRequest = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const hasReplacementAction =
+    /\b(cambiar|cambio|reemplazar|reemplazo|sustituir|sustitucion|sustitución|sacar|retirar)\b/u.test(
+      normalized,
+    )
+  const hasInstalledContext =
+    /\b(de mi casa|de casa|viej[ao]s?|instalad[ao]s?|ya (?:tengo|estan|están)|existente|actual(?:es)?)\b/u.test(
+      normalized,
+    )
+  const hasRelevantProduct =
+    /\b(cortina|cortinas|persiana|persianas|ventana|ventanas|abertura|aberturas)\b/u.test(
+      normalized,
+    )
+  const asksForBudgeting =
+    /\b(presupuesto|presupuestar|cotizacion|cotización|cotizar|cu[aá]nto sale|precio)\b/u.test(
+      normalized,
+    )
+
+  return hasReplacementAction && hasRelevantProduct && (hasInstalledContext || asksForBudgeting)
+}
+
+export const looksLikeQuoteExpansionFollowUp = (
+  value,
+  tenantTopicTaxonomy = [],
+) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const hasTenantTopic =
+    hasTenantTopicSignal(normalized, tenantTopicTaxonomy) ||
+    /\b(roller|screen|blackout|venecianas?|persianas?|ventanas?|aberturas?|dvh)\b/u.test(
+      normalized,
+    )
+
+  if (!hasTenantTopic) {
+    return false
+  }
+
+  return looksLikeQuoteExpansionSignal(normalized)
+}
+
+export const looksLikePaymentProofFollowUpRequest = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const tokens = tokenize(normalized)
+  const hasProofCore =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.proofCoreStems) >= 1
+  const hasOperationalSubject =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.operationalSubjectStems) >= 1
+  const hasFollowUpAction =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.proofFollowUpActionStems) >= 1
+
+  return (hasProofCore || hasOperationalSubject) && hasFollowUpAction
+}
+
+export const looksLikePaymentProofArtifact = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const tokens = tokenize(normalized)
+  const hasProofCore =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.proofCoreStems) >= 1
+  const hasArtifactHint =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.artifactHintStems) >= 1 ||
+    hasPhraseMatch(normalized, PAYMENT_SIGNAL_SETS.artifactHintPhrases)
+  const hasProofPlusTransfer =
+    hasStemMatch(tokens, 'comprobante') && hasStemMatch(tokens, 'transfer')
+  const hasTransferPlusBank =
+    hasStemMatch(tokens, 'transfer') && hasStemMatch(tokens, 'banco')
+
+  return (
+    (hasProofCore && hasArtifactHint) ||
+    hasProofPlusTransfer ||
+    (hasTransferPlusBank && hasArtifactHint)
+  )
+}
+
+export const looksLikePaymentOperationalUpdate = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const tokens = tokenize(normalized)
+  const hasOperationalSubject =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.operationalSubjectStems) >= 1
+  const hasCompletionAction =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.completionActionStems) >= 1
+  const hasCompletionState =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.completionStateStems) >= 1
+  const hasTransferVerb =
+    countStemMatches(tokens, PAYMENT_SIGNAL_SETS.transferVerbStems) >= 1
+  const hasTransferCompletion =
+    hasTransferVerb ||
+    (hasStemMatch(tokens, 'transfer') && (hasCompletionAction || hasCompletionState))
+
+  return (
+    looksLikePaymentProofFollowUpRequest(normalized) ||
+    looksLikePaymentProofArtifact(normalized) ||
+    (hasOperationalSubject && hasCompletionAction) ||
+    (hasOperationalSubject && hasCompletionState) ||
+    hasTransferCompletion
+  )
 }

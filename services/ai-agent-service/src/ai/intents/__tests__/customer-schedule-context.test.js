@@ -134,3 +134,34 @@ test('buildCustomerScheduleContext preserves schedule intake across multiple sho
   assert.equal(fourthTurn.contactPhone, '099123456')
   assert.equal(fourthTurn.completionStatus, 'ready_to_schedule')
 })
+
+test('buildCustomerScheduleContext strips conversational lead-ins from mixed phone and address payloads', () => {
+  const context = buildCustomerScheduleContext({
+    currentTurnText: 'si, 091285304 es ne fraga 2137',
+    previousScheduleContext: {
+      reason: 'revisión técnica',
+      purpose: 'coordinar una revisión técnica',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  assert.equal(context.address, 'ne fraga 2137')
+  assert.equal(context.contactPhone, '091285304')
+  assert.equal(context.completionStatus, 'needs_info')
+  assert.deepEqual(context.missingFields, ['day', 'time'])
+})
+
+test('buildCustomerScheduleContext does not infer a fake address from quote narrative text', () => {
+  const context = buildCustomerScheduleContext({
+    currentTurnText:
+      'Le agradezco entonces cotizar la instalación de una cortina de enrollar exterior para esa ventana. La abertura es como dijimos 1.45 x 2.70 aprox.',
+    previousScheduleContext: {
+      reason: 'instalación',
+      purpose: 'revisar aberturas',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  assert.equal(context.address, null)
+  assert.deepEqual(context.missingFields, ['day', 'time', 'address', 'contact'])
+})

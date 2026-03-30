@@ -54,6 +54,53 @@ Diseño recomendado:
 - corregir primero estado/contexto/taxonomía y después wording
 - incorporar fallback mínimo universal cuando no se llegue a una resolución final
 
+Estado 2026-03-29:
+
+- el runtime base ya quedó en `100` sobre el set muestra y el set profundo actuales
+- la siguiente iteración de este eje ya no debería enfocarse en `thread/context` básico
+- el foco siguiente debe ser:
+  - rewrite híbrido sin degradación
+  - ampliación del benchmark a más casos operativos no comerciales
+  - definición más explícita del límite entre agente y operador
+
+Actualización 2026-03-30:
+
+- el slice de `rewrite híbrido sin degradación` quedó cerrado sobre el deep set actual
+- benchmark deep current:
+  - `baseAverage 100`
+  - `assistedAverage 100`
+  - `46` escenarios
+  - `0` regresiones assisted
+- el runtime ya tiene artefacto completo de revisión pregunta/respuesta real:
+  - [runtime-real-question-answer-review-current.md](/Users/rodrigo/git/personal/react_admin_dashboard/.qa/external-real-conversations/whatsapp/generated/deep-2026-03-29/runtime-real-question-answer-review-current.md)
+- además quedó cerrada la base arquitectónica conversacional:
+  - `conversationContext`
+  - `supportContext`
+  - clasificación explícita de modo
+  - orchestrator `conversation-first / flow-second`
+  - `AI-assisted decision engine` con acciones permitidas
+  - coalescing natural de mensajes inbound cortos
+- estándar técnico fijado:
+  - memoria/contexto correctos no dependen obligatoriamente de una llamada al provider
+  - `rewrite híbrido` sólo se usa para naturalizar o recomendar dentro de un carril ya controlado
+  - perfiles de canal deben contemplarse desde el registry:
+    - `chat`
+    - `email`
+
+Regla que queda como estándar para el roadmap:
+
+- `rewrite híbrido` sólo se habilita por `wordingKey` y evidencia real de mejora
+- no se habilita por familia entera de intents
+- los perfiles de canal ya deben pensarse desde el registry:
+  - `chat`
+  - `email`
+
+Siguiente foco real después de cerrar este slice:
+
+- `locale / idioma / moneda` como política única reusable entre chat y storefront
+- `frequently bought together + instalación` como relación comercial reusable
+- reconciliación fuerte de continuidad WhatsApp tras restore/desconexión
+
 ### 1. Reconciliación y continuidad de WhatsApp después de desconexión o restore
 
 Problema:

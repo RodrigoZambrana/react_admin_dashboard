@@ -71,6 +71,23 @@ const DEFAULT_TOPIC_TAXONOMY = [
     tags: ["quote_requires_measurements", "quote_requires_quantity"]
   },
   {
+    key: "product_family:persiana",
+    label: "persianas",
+    kind: "product_family",
+    aliases: [
+      "persianas",
+      "persiana",
+      "persinas",
+      "estera",
+      "esteras",
+      "estera de persiana",
+      "esteras de persiana"
+    ],
+    normalizationValue: "persianas",
+    familyLabel: "persianas",
+    tags: ["quote_requires_measurements", "quote_requires_quantity"]
+  },
+  {
     key: "product_family:abertura",
     label: "aberturas",
     kind: "product_family",
@@ -126,6 +143,41 @@ const DEFAULT_QUOTE_PROFILES = [
         label: "cuántas unidades necesitás",
         captureKind: "quantity",
         required: true
+      }
+    ]
+  },
+  {
+    key: "quote_profile:persianas",
+    label: "Persianas",
+    appliesToTopicKeys: ["product_family:persiana"],
+    appliesToTopicLabels: ["persianas", "persiana", "estera de persiana"],
+    familyLabel: "persianas",
+    pricingStrategy: "handoff_only",
+    closureMode: "collect_then_handoff",
+    measurementCarrierTerms: ["ventana", "ventanas", "vano", "vanos", "paño", "paños"],
+    attributes: [
+      {
+        key: "measurements",
+        label: "las medidas aproximadas (ancho por alto)",
+        captureKind: "measurements",
+        required: true
+      },
+      {
+        key: "quantity",
+        label: "cuántas unidades necesitás",
+        captureKind: "quantity",
+        required: true
+      },
+      {
+        key: "material",
+        label: "si las querés en PVC o aluminio",
+        captureKind: "enum",
+        required: false,
+        subjectPrefix: "en",
+        options: [
+          { value: "pvc", aliases: ["pvc"] },
+          { value: "aluminio", aliases: ["aluminio"] }
+        ]
       }
     ]
   },
@@ -365,20 +417,26 @@ const countSentences = (value) =>
     .filter(Boolean).length;
 
 const parseRewritePayload = (input) => {
-  const match = String(input || "").match(
-    /Consulta original:\s*([\s\S]*?)\n\nBorrador grounded:\s*([\s\S]*?)\n\nFuentes aprobadas usadas:\s*([\s\S]*)$/u
+  const rawInput = String(input || "");
+  const match = rawInput.match(
+    /^Consulta original:\s*([\s\S]*?)\n\n(?:Borrador grounded|Borrador aprobado):\s*([\s\S]*)$/u
   );
   if (!match) {
     return {
       originalQuery: "",
-      draft: String(input || "").trim(),
+      draft: rawInput.trim(),
       sources: ""
     };
   }
+  const originalBlock = match[1].trim();
+  const originalQuery = originalBlock
+    .split(/\n\n(?:Clave sem[aá]ntica segura:|Fuentes aprobadas usadas:)/u)[0]
+    .trim();
+  const sourcesMatch = originalBlock.match(/\n\nFuentes aprobadas usadas:\s*([\s\S]*)$/u);
   return {
-    originalQuery: match[1].trim(),
+    originalQuery,
     draft: match[2].trim(),
-    sources: match[3].trim()
+    sources: sourcesMatch ? sourcesMatch[1].trim() : ""
   };
 };
 

@@ -8,6 +8,7 @@ x-backend-common: &backend-common
   environment:
     CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
     PORT: ${BACKEND_PORT:-4000}
+    ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
 
 x-frontend-common: &frontend-common
   env_file:
@@ -23,6 +24,9 @@ x-storefront-common: &storefront-common
     CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
     NEXT_PUBLIC_CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
     PORT: ${STOREFRONT_PORT:-3000}
+    NEXT_PUBLIC_STOREFRONT_API_URL: ${NEXT_PUBLIC_STOREFRONT_API_URL:-http://localhost:4000/api/storefront}
+    STOREFRONT_API_URL: ${STOREFRONT_API_URL:-http://backend:4000/api/storefront}
+    NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:3000}
 
 services:
   backend:
@@ -39,6 +43,7 @@ services:
     environment:
       CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
       PORT: ${BACKEND_PORT:-4000}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       QA_RESULTS_DIR: /qa-results
       QA_MANIFEST_PATH: /qa-tools/manifest.json
     ports:
@@ -59,7 +64,7 @@ services:
       # Ajusta VITE_CLIENT_SLUG para construir una variante específica (por ejemplo urucortinas)
       args:
         VITE_APP_NAME: "React Admin Dashboard (Dev)"
-        VITE_API_URL: "http://localhost:4000/api"
+        VITE_API_URL: ${VITE_API_URL:-/api}
         VITE_CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
         VITE_STATE_SIGNATURE_KEY: ${VITE_STATE_SIGNATURE_KEY:-local-dev-state-signature-change-me}
         VITE_RECAPTCHA_ENABLED: "false"

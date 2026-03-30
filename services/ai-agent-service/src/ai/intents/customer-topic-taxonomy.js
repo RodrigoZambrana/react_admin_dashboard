@@ -128,6 +128,18 @@ export const normalizeTenantTopicTaxonomy = (entries = []) =>
 const escapeRegex = (value) =>
   String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
+export const isContextualTopicDescriptorMatch = (match, input = '') => {
+  const alias = normalizeText(match?.matchedAlias || '')
+  if (match?.kind !== 'product_topic' || !alias || alias.includes(' ')) {
+    return false
+  }
+
+  return new RegExp(
+    `\\b(?:en|con|sin|de|otro\\s+(?:con|de)|otra\\s+(?:con|de))\\s+${escapeRegex(alias)}\\b`,
+    'i',
+  ).test(String(input || ''))
+}
+
 const resolveNormalizationValue = (entry) => {
   if (entry.normalizationValue) {
     return entry.normalizationValue
