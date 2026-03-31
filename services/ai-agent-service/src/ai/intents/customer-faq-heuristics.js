@@ -11,6 +11,10 @@ import {
   hasReengagementReferenceSignal,
   normalizeSemanticText,
 } from './customer-semantic-signals.js'
+import {
+  getBusinessRules,
+  getVocabulary,
+} from '../tenant-policy/runtime-tenant-policy.js'
 
 export const extractCurrentCustomerTurnText = (value) =>
   String(value || '')
@@ -47,13 +51,30 @@ const normalizeText = (value) =>
   normalizeSemanticText(stripPlaceholderOnlyCustomerTurnText(value))
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+const WEB_LEAD_INTRO_PREFIX_REGEX =
+  /^(?:hola|buen dia|buenos dias|buenas tardes|buenas noches)?\s*(?:te contacto|te escribo|me contacto)\s+desde\s+la\s+web(?:\s+de\s+)?/u
+
+const stripWebLeadIntro = (value = '') => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return ''
+  }
+
+  const prefixMatch = normalized.match(WEB_LEAD_INTRO_PREFIX_REGEX)
+  if (!prefixMatch) {
+    return normalized
+  }
+
+  const remainder = normalized.slice(prefixMatch[0].length).trim()
+  return remainder || normalized
+}
 
 const CUSTOMER_TOPIC_PATTERNS = [
   /\b(que es|duda sobre|consulta sobre|consulta por|consultar sobre|consultar por|como funciona|para que sirve|beneficios|ventajas|desventajas|diferencia entre|que diferencia hay|informacion sobre|info sobre|explicame|explicame sobre|contame sobre|quiero saber sobre|quiero consultar sobre|quiero consultar por|como se limpia|como limpian|mantenimiento de|como mantener)\b/,
   /\b(tienen|manejan|ofrecen|trabajan con|cuentan con)\b/,
 ]
 
-const BUSINESS_FAQ_DEFINITIONS = [
+const BASE_BUSINESS_FAQ_DEFINITIONS = [
   {
     subtype: 'business_hours',
     directPatterns: [
@@ -149,6 +170,24 @@ const BUSINESS_FAQ_DEFINITIONS = [
   },
 ]
 
+const getConfiguredFaqSignalTerms = (tenantRuntimePolicy = null, subtype = null) => {
+  if (typeof subtype !== 'string' || !subtype.trim()) {
+    return []
+  }
+
+  const faqSignals = getVocabulary(tenantRuntimePolicy)?.faqSignals
+  if (!faqSignals || typeof faqSignals !== 'object') {
+    return []
+  }
+
+  const configuredTerms = faqSignals[subtype]
+  return Array.isArray(configuredTerms)
+    ? configuredTerms
+        .map((entry) => normalizeText(entry))
+        .filter(Boolean)
+    : []
+}
+
 const PAYMENT_METHOD_SHORT_FOLLOW_UP_PATTERNS = [
   /^(?:y\s+)?con\s+(transferencia|transferencia bancaria|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\??$/iu,
   /^(?:y\s+)?(transferencia|transferencia bancaria|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\??$/iu,
@@ -188,7 +227,7 @@ const looksLikeShortPaymentMethodFollowUp = (input, options = {}) => {
   }
 
   const inputTokens = tokenizeSignalText(normalizedInput)
-  const paymentDefinition = BUSINESS_FAQ_DEFINITIONS.find(
+  const paymentDefinition = BASE_BUSINESS_FAQ_DEFINITIONS.find(
     (definition) => definition.subtype === 'payment_methods',
   )
   if (!paymentDefinition) {
@@ -212,7 +251,7 @@ const CUSTOMER_TRANSACTIONAL_PATTERNS = [
   /\b(stock|disponibilidad|pedido|orden|envio|entrega|comprar|quiero una|quiero uno|medida|medidas)\b/,
 ]
 
-const COMMON_CUSTOMER_SIGNAL_TOKENS = new Set([
+const BASE_COMMON_CUSTOMER_SIGNAL_TOKENS = new Set([
   'hola',
   'buenas',
   'buenos',
@@ -234,24 +273,26 @@ const COMMON_CUSTOMER_SIGNAL_TOKENS = new Set([
   'contacto',
   'pago',
   'pagos',
-  'transferencia',
-  'tarjeta',
-  'roller',
-  'blackout',
-  'screen',
-  'persiana',
-  'persianas',
-  'cortina',
-  'cortinas',
-  'abertura',
-  'aberturas',
-  'dvh',
   'envio',
   'entrega',
   'precio',
   'cotizacion',
   'presupuesto',
 ])
+
+const buildCommonCustomerSignalTokens = (tenantRuntimePolicy = null) =>
+  new Set([
+    ...BASE_COMMON_CUSTOMER_SIGNAL_TOKENS,
+    ...((getVocabulary(tenantRuntimePolicy)?.genericCustomerSignalTerms ?? [])
+      .flatMap((entry) => normalizeText(entry).split(/\s+/u))
+      .filter(Boolean)),
+    ...((getVocabulary(tenantRuntimePolicy)?.catalogTerms ?? [])
+      .flatMap((entry) => normalizeText(entry).split(/\s+/u))
+      .filter((entry) => entry.length >= 3)),
+    ...((getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [])
+      .flatMap((entry) => normalizeText(entry).split(/\s+/u))
+      .filter((entry) => entry.length >= 3)),
+  ])
 
 const PRIVATE_ACCOUNT_FAQ_GUARD_PATTERNS = [
   /\b(mi direccion|direccion de entrega|domicilio de entrega)\b/u,
@@ -314,12 +355,25 @@ const normalizeKnowledgeItemMetadata = (item) => {
   }
 }
 
-const scoreBusinessFaqDefinition = (definition, input, retrievalItems = []) => {
-  const normalizedInput = normalizeText(input)
+const scoreBusinessFaqDefinition = (
+  definition,
+  input,
+  retrievalItems = [],
+  tenantRuntimePolicy = null,
+) => {
+  const normalizedInput = stripWebLeadIntro(input)
   const inputTokens = tokenizeSignalText(normalizedInput)
   let score = 0
 
   if (definition.directPatterns.some((pattern) => pattern.test(normalizedInput))) {
+    score += 8
+  }
+
+  const configuredSignalTerms = getConfiguredFaqSignalTerms(
+    tenantRuntimePolicy,
+    definition.subtype,
+  )
+  if (configuredSignalTerms.some((term) => normalizedInput.includes(term))) {
     score += 8
   }
 
@@ -385,14 +439,23 @@ const detectBusinessFaqSubtype = (input, options = {}) => {
   const retrievalItems = Array.isArray(options?.retrievalItems)
     ? options.retrievalItems
     : []
+  const tenantRuntimePolicy =
+    options?.tenantRuntimePolicy && typeof options.tenantRuntimePolicy === 'object'
+      ? options.tenantRuntimePolicy
+      : null
 
   if (looksLikeShortPaymentMethodFollowUp(input, options)) {
     return 'payment_methods'
   }
 
   let bestMatch = null
-  for (const definition of BUSINESS_FAQ_DEFINITIONS) {
-    const score = scoreBusinessFaqDefinition(definition, input, retrievalItems)
+  for (const definition of BASE_BUSINESS_FAQ_DEFINITIONS) {
+    const score = scoreBusinessFaqDefinition(
+      definition,
+      input,
+      retrievalItems,
+      tenantRuntimePolicy,
+    )
     if (!bestMatch || score > bestMatch.score) {
       bestMatch = {
         subtype: definition.subtype,
@@ -409,37 +472,45 @@ export const looksLikeCustomerTopicQuestion = (text, options = {}) => {
   const requestedTopic = extractRequestedTopicLabel(normalized)
   const hasTopicSignals =
     Boolean(requestedTopic) || hasTenantTopicSignal(normalized, options?.tenantTopicTaxonomy)
+  const hasAvailabilitySignals = looksLikeCustomerAvailabilityQuestion(normalized)
   return (
-    ((hasTopicSignals &&
+    (((hasTopicSignals || hasAvailabilitySignals) &&
       CUSTOMER_TOPIC_PATTERNS.some((pattern) => pattern.test(normalized))) ||
-      Boolean(detectBusinessFaqSubtype(normalized))) &&
+      hasAvailabilitySignals ||
+      Boolean(detectBusinessFaqSubtype(normalized, options))) &&
     !CUSTOMER_TRANSACTIONAL_PATTERNS.some((pattern) => pattern.test(normalized)) &&
     !looksLikeQuoteRequirementsQuestion(normalized) &&
     !looksLikeGenericPriceInquiry(normalized)
   )
 }
 
-export const looksLikeCustomerAvailabilityQuestion = (text) =>
-  /\b(tienen|manejan|ofrecen|trabajan con|cuentan con)\b/i.test(
-    extractCurrentCustomerTurnText(text),
+export const looksLikeCustomerAvailabilityQuestion = (text) => {
+  const currentTurnText = extractCurrentCustomerTurnText(text)
+  if (looksLikeGenericPriceInquiry(currentTurnText)) {
+    return false
+  }
+
+  return /\b(tienen|manejan|ofrecen|trabajan con|cuentan con|tiempo de entrega|plazo de entrega|demora|tarda|stock|disponibilidad|hay stock)\b/i.test(
+    currentTurnText,
   )
+}
 
 export const looksLikeCustomerVariantQuestion = (text) =>
   /\b((que|qué)\s+(tipos|opciones|variantes|lineas|líneas|modelos)\s+(tienen|hay|manejan)|cuales\s+(tienen|hay|manejan)|cu[aá]les\s+(tienen|hay|manejan)|((que|qué)\s+(versiones|formatos)\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\s+(las\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\b/i.test(
     extractCurrentCustomerTurnText(text),
   )
 
-export const looksLikeCustomerBusinessHoursQuestion = (text) =>
-  detectBusinessFaqSubtype(text) === 'business_hours'
+export const looksLikeCustomerBusinessHoursQuestion = (text, options = {}) =>
+  detectBusinessFaqSubtype(text, options) === 'business_hours'
 
-export const looksLikeCustomerLocationQuestion = (text) =>
-  detectBusinessFaqSubtype(text) === 'location'
+export const looksLikeCustomerLocationQuestion = (text, options = {}) =>
+  detectBusinessFaqSubtype(text, options) === 'location'
 
-export const looksLikeCustomerPaymentMethodsQuestion = (text) =>
-  detectBusinessFaqSubtype(text) === 'payment_methods'
+export const looksLikeCustomerPaymentMethodsQuestion = (text, options = {}) =>
+  detectBusinessFaqSubtype(text, options) === 'payment_methods'
 
-export const looksLikeCustomerContactQuestion = (text) =>
-  detectBusinessFaqSubtype(text) === 'contact'
+export const looksLikeCustomerContactQuestion = (text, options = {}) =>
+  detectBusinessFaqSubtype(text, options) === 'contact'
 
 export const looksLikeCustomerDefinitionQuestion = (text) =>
   /\b(que es|duda sobre|como funciona|para que sirve|explicame|explicame sobre|contame sobre|quiero saber sobre)\b/i.test(
@@ -481,12 +552,12 @@ export const looksLikeCustomerGenericInfoRequest = (text) => {
   )
 }
 
-const looksLikeSuspiciousNoiseToken = (token) => {
+const looksLikeSuspiciousNoiseToken = (token, tenantRuntimePolicy = null) => {
   if (typeof token !== 'string' || token.length < 6) {
     return false
   }
 
-  if (COMMON_CUSTOMER_SIGNAL_TOKENS.has(token)) {
+  if (buildCommonCustomerSignalTokens(tenantRuntimePolicy).has(token)) {
     return false
   }
 
@@ -500,7 +571,10 @@ const looksLikeSuspiciousNoiseToken = (token) => {
   return vowels.length === 0 || (vowels.length === 1 && consonants.length >= 7)
 }
 
-export const looksLikeCustomerUnintelligibleText = (text) => {
+export const looksLikeCustomerUnintelligibleText = (
+  text,
+  tenantRuntimePolicy = null,
+) => {
   const normalized = normalizeText(text)
   if (!normalized || normalized.length < 8) {
     return false
@@ -518,11 +592,18 @@ export const looksLikeCustomerUnintelligibleText = (text) => {
     .map((token) => token.trim())
     .filter((token) => token.length >= 3)
 
-  if (!tokens.length || tokens.some((token) => COMMON_CUSTOMER_SIGNAL_TOKENS.has(token))) {
+  if (
+    !tokens.length ||
+    tokens.some((token) =>
+      buildCommonCustomerSignalTokens(tenantRuntimePolicy).has(token),
+    )
+  ) {
     return false
   }
 
-  const suspiciousTokens = tokens.filter(looksLikeSuspiciousNoiseToken)
+  const suspiciousTokens = tokens.filter((token) =>
+    looksLikeSuspiciousNoiseToken(token, tenantRuntimePolicy),
+  )
   if (tokens.length === 1) {
     return suspiciousTokens.length === 1 && tokens[0].length >= 8
   }
@@ -533,27 +614,36 @@ export const looksLikeCustomerUnintelligibleText = (text) => {
 }
 
 export const detectCustomerFaqSubtype = (input, options = {}) => {
+  const sanitizedInput = stripWebLeadIntro(input)
+
   if (looksLikePrivateAccountFaqGuard(input)) {
     return null
   }
 
-  const businessSubtype = detectBusinessFaqSubtype(input, options)
+  const businessSubtype = detectBusinessFaqSubtype(sanitizedInput, options)
   if (businessSubtype) {
     return businessSubtype
   }
-  if (looksLikeCustomerVariantQuestion(input)) {
+  if (looksLikeCustomerVariantQuestion(sanitizedInput)) {
     return 'variants'
   }
-  if (looksLikeCustomerAvailabilityQuestion(input)) {
+  if (looksLikeCustomerAvailabilityQuestion(sanitizedInput)) {
     return 'availability'
   }
-  if (looksLikeCustomerMaintenanceQuestion(input)) {
+  if (
+    /\b(instalaci[oó]n|colocaci[oó]n|instalar|colocar|incluye instalaci[oó]n|incluye colocaci[oó]n)\b/i.test(
+      sanitizedInput,
+    )
+  ) {
+    return 'installation'
+  }
+  if (looksLikeCustomerMaintenanceQuestion(sanitizedInput)) {
     return 'maintenance'
   }
-  if (looksLikeCustomerBenefitsQuestion(input)) {
+  if (looksLikeCustomerBenefitsQuestion(sanitizedInput)) {
     return 'benefits'
   }
-  if (looksLikeCustomerDefinitionQuestion(input)) {
+  if (looksLikeCustomerDefinitionQuestion(sanitizedInput)) {
     return 'definition'
   }
   return 'general'
@@ -568,7 +658,7 @@ const stripTrailingTransactionalQuery = (value) =>
   )
 
 const isGenericRequestedTopicLabel = (value) =>
-  /\b(eso|esto|mi caso|tu caso|el caso|este caso|ese caso|aplica|aplique|sirve|sirva|funciona|funcione|mismo|misma)\b/iu.test(
+  /\b(eso|esto|mi caso|tu caso|el caso|este caso|ese caso|aplica|aplique|sirve|sirva|funciona|funcione|mismo|misma|si|sí|gracias|muchas gracias|ok|dale|perfecto|listo)\b/iu.test(
     compactText(value || ''),
   )
 
@@ -596,9 +686,22 @@ const normalizeRequestedTopicLabel = (value) =>
 
 export const extractRequestedTopicLabel = (input) => {
   const currentInput = extractCurrentCustomerTurnText(input)
-  const semanticInput = extractSemanticCustomerTurnText(input)
+  const semanticInput = stripWebLeadIntro(extractSemanticCustomerTurnText(input))
+  const looksLikeMessagePlaceholder =
+    /\b(?:esperando|aguardando)\s+(?:este|ese|el)\s+mensaje\b/iu.test(
+      semanticInput,
+    )
+  const looksLikeScheduleAvailabilityPayload =
+    /\b(?:pueden|puedo|podrian|podrían|pasan|pasar|ir|venir|domicilio|visita)\b/iu.test(
+      semanticInput,
+    ) &&
+    /\b(?:hoy|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|a\s+las|\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/iu.test(
+      semanticInput,
+    )
   if (
     !semanticInput ||
+    looksLikeMessagePlaceholder ||
+    looksLikeScheduleAvailabilityPayload ||
     hasQuantityOnlyFollowUpSignal(semanticInput) ||
     hasReengagementReferenceSignal(currentInput) ||
     looksLikeQuoteRequirementsQuestion(semanticInput) ||

@@ -16,6 +16,11 @@ import {
 } from './customer-topic-taxonomy.js'
 import { pickWordingVariant } from '../outcomes/wording-registry.js'
 import { looksLikeQuoteExpansionSignal } from './customer-semantic-signals.js'
+import {
+  getBusinessFacts,
+  getVocabulary,
+  hasCatalogVocabularySignal,
+} from '../tenant-policy/runtime-tenant-policy.js'
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
@@ -26,6 +31,39 @@ const normalizeText = (value) =>
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, ''),
   )
+
+const buildTopicMatchAliases = (topicMatch = null) =>
+  Array.from(
+    new Set(
+      [
+        topicMatch?.label,
+        topicMatch?.normalizationValue,
+        ...(Array.isArray(topicMatch?.aliases) ? topicMatch.aliases : []),
+      ]
+        .map((entry) => normalizeText(entry))
+        .filter(Boolean),
+    ),
+  )
+
+const topicMatchEquals = (left = null, right = null) =>
+  Boolean(left?.key) && Boolean(right?.key) && left.key === right.key
+
+const sourceMentionsTopicMatch = (sourceText = '', topicMatch = null) => {
+  const normalizedSource = normalizeText(sourceText)
+  if (!normalizedSource || !topicMatch) {
+    return false
+  }
+
+  return buildTopicMatchAliases(topicMatch).some((alias) => {
+    return (
+      normalizedSource === alias ||
+      normalizedSource.includes(` ${alias} `) ||
+      normalizedSource.startsWith(`${alias} `) ||
+      normalizedSource.endsWith(` ${alias}`) ||
+      normalizedSource.includes(alias)
+    )
+  })
+}
 
 const STOP_TOKENS = new Set([
   'de',
@@ -86,16 +124,56 @@ const calculateTopicOverlap = (left = [], right = []) => {
   return left.filter((token) => target.has(token)).length
 }
 
-const normalizeKnowledgeFallbackStatement = (statement) => {
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const getKnowledgeStatementPrefixes = (tenantRuntimePolicy = null) =>
+  Array.isArray(getVocabulary(tenantRuntimePolicy)?.knowledgeStatementPrefixes)
+    ? getVocabulary(tenantRuntimePolicy).knowledgeStatementPrefixes
+        .filter(
+          (entry) =>
+            entry &&
+            typeof entry === 'object' &&
+            typeof entry.match === 'string' &&
+            entry.match.trim() &&
+            typeof entry.replacement === 'string' &&
+            entry.replacement.trim(),
+        )
+        .map((entry) => ({
+          match: compactText(entry.match),
+          replacement: compactText(entry.replacement),
+        }))
+    : []
+
+const applyKnowledgeStatementPrefixes = (
+  statement,
+  tenantRuntimePolicy = null,
+) => {
+  let next = compactText(statement)
+
+  for (const prefix of getKnowledgeStatementPrefixes(tenantRuntimePolicy)) {
+    const pattern = new RegExp(
+      `^${escapeRegex(prefix.match)}\\s*[:\\-]\\s*`,
+      'iu',
+    )
+    if (pattern.test(next)) {
+      next = compactText(next.replace(pattern, `${prefix.replacement} `))
+      break
+    }
+  }
+
+  return next
+}
+
+const normalizeKnowledgeFallbackStatement = (
+  statement,
+  tenantRuntimePolicy = null,
+) => {
   let next = compactText(statement)
   if (!next) {
     return ''
   }
 
-  next = next
-    .replace(/^dvh\s*[:\-]\s*/iu, 'El DVH es ')
-    .replace(/^screen\s*[:\-]\s*/iu, 'Screen: ')
-    .replace(/^blackout\s*[:\-]\s*/iu, 'Blackout: ')
+  next = applyKnowledgeStatementPrefixes(next, tenantRuntimePolicy)
 
   if (!/[.!?]$/u.test(next)) {
     next = `${next}.`
@@ -114,7 +192,7 @@ const LOCATION_CITY_ONLY_REGEX =
   /^(?:montevideo(?:,\s*uruguay)?|[a-z\s]+,\s*uruguay)[.!?]?$/i
 
 const LOCATION_COMMERCIAL_CONTEXT_REGEX =
-  /\b(venta e instalacion|venta e instalación|instalacion|instalación|fabricacion|fabricación|presupuesto|solicita|producto|productos|servicio|servicios|aberturas|cortinas|persianas|dvh)\b/i
+  /\b(venta e instalacion|venta e instalación|instalacion|instalación|fabricacion|fabricación|presupuesto|solicita|producto|productos|servicio|servicios|configuracion|configuración)\b/i
 
 const splitKnowledgeTextIntoFragments = (source) => {
   const placeholders = [
@@ -150,12 +228,15 @@ const isStrongLocationEvidence = (text) => {
   )
 }
 
-const isWeakCommercialLocationEvidence = (text) => {
+const isWeakCommercialLocationEvidence = (text, tenantRuntimePolicy = null) => {
   const normalized = normalizeText(text || '')
   if (!hasLocationSignals(normalized) || isStrongLocationEvidence(normalized)) {
     return false
   }
-  return LOCATION_COMMERCIAL_CONTEXT_REGEX.test(normalized)
+  return (
+    LOCATION_COMMERCIAL_CONTEXT_REGEX.test(normalized) ||
+    hasCatalogVocabularySignal(normalized, tenantRuntimePolicy)
+  )
 }
 
 const isLocationClarificationAnswer = (text) =>
@@ -163,29 +244,156 @@ const isLocationClarificationAnswer = (text) =>
     normalizeText(text || ''),
   )
 
-const hasExplicitPaymentTerms = (text) =>
-  /\b(efectivo|transferencia|tarjeta|tarjetas|cuotas|financiacion|financiación|debito|débito|credito|crédito)\b/i.test(
-    normalizeText(text || ''),
+const extractConfiguredPaymentTerms = (paymentMethods = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(paymentMethods) ? paymentMethods : []).flatMap((entry) => {
+        const clean = compactText(entry)
+        return [clean, ...clean.split(/[^a-z0-9áéíóúñ]+/iu)]
+      }),
+    ),
   )
+    .map((entry) => normalizeText(entry))
+    .filter((entry) => entry.length >= 3)
+
+const hasConfiguredPaymentMethodMention = (text, paymentMethods = []) => {
+  const normalized = normalizeText(text || '')
+  if (!normalized) {
+    return false
+  }
+
+  return extractConfiguredPaymentTerms(paymentMethods).some((term) =>
+    normalized.includes(term),
+  )
+}
+
+const hasExplicitPaymentTerms = (text, paymentMethods = []) => {
+  const normalized = normalizeText(text || '')
+  if (!normalized) {
+    return false
+  }
+
+  if (/\b(pago|pagos|abonar|abono|cobro|cuotas?|financiacion|financiación)\b/i.test(normalized)) {
+    return true
+  }
+  return hasConfiguredPaymentMethodMention(normalized, paymentMethods)
+}
 
 export const DEFAULT_OPERATIONAL_PAYMENT_METHODS_INLINE =
-  'efectivo, transferencia bancaria y tarjetas'
+  'los medios habilitados para este tenant'
 
-export const resolveOperationalPaymentMethodsInline = (input = '') => {
-  const normalized = normalizeText(input)
-  if (!normalized) {
+const formatInlineList = (values = []) => {
+  const items = Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .filter((entry) => typeof entry === 'string')
+        .map((entry) => compactText(entry))
+        .filter(Boolean),
+    ),
+  )
+
+  if (items.length === 0) {
     return DEFAULT_OPERATIONAL_PAYMENT_METHODS_INLINE
+  }
+  if (items.length === 1) {
+    return items[0]
+  }
+  if (items.length === 2) {
+    return `${items[0]} y ${items[1]}`
+  }
+  return `${items.slice(0, -1).join(', ')} y ${items.at(-1)}`
+}
+
+const normalizeTenantBusinessFactEntries = (values = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .filter((entry) => typeof entry === 'string')
+        .map((entry) => compactText(entry))
+        .filter(Boolean),
+    ),
+  )
+
+const buildTenantBusinessFactPayload = ({
+  faqSubtype,
+  tenantRuntimePolicy = null,
+} = {}) => {
+  const businessFacts = getBusinessFacts(tenantRuntimePolicy)
+  const tenantKey = compactText(tenantRuntimePolicy?.tenantKey || 'default') || 'default'
+
+  if (faqSubtype === 'contact') {
+    const channels = normalizeTenantBusinessFactEntries(businessFacts?.contact)
+    if (!channels.length) {
+      return null
+    }
+
+    const inlineChannels = formatInlineList(channels)
+    return {
+      sourceKey: 'contact',
+      title: 'Tenant contact channels',
+      sourceId: `tenant-policy:${tenantKey}:contact`,
+      text: `Tenemos atención por ${inlineChannels}. Si querés, te comparto el contacto por este medio.`,
+      usedFacts: [`Canales de contacto disponibles: ${inlineChannels}.`],
+    }
+  }
+
+  if (faqSubtype === 'business_hours') {
+    const hours = normalizeTenantBusinessFactEntries(businessFacts?.businessHours)
+    if (!hours.length) {
+      return null
+    }
+
+    return {
+      sourceKey: 'business_hours',
+      title: 'Tenant business hours',
+      sourceId: `tenant-policy:${tenantKey}:business_hours`,
+      text: `Nuestro horario de atención es ${formatInlineList(hours)}.`,
+      usedFacts: [`Horario de atención: ${formatInlineList(hours)}.`],
+    }
+  }
+
+  if (faqSubtype === 'location') {
+    const locationFacts = normalizeTenantBusinessFactEntries(businessFacts?.location)
+    if (!locationFacts.length) {
+      return null
+    }
+
+    return {
+      sourceKey: 'location',
+      title: 'Tenant location policy',
+      sourceId: `tenant-policy:${tenantKey}:location`,
+      text: locationFacts.join(' '),
+      usedFacts: locationFacts.slice(0, 2),
+    }
+  }
+
+  return null
+}
+
+export const buildTenantBusinessFactFaqResponse = ({
+  faqSubtype,
+  tenantRuntimePolicy = null,
+} = {}) => buildTenantBusinessFactPayload({ faqSubtype, tenantRuntimePolicy })
+
+export const resolveOperationalPaymentMethodsInline = (input = '', options = {}) => {
+  const normalized = normalizeText(input)
+  const configuredPaymentMethods = formatInlineList(options?.paymentMethods ?? [])
+  if (!normalized) {
+    return configuredPaymentMethods
   }
 
   if (hasExplicitPaymentTerms(normalized)) {
-    return DEFAULT_OPERATIONAL_PAYMENT_METHODS_INLINE
+    return configuredPaymentMethods
   }
 
-  return DEFAULT_OPERATIONAL_PAYMENT_METHODS_INLINE
+  return configuredPaymentMethods
 }
 
 const looksLikePriceOrQuoteTurn = (text) =>
   looksLikeGenericPriceInquiry(normalizeText(text || ''))
+
+const QUOTE_SEED_INTENT_REGEX =
+  /\b(?:necesit[a-záéíóúñ]*|precis[a-záéíóúñ]*|cotiz[a-záéíóúñ]*|presupuest[a-záéíóúñ]*|me interesa)\b/iu
 
 const extractPriceReference = (text) => {
   const match = String(text || '').match(/\b(usd|uyu|us\$|\$)\s*([0-9]+(?:[.,][0-9]{1,2})?)\b/iu)
@@ -212,22 +420,61 @@ const buildQuoteGuidanceText = ({
   referenceLabel = null,
   familyLabel = null,
   variantLabels = [],
+  tenantTopicTaxonomy = [],
   quoteContext = null,
 }) => {
   const cleanReference = compactText(referenceLabel || '')
   const cleanFamily = compactText(familyLabel || '')
-  const normalizedReference = normalizeText(cleanReference)
+  const cleanQuoteContextVariant = compactText(quoteContext?.variantLabel || '')
+  const referenceVariantMatch = cleanReference
+    ? findBestTenantTopicMatch(cleanReference, tenantTopicTaxonomy, {
+        kinds: ['product_variant'],
+      })
+    : null
   const measurementLabel =
     quoteContext?.measurements?.confirmationLabel ||
     quoteContext?.measurements?.displayLabel ||
     null
-  const subject =
-    cleanFamily ||
-    (cleanReference && !/\b(dvh|screen|blackout|probba|gala|summa)\b/.test(
-      normalizedReference,
-    )
+  const missingFields = Array.isArray(quoteContext?.missingFields)
+    ? quoteContext.missingFields.filter((entry) => typeof entry === 'string')
+    : []
+  const missingConfigurationLabels = Array.isArray(quoteContext?.missingAttributes)
+    ? quoteContext.missingAttributes
+        .map((attribute) => {
+          if (!attribute || ['measurements', 'quantity'].includes(attribute.key)) {
+            return null
+          }
+
+          if (typeof attribute.label === 'string' && attribute.label.trim()) {
+            return attribute.label.trim()
+          }
+
+          return typeof attribute.key === 'string' ? attribute.key : null
+        })
+        .filter(Boolean)
+    : []
+  const requestedConfigurationLabels =
+    missingConfigurationLabels.length > 0 ? missingConfigurationLabels : variantLabels
+  const needsMeasurements = missingFields.includes('measurements')
+  const needsQuantity = missingFields.includes('quantity')
+  const referenceExtendsFamily =
+    cleanReference &&
+    cleanFamily &&
+    normalizeText(cleanReference).includes(normalizeText(cleanFamily))
+  const baseSubject =
+    cleanReference &&
+    (!referenceVariantMatch ||
+      referenceVariantMatch.kind !== 'product_variant' ||
+      referenceExtendsFamily ||
+      cleanReference.split(/\s+/u).length > 1)
       ? cleanReference
-      : '')
+      : cleanFamily || cleanReference
+  const subject =
+    baseSubject && cleanQuoteContextVariant
+      ? normalizeText(baseSubject).includes(normalizeText(cleanQuoteContextVariant))
+        ? baseSubject
+        : compactText(`${baseSubject} ${cleanQuoteContextVariant}`)
+      : baseSubject
 
   const lines = []
   if (measurementLabel) {
@@ -237,32 +484,89 @@ const buildQuoteGuidanceText = ({
       lines.push(`Tomo una medida aproximada de ${measurementLabel}.`)
     }
   } else if (subject) {
-    lines.push(`Para cotizar ${subject}, decime las medidas aproximadas.`)
+    lines.push(
+      needsQuantity
+        ? `Para cotizar ${subject}, decime las medidas aproximadas y cuántas unidades necesitás.`
+        : `Para cotizar ${subject}, decime las medidas aproximadas.`,
+    )
   } else {
     lines.push(
-      'Para orientarte con una cotización, decime las medidas aproximadas.',
+      needsQuantity
+        ? 'Para orientarte con una cotización, decime las medidas aproximadas y cuántas unidades necesitás.'
+        : 'Para orientarte con una cotización, decime las medidas aproximadas.',
     )
   }
 
-  if (variantLabels.length > 0) {
+  if (requestedConfigurationLabels.length > 0) {
     lines.push(
       `${
         measurementLabel
-          ? 'Para avanzar con la cotización, indicame también'
-          : 'Si ya tenés definida la configuración, indicame también'
+          ? needsQuantity
+            ? 'Para avanzar con la cotización, indicame también cuántas unidades y'
+            : 'Para avanzar con la cotización, indicame también'
+          : needsQuantity
+            ? 'Si ya tenés definida la configuración, indicame también cuántas unidades y'
+            : 'Si ya tenés definida la configuración, indicame también'
       } ${formatVariantList(
-        variantLabels,
+        requestedConfigurationLabels,
       )}.`,
     )
   } else {
     lines.push(
       measurementLabel
-        ? 'Para avanzar con la cotización, también podés indicarme la opción o configuración que buscás.'
-        : 'Si ya tenés definida la configuración, también podés indicármela.',
+        ? needsQuantity
+          ? 'Para avanzar con la cotización, también podés indicarme cuántas unidades y la opción o configuración que buscás.'
+          : 'Para avanzar con la cotización, también podés indicarme la opción o configuración que buscás.'
+        : needsQuantity
+          ? 'Si ya tenés definida la configuración, también indicame cuántas unidades.'
+          : 'Si ya tenés definida la configuración, también podés indicármela.',
     )
   }
 
   return lines.join(' ')
+}
+
+const buildMissingQuoteGuidanceLabels = (quoteContext = null) => {
+  const missingAttributes = Array.isArray(quoteContext?.missingAttributes)
+    ? quoteContext.missingAttributes
+    : Array.isArray(quoteContext?.requiredAttributes)
+      ? quoteContext.requiredAttributes
+      : []
+  const missingFields = Array.isArray(quoteContext?.missingFields)
+    ? quoteContext.missingFields.filter((entry) => typeof entry === 'string')
+    : []
+
+  const attributeLabels = missingAttributes
+    .filter((attribute) => attribute && typeof attribute === 'object')
+    .map((attribute) => ({
+      key: compactText(attribute?.key || ''),
+      label: compactText(attribute?.label || attribute?.subjectPrefix || attribute?.key || ''),
+    }))
+    .filter(
+      (attribute) =>
+        attribute.label &&
+        !['measurements', 'quantity', 'product'].includes(attribute.key),
+    )
+    .map((attribute) => attribute.label)
+
+  const genericLabels = []
+  if (missingFields.includes('measurements')) {
+    genericLabels.push('las medidas aproximadas')
+  }
+  if (missingFields.includes('quantity')) {
+    genericLabels.push('la cantidad')
+  }
+
+  return Array.from(new Set([...attributeLabels, ...genericLabels]))
+}
+
+export const buildQuoteProgressHint = (quoteContext = null) => {
+  const labels = buildMissingQuoteGuidanceLabels(quoteContext)
+  if (labels.length === 0) {
+    return 'Si quieres, te ayudo a revisar la configuración pendiente o la disponibilidad.'
+  }
+
+  return `Si quieres, te ayudo a revisar ${formatVariantList(labels)} o la disponibilidad.`
 }
 
 export const buildContextualProductReference = ({
@@ -277,6 +581,14 @@ export const buildContextualProductReference = ({
     requestedTopicLabel,
     tenantTopicTaxonomy,
   )
+  const strippedRequestedTopicLabel = requested
+    .split(/\s+/u)
+    .slice(1)
+    .join(' ')
+    .trim()
+  const strippedRequestedMatch = strippedRequestedTopicLabel
+    ? findBestTenantTopicMatch(strippedRequestedTopicLabel, tenantTopicTaxonomy)
+    : null
   const familyHint =
     requestedMatch?.kind === 'product_family'
       ? requestedMatch.label
@@ -289,8 +601,12 @@ export const buildContextualProductReference = ({
     return familyHint
   }
 
-  if (/^serie\s+/iu.test(requested) && familyHint) {
-    return `${familyHint} linea ${requested.replace(/^serie\s+/iu, '')}`
+  if (
+    !requestedMatch &&
+    familyHint &&
+    strippedRequestedMatch?.kind === 'product_variant'
+  ) {
+    return `${familyHint} configuración ${strippedRequestedMatch.label}`
       .replace(/\s+/g, ' ')
       .trim()
   }
@@ -339,6 +655,75 @@ const formatVariantList = (items = []) => {
     return `${items[0]} y ${items[1]}`
   }
   return `${items.slice(0, -1).join(', ')} y ${items.at(-1)}`
+}
+
+const extractCommercialVariantListFromEvidence = (source, options = {}) => {
+  const tenantTopicTaxonomy = Array.isArray(options?.tenantTopicTaxonomy)
+    ? options.tenantTopicTaxonomy
+    : []
+  const requestedTopicTokens = new Set(
+    extractTopicTokens(options?.requestedTopicLabel || ''),
+  )
+  const seen = new Set()
+  const variants = []
+  const rawSources = Array.isArray(source) ? source : [source]
+  const requestedTopicMatch = findBestTenantTopicMatch(
+    Array.from(requestedTopicTokens).join(' '),
+    tenantTopicTaxonomy,
+  )
+
+  for (const entry of rawSources) {
+    const text = compactText(entry)
+    if (!text) {
+      continue
+    }
+
+    const matches = text.matchAll(
+      /\b(?:lineas?|líneas?|series?|opciones)\b[^.!?]*?\b(?:como|en)\s+([^.!?]+?)(?=(?:\s+con\b|\s+segun\b|[.!?]|$))/giu,
+    )
+
+    for (const match of matches) {
+      const fragment = compactText(match[1] || '')
+      if (!fragment) {
+        continue
+      }
+
+      const candidates = fragment
+        .split(/\s*(?:,| y | e | o | u |\/)\s*/iu)
+        .map((item) => compactText(item))
+        .filter(Boolean)
+
+      for (const candidate of candidates) {
+        const normalizedCandidate = normalizeText(candidate)
+        if (
+          !normalizedCandidate ||
+          requestedTopicTokens.has(normalizedCandidate) ||
+          normalizedCandidate.length < 3 ||
+          normalizedCandidate.split(/\s+/u).length > 3
+        ) {
+          continue
+        }
+
+        const candidateTopicMatch = findBestTenantTopicMatch(candidate, tenantTopicTaxonomy)
+        if (
+          candidateTopicMatch &&
+          requestedTopicMatch &&
+          topicMatchEquals(candidateTopicMatch, requestedTopicMatch)
+        ) {
+          continue
+        }
+
+        if (seen.has(normalizedCandidate)) {
+          continue
+        }
+
+        seen.add(normalizedCandidate)
+        variants.push(candidate)
+      }
+    }
+  }
+
+  return variants
 }
 
 const extractProductVariantsFromEvidence = (evidence = [], tenantTopicTaxonomy = []) => {
@@ -392,6 +777,8 @@ const scoreCustomerFaqEvidence = ({
   requestedTopicTokens = [],
   item,
   sourceKind = 'content',
+  paymentMethods = [],
+  tenantRuntimePolicy = null,
 }) => {
   const normalizedFragment = normalizeText(fragment)
   const fragmentTokens = extractTopicTokens(fragment)
@@ -414,7 +801,7 @@ const scoreCustomerFaqEvidence = ({
     } else if (hasLocationSignals(fragment)) {
       score += 1.5
     }
-    if (isWeakCommercialLocationEvidence(fragment)) {
+    if (isWeakCommercialLocationEvidence(fragment, tenantRuntimePolicy)) {
       score -= 5
     }
     const normalizedTitle = normalizeText(item?.title || '')
@@ -422,7 +809,7 @@ const scoreCustomerFaqEvidence = ({
       score += 2
     }
   } else if (faqSubtype === 'payment_methods') {
-    if (/\b(pago|pagos|tarjeta|transferencia|efectivo|cuotas|financiacion|financiación)\b/.test(normalizedFragment)) {
+    if (hasExplicitPaymentTerms(normalizedFragment, paymentMethods)) {
       score += 3
     }
   } else if (faqSubtype === 'contact') {
@@ -465,7 +852,13 @@ const scoreCustomerFaqEvidence = ({
   return score
 }
 
-const selectCustomerFaqEvidence = ({ input, retrievalItems, faqSubtype }) => {
+export const selectCustomerFaqEvidence = ({
+  input,
+  retrievalItems,
+  faqSubtype,
+  paymentMethods = [],
+  tenantRuntimePolicy = null,
+}) => {
   const inputTokens = extractTopicTokens(input)
   const requestedTopicLabel = extractRequestedTopicLabel(input)
   const requestedTopicTokens = extractTopicTokens(requestedTopicLabel || '')
@@ -482,7 +875,12 @@ const selectCustomerFaqEvidence = ({ input, retrievalItems, faqSubtype }) => {
       }
       seen.add(normalized)
       candidates.push({
-        text: normalizeKnowledgeFallbackStatement(fragment.text),
+        text: normalizeKnowledgeFallbackStatement(
+          fragment.text,
+          tenantRuntimePolicy,
+        ),
+        sourceId: compactText(item?.id || item?.documentId || ''),
+        documentId: compactText(item?.documentId || item?.id || ''),
         score: scoreCustomerFaqEvidence({
           fragment: fragment.text,
           faqSubtype,
@@ -490,6 +888,8 @@ const selectCustomerFaqEvidence = ({ input, retrievalItems, faqSubtype }) => {
           requestedTopicTokens,
           item,
           sourceKind: fragment.sourceKind,
+          paymentMethods,
+          tenantRuntimePolicy,
         }),
         order,
       })
@@ -516,14 +916,21 @@ const selectCustomerFaqEvidence = ({ input, retrievalItems, faqSubtype }) => {
     const locationCandidates = ordered.filter(
       (entry) =>
         hasLocationSignals(entry.text) &&
-        !isWeakCommercialLocationEvidence(entry.text),
+        !isWeakCommercialLocationEvidence(entry.text, tenantRuntimePolicy),
     )
     return locationCandidates.slice(0, 2)
   }
 
   if (faqSubtype === 'payment_methods') {
+    const configuredPaymentCandidates = ordered.filter((entry) =>
+      hasConfiguredPaymentMethodMention(entry.text, paymentMethods),
+    )
+    if (configuredPaymentCandidates.length) {
+      return configuredPaymentCandidates.slice(0, 1)
+    }
+
     const paymentCandidates = ordered.filter((entry) =>
-      hasExplicitPaymentTerms(entry.text),
+      hasExplicitPaymentTerms(entry.text, paymentMethods),
     )
     if (paymentCandidates.length) {
       return paymentCandidates.slice(0, 1)
@@ -704,7 +1111,10 @@ const buildTopicSpecificKnowledgeFallbackText = (
   )
   const faqSubtype =
     options?.faqSubtype ||
-    detectCustomerFaqSubtype(detectionInput, { retrievalItems })
+    detectCustomerFaqSubtype(detectionInput, {
+      retrievalItems,
+      tenantRuntimePolicy: options?.tenantRuntimePolicy || null,
+    })
   if (
     faqSubtype === 'business_hours' ||
     faqSubtype === 'location' ||
@@ -736,7 +1146,7 @@ const buildTopicSpecificKnowledgeFallbackText = (
       ? interpretation.topic.label.trim()
       : null
   const shouldPreferQuoteContextTopic =
-    looksLikeQuoteExpansionSignal(detectionInput) &&
+    looksLikeQuoteExpansionSignal(detectionInput, options?.tenantRuntimePolicy || null) &&
     quoteContextTopicLabel &&
     (!extractedRequestedTopicLabel ||
       normalizeText(quoteContextTopicLabel).includes(
@@ -749,6 +1159,10 @@ const buildTopicSpecificKnowledgeFallbackText = (
           String(interpretation?.topic?.type || '') === 'product_family'
         ? extractedRequestedTopicLabel
         : interpretationTopicLabel || extractedRequestedTopicLabel
+  const requestedTopicMatch = findBestTenantTopicMatch(
+    requestedTopicLabel || interpretation?.topic?.label || '',
+    tenantTopicTaxonomy,
+  )
   const normalizedRequestedTopic = normalizeText(requestedTopicLabel || '')
   const taxonomyTopicMatch = findBestTenantTopicMatch(
     requestedTopicLabel || interpretation?.topic?.label || '',
@@ -789,6 +1203,23 @@ const buildTopicSpecificKnowledgeFallbackText = (
     interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
       ? interpretation.quoteContext
       : null
+  const shouldAppendQuoteBridge =
+    intentKey === 'customer.quote' || QUOTE_SEED_INTENT_REGEX.test(detectionInput)
+  const quoteBridgeText =
+    shouldAppendQuoteBridge
+      ? buildQuoteGuidanceText({
+          referenceLabel:
+            resolvedTopicReference ||
+            displayTopicLabel ||
+            interpretation?.topic?.label ||
+            interpretation?.contextTopic?.label ||
+            null,
+          familyLabel: currentFamilyLabel,
+          variantLabels: currentVariantLabels,
+          tenantTopicTaxonomy,
+          quoteContext,
+        })
+      : null
   const variationSeed = String(options?.variationSeed || '')
   const wordingOverrides = options?.wordingOverrides || null
   const channel = options?.channel || null
@@ -803,6 +1234,7 @@ const buildTopicSpecificKnowledgeFallbackText = (
           : null),
       familyLabel: currentFamilyLabel,
       variantLabels: currentVariantLabels,
+      tenantTopicTaxonomy,
       quoteContext,
     })
   }
@@ -811,9 +1243,13 @@ const buildTopicSpecificKnowledgeFallbackText = (
     const measurementLabel =
       quoteContext?.measurements?.displayLabel || quoteContext?.measurements?.confirmationLabel
     if (measurementLabel) {
-      return `Para esa configuración y una medida aproximada de ${measurementLabel} podemos tomar como referencia una cotización de ${priceReference}. Si quieres, te ayudo a revisar vidrio, color o disponibilidad.`
+      return `Para esa configuración y una medida aproximada de ${measurementLabel} podemos tomar como referencia una cotización de ${priceReference}. ${buildQuoteProgressHint(
+        quoteContext,
+      )}`
     }
-    return `Para esa configuración podemos tomar como referencia una cotización de ${priceReference}. Si quieres, te ayudo a revisar medidas, vidrio y disponibilidad.`
+    return `Para esa configuración podemos tomar como referencia una cotización de ${priceReference}. ${buildQuoteProgressHint(
+      quoteContext,
+    )}`
   }
 
   if (
@@ -830,11 +1266,19 @@ const buildTopicSpecificKnowledgeFallbackText = (
         null,
       familyLabel: currentFamilyLabel,
       variantLabels: currentVariantLabels,
+      tenantTopicTaxonomy,
       quoteContext,
     })}`
   }
 
-  if (/\bdvh\b/.test(normalizedInput) && /\bdvh\b/.test(combinedSourceText)) {
+  if (
+    requestedTopicMatch?.kind === 'product_variant' &&
+    sourceMentionsTopicMatch(combinedSourceText, requestedTopicMatch)
+  ) {
+    const shouldPreferGenericVariantDefinition =
+      faqSubtype === 'definition' &&
+      !interpretation?.followUp?.detected &&
+      !interpretation?.contextTopic?.label
     const contextualTopicSignal = normalizeText(
       [
         resolvedTopicReference,
@@ -844,24 +1288,57 @@ const buildTopicSpecificKnowledgeFallbackText = (
         .filter(Boolean)
         .join(' '),
     )
-    if (/\b(abertur|aluminio|probba|gala|summa)\b/.test(contextualTopicSignal)) {
+    const contextualFamilyLabel = extractTenantFamilyLabel(
+      contextualTopicSignal,
+      tenantTopicTaxonomy,
+    )
+    const contextualVariants = extractTenantVariantLabels(
+      contextualTopicSignal,
+      tenantTopicTaxonomy,
+    )
+    const hasContextualProductAnchor = Boolean(
+      interpretation?.topic?.label || interpretation?.contextTopic?.label,
+    )
+    if (
+      !shouldPreferGenericVariantDefinition &&
+      hasContextualProductAnchor &&
+      (contextualFamilyLabel || contextualVariants.length > 0)
+    ) {
       const contextualEvidence = compactText(evidenceTexts[0] || '')
+      const variantLabel = displayTopicLabel || requestedTopicMatch.label
       const contextualReference =
-        displayTopicLabel && /\bdvh\b/.test(normalizeText(displayTopicLabel))
+        displayTopicLabel &&
+        sourceMentionsTopicMatch(displayTopicLabel, requestedTopicMatch)
           ? displayTopicLabel
-          : 'aberturas con DVH'
+          : contextualFamilyLabel
+            ? `${contextualFamilyLabel} con ${variantLabel}`
+            : `esa configuración con ${variantLabel}`
+      const contextualFallbackEvidence = contextualFamilyLabel
+        ? `Las ${contextualFamilyLabel} con ${variantLabel} mejoran prestaciones y se configuran según medidas y línea.`
+        : `La configuración con ${variantLabel} mejora prestaciones y se define según medidas y línea.`
       return `Sí, trabajamos con ${contextualReference}. ${
         contextualEvidence ||
-        'Las aberturas con DVH mejoran aislamiento y se configuran según medidas y línea.'
+        contextualFallbackEvidence
       } Si quieres, te cuento opciones, líneas y prestaciones según lo que necesitas.`
     }
 
     const lines = [
-      'Sí. El DVH es doble vidriado hermético y mejora aislamiento térmico y acústico.',
+      `Sí. ${compactText(evidenceTexts[0] || '') || `${requestedTopicMatch.label} es una variante disponible dentro de las configuraciones trabajadas.`}`,
     ]
-    if (/(probba|gala|summa)/.test(combinedSourceText)) {
+    const evidenceVariants = extractCommercialVariantListFromEvidence(
+      [
+        ...evidenceTexts,
+        ...retrievalItems.flatMap((item) => [item?.summary, item?.snippet, item?.title, item?.content]),
+      ],
+      {
+        requestedTopicLabel:
+          displayTopicLabel || requestedTopicLabel || requestedTopicMatch.label,
+        tenantTopicTaxonomy,
+      },
+    )
+    if (evidenceVariants.length > 0) {
       lines.push(
-        'En Urucortinas se usa en líneas de mayor prestación como Probba, Gala y Summa.',
+        `Se usa en líneas de mayor prestación como ${formatVariantList(evidenceVariants)}.`,
       )
     }
     lines.push(
@@ -876,7 +1353,9 @@ const buildTopicSpecificKnowledgeFallbackText = (
     (intentKey === 'customer.quote' || looksLikePriceOrQuoteTurn(input))
   ) {
     if (priceReference) {
-      return `Para esa configuración podemos tomar como referencia una cotización de ${priceReference}. Si quieres, te ayudo a revisar medidas, vidrio y disponibilidad.`
+      return `Para esa configuración podemos tomar como referencia una cotización de ${priceReference}. ${buildQuoteProgressHint(
+        quoteContext,
+      )}`
     }
 
     const evidenceOverlap = calculateTopicOverlap(
@@ -885,16 +1364,26 @@ const buildTopicSpecificKnowledgeFallbackText = (
     )
     if (
       evidenceOverlap > 0 ||
-      combinedSourceText.includes('probba') ||
-      combinedSourceText.includes('aberturas')
+      extractTenantVariantLabels(combinedSourceText, tenantTopicTaxonomy).length > 0 ||
+      Boolean(extractTenantFamilyLabel(combinedSourceText, tenantTopicTaxonomy))
     ) {
       const contextLabel =
         interpretation?.contextTopic?.label || interpretation?.topic?.label || ''
-      const hasDvhContext =
-        /\b(dvh|doble vidrio)\b/i.test(normalizeText(contextLabel)) &&
-        !/\b(dvh|doble vidrio)\b/i.test(normalizedRequestedTopic)
+      const contextVariantLabels = extractTenantVariantLabels(
+        contextLabel,
+        tenantTopicTaxonomy,
+      )
+      const requestedVariantLabels = extractTenantVariantLabels(
+        normalizedRequestedTopic,
+        tenantTopicTaxonomy,
+      )
+      const missingContextVariant = contextVariantLabels.find(
+        (variant) => !requestedVariantLabels.includes(variant),
+      )
 
-      return `Sí, trabajamos con ${resolvedTopicReference}. Para orientarte con el costo, decime las medidas${hasDvhContext ? ' y si lo buscas con DVH' : ''}.`
+      return `Sí, trabajamos con ${resolvedTopicReference}. Para orientarte con el costo, decime las medidas${
+        missingContextVariant ? ` y si lo buscas con ${missingContextVariant}` : ''
+      }.`
     }
   }
 
@@ -910,7 +1399,7 @@ const buildTopicSpecificKnowledgeFallbackText = (
     )
     const overlap = Math.max(evidenceOverlap, combinedOverlap)
     if (requestedTopicTokens.length && overlap > 0) {
-      return pickWordingVariant({
+      const availabilityText = pickWordingVariant({
         key: 'customer.faq.product_availability',
         variationSeed,
         overrides: wordingOverrides,
@@ -919,6 +1408,7 @@ const buildTopicSpecificKnowledgeFallbackText = (
         variables: { topic: displayTopicLabel },
         fallback: `Sí, contamos con ${displayTopicLabel}. Si quieres, te amplío beneficios, usos y opciones según lo que necesitas.`,
       })
+      return quoteBridgeText ? `${availabilityText} ${quoteBridgeText}`.trim() : availabilityText
     }
   }
 
@@ -934,11 +1424,14 @@ const buildTopicSpecificKnowledgeFallbackText = (
     )
     const overlap = Math.max(evidenceOverlap, combinedOverlap)
     if (requestedTopicTokens.length && overlap > 0) {
+      const evidenceVariantLabels = extractTenantVariantLabels(
+        combinedSourceText,
+        tenantTopicTaxonomy,
+      )
       if (
         taxonomyTopicMatch?.kind === 'product_family' &&
-        /\b(varios tipos|roller|blackout|venecianas|screen|opciones)\b/i.test(
-          combinedSourceText,
-        )
+        (/\b(varios tipos|opciones)\b/i.test(combinedSourceText) ||
+          evidenceVariantLabels.length > 0)
       ) {
         return pickWordingVariant({
           key: 'customer.faq.product_family_options',
@@ -952,24 +1445,22 @@ const buildTopicSpecificKnowledgeFallbackText = (
       }
       const primaryEvidence = compactText(evidenceTexts[0] || '')
       if (taxonomyTopicMatch?.kind === 'product_variant' && primaryEvidence) {
-        const resolvedLabel = /\broller\b/i.test(primaryEvidence)
-          ? `roller ${displayTopicLabel}`
-          : displayTopicLabel
-        return pickWordingVariant({
+        const variantText = pickWordingVariant({
           key: 'customer.faq.product_variant_with_evidence',
           variationSeed,
           overrides: wordingOverrides,
           channel,
           channelProfile,
           variables: {
-            topic: resolvedLabel,
+            topic: displayTopicLabel,
             evidence: primaryEvidence,
           },
-          fallback: `Sí, también tenemos ${resolvedLabel}. ${primaryEvidence} Si quieres, te cuento cuál conviene más según luz, privacidad y uso.`,
+          fallback: `Sí, también tenemos ${displayTopicLabel}. ${primaryEvidence} Si quieres, te cuento cuál conviene más según luz, privacidad y uso.`,
         })
+        return quoteBridgeText ? `${variantText} ${quoteBridgeText}`.trim() : variantText
       }
       if (primaryEvidence) {
-        return pickWordingVariant({
+        const generalWithEvidenceText = pickWordingVariant({
           key: 'customer.faq.product_general_with_evidence',
           variationSeed,
           overrides: wordingOverrides,
@@ -981,8 +1472,11 @@ const buildTopicSpecificKnowledgeFallbackText = (
           },
           fallback: `Sí, trabajamos con ${displayTopicLabel}. ${primaryEvidence} Si quieres, te cuento opciones y usos según lo que necesitas.`,
         })
+        return quoteBridgeText
+          ? `${generalWithEvidenceText} ${quoteBridgeText}`.trim()
+          : generalWithEvidenceText
       }
-      return pickWordingVariant({
+      const generalProductText = pickWordingVariant({
         key: 'customer.faq.product_general',
         variationSeed,
         overrides: wordingOverrides,
@@ -991,13 +1485,14 @@ const buildTopicSpecificKnowledgeFallbackText = (
         variables: { topic: displayTopicLabel },
         fallback: `Sí, trabajamos con ${displayTopicLabel}. Si quieres, te cuento opciones, líneas y prestaciones según lo que necesitas.`,
       })
+      return quoteBridgeText ? `${generalProductText} ${quoteBridgeText}`.trim() : generalProductText
     }
   }
 
   return null
 }
 
-const extractKnowledgeFallbackStatements = (retrievalItems, options = {}) => {
+export const extractKnowledgeFallbackStatements = (retrievalItems, options = {}) => {
   const limit =
     typeof options?.limit === 'number' && Number.isFinite(options.limit)
       ? options.limit
@@ -1023,7 +1518,10 @@ const extractKnowledgeFallbackStatements = (retrievalItems, options = {}) => {
           ? calculateTopicOverlap(inputTokens, fragmentTokens)
           : 0
         candidates.push({
-          text: normalizeKnowledgeFallbackStatement(fragment),
+          text: normalizeKnowledgeFallbackStatement(
+            fragment,
+            options?.tenantRuntimePolicy || null,
+          ),
           overlap,
           order,
         })
@@ -1051,6 +1549,7 @@ export const buildGenericCustomerKnowledgeFallbackText = (
 ) => {
   const statements = extractKnowledgeFallbackStatements(retrievalItems, {
     input,
+    tenantRuntimePolicy: options?.tenantRuntimePolicy || null,
   })
   if (!statements.length) {
     return null
@@ -1095,6 +1594,8 @@ export const buildCustomerFaqKnowledgeResponse = ({
   intentKey,
   interpretation = null,
   tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+  paymentMethods = [],
   variationSeed = '',
   wordingOverrides = null,
   previousIntentKey = null,
@@ -1106,7 +1607,10 @@ export const buildCustomerFaqKnowledgeResponse = ({
     interpretation.normalizedCurrentTurn.trim()
       ? interpretation.normalizedCurrentTurn.trim()
       : input
-  const faqSubtype = detectCustomerFaqSubtype(detectionInput, { retrievalItems })
+  const faqSubtype = detectCustomerFaqSubtype(detectionInput, {
+    retrievalItems,
+    tenantRuntimePolicy,
+  })
   const inheritedIntentKey =
     typeof interpretation?.followUp?.inheritedIntentKey === 'string'
       ? interpretation.followUp.inheritedIntentKey
@@ -1125,6 +1629,8 @@ export const buildCustomerFaqKnowledgeResponse = ({
     input: detectionInput,
     retrievalItems,
     faqSubtype,
+    paymentMethods,
+    tenantRuntimePolicy,
   })
   if (!evidence.length) {
     if (faqSubtype === 'location') {
@@ -1144,6 +1650,7 @@ export const buildCustomerFaqKnowledgeResponse = ({
       intentKey,
       interpretation,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
       variationSeed,
       wordingOverrides,
     }) ||
