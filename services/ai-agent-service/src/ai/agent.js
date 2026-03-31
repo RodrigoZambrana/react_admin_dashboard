@@ -1,5 +1,10 @@
 import { buildSystemPrompt } from './prompt/system-prompt.js'
 import { createModelProvider } from './model/provider-factory.js'
+import {
+  getProviderCallTrace,
+  hasProviderCallTrace,
+  runWithProviderCallTrace,
+} from './model/provider-call-trace.js'
 import { getToolsForRole } from './tools/tool-registry.js'
 import { z } from 'zod'
 import {
@@ -14,6 +19,10 @@ import {
   roleToScope,
 } from './roles/role-runtime.js'
 import { sanitizeUserInput } from './security/sanitize-input.js'
+import {
+  isSystemNoiseMessage,
+  SYSTEM_NOISE_IGNORE_REASON,
+} from './ingress/system-noise.js'
 import { interpretMessageElements } from './message-elements/interpret-message-elements.js'
 import { buildMessageContext } from './message-elements/build-message-context.js'
 import { analyzeMessage } from './nlp/analyze-message.js'
@@ -21,6 +30,20 @@ import { classifyConversationMode } from './classification/classify-conversation
 import { assistNextStep } from './orchestrator/assist-next-step.js'
 import { decideNextStep } from './orchestrator/decide-next-step.js'
 import { handleConversationalMode } from './conversation/handle-conversational-mode.js'
+import {
+  normalizeOperationalContextsWithConversationState,
+  readInterpretationResolutionReadiness,
+  stabilizeReadinessWithConversationState,
+} from './conversation/resolution-readiness.js'
+import { resolveCustomerResponseContract } from './conversation/response-resolver.js'
+import { resolveTurnKnowledgeControl } from './conversation/turn-controller.js'
+import {
+  buildConversationState,
+  filterResolvedConversationFields,
+  isConversationFieldResolved,
+  mapConversationFieldToSlot,
+  resolveNextConversationField,
+} from './conversation/conversation-state.js'
 import { generateResponse } from './nlp/generate-response.js'
 import { validateResponseGuardrails } from './guardrails/validate-response.js'
 import { detectIntent } from './intents/detect-intent.js'
@@ -40,11 +63,40 @@ import {
   resolveCustomerCapabilityRuntime,
 } from './capabilities/customer-capability-runtime.js'
 import {
+  buildTenantBusinessFactFaqResponse,
   buildContextualProductReference,
   buildCustomerFaqKnowledgeResponse,
   buildGenericCustomerKnowledgeFallbackText,
+  buildQuoteProgressHint,
+  extractKnowledgeFallbackStatements,
   resolveOperationalPaymentMethodsInline,
+  selectCustomerFaqEvidence,
 } from './intents/customer-faq-response.js'
+import {
+  getBusinessFacts,
+  findBestPolicyTopicMatch,
+  getBusinessRules,
+  getProductCatalog,
+  getQuoteRequirements,
+  getVocabulary,
+  hasCatalogVocabularySignal,
+  matchesBusinessRuleValue,
+} from './tenant-policy/runtime-tenant-policy.js'
+import { buildTenantPolicyEnvelope } from './tenant-policy/tenant-router.js'
+import {
+  formatStructuredCatalogInsertItem,
+  formatStructuredCatalogPendingItem,
+  resolveStructuredCatalogSuccessLabel,
+  STRUCTURED_CATALOG_INSERT_TOOL,
+  STRUCTURED_CATALOG_PARSE_INTENT,
+  STRUCTURED_CATALOG_PARSE_TOOL,
+  STRUCTURED_CATALOG_PREPARE_QUOTE_INTENT,
+  STRUCTURED_CATALOG_QUOTE_TOOL,
+  STRUCTURED_CATALOG_REGISTER_INTENT,
+  hasStructuredCatalogSignal,
+  isStructuredCatalogActionKey,
+  isStructuredCatalogToolName,
+} from './structured-catalog-runtime.js'
 import {
   looksLikeCommercialConditionQuestion,
   looksLikeConfiguredProductInterest,
@@ -89,6 +141,7 @@ import {
 import { AGENT_STATE_EVENTS } from './state/state-types.js'
 import { applyAgentStateEvents } from './state/transition-state.js'
 import {
+  buildCustomerAvailabilityFallbackText,
   buildCustomerSupportRequestText,
   buildCustomerCapabilityHandoffText,
   buildCustomerInformationThenHandoffText,
@@ -101,6 +154,7 @@ import {
   buildCustomerMultimodalSupportArtifactPlannedText,
   buildCustomerMultimodalSupportArtifactText,
   buildCustomerQuoteHandoffText,
+  buildCustomerQuoteRequestText,
   buildCustomerQuoteWaitingFollowUpText,
   buildCustomerQuoteResolutionText,
   buildCustomerReengagementFollowUpText,
@@ -119,6 +173,11 @@ import {
   resolveWordingChannelProfile,
 } from './outcomes/wording-registry.js'
 import { collectCustomerHybridIntentHints } from './intents/hybrid-intent-registry.js'
+import {
+  resolveKnowledgeNeedDecision,
+  shouldSkipKnowledgeRetrieval,
+} from './retrieval/retrieval-gate.js'
+import { reconcileResponseGroundingAudit } from './grounding/grounding-audit.js'
 
 const STOP_TOKENS = new Set([
   'de',
@@ -251,6 +310,159 @@ const normalizeText = (value) =>
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
+const normalizeUniqueTerms = (values = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .filter((entry) => typeof entry === 'string')
+        .map((entry) => normalizeText(entry))
+        .filter(Boolean),
+    ),
+  )
+
+const getTenantCatalogTerms = (tenantRuntimePolicy = null) =>
+  normalizeUniqueTerms(getVocabulary(tenantRuntimePolicy)?.catalogTerms ?? [])
+
+const getTenantBrandTokens = (tenantRuntimePolicy = null) =>
+  normalizeUniqueTerms(getVocabulary(tenantRuntimePolicy)?.brandTokens ?? [])
+
+const hasTenantBrandSignal = (value, tenantRuntimePolicy = null) => {
+  const normalizedInput = normalizeText(value)
+  if (!normalizedInput) {
+    return false
+  }
+
+  return getTenantBrandTokens(tenantRuntimePolicy).some((token) =>
+    normalizedInput.includes(token),
+  )
+}
+
+const hasTenantInstallationSignal = (value, tenantRuntimePolicy = null) =>
+  matchesBusinessRuleValue(
+    value,
+    getBusinessRules(tenantRuntimePolicy)?.installationTerms ?? [],
+  )
+
+const subjectMatchesComparableFamily = (subject, tenantRuntimePolicy = null) => {
+  const acceptedFamilies =
+    getBusinessRules(tenantRuntimePolicy)?.lightFilterComparableFamilies ?? []
+  if (!Array.isArray(acceptedFamilies) || acceptedFamilies.length === 0) {
+    return false
+  }
+
+  if (matchesBusinessRuleValue(subject, acceptedFamilies)) {
+    return true
+  }
+
+  const topicMatch = findBestPolicyTopicMatch(subject, tenantRuntimePolicy)
+  const familyLabel =
+    typeof topicMatch?.familyLabel === 'string' ? topicMatch.familyLabel : topicMatch?.label
+
+  return matchesBusinessRuleValue(familyLabel, acceptedFamilies)
+}
+
+const NATURALITY_STOPWORDS = new Set([
+  'de',
+  'la',
+  'el',
+  'los',
+  'las',
+  'y',
+  'o',
+  'que',
+  'a',
+  'en',
+  'un',
+  'una',
+  'para',
+  'con',
+  'por',
+  'si',
+  'lo',
+  'te',
+  'tu',
+  'se',
+  'me',
+  'ya',
+  'eso',
+  'esta',
+  'este',
+  'queres',
+  'querés',
+  'necesitas',
+  'necesitás',
+  'puedo',
+  'ayudo',
+  'ayudarte',
+])
+
+const extractMeaningfulTokens = (value) =>
+  Array.from(
+    new Set(
+      normalizeText(value)
+        .split(/\s+/u)
+        .filter((entry) => entry.length >= 4 && !NATURALITY_STOPWORDS.has(entry)),
+    ),
+  )
+
+const scoreNaturality = ({
+  responseText = '',
+  previousAgentText = '',
+  currentTurnText = '',
+  followUpDetected = false,
+  clarificationRequested = false,
+  previousClarificationRequested = false,
+}) => {
+  const normalizedResponse = compactText(responseText)
+  const normalizedPreviousAgent = compactText(previousAgentText)
+  const normalizedCurrentTurn = compactText(currentTurnText)
+  const penalties = []
+  let score = 100
+
+  if (!normalizedResponse) {
+    penalties.push('empty_response')
+    score -= 100
+  }
+
+  if (
+    normalizedResponse &&
+    normalizedPreviousAgent &&
+    normalizeText(normalizedResponse) === normalizeText(normalizedPreviousAgent)
+  ) {
+    penalties.push('repeated_response')
+    score -= 35
+  }
+
+  const responseTokens = extractMeaningfulTokens(normalizedResponse)
+  const previousAgentTokens = extractMeaningfulTokens(normalizedPreviousAgent)
+  const newTokens = responseTokens.filter((entry) => !previousAgentTokens.includes(entry))
+
+  if (normalizedResponse && responseTokens.length > 0 && newTokens.length === 0) {
+    penalties.push('no_new_information')
+    score -= 20
+  }
+
+  if (followUpDetected && normalizedCurrentTurn) {
+    const turnTokens = extractMeaningfulTokens(normalizedCurrentTurn)
+    const intersectsTurnContext = turnTokens.some((entry) => responseTokens.includes(entry))
+    if (!intersectsTurnContext && newTokens.length === 0) {
+      penalties.push('follow_up_context_ignored')
+      score -= 15
+    }
+  }
+
+  if (clarificationRequested && previousClarificationRequested) {
+    penalties.push('clarification_loop')
+    score -= 20
+  }
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    penalties,
+    addsNewInformation: newTokens.length > 0,
+  }
+}
+
 const sanitizeCommercialConditionTopicLabel = (value) => {
   const clean = compactText(value)
   if (!clean) {
@@ -359,7 +571,7 @@ const explicitResetRequested = (text) =>
   )
 
 const looksLikeCustomerFollowUp = (text) =>
-  /(ese mismo|esa misma|el mismo|la misma|mismo modelo|misma abertura|mismas caracteristicas|mismas características|ese modelo|esa abertura|ese producto|esa opcion|esa opción|puede venir|viene en|color negro|color blanco|incluye|tambien|también)/i.test(
+  /(ese mismo|esa misma|el mismo|la misma|mismo modelo|mismo item|misma configuracion|misma configuración|mismas caracteristicas|mismas características|ese modelo|ese item|ese producto|esa opcion|esa opción|puede venir|viene en|incluye|tambien|también)/i.test(
     String(text || ''),
   )
 
@@ -376,28 +588,6 @@ const looksLikeScheduleContinuationInput = (text) =>
     String(text || ''),
   ) ||
   /\b(podrian|podrían|pueden)\s+(pasar|venir)\b/i.test(String(text || ''))
-
-const looksLikeSupportContinuationInput = (text) => {
-  const value = String(text || '')
-  if (!value.trim()) {
-    return false
-  }
-
-  return (
-    /\b(trabajan con|manejan|sirve|se puede|pueden)\b.*\b(material|materiales|tipo|este tipo|eso|esto)\b/i.test(
-      value,
-    ) ||
-    /^(?:es|son)\s+(?:una|un|unas|unos)?\s*(?:cortina|cortinas|persiana|persianas|abertura|aberturas|ventana|ventanas|puerta|puertas|roller)\b/i.test(
-      value,
-    ) ||
-    (/\b(repar\w*|arregl\w*|service|revisi\w*)\b/i.test(value) &&
-      /\b(existent\w*|instalad\w*)\b/i.test(value)) ||
-    /\b(pueden venir a verlo|pueden verlo|venir a verlo|venir a revisarlo|venir a revisarla)\b/i.test(
-      value,
-    ) ||
-    /\b(c[oó]mo coordinamos una visita|si hace falta[, ]+\s*pueden venir)\b/i.test(value)
-  )
-}
 
 const looksLikeExplicitFaqQuestionInput = (text) => {
   const value = String(text || '').trim()
@@ -515,7 +705,7 @@ const looksLikeAdminCapabilitiesRequest = (text) =>
   )
 
 const looksLikeActionableLanguage = (text) =>
-  /\b(crear|registrar|agendar|actualizar|editar|modificar|eliminar|borrar|cancelar|marcar|publicar|archivar|cotizar|presupuesto|pedido|pago|producto|cliente|abertura|categoria|categoría|stock)\b/i.test(
+  /\b(crear|registrar|agendar|actualizar|editar|modificar|eliminar|borrar|cancelar|marcar|publicar|archivar|cotizar|presupuesto|pedido|pago|producto|cliente|item|categoria|categoría|stock)\b/i.test(
     String(text || ''),
   )
 
@@ -550,6 +740,153 @@ const resolveLightConversationKind = (text) => {
   return 'greeting'
 }
 
+const looksLikeLightClosureFollowUp = (text) => {
+  const normalized = normalizeText(text)
+  if (!normalized) {
+    return false
+  }
+
+  return (
+    /^(ok|dale|perfecto|listo|gracias|muchas gracias|saludos?|buen dia|buenos dias|buenas tardes|buenas noches|claro|bien|genial|barbaro|b[aá]rbaro)(?:\s+(ok|dale|perfecto|listo|gracias|muchas gracias|saludos?|buen dia|buenos dias|buenas tardes|buenas noches|claro|bien|genial|barbaro|b[aá]rbaro))*$/i.test(
+      normalized,
+    ) ||
+    /\b(vemos?\s+mas\s+adelante|vemos?\s+m[aá]s\s+adelante|lo\s+vemos?\s+mas\s+adelante|lo\s+vemos?\s+m[aá]s\s+adelante|por\s+ahora\s+no|por\s+ahora\s+no\s+puedo|m[aá]s\s+adelante|despu[eé]s\s+vemos|veo\s+y\s+me\s+comunico|te\s+aviso|les\s+aviso)\b/i.test(
+      normalized,
+    )
+  )
+}
+
+const looksLikeClosureContinuationResponse = (text) =>
+  /(cuando quieras retomarlo, seguimos por aca|cualquier cosa me escribis|quedo por aca)/i.test(
+    normalizeText(text),
+  )
+
+const buildClosureContinuationReply = (previousAgentText = '') =>
+  looksLikeClosureContinuationResponse(previousAgentText)
+    ? 'Dale, cualquier cosa me escribís.'
+    : 'Perfecto. Cuando quieras retomarlo, seguimos por acá.'
+
+const sanitizeLoopSubjectLabel = (value = null) => {
+  const compacted = compactText(value)
+  const normalized = normalizeText(compacted)
+  if (!normalized) {
+    return null
+  }
+
+  if (
+    /^\d+(?:[.,]\d+)?$/u.test(normalized) ||
+    /^(uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)$/u.test(normalized) ||
+    QUOTE_DETAIL_FOLLOW_UP_STOP_TOKENS.has(normalized)
+  ) {
+    return null
+  }
+
+  return compacted
+}
+
+const looksLikeGenericClarificationResponse = (text) =>
+  /no me queda totalmente claro|que necesit[aá]s resolver exactamente|quer[eé]s contarme un poco m[aá]s para orientarte mejor|contame un poco m[aá]s y lo vemos/i.test(
+    normalizeText(text),
+  )
+
+const looksLikeGenericQuoteIntakeResponse = (text) =>
+  /contame que queres cotizar|que producto te interesa|para prepararte un presupuesto|orientarte mejor con el precio/i.test(
+    normalizeText(text),
+  )
+
+const looksLikeGenericContactResponse = (text) =>
+  /tenemos atenci[oó]n por tel[eé]fono y whatsapp|te comparto el contacto por este medio|si, tenemos tel[eé]fono y whatsapp/i.test(
+    normalizeText(text),
+  )
+
+const looksLikeGenericConsultationClosureResponse = (text) =>
+  /si quieres, seguimos con tu consulta|si quer[eé]s, seguimos con tu consulta/i.test(
+    normalizeText(text),
+  )
+
+const looksLikeGenericQuoteHandoffResponse = (text) =>
+  /no tengo una configuraci[oó]n publicada con precio inmediato|le enviamos la cotizaci[oó]n a la brevedad|asesor del equipo se comunica para continuar/i.test(
+    normalizeText(text),
+  )
+
+const looksLikeAwaitingProofResponse = (text) =>
+  /cuando lo env[ií]es por ac[aá], lo tomo|cuando lo env[ií]es por ac[aá], lo dejo en seguimiento/i.test(
+    normalizeText(text),
+  )
+
+const looksLikeOperationalStatusContinuation = (text) =>
+  looksLikeScheduleContinuationInput(text) ||
+  /\b(quedaron de avisar|ya e llamado|ya he llamado|pasaran|pasarán|estoy en|los espero|las espero|te espero)\b/i.test(
+    String(text || ''),
+  )
+
+const looksLikeAmountOnlyReply = (text) =>
+  /^\s*(?:usd|uyu|\$)?\s*\d+(?:[.,]\d{1,2})?\s*(?:usd|uyu)?\s*$/iu.test(
+    String(text || '').trim(),
+  )
+
+const looksLikeAddressOrTimeReply = (text) =>
+  /\b(direcci[oó]n|zona|esq|esquina|avenida|av\.?|calle|apto|apartamento|shop|local|horario|hoy|mañana|lunes|martes|mi[eé]rcoles|miercoles|jueves|viernes|s[aá]bado|sabado|domingo|a las|pasen|ir[ií]an|volver|vuelvan)\b/i.test(
+    String(text || ''),
+  ) || /\b\d{3,5}\b/.test(String(text || ''))
+
+const QUOTE_DETAIL_FOLLOW_UP_STOP_TOKENS = new Set([
+  'si',
+  'sí',
+  'no',
+  'ok',
+  'dale',
+  'perfecto',
+  'listo',
+  'gracias',
+  'muchas',
+  'bien',
+  'claro',
+  'buen',
+  'dia',
+  'días',
+  'dias',
+])
+
+const looksLikeQuoteDetailFollowUp = (text) => {
+  const raw = String(text || '')
+  const normalized = normalizeText(raw)
+  if (!normalized || /[?¿]/u.test(raw) || looksLikeLightClosureFollowUp(raw)) {
+    return false
+  }
+
+  if (
+    looksLikeAmountOnlyReply(raw) ||
+    /\b\d{1,4}(?:[.,]\d+)?\s*[x×]\s*\d{1,4}(?:[.,]\d+)?\b/u.test(normalized) ||
+    looksLikeGenericPriceInquiry(raw) ||
+    looksLikeQuoteRequirementsQuestion(raw) ||
+    looksLikeQuoteWaitingFollowUp(raw) ||
+    looksLikeMaterialFollowUpRequest(raw) ||
+    looksLikeInformationExpansionRequest(raw) ||
+    looksLikeCommercialConditionQuestion(raw) ||
+    looksLikeOperationalStatusContinuation(raw) ||
+    looksLikeAttachmentReference(raw)
+  ) {
+    return false
+  }
+
+  const tokens = normalized.split(/\s+/u).filter(Boolean)
+  if (!tokens.length || tokens.length > 8) {
+    return false
+  }
+
+  const meaningfulTokens = tokens.filter(
+    (token) => !QUOTE_DETAIL_FOLLOW_UP_STOP_TOKENS.has(token),
+  )
+
+  return meaningfulTokens.some((token) => token.length >= 4 || /\d/u.test(token))
+}
+
+const looksLikeCoordinationAskResponse = (text) =>
+  /podemos coordinar|coordinar (?:una )?(?:visita|revision|revisión|instalacion|instalación)|zona o direcci[oó]n|d[ií]a u horario|horario te queda mejor|tel[eé]fono o mail/i.test(
+    normalizeText(text),
+  )
+
 const responseActivatesFallback = (response) =>
   Boolean(response?.needsHuman || response?.grounding?.fallbackReason)
 
@@ -583,15 +920,30 @@ const shouldPreferCustomerQuoteGuidance = ({
     return false
   }
 
+  const readiness = readInterpretationResolutionReadiness(interpretation)
+  if (!readiness || typeof readiness !== 'object') {
+    return false
+  }
+
+  if (readiness.lane !== 'quote') {
+    return false
+  }
+
+  if (readiness.answerMode === 'inform_then_guide_quote') {
+    return false
+  }
+
   const quoteContext =
     interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
       ? interpretation.quoteContext
       : null
   const hasMeasurements = Boolean(quoteContext?.measurements)
   const requiresMeasurements = Boolean(quoteContext?.requiresMeasurements)
-  const missingFields = Array.isArray(quoteContext?.missingFields)
-    ? quoteContext.missingFields.filter((entry) => typeof entry === 'string')
-    : []
+  const missingFields = Array.isArray(readiness?.missingFields)
+    ? readiness.missingFields.filter((entry) => typeof entry === 'string')
+    : Array.isArray(quoteContext?.missingFields)
+      ? quoteContext.missingFields.filter((entry) => typeof entry === 'string')
+      : []
   const completionStatus =
     typeof quoteContext?.completionStatus === 'string'
       ? quoteContext.completionStatus
@@ -601,14 +953,1402 @@ const shouldPreferCustomerQuoteGuidance = ({
     looksLikeConfiguredProductInterest(input, tenantTopicTaxonomy) ||
     quoteTopicType === 'product_variant'
 
+  if (readiness.quoteInformationFirst === true) {
+    return false
+  }
+
   return (
     looksLikeQuoteRequirementsQuestion(input) ||
     Boolean(quoteContext?.multiTopic) ||
     missingFields.length > 0 ||
+    readiness.quoteActionReady === true ||
     completionStatus === 'ready_for_handoff' ||
     (requiresMeasurements && !hasMeasurements) ||
     (hasMeasurements && !hasSpecificQuoteConfiguration)
   )
+}
+
+const composeQuoteKnowledgeFirstText = ({
+  informationText = '',
+  input = '',
+  interpretation = null,
+  tenantTopicTaxonomy = [],
+}) => {
+  const baseText = compactText(informationText)
+  if (!baseText) {
+    return baseText
+  }
+
+  const readiness = readInterpretationResolutionReadiness(interpretation)
+  const missingFields = Array.isArray(readiness?.missingFields)
+    ? readiness.missingFields.filter((entry) => typeof entry === 'string')
+    : []
+  if (
+    readiness?.lane !== 'quote' ||
+    readiness?.waitForMore === true ||
+    missingFields.length === 0
+  ) {
+    return baseText
+  }
+
+  const shouldBridgeQuoteGuidance =
+    !(
+      String(interpretation?.topic?.type || '') === 'product_variant' &&
+      normalizeText(input).split(/\s+/u).filter(Boolean).length <= 3 &&
+      readiness?.quoteSeedDetected !== true &&
+      readiness?.turnIntent !== 'customer.quote'
+    ) &&
+    !readiness?.sideQuestionSubtype &&
+    !looksLikeInformationExpansionRequest(input) &&
+    !looksLikeMaterialFollowUpRequest(input) &&
+    (
+      readiness?.quoteInformationFirst === true ||
+      readiness?.quoteSeedDetected === true ||
+      ['customer.product_info', 'customer.topic_info', 'customer.price_inquiry'].includes(
+        String(readiness?.turnIntent || ''),
+      ) ||
+      readiness?.turnIntent === 'customer.quote' ||
+      readiness?.quoteOriginThread === true
+    )
+
+  if (!shouldBridgeQuoteGuidance) {
+    return baseText
+  }
+
+  let quoteBridge = compactText(
+    buildCustomerQuoteRequestText(input, {
+      interpretation,
+      tenantTopicTaxonomy,
+    }),
+  )
+  if (!quoteBridge) {
+    return baseText
+  }
+
+  quoteBridge = quoteBridge.replace(/^(?:claro|perfecto|bien|listo)\.\s*/iu, '')
+  if (!quoteBridge) {
+    return baseText
+  }
+
+  if (normalizeText(baseText).includes(normalizeText(quoteBridge))) {
+    return baseText
+  }
+
+  const trimmedInformationText = baseText.replace(
+    /\s+Si\s+quier(?:e|é)s?,?\s+te\s+(?:cuento|ampl[ií]o|resumo|oriento|digo)[^.?!]*[.?!]?\s*$/iu,
+    '',
+  )
+
+  return compactText(`${trimmedInformationText || baseText} ${quoteBridge}`)
+}
+
+const resolveEffectiveCustomerAnswerMode = ({
+  input = '',
+  interpretation = null,
+  response = null,
+}) => {
+  const readiness = readInterpretationResolutionReadiness(interpretation)
+  const answerMode =
+    typeof readiness?.answerMode === 'string' ? readiness.answerMode : null
+  const missingFields = Array.isArray(readiness?.missingFields)
+    ? readiness.missingFields.filter((entry) => typeof entry === 'string')
+    : []
+
+  if (
+    readiness?.lane === 'quote' &&
+    response?.grounding?.grounded === true &&
+    missingFields.length > 0
+  ) {
+    return 'inform_then_guide_quote'
+  }
+
+  return answerMode || null
+}
+
+const hasActiveKnowledgeTopicAnchor = ({
+  turnInterpretation = null,
+  currentTurnText = '',
+  tenantRuntimePolicy = null,
+} = {}) => {
+  const explicitTopicAnchor = Boolean(turnInterpretation?.topic?.label)
+  const contextTopicLabel = compactText(turnInterpretation?.contextTopic?.label || '')
+  const contextTopicSource = compactText(turnInterpretation?.contextTopic?.source || '')
+  const followUpDetected = turnInterpretation?.followUp?.detected === true
+  const explicitContextTopicAnchor =
+    Boolean(contextTopicLabel) && contextTopicSource !== 'conversation_memory'
+  const carriedContextTopicAnchor = Boolean(contextTopicLabel) && followUpDetected
+  const carriedQuoteTopicAnchor =
+    followUpDetected &&
+    Boolean(
+      turnInterpretation?.quoteContext?.topicLabel ||
+        turnInterpretation?.quoteContext?.familyLabel,
+    )
+
+  return (
+    explicitTopicAnchor ||
+    explicitContextTopicAnchor ||
+    carriedContextTopicAnchor ||
+    carriedQuoteTopicAnchor ||
+    hasCatalogVocabularySignal(currentTurnText, tenantRuntimePolicy)
+  )
+}
+
+const hasActiveFactualKnowledgeAnchor = ({
+  intentKey = null,
+  turnInterpretation = null,
+  currentTurnText = '',
+  tenantRuntimePolicy = null,
+} = {}) => {
+  const readiness = readInterpretationResolutionReadiness(turnInterpretation)
+  const normalizedIntentKey = normalizeIntentKeyValue(intentKey)
+  const interpretedTurnIntentKey =
+    typeof turnInterpretation?.intent?.key === 'string'
+      ? normalizeIntentKeyValue(turnInterpretation.intent.key)
+      : null
+  const readinessTurnIntentKey =
+    typeof readiness?.turnIntent === 'string'
+      ? normalizeIntentKeyValue(readiness.turnIntent)
+      : null
+  const followUpDetected = turnInterpretation?.followUp?.detected === true
+  const topicSource = compactText(turnInterpretation?.topic?.source || '')
+  const explicitTopicAnchor =
+    Boolean(turnInterpretation?.topic?.label) &&
+    !['thread_match', 'conversation_memory'].includes(topicSource)
+  const carriedContextTopicAnchor =
+    followUpDetected &&
+    Boolean(
+      turnInterpretation?.contextTopic?.label ||
+        turnInterpretation?.quoteContext?.topicLabel ||
+        turnInterpretation?.quoteContext?.familyLabel,
+    )
+  const catalogVocabularySignal = hasCatalogVocabularySignal(
+    currentTurnText,
+    tenantRuntimePolicy,
+  )
+  const explicitInformationalIntent = [
+    'customer.product_info',
+    'customer.topic_info',
+    'customer.contact_info',
+  ].includes(
+    String(normalizedIntentKey || readinessTurnIntentKey || interpretedTurnIntentKey || ''),
+  )
+  const topicType =
+    typeof turnInterpretation?.topic?.type === 'string'
+      ? turnInterpretation.topic.type
+      : typeof turnInterpretation?.contextTopic?.type === 'string'
+        ? turnInterpretation.contextTopic.type
+        : null
+  const readinessLane = compactText(readiness?.lane || '')
+  const activeBusinessFactTopic =
+    explicitTopicAnchor && String(topicType || '') === 'business_fact'
+  const quoteSafeInformationalIntent =
+    explicitInformationalIntent &&
+    (
+      readinessLane !== 'quote' ||
+      followUpDetected ||
+      explicitTopicAnchor ||
+      catalogVocabularySignal ||
+      activeBusinessFactTopic
+    )
+
+  return (
+    explicitTopicAnchor ||
+    carriedContextTopicAnchor ||
+    quoteSafeInformationalIntent ||
+    activeBusinessFactTopic ||
+    catalogVocabularySignal
+  )
+}
+
+const RETRIEVAL_FREE_RESPONSE_CONTRACTS = new Set([
+  'ask_quote_field',
+  'guide_quote_exploration',
+  'hold_for_more_context',
+  'ask_schedule_field',
+  'ask_support_field',
+  'continue_support_resolution',
+  'light_turn',
+])
+
+const REQUIRED_RETRIEVAL_RESPONSE_CONTRACTS = new Set(['inform_then_guide_quote'])
+
+const FACTUAL_FAQ_SUBTYPES = new Set([
+  'business_hours',
+  'location',
+  'contact',
+  'availability',
+  'definition',
+])
+
+const normalizeTenantFactEntries = (values = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .filter((entry) => typeof entry === 'string')
+        .map((entry) => compactText(entry))
+        .filter(Boolean),
+    ),
+  )
+
+const hasSpecificFaqSubtype = (value) => {
+  const normalized = compactText(value).toLowerCase()
+  return Boolean(normalized) && normalized !== 'general' && normalized !== 'unknown'
+}
+
+const resolveFaqSubtypeDecisionContext = ({
+  faqSubtype = null,
+  readiness = null,
+  quoteContext = null,
+  supportContext = null,
+  scheduleContext = null,
+} = {}) => {
+  const specificFaqSubtype = hasSpecificFaqSubtype(faqSubtype) ? faqSubtype : null
+  const activeThreadLane = normalizeIntentKeyValue(readiness?.lane)
+  const hasOperationalThread =
+    ['quote', 'support', 'schedule'].includes(String(activeThreadLane || '')) &&
+    (
+      Boolean(
+        compactText(
+          readiness?.activeThreadId ||
+            readiness?.threadKey ||
+            '',
+        ),
+      ) ||
+      readiness?.followUpDetected === true ||
+      hasOperationalDecisionContext({
+        lane: activeThreadLane,
+        quoteContext,
+        supportContext,
+        scheduleContext,
+      })
+    )
+
+  if (!specificFaqSubtype) {
+    return {
+      activeThreadLane: hasOperationalThread ? activeThreadLane : null,
+      threadScopedFaqSubtype: null,
+      fallbackFaqSubtype: null,
+      belongsToActiveThread: false,
+    }
+  }
+
+  return {
+    activeThreadLane: hasOperationalThread ? activeThreadLane : null,
+    threadScopedFaqSubtype: hasOperationalThread ? specificFaqSubtype : null,
+    fallbackFaqSubtype: hasOperationalThread ? null : specificFaqSubtype,
+    belongsToActiveThread: hasOperationalThread,
+  }
+}
+
+const hasTenantBusinessFactCoverage = ({
+  tenantRuntimePolicy = null,
+  faqSubtype = null,
+  intentKey = null,
+  responseContract = null,
+  lane = null,
+} = {}) => {
+  const businessFacts = getBusinessFacts(tenantRuntimePolicy)
+  const specificFaqSubtype = hasSpecificFaqSubtype(faqSubtype) ? faqSubtype : null
+
+  if (
+    !specificFaqSubtype &&
+    ((intentKey === 'customer.contact_info' || String(lane || '') === 'contact') &&
+      ['execute_flow', 'answer_side_question', 'strict_knowledge_response'].includes(
+        String(responseContract || ''),
+      ))
+  ) {
+    return normalizeTenantFactEntries(businessFacts?.contact).length > 0
+  }
+
+  return false
+}
+
+const NON_FACTUAL_SIDE_QUESTION_RESPONSE_CONTRACTS = new Set([
+  'answer_side_question',
+  'guided_exploration',
+])
+
+const normalizeGroundingFactList = (values = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .map((entry) => compactText(entry))
+        .filter(Boolean),
+    ),
+  ).slice(0, 8)
+
+const normalizeGroundingSourceIdList = (values = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .map((entry) => compactText(entry))
+        .filter(Boolean),
+    ),
+  ).slice(0, 12)
+
+const normalizeGroundingSources = (values = []) =>
+  (Array.isArray(values) ? values : [])
+    .filter((entry) => entry && typeof entry === 'object')
+    .map((entry) => ({
+      id: compactText(entry.id || entry.documentId || ''),
+      documentId: compactText(entry.documentId || entry.id || ''),
+      title: compactText(entry.title || ''),
+      scope: compactText(entry.scope || '') || null,
+      sourceType: compactText(entry.sourceType || '') || null,
+      retrievalMode: compactText(entry.retrievalMode || '') || null,
+      score:
+        typeof entry.score === 'number' && Number.isFinite(entry.score) ? entry.score : null,
+      lexicalScore:
+        typeof entry.lexicalScore === 'number' && Number.isFinite(entry.lexicalScore)
+          ? entry.lexicalScore
+          : null,
+      chunk:
+        entry.chunk && typeof entry.chunk === 'object'
+          ? {
+              id: compactText(entry.chunk.id || '') || null,
+            }
+          : null,
+    }))
+    .filter((entry) => entry.id || entry.title || entry.sourceType)
+
+const buildRetrievalGroundingSources = (retrievalItems = [], usedSourceIds = []) => {
+  const selectedIds = new Set(normalizeGroundingSourceIdList(usedSourceIds))
+  const normalizedItems = Array.isArray(retrievalItems)
+    ? retrievalItems.filter((entry) => entry && typeof entry === 'object')
+    : []
+
+  const selectedItems =
+    selectedIds.size > 0
+      ? normalizedItems.filter((item) => {
+          const sourceId = compactText(item?.id || item?.documentId || '')
+          return sourceId && selectedIds.has(sourceId)
+        })
+      : normalizedItems.slice(0, 3)
+
+  return normalizeGroundingSources(
+    selectedItems.map((item) => ({
+      id: item.id,
+      documentId: item.documentId || item.id,
+      title: item.title,
+      scope: item.scope,
+      sourceType: item.sourceType,
+      retrievalMode:
+        typeof item.retrievalMode === 'string' ? item.retrievalMode : null,
+      score:
+        typeof item.score === 'number' && Number.isFinite(item.score) ? item.score : null,
+      lexicalScore:
+        typeof item.lexicalScore === 'number' && Number.isFinite(item.lexicalScore)
+          ? item.lexicalScore
+          : null,
+      chunk:
+        item.chunk && typeof item.chunk === 'object'
+          ? {
+              id: item.chunk.id || null,
+            }
+          : null,
+    })),
+  )
+}
+
+const buildTenantPolicyGroundingSource = ({
+  tenantKey = 'default',
+  sourceKey = 'policy',
+  title = 'Tenant policy',
+} = {}) =>
+  normalizeGroundingSources([
+    {
+      id: `tenant-policy:${compactText(tenantKey) || 'default'}:${compactText(sourceKey) || 'policy'}`,
+      documentId: null,
+      title,
+      scope: 'tenant_policy',
+      sourceType: 'tenant_policy',
+      retrievalMode: null,
+      score: null,
+      lexicalScore: null,
+    },
+  ])
+
+const buildStructuredGroundingSource = ({
+  tenantKey = 'default',
+  sourceType = 'runtime_source',
+  scope = 'runtime',
+  sourceKey = 'entry',
+  title = 'Runtime source',
+} = {}) =>
+  normalizeGroundingSources([
+    {
+      id: `${compactText(sourceType) || 'runtime_source'}:${compactText(tenantKey) || 'default'}:${compactText(sourceKey) || 'entry'}`,
+      documentId: null,
+      title,
+      scope,
+      sourceType,
+      retrievalMode: null,
+      score: null,
+      lexicalScore: null,
+    },
+  ])
+
+const extractGroundingFactsFromText = (text = '', limit = 2) =>
+  String(text || '')
+    .split(/(?<=[.!?])\s+/u)
+    .map((entry) => compactText(entry))
+    .filter(
+      (entry) =>
+        entry &&
+        entry.length >= 12 &&
+        !/^(si quer[eé]s|si quieres|if you want|¿|could you|want me to)/iu.test(entry),
+    )
+    .slice(0, limit)
+
+const buildRetrievalFaqGroundingContract = ({
+  input = '',
+  retrievalItems = [],
+  interpretation = null,
+  tenantRuntimePolicy = null,
+  paymentMethods = [],
+  text = '',
+  existing = null,
+} = {}) => {
+  const detectionInput =
+    typeof interpretation?.normalizedCurrentTurn === 'string' &&
+    interpretation.normalizedCurrentTurn.trim()
+      ? interpretation.normalizedCurrentTurn.trim()
+      : input
+  const faqSubtype = detectCustomerFaqSubtype(detectionInput, {
+    retrievalItems,
+    tenantRuntimePolicy,
+  })
+  const evidence = selectCustomerFaqEvidence({
+    input: detectionInput,
+    retrievalItems,
+    faqSubtype,
+    paymentMethods,
+    tenantRuntimePolicy,
+  })
+  const evidenceFacts = evidence.map((entry) => entry?.text).filter(Boolean)
+  const fallbackFacts = extractKnowledgeFallbackStatements(retrievalItems, {
+    input: detectionInput,
+    tenantRuntimePolicy,
+    limit: 2,
+  })
+  const usedFacts =
+    evidenceFacts.length > 0
+      ? evidenceFacts
+      : fallbackFacts.length > 0
+        ? fallbackFacts
+        : extractGroundingFactsFromText(text, 2)
+  const usedSourceIds = normalizeGroundingSourceIdList([
+    ...evidence.map((entry) => entry?.sourceId || entry?.documentId || ''),
+    ...retrievalItems
+      .slice(0, Math.max(1, usedFacts.length))
+      .map((entry) => entry?.id || entry?.documentId || ''),
+  ])
+
+  return buildGroundingContract({
+    existing,
+    knowledgeRetrieved: Array.isArray(retrievalItems) && retrievalItems.length > 0,
+    usedFacts,
+    usedSourceIds,
+    sources: buildRetrievalGroundingSources(retrievalItems, usedSourceIds),
+  })
+}
+
+const buildGroundingContract = ({
+  existing = null,
+  knowledgeRetrieved = false,
+  usedFacts = [],
+  usedSourceIds = [],
+  sources = [],
+} = {}) => {
+  const normalizedFacts = normalizeGroundingFactList(usedFacts)
+  const normalizedSources = normalizeGroundingSources(sources)
+  const normalizedSourceIds = normalizeGroundingSourceIdList([
+    ...usedSourceIds,
+    ...normalizedSources.map((entry) => entry.id).filter(Boolean),
+  ])
+  const knowledgeUsed = normalizedFacts.length > 0
+  const knowledgeGrounded = knowledgeUsed
+
+  return {
+    ...(existing && typeof existing === 'object' ? existing : {}),
+    grounded: knowledgeGrounded,
+    used: knowledgeUsed,
+    knowledgeUsed,
+    knowledgeRetrieved: Boolean(knowledgeRetrieved),
+    knowledgeGrounded,
+    usedFacts: normalizedFacts,
+    usedSourceIds: normalizedSourceIds,
+    sourceCount: normalizedSources.length,
+    sources: normalizedSources,
+    fallbackReason:
+      typeof existing?.fallbackReason === 'string' ? existing.fallbackReason : null,
+  }
+}
+
+const buildRetrievalContextSources = (retrievalContext = null) =>
+  buildRetrievalGroundingSources(retrievalContext?.items ?? [])
+
+const finalizeResponseGrounding = ({
+  response = null,
+  retrievalContext = null,
+  providerGenerationAttempted = false,
+} = {}) => {
+  const explicitGrounding =
+    response?.grounding && typeof response.grounding === 'object' ? response.grounding : {}
+  const usedFacts = normalizeGroundingFactList(explicitGrounding.usedFacts)
+  const explicitKnowledgeGrounded =
+    (typeof explicitGrounding.knowledgeGrounded === 'boolean'
+      ? explicitGrounding.knowledgeGrounded
+      : typeof explicitGrounding.grounded === 'boolean'
+        ? explicitGrounding.grounded
+        : false) && usedFacts.length > 0
+  const explicitKnowledgeUsed =
+    typeof explicitGrounding.knowledgeUsed === 'boolean'
+      ? explicitGrounding.knowledgeUsed && usedFacts.length > 0
+      : explicitGrounding.used === true
+        ? usedFacts.length > 0
+        : usedFacts.length > 0
+  const explicitKnowledgeRetrieved =
+    typeof explicitGrounding.knowledgeRetrieved === 'boolean'
+      ? explicitGrounding.knowledgeRetrieved
+      : Array.isArray(retrievalContext?.items)
+        ? retrievalContext.items.length > 0
+        : false
+  const sources =
+    Array.isArray(explicitGrounding.sources) && explicitGrounding.sources.length > 0
+      ? normalizeGroundingSources(explicitGrounding.sources)
+      : explicitKnowledgeRetrieved
+        ? buildRetrievalContextSources(retrievalContext)
+        : []
+  const usedSourceIds = normalizeGroundingSourceIdList(
+    explicitGrounding.usedSourceIds?.length ? explicitGrounding.usedSourceIds : sources.map((entry) => entry.id),
+  )
+
+  return {
+    ...explicitGrounding,
+    grounded: explicitKnowledgeGrounded,
+    used: explicitKnowledgeUsed,
+    knowledgeUsed: explicitKnowledgeUsed,
+    knowledgeRetrieved: explicitKnowledgeRetrieved,
+    knowledgeGrounded: explicitKnowledgeGrounded,
+    usedFacts,
+    usedSourceIds,
+    sourceCount:
+      typeof explicitGrounding.sourceCount === 'number' &&
+      Number.isFinite(explicitGrounding.sourceCount)
+        ? explicitGrounding.sourceCount
+        : sources.length,
+    sources,
+    fallbackReason:
+      typeof explicitGrounding.fallbackReason === 'string'
+        ? explicitGrounding.fallbackReason
+        : response?.needsHuman
+          ? 'missing_approved_context'
+          : providerGenerationAttempted &&
+              explicitKnowledgeRetrieved !== true &&
+              (Array.isArray(response?.toolCalls) ? response.toolCalls.length === 0 : true) &&
+              explicitKnowledgeGrounded !== true
+            ? 'missing_approved_context'
+            : null,
+  }
+}
+
+const CUSTOMER_LANE_ACTIVE_INTENT_KEYS = Object.freeze({
+  quote: 'customer.quote',
+  support: 'customer.support_request',
+  schedule: 'customer.schedule_request',
+  contact: 'customer.contact_info',
+  business_info: 'customer.topic_info',
+})
+
+const CUSTOMER_TURN_INTENT_PRESERVATION_KEYS = new Set([
+  'customer.other',
+  'customer.light',
+  'customer.clarify_request',
+  'customer.rephrase_request',
+  'customer.incomplete',
+  'customer.contact_info',
+  'customer.order_status',
+  'customer.auth_required',
+  'customer.owned_document_request',
+  'customer.private_account_data',
+  'customer.multi_intent',
+  'customer.confirmation',
+  'customer.cancellation',
+  'customer.frustration',
+  'customer.sensitive',
+  'customer.out_of_scope',
+])
+
+const CUSTOMER_FLOW_CARRYOVER_ANSWER_MODES = new Set([
+  'hold_for_more_context',
+  'ask_quote_field',
+  'quote_ready',
+  'ask_support_field',
+  'continue_support_resolution',
+  'ask_schedule_field',
+  'confirm_schedule',
+  'ask_next_useful_field',
+  'execute_flow',
+])
+
+const CUSTOMER_EXPLORATION_INTENT_KEYS = new Set([
+  'customer.product_info',
+  'customer.topic_info',
+  'customer.price_inquiry',
+])
+
+const CUSTOMER_PURE_EXPLORATION_INTENT_KEYS = new Set([
+  'customer.product_info',
+  'customer.topic_info',
+])
+
+const CUSTOMER_OPERATIONAL_INTENT_KEYS = new Set([
+  'customer.quote',
+  'customer.support_request',
+  'customer.schedule_request',
+  'customer.contact_info',
+  'customer.order_status',
+  'customer.auth_required',
+  'customer.owned_document_request',
+  'customer.private_account_data',
+])
+
+const normalizeIntentKeyValue = (value) => {
+  if (typeof value !== 'string') {
+    return null
+  }
+
+  const normalized = value.trim()
+  if (!normalized.length || normalized === 'unknown') {
+    return null
+  }
+
+  return normalized
+}
+
+const readConversationActiveLane = (conversationContext = null) => {
+  if (
+    conversationContext?.resolutionReadiness &&
+    typeof conversationContext.resolutionReadiness === 'object' &&
+    typeof conversationContext.resolutionReadiness.lane === 'string' &&
+    conversationContext.resolutionReadiness.lane.trim()
+  ) {
+    return conversationContext.resolutionReadiness.lane.trim()
+  }
+
+  if (
+    typeof conversationContext?.activeLane === 'string' &&
+    conversationContext.activeLane.trim()
+  ) {
+    return conversationContext.activeLane.trim()
+  }
+
+  if (
+    typeof conversationContext?.activeDomain === 'string' &&
+    conversationContext.activeDomain.trim()
+  ) {
+    return conversationContext.activeDomain.trim()
+  }
+
+  return null
+}
+
+const hasConcreteSchedulePayload = (scheduleContext = null) =>
+  Boolean(
+    scheduleContext?.startAt ||
+      scheduleContext?.address ||
+      scheduleContext?.contactPhone ||
+      scheduleContext?.contactEmail ||
+      scheduleContext?.date?.dateLabel ||
+      scheduleContext?.time?.timeLabel,
+  )
+
+const hasQuoteDecisionContext = (quoteContext = null) =>
+  Boolean(
+    quoteContext &&
+      (
+        typeof quoteContext?.topicLabel === 'string' ||
+        typeof quoteContext?.familyLabel === 'string' ||
+        Boolean(quoteContext?.measurements) ||
+        (Array.isArray(quoteContext?.measurementItems) &&
+          quoteContext.measurementItems.length > 0) ||
+        Number(quoteContext?.quantity?.total || 0) > 0 ||
+        (quoteContext?.capturedAttributes &&
+          typeof quoteContext.capturedAttributes === 'object' &&
+          Object.keys(quoteContext.capturedAttributes).length > 0)
+      ),
+  )
+
+const hasSupportDecisionContext = (supportContext = null) =>
+  Boolean(
+    supportContext &&
+      (
+        typeof supportContext?.productType === 'string' ||
+        typeof supportContext?.issueSummary === 'string' ||
+        typeof supportContext?.address === 'string' ||
+        Boolean(supportContext?.preferredDate?.dateLabel) ||
+        Boolean(supportContext?.preferredTime?.timeLabel) ||
+        Boolean(supportContext?.wantsVisit)
+      ),
+  )
+
+const hasScheduleDecisionContext = (scheduleContext = null) =>
+  Boolean(
+    scheduleContext &&
+      (
+        typeof scheduleContext?.address === 'string' ||
+        Boolean(scheduleContext?.date?.dateLabel) ||
+        Boolean(scheduleContext?.time?.timeLabel) ||
+        typeof scheduleContext?.contactPhone === 'string' ||
+        typeof scheduleContext?.contactEmail === 'string'
+      ),
+  )
+
+const getOperationalContextForLane = ({
+  lane = null,
+  quoteContext = null,
+  supportContext = null,
+  scheduleContext = null,
+} = {}) => {
+  if (lane === 'quote') {
+    return quoteContext
+  }
+  if (lane === 'support') {
+    return supportContext
+  }
+  if (lane === 'schedule') {
+    return scheduleContext
+  }
+  return null
+}
+
+const hasOperationalDecisionContext = ({
+  lane = null,
+  quoteContext = null,
+  supportContext = null,
+  scheduleContext = null,
+} = {}) => {
+  if (lane === 'quote') {
+    return hasQuoteDecisionContext(quoteContext)
+  }
+  if (lane === 'support') {
+    return hasSupportDecisionContext(supportContext)
+  }
+  if (lane === 'schedule') {
+    return hasScheduleDecisionContext(scheduleContext)
+  }
+  return false
+}
+
+const getOperationalAnswerModeForLane = (lane = null, nextUsefulField = null) => {
+  if (lane === 'quote') {
+    return nextUsefulField ? 'ask_quote_field' : 'quote_ready'
+  }
+  if (lane === 'support') {
+    return nextUsefulField ? 'ask_support_field' : 'continue_support_resolution'
+  }
+  if (lane === 'schedule') {
+    return nextUsefulField ? 'ask_schedule_field' : 'confirm_schedule'
+  }
+  return null
+}
+
+const getOperationalMissingFieldsForLane = ({
+  lane = null,
+  quoteContext = null,
+  supportContext = null,
+  scheduleContext = null,
+  conversationState = null,
+} = {}) => {
+  const context = getOperationalContextForLane({
+    lane,
+    quoteContext,
+    supportContext,
+    scheduleContext,
+  })
+  const rawMissingFields = Array.isArray(context?.missingFields)
+    ? context.missingFields.filter((entry) => typeof entry === 'string')
+    : []
+
+  return filterResolvedConversationFields({
+    missingFields: rawMissingFields,
+    conversationState,
+  })
+}
+
+const chooseNextMissingFieldForDecision = ({
+  requestedField = null,
+  missingFields = [],
+  conversationState = null,
+  avoidLastAskedSlot = true,
+} = {}) => {
+  const normalizedMissingFields = (Array.isArray(missingFields) ? missingFields : []).filter(
+    (field) => typeof field === 'string' && field.trim(),
+  )
+  const preferredField = resolveNextConversationField({
+    requestedField,
+    missingFields: normalizedMissingFields,
+    conversationState,
+  })
+  const lastAskedSlot =
+    avoidLastAskedSlot && typeof conversationState?.lastAskedSlot === 'string'
+      ? conversationState.lastAskedSlot
+      : null
+
+  if (!preferredField || !lastAskedSlot || normalizedMissingFields.length <= 1) {
+    return preferredField || normalizedMissingFields[0] || null
+  }
+
+  const preferredSlot = mapConversationFieldToSlot(preferredField, conversationState)
+  if (preferredSlot !== lastAskedSlot) {
+    return preferredField
+  }
+
+  const alternativeField =
+    normalizedMissingFields.find((field) => {
+      if (isConversationFieldResolved(field, conversationState)) {
+        return false
+      }
+      const slotKey = mapConversationFieldToSlot(field, conversationState)
+      return !slotKey || slotKey !== lastAskedSlot
+    }) || null
+
+  return alternativeField || preferredField
+}
+
+const GENERIC_NON_PROGRESS_ANSWER_MODES = new Set([
+  'guided_exploration',
+  'guide_quote_exploration',
+  'ask_clarification',
+  'hold_for_more_context',
+])
+
+const applyPreResponseDecisionGuards = ({
+  readiness = null,
+  previousConversationContext = null,
+  previousActiveThreadKey = null,
+  threadResolution = null,
+  quoteContext = null,
+  supportContext = null,
+  scheduleContext = null,
+  conversationState = null,
+} = {}) => {
+  if (!readiness || typeof readiness !== 'object') {
+    return readiness
+  }
+
+  const previousLane = normalizeIntentKeyValue(
+    readConversationActiveLane(previousConversationContext),
+  )
+  const previousReadiness =
+    previousConversationContext?.resolutionReadiness &&
+    typeof previousConversationContext.resolutionReadiness === 'object'
+      ? previousConversationContext.resolutionReadiness
+      : null
+  const activeThreadId =
+    compactText(
+      threadResolution?.activeThreadKey ||
+        readiness?.threadKey ||
+        previousConversationContext?.threadKey ||
+        previousReadiness?.threadKey ||
+        previousActiveThreadKey ||
+        '',
+    ) || null
+  const hasCurrentOperationalContext = (lane) =>
+    hasOperationalDecisionContext({
+      lane,
+      quoteContext,
+      supportContext,
+      scheduleContext,
+    })
+  const hasOperationalThreadToResume = ['quote', 'support', 'schedule'].includes(
+    String(previousLane || ''),
+  )
+  let lane = normalizeIntentKeyValue(readiness?.lane) || previousLane || null
+  if (
+    hasOperationalThreadToResume &&
+    (
+      !['quote', 'support', 'schedule'].includes(String(lane || '')) ||
+      (lane !== previousLane && hasCurrentOperationalContext(previousLane))
+    ) &&
+    (readiness?.followUpDetected === true ||
+      activeThreadId ||
+      hasCurrentOperationalContext(previousLane))
+  ) {
+    lane = previousLane
+  }
+
+  const missingFields = getOperationalMissingFieldsForLane({
+    lane,
+    quoteContext,
+    supportContext,
+    scheduleContext,
+    conversationState,
+  })
+  const requestedField =
+    compactText(
+      readiness?.resumePointer ||
+        readiness?.nextUsefulField ||
+        previousConversationContext?.resumePointer ||
+        previousReadiness?.nextUsefulField ||
+        '',
+    ) || null
+  let nextUsefulField = chooseNextMissingFieldForDecision({
+    requestedField,
+    missingFields,
+    conversationState,
+  })
+  let answerMode =
+    typeof readiness?.answerMode === 'string' && readiness.answerMode.trim()
+      ? readiness.answerMode.trim()
+      : null
+  const operationalAnswerMode = getOperationalAnswerModeForLane(lane, nextUsefulField)
+  const hasOperationalThread =
+    ['quote', 'support', 'schedule'].includes(String(lane || '')) &&
+    (Boolean(activeThreadId) ||
+      hasCurrentOperationalContext(lane) ||
+      hasOperationalThreadToResume)
+
+  if (
+    /^ask_/.test(String(answerMode || '')) &&
+    nextUsefulField &&
+    isConversationFieldResolved(nextUsefulField, conversationState)
+  ) {
+    nextUsefulField = chooseNextMissingFieldForDecision({
+      requestedField: null,
+      missingFields,
+      conversationState,
+    })
+  }
+
+  if (/^ask_/.test(String(answerMode || '')) && !nextUsefulField) {
+    answerMode = operationalAnswerMode
+  } else if (
+    hasOperationalThread &&
+    GENERIC_NON_PROGRESS_ANSWER_MODES.has(String(answerMode || ''))
+  ) {
+    answerMode = operationalAnswerMode
+  }
+
+  if (!answerMode && operationalAnswerMode) {
+    answerMode = operationalAnswerMode
+  }
+
+  return {
+    ...readiness,
+    lane: lane || readiness?.lane || null,
+    missingFields,
+    nextUsefulField,
+    answerMode,
+    threadKey: activeThreadId || readiness?.threadKey || null,
+    activeThreadId,
+    activeIntent:
+      (lane && CUSTOMER_LANE_ACTIVE_INTENT_KEYS[lane]) || readiness?.turnIntent || null,
+    resumePointer:
+      nextUsefulField ||
+      requestedField ||
+      (typeof readiness?.resumePointer === 'string' ? readiness.resumePointer : null),
+  }
+}
+
+const projectOperationalContextsForDecision = ({
+  readiness = null,
+  quoteContext = null,
+  supportContext = null,
+  scheduleContext = null,
+  conversationState = null,
+} = {}) => {
+  const lane = normalizeIntentKeyValue(readiness?.lane)
+  const answerMode = normalizeIntentKeyValue(readiness?.answerMode)
+  const nextUsefulField =
+    typeof readiness?.nextUsefulField === 'string' && readiness.nextUsefulField.trim()
+      ? readiness.nextUsefulField.trim()
+      : null
+
+  const projectContext = (context, { emptyOnResolved = false } = {}) => {
+    if (!context || typeof context !== 'object') {
+      return context
+    }
+
+    const normalizedMissingFields = filterResolvedConversationFields({
+      missingFields: Array.isArray(context?.missingFields) ? context.missingFields : [],
+      conversationState,
+    })
+
+    let projectedMissingFields = normalizedMissingFields
+    if (nextUsefulField && /^ask_/.test(String(answerMode || ''))) {
+      projectedMissingFields = normalizedMissingFields.includes(nextUsefulField)
+        ? [nextUsefulField]
+        : normalizedMissingFields
+    } else if (emptyOnResolved) {
+      projectedMissingFields = []
+    }
+
+    const projectedMissingAttributes = Array.isArray(context?.missingAttributes)
+      ? context.missingAttributes.filter(
+          (entry) =>
+            entry &&
+            typeof entry === 'object' &&
+            projectedMissingFields.includes(String(entry.key || '').trim()),
+        )
+      : Array.isArray(context?.requiredAttributes)
+        ? context.requiredAttributes.filter(
+            (entry) =>
+              entry &&
+              typeof entry === 'object' &&
+              projectedMissingFields.includes(String(entry.key || '').trim()),
+          )
+        : []
+
+    return {
+      ...context,
+      missingFields: projectedMissingFields,
+      missingAttributes: projectedMissingAttributes,
+      nextUsefulField,
+    }
+  }
+
+  return {
+    quoteContext:
+      lane === 'quote'
+        ? (() => {
+            const projected = projectContext(quoteContext, {
+              emptyOnResolved: answerMode === 'quote_ready',
+            })
+            if (!projected || typeof projected !== 'object') {
+              return projected
+            }
+            if (answerMode !== 'quote_ready') {
+              return projected
+            }
+            return {
+              ...projected,
+              completionStatus:
+                typeof projected.completionStatus === 'string' &&
+                projected.completionStatus.trim()
+                  ? projected.completionStatus
+                  : 'ready_for_handoff',
+            }
+          })()
+        : quoteContext,
+    supportContext:
+      lane === 'support'
+        ? projectContext(supportContext, {
+            emptyOnResolved: answerMode === 'continue_support_resolution',
+          })
+        : supportContext,
+    scheduleContext:
+      lane === 'schedule'
+        ? projectContext(scheduleContext, {
+            emptyOnResolved: answerMode === 'confirm_schedule',
+          })
+        : scheduleContext,
+  }
+}
+
+const resolveCustomerActiveIntentKeyFromReadiness = ({
+  role,
+  turnIntentKey = null,
+  readiness = null,
+}) => {
+  const normalizedTurnIntentKey = normalizeIntentKeyValue(turnIntentKey)
+
+  if (!(role === 'customer_public' || role === 'customer_authenticated')) {
+    return normalizedTurnIntentKey || 'unknown'
+  }
+
+  if (!readiness || typeof readiness !== 'object') {
+    return normalizedTurnIntentKey || 'unknown'
+  }
+
+  const readinessLane = normalizeIntentKeyValue(readiness.lane)
+  const laneIntentKey = readinessLane
+    ? CUSTOMER_LANE_ACTIVE_INTENT_KEYS[readinessLane] || null
+    : null
+  const answerMode = normalizeIntentKeyValue(readiness.answerMode)
+  const waitForMoreReasons = Array.isArray(readiness?.waitForMoreReasons)
+    ? readiness.waitForMoreReasons.filter((entry) => typeof entry === 'string')
+    : []
+  const hasStructuredQuoteSignal =
+    readiness?.quoteStructuredContext === true ||
+    readiness?.quoteActionReady === true ||
+    Number(readiness?.knownFacts?.quantity || 0) > 0 ||
+    typeof readiness?.knownFacts?.measurements === 'string'
+  const hasQuoteFragmentCarryover = waitForMoreReasons.some(
+    (reason) =>
+      reason === 'quote_related_fragment' || String(reason).startsWith('quote_missing_'),
+  )
+  const shortQuoteSeedWait =
+    waitForMoreReasons.length > 0 &&
+    waitForMoreReasons.every((reason) => reason === 'short_quote_seed')
+  const hasQuoteContinuationSignal =
+    readiness?.quoteOriginThread === true ||
+    readiness?.quoteSeedDetected === true ||
+    hasStructuredQuoteSignal ||
+    hasQuoteFragmentCarryover
+  const previousIntentWasQuote = readiness?.previousIntentWasQuote === true
+  const previousQuoteDisambiguationPending =
+    readiness?.previousQuoteDisambiguationPending === true
+  const resetCueDetected = readiness?.resetCueDetected === true
+  const topicOnlyExplorationTurn =
+    readiness?.quoteTopicOnlyTurn === true ||
+    readiness?.quoteTopicOnlyTurnText === true
+  const canIgnoreInheritedQuoteStructure =
+    CUSTOMER_PURE_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || '')) &&
+    previousIntentWasQuote !== true &&
+    topicOnlyExplorationTurn
+  const canPreserveExploratoryIntent =
+    CUSTOMER_PURE_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || '')) ||
+    (
+      normalizedTurnIntentKey === 'customer.price_inquiry' &&
+      previousIntentWasQuote !== true &&
+      previousQuoteDisambiguationPending !== true
+    )
+  const shouldDowngradeWeakQuoteTurn =
+    readinessLane === 'quote' &&
+    normalizedTurnIntentKey === 'customer.quote' &&
+    readiness?.quoteOriginThread !== true &&
+    readiness?.quoteSeedDetected !== true &&
+    !hasStructuredQuoteSignal &&
+    !hasQuoteFragmentCarryover &&
+    readiness?.requiresDisambiguation !== true &&
+    readiness?.quoteMultiTopic !== true &&
+    (
+      String(answerMode || '') === 'guide_quote_exploration' ||
+      shortQuoteSeedWait ||
+      readiness?.quoteTopicOnlyTurn === true ||
+      readiness?.quoteTopicOnlyTurnText === true
+    )
+  const isOperationalContinuation =
+    Boolean(laneIntentKey) &&
+    ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
+    (
+      readinessLane === 'quote'
+        ? hasQuoteContinuationSignal &&
+          (
+            CUSTOMER_FLOW_CARRYOVER_ANSWER_MODES.has(String(answerMode || '')) ||
+            readiness?.followUpDetected === true ||
+            (
+              typeof readiness?.threadKey === 'string' &&
+              readiness.threadKey.trim()
+            )
+          )
+        : CUSTOMER_FLOW_CARRYOVER_ANSWER_MODES.has(String(answerMode || '')) ||
+          readiness?.followUpDetected === true ||
+          (
+            typeof readiness?.threadKey === 'string' &&
+            readiness.threadKey.trim() &&
+            (readinessLane !== 'quote' || hasStructuredQuoteSignal)
+          )
+    )
+  const shouldPreserveQuoteExplorationIntent =
+    readinessLane === 'quote' &&
+    canPreserveExploratoryIntent &&
+    (!hasStructuredQuoteSignal || canIgnoreInheritedQuoteStructure) &&
+    !hasQuoteFragmentCarryover &&
+    readiness?.requiresDisambiguation !== true &&
+    readiness?.quoteMultiTopic !== true &&
+    previousQuoteDisambiguationPending !== true &&
+    (
+      resetCueDetected ||
+      readiness?.quoteInformationFirst === true ||
+      topicOnlyExplorationTurn ||
+      shortQuoteSeedWait ||
+      String(answerMode || '') === 'guide_quote_exploration'
+    ) &&
+    (
+      previousIntentWasQuote !== true ||
+      resetCueDetected
+    )
+  const shouldElevateDisambiguatedQuoteTurn =
+    readiness?.requiresDisambiguation === true &&
+    CUSTOMER_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || '')) &&
+    (
+      hasQuoteContinuationSignal
+    )
+  const shouldPreserveTurnIntent =
+    CUSTOMER_TURN_INTENT_PRESERVATION_KEYS.has(String(normalizedTurnIntentKey || '')) &&
+    !(
+      readinessLane === 'quote' &&
+      hasQuoteContinuationSignal &&
+      ['customer.clarify_request', 'customer.other', 'customer.incomplete'].includes(
+        String(normalizedTurnIntentKey || ''),
+      )
+    )
+  const isWeakGenericTurnIntent = ['customer.other', 'customer.incomplete', 'unknown', null].includes(
+    normalizedTurnIntentKey,
+  )
+
+  if (normalizedTurnIntentKey === 'customer.multi_intent') {
+    return normalizedTurnIntentKey
+  }
+
+  if (
+    readiness?.supportThreadPresent === true &&
+    typeof readiness?.knownFacts?.supportIssue === 'string' &&
+    (
+      normalizedTurnIntentKey === 'customer.support_request' ||
+      normalizeIntentKeyValue(readiness?.turnIntent) === 'customer.support_request'
+    )
+  ) {
+    return 'customer.support_request'
+  }
+
+  if (shouldDowngradeWeakQuoteTurn) {
+    return 'customer.product_info'
+  }
+
+  if (
+    readiness?.quoteThreadPresent === true &&
+    readiness?.artifactTurn === true &&
+    ['customer.incomplete', 'customer.other', 'unknown', null].includes(
+      normalizedTurnIntentKey,
+    )
+  ) {
+    return 'customer.quote'
+  }
+
+  if (readinessLane === 'quote' && laneIntentKey) {
+    if (CUSTOMER_OPERATIONAL_INTENT_KEYS.has(String(normalizedTurnIntentKey || ''))) {
+      return normalizedTurnIntentKey
+    }
+    if (shouldElevateDisambiguatedQuoteTurn) {
+      return laneIntentKey
+    }
+    if (shouldPreserveQuoteExplorationIntent) {
+      return normalizedTurnIntentKey
+    }
+    if (
+      (isOperationalContinuation ||
+        hasQuoteFragmentCarryover ||
+        readiness?.quoteSeedDetected === true ||
+        readiness?.artifactTurn === true) &&
+      !readiness?.sideQuestionSubtype &&
+      (
+        isWeakGenericTurnIntent ||
+        shouldPreserveTurnIntent ||
+        CUSTOMER_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || ''))
+      )
+    ) {
+      return laneIntentKey
+    }
+  }
+
+  if (
+    readinessLane === 'support' &&
+    laneIntentKey &&
+    CUSTOMER_OPERATIONAL_INTENT_KEYS.has(String(normalizedTurnIntentKey || ''))
+  ) {
+    return normalizedTurnIntentKey
+  }
+
+  if (
+    readinessLane === 'support' &&
+    laneIntentKey &&
+    isOperationalContinuation &&
+    !readiness?.sideQuestionSubtype &&
+    (
+      normalizedTurnIntentKey == null ||
+      shouldPreserveTurnIntent
+    )
+  ) {
+    return laneIntentKey
+  }
+
+  if (
+    readiness?.supportThreadPresent === true &&
+    readiness?.artifactTurn === true &&
+    ['customer.schedule_request', 'customer.incomplete', 'customer.other', null].includes(
+      normalizedTurnIntentKey,
+    )
+  ) {
+    return 'customer.support_request'
+  }
+
+  if (
+    readinessLane === 'schedule' &&
+    laneIntentKey &&
+    readiness?.quoteThreadPresent === true &&
+    hasStructuredQuoteSignal &&
+    readiness?.scheduleTurnSignals !== true &&
+    (
+      readiness?.artifactTurn === true ||
+      readiness?.followUpDetected === true
+    ) &&
+    ['customer.schedule_request', 'customer.incomplete', 'customer.other', null].includes(
+      normalizedTurnIntentKey,
+    )
+  ) {
+    return 'customer.quote'
+  }
+
+  if (
+    readinessLane === 'schedule' &&
+    laneIntentKey &&
+    CUSTOMER_OPERATIONAL_INTENT_KEYS.has(String(normalizedTurnIntentKey || ''))
+  ) {
+    return normalizedTurnIntentKey
+  }
+
+  if (
+    readinessLane === 'schedule' &&
+    laneIntentKey &&
+    isOperationalContinuation &&
+    !readiness?.sideQuestionSubtype &&
+    (
+      normalizedTurnIntentKey == null ||
+      shouldPreserveTurnIntent
+    )
+  ) {
+    return laneIntentKey
+  }
+
+  if (
+    readiness?.sideQuestionSubtype &&
+    laneIntentKey &&
+    ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
+    (
+      typeof readiness?.activeThreadId === 'string' ||
+      typeof readiness?.threadKey === 'string' ||
+      readiness?.followUpDetected === true
+    )
+  ) {
+    return laneIntentKey
+  }
+
+  if (
+    answerMode === 'answer_side_question' &&
+    laneIntentKey &&
+    ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
+    (
+      typeof readiness?.activeThreadId === 'string' ||
+      typeof readiness?.threadKey === 'string' ||
+      readiness?.followUpDetected === true
+    ) &&
+    !shouldPreserveTurnIntent
+  ) {
+    return laneIntentKey
+  }
+
+  if (
+    readiness?.sideQuestionSubtype ||
+    answerMode === 'answer_side_question' ||
+    readiness?.mode === 'small_talk' ||
+    readiness?.mode === 'unclear' ||
+    shouldPreserveTurnIntent
+  ) {
+    return normalizedTurnIntentKey || laneIntentKey || 'unknown'
+  }
+
+  if (
+    laneIntentKey &&
+    CUSTOMER_FLOW_CARRYOVER_ANSWER_MODES.has(String(answerMode || ''))
+  ) {
+    return laneIntentKey
+  }
+
+  return normalizedTurnIntentKey || laneIntentKey || 'unknown'
 }
 
 const parsePositiveInteger = (value) => {
@@ -839,7 +2579,7 @@ const classifyProviderFailure = (error) => {
   }
 }
 
-const deriveIntentKey = (role, input, actionIntent) => {
+const deriveIntentKey = (role, input, actionIntent, tenantRuntimePolicy = null) => {
   if (actionIntent?.key) {
     return actionIntent.key
   }
@@ -853,8 +2593,8 @@ const deriveIntentKey = (role, input, actionIntent) => {
     if (looksLikeLightConversation(normalized)) {
       return 'admin.light'
     }
-    if (/(abertura|aberturas|corrediza|batiente|dvh|monoblock|paño fijo|pano fijo)/.test(normalized)) {
-      return 'aberturas.parse'
+    if (hasStructuredCatalogSignal(normalized, tenantRuntimePolicy)) {
+      return STRUCTURED_CATALOG_PARSE_INTENT
     }
     if (/(cliente|correo|telefono|direccion|dirección)/.test(normalized)) {
       return 'customers.manage'
@@ -1069,9 +2809,6 @@ const sanitizeQuoteContextForAudit = (quoteContext = null) => {
               .filter(([, value]) => Boolean(value)),
           )
         : {},
-    series: typeof quoteContext.series === 'string' ? quoteContext.series : null,
-    glass: typeof quoteContext.glass === 'string' ? quoteContext.glass : null,
-    color: typeof quoteContext.color === 'string' ? quoteContext.color : null,
   }
 }
 
@@ -1187,6 +2924,12 @@ const sanitizeConversationContextForAudit = (conversationContext = null) => {
     return null
   }
 
+  const resolutionReadiness =
+    conversationContext?.resolutionReadiness &&
+    typeof conversationContext.resolutionReadiness === 'object'
+      ? conversationContext.resolutionReadiness
+      : null
+
   return {
     mode: typeof conversationContext.mode === 'string' ? conversationContext.mode : null,
     activeDomain:
@@ -1202,6 +2945,11 @@ const sanitizeConversationContextForAudit = (conversationContext = null) => {
         ? conversationContext.nextUsefulField
         : null,
     waitForMore: Boolean(conversationContext.waitForMore),
+    waitForMoreReasons: Array.isArray(conversationContext.waitForMoreReasons)
+      ? conversationContext.waitForMoreReasons
+          .filter((entry) => typeof entry === 'string')
+          .slice(0, 8)
+      : [],
     topicLabel:
       typeof conversationContext.topicLabel === 'string'
         ? conversationContext.topicLabel
@@ -1215,6 +2963,12 @@ const sanitizeConversationContextForAudit = (conversationContext = null) => {
         ? conversationContext.confidence
         : null,
     followUpDetected: Boolean(conversationContext.followUpDetected),
+    quoteStage:
+      typeof conversationContext.quoteStage === 'string'
+        ? conversationContext.quoteStage
+        : null,
+    quoteActionReady: Boolean(conversationContext.quoteActionReady),
+    quoteInformationFirst: Boolean(conversationContext.quoteInformationFirst),
     threadKey:
       typeof conversationContext.threadKey === 'string'
         ? conversationContext.threadKey
@@ -1225,6 +2979,946 @@ const sanitizeConversationContextForAudit = (conversationContext = null) => {
       !Array.isArray(conversationContext.knownFacts)
         ? conversationContext.knownFacts
         : {},
+    resolutionReadiness: resolutionReadiness
+      ? {
+          lane:
+            typeof resolutionReadiness.lane === 'string'
+              ? resolutionReadiness.lane
+              : null,
+          turnIntent:
+            typeof resolutionReadiness.turnIntent === 'string'
+              ? resolutionReadiness.turnIntent
+              : null,
+          waitForMore: Boolean(resolutionReadiness.waitForMore),
+          waitForMoreReasons: Array.isArray(resolutionReadiness.waitForMoreReasons)
+            ? resolutionReadiness.waitForMoreReasons
+                .filter((entry) => typeof entry === 'string')
+                .slice(0, 8)
+            : [],
+          missingFields: Array.isArray(resolutionReadiness.missingFields)
+            ? resolutionReadiness.missingFields
+                .filter((entry) => typeof entry === 'string')
+                .slice(0, 8)
+            : [],
+          nextUsefulField:
+            typeof resolutionReadiness.nextUsefulField === 'string'
+              ? resolutionReadiness.nextUsefulField
+              : null,
+          answerMode:
+            typeof resolutionReadiness.answerMode === 'string'
+              ? resolutionReadiness.answerMode
+              : null,
+          sideQuestionSubtype:
+            typeof resolutionReadiness.sideQuestionSubtype === 'string'
+              ? resolutionReadiness.sideQuestionSubtype
+              : null,
+          threadKey:
+            typeof resolutionReadiness.threadKey === 'string'
+              ? resolutionReadiness.threadKey
+              : null,
+          activeThreadId:
+            typeof resolutionReadiness.activeThreadId === 'string'
+              ? resolutionReadiness.activeThreadId
+              : null,
+          activeIntent:
+            typeof resolutionReadiness.activeIntent === 'string'
+              ? resolutionReadiness.activeIntent
+              : null,
+        }
+      : null,
+    conversationState: sanitizeConversationStateForAudit(
+      conversationContext?.conversationState || null,
+    ),
+  }
+}
+
+const sanitizeConversationStateForAudit = (conversationState = null) => {
+  if (!conversationState || typeof conversationState !== 'object') {
+    return null
+  }
+
+  const sanitizeSlot = (entry, key) => {
+    if (!entry || typeof entry !== 'object') {
+      return key === 'quantity'
+        ? { value: null }
+        : key === 'address'
+          ? { value: null, source: null }
+          : { value: null }
+    }
+
+    return key === 'quantity'
+      ? {
+          value:
+            typeof entry.value === 'number' && Number.isFinite(entry.value)
+              ? entry.value
+              : null,
+        }
+      : key === 'address'
+        ? {
+            value:
+              typeof entry.value === 'string' && entry.value.trim()
+                ? entry.value
+                : null,
+            source:
+              typeof entry.source === 'string' && entry.source.trim()
+                ? entry.source
+                : null,
+          }
+        : {
+            value:
+              typeof entry.value === 'string' && entry.value.trim()
+                ? entry.value
+                : null,
+          }
+  }
+
+  return {
+    lane:
+      typeof conversationState.lane === 'string' ? conversationState.lane : null,
+    intent:
+      conversationState.intent && typeof conversationState.intent === 'object'
+        ? {
+            key:
+              typeof conversationState.intent.key === 'string'
+                ? conversationState.intent.key
+                : null,
+            confidence:
+              typeof conversationState.intent.confidence === 'number'
+                ? conversationState.intent.confidence
+                : null,
+          }
+        : null,
+    slots:
+      conversationState.slots && typeof conversationState.slots === 'object'
+        ? {
+            address: sanitizeSlot(conversationState.slots.address, 'address'),
+            date: sanitizeSlot(conversationState.slots.date, 'date'),
+            time: sanitizeSlot(conversationState.slots.time, 'time'),
+            product: sanitizeSlot(conversationState.slots.product, 'product'),
+            dimensions: sanitizeSlot(conversationState.slots.dimensions, 'dimensions'),
+            quantity: sanitizeSlot(conversationState.slots.quantity, 'quantity'),
+          }
+        : null,
+    slotStatus:
+      conversationState.slotStatus && typeof conversationState.slotStatus === 'object'
+        ? {
+            missing: Array.isArray(conversationState.slotStatus.missing)
+              ? conversationState.slotStatus.missing.filter(
+                  (entry) => typeof entry === 'string',
+                )
+              : [],
+            completed: Array.isArray(conversationState.slotStatus.completed)
+              ? conversationState.slotStatus.completed.filter(
+                  (entry) => typeof entry === 'string',
+                )
+              : [],
+          }
+        : null,
+    tenant:
+      conversationState.tenant && typeof conversationState.tenant === 'object'
+        ? {
+            slots:
+              conversationState.tenant.slots &&
+              typeof conversationState.tenant.slots === 'object'
+                ? Object.fromEntries(
+                    Object.entries(conversationState.tenant.slots)
+                      .filter(([key]) => typeof key === 'string' && key.trim())
+                      .map(([key, value]) => [
+                        key,
+                        value && typeof value === 'object'
+                          ? {
+                              value:
+                                typeof value.value === 'string' && value.value.trim()
+                                  ? value.value
+                                  : typeof value.value === 'number' &&
+                                      Number.isFinite(value.value)
+                                    ? value.value
+                                    : null,
+                              source:
+                                typeof value.source === 'string' && value.source.trim()
+                                  ? value.source
+                                  : null,
+                            }
+                          : { value: null, source: null },
+                      ]),
+                  )
+                : {},
+            slotStatus:
+              conversationState.tenant.slotStatus &&
+              typeof conversationState.tenant.slotStatus === 'object'
+                ? {
+                    missing: Array.isArray(conversationState.tenant.slotStatus.missing)
+                      ? conversationState.tenant.slotStatus.missing.filter(
+                          (entry) => typeof entry === 'string',
+                        )
+                      : [],
+                    completed: Array.isArray(conversationState.tenant.slotStatus.completed)
+                      ? conversationState.tenant.slotStatus.completed.filter(
+                          (entry) => typeof entry === 'string',
+                        )
+                      : [],
+                  }
+                : null,
+          }
+        : null,
+    normalization:
+      conversationState.normalization &&
+      typeof conversationState.normalization === 'object'
+        ? {
+            slotKeys: Array.isArray(conversationState.normalization.slotKeys)
+              ? conversationState.normalization.slotKeys.filter(
+                  (entry) => typeof entry === 'string',
+                )
+              : [],
+            tenantSlots: Array.isArray(conversationState.normalization.tenantSlots)
+              ? conversationState.normalization.tenantSlots.filter(
+                  (entry) => typeof entry === 'string',
+                )
+              : [],
+            fieldToSlotKey:
+              conversationState.normalization.fieldToSlotKey &&
+              typeof conversationState.normalization.fieldToSlotKey === 'object'
+                ? Object.fromEntries(
+                    Object.entries(conversationState.normalization.fieldToSlotKey).filter(
+                      ([field, slotKey]) =>
+                        typeof field === 'string' &&
+                        field.trim() &&
+                        typeof slotKey === 'string' &&
+                        slotKey.trim(),
+                    ),
+                  )
+                : {},
+          }
+        : null,
+    lastAskedSlot:
+      typeof conversationState.lastAskedSlot === 'string'
+        ? conversationState.lastAskedSlot
+        : null,
+    context:
+      conversationState.context && typeof conversationState.context === 'object'
+        ? {
+            lastUserMessage:
+              typeof conversationState.context.lastUserMessage === 'string'
+                ? conversationState.context.lastUserMessage
+                : null,
+            lastBotMessage:
+              typeof conversationState.context.lastBotMessage === 'string'
+                ? conversationState.context.lastBotMessage
+                : null,
+            conversationStage:
+              typeof conversationState.context.conversationStage === 'string'
+                ? conversationState.context.conversationStage
+                : null,
+          }
+        : null,
+  }
+}
+
+const sanitizeKnowledgeSourcesForAudit = (items = []) =>
+  Array.isArray(items)
+    ? items
+        .filter((entry) => entry && typeof entry === 'object')
+        .slice(0, 8)
+        .map((entry) => ({
+          id: typeof entry.id === 'string' ? entry.id : null,
+          documentId:
+            typeof entry.documentId === 'string' ? entry.documentId : null,
+          title: typeof entry.title === 'string' ? entry.title : null,
+          sourceType:
+            typeof entry.sourceType === 'string' ? entry.sourceType : null,
+          scope: typeof entry.scope === 'string' ? entry.scope : null,
+          retrievalMode:
+            typeof entry.retrievalMode === 'string'
+              ? entry.retrievalMode
+              : null,
+          score:
+            typeof entry.score === 'number' && Number.isFinite(entry.score)
+              ? Number(entry.score.toFixed(4))
+              : null,
+          lexicalScore:
+            typeof entry.lexicalScore === 'number' &&
+            Number.isFinite(entry.lexicalScore)
+              ? Number(entry.lexicalScore.toFixed(4))
+              : null,
+          vectorScore:
+            typeof entry.vectorScore === 'number' &&
+            Number.isFinite(entry.vectorScore)
+              ? Number(entry.vectorScore.toFixed(4))
+              : null,
+          snippet:
+            typeof entry.snippet === 'string'
+              ? entry.snippet.slice(0, 280)
+              : null,
+          embedding:
+            entry.embedding && typeof entry.embedding === 'object'
+              ? {
+                  provider:
+                    typeof entry.embedding.provider === 'string'
+                      ? entry.embedding.provider
+                      : null,
+                  mode:
+                    typeof entry.embedding.mode === 'string'
+                      ? entry.embedding.mode
+                      : null,
+                  model:
+                    typeof entry.embedding.model === 'string'
+                      ? entry.embedding.model
+                      : null,
+                  dimensions:
+                    typeof entry.embedding.dimensions === 'number'
+                      ? entry.embedding.dimensions
+                      : null,
+                }
+              : null,
+          chunk:
+            entry.chunk && typeof entry.chunk === 'object'
+              ? {
+                  id:
+                    typeof entry.chunk.id === 'string' ? entry.chunk.id : null,
+                  index:
+                    typeof entry.chunk.index === 'number'
+                      ? entry.chunk.index
+                      : null,
+                  charStart:
+                    typeof entry.chunk.charStart === 'number'
+                      ? entry.chunk.charStart
+                      : null,
+                  charEnd:
+                    typeof entry.chunk.charEnd === 'number'
+                      ? entry.chunk.charEnd
+                      : null,
+                }
+              : null,
+        }))
+    : []
+
+const sanitizeEmbeddingModeForAudit = (embeddingMode = null) => {
+  if (!embeddingMode || typeof embeddingMode !== 'object') {
+    return null
+  }
+
+  return {
+    provider:
+      typeof embeddingMode.provider === 'string' ? embeddingMode.provider : null,
+    mode: typeof embeddingMode.mode === 'string' ? embeddingMode.mode : null,
+    model: typeof embeddingMode.model === 'string' ? embeddingMode.model : null,
+    dimensions:
+      typeof embeddingMode.dimensions === 'number' ? embeddingMode.dimensions : null,
+  }
+}
+
+const resolveKnowledgeModeForAudit = ({
+  context = null,
+  previousAuditPayload = null,
+  knowledgeDisabled = false,
+}) => {
+  const candidate =
+    typeof context?.knowledgeMode === 'string'
+      ? context.knowledgeMode
+      : typeof previousAuditPayload?.decisionTrace?.knowledge?.mode === 'string'
+        ? previousAuditPayload.decisionTrace.knowledge.mode
+        : null
+
+  if (candidate === 'full' || candidate === 'retrieval_disabled' || candidate === 'retrieval_only') {
+    return candidate
+  }
+
+  return knowledgeDisabled ? 'retrieval_disabled' : 'full'
+}
+
+const tokenizeKnowledgeSignals = (value = '') =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .split(/\s+/)
+    .filter((token) => token.length >= 4)
+
+const inferKnowledgeSpecificitySignals = ({
+  response = null,
+  context = null,
+  previousAuditPayload = null,
+}) => {
+  const responseText =
+    typeof response?.finalUserText === 'string'
+      ? response.finalUserText
+      : typeof response?.text === 'string'
+        ? response.text
+        : ''
+  const responseLower = responseText.toLowerCase()
+  const topicLabel =
+    typeof context?.turnInterpretation?.topic?.label === 'string'
+      ? context.turnInterpretation.topic.label
+      : typeof context?.turnInterpretation?.quoteContext?.topicLabel === 'string'
+        ? context.turnInterpretation.quoteContext.topicLabel
+        : typeof previousAuditPayload?.turnInterpretation?.topic?.label === 'string'
+          ? previousAuditPayload.turnInterpretation.topic.label
+          : typeof previousAuditPayload?.turnInterpretation?.quoteContext?.topicLabel ===
+                'string'
+            ? previousAuditPayload.turnInterpretation.quoteContext.topicLabel
+            : ''
+  const keywordTokens = Array.isArray(context?.matchedKeywords)
+    ? context.matchedKeywords
+    : Array.isArray(previousAuditPayload?.matchedKeywords)
+      ? previousAuditPayload.matchedKeywords
+      : []
+  const signalTerms = Array.from(
+    new Set([
+      ...tokenizeKnowledgeSignals(topicLabel),
+      ...keywordTokens
+        .filter((entry) => typeof entry === 'string')
+        .flatMap((entry) => tokenizeKnowledgeSignals(entry)),
+    ]),
+  )
+  const tenantRuntimePolicy =
+    context?.tenantRuntimePolicy && typeof context.tenantRuntimePolicy === 'object'
+      ? context.tenantRuntimePolicy
+      : null
+  const matchedTerms = signalTerms
+    .filter((token) => responseLower.includes(token))
+    .slice(0, 12)
+  const hasCatalogSignal = hasCatalogVocabularySignal(responseText, tenantRuntimePolicy)
+  const brandSignals = getTenantBrandTokens(tenantRuntimePolicy).filter((token) =>
+    responseLower.includes(token),
+  )
+  const hasMeasurementSignal = /\b\d+(?:[.,]\d+)?\s*(?:x|×)\s*\d+(?:[.,]\d+)?\b/u.test(
+    responseText,
+  )
+  const signals = [
+    ...matchedTerms,
+    ...brandSignals,
+    ...(hasCatalogSignal ? ['catalog_term_detected'] : []),
+    ...(hasMeasurementSignal ? ['measurement_pattern_detected'] : []),
+  ]
+
+  return {
+    domainSpecific: signals.length > 0,
+    signals,
+  }
+}
+
+const sanitizeOrchestratorDecisionForAudit = (decision = null) => {
+  if (!decision || typeof decision !== 'object') {
+    return null
+  }
+
+  return {
+    nextStep:
+      typeof decision.nextStep === 'string' ? decision.nextStep : null,
+    shouldUseDeterministicDraft: Boolean(decision.shouldUseDeterministicDraft),
+    shouldGenerateLanguage: Boolean(decision.shouldGenerateLanguage),
+    reason: typeof decision.reason === 'string' ? decision.reason : null,
+    nextUsefulField:
+      typeof decision.nextUsefulField === 'string'
+        ? decision.nextUsefulField
+        : null,
+    responseStrategy:
+      typeof decision.responseStrategy === 'string'
+        ? decision.responseStrategy
+        : null,
+    assistantSuggestion:
+      decision.assistantSuggestion && typeof decision.assistantSuggestion === 'object'
+        ? {
+            action:
+              typeof decision.assistantSuggestion.action === 'string'
+                ? decision.assistantSuggestion.action
+                : null,
+            confidence:
+              typeof decision.assistantSuggestion.confidence === 'number'
+                ? decision.assistantSuggestion.confidence
+                : null,
+            reasoning:
+              typeof decision.assistantSuggestion.reasoning === 'string'
+                ? decision.assistantSuggestion.reasoning
+                : null,
+            missingFields: Array.isArray(decision.assistantSuggestion.missingFields)
+              ? decision.assistantSuggestion.missingFields
+                  .filter((entry) => typeof entry === 'string')
+                  .slice(0, 8)
+              : [],
+            applied: Boolean(decision.assistantSuggestion.applied),
+          }
+        : null,
+  }
+}
+
+const inferResponseModeForAudit = ({
+  response = null,
+  context = null,
+  previousAuditPayload = null,
+}) => {
+  if (
+    typeof context?.responseMode === 'string' &&
+    ['deterministic', 'generative', 'hybrid'].includes(context.responseMode)
+  ) {
+    return context.responseMode
+  }
+
+  if (
+    typeof previousAuditPayload?.responseMode === 'string' &&
+    ['deterministic', 'generative', 'hybrid'].includes(previousAuditPayload.responseMode)
+  ) {
+    return previousAuditPayload.responseMode
+  }
+
+  const hasRewrite = response?.rewriteExchange && typeof response.rewriteExchange === 'object'
+  const hasAiExchange = context?.aiExchange && typeof context.aiExchange === 'object'
+  const deterministicApplied =
+    context?.deterministicApplied === true ||
+    response?.deterministicApplied === true ||
+    Boolean(response?.debug?.deterministicApplied)
+
+  if (deterministicApplied && (hasAiExchange || hasRewrite)) {
+    return 'hybrid'
+  }
+  if (deterministicApplied) {
+    return 'deterministic'
+  }
+  if (hasAiExchange || hasRewrite) {
+    return 'generative'
+  }
+  return 'deterministic'
+}
+
+const inferResponseOriginForAudit = ({
+  response = null,
+  responseMode = 'deterministic',
+  knowledgeGrounded = false,
+  knowledgeRetrieved = false,
+  fallbackReason = null,
+}) => {
+  if (typeof fallbackReason === 'string' && fallbackReason.trim()) {
+    return 'fallback'
+  }
+  if (responseMode === 'deterministic' && !knowledgeGrounded && !knowledgeRetrieved) {
+    return 'deterministic'
+  }
+  if (knowledgeGrounded && responseMode === 'hybrid') {
+    return 'hybrid_grounded'
+  }
+  if (knowledgeGrounded) {
+    return 'knowledge_grounded'
+  }
+  if (knowledgeRetrieved) {
+    return 'knowledge_retrieved_only'
+  }
+  if (responseMode === 'generative' || responseMode === 'hybrid') {
+    return 'model_only'
+  }
+  return 'deterministic'
+}
+
+const estimateModelKnowledgeScore = ({
+  responseMode = 'deterministic',
+  knowledgeGrounded = false,
+  knowledgeRetrieved = false,
+  specificitySignals = { domainSpecific: false, signals: [] },
+  response = null,
+}) => {
+  const responseText =
+    typeof response?.finalUserText === 'string'
+      ? response.finalUserText
+      : typeof response?.text === 'string'
+        ? response.text
+        : ''
+  let score = 0
+
+  if (!knowledgeGrounded && !knowledgeRetrieved) {
+    score += 0.45
+  }
+  if (specificitySignals?.domainSpecific) {
+    score += 0.25
+  }
+  if (Array.isArray(specificitySignals?.signals)) {
+    score += Math.min(specificitySignals.signals.length, 4) * 0.07
+  }
+  if (responseMode === 'generative' || responseMode === 'hybrid') {
+    score += 0.15
+  }
+  if (responseText.length >= 120) {
+    score += 0.08
+  }
+  if (responseText.length >= 220) {
+    score += 0.05
+  }
+
+  return Number(Math.max(0, Math.min(score, 1)).toFixed(4))
+}
+
+const buildDecisionTraceForAudit = ({
+  response = null,
+  context = null,
+  previousAuditPayload = null,
+  toolCalls = [],
+  fallbackReason = null,
+}) => {
+  const responseMode = inferResponseModeForAudit({
+    response,
+    context,
+    previousAuditPayload,
+  })
+  const explicitGrounding =
+    response?.grounding && typeof response.grounding === 'object' ? response.grounding : {}
+  const retrievalItems = Array.isArray(context?.retrievalItems)
+    ? context.retrievalItems
+    : Array.isArray(previousAuditPayload?.decisionTrace?.knowledge?.sources)
+      ? previousAuditPayload.decisionTrace.knowledge.sources
+      : []
+  const sanitizedSources = sanitizeKnowledgeSourcesForAudit(
+    Array.isArray(explicitGrounding?.sources) && explicitGrounding.sources.length > 0
+      ? explicitGrounding.sources
+      : retrievalItems,
+  )
+  const executedActions = Array.isArray(toolCalls)
+    ? toolCalls
+        .filter((entry) => entry?.status === 'executed' && entry?.name)
+        .map((entry) => entry.name)
+    : []
+  const knowledgeDisabled = Boolean(
+    context?.knowledgeDisabled ?? previousAuditPayload?.decisionTrace?.knowledge?.disabled,
+  )
+  const waitForMoreReasons = Array.isArray(
+    context?.turnInterpretation?.conversationContext?.waitForMoreReasons,
+  )
+    ? context.turnInterpretation.conversationContext.waitForMoreReasons
+    : Array.isArray(
+          previousAuditPayload?.turnInterpretation?.conversationContext?.waitForMoreReasons,
+        )
+      ? previousAuditPayload.turnInterpretation.conversationContext.waitForMoreReasons
+      : []
+  const deterministicApplied =
+    Boolean(context?.deterministicApplied) ||
+    responseMode === 'deterministic' ||
+    responseMode === 'hybrid'
+  const actionEvaluated =
+    typeof context?.actionKey === 'string'
+      ? context.actionKey
+      : typeof previousAuditPayload?.actionKey === 'string'
+        ? previousAuditPayload.actionKey
+        : null
+  const orchestratorDecision = sanitizeOrchestratorDecisionForAudit(
+    context?.orchestratorDecision ?? previousAuditPayload?.orchestratorDecision,
+  )
+  const knowledgeMode = resolveKnowledgeModeForAudit({
+    context,
+    previousAuditPayload,
+    knowledgeDisabled,
+  })
+  const embeddingMode = sanitizeEmbeddingModeForAudit(
+    context?.embeddingMode ??
+      previousAuditPayload?.decisionTrace?.knowledge?.embeddingMode ??
+      sanitizedSources.find((entry) => entry?.embedding)?.embedding ??
+      null,
+  )
+  const retrievalMode =
+    typeof context?.retrievalMode === 'string'
+      ? context.retrievalMode
+      : typeof previousAuditPayload?.decisionTrace?.knowledge?.retrievalMode === 'string'
+        ? previousAuditPayload.decisionTrace.knowledge.retrievalMode
+        : typeof sanitizedSources[0]?.retrievalMode === 'string'
+          ? sanitizedSources[0].retrievalMode
+          : null
+  const chunkIds = sanitizedSources
+    .map((entry) => entry?.chunk?.id)
+    .filter((entry) => typeof entry === 'string')
+  const knowledgeGrounded =
+    typeof response?.grounding?.knowledgeGrounded === 'boolean'
+      ? response.grounding.knowledgeGrounded
+      : Boolean(response?.grounding?.grounded)
+  const knowledgeRetrieved =
+    typeof response?.grounding?.knowledgeRetrieved === 'boolean'
+      ? response.grounding.knowledgeRetrieved
+      : Array.isArray(context?.retrievalItems)
+        ? context.retrievalItems.length > 0
+        : sanitizedSources.length > 0
+  const knowledgeUsed =
+    typeof response?.grounding?.knowledgeUsed === 'boolean'
+      ? response.grounding.knowledgeUsed
+      : response?.grounding?.used === true
+      ? true
+      : knowledgeGrounded
+  const usedFacts = normalizeGroundingFactList(response?.grounding?.usedFacts)
+  const usedSourceIds = normalizeGroundingSourceIdList(response?.grounding?.usedSourceIds)
+  const specificitySignals = inferKnowledgeSpecificitySignals({
+    response,
+    context,
+    previousAuditPayload,
+  })
+  const modelKnowledgeScore = estimateModelKnowledgeScore({
+    responseMode,
+    knowledgeGrounded,
+    knowledgeRetrieved,
+    specificitySignals,
+    response,
+  })
+  const possibleKnowledgeHallucination =
+    !knowledgeRetrieved &&
+    !knowledgeGrounded &&
+    modelKnowledgeScore >= 0.7
+  const modelKnowledgeLikely = modelKnowledgeScore >= 0.55
+  const responseOrigin = inferResponseOriginForAudit({
+    response,
+    responseMode,
+    knowledgeGrounded,
+    knowledgeRetrieved,
+    fallbackReason,
+  })
+  const providerTrace =
+    context?.providerCallTrace && typeof context.providerCallTrace === 'object'
+      ? context.providerCallTrace
+      : previousAuditPayload?.decisionTrace?.provider &&
+          typeof previousAuditPayload.decisionTrace.provider === 'object'
+        ? previousAuditPayload.decisionTrace.provider
+        : null
+  const notExecutedReason = executedActions.length
+    ? null
+    : fallbackReason ||
+      orchestratorDecision?.reason ||
+      (knowledgeDisabled ? 'knowledge_disabled_for_debug' : null) ||
+      (context?.blockedTools?.length ? 'blocked_tools' : null) ||
+      (context?.turnInterpretation?.conversationContext?.waitForMore
+        ? 'waiting_for_more_input'
+        : null) ||
+      null
+
+  return {
+    intent: {
+      key:
+        typeof context?.intentKey === 'string'
+          ? context.intentKey
+          : typeof previousAuditPayload?.intentKey === 'string'
+            ? previousAuditPayload.intentKey
+            : null,
+      confidence:
+        typeof context?.intentConfidence === 'number'
+          ? context.intentConfidence
+          : typeof previousAuditPayload?.intentConfidence === 'number'
+            ? previousAuditPayload.intentConfidence
+            : null,
+      source:
+        typeof context?.intentSource === 'string'
+          ? context.intentSource
+          : typeof previousAuditPayload?.intentSource === 'string'
+            ? previousAuditPayload.intentSource
+            : null,
+      matchedKeywords: Array.isArray(context?.matchedKeywords)
+        ? context.matchedKeywords.filter((entry) => typeof entry === 'string').slice(0, 12)
+        : Array.isArray(previousAuditPayload?.decisionTrace?.intent?.matchedKeywords)
+          ? previousAuditPayload.decisionTrace.intent.matchedKeywords
+          : [],
+      category:
+        typeof context?.inboundCategory === 'string'
+          ? context.inboundCategory
+          : typeof previousAuditPayload?.decisionTrace?.intent?.category === 'string'
+            ? previousAuditPayload.decisionTrace.intent.category
+            : null,
+    },
+    patternsMatched: Array.from(
+      new Set([
+        ...(Array.isArray(context?.decisionPath) ? context.decisionPath : []),
+        ...(Array.isArray(context?.matchedKeywords) ? context.matchedKeywords : []),
+        ...(Array.isArray(previousAuditPayload?.decisionTrace?.patternsMatched)
+          ? previousAuditPayload.decisionTrace.patternsMatched
+          : []),
+      ]),
+    ).slice(0, 20),
+    knowledge: {
+      mode: knowledgeMode,
+      modeReason:
+        typeof context?.knowledgeModeReason === 'string'
+          ? context.knowledgeModeReason
+          : typeof previousAuditPayload?.decisionTrace?.knowledge?.modeReason === 'string'
+            ? previousAuditPayload.decisionTrace.knowledge.modeReason
+            : null,
+      embeddingMode,
+      queryEmbedding:
+        context?.queryEmbedding && typeof context.queryEmbedding === 'object'
+          ? {
+              latencyMs:
+                typeof context.queryEmbedding.latencyMs === 'number'
+                  ? context.queryEmbedding.latencyMs
+                  : null,
+              cacheHit: context.queryEmbedding.cacheHit === true,
+              providerError:
+                typeof context.queryEmbedding.providerError === 'string'
+                  ? context.queryEmbedding.providerError
+                  : null,
+            }
+          : previousAuditPayload?.decisionTrace?.knowledge?.queryEmbedding ?? null,
+      retrievalMode,
+      responseContract:
+        typeof context?.responseContract === 'string'
+          ? context.responseContract
+          : typeof previousAuditPayload?.decisionTrace?.knowledge?.responseContract === 'string'
+            ? previousAuditPayload.decisionTrace.knowledge.responseContract
+            : null,
+      knowledgeNeed:
+        typeof context?.knowledgeNeed === 'string'
+          ? context.knowledgeNeed
+          : typeof previousAuditPayload?.decisionTrace?.knowledge?.knowledgeNeed === 'string'
+            ? previousAuditPayload.decisionTrace.knowledge.knowledgeNeed
+            : null,
+      retrievalSkippedByKnowledgeNeed:
+        context?.retrievalSkippedByKnowledgeNeed === true ||
+        previousAuditPayload?.decisionTrace?.knowledge?.retrievalSkippedByKnowledgeNeed === true,
+      responseContractResolvedBeforeRetrieval:
+        context?.responseContractResolvedBeforeRetrieval === true ||
+        previousAuditPayload?.decisionTrace?.knowledge?.responseContractResolvedBeforeRetrieval ===
+          true,
+      disabled: knowledgeDisabled,
+      used: knowledgeUsed,
+      knowledgeUsed,
+      grounded: knowledgeGrounded,
+      retrieved: knowledgeRetrieved,
+      retrievedOnly: knowledgeRetrieved && !knowledgeGrounded,
+      sourceCount: sanitizedSources.length,
+      chunkIds: Array.from(new Set(chunkIds)).slice(0, 12),
+      sources: sanitizedSources,
+      usedFacts,
+      usedSourceIds,
+      modelKnowledgeLikely,
+      modelKnowledgeScore,
+      possibleKnowledgeHallucination,
+      domainSpecificSignals: specificitySignals.signals,
+    },
+    deterministic: {
+      applied: deterministicApplied,
+      responseMode,
+      responseOrigin,
+    },
+    conversation: {
+      mode:
+        typeof context?.conversationMode?.mode === 'string'
+          ? context.conversationMode.mode
+          : typeof previousAuditPayload?.decisionTrace?.conversation?.mode === 'string'
+            ? previousAuditPayload.decisionTrace.conversation.mode
+            : null,
+      responseStrategy:
+        typeof context?.turnInterpretation?.conversationContext?.responseStrategy === 'string'
+          ? context.turnInterpretation.conversationContext.responseStrategy
+          : typeof previousAuditPayload?.turnInterpretation?.conversationContext
+                ?.responseStrategy === 'string'
+            ? previousAuditPayload.turnInterpretation.conversationContext.responseStrategy
+            : null,
+      waitForMore: Boolean(
+        context?.turnInterpretation?.conversationContext?.waitForMore ||
+          previousAuditPayload?.turnInterpretation?.conversationContext?.waitForMore,
+      ),
+      waitForMoreReasons,
+      decisionSource:
+        typeof context?.decisionSource === 'string'
+          ? context.decisionSource
+          : typeof previousAuditPayload?.decisionTrace?.conversation?.decisionSource ===
+              'string'
+            ? previousAuditPayload.decisionTrace.conversation.decisionSource
+            : null,
+    },
+    provider: {
+      callCount:
+        typeof providerTrace?.count === 'number' ? providerTrace.count : 0,
+      budget:
+        typeof providerTrace?.budget === 'number' ? providerTrace.budget : 1,
+      calls: Array.isArray(providerTrace?.calls) ? providerTrace.calls : [],
+      blocked: Array.isArray(providerTrace?.blocked) ? providerTrace.blocked : [],
+    },
+    action: {
+      evaluated: actionEvaluated,
+      orchestratorNextStep: orchestratorDecision?.nextStep || null,
+      executed: executedActions,
+      notExecutedReason,
+    },
+  }
+}
+
+const sanitizeAiExchangeForAudit = (exchange = null) => {
+  if (!exchange || typeof exchange !== 'object') {
+    return null
+  }
+
+  const request = exchange.request && typeof exchange.request === 'object'
+    ? exchange.request
+    : null
+  const response = exchange.response && typeof exchange.response === 'object'
+    ? exchange.response
+    : null
+
+  return {
+    request: request
+      ? {
+          mode:
+            typeof request.mode === 'string' ? request.mode : null,
+          processedInput:
+            typeof request.processedInput === 'string'
+              ? request.processedInput.slice(0, 400)
+              : null,
+          contextBlock:
+            typeof request.contextBlock === 'string'
+              ? request.contextBlock.slice(0, 4000)
+              : null,
+          taskSummary:
+            typeof request.taskSummary === 'string'
+              ? request.taskSummary.slice(0, 800)
+              : null,
+          currentTask:
+            request.currentTask && typeof request.currentTask === 'object'
+              ? request.currentTask
+              : null,
+          approvedDraft:
+            typeof request.approvedDraft === 'string'
+              ? request.approvedDraft.slice(0, 800)
+              : null,
+          approvedFacts: Array.isArray(request.approvedFacts)
+            ? request.approvedFacts
+                .map((entry) => String(entry || '').trim())
+                .filter(Boolean)
+                .slice(0, 12)
+            : [],
+          systemPrompt:
+            typeof request.systemPrompt === 'string'
+              ? request.systemPrompt.slice(0, 6000)
+              : null,
+          promptInput:
+            typeof request.promptInput === 'string'
+              ? request.promptInput.slice(0, 4000)
+              : null,
+          promptHistory: Array.isArray(request.promptHistory)
+            ? request.promptHistory
+                .map((entry) =>
+                  entry && typeof entry === 'object'
+                    ? {
+                        role:
+                          typeof entry.role === 'string' ? entry.role : null,
+                        text:
+                          typeof entry.text === 'string'
+                            ? entry.text.slice(0, 400)
+                            : null,
+                      }
+                    : null,
+                )
+                .filter(Boolean)
+                .slice(0, 8)
+            : [],
+        }
+      : null,
+    response: response
+      ? {
+          source:
+            typeof response.source === 'string' ? response.source : null,
+          text:
+            typeof response.text === 'string'
+              ? response.text.slice(0, 4000)
+              : null,
+          toolCalls: Array.isArray(response.toolCalls)
+            ? response.toolCalls.map((entry) => ({
+                name:
+                  typeof entry?.name === 'string' ? entry.name : null,
+                status:
+                  typeof entry?.status === 'string' ? entry.status : null,
+              }))
+            : [],
+          error:
+            typeof response.error === 'string' ? response.error : null,
+        }
+      : null,
   }
 }
 
@@ -1333,22 +4027,22 @@ const buildMessageContextOrigin = (
 }
 
 const summarizeResults = (toolName, results = []) => {
-  if (toolName === 'parse_aberturas') {
+  if (toolName === STRUCTURED_CATALOG_PARSE_TOOL) {
     return results?.summary
-      ? `parse_aberturas: ${results.summary}`
-      : 'parse_aberturas: sin items detectados.'
+      ? `${STRUCTURED_CATALOG_PARSE_TOOL}: ${results.summary}`
+      : `${STRUCTURED_CATALOG_PARSE_TOOL}: sin items detectados.`
   }
 
-  if (toolName === 'prepare_aberturas_quote') {
+  if (toolName === STRUCTURED_CATALOG_QUOTE_TOOL) {
     return results?.summary
-      ? `prepare_aberturas_quote: ${results.summary}`
-      : 'prepare_aberturas_quote: sin items listos para cotización.'
+      ? `${STRUCTURED_CATALOG_QUOTE_TOOL}: ${results.summary}`
+      : `${STRUCTURED_CATALOG_QUOTE_TOOL}: sin items listos para cotización.`
   }
 
-  if (toolName === 'prepare_aberturas_insert') {
+  if (toolName === STRUCTURED_CATALOG_INSERT_TOOL) {
     return results?.summary
-      ? `prepare_aberturas_insert: ${results.summary}`
-      : 'prepare_aberturas_insert: sin items listos para alta.'
+      ? `${STRUCTURED_CATALOG_INSERT_TOOL}: ${results.summary}`
+      : `${STRUCTURED_CATALOG_INSERT_TOOL}: sin items listos para alta.`
   }
 
   if (!Array.isArray(results) || !results.length) {
@@ -1380,21 +4074,21 @@ const summarizeResults = (toolName, results = []) => {
 }
 
 const summarizeMatchesForUser = (toolName, results = []) => {
-  if (toolName === 'parse_aberturas') {
+  if (toolName === STRUCTURED_CATALOG_PARSE_TOOL) {
     return typeof results?.summary === 'string'
-      ? `parseo de aberturas: ${results.summary}`
+      ? `parseo estructurado de catálogo: ${results.summary}`
       : null
   }
 
-  if (toolName === 'prepare_aberturas_quote') {
+  if (toolName === STRUCTURED_CATALOG_QUOTE_TOOL) {
     return typeof results?.summary === 'string'
-      ? `borrador de aberturas: ${results.summary}`
+      ? `borrador estructurado para cotización: ${results.summary}`
       : null
   }
 
-  if (toolName === 'prepare_aberturas_insert') {
+  if (toolName === STRUCTURED_CATALOG_INSERT_TOOL) {
     return typeof results?.summary === 'string'
-      ? `alta de aberturas: ${results.summary}`
+      ? `alta estructurada de catálogo: ${results.summary}`
       : null
   }
 
@@ -1447,11 +4141,7 @@ const deriveOperationalMatches = (operationalContext = null) => {
       if (entry?.status !== 'executed') {
         return false
       }
-      if (
-        entry.name === 'parse_aberturas' ||
-        entry.name === 'prepare_aberturas_quote' ||
-        entry.name === 'prepare_aberturas_insert'
-      ) {
+      if (isStructuredCatalogToolName(entry.name)) {
         return Boolean(entry.result?.itemCount)
       }
       return Array.isArray(entry.result) && entry.result.length > 0
@@ -1487,6 +4177,7 @@ const inferActionIntentFromConversationContext = (
   currentInput,
   contextualInput,
   actionCatalog = [],
+  tenantRuntimePolicy = null,
 ) => {
   const normalizedCurrent = normalizeText(currentInput)
   const normalizedContext = normalizeText(contextualInput)
@@ -1499,17 +4190,24 @@ const inferActionIntentFromConversationContext = (
     /(cotizar|cotizacion|cotizacion|presupuesto|precio|cuanto sale|cuanto cuesta|pasame)/.test(
       normalizedCurrent,
     )
-  const hasAberturasContext =
-    /(abertura|aberturas|corrediza|batiente|dvh|monoblock|pano fijo|paño fijo)/.test(
-      normalizedContext,
-    )
+  const hasStructuredCatalogContext = hasStructuredCatalogSignal(
+    normalizedContext,
+    tenantRuntimePolicy,
+  )
 
-  if (hasCreateVerb && hasAberturasContext) {
-    return actionCatalog.find((entry) => entry?.key === 'aberturas.register') ?? null
+    if (hasCreateVerb && hasStructuredCatalogContext) {
+      return (
+      actionCatalog.find((entry) => entry?.key === STRUCTURED_CATALOG_REGISTER_INTENT) ??
+        null
+    )
   }
 
-  if (hasQuoteVerb && hasAberturasContext) {
-    return actionCatalog.find((entry) => entry?.key === 'aberturas.prepare_quote') ?? null
+  if (hasQuoteVerb && hasStructuredCatalogContext) {
+    return (
+      actionCatalog.find(
+        (entry) => entry?.key === STRUCTURED_CATALOG_PREPARE_QUOTE_INTENT,
+      ) ?? null
+    )
   }
 
   return null
@@ -1533,6 +4231,8 @@ const normalizeEntityQuery = (value) =>
     ?.replace(/^(?:pedido|presupuesto|cliente|producto)\s+/iu, '')
     ?.trim() || null
 
+const escapeInlineRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 const extractDimensionToken = (input) => {
   const match = String(input || '').match(/\b(\d{2,4})\s*[xX]\s*(\d{2,4})\b/u)
   if (!match?.[1] || !match?.[2]) {
@@ -1541,18 +4241,31 @@ const extractDimensionToken = (input) => {
   return `${match[1]}x${match[2]}`
 }
 
-const buildCustomerProductSearchQuery = (input) => {
+const buildCustomerProductSearchQuery = (input, tenantRuntimePolicy = null) => {
   const dimensionToken = extractDimensionToken(input)
   if (dimensionToken) {
     return dimensionToken
   }
 
-  const seriesToken = extractNamedEntity(String(input || ''), [
-    /\bserie\s+([a-záéíóúñ0-9-]+)\b/iu,
-    /\b(probba|gala(?:\s+cr)?|monoblock|screen|blackout|roller|corrediza|batiente|ventana|puerta)\b/iu,
+  const tenantTopicMatch = findBestPolicyTopicMatch(input, tenantRuntimePolicy)
+  if (tenantTopicMatch?.label) {
+    return normalizeEntityQuery(tenantTopicMatch.label)
+  }
+
+  const catalogTerms = (getVocabulary(tenantRuntimePolicy)?.catalogTerms ?? [])
+    .filter((entry) => typeof entry === 'string' && entry.trim())
+    .map((entry) => entry.trim())
+    .sort((left, right) => right.length - left.length)
+  const catalogPattern =
+    catalogTerms.length > 0
+      ? new RegExp(`\\b(${catalogTerms.map((entry) => escapeInlineRegex(entry)).join('|')})\\b`, 'iu')
+      : null
+  const catalogQueryToken = extractNamedEntity(String(input || ''), [
+    ...(catalogPattern ? [catalogPattern] : []),
+    /\b([a-z]*\d+[a-z0-9-]*)\b/iu,
   ])
 
-  return normalizeEntityQuery(seriesToken || String(input || ''))
+  return normalizeEntityQuery(catalogQueryToken || String(input || ''))
 }
 
 const OPERATION_DRAFT_TOOL_NAME = '__operation_draft__'
@@ -1584,6 +4297,7 @@ export class AiAgentRuntime {
     this.quotaStatusLoadedAt = 0
     this.topicTaxonomyCache = new Map()
     this.quoteProfilesCache = new Map()
+    this.tenantRuntimePolicyCache = new Map()
   }
 
   buildCustomerVariationSeed({
@@ -1736,12 +4450,13 @@ export class AiAgentRuntime {
   }
 
   shouldUseDecisionAssist({ role, conversationMode, interpretation = null }) {
+    const readiness = readInterpretationResolutionReadiness(interpretation)
     return (
       (role === 'customer_public' || role === 'customer_authenticated') &&
       this.activeConfig?.customerDecisionAssistEnabled === true &&
       typeof this.provider?.extractStructured === 'function' &&
       ['flow', 'exploration', 'unclear'].includes(String(conversationMode?.mode || '')) &&
-      interpretation?.conversationContext?.waitForMore !== true
+      readiness?.waitForMore !== true
     )
   }
 
@@ -1761,19 +4476,20 @@ export class AiAgentRuntime {
     conversationMode = null,
     analysis = null,
   }) {
+    const readiness = readInterpretationResolutionReadiness(interpretation)
     return {
       intent: intentKey || null,
       inboundCategory: inboundClassification?.category || null,
-      activeDomain: interpretation?.conversationContext?.activeDomain || null,
-      mode: conversationMode?.mode || interpretation?.conversationContext?.mode || null,
-      nextUsefulField: interpretation?.conversationContext?.nextUsefulField || null,
-      responseStrategy: interpretation?.conversationContext?.responseStrategy || null,
-      knownFacts: interpretation?.conversationContext?.knownFacts || {},
+      activeDomain: readiness?.lane || null,
+      mode: conversationMode?.mode || readiness?.mode || null,
+      nextUsefulField: readiness?.nextUsefulField || null,
+      responseStrategy: readiness?.answerMode || null,
+      knownFacts: readiness?.knownFacts || {},
       interpretationConfidence:
         typeof analysis?.confidence === 'number'
           ? analysis.confidence
-          : typeof interpretation?.conversationContext?.confidence === 'number'
-            ? interpretation.conversationContext.confidence
+          : typeof readiness?.confidence === 'number'
+            ? readiness.confidence
             : null,
       quoteContext: interpretation?.quoteContext
         ? {
@@ -1807,6 +4523,7 @@ export class AiAgentRuntime {
   }
 
   buildDecisionAssistRequirements(interpretation = null) {
+    const readiness = readInterpretationResolutionReadiness(interpretation)
     const quoteMissing = Array.isArray(interpretation?.quoteContext?.missingFields)
       ? interpretation.quoteContext.missingFields
       : []
@@ -1817,7 +4534,9 @@ export class AiAgentRuntime {
       ? interpretation.scheduleContext.missingFields
       : []
     const executeFlowMissing =
-      scheduleMissing.length > 0
+      Array.isArray(readiness?.missingFields) && readiness.missingFields.length > 0
+        ? readiness.missingFields
+        : scheduleMissing.length > 0
         ? scheduleMissing
         : supportMissing.length > 0
           ? supportMissing
@@ -2139,6 +4858,33 @@ export class AiAgentRuntime {
     return true
   }
 
+  resolveCustomerRewriteMode({
+    wordingKey,
+    input,
+    response = null,
+    channel = null,
+  }) {
+    if (
+      this.shouldApplySafeCustomerHybridRewrite({
+        wordingKey,
+        input,
+        channel,
+      })
+    ) {
+      return 'light_style'
+    }
+
+    const isDeterministicGroundedFollowUp =
+      response?.grounding?.grounded === true &&
+      (looksLikeShortContextualFollowUp(input) ||
+        looksLikeCustomerFollowUp(input) ||
+        looksLikeContextualReference(input))
+
+    return isDeterministicGroundedFollowUp
+      ? 'light_style'
+      : 'grounded_rewrite'
+  }
+
   buildCustomerCapabilityModeResponse({
     intentKey,
     interpretation = null,
@@ -2181,6 +4927,17 @@ export class AiAgentRuntime {
       })
     }
 
+    const capabilityGrounding = buildGroundingContract({
+      knowledgeRetrieved: false,
+      usedFacts: extractGroundingFactsFromText(text, 2),
+      sources: buildStructuredGroundingSource({
+        sourceType: 'runtime_capability',
+        scope: 'capability',
+        sourceKey: `${capability || 'conversation'}:${mode || 'default'}`,
+        title: `Capability ${capability || 'conversation'}`,
+      }),
+    })
+
     return {
       text,
       wordingKey:
@@ -2192,7 +4949,7 @@ export class AiAgentRuntime {
       toolCalls: [],
       needsHuman,
       grounding: {
-        grounded: false,
+        ...capabilityGrounding,
         fallbackReason: `capability_${capability}_handoff_only`,
         fallbackSubtype:
           capability === 'commerce'
@@ -2299,6 +5056,7 @@ export class AiAgentRuntime {
     this.quotaStatus = null
     this.topicTaxonomyCache.clear()
     this.quoteProfilesCache.clear()
+    this.tenantRuntimePolicyCache.clear()
 
     if (refreshRuntime) {
       await this.refreshRuntimeConfig()
@@ -2351,6 +5109,27 @@ export class AiAgentRuntime {
       this.quoteProfilesCache.set(cacheKey, { loadedAt: now, items: [] })
       return []
     }
+  }
+
+  async getTenantRuntimePolicy(backendClient, tenantKey, scope = 'customer_public') {
+    const cacheKey = `${tenantKey || 'default'}:${scope || 'customer_public'}`
+    const now = Date.now()
+    const cached = this.tenantRuntimePolicyCache.get(cacheKey)
+    if (cached && now - cached.loadedAt < 120_000) {
+      return cached.policy
+    }
+
+    const [topicTaxonomy, quoteProfiles] = await Promise.all([
+      this.getTenantTopicTaxonomy(backendClient, tenantKey, scope),
+      this.getTenantQuoteProfiles(backendClient, tenantKey, scope),
+    ])
+    const policy = buildTenantPolicyEnvelope({
+      tenantKey: tenantKey || 'default',
+      topicTaxonomy,
+      quoteProfiles,
+    })
+    this.tenantRuntimePolicyCache.set(cacheKey, { loadedAt: now, policy })
+    return policy
   }
 
   async resolveExtractedAssetContext(unifiedMessage, backendClient) {
@@ -2476,6 +5255,8 @@ export class AiAgentRuntime {
     return {
       taskId: taskMemory?.taskId ?? taskState?.taskId ?? null,
       intentKey: taskMemory?.intentKey ?? taskState?.intentKey ?? null,
+      turnIntentKey: taskMemory?.turnIntentKey ?? taskState?.turnIntentKey ?? null,
+      activeLane: taskMemory?.activeLane ?? taskState?.activeLane ?? null,
       state: typeof taskState?.state === 'string' ? taskState.state : null,
       stateHistory: Array.isArray(taskState?.stateHistory)
         ? taskState.stateHistory.filter((entry) => typeof entry === 'string')
@@ -2502,6 +5283,15 @@ export class AiAgentRuntime {
       quoteContext:
         taskMemory?.quoteContext ||
         sanitizeQuoteContextForAudit(taskState?.quoteContext),
+      supportContext:
+        taskMemory?.supportContext ||
+        sanitizeSupportContextForAudit(taskState?.supportContext),
+      scheduleContext:
+        taskMemory?.scheduleContext ||
+        sanitizeScheduleContextForAudit(taskState?.scheduleContext),
+      conversationState:
+        taskMemory?.conversationState ||
+        sanitizeConversationStateForAudit(taskState?.conversationState),
       resetApplied: Boolean(taskMemory?.resetApplied),
       resetCount:
         typeof taskMemory?.resetCount === 'number'
@@ -2602,12 +5392,156 @@ export class AiAgentRuntime {
         : effectiveSnapshot.taskState.currentTask,
       updatedAt: at,
     }
+    const currentQuoteContext =
+      effectiveSnapshot.taskState?.quoteContext &&
+      typeof effectiveSnapshot.taskState.quoteContext === 'object'
+        ? { ...effectiveSnapshot.taskState.quoteContext }
+        : null
+    if (currentQuoteContext) {
+      const responseQuoteResolution =
+        response?.quoteResolution && typeof response.quoteResolution === 'object'
+          ? response.quoteResolution
+          : null
+      if (
+        responseQuoteResolution?.status === 'product_not_found' &&
+        responseQuoteResolution?.productNotFoundSubtype === 'catalog_match_ambiguous'
+      ) {
+        currentQuoteContext.pendingClarification = {
+          type: 'catalog_match_ambiguous',
+          subjectLabel:
+            typeof responseQuoteResolution.subjectLabel === 'string'
+              ? responseQuoteResolution.subjectLabel
+              : null,
+          candidateProducts: Array.isArray(responseQuoteResolution.candidateProducts)
+            ? responseQuoteResolution.candidateProducts
+                .filter((entry) => entry && typeof entry === 'object')
+                .slice(0, 3)
+                .map((entry) => ({
+                  id:
+                    typeof entry.id === 'number' && Number.isFinite(entry.id)
+                      ? entry.id
+                      : null,
+                  name:
+                    typeof entry.name === 'string' && entry.name.trim()
+                      ? entry.name.trim()
+                      : null,
+                  currency:
+                    typeof entry.currency === 'string' && entry.currency.trim()
+                      ? entry.currency.trim()
+                      : null,
+                  amount:
+                    typeof entry.amount === 'number' && Number.isFinite(entry.amount)
+                      ? entry.amount
+                      : null,
+                  unitOfMeasure:
+                    typeof entry.unitOfMeasure === 'string' && entry.unitOfMeasure.trim()
+                      ? entry.unitOfMeasure.trim()
+                      : null,
+                }))
+            : [],
+        }
+      } else if (responseQuoteResolution) {
+        currentQuoteContext.pendingClarification = null
+      }
+
+      effectiveSnapshot.taskState = {
+        ...effectiveSnapshot.taskState,
+        quoteContext: currentQuoteContext,
+      }
+    }
     effectiveSnapshot.updatedAt = at
 
     return {
       snapshot: effectiveSnapshot,
       memory: this.buildPublicMemoryState(taskMemory, effectiveSnapshot),
     }
+  }
+
+  isTurnCanceled(runtimeOptions = {}) {
+    return runtimeOptions?.cancellationToken?.canceled === true
+  }
+
+  async persistConversationSnapshot(
+    conversationId,
+    snapshot,
+    runtimeOptions = {},
+  ) {
+    if (!snapshot || this.isTurnCanceled(runtimeOptions)) {
+      return false
+    }
+
+    await this.memoryStore.replace(conversationId, snapshot)
+    return true
+  }
+
+  async appendConversationTurn(
+    conversationId,
+    turn,
+    scope,
+    role,
+    runtimeOptions = {},
+  ) {
+    if (!turn || this.isTurnCanceled(runtimeOptions)) {
+      return false
+    }
+
+    await this.memoryStore.appendTurn(conversationId, turn, scope, role)
+    return true
+  }
+
+  pendingMemoryTransaction({
+    conversationId,
+    snapshot = null,
+    scope,
+    role,
+    runtimeOptions = {},
+  }) {
+    if (!conversationId || this.isTurnCanceled(runtimeOptions)) {
+      return null
+    }
+
+    return {
+      conversationId,
+      scope,
+      role,
+      snapshot: snapshot ? structuredClone(snapshot) : null,
+      turns: [],
+      runtimeOptions,
+    }
+  }
+
+  stageConversationTurn(transaction, turn) {
+    if (
+      !transaction ||
+      !turn ||
+      this.isTurnCanceled(transaction.runtimeOptions)
+    ) {
+      return transaction
+    }
+
+    transaction.turns.push(turn)
+    return transaction
+  }
+
+  async responseCommit(transaction) {
+    if (
+      !transaction ||
+      !transaction.snapshot ||
+      this.isTurnCanceled(transaction.runtimeOptions)
+    ) {
+      return null
+    }
+
+    const committedSnapshot = structuredClone(transaction.snapshot)
+    committedSnapshot.scope = transaction.scope
+    committedSnapshot.role = transaction.role
+    committedSnapshot.turns = [
+      ...(Array.isArray(committedSnapshot.turns) ? committedSnapshot.turns : []),
+      ...(Array.isArray(transaction.turns) ? transaction.turns : []),
+    ]
+    committedSnapshot.updatedAt = new Date().toISOString()
+    await this.memoryStore.replace(transaction.conversationId, committedSnapshot)
+    return committedSnapshot
   }
 
   resolveInferenceContext({
@@ -2913,13 +5847,13 @@ export class AiAgentRuntime {
     }
 
     if (
-      actionIntent.key === 'aberturas.register' ||
-      actionIntent.key === 'aberturas.prepare_quote' ||
-      actionIntent.key === 'aberturas.parse'
+      actionIntent.key === 'catalog.register_structured_items' ||
+      actionIntent.key === 'catalog.prepare_structured_quote' ||
+      actionIntent.key === 'catalog.parse_structured_items'
     ) {
       return {
         systemPrompt:
-          'Separa cada abertura o item cotizable en una línea independiente y preserva solo los datos presentes: tipo, serie, color, vidrio, medidas y precio. No inventes datos faltantes ni mezcles atributos entre líneas.',
+          'Separa cada ítem cotizable en una línea independiente y preserva solo los datos presentes: tipo, configuración, atributos, medidas y precio. No inventes datos faltantes ni mezcles atributos entre líneas.',
         input: sourceText,
         schema: {
           lines: z.array(z.string()).max(20).optional(),
@@ -2979,6 +5913,9 @@ export class AiAgentRuntime {
         systemPrompt: spec.systemPrompt,
         input: spec.input,
         schema: spec.schema,
+        options: {
+          stage: 'structured_draft',
+        },
       })
       const hintText = spec.format(structured)
       if (!hintText) {
@@ -3034,7 +5971,13 @@ export class AiAgentRuntime {
     }
   }
 
-  async respond(unifiedMessage) {
+  async respond(unifiedMessage, runtimeOptions = {}) {
+    if (!hasProviderCallTrace()) {
+      return runWithProviderCallTrace({ budget: 1 }, () =>
+        this.respond(unifiedMessage, runtimeOptions),
+      )
+    }
+
     const runtimeConfig = await this.refreshRuntimeConfig()
     if (runtimeConfig.enabled === false) {
       const disabledRole = resolveRole(unifiedMessage, this.roleCatalog)
@@ -3062,6 +6005,32 @@ export class AiAgentRuntime {
 
     const conversationId = unifiedMessage.conversationId || unifiedMessage.userId
     const sanitizedInput = sanitizeUserInput(unifiedMessage.text)
+    if (isSystemNoiseMessage(sanitizedInput?.sanitized)) {
+      return {
+        conversationId,
+        scope: unifiedMessage.scope || null,
+        role: null,
+        provider: this.provider.providerName,
+        model: this.provider.modelName,
+        text: '',
+        finalUserText: '',
+        toolCalls: [],
+        suppressed: true,
+        audit: {
+          role: null,
+          intentKey: null,
+          blockedTools: [],
+          executedTools: [],
+          fallbackActivated: false,
+          taskChanged: false,
+          ignoredInbound: true,
+          ignoreReason: SYSTEM_NOISE_IGNORE_REASON,
+          authorKind: 'customer_human',
+          messageKind: 'human_message',
+          createdAt: new Date().toISOString(),
+        },
+      }
+    }
     const role = resolveRole(unifiedMessage, this.roleCatalog)
     const roleConfig = getRoleConfig(role, this.roleCatalog)
     const roleResolution = analyzeRoleResolution(unifiedMessage, this.roleCatalog)
@@ -3115,22 +6084,17 @@ export class AiAgentRuntime {
     )
     const detectionActionCatalog =
       roleConfig.type === 'admin' ? fullActionCatalog : actionCatalog
-    const tenantTopicTaxonomy =
-      roleConfig.type === 'customer'
-        ? await this.getTenantTopicTaxonomy(
-            scopedBackendClient,
-            unifiedMessage?.tenantKey,
-            'customer_public',
-          )
-        : []
-    const tenantQuoteProfiles =
-      roleConfig.type === 'customer'
-        ? await this.getTenantQuoteProfiles(
-            scopedBackendClient,
-            unifiedMessage?.tenantKey,
-            'customer_public',
-          )
-        : []
+    const tenantPolicyScope =
+      roleConfig.type === 'admin' ? 'admin_internal' : 'customer_public'
+    const tenantRuntimePolicy = await this.getTenantRuntimePolicy(
+      scopedBackendClient,
+      unifiedMessage?.tenantKey,
+      tenantPolicyScope,
+    )
+    const tenantTopicTaxonomy = getProductCatalog(tenantRuntimePolicy)
+    const tenantQuoteProfiles = Array.isArray(tenantRuntimePolicy?.quoteProfiles)
+      ? tenantRuntimePolicy.quoteProfiles
+      : []
     const extractedAssetContext = await this.resolveExtractedAssetContext(
       unifiedMessage,
       scopedBackendClient,
@@ -3153,10 +6117,11 @@ export class AiAgentRuntime {
       customerTextNormalization?.normalizedInput || effectiveInput
     const inboundClassification = classifyInboundMessage({
       role,
-      input: interpretedInput,
+      input: effectiveInput,
       recentTurns: recentReasoningTurns,
       pendingState: previousSnapshot?.taskState ?? snapshot?.taskState ?? null,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
     })
     const messageContextExtraOrigins =
       customerTextNormalization?.changed ? ['customer_text_normalization'] : []
@@ -3185,6 +6150,7 @@ export class AiAgentRuntime {
       messageContext,
       inboundClassification,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
       nluAnalysis,
       customerHybridIntentRegistry,
       legacy: {
@@ -3217,6 +6183,7 @@ export class AiAgentRuntime {
       messageContext,
       inboundClassification,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
       nluAnalysis,
       customerHybridIntentRegistry,
       legacy: {
@@ -3240,6 +6207,7 @@ export class AiAgentRuntime {
       referencedMessages: inferenceContext.referencedMessages,
       tenantTopicTaxonomy,
       tenantQuoteProfiles,
+      tenantRuntimePolicy,
       nluAnalysis,
     })
     const resolvedDecisionPath = Array.from(
@@ -3267,6 +6235,39 @@ export class AiAgentRuntime {
       !['greeting', 'courtesy', 'noise'].includes(
         String(inboundClassification?.category || ''),
       )
+    const taskMemory = this.resolveTaskMemory(
+      snapshot,
+      conversationId,
+      role,
+      scope,
+      turnInterpretation.currentTurnText || effectiveInput,
+      actionIntent,
+      intentDetection,
+      turnInterpretation,
+      tenantRuntimePolicy,
+    )
+    if (taskMemory?.quoteContext && typeof taskMemory.quoteContext === 'object') {
+      turnInterpretation.quoteContext = taskMemory.quoteContext
+    }
+    if (taskMemory?.supportContext && typeof taskMemory.supportContext === 'object') {
+      turnInterpretation.supportContext = taskMemory.supportContext
+    }
+    if (taskMemory?.scheduleContext && typeof taskMemory.scheduleContext === 'object') {
+      turnInterpretation.scheduleContext = taskMemory.scheduleContext
+    }
+    if (taskMemory?.conversationContext && typeof taskMemory.conversationContext === 'object') {
+      turnInterpretation.conversationContext = taskMemory.conversationContext
+    }
+    if (taskMemory?.conversationState && typeof taskMemory.conversationState === 'object') {
+      turnInterpretation.conversationState = taskMemory.conversationState
+    }
+    if (
+      taskMemory?.conversationContext?.resolutionReadiness &&
+      typeof taskMemory.conversationContext.resolutionReadiness === 'object'
+    ) {
+      turnInterpretation.resolutionReadiness =
+        taskMemory.conversationContext.resolutionReadiness
+    }
     const llmInterpretation = await analyzeMessage({
       provider: this.provider,
       role,
@@ -3280,8 +6281,13 @@ export class AiAgentRuntime {
         input: turnInterpretation.currentTurnText || effectiveInput,
         reasoningInput,
       }),
-      allowModel: allowLlmInterpretation,
-      providerOptions: this.resolveProviderOptions('interpretation'),
+      taskSummary: taskMemory.taskSummary,
+      currentTask: taskMemory.currentTask,
+      allowModel: false,
+      providerOptions: {
+        ...this.resolveProviderOptions('interpretation'),
+        stage: 'interpretation',
+      },
     })
     const conversationMode = classifyConversationMode({
       role,
@@ -3291,17 +6297,6 @@ export class AiAgentRuntime {
       intentKey,
       interpretation: turnInterpretation,
     })
-    const taskMemory = this.resolveTaskMemory(
-      snapshot,
-      conversationId,
-      role,
-      scope,
-      turnInterpretation.currentTurnText || effectiveInput,
-      actionIntent,
-      intentDetection,
-      turnInterpretation,
-    )
-    await this.memoryStore.replace(conversationId, taskMemory.snapshot)
     const hardInjectionBlock =
       sanitizedInput.injectionDetected &&
       /(prompt|tools?|herramientas?|datos internos|configuraci[oó]n|act[uú]a como admin|admin)/i.test(
@@ -3327,6 +6322,7 @@ export class AiAgentRuntime {
         decisionPath: resolvedDecisionPath,
         messageContext,
         messageContextAudit,
+        runtimeOptions,
       })
     }
     const intentAllowed = canRoleExecuteIntent(role, intentKey, this.roleCatalog)
@@ -3371,6 +6367,7 @@ export class AiAgentRuntime {
         decisionPath: resolvedDecisionPath,
         messageContext,
         messageContextAudit,
+        runtimeOptions,
       })
     }
 
@@ -3397,6 +6394,7 @@ export class AiAgentRuntime {
         decisionPath: resolvedDecisionPath,
         messageContext,
         messageContextAudit,
+        runtimeOptions,
       })
     }
 
@@ -3424,6 +6422,9 @@ export class AiAgentRuntime {
         messageElementsUsed: messageContext.usedElementKinds,
         messageElements: messageContextAudit.messageElements,
         messageContextOrigin: messageContextAudit.messageContextOrigin,
+        semanticTurnId: unifiedMessage?.metadata?.semanticTurnId || null,
+        providerCallTrace: getProviderCallTrace(),
+        decisionSource: 'resolution_readiness:execute_flow',
         detail: confirmationResponse.debug?.detail ?? null,
       })
       const finalizedTask = this.applyTaskStateFromResponse(
@@ -3437,57 +6438,54 @@ export class AiAgentRuntime {
             : [AGENT_STATE_EVENTS.START_EXECUTION, AGENT_STATE_EVENTS.EXECUTION_SUCCEEDED],
         },
       )
-      await this.memoryStore.replace(conversationId, finalizedTask.snapshot)
+      const memoryTransaction = this.pendingMemoryTransaction({
+        conversationId,
+        snapshot: finalizedTask.snapshot,
+        scope,
+        role,
+        runtimeOptions,
+      })
 
       const now = new Date().toISOString()
-      await this.memoryStore.appendTurn(
-        conversationId,
-        {
-          role: 'customer',
-          text:
-            extractedAssetContext.items.length > 0
-              ? effectiveInput
-              : sanitizedInput.sanitized,
-          createdAt: now,
-          metadata: {
-            channel: unifiedMessage.channel,
-            messageId: unifiedMessage.messageId || null,
-            authorKind,
-            messageKind,
-            taskId: taskMemory.taskId,
-            intentKey: taskMemory.intentKey,
-            role,
-            injectionDetected: sanitizedInput.injectionDetected,
-            messageElementCount: messageElements.length,
-          },
+      this.stageConversationTurn(memoryTransaction, {
+        role: 'customer',
+        text:
+          extractedAssetContext.items.length > 0
+            ? effectiveInput
+            : sanitizedInput.sanitized,
+        createdAt: now,
+        metadata: {
+          channel: unifiedMessage.channel,
+          messageId: unifiedMessage.messageId || null,
+          authorKind,
+          messageKind,
+          taskId: taskMemory.taskId,
+          intentKey: taskMemory.intentKey,
+          role,
+          injectionDetected: sanitizedInput.injectionDetected,
+          messageElementCount: messageElements.length,
         },
-        scope,
-        role,
-      )
-      await this.memoryStore.appendTurn(
-        conversationId,
-        {
-          role: 'agent',
-          text: responseWithDebug.text,
-          createdAt: new Date().toISOString(),
-          metadata: {
-            provider: this.provider.providerName,
-            authorKind: 'agent_runtime',
-            messageKind: 'human_message',
-            toolCalls: responseWithDebug.toolCalls ?? [],
-            finalUserText:
-              responseWithDebug.finalUserText ?? responseWithDebug.text ?? null,
-            debugSummary: responseWithDebug.debugSummary ?? null,
-            auditPayload: responseWithDebug.auditPayload ?? null,
-            taskId: taskMemory.taskId,
-            intentKey: taskMemory.intentKey,
-            role,
-            messageElementCount: messageElements.length,
-          },
+      })
+      this.stageConversationTurn(memoryTransaction, {
+        role: 'agent',
+        text: responseWithDebug.text,
+        createdAt: new Date().toISOString(),
+        metadata: {
+          provider: this.provider.providerName,
+          authorKind: 'agent_runtime',
+          messageKind: 'human_message',
+          toolCalls: responseWithDebug.toolCalls ?? [],
+          finalUserText:
+            responseWithDebug.finalUserText ?? responseWithDebug.text ?? null,
+          debugSummary: responseWithDebug.debugSummary ?? null,
+          auditPayload: responseWithDebug.auditPayload ?? null,
+          taskId: taskMemory.taskId,
+          intentKey: taskMemory.intentKey,
+          role,
+          messageElementCount: messageElements.length,
         },
-        scope,
-        role,
-      )
+      })
+      await this.responseCommit(memoryTransaction)
 
       return {
         conversationId,
@@ -3501,15 +6499,11 @@ export class AiAgentRuntime {
         auditPayload: responseWithDebug.auditPayload ?? null,
         toolCalls: responseWithDebug.toolCalls ?? [],
         needsHuman: Boolean(responseWithDebug.needsHuman),
-        grounding: {
-          grounded: false,
-          fallbackReason:
-            typeof responseWithDebug?.grounding?.fallbackReason === 'string'
-              ? responseWithDebug.grounding.fallbackReason
-              : null,
-          sourceCount: 0,
-          sources: [],
-        },
+        grounding: finalizeResponseGrounding({
+          response: responseWithDebug,
+          retrievalContext: { items: [] },
+          providerGenerationAttempted: false,
+        }),
         memory: finalizedTask.memory,
         audit: {
           role,
@@ -3543,16 +6537,30 @@ export class AiAgentRuntime {
       backendClient: scopedBackendClient,
     })
     const retrievalContext = protectedCustomerDataResponse
-      ? { items: [], sources: [], sourceCount: 0 }
+      ? {
+          items: [],
+          sources: [],
+          sourceCount: 0,
+          disabled: false,
+          disabledReason: null,
+          knowledgeMode: this.resolveDebugKnowledgeMode(unifiedMessage),
+          embeddingMode: null,
+          retrievalMode: null,
+        }
       : await this.getRetrievalContext(
-          {
-            ...unifiedMessage,
-            text: turnInterpretation.retrievalQuery || reasoningInput,
-          },
-          role,
+        {
+          ...unifiedMessage,
+          text: turnInterpretation.retrievalQuery || reasoningInput,
+        },
+        role,
           scope,
           scopedBackendClient,
-        )
+        {
+          intentKey,
+          turnInterpretation,
+          tenantRuntimePolicy,
+        },
+      )
     const operationalInput =
       roleConfig.type === 'customer'
         ? turnInterpretation.operationalQuery ||
@@ -3568,6 +6576,7 @@ export class AiAgentRuntime {
           scopedBackendClient,
           actionIntent,
           intentKey,
+          tenantRuntimePolicy,
         )
 
     const deterministicAdminResponse = this.buildDeterministicAdminResponse({
@@ -3614,6 +6623,7 @@ export class AiAgentRuntime {
             operationalContext,
             backendClient: scopedBackendClient,
             tenantTopicTaxonomy,
+            tenantRuntimePolicy,
             tenantKey: unifiedMessage.tenantKey || null,
             unifiedMessage,
           })
@@ -3625,6 +6635,7 @@ export class AiAgentRuntime {
       retrievalContext,
       interpretation: turnInterpretation,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
       variationSeed: customerVariationSeed,
       channel: unifiedMessage.channel || null,
     })
@@ -3636,6 +6647,7 @@ export class AiAgentRuntime {
       inboundClassification,
       interpretation: turnInterpretation,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
       variationSeed: customerVariationSeed,
       unifiedMessage,
     })
@@ -3663,11 +6675,7 @@ export class AiAgentRuntime {
       deterministicResult?.operationalContext ?? operationalContext
     const assistantDecision = await assistNextStep({
       provider: this.provider,
-      allowModel: this.shouldUseDecisionAssist({
-        role,
-        conversationMode,
-        interpretation: turnInterpretation,
-      }),
+      allowModel: false,
       conversation: [
         ...recentReasoningTurns,
         {
@@ -3682,6 +6690,7 @@ export class AiAgentRuntime {
         conversationMode,
         analysis: llmInterpretation,
       }),
+      interpretation: turnInterpretation,
       allowedActions: [
         'execute_flow',
         'conversational_mode',
@@ -3689,7 +6698,12 @@ export class AiAgentRuntime {
         'small_talk',
       ],
       requiredFieldsByAction: this.buildDecisionAssistRequirements(turnInterpretation),
-      providerOptions: this.resolveProviderOptions('decision'),
+      taskSummary: taskMemory.taskSummary,
+      currentTask: taskMemory.currentTask,
+      providerOptions: {
+        ...this.resolveProviderOptions('decision'),
+        stage: 'decision',
+      },
     })
     const orchestratorDecision = decideNextStep({
       role,
@@ -3735,10 +6749,43 @@ export class AiAgentRuntime {
     const capabilityMode = this.getCustomerCapabilityMode(taskMemory.intentKey)
     const providerBlockedByCapability =
       capabilityModeBlocksProviderEnhancements(capabilityMode)
+    const retrievalOnlyWithoutGrounding =
+      retrievalContext.knowledgeMode === 'retrieval_only' &&
+      ['business_info', 'contact'].includes(
+        String(turnInterpretation?.conversationContext?.activeDomain || ''),
+      ) &&
+      (!Array.isArray(retrievalContext.items) || retrievalContext.items.length === 0) &&
+      deterministicResult?.response?.grounding?.grounded !== true
 
     let generatedResponse
+    let aiExchange = null
     let providerGenerationAttempted = false
-    if ((!aiDecision.shouldCall || providerBlockedByCapability) && deterministicResult) {
+    if (retrievalOnlyWithoutGrounding) {
+      generatedResponse = this.enforceKnowledgeModePolicy({
+        response: {
+          ...(deterministicResult?.response || {}),
+          text: deterministicResult?.response?.text || '',
+          finalUserText:
+            deterministicResult?.response?.finalUserText ||
+            deterministicResult?.response?.text ||
+            '',
+          needsHuman:
+            typeof deterministicResult?.response?.needsHuman === 'boolean'
+              ? deterministicResult.response.needsHuman
+              : true,
+          grounding: {
+            ...(deterministicResult?.response?.grounding || {}),
+            grounded: false,
+          },
+          toolCalls: Array.isArray(deterministicResult?.response?.toolCalls)
+            ? deterministicResult.response.toolCalls
+            : [],
+        },
+        retrievalContext,
+        role,
+        knowledgeMode: retrievalContext.knowledgeMode,
+      })
+    } else if ((!aiDecision.shouldCall || providerBlockedByCapability) && deterministicResult) {
       generatedResponse = deterministicResult.response
     } else if (providerBlockedByCapability) {
       generatedResponse =
@@ -3762,6 +6809,7 @@ export class AiAgentRuntime {
           fallbackReason: 'budget_exceeded',
           interpretation: turnInterpretation,
           tenantTopicTaxonomy,
+          tenantRuntimePolicy,
           previousIntentKey: priorIntentKey,
           channel: unifiedMessage.channel || null,
         })
@@ -3808,11 +6856,48 @@ export class AiAgentRuntime {
                   null
                 : null,
               approvedFacts,
-              providerOptions: this.resolveProviderOptions('response'),
+              taskSummary: taskMemory.taskSummary,
+              currentTask: taskMemory.currentTask,
+              providerOptions: {
+                ...this.resolveProviderOptions('response'),
+                stage: 'response',
+              },
               channel: unifiedMessage.channel || null,
               channelProfile: this.getResponseChannelProfile(unifiedMessage.channel),
             })
             if (conversationalResponse?.text) {
+              aiExchange = {
+                request: {
+                  mode:
+                    conversationalResponse?.debugContext?.requestMode ||
+                    'llm_conversational',
+                  processedInput:
+                    conversationalResponse?.debugContext?.processedInput ||
+                    (turnInterpretation.currentTurnText || effectiveInput),
+                  contextBlock:
+                    conversationalResponse?.debugContext?.llmContextBlock || null,
+                  taskSummary: taskMemory.taskSummary,
+                  currentTask: taskMemory.currentTask,
+                  approvedDraft:
+                    conversationalResponse?.debugContext?.approvedDraft || null,
+                  approvedFacts:
+                    conversationalResponse?.debugContext?.approvedFacts || [],
+                  systemPrompt:
+                    conversationalResponse?.debugContext?.systemPrompt || null,
+                  promptInput:
+                    conversationalResponse?.debugContext?.promptInput || null,
+                  promptHistory:
+                    conversationalResponse?.debugContext?.promptHistory || [],
+                },
+                response: {
+                  source:
+                    conversationalResponse?.source || 'llm_conversational',
+                  text:
+                    conversationalResponse?.debugContext?.rawResponseText ||
+                    conversationalResponse.text,
+                  toolCalls: [],
+                },
+              }
               generatedResponse = {
                 text: conversationalResponse.text,
                 finalUserText: conversationalResponse.text,
@@ -3827,32 +6912,81 @@ export class AiAgentRuntime {
           }
 
           if (!generatedResponse) {
-            generatedResponse = await this.provider.generate({
+            const systemPrompt = buildSystemPrompt(role, {
+              actionCatalog,
+              retrievalContext: retrievalContext.items,
+              operationalContext: resolvedOperationalContext.items,
+              taskSummary: taskMemory.taskSummary,
+              currentTask: taskMemory.currentTask,
+              blockedTools,
+              customInstructions:
+                roleConfig.type === 'admin'
+                  ? runtimeConfig.adminInternalPrompt
+                  : runtimeConfig.customerPublicPrompt,
+            })
+            const providerResponse = await this.provider.generate({
               role,
-              systemPrompt: buildSystemPrompt(role, {
-                actionCatalog,
-                retrievalContext: retrievalContext.items,
-                operationalContext: resolvedOperationalContext.items,
-                taskSummary: taskMemory.taskSummary,
-                currentTask: taskMemory.currentTask,
-                blockedTools,
-                customInstructions:
-                  roleConfig.type === 'admin'
-                    ? runtimeConfig.adminInternalPrompt
-                    : runtimeConfig.customerPublicPrompt,
-              }),
+              systemPrompt,
               history,
               input: reasoningInput,
               tools,
               actionCatalog,
               retrievalContext: retrievalContext.items,
-              options: this.resolveProviderOptions('response'),
+              options: {
+                ...this.resolveProviderOptions('response'),
+                stage: 'response',
+              },
             })
+            generatedResponse = providerResponse
+            aiExchange = {
+              request: {
+                mode: 'provider_generate',
+                processedInput: reasoningInput,
+                contextBlock: null,
+                taskSummary: taskMemory.taskSummary,
+                currentTask: taskMemory.currentTask,
+                approvedDraft: null,
+                approvedFacts: [],
+                systemPrompt,
+                promptInput: reasoningInput,
+                promptHistory: history,
+              },
+              response: {
+                source: 'provider_generate',
+                text:
+                  typeof providerResponse?.text === 'string'
+                    ? providerResponse.text
+                    : null,
+                toolCalls: Array.isArray(providerResponse?.toolCalls)
+                  ? providerResponse.toolCalls
+                  : [],
+              },
+            }
           }
         } catch (error) {
           const providerFailure = classifyProviderFailure(error)
           const fallbackReason = providerFailure.reason
 
+          aiExchange = {
+            request: {
+              mode: 'provider_generate',
+              processedInput: reasoningInput,
+              contextBlock: null,
+              taskSummary: taskMemory.taskSummary,
+              currentTask: taskMemory.currentTask,
+              approvedDraft: null,
+              approvedFacts: [],
+              systemPrompt: null,
+              promptInput: reasoningInput,
+              promptHistory: history,
+            },
+            response: {
+              source: 'provider_error',
+              text: null,
+              toolCalls: [],
+              error: `${fallbackReason}${providerFailure.statusCode ? ` (HTTP ${providerFailure.statusCode})` : ''}`,
+            },
+          }
           generatedResponse = this.buildProviderFallbackResponse({
             role,
             roleConfig,
@@ -3863,6 +6997,7 @@ export class AiAgentRuntime {
             fallbackReason,
             interpretation: turnInterpretation,
             tenantTopicTaxonomy,
+            tenantRuntimePolicy,
             previousIntentKey: priorIntentKey,
             channel: unifiedMessage.channel || null,
           })
@@ -3910,9 +7045,11 @@ export class AiAgentRuntime {
       retrievalContext,
       interpretation: turnInterpretation,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
       previousIntentKey: priorIntentKey,
       channel: unifiedMessage.channel || null,
     })
+    const responseBeforeGuardrails = responseValidation.response
     const hasDeterministicConversationResponse = Boolean(deterministicResult?.response)
     const guardrailMode = hasDeterministicConversationResponse ? null : conversationMode.mode
     const guardrailMaxChars = hasDeterministicConversationResponse
@@ -3930,7 +7067,7 @@ export class AiAgentRuntime {
         : 280
 
     const guardrailedText = validateResponseGuardrails({
-      text: responseValidation.response?.text,
+      text: responseBeforeGuardrails?.text,
       fallbackText: response?.text || deterministicResult?.response?.text || '',
       mode: guardrailMode,
       maxChars: guardrailMaxChars,
@@ -3943,15 +7080,25 @@ export class AiAgentRuntime {
           ? '¿Qué necesitás resolver exactamente?'
           : '¿Querés contarme un poco más para orientarte mejor?',
     })
+    const responseMode =
+      hasDeterministicConversationResponse && (aiExchange || responseBeforeGuardrails?.rewriteExchange)
+        ? 'hybrid'
+        : hasDeterministicConversationResponse
+          ? 'deterministic'
+          : aiExchange || responseBeforeGuardrails?.rewriteExchange
+            ? 'generative'
+            : 'deterministic'
     const responseAfterGuardrails = {
-      ...responseValidation.response,
+      ...responseBeforeGuardrails,
       text: guardrailedText.text,
       finalUserText: guardrailedText.text,
+      deterministicApplied: hasDeterministicConversationResponse,
+      responseMode,
       debug: {
-        ...(responseValidation.response?.debug || {}),
+        ...(responseBeforeGuardrails?.debug || {}),
         detail: guardrailedText.issues.length
           ? [
-              responseValidation.response?.debug?.detail,
+              responseBeforeGuardrails?.debug?.detail,
               `Guardrails aplicados: ${guardrailedText.issues.join(', ')}.`,
             ]
               .filter(Boolean)
@@ -3959,18 +7106,45 @@ export class AiAgentRuntime {
           : responseValidation.response?.debug?.detail,
       },
     }
+    const knowledgeControlledResponse = this.enforceKnowledgeModePolicy({
+      response: responseAfterGuardrails,
+      retrievalContext,
+      role,
+      knowledgeMode: retrievalContext.knowledgeMode || 'full',
+    })
+    const groundedResponse = this.reconcileResponseGrounding({
+      response: knowledgeControlledResponse,
+      retrievalContext,
+      interpretation: turnInterpretation,
+      tenantRuntimePolicy,
+    })
+    const finalConversationResponse = this.preventCustomerResponseLoop({
+      response: groundedResponse,
+      previousSnapshot,
+      interpretation: turnInterpretation,
+    })
     const responseMetrics = this.buildConversationalMetrics({
       role,
       interpretation: turnInterpretation,
       inboundClassification,
       previousSnapshot,
-      response: responseAfterGuardrails,
+      response: finalConversationResponse,
       validation: responseValidation.validation,
       providerGenerationAttempted,
+      unifiedMessage,
+      providerCallTrace: getProviderCallTrace(),
+      aiExchange,
+      decisionSource:
+        typeof turnInterpretation?.resolutionReadiness?.answerMode === 'string'
+          ? `resolution_readiness:${turnInterpretation.resolutionReadiness.answerMode}`
+          : typeof turnInterpretation?.conversationContext?.responseStrategy === 'string'
+            ? `resolution_readiness:${turnInterpretation.conversationContext.responseStrategy}`
+            : 'resolution_readiness:unknown',
+      retrievalContext,
     })
     const annotatedResponse = this.appendAdminDebugSummary(
       this.annotateOperationalMatches(
-        responseAfterGuardrails,
+        finalConversationResponse,
         resolvedOperationalContext,
         role,
       ),
@@ -3984,6 +7158,7 @@ export class AiAgentRuntime {
         decisionPath: resolvedDecisionPath,
         actionKey: actionIntent?.key ?? null,
         blockedTools,
+        aiExchange,
         toolCalls: dedupeToolCalls([
           ...(resolvedOperationalContext.toolCalls ?? []),
           ...(response.toolCalls ?? []),
@@ -3998,6 +7173,32 @@ export class AiAgentRuntime {
         conversationMode,
         orchestratorDecision,
         metrics: responseMetrics,
+        matchedKeywords: intentDetection.matchedKeywords,
+        inboundCategory: inboundClassification?.category || null,
+        retrievalItems: retrievalContext.items,
+        responseContract: retrievalContext.responseContract || null,
+        knowledgeNeed: retrievalContext.knowledgeNeed || null,
+        retrievalSkippedByKnowledgeNeed:
+          retrievalContext.disabledReason === 'not_needed_for_turn' ||
+          retrievalContext.knowledgeNeed === 'none',
+        responseContractResolvedBeforeRetrieval:
+          Boolean(retrievalContext.responseContract) &&
+          Boolean(retrievalContext.knowledgeNeed),
+        knowledgeDisabled: retrievalContext.disabled === true,
+        knowledgeMode: retrievalContext.knowledgeMode || 'full',
+        knowledgeModeReason: retrievalContext.knowledgeModeReason || null,
+        embeddingMode: retrievalContext.embeddingMode || null,
+        retrievalMode: retrievalContext.retrievalMode || null,
+        queryEmbedding: retrievalContext.queryEmbedding || null,
+        tenantRuntimePolicy,
+        deterministicApplied: hasDeterministicConversationResponse,
+        responseMode,
+        semanticTurnId: unifiedMessage?.metadata?.semanticTurnId || null,
+        providerCallTrace: getProviderCallTrace(),
+        decisionSource:
+          typeof responseMetrics?.decisionSource === 'string'
+            ? responseMetrics.decisionSource
+            : 'resolution_readiness:unknown',
         detail: deterministicResult
           ? `La respuesta se resolvió por flujo determinístico de backend${extractedAssetContext.items.length ? ' usando contexto extraído de adjuntos' : ''} para evitar depender del modelo.`
           : 'La respuesta final se generó con el modelo sobre el contexto operativo y documental disponible.',
@@ -4026,62 +7227,59 @@ export class AiAgentRuntime {
       orchestratorDecision,
       responseValidation: responseValidation.validation,
       metrics: responseMetrics,
+      responseMode,
       createdAt: new Date().toISOString(),
     }
     const finalizedTask = this.applyTaskStateFromResponse(taskMemory, annotatedResponse)
-    await this.memoryStore.replace(conversationId, finalizedTask.snapshot)
-
+    const memoryTransaction = this.pendingMemoryTransaction({
+      conversationId,
+      snapshot: finalizedTask.snapshot,
+      scope,
+      role,
+      runtimeOptions,
+    })
     const now = new Date().toISOString()
-    await this.memoryStore.appendTurn(
-      conversationId,
-      {
-        role: 'customer',
-        text:
-          extractedAssetContext.items.length > 0
-            ? effectiveInput
-            : sanitizedInput.sanitized,
-        createdAt: now,
-        metadata: {
-          channel: unifiedMessage.channel,
-          messageId: unifiedMessage.messageId || null,
-          authorKind,
-          messageKind,
-          taskId: taskMemory.taskId,
-          intentKey: taskMemory.intentKey,
-          role,
-          injectionDetected: sanitizedInput.injectionDetected,
-          extractedAssetCount: extractedAssetContext.items.length,
-          messageElementCount: messageElements.length,
-        },
+    this.stageConversationTurn(memoryTransaction, {
+      role: 'customer',
+      text:
+        extractedAssetContext.items.length > 0
+          ? effectiveInput
+          : sanitizedInput.sanitized,
+      createdAt: now,
+      metadata: {
+        channel: unifiedMessage.channel,
+        messageId: unifiedMessage.messageId || null,
+        authorKind,
+        messageKind,
+        taskId: taskMemory.taskId,
+        intentKey: taskMemory.intentKey,
+        role,
+        injectionDetected: sanitizedInput.injectionDetected,
+        extractedAssetCount: extractedAssetContext.items.length,
+        messageElementCount: messageElements.length,
       },
-      scope,
-      role,
-    )
-    await this.memoryStore.appendTurn(
-      conversationId,
-      {
-        role: 'agent',
-        text: annotatedResponse.text,
-        createdAt: new Date().toISOString(),
-        metadata: {
-          provider: this.provider.providerName,
-          authorKind: 'agent_runtime',
-          messageKind: 'human_message',
-          toolCalls: annotatedResponse.toolCalls ?? [],
-          finalUserText:
-            annotatedResponse.finalUserText ?? annotatedResponse.text ?? null,
-          debugSummary: annotatedResponse.debugSummary ?? null,
-          auditPayload: annotatedResponse.auditPayload ?? null,
-          taskId: taskMemory.taskId,
-          intentKey: taskMemory.intentKey,
-          role,
-          extractedAssetCount: extractedAssetContext.items.length,
-          messageElementCount: messageElements.length,
-        },
+    })
+    this.stageConversationTurn(memoryTransaction, {
+      role: 'agent',
+      text: annotatedResponse.text,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        provider: this.provider.providerName,
+        authorKind: 'agent_runtime',
+        messageKind: 'human_message',
+        toolCalls: annotatedResponse.toolCalls ?? [],
+        finalUserText:
+          annotatedResponse.finalUserText ?? annotatedResponse.text ?? null,
+        debugSummary: annotatedResponse.debugSummary ?? null,
+        auditPayload: annotatedResponse.auditPayload ?? null,
+        taskId: taskMemory.taskId,
+        intentKey: taskMemory.intentKey,
+        role,
+        extractedAssetCount: extractedAssetContext.items.length,
+        messageElementCount: messageElements.length,
       },
-      scope,
-      role,
-    )
+    })
+    await this.responseCommit(memoryTransaction)
 
     return {
       conversationId,
@@ -4096,36 +7294,11 @@ export class AiAgentRuntime {
       toolCalls: annotatedResponse.toolCalls ?? [],
       quoteResolution: annotatedResponse.quoteResolution ?? null,
       needsHuman: Boolean(annotatedResponse.needsHuman),
-      grounding: {
-        grounded:
-          typeof annotatedResponse?.grounding?.grounded === 'boolean'
-            ? annotatedResponse.grounding.grounded
-            : retrievalContext.items.length > 0,
-        fallbackReason:
-          typeof annotatedResponse?.grounding?.fallbackReason === 'string'
-              ? annotatedResponse.grounding.fallbackReason
-            : annotatedResponse.needsHuman
-              ? 'missing_approved_context'
-              : providerGenerationAttempted &&
-                  retrievalContext.items.length === 0 &&
-                  (Array.isArray(annotatedResponse.toolCalls)
-                    ? annotatedResponse.toolCalls.length === 0
-                    : true) &&
-                  annotatedResponse?.grounding?.grounded !== true
-                ? 'missing_approved_context'
-              : null,
-        sourceCount: retrievalContext.items.length,
-        sources: retrievalContext.items.map((item) => ({
-          id: item.id,
-          title: item.title,
-          scope: item.scope,
-          sourceType: item.sourceType,
-          score:
-            typeof item.score === 'number' && Number.isFinite(item.score)
-              ? item.score
-              : null,
-        })),
-      },
+      grounding: finalizeResponseGrounding({
+        response: annotatedResponse,
+        retrievalContext,
+        providerGenerationAttempted,
+      }),
       memory: {
         ...finalizedTask.memory,
       },
@@ -4162,23 +7335,1049 @@ export class AiAgentRuntime {
     )
   }
 
-  async getRetrievalContext(unifiedMessage, role, scope, backendClient = this.backendClient) {
+  resolveDebugKnowledgeMode(unifiedMessage) {
+    const debugOptions =
+      unifiedMessage?.metadata && typeof unifiedMessage.metadata === 'object'
+        ? unifiedMessage.metadata.debugOptions
+        : null
+    const explicitMode =
+      debugOptions && typeof debugOptions === 'object'
+        ? debugOptions.knowledgeMode
+        : null
+
+    if (
+      explicitMode === 'full' ||
+      explicitMode === 'retrieval_disabled' ||
+      explicitMode === 'retrieval_only'
+    ) {
+      return explicitMode
+    }
+
+    if (
+      debugOptions &&
+      typeof debugOptions === 'object' &&
+      debugOptions.disableKnowledge === true
+    ) {
+      return 'retrieval_disabled'
+    }
+
+    return 'full'
+  }
+
+  intentRequiresStrictKnowledge({ role, intentKey, turnInterpretation } = {}) {
+    if (!(role === 'customer_public' || role === 'customer_authenticated')) {
+      return false
+    }
+
+    if (intentKey === 'customer.multi_intent') {
+      return false
+    }
+
+    if (intentKey === 'customer.contact_info') {
+      return true
+    }
+
+    const readiness = readInterpretationResolutionReadiness(turnInterpretation)
+    const faqSubtype =
+      typeof turnInterpretation?.faqSubtype === 'string'
+        ? turnInterpretation.faqSubtype
+        : null
+    const topicType =
+      typeof turnInterpretation?.topic?.type === 'string'
+        ? turnInterpretation.topic.type
+        : null
+    const activeDomain =
+      typeof readiness?.lane === 'string'
+        ? readiness.lane
+        : null
+
+    if (
+      intentKey !== 'customer.contact_info' &&
+      activeDomain !== 'business_info' &&
+      activeDomain !== 'contact'
+    ) {
+      return false
+    }
+
+    if (
+      ['location', 'business_hours', 'payment_methods', 'contact'].includes(
+        String(faqSubtype || ''),
+      ) ||
+      topicType === 'business_fact'
+    ) {
+      return true
+    }
+
+    if (
+      intentKey !== 'customer.topic_info' &&
+      intentKey !== 'customer.contact_info' &&
+      intentKey !== 'customer.faq'
+    ) {
+      return false
+    }
+    if (topicType === 'product_topic' || topicType === 'product_variant') {
+      return false
+    }
+
+    return activeDomain === 'business_info' || activeDomain === 'contact'
+  }
+
+  resolveEffectiveKnowledgeMode({
+    unifiedMessage,
+    role,
+    intentKey,
+    turnInterpretation,
+  }) {
+    const explicitMode = this.resolveDebugKnowledgeMode(unifiedMessage)
+    if (explicitMode !== 'full') {
+      return explicitMode
+    }
+
+    return this.intentRequiresStrictKnowledge({
+      role,
+      intentKey,
+      turnInterpretation,
+    })
+      ? 'retrieval_only'
+      : 'full'
+  }
+
+  resolveResponseContract({
+    role,
+    intentKey,
+    turnInterpretation,
+    tenantRuntimePolicy = null,
+  } = {}) {
+    return resolveCustomerResponseContract({
+      role,
+      intentKey,
+      turnInterpretation,
+      tenantRuntimePolicy,
+      intentRequiresStrictKnowledge: this.intentRequiresStrictKnowledge({
+        role,
+        intentKey,
+        turnInterpretation,
+      }),
+      hasActiveKnowledgeTopicAnchor,
+      hasActiveFactualKnowledgeAnchor,
+      factualFaqSubtypes: FACTUAL_FAQ_SUBTYPES,
+    })
+  }
+
+  resolveKnowledgeNeed({
+    role,
+    intentKey,
+    turnInterpretation,
+    tenantRuntimePolicy = null,
+  } = {}) {
+    const responseContract = this.resolveResponseContract({
+      role,
+      intentKey,
+      turnInterpretation,
+      tenantRuntimePolicy,
+    })
+    return resolveKnowledgeNeedDecision({
+      role,
+      intentKey,
+      turnInterpretation,
+      tenantRuntimePolicy,
+      responseContract,
+      intentRequiresStrictKnowledge: this.intentRequiresStrictKnowledge({
+        role,
+        intentKey,
+        turnInterpretation,
+      }),
+      hasActiveKnowledgeTopicAnchor,
+      hasActiveFactualKnowledgeAnchor,
+      normalizeIntentKeyValue,
+      looksLikeCommercialConditionQuestion,
+      hasTenantInstallationSignal,
+      hasTenantBusinessFactCoverage,
+      factualFaqSubtypes: FACTUAL_FAQ_SUBTYPES,
+      nonFactualSideQuestionResponseContracts:
+        NON_FACTUAL_SIDE_QUESTION_RESPONSE_CONTRACTS,
+      retrievalFreeResponseContracts: RETRIEVAL_FREE_RESPONSE_CONTRACTS,
+      requiredRetrievalResponseContracts: REQUIRED_RETRIEVAL_RESPONSE_CONTRACTS,
+    })
+  }
+
+  shouldSkipCustomerKnowledgeRetrieval({
+    role,
+    intentKey,
+    turnInterpretation,
+    tenantRuntimePolicy = null,
+  } = {}) {
+    return shouldSkipKnowledgeRetrieval(
+      this.resolveKnowledgeNeed({
+        role,
+        intentKey,
+        turnInterpretation,
+        tenantRuntimePolicy,
+      }),
+    )
+  }
+
+  async getRetrievalContext(
+    unifiedMessage,
+    role,
+    scope,
+    backendClient = this.backendClient,
+    options = {},
+  ) {
     const text = unifiedMessage.text?.trim() || ''
-    if (text.length < 4) {
-      return { items: [] }
+    const searchText = compactText(
+      options?.turnInterpretation?.retrievalQuery || text,
+    )
+    const turnKnowledgeControl = resolveTurnKnowledgeControl({
+      role,
+      intentKey: options.intentKey || null,
+      turnInterpretation: options.turnInterpretation || null,
+      tenantRuntimePolicy: options.tenantRuntimePolicy || null,
+      intentRequiresStrictKnowledge: this.intentRequiresStrictKnowledge({
+        role,
+        intentKey: options.intentKey || null,
+        turnInterpretation: options.turnInterpretation || null,
+      }),
+      hasActiveKnowledgeTopicAnchor,
+      hasActiveFactualKnowledgeAnchor,
+      normalizeIntentKeyValue,
+      looksLikeCommercialConditionQuestion,
+      hasTenantInstallationSignal,
+      hasTenantBusinessFactCoverage,
+      factualFaqSubtypes: FACTUAL_FAQ_SUBTYPES,
+      nonFactualSideQuestionResponseContracts:
+        NON_FACTUAL_SIDE_QUESTION_RESPONSE_CONTRACTS,
+      retrievalFreeResponseContracts: RETRIEVAL_FREE_RESPONSE_CONTRACTS,
+      requiredRetrievalResponseContracts: REQUIRED_RETRIEVAL_RESPONSE_CONTRACTS,
+    })
+    const knowledgeDecision = turnKnowledgeControl.knowledgeDecision
+    const knowledgeMode = this.resolveEffectiveKnowledgeMode({
+      unifiedMessage,
+      role,
+      intentKey: options.intentKey || null,
+      turnInterpretation: options.turnInterpretation || null,
+    })
+    const skipRetrieval = knowledgeDecision.knowledgeNeed === 'none'
+    if (searchText.length < 4) {
+      return {
+        items: [],
+        disabled: knowledgeMode === 'retrieval_disabled',
+        disabledReason: null,
+        responseContract: knowledgeDecision.responseContract,
+        knowledgeNeed: knowledgeDecision.knowledgeNeed,
+        knowledgeNeedReason: knowledgeDecision.reason,
+        retrievalQuery: searchText,
+        knowledgeMode,
+        knowledgeModeReason:
+          knowledgeMode === 'retrieval_only' ? 'intent_requires_strict_knowledge' : null,
+        embeddingMode: null,
+        queryEmbedding: null,
+        retrievalMode: null,
+      }
+    }
+
+    if (skipRetrieval) {
+      return {
+        items: [],
+        sources: [],
+        sourceCount: 0,
+        disabled: false,
+        disabledReason: 'not_needed_for_turn',
+        responseContract: knowledgeDecision.responseContract,
+        knowledgeNeed: knowledgeDecision.knowledgeNeed,
+        knowledgeNeedReason: knowledgeDecision.reason,
+        retrievalQuery: searchText,
+        knowledgeMode,
+        knowledgeModeReason: 'not_needed_for_turn',
+        embeddingMode: null,
+        queryEmbedding: null,
+        retrievalMode: null,
+      }
+    }
+
+    if (knowledgeMode === 'retrieval_disabled') {
+      return {
+        items: [],
+        disabled: true,
+        disabledReason: 'debug_disabled',
+        responseContract: knowledgeDecision.responseContract,
+        knowledgeNeed: knowledgeDecision.knowledgeNeed,
+        knowledgeNeedReason: knowledgeDecision.reason,
+        retrievalQuery: searchText,
+        knowledgeMode,
+        knowledgeModeReason: 'debug_disabled',
+        embeddingMode: null,
+        queryEmbedding: null,
+        retrievalMode: null,
+      }
     }
 
     try {
       const response = await backendClient.searchKnowledge(
-        text,
+        searchText,
         scopeForKnowledge(scope),
         role.startsWith('admin_') || role === 'superadmin' ? 6 : 4,
         unifiedMessage.tenantKey,
       )
-      return response ?? { items: [] }
+      return {
+        ...(response ?? { items: [] }),
+        disabled: false,
+        disabledReason: null,
+        responseContract: knowledgeDecision.responseContract,
+        knowledgeNeed: knowledgeDecision.knowledgeNeed,
+        knowledgeNeedReason: knowledgeDecision.reason,
+        retrievalQuery: searchText,
+        knowledgeMode,
+        knowledgeModeReason:
+          knowledgeMode === 'retrieval_only' ? 'intent_requires_strict_knowledge' : null,
+        embeddingMode:
+          response?.embeddingMode && typeof response.embeddingMode === 'object'
+            ? response.embeddingMode
+            : null,
+        queryEmbedding:
+          response?.queryEmbedding && typeof response.queryEmbedding === 'object'
+            ? response.queryEmbedding
+            : null,
+        retrievalMode:
+          typeof response?.retrievalMode === 'string'
+            ? response.retrievalMode
+            : null,
+      }
     } catch (error) {
       console.warn('[ai-agent-service] Unable to retrieve knowledge context', error)
-      return { items: [] }
+      return {
+        items: [],
+        disabled: false,
+        disabledReason: 'retrieval_error',
+        responseContract: knowledgeDecision.responseContract,
+        knowledgeNeed: knowledgeDecision.knowledgeNeed,
+        knowledgeNeedReason: knowledgeDecision.reason,
+        retrievalQuery: searchText,
+        knowledgeMode,
+        knowledgeModeReason:
+          knowledgeMode === 'retrieval_only' ? 'intent_requires_strict_knowledge' : null,
+        embeddingMode: null,
+        queryEmbedding: null,
+        retrievalMode: null,
+      }
+    }
+  }
+
+  enforceKnowledgeModePolicy({
+    response,
+    retrievalContext,
+    role,
+    knowledgeMode,
+  }) {
+    if (knowledgeMode !== 'retrieval_only') {
+      return response
+    }
+
+    const hasRetrievedKnowledge = Array.isArray(retrievalContext?.items)
+      ? retrievalContext.items.length > 0
+      : false
+    const grounded = response?.grounding?.grounded === true
+
+    if (hasRetrievedKnowledge || grounded) {
+      return response
+    }
+
+    const fallbackText =
+      role === 'customer_public' || role === 'customer_authenticated'
+        ? 'No encuentro contenido aprobado para responder eso solo desde la base de conocimiento. Tomamos tu consulta y te respondemos a la brevedad.'
+        : 'No encuentro contenido aprobado para responder esto en modo retrieval-only sin apoyarme en conocimiento paramétrico del modelo.'
+
+    return {
+      ...response,
+      text: fallbackText,
+      finalUserText: fallbackText,
+      needsHuman: true,
+      grounding: {
+        ...(response?.grounding || {}),
+        grounded: false,
+        fallbackReason: 'retrieval_only_no_grounding',
+      },
+      debug: {
+        ...(response?.debug || {}),
+        detail: [
+          response?.debug?.detail,
+          'Knowledge mode retrieval_only: se bloqueó la respuesta porque no hubo retrieval útil ni grounding aprobado.',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      },
+      toolCalls: Array.isArray(response?.toolCalls) ? response.toolCalls : [],
+    }
+  }
+
+  reconcileResponseGrounding({
+    response,
+    retrievalContext,
+    interpretation = null,
+    tenantRuntimePolicy = null,
+  }) {
+    return reconcileResponseGroundingAudit({
+      response,
+      retrievalContext,
+      interpretation,
+      tenantRuntimePolicy,
+      compactText,
+      normalizeGroundingFactList,
+      extractMeaningfulTokens,
+      extractTopicTokens,
+      responseMentionsCanonicalTopic: (responseText, topic) =>
+        this.responseMentionsCanonicalTopic(responseText, topic),
+    })
+  }
+
+  preventCustomerResponseLoop({
+    response,
+    previousSnapshot = null,
+    interpretation = null,
+  }) {
+    if (!response || typeof response !== 'object') {
+      return response
+    }
+
+    const responseText = compactText(response?.finalUserText || response?.text || '')
+    if (!responseText) {
+      return response
+    }
+    const currentTurnText = String(
+      interpretation?.currentTurnText ||
+        interpretation?.effectiveInput ||
+        interpretation?.originalInput ||
+        '',
+    )
+    const paymentProofContinuityInput =
+      looksLikePaymentProofArtifact(currentTurnText) ||
+      looksLikePaymentProofFollowUpRequest(currentTurnText) ||
+      looksLikePaymentOperationalUpdate(currentTurnText)
+
+    const previousAgentTurn = Array.isArray(previousSnapshot?.turns)
+      ? [...previousSnapshot.turns]
+          .reverse()
+          .find((entry) => entry?.role === 'agent' && typeof entry?.text === 'string')
+      : null
+    const previousAgentText = compactText(previousAgentTurn?.text || '')
+    const tokenizeLoopText = (value) =>
+      normalizeText(value)
+        .split(/[^a-z0-9]+/u)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length >= 3)
+    const tokenJaccard = (left, right) => {
+      const leftSet = new Set(left)
+      const rightSet = new Set(right)
+      if (!leftSet.size && !rightSet.size) {
+        return 1
+      }
+      const intersection = Array.from(leftSet).filter((token) =>
+        rightSet.has(token),
+      ).length
+      const union = new Set([...leftSet, ...rightSet]).size
+      return union === 0 ? 0 : intersection / union
+    }
+    const repeatedResponse =
+      previousAgentText &&
+      normalizeText(previousAgentText) === normalizeText(responseText)
+    const loopingResponse =
+      previousAgentText &&
+      !repeatedResponse &&
+      tokenJaccard(
+        tokenizeLoopText(previousAgentText),
+        tokenizeLoopText(responseText),
+      ) >= 0.78
+    if (paymentProofContinuityInput && !repeatedResponse && !loopingResponse) {
+      return response
+    }
+    const readiness = readInterpretationResolutionReadiness(interpretation)
+    const missingFields = Array.isArray(readiness?.missingFields)
+      ? readiness.missingFields.filter((entry) => typeof entry === 'string')
+      : []
+    const conversationState =
+      interpretation?.conversationState && typeof interpretation.conversationState === 'object'
+        ? interpretation.conversationState
+        : null
+    const effectiveMissingFields = filterResolvedConversationFields({
+      missingFields,
+      conversationState,
+    })
+    const quoteContext =
+      interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
+        ? interpretation.quoteContext
+        : null
+    const supportContext =
+      interpretation?.supportContext && typeof interpretation.supportContext === 'object'
+        ? interpretation.supportContext
+        : null
+    const scheduleContext =
+      interpretation?.scheduleContext && typeof interpretation.scheduleContext === 'object'
+        ? interpretation.scheduleContext
+        : null
+    const resolveRequestedFieldFromResponse = (text) => {
+      const normalized = normalizeText(text)
+      if (!normalized) {
+        return null
+      }
+      if (/\b(zona|direccion|dirección|domicilio|ubicacion|ubicación)\b/u.test(normalized)) {
+        return 'address'
+      }
+      if (/\b(que dia|qué día|dia te sirve|día te sirve)\b/u.test(normalized)) {
+        return 'date'
+      }
+      if (
+        /\b(horario|franja|a que hora|a qué hora|hora te queda|hora te sirve)\b/u.test(
+          normalized,
+        )
+      ) {
+        return 'time'
+      }
+      if (/\b(cuantas unidades|cuántas unidades|cantidad)\b/u.test(normalized)) {
+        return 'quantity'
+      }
+      if (
+        /\b(medidas|ancho por alto|medida aproximada|medidas aproximadas)\b/u.test(
+          normalized,
+        )
+      ) {
+        return 'measurements'
+      }
+      if (
+        /\b(que producto|qué producto|que solucion|qué solución|que queres cotizar|qué querés cotizar)\b/u.test(
+          normalized,
+        )
+      ) {
+        return 'product'
+      }
+      return null
+    }
+    const requestedField = resolveRequestedFieldFromResponse(responseText)
+    const asksResolvedField =
+      requestedField && isConversationFieldResolved(requestedField, conversationState)
+    const quantity = Number(quoteContext?.quantity?.total || readiness?.knownFacts?.quantity || 0)
+    const measurementsLabel =
+      quoteContext?.measurements?.displayLabel ||
+      quoteContext?.measurements?.confirmationLabel ||
+      null
+    const effectiveIntentKey = normalizeIntentKeyValue(
+      interpretation?.intent?.key || readiness?.turnIntent || null,
+    )
+    const previousQuoteSubject = compactText(conversationState?.slots?.product?.value || '')
+    const currentQuoteSubject = compactText(
+      quoteContext?.topicLabel || quoteContext?.familyLabel || '',
+    )
+    const stableQuoteSubject = sanitizeLoopSubjectLabel(
+      previousQuoteSubject &&
+        currentQuoteSubject &&
+        normalizeText(previousQuoteSubject).includes(normalizeText(currentQuoteSubject)) &&
+        previousQuoteSubject.split(/\s+/u).length > currentQuoteSubject.split(/\s+/u).length
+        ? previousQuoteSubject
+        : currentQuoteSubject || previousQuoteSubject || null,
+    )
+    const hasActiveQuoteThread = Boolean(
+      quoteContext?.topicLabel ||
+        quoteContext?.familyLabel ||
+        quantity > 0 ||
+        measurementsLabel,
+    )
+    const quoteLoopBreakEligible =
+      (readiness?.lane === 'quote' || quoteContext) &&
+      effectiveIntentKey !== 'customer.schedule_request' &&
+      effectiveIntentKey !== 'customer.support_request' &&
+      !scheduleContext &&
+      !supportContext
+    const initialReadyQuoteHandoff =
+      !previousAgentText &&
+      ['ready_for_pricing_or_handoff', 'ready_for_handoff'].includes(
+        String(quoteContext?.completionStatus || ''),
+      ) &&
+      looksLikeGenericQuoteHandoffResponse(responseText)
+    if (initialReadyQuoteHandoff) {
+      return response
+    }
+    const courtesyContinuationCandidate =
+      looksLikeLightClosureFollowUp(currentTurnText) &&
+      ((readiness?.lane === 'quote' && hasActiveQuoteThread) ||
+        readiness?.lane === 'support' ||
+        readiness?.lane === 'schedule' ||
+        quoteContext ||
+        supportContext ||
+        scheduleContext) &&
+      (looksLikeGenericContactResponse(responseText) ||
+        looksLikeGenericQuoteIntakeResponse(responseText) ||
+        looksLikeGenericQuoteHandoffResponse(responseText) ||
+        looksLikeCoordinationAskResponse(responseText))
+    const quoteDetailContinuationCandidate =
+      hasActiveQuoteThread &&
+      Boolean(previousAgentText) &&
+      (readiness?.lane === 'quote' || quoteContext) &&
+      looksLikeQuoteDetailFollowUp(currentTurnText) &&
+      (looksLikeGenericQuoteIntakeResponse(responseText) ||
+        looksLikeGenericQuoteHandoffResponse(responseText))
+    const quoteSubjectSpecificityRegressionCandidate =
+      hasActiveQuoteThread &&
+      Boolean(previousAgentText) &&
+      (looksLikeQuoteDetailFollowUp(currentTurnText) ||
+        Boolean(measurementsLabel) ||
+        quantity > 0) &&
+      stableQuoteSubject &&
+      !normalizeText(responseText).includes(normalizeText(stableQuoteSubject)) &&
+      Boolean(currentQuoteSubject) &&
+      normalizeText(responseText).includes(normalizeText(currentQuoteSubject))
+    const strongActiveThread =
+      hasActiveQuoteThread ||
+      Boolean(
+        interpretation?.threadResolution?.activeThread?.displayLabel ||
+          interpretation?.topic?.label ||
+          interpretation?.contextTopic?.label ||
+          supportContext?.issueSummary ||
+          supportContext?.address ||
+          scheduleContext?.address ||
+          scheduleContext?.date?.dateLabel ||
+          scheduleContext?.time?.timeLabel,
+      )
+    const fallbackContractCandidate =
+      strongActiveThread &&
+      !looksLikeLightClosureFollowUp(currentTurnText) &&
+      (looksLikeGenericClarificationResponse(responseText) ||
+        looksLikeGenericConsultationClosureResponse(responseText))
+    const closureLoopCandidate =
+      strongActiveThread &&
+      !looksLikeLightClosureFollowUp(currentTurnText) &&
+      looksLikeClosureContinuationResponse(responseText)
+    const partialScheduleLoopCandidate =
+      (readiness?.lane === 'schedule' || scheduleContext) &&
+      /\b(d[ií]a y horario|horario y d[ií]a|qu[eé] d[ií]a y horario)\b/i.test(responseText) &&
+      effectiveMissingFields.length === 1 &&
+      ['date', 'time'].includes(String(effectiveMissingFields[0] || ''))
+
+    if (
+      !repeatedResponse &&
+      !loopingResponse &&
+      !courtesyContinuationCandidate &&
+      !quoteDetailContinuationCandidate &&
+      !quoteSubjectSpecificityRegressionCandidate &&
+      !asksResolvedField &&
+      !fallbackContractCandidate &&
+      !closureLoopCandidate &&
+      !partialScheduleLoopCandidate
+    ) {
+      return response
+    }
+
+    const buildQuoteLoopBreak = () => {
+      if (looksLikeLightClosureFollowUp(currentTurnText)) {
+        return buildClosureContinuationReply(previousAgentText)
+      }
+
+      const stateNotes = []
+      if (stableQuoteSubject) {
+        stateNotes.push(`ya tomé ${stableQuoteSubject}`)
+      }
+      if (measurementsLabel) {
+        stateNotes.push(`me queda ${measurementsLabel}`)
+      }
+      if (quantity > 0) {
+        stateNotes.push(quantity === 1 ? 'anoto 1 unidad' : `anoto ${quantity} unidades`)
+      }
+
+      const remainingConfigurationEntries = (
+        Array.isArray(quoteContext?.missingAttributes)
+          ? quoteContext.missingAttributes
+          : Array.isArray(quoteContext?.requiredAttributes)
+          ? quoteContext.requiredAttributes.filter((attribute) =>
+                effectiveMissingFields.includes(attribute?.key),
+              )
+            : []
+      )
+        .filter((attribute) => {
+          const key = String(attribute?.key || '').trim()
+          if (!key) {
+            return false
+          }
+
+          if (
+            effectiveMissingFields.includes('measurements') &&
+            (key === 'measurements' || key === 'measurement_items')
+          ) {
+            return false
+          }
+
+          if (effectiveMissingFields.includes('quantity') && key === 'quantity') {
+            return false
+          }
+
+          if (effectiveMissingFields.includes('product') && key === 'product') {
+            return false
+          }
+
+          return true
+        })
+        .map((attribute) => ({
+          key: compactText(attribute?.key || ''),
+          label: compactText(
+            attribute?.label || attribute?.subjectPrefix || attribute?.key || '',
+          ),
+        }))
+        .filter((entry) => entry.key && entry.label)
+      const uniqueRemainingConfigurationEntries = Array.from(
+        new Map(
+          remainingConfigurationEntries.map((entry) => [
+            normalizeText(entry.key || entry.label),
+            entry,
+          ]),
+        ).values(),
+      )
+      const preferredRemainingConfigurationEntry =
+        uniqueRemainingConfigurationEntries.length > 1 &&
+        conversationState?.lastAskedSlot &&
+        String(conversationState.lastAskedSlot) ===
+          String(uniqueRemainingConfigurationEntries[0]?.key || '')
+          ? uniqueRemainingConfigurationEntries[1]
+          : uniqueRemainingConfigurationEntries[0] || null
+      const nextTenantConfigurationLabel =
+        preferredRemainingConfigurationEntry?.label || null
+      const remainingConfigurationLabel =
+        uniqueRemainingConfigurationEntries.length === 0
+          ? null
+          : uniqueRemainingConfigurationEntries.length === 1
+            ? uniqueRemainingConfigurationEntries[0].label
+            : `${uniqueRemainingConfigurationEntries
+                .slice(0, -1)
+                .map((entry) => entry.label)
+                .join(', ')} y ${uniqueRemainingConfigurationEntries.at(-1)?.label}`
+      const coreQuoteMissingFields = effectiveMissingFields.filter((field) =>
+        ['measurements', 'quantity', 'product'].includes(String(field || '')),
+      )
+      const onlyTenantConfigurationPending =
+        quoteLoopBreakEligible &&
+        coreQuoteMissingFields.length === 0 &&
+        Boolean(remainingConfigurationLabel)
+      const repeatedMeasurementsAskCandidate =
+        (repeatedResponse || loopingResponse) &&
+        conversationState?.lastAskedSlot === 'dimensions' &&
+        effectiveMissingFields.includes('measurements')
+      const repeatedQuantityAskCandidate =
+        (repeatedResponse || loopingResponse) &&
+        conversationState?.lastAskedSlot === 'quantity' &&
+        effectiveMissingFields.includes('quantity')
+
+      const nextAsk =
+        repeatedMeasurementsAskCandidate
+          ? 'Si no las tenés exactas, pasame una medida aproximada o una foto y avanzo con eso.'
+          : repeatedQuantityAskCandidate
+            ? 'Si no sabés la cantidad exacta, decime aunque sea aproximada y sigo con eso.'
+            : effectiveMissingFields.includes('measurements')
+          ? remainingConfigurationLabel
+            ? `Decime las medidas aproximadas (ancho por alto). Si ya lo sabés, después confirmame ${remainingConfigurationLabel}.`
+            : 'Decime las medidas aproximadas (ancho por alto).'
+          : effectiveMissingFields.includes('quantity')
+            ? remainingConfigurationLabel
+              ? `Decime cuántas unidades necesitás. Si ya lo sabés, además confirmame ${remainingConfigurationLabel}.`
+              : 'Decime cuántas unidades necesitás.'
+            : effectiveMissingFields.includes('product')
+              ? 'Decime qué producto querés cotizar.'
+              : nextTenantConfigurationLabel
+                ? stableQuoteSubject
+                  ? `Para seguir con la cotización de ${stableQuoteSubject}, confirmame ${nextTenantConfigurationLabel}.`
+                  : `Para seguir con la cotización, confirmame ${nextTenantConfigurationLabel}.`
+                : null
+      if (quoteDetailContinuationCandidate) {
+        return compactText(
+          [
+            'Perfecto.',
+            stableQuoteSubject
+              ? `Sumo ese dato para la misma cotización de ${stableQuoteSubject}.`
+              : 'Sumo ese dato para la misma cotización.',
+            nextAsk || 'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
+          ]
+            .filter(Boolean)
+            .join(' '),
+        )
+      }
+      if (quoteSubjectSpecificityRegressionCandidate && stableQuoteSubject) {
+        if (measurementsLabel) {
+          return compactText(
+            [
+              'Perfecto.',
+              `Tomo una medida aproximada de ${measurementsLabel} para ${stableQuoteSubject}.`,
+              nextAsk || 'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
+            ].join(' '),
+          )
+        }
+        return compactText(
+          [
+            'Perfecto.',
+            `Sumo ese dato para la misma cotización de ${stableQuoteSubject}.`,
+            nextAsk || 'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
+          ].join(' '),
+        )
+      }
+      if (onlyTenantConfigurationPending) {
+        return compactText(
+          [
+            'Perfecto.',
+            stateNotes.length ? `${stateNotes.join(', ')}.` : null,
+            nextAsk,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        )
+      }
+      if (!nextAsk) {
+        return null
+      }
+
+      return compactText(
+        [
+          'Perfecto.',
+          stateNotes.length ? `${stateNotes.join(', ')}.` : null,
+          nextAsk,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+    }
+
+    const buildSupportLoopBreak = () => {
+      if (looksLikeLightClosureFollowUp(currentTurnText)) {
+        return buildClosureContinuationReply(previousAgentText)
+      }
+
+      const stateNotes = []
+      if (supportContext?.productType) {
+        stateNotes.push(`ya tomo que es ${supportContext.productType}`)
+      }
+      if (supportContext?.issueSummary) {
+        stateNotes.push('ya me queda qué habría que revisar')
+      }
+      if (supportContext?.address) {
+        stateNotes.push('ya tengo la dirección')
+      }
+
+      const nextAsk =
+        effectiveMissingFields.includes('issue')
+          ? 'Contame qué falla o qué habría que revisar.'
+          : effectiveMissingFields.includes('product')
+            ? 'Decime qué producto es.'
+            : effectiveMissingFields.includes('date')
+              ? 'Decime qué día te sirve.'
+              : effectiveMissingFields.includes('time')
+                ? 'Decime qué horario te queda mejor.'
+                : effectiveMissingFields.includes('address')
+                  ? 'Pasame la zona o dirección.'
+                  : effectiveMissingFields.includes('contact')
+                    ? 'Pasame un teléfono o mail de contacto.'
+                    : null
+      if (!nextAsk) {
+        return null
+      }
+
+      return compactText(
+        [
+          'Perfecto.',
+          stateNotes.length ? `${stateNotes.join(', ')}.` : null,
+          nextAsk,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+    }
+
+    const buildScheduleLoopBreak = () => {
+      if (looksLikeLightClosureFollowUp(currentTurnText)) {
+        return buildClosureContinuationReply(previousAgentText)
+      }
+
+      const stateNotes = []
+      const scheduleDateLabel =
+        scheduleContext?.date?.dateLabel || scheduleContext?.date?.label || null
+      const scheduleTimeLabel =
+        scheduleContext?.time?.timeLabel || scheduleContext?.time?.label || null
+      if (scheduleContext?.address) {
+        stateNotes.push('ya tengo la dirección')
+      }
+      if (scheduleDateLabel) {
+        stateNotes.push(`me sirve ${scheduleDateLabel}`)
+      }
+      if (scheduleTimeLabel) {
+        stateNotes.push(`y ${scheduleTimeLabel}`)
+      }
+
+      const nextAsk =
+        effectiveMissingFields.includes('date')
+          ? 'Decime qué día te sirve.'
+          : effectiveMissingFields.includes('time')
+            ? 'Decime qué horario te queda mejor.'
+            : effectiveMissingFields.includes('address')
+              ? 'Pasame la zona o dirección.'
+              : effectiveMissingFields.includes('contact')
+                ? 'Pasame un teléfono o mail de contacto.'
+                : null
+      if (!nextAsk) {
+        return null
+      }
+
+      return compactText(
+        [
+          'Perfecto.',
+          stateNotes.length ? `${stateNotes.join(', ')}.` : null,
+          nextAsk,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+    }
+
+    const buildGenericLoopBreak = () => {
+      const subjectLabel = sanitizeLoopSubjectLabel(
+        interpretation?.topic?.label ||
+          interpretation?.contextTopic?.label ||
+          quoteContext?.topicLabel ||
+          quoteContext?.familyLabel ||
+          supportContext?.productType ||
+          '',
+      )
+
+      if (looksLikeLightClosureFollowUp(currentTurnText)) {
+        return buildClosureContinuationReply(previousAgentText)
+      }
+
+      if (looksLikeAwaitingProofResponse(responseText)) {
+        if (looksLikePaymentProofArtifact(currentTurnText)) {
+          return 'Perfecto. Recibí el comprobante y lo dejo en seguimiento para confirmar la acreditación a la brevedad.'
+        }
+        if (
+          looksLikePaymentProofFollowUpRequest(currentTurnText) ||
+          looksLikePaymentOperationalUpdate(currentTurnText)
+        ) {
+          return 'Perfecto. Quedo atento al comprobante por acá para dejarlo en seguimiento.'
+        }
+      }
+
+      if (looksLikeGenericClarificationResponse(responseText)) {
+        if (looksLikeOperationalStatusContinuation(currentTurnText)) {
+          return 'Perfecto. Si esto sigue por coordinación o visita, pasame día, horario o dirección y avanzo por ahí.'
+        }
+        if (subjectLabel) {
+          return `Claro. Si seguimos con ${subjectLabel}, decime si querés precio, fotos o material de referencia, o coordinar cómo seguir.`
+        }
+        if (looksLikeAttachmentReference(currentTurnText)) {
+          return 'Perfecto. Recibí eso. Decime si esto sigue por una cotización, una revisión o una coordinación, y avanzo por ahí.'
+        }
+        return 'Perfecto. Para no mezclar temas, decime si esto sigue por una cotización, una revisión o una coordinación, y avanzo por ahí.'
+      }
+
+      if (looksLikeGenericConsultationClosureResponse(responseText)) {
+        if (
+          looksLikeGenericPriceInquiry(currentTurnText) ||
+          hasCatalogVocabularySignal(currentTurnText, tenantRuntimePolicy)
+        ) {
+          return 'Claro. Si es por esa consulta, pasame la medida aproximada y te oriento con la cotización.'
+        }
+        if (/\b(ambas|los dos|las dos)\b/i.test(currentTurnText)) {
+          return 'Perfecto. Si querés ambas opciones, te las comparo por acá. Si podés, pasame la medida aproximada.'
+        }
+      }
+
+      if (looksLikeGenericContactResponse(responseText)) {
+        if (readiness?.lane === 'schedule' || scheduleContext) {
+          return (
+            buildScheduleLoopBreak() ||
+            'Perfecto. Con eso lo dejamos encaminado. Decime qué día u horario te queda mejor.'
+          )
+        }
+        if (readiness?.lane === 'support' || supportContext) {
+          return (
+            buildSupportLoopBreak() ||
+            'Perfecto. Con eso lo dejamos encaminado. Pasame zona o dirección y qué día u horario te queda bien.'
+          )
+        }
+        if (
+          /\b(tiempo de entrega|cuanto demora|cuánto demora|demora|cuanto tarda|cuánto tarda|tarda|plazo de entrega|entrega)\b/i.test(
+            currentTurnText,
+          )
+        ) {
+          return 'Claro. El tiempo de entrega se confirma según el trabajo y la agenda disponible. Si querés, te lo dejo encaminado para que te lo confirmen por acá.'
+        }
+        if (
+          looksLikeAmountOnlyReply(currentTurnText) ||
+          /\b(cuenta bancaria|cuenta|transferencia|se[nñ]a|comprobante|giro)\b/i.test(
+            currentTurnText,
+          )
+        ) {
+          return 'Perfecto. Si vas a transferir o dejar una seña, cuando hagas el pago mandame el comprobante por acá y lo dejamos encaminado.'
+        }
+        if (looksLikeAddressOrTimeReply(currentTurnText)) {
+          return 'Perfecto. Con eso ya lo encamino. Si querés coordinar visita o revisión, decime qué día u horario te queda mejor.'
+        }
+      }
+
+      if (looksLikeGenericQuoteIntakeResponse(responseText)) {
+        if (looksLikeOperationalStatusContinuation(currentTurnText)) {
+          return 'Perfecto. Si preferís coordinar visita para medir o revisar, pasame la zona o dirección y qué día u horario te queda bien.'
+        }
+        if (
+          subjectLabel &&
+          /\b(foto|fotos|imagen|imagenes|material|catalogo|cat[aá]logo|referencias)\b/i.test(
+            currentTurnText,
+          )
+        ) {
+          return `Claro. Si querés referencias de ${subjectLabel}, lo dejo encaminado para compartir fotos o material por este canal.`
+        }
+      }
+
+      if (looksLikeGenericQuoteHandoffResponse(responseText)) {
+        if (looksLikeLightClosureFollowUp(currentTurnText)) {
+          return buildClosureContinuationReply(previousAgentText)
+        }
+        if (subjectLabel || looksLikeQuoteDetailFollowUp(currentTurnText)) {
+          return compactText(
+            [
+              'Perfecto.',
+              subjectLabel
+                ? `Sumo ese dato para la misma cotización de ${subjectLabel}.`
+                : 'Sumo ese dato para la misma cotización.',
+              'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
+            ].join(' '),
+          )
+        }
+      }
+
+      return null
+    }
+
+    let rewrittenText = null
+    if (quoteLoopBreakEligible) {
+      rewrittenText = buildQuoteLoopBreak()
+    }
+
+    if (!rewrittenText && (readiness?.lane === 'schedule' || scheduleContext)) {
+      rewrittenText = buildScheduleLoopBreak()
+    }
+
+    if (!rewrittenText && (readiness?.lane === 'support' || supportContext)) {
+      rewrittenText = buildSupportLoopBreak()
+    }
+
+    if (!rewrittenText) {
+      rewrittenText = buildGenericLoopBreak()
+    }
+
+    if (!rewrittenText || normalizeText(rewrittenText) === normalizeText(responseText)) {
+      return response
+    }
+
+    return {
+      ...response,
+      text: rewrittenText,
+      finalUserText: rewrittenText,
+      debug: {
+        ...(response?.debug || {}),
+        detail: response?.debug?.detail
+          ? `${response.debug.detail} Se reformuló la salida para cortar un loop y avanzar con el próximo dato útil.`
+          : 'Se reformuló la salida para cortar un loop y avanzar con el próximo dato útil.',
+      },
     }
   }
 
@@ -4189,6 +8388,7 @@ export class AiAgentRuntime {
     backendClient = this.backendClient,
     resolvedActionIntent = null,
     resolvedIntentKey = null,
+    tenantRuntimePolicy = null,
   ) {
     const input = unifiedMessage.text?.trim()
     if (!input || input.length < 4) {
@@ -4254,11 +8454,7 @@ export class AiAgentRuntime {
           if (entry.status !== 'executed') {
             return false
           }
-          if (
-            entry.name === 'parse_aberturas' ||
-            entry.name === 'prepare_aberturas_quote' ||
-            entry.name === 'prepare_aberturas_insert'
-          ) {
+          if (isStructuredCatalogToolName(entry.name)) {
             return Boolean(entry.result?.itemCount)
           }
           return Array.isArray(entry.result) && entry.result.length > 0
@@ -4273,11 +8469,12 @@ export class AiAgentRuntime {
       }
     }
 
-    const productTerm = extractNamedEntity(input, [
-      /\bproducto\s+([a-záéíóúñ0-9 .'-]+?)(?=\s+(?:con|por|y|,|$))/iu,
-      /\b\d+\s+((?:rollers?\s+(?:screen|blackout))(?:\s+[a-záéíóúñ0-9-]+){0,4})(?=\s*(?:,|$))/iu,
-      /\b((?:rollers?\s+(?:screen|blackout)|roller\s+(?:screen|blackout)|persianas?(?:\s+[a-záéíóúñ0-9-]+){0,4}|toldos?(?:\s+[a-záéíóúñ0-9-]+){0,4}|aberturas?(?:\s+[a-záéíóúñ0-9-]+){0,4}))(?=\s+(?:de|con|por|para|,|$))/iu,
-    ])
+    const productTerm =
+      extractNamedEntity(input, [
+        /\bproducto\s+([a-záéíóúñ0-9 .'-]+?)(?=\s+(?:con|por|y|,|$))/iu,
+      ]) ||
+      findBestPolicyTopicMatch(input, tenantRuntimePolicy)?.label ||
+      null
 
     if (!(role.startsWith('admin_') || role === 'superadmin')) {
       const customerIntent = resolvedIntentKey || 'customer.other'
@@ -4287,7 +8484,7 @@ export class AiAgentRuntime {
       ) {
         await queueSearch(
           'search_products',
-          buildCustomerProductSearchQuery(productTerm || input),
+          buildCustomerProductSearchQuery(productTerm || input, tenantRuntimePolicy),
         )
       }
       return buildContextPayload()
@@ -4324,7 +8521,10 @@ export class AiAgentRuntime {
 
     if (actionIntent.key === 'orders.create' || actionIntent.key === 'quotes.create') {
       await queueSearch('search_customers', customerTerm || input)
-      await queueSearch('search_products', productTerm || input)
+      await queueSearch(
+        'search_products',
+        buildCustomerProductSearchQuery(productTerm || input, tenantRuntimePolicy),
+      )
     }
 
     if (actionIntent.key === 'payments.create') {
@@ -4427,73 +8627,78 @@ export class AiAgentRuntime {
       await queueSearch('search_products', productTerm || input)
     }
 
-    if (actionIntent.key === 'aberturas.parse') {
+    if (actionIntent.key === STRUCTURED_CATALOG_PARSE_INTENT) {
       try {
-        const result = await backendClient.parseAberturas({
+        const result = await backendClient.parseStructuredCatalogItems({
           text: input,
           source: 'admin_internal_chat',
         })
         executions.push({
-          name: 'parse_aberturas',
+          name: STRUCTURED_CATALOG_PARSE_TOOL,
           arguments: { text: input, source: 'admin_internal_chat' },
           result,
           status: 'executed',
         })
       } catch (error) {
         executions.push({
-          name: 'parse_aberturas',
-          arguments: { text: input, source: 'admin_internal_chat' },
-          result: null,
-          status: 'failed',
-          errorMessage: error instanceof Error ? error.message : 'aberturas parse failed',
-        })
-      }
-    }
-
-    if (actionIntent.key === 'aberturas.register') {
-      try {
-        const result = await backendClient.prepareAberturasInsert({
-          text: input,
-          source: 'admin_internal_chat',
-        })
-        executions.push({
-          name: 'prepare_aberturas_insert',
-          arguments: { text: input, source: 'admin_internal_chat' },
-          result,
-          status: 'executed',
-        })
-      } catch (error) {
-        executions.push({
-          name: 'prepare_aberturas_insert',
+          name: STRUCTURED_CATALOG_PARSE_TOOL,
           arguments: { text: input, source: 'admin_internal_chat' },
           result: null,
           status: 'failed',
           errorMessage:
-            error instanceof Error ? error.message : 'aberturas insert draft failed',
+            error instanceof Error ? error.message : 'structured catalog parse failed',
         })
       }
     }
 
-    if (actionIntent.key === 'aberturas.prepare_quote') {
+    if (actionIntent.key === STRUCTURED_CATALOG_REGISTER_INTENT) {
       try {
-        const result = await backendClient.prepareAberturasQuote({
+        const result = await backendClient.prepareStructuredCatalogInsert({
           text: input,
           source: 'admin_internal_chat',
         })
         executions.push({
-          name: 'prepare_aberturas_quote',
+          name: STRUCTURED_CATALOG_INSERT_TOOL,
           arguments: { text: input, source: 'admin_internal_chat' },
           result,
           status: 'executed',
         })
       } catch (error) {
         executions.push({
-          name: 'prepare_aberturas_quote',
+          name: STRUCTURED_CATALOG_INSERT_TOOL,
           arguments: { text: input, source: 'admin_internal_chat' },
           result: null,
           status: 'failed',
           errorMessage:
-            error instanceof Error ? error.message : 'aberturas quote draft failed',
+            error instanceof Error
+              ? error.message
+              : 'structured catalog insert draft failed',
+        })
+      }
+    }
+
+    if (actionIntent.key === STRUCTURED_CATALOG_PREPARE_QUOTE_INTENT) {
+      try {
+        const result = await backendClient.prepareStructuredCatalogQuote({
+          text: input,
+          source: 'admin_internal_chat',
+        })
+        executions.push({
+          name: STRUCTURED_CATALOG_QUOTE_TOOL,
+          arguments: { text: input, source: 'admin_internal_chat' },
+          result,
+          status: 'executed',
+        })
+      } catch (error) {
+        executions.push({
+          name: STRUCTURED_CATALOG_QUOTE_TOOL,
+          arguments: { text: input, source: 'admin_internal_chat' },
+          result: null,
+          status: 'failed',
+          errorMessage:
+            error instanceof Error
+              ? error.message
+              : 'structured catalog quote draft failed',
         })
       }
     }
@@ -4675,6 +8880,7 @@ export class AiAgentRuntime {
     fallbackReason,
     interpretation = null,
     tenantTopicTaxonomy = [],
+    tenantRuntimePolicy = null,
     previousIntentKey = null,
     channel = null,
   }) {
@@ -4687,6 +8893,7 @@ export class AiAgentRuntime {
         fallbackReason,
         interpretation,
         tenantTopicTaxonomy,
+        tenantRuntimePolicy,
         previousIntentKey,
         channel,
       }) ||
@@ -4771,15 +8978,18 @@ export class AiAgentRuntime {
     }
 
     if (
-      actionIntent.key === 'aberturas.parse' ||
-      actionIntent.key === 'aberturas.register'
+      actionIntent.key === STRUCTURED_CATALOG_PARSE_INTENT ||
+      actionIntent.key === STRUCTURED_CATALOG_REGISTER_INTENT
     ) {
       for (const tool of tools) {
-        if (tool.name === 'prepare_aberturas_quote') {
+        if (tool.name === STRUCTURED_CATALOG_QUOTE_TOOL) {
           blockedTools.push(tool.name)
           allowedNames.delete(tool.name)
         }
-        if (actionIntent.key === 'aberturas.register' && tool.name === 'parse_aberturas') {
+        if (
+          actionIntent.key === STRUCTURED_CATALOG_REGISTER_INTENT &&
+          tool.name === STRUCTURED_CATALOG_PARSE_TOOL
+        ) {
           blockedTools.push(tool.name)
           allowedNames.delete(tool.name)
         }
@@ -4814,10 +9024,10 @@ export class AiAgentRuntime {
     }
   }
 
-  buildAberturasRegisterDraft(actionIntent, operationalContext) {
+  buildStructuredCatalogRegisterDraft(actionIntent, operationalContext) {
     const insertDraft = this.getExecutedToolResult(
       operationalContext?.toolCalls,
-      'prepare_aberturas_insert',
+      STRUCTURED_CATALOG_INSERT_TOOL,
     )
 
     if (!insertDraft) {
@@ -4834,28 +9044,15 @@ export class AiAgentRuntime {
     return {
       actionKey: actionIntent.key,
       ready: readyItems.length > 0,
-      intro: 'He preparado la alta al sistema de las aberturas detectadas.',
+      intro: 'He preparado el alta al sistema de los ítems estructurados detectados.',
       sections: [
         {
           title: 'Listas para alta',
-          items: readyItems.map((item) => {
-            const price = item?.insertPayload?.salePrice ?? item?.price ?? null
-            const currency =
-              item?.insertPayload?.currency ?? item?.currency ?? null
-            return `${item?.lineNumber || '?'}. ${item?.familyId || 'sin familia'} ${item?.serie || 'sin serie'} ${item?.widthMm || '?'}x${item?.heightMm || '?'}${currency && price != null ? ` ${currency} ${price}` : ''}`.trim()
-          }),
+          items: readyItems.map((item) => formatStructuredCatalogInsertItem(item)),
         },
         {
           title: 'Pendientes',
-          items: pendingItems.map((item) => {
-            const missing = Array.isArray(item?.missingFields) && item.missingFields.length
-              ? item.missingFields
-              : [
-                  item?.price == null ? 'price' : null,
-                  !item?.currency ? 'currency' : null,
-                ].filter(Boolean)
-            return `${item?.lineNumber || '?'}. ${item?.familyId || 'sin familia'} ${item?.serie || 'sin serie'} ${item?.widthMm || '?'}x${item?.heightMm || '?'}: falta ${missing.join(', ') || 'revisión manual'}`
-          }),
+          items: pendingItems.map((item) => formatStructuredCatalogPendingItem(item)),
         },
       ],
       confirmationPrompt:
@@ -4868,11 +9065,11 @@ export class AiAgentRuntime {
           toolName: 'create_product',
           payload: item.insertPayload,
           verifyEntity: 'product',
-          successLabel: item.insertPayload?.name || `${item?.familyId || 'Abertura'} ${item?.serie || ''}`.trim(),
+          successLabel: resolveStructuredCatalogSuccessLabel(item),
         })),
       },
       batchSuccessTitle: 'Alta ejecutada correctamente para los siguientes productos:',
-      debugDetail: `Se usó prepare_aberturas_insert sobre el texto de entrada. Ítems listos: ${readyItems.length}. Ítems pendientes: ${pendingItems.length}.`,
+      debugDetail: `Se usó ${STRUCTURED_CATALOG_INSERT_TOOL} sobre el texto de entrada. Ítems listos: ${readyItems.length}. Ítems pendientes: ${pendingItems.length}.`,
     }
   }
 
@@ -5682,7 +9879,8 @@ export class AiAgentRuntime {
       return null
     }
     const requiresConfirmationFlow =
-      requestedToolRequiresConfirmation || actionIntent.key === 'aberturas.register'
+      requestedToolRequiresConfirmation ||
+      actionIntent.key === STRUCTURED_CATALOG_REGISTER_INTENT
     if (!requiresConfirmationFlow) {
       return null
     }
@@ -5744,16 +9942,27 @@ export class AiAgentRuntime {
       interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
         ? interpretation.quoteContext
         : null
+    const pendingQuoteClarification =
+      quoteContext?.pendingClarification &&
+      typeof quoteContext.pendingClarification === 'object'
+        ? quoteContext.pendingClarification
+        : null
+    const quoteAmbiguityPending =
+      String(pendingQuoteClarification?.type || '') === 'catalog_match_ambiguous'
     const inheritedIntentKey =
       typeof interpretation?.followUp?.inheritedIntentKey === 'string'
         ? interpretation.followUp.inheritedIntentKey
         : null
+    const quoteConfirmationFollowUp = interpretation?.followUp?.quoteConfirmation === true
     const channel = unifiedMessage?.channel || null
     const channelProfile = this.getResponseChannelProfile(channel)
     const effectiveIntentKey = intentKey
+    const quoteWorkflowFollowUp =
+      effectiveIntentKey === 'customer.quote' ||
+      (quoteConfirmationFollowUp && inheritedIntentKey === 'customer.quote')
     if (
       !quoteContext ||
-      effectiveIntentKey !== 'customer.quote' ||
+      !quoteWorkflowFollowUp ||
       looksLikeCommercialConditionQuestion(input) ||
       String(quoteContext.completionStatus || '') !== 'ready_for_pricing_or_handoff'
     ) {
@@ -5762,24 +9971,55 @@ export class AiAgentRuntime {
 
     const locale = resolveUnifiedLocale(unifiedMessage)
     const targetCurrency = resolveUnifiedCurrency(unifiedMessage)
+    const tenantGroundingKey = unifiedMessage?.tenantKey || tenantKey || 'default'
+    const buildQuoteWorkflowGrounding = (
+      responseText,
+      {
+        sourceType = 'quote_workflow',
+        scope = 'quote',
+        sourceKey = interpretation?.quoteContext?.profileKey || 'quote_resolution',
+        title = interpretation?.quoteContext?.profileLabel || 'Quote workflow',
+        facts = null,
+      } = {},
+    ) =>
+      buildGroundingContract({
+        knowledgeRetrieved: false,
+        usedFacts:
+          Array.isArray(facts) && facts.length > 0
+            ? facts
+            : extractGroundingFactsFromText(responseText, 2),
+        sources: buildStructuredGroundingSource({
+          tenantKey: tenantGroundingKey,
+          sourceType,
+          scope,
+          sourceKey,
+          title,
+        }),
+      })
 
     const commerceMode = this.getCustomerCapabilityMode('customer.quote')
     if (capabilityModeBlocksAutomaticResolution(commerceMode)) {
-      return {
-        text: buildCustomerQuoteHandoffText({
-          subject:
-            quoteContext?.topicLabel ||
-            quoteContext?.familyLabel ||
-            interpretation?.topic?.label ||
+      const handoffText = buildCustomerQuoteHandoffText({
+        subject:
+          quoteContext?.topicLabel ||
+          quoteContext?.familyLabel ||
+          interpretation?.topic?.label ||
           interpretation?.contextTopic?.label ||
           'la configuración solicitada',
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-        }),
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+      })
+      return {
+        text: handoffText,
         toolCalls: [],
         needsHuman: true,
         grounding: {
-          grounded: false,
+          ...buildQuoteWorkflowGrounding(handoffText, {
+            sourceType: 'runtime_capability',
+            scope: 'capability',
+            sourceKey: 'commerce_handoff',
+            title: 'Commerce capability handoff',
+          }),
           fallbackReason: 'capability_commerce_handoff_only',
           fallbackSubtype: 'quote_handoff',
         },
@@ -5792,7 +10032,8 @@ export class AiAgentRuntime {
     }
 
     if (
-      looksLikeQuoteWaitingFollowUp(input) &&
+      (looksLikeQuoteWaitingFollowUp(input) || quoteConfirmationFollowUp) &&
+      !quoteAmbiguityPending &&
       (Boolean(interpretation?.followUp?.detected) ||
         inheritedIntentKey === 'customer.quote' ||
         Boolean(interpretation?.contextTopic?.label)) &&
@@ -5802,26 +10043,104 @@ export class AiAgentRuntime {
         Number(quoteContext?.quantity?.total || 0) > 0 ||
         Boolean(interpretation?.contextTopic?.label))
     ) {
+      const waitingText = buildCustomerQuoteWaitingFollowUpText({
+        input,
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile,
+      })
       return {
-        text: buildCustomerQuoteWaitingFollowUpText({
-          input,
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-          channel,
-          channelProfile,
-        }),
+        text: waitingText,
         toolCalls: [],
         needsHuman: true,
         grounding: {
-          grounded: false,
+          ...buildQuoteWorkflowGrounding(waitingText, {
+            sourceKey: interpretation?.quoteContext?.profileKey || 'quote_waiting_followup',
+            title:
+              interpretation?.quoteContext?.profileLabel || 'Quote waiting follow-up',
+          }),
           fallbackReason: null,
           fallbackSubtype: 'quote_handoff',
         },
         debug: {
           actionKey: 'customer.quote',
           detail:
-            'Se mantuvo el seguimiento de una cotización ya encaminada cuando el cliente indicó que espera el presupuesto, sin reabrir el intake ni recalcular el producto.',
+            'Se mantuvo el seguimiento de una cotización ya encaminada ante un acknowledgement o espera explícita del cliente, sin reabrir el intake ni recalcular el producto.',
         },
+      }
+    }
+
+    if (
+      quoteAmbiguityPending &&
+      quoteConfirmationFollowUp &&
+      Array.isArray(pendingQuoteClarification?.candidateProducts) &&
+      pendingQuoteClarification.candidateProducts.length > 0
+    ) {
+      const clarificationResolution = {
+        strategy: String(quoteContext?.pricingStrategy || '').trim() || 'quote_profile',
+        status: 'product_not_found',
+        subjectLabel:
+          pendingQuoteClarification.subjectLabel ||
+          quoteContext?.topicLabel ||
+          quoteContext?.familyLabel ||
+          'la configuración solicitada',
+        productNotFoundSubtype: 'catalog_match_ambiguous',
+        candidateProducts: pendingQuoteClarification.candidateProducts,
+      }
+      const clarificationText = buildCustomerQuoteResolutionText(
+        clarificationResolution,
+        {
+          interpretation,
+          conversationState: interpretation?.conversationState || null,
+          tenantTopicTaxonomy,
+          variationSeed,
+          locale,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+        },
+      )
+      if (clarificationText) {
+        return {
+          text: clarificationText,
+          wordingKey: 'customer.quote.ambiguous_options',
+          toolCalls: [],
+          needsHuman: false,
+          grounding: buildGroundingContract({
+            knowledgeRetrieved: false,
+            knowledgeUsed: true,
+            usedFacts: [
+              `Consulta reconocida: ${
+                pendingQuoteClarification.subjectLabel ||
+                quoteContext?.topicLabel ||
+                quoteContext?.familyLabel ||
+                'la configuración solicitada'
+              }.`,
+              'Sigue habiendo más de una opción publicada compatible.',
+            ],
+            sources: buildStructuredGroundingSource({
+              tenantKey: tenantKey || 'default',
+              sourceType: 'tenant_policy',
+              scope: 'quote_profile',
+              sourceKey:
+                interpretation?.quoteContext?.profileKey ||
+                pendingQuoteClarification.subjectLabel ||
+                'quote_ambiguity',
+              title:
+                interpretation?.quoteContext?.profileLabel ||
+                pendingQuoteClarification.subjectLabel ||
+                'Quote ambiguity clarification',
+            }),
+          }),
+          quoteResolution: clarificationResolution,
+          debug: {
+            actionKey: 'customer.quote',
+            wordingKey: 'customer.quote.ambiguous_options',
+            detail:
+              'Se mantuvo la aclaración guiada de una cotización ambigua ante un follow-up confirmatorio, sin degradarla a handoff humano.',
+          },
+        }
       }
     }
 
@@ -5834,6 +10153,7 @@ export class AiAgentRuntime {
       role,
       locale,
       targetCurrency,
+      knowledgeMode: this.resolveDebugKnowledgeMode(unifiedMessage),
     })
     if (!resolution) {
       return null
@@ -5841,10 +10161,13 @@ export class AiAgentRuntime {
 
     const text = buildCustomerQuoteResolutionText(resolution, {
       interpretation,
+      conversationState: interpretation?.conversationState || null,
       tenantTopicTaxonomy,
       variationSeed,
       locale,
       wordingOverrides: this.getCustomerWordingOverrides(),
+      channel,
+      channelProfile,
     })
     if (!text) {
       return null
@@ -5870,6 +10193,8 @@ export class AiAgentRuntime {
           : resolution.productNotFoundSubtype ===
               'catalog_present_without_immediate_price'
             ? 'Se capturó el intake completo. Existe una opción en catálogo, pero no tiene un precio inmediato publicable para responder en el momento.'
+          : resolution.productNotFoundSubtype === 'catalog_match_ambiguous'
+            ? 'Se capturó el intake completo, pero hay más de una opción publicada compatible. Se pidió una aclaración guiada para elegir la variante sin cerrar el caso como handoff.'
           : 'Se capturó el intake completo, pero no se encontró un producto publicado con precio inmediato para esa configuración.'
     } else if (resolution.status === 'needs_handoff') {
       detail =
@@ -5880,28 +10205,125 @@ export class AiAgentRuntime {
           : 'Se capturó el intake completo, pero el caso requiere derivación porque no existe precio inmediato confiable para responder en el acto.'
     }
 
+    const isQuoteAmbiguityClarification =
+      resolution.status === 'product_not_found' &&
+      resolution.productNotFoundSubtype === 'catalog_match_ambiguous'
+    const wordingKey =
+      resolution.status === 'resolved'
+        ? null
+        : isQuoteAmbiguityClarification
+          ? 'customer.quote.ambiguous_options'
+          : 'customer.quote.handoff_ready'
+    const quoteSubjectLabel =
+      compactText(
+        resolution.subjectLabel ||
+          interpretation?.quoteContext?.profileLabel ||
+          interpretation?.quoteContext?.topicLabel ||
+          interpretation?.quoteContext?.familyLabel ||
+          '',
+      ) || 'la configuración solicitada'
+    const quoteProfileSource =
+      interpretation?.quoteContext?.profileKey || quoteSubjectLabel
+    const quoteResolutionGrounding =
+      resolution.status === 'resolved'
+        ? buildGroundingContract({
+            knowledgeRetrieved: false,
+            usedFacts: [
+              `Cotización inmediata para ${resolution.subjectLabel || 'la configuración solicitada'}.`,
+              resolution.totalAmount != null && resolution.currency
+                ? `Total estimado: ${formatPublicMoney(resolution.currency, resolution.totalAmount, locale)}.`
+                : null,
+              resolution.unitAmount != null && resolution.currency
+                ? `Valor unitario de referencia: ${formatPublicMoney(resolution.currency, resolution.unitAmount, locale)}.`
+                : null,
+              Number(resolution.quantity || 0) > 0
+                ? `Cantidad considerada: ${Number(resolution.quantity)}.`
+                : null,
+            ],
+            sources: buildStructuredGroundingSource({
+              tenantKey: tenantKey || 'default',
+              sourceType: 'published_catalog',
+              scope: 'catalog',
+              sourceKey:
+                resolution?.productMatch?.id != null
+                  ? `product:${resolution.productMatch.id}`
+                  : compactText(resolution.subjectLabel || 'quote_resolution'),
+              title:
+                resolution?.productMatch?.name ||
+                resolution.subjectLabel ||
+                'Published catalog match',
+            }),
+          })
+        : resolution.status === 'product_not_found' &&
+            resolution.productNotFoundSubtype === 'catalog_missing_but_known_in_knowledge' &&
+            Array.isArray(resolution.knowledgeHits) &&
+            resolution.knowledgeHits.length > 0
+          ? buildRetrievalFaqGroundingContract({
+              input,
+              retrievalItems: resolution.knowledgeHits,
+              interpretation,
+              tenantRuntimePolicy: null,
+              text,
+            })
+          : resolution.status === 'product_not_found' ||
+              resolution.status === 'needs_handoff'
+            ? buildGroundingContract({
+                knowledgeRetrieved: false,
+                usedFacts: [
+                  `Consulta reconocida: ${quoteSubjectLabel}.`,
+                  resolution.productNotFoundSubtype ===
+                  'catalog_present_without_immediate_price'
+                    ? 'No hay un precio inmediato publicable para esa configuración.'
+                    : resolution.productNotFoundSubtype === 'catalog_match_ambiguous'
+                      ? 'Hay más de una opción publicada compatible para esa configuración.'
+                      : resolution.productNotFoundSubtype ===
+                            'catalog_missing_but_known_in_knowledge' ||
+                          resolution.detail === 'external_parametric_quote_required'
+                        ? 'La consulta requiere cotización externa o seguimiento comercial.'
+                        : 'No existe un precio inmediato confiable para responder en el momento.',
+                ],
+                sources: buildStructuredGroundingSource({
+                  tenantKey: tenantKey || 'default',
+                  sourceType: 'tenant_policy',
+                  scope: 'quote_profile',
+                  sourceKey: quoteProfileSource,
+                  title:
+                    interpretation?.quoteContext?.profileLabel ||
+                    quoteSubjectLabel ||
+                    'Quote profile',
+                }),
+              })
+          : {
+              grounded: false,
+              fallbackReason: null,
+            }
+
     return {
       text,
-      wordingKey: resolution.status === 'resolved' ? null : 'customer.quote.handoff_ready',
+      wordingKey,
       toolCalls: [],
-      needsHuman: resolution.status !== 'resolved',
+      needsHuman: resolution.status !== 'resolved' && !isQuoteAmbiguityClarification,
       grounding: {
-        grounded: false,
-        fallbackReason: null,
+        ...quoteResolutionGrounding,
+        fallbackReason:
+          typeof quoteResolutionGrounding?.fallbackReason === 'string'
+            ? quoteResolutionGrounding.fallbackReason
+            : null,
         fallbackSubtype:
           resolution.status === 'resolved'
             ? null
-            : resolution.status === 'product_not_found' &&
-                resolution.productNotFoundSubtype ===
-                  'catalog_missing_but_known_in_knowledge'
-              ? 'information_then_handoff'
-              : 'quote_handoff',
+            : isQuoteAmbiguityClarification
+              ? null
+              : resolution.status === 'product_not_found' &&
+                  resolution.productNotFoundSubtype ===
+                    'catalog_missing_but_known_in_knowledge'
+                ? 'information_then_handoff'
+                : 'quote_handoff',
       },
       quoteResolution: resolution,
       debug: {
         actionKey: 'customer.quote',
-        wordingKey:
-          resolution.status === 'resolved' ? null : 'customer.quote.handoff_ready',
+        wordingKey,
         detail,
       },
     }
@@ -5915,13 +10337,14 @@ export class AiAgentRuntime {
     operationalContext = null,
     backendClient,
     tenantTopicTaxonomy = [],
+    tenantRuntimePolicy = null,
     tenantKey = null,
     unifiedMessage = null,
   }) {
     if (
       !(role === 'customer_public' || role === 'customer_authenticated') ||
       !looksLikeCommercialConditionQuestion(input) ||
-      !/\b(instalacion|instalación|colocacion|colocación)\b/i.test(String(input || ''))
+      !hasTenantInstallationSignal(input, tenantRuntimePolicy)
     ) {
       return null
     }
@@ -5962,6 +10385,7 @@ export class AiAgentRuntime {
           role,
           locale,
           targetCurrency,
+          knowledgeMode: this.resolveDebugKnowledgeMode(unifiedMessage),
         })
       if (resolution?.preview) {
         preview = resolution.preview
@@ -6067,14 +10491,35 @@ export class AiAgentRuntime {
             : `La instalación para ${topicLabel} puede agregarse como un servicio adicional. Hoy se maneja a partir de ${publicInstallationAmountLabel}, sujeto al alcance final del trabajo.`
     }
 
+    const installationGrounding =
+      productMatch || installation
+        ? buildGroundingContract({
+            knowledgeRetrieved: false,
+            usedFacts: extractGroundingFactsFromText(text, 2),
+            sources: productMatch
+              ? buildStructuredGroundingSource({
+                  tenantKey: tenantKey || 'default',
+                  sourceType: 'published_catalog',
+                  scope: 'catalog',
+                  sourceKey: `product:${productMatch.id || compactText(productMatch.name || topicLabel)}`,
+                  title: productMatch.name || topicLabel,
+                })
+              : buildTenantPolicyGroundingSource({
+                  tenantKey: tenantKey || 'default',
+                  sourceKey: `installation:${topicLabel}`,
+                  title: `Installation policy · ${topicLabel}`,
+                }),
+          })
+        : {
+            grounded: false,
+            fallbackReason: null,
+          }
+
     return {
       text,
       toolCalls: [],
       needsHuman: false,
-      grounding: {
-        grounded: false,
-        fallbackReason: null,
-      },
+      grounding: installationGrounding,
       debug: {
         actionKey: intentKey,
         detail:
@@ -6115,16 +10560,44 @@ export class AiAgentRuntime {
     }
 
     const locale = resolveUnifiedLocale(unifiedMessage)
+    const tenantGroundingKey = unifiedMessage?.tenantKey || 'default'
+    const buildScheduleWorkflowGrounding = (
+      responseText,
+      {
+        sourceType = 'schedule_workflow',
+        scope = 'schedule',
+        sourceKey = String(intentKey || 'schedule_request'),
+        title = 'Schedule workflow',
+        facts = null,
+      } = {},
+    ) =>
+      buildGroundingContract({
+        knowledgeRetrieved: false,
+        usedFacts:
+          Array.isArray(facts) && facts.length > 0
+            ? facts
+            : extractGroundingFactsFromText(responseText, 2),
+        sources: buildStructuredGroundingSource({
+          tenantKey: tenantGroundingKey,
+          sourceType,
+          scope,
+          sourceKey,
+          title,
+        }),
+      })
 
     if (intentKey === 'customer.cancellation') {
+      const cancellationText = buildCustomerScheduleCancellationText(scheduleContext, {
+        locale,
+      })
       return {
-        text: buildCustomerScheduleCancellationText(scheduleContext, { locale }),
+        text: cancellationText,
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildScheduleWorkflowGrounding(cancellationText, {
+          sourceKey: 'schedule_cancellation',
+          title: 'Schedule cancellation',
+        }),
         debug: {
           actionKey: 'customer.schedule_request',
           detail:
@@ -6145,10 +10618,10 @@ export class AiAgentRuntime {
         text: confirmationClarifyText,
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildScheduleWorkflowGrounding(confirmationClarifyText, {
+          sourceKey: 'schedule_confirmation_clarify',
+          title: 'Schedule confirmation clarification',
+        }),
         debug: {
           actionKey: 'customer.schedule_request',
           detail:
@@ -6163,16 +10636,22 @@ export class AiAgentRuntime {
 
     const schedulingMode = this.getCustomerCapabilityMode('customer.schedule_request')
     if (capabilityModeBlocksAutomaticResolution(schedulingMode)) {
+      const handoffText = buildCustomerCapabilityHandoffText({
+        capability: 'scheduling',
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+      })
       return {
-        text: buildCustomerCapabilityHandoffText({
-          capability: 'scheduling',
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-        }),
+        text: handoffText,
         toolCalls: [],
         needsHuman: true,
         grounding: {
-          grounded: false,
+          ...buildScheduleWorkflowGrounding(handoffText, {
+            sourceType: 'runtime_capability',
+            scope: 'capability',
+            sourceKey: 'scheduling_handoff',
+            title: 'Scheduling capability handoff',
+          }),
           fallbackReason: 'capability_scheduling_handoff_only',
           fallbackSubtype: 'schedule_handoff',
         },
@@ -6214,20 +10693,23 @@ export class AiAgentRuntime {
 
       const overlap = findCustomerScheduleOverlap(scheduleContext, dayAppointments)
       if (overlap) {
+        const unavailableText = buildCustomerScheduleUnavailableText({
+          scheduleContext,
+        }, {
+          locale,
+          variationSeed,
+          wordingOverrides: this.getCustomerWordingOverrides(),
+        })
         return {
-          text: buildCustomerScheduleUnavailableText({
-            scheduleContext,
-          }, {
-            locale,
-            variationSeed,
-            wordingOverrides: this.getCustomerWordingOverrides(),
-          }),
+          text: unavailableText,
           toolCalls,
           needsHuman: false,
-          grounding: {
-            grounded: false,
-            fallbackReason: null,
-          },
+          grounding: buildScheduleWorkflowGrounding(unavailableText, {
+            sourceType: 'calendar_availability',
+            scope: 'schedule',
+            sourceKey: 'calendar_overlap',
+            title: 'Calendar availability',
+          }),
           debug: {
             actionKey: 'customer.schedule_request',
             detail:
@@ -6254,22 +10736,26 @@ export class AiAgentRuntime {
         arguments: appointmentPayload,
         result: appointment,
       })
+      const createdText = buildCustomerScheduleCreatedText({
+        scheduleContext,
+        appointment,
+      }, {
+        locale,
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+      })
 
       return {
-        text: buildCustomerScheduleCreatedText({
-          scheduleContext,
-          appointment,
-        }, {
-          locale,
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-        }),
+        text: createdText,
         toolCalls,
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildScheduleWorkflowGrounding(createdText, {
+          sourceType: 'customer_appointment',
+          scope: 'schedule',
+          sourceKey:
+            appointment?.id != null ? `appointment:${appointment.id}` : 'appointment_created',
+          title: 'Customer appointment',
+        }),
         debug: {
           actionKey: 'customer.schedule_request',
           detail:
@@ -6283,15 +10769,17 @@ export class AiAgentRuntime {
         arguments: appointmentPayload,
         error: error instanceof Error ? error.message : 'create_appointment failed',
       })
+      const scheduleFollowUpText =
+        'Perfecto. Ya tengo lo necesario para coordinar la visita técnica. Lo dejo en seguimiento para que un asesor confirme la disponibilidad y te responda a la brevedad.'
 
       return {
-        text: 'Perfecto. Ya tengo lo necesario para coordinar la visita técnica. Lo dejo en seguimiento para que un asesor confirme la disponibilidad y te responda a la brevedad.',
+        text: scheduleFollowUpText,
         toolCalls,
         needsHuman: true,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildScheduleWorkflowGrounding(scheduleFollowUpText, {
+          sourceKey: 'schedule_followup',
+          title: 'Schedule follow-up',
+        }),
         debug: {
           actionKey: 'customer.schedule_request',
           detail:
@@ -6309,10 +10797,30 @@ export class AiAgentRuntime {
     inboundClassification = null,
     interpretation = null,
     tenantTopicTaxonomy = [],
+    tenantRuntimePolicy = null,
     variationSeed = '',
     unifiedMessage = null,
   }) {
-    const effectiveIntentKey = intentKey
+    const readiness = readInterpretationResolutionReadiness(interpretation)
+    const readinessLane =
+      typeof readiness?.lane === 'string' ? readiness.lane.trim() : null
+    const readinessAnswerMode = normalizeIntentKeyValue(readiness?.answerMode)
+    const mustHonorOperationalReadiness =
+      ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
+      [
+        'ask_quote_field',
+        'quote_ready',
+        'ask_support_field',
+        'continue_support_resolution',
+        'ask_schedule_field',
+        'confirm_schedule',
+      ].includes(String(readinessAnswerMode || ''))
+    let effectiveIntentKey = intentKey
+    if (mustHonorOperationalReadiness) {
+      effectiveIntentKey =
+        CUSTOMER_LANE_ACTIVE_INTENT_KEYS[String(readinessLane || '')] ||
+        effectiveIntentKey
+    }
     const quoteTopicType = String(interpretation?.topic?.type || '')
     const hasSpecificQuoteTopic =
       interpretation?.topic &&
@@ -6371,6 +10879,34 @@ export class AiAgentRuntime {
     )
     const channel = unifiedMessage?.channel || null
     const channelProfile = this.getResponseChannelProfile(channel)
+    const tenantGroundingKey =
+      unifiedMessage?.tenantKey ||
+      tenantRuntimePolicy?.tenantKey ||
+      'default'
+    const buildWorkflowGrounding = (
+      responseText,
+      {
+        sourceType = 'conversation_workflow',
+        scope = 'conversation',
+        sourceKey = String(effectiveIntentKey || 'conversation'),
+        title = 'Conversation workflow',
+        facts = null,
+      } = {},
+    ) =>
+      buildGroundingContract({
+        knowledgeRetrieved: false,
+        usedFacts:
+          Array.isArray(facts) && facts.length > 0
+            ? facts
+            : extractGroundingFactsFromText(responseText, 2),
+        sources: buildStructuredGroundingSource({
+          tenantKey: tenantGroundingKey,
+          sourceType,
+          scope,
+          sourceKey,
+          title,
+        }),
+      })
     const inheritedIntentKey =
       typeof interpretation?.followUp?.inheritedIntentKey === 'string'
         ? interpretation.followUp.inheritedIntentKey
@@ -6384,6 +10920,7 @@ export class AiAgentRuntime {
           Object.keys(interpretation.quoteContext.capturedAttributes).length > 0),
     )
     const hasSupportContext =
+      Boolean(interpretation?.supportContext) ||
       effectiveIntentKey === 'customer.support_request' ||
       inheritedIntentKey === 'customer.support_request' ||
       previousIntentKey === 'customer.support_request'
@@ -6440,6 +10977,27 @@ export class AiAgentRuntime {
       previousIntentKey: hasSupportContext
         ? 'customer.support_request'
         : inheritedIntentKey || effectiveIntentKey,
+      tenantRuntimePolicy,
+    })
+    const faqDecisionContext = resolveFaqSubtypeDecisionContext({
+      faqSubtype: currentFaqSubtype,
+      readiness,
+      quoteContext: interpretation?.quoteContext || null,
+      supportContext: interpretation?.supportContext || null,
+      scheduleContext: interpretation?.scheduleContext || null,
+    })
+    const threadScopedFaqSubtype = faqDecisionContext.threadScopedFaqSubtype
+    const fallbackFaqSubtype = faqDecisionContext.fallbackFaqSubtype
+    const activeFaqThreadLane = faqDecisionContext.activeThreadLane
+    const effectiveFaqSubtype = threadScopedFaqSubtype || fallbackFaqSubtype
+    const hasSpecificCurrentFaqSubtype = hasSpecificFaqSubtype(effectiveFaqSubtype)
+    const tenantBusinessFactResponse = buildTenantBusinessFactFaqResponse({
+      faqSubtype:
+        !hasSpecificCurrentFaqSubtype &&
+        (effectiveIntentKey === 'customer.contact_info' || readinessLane === 'contact')
+          ? 'contact'
+          : null,
+      tenantRuntimePolicy,
     })
     const normalizedSupportInput = normalizeText(input)
     const hasSupportReviewCue =
@@ -6461,7 +11019,30 @@ export class AiAgentRuntime {
       effectiveIntentKey === 'customer.topic_info' &&
       (hasSupportContext ||
         hasQuoteContext ||
-        ['payment_methods', 'contact'].includes(String(currentFaqSubtype || '')))
+        readinessLane === 'contact' ||
+        ['payment_methods', 'contact', 'availability'].includes(
+          String(effectiveFaqSubtype || ''),
+        ))
+    const canUseAvailabilityDeterministicResponse =
+      fallbackFaqSubtype === 'availability' &&
+      !mustHonorOperationalReadiness &&
+      !hasPaymentProofContinuitySignal &&
+      readinessLane !== 'schedule' &&
+      !standaloneAttachmentArtifactKind &&
+      !hasSupportContext &&
+      !hasQuoteContext &&
+      [
+        'customer.topic_info',
+        'customer.contact_info',
+        'customer.other',
+        'unknown',
+        'customer.light',
+        'customer.confirmation',
+        'customer.incomplete',
+        'customer.clarify_request',
+        'customer.rephrase_request',
+        'customer.repetition',
+      ].includes(String(effectiveIntentKey || ''))
 
     if (
       !(role === 'customer_public' || role === 'customer_authenticated') ||
@@ -6489,6 +11070,7 @@ export class AiAgentRuntime {
           'customer.out_of_scope',
           'customer.quote',
         ].includes(effectiveIntentKey) ||
+        canUseAvailabilityDeterministicResponse ||
         canUseNeutralContinuityResponse ||
         canUseTopicInfoDeterministicResponse
       )
@@ -6511,6 +11093,33 @@ export class AiAgentRuntime {
     }
 
     if (
+      tenantBusinessFactResponse &&
+      !mustHonorOperationalReadiness &&
+      (effectiveIntentKey === 'customer.contact_info' || readinessLane === 'contact') &&
+      !hasSpecificCurrentFaqSubtype
+    ) {
+      return {
+        text: tenantBusinessFactResponse.text,
+        toolCalls: [],
+        needsHuman: false,
+        grounding: buildGroundingContract({
+          knowledgeRetrieved: false,
+          usedFacts: tenantBusinessFactResponse.usedFacts,
+          sources: buildTenantPolicyGroundingSource({
+            tenantKey: tenantGroundingKey,
+            sourceKey: tenantBusinessFactResponse.sourceKey,
+            title: tenantBusinessFactResponse.title,
+          }),
+        }),
+        debug: {
+          actionKey: effectiveIntentKey,
+          detail:
+            'Se respondió una FAQ operativa directamente desde facts estructuradas del tenant, sin abrir retrieval ni depender del proveedor.',
+        },
+      }
+    }
+
+    if (
       hasMixedThreadedQuoteProgress &&
       threadLabels.length > 1
     ) {
@@ -6518,15 +11127,23 @@ export class AiAgentRuntime {
         threadLabels.length === 2
           ? `${threadLabels[0]} y ${threadLabels[1]}`
           : `${threadLabels.slice(0, -1).join(', ')} y ${threadLabels.at(-1)}`
+      const mixedQuoteText =
+        `Perfecto. Veo que la solicitud mezcla ${threadList}. Como requieren una resolución distinta, dejo la cotización en seguimiento para que un asesor la revise completa y te responda a la brevedad.`
 
       return {
-        text: `Perfecto. Veo que la solicitud mezcla ${threadList}. Como requieren una resolución distinta, dejo la cotización en seguimiento para que un asesor la revise completa y te responda a la brevedad.`,
+        text: mixedQuoteText,
         toolCalls: [],
         needsHuman: true,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(mixedQuoteText, {
+          sourceType: 'thread_resolution',
+          scope: 'quote',
+          sourceKey: `mixed:${threadLabels.join('|')}`,
+          title: 'Quote thread resolution',
+          facts: [
+            `La solicitud mezcla ${threadList}.`,
+            'La cotización requiere seguimiento por asesor.',
+          ],
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           detail:
@@ -6549,10 +11166,12 @@ export class AiAgentRuntime {
         text: threadDisambiguationText,
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(threadDisambiguationText, {
+          sourceType: 'thread_resolution',
+          scope: 'conversation',
+          sourceKey: `prompt:${effectiveIntentKey}`,
+          title: 'Thread disambiguation',
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           detail:
@@ -6583,22 +11202,25 @@ export class AiAgentRuntime {
         interpretation?.quoteContext?.topicLabel ||
         interpretation?.quoteContext?.familyLabel ||
         'esa opción'
+      const materialText = buildCustomerMaterialFollowUpText({
+        subject: materialSubject,
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile,
+      })
 
       return {
-        text: buildCustomerMaterialFollowUpText({
-          subject: materialSubject,
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-          channel,
-          channelProfile,
-        }),
+        text: materialText,
         wordingKey: 'customer.fallback.material_followup',
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(materialText, {
+          sourceType: 'tenant_policy',
+          scope: 'topic_followup',
+          sourceKey: `material:${compactText(materialSubject) || 'topic'}`,
+          title: `Material follow-up · ${materialSubject}`,
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           wordingKey: 'customer.fallback.material_followup',
@@ -6613,6 +11235,43 @@ export class AiAgentRuntime {
         interpretation?.contextTopic?.label ||
         interpretation?.topic?.label,
     )
+    const hasInheritedCommercialIntentContext = [
+      'customer.product_info',
+      'customer.topic_info',
+      'customer.quote',
+      'customer.price_inquiry',
+      'customer.support_request',
+    ].includes(String(inheritedIntentKey || previousIntentKey || ''))
+    const hasCommercialThreadPaymentContext = Boolean(
+      hasQuoteContext ||
+        interpretation?.followUp?.detected ||
+        hasInheritedCommercialIntentContext ||
+        (interpretation?.followUp?.detected &&
+          (interpretation?.contextTopic?.label ||
+            interpretation?.quoteContext?.topicLabel ||
+            interpretation?.quoteContext?.familyLabel)),
+    )
+    const canUseStandalonePaymentMethodsResponse =
+      fallbackFaqSubtype === 'payment_methods' &&
+      !mustHonorOperationalReadiness &&
+      !hasSupportContext &&
+      !hasCommercialThreadPaymentContext &&
+      !hasPaymentProofContinuitySignal &&
+      !standaloneAttachmentArtifactKind &&
+      !hasMultimodalArtifactPlan &&
+      !hasMultimodalFollowUpReference &&
+      [
+        'customer.topic_info',
+        'customer.contact_info',
+        'customer.other',
+        'customer.light',
+        'customer.confirmation',
+        'customer.incomplete',
+        'customer.clarify_request',
+        'customer.rephrase_request',
+        'customer.repetition',
+        'unknown',
+      ].includes(String(effectiveIntentKey || ''))
 
     const productFollowUpSubject =
       interpretation?.topic?.label ||
@@ -6625,35 +11284,87 @@ export class AiAgentRuntime {
       ['customer.product_info', 'customer.topic_info'].includes(effectiveIntentKey) &&
       hasProductFollowUpContext &&
       looksLikeLightFilterPreferenceRequest(input) &&
-      /\broller\b/i.test(String(productFollowUpSubject || ''))
+      subjectMatchesComparableFamily(productFollowUpSubject, tenantRuntimePolicy)
     ) {
+      const lightFilterText = buildCustomerLightFilterGuidanceText({
+        subject: productFollowUpSubject,
+        guidance: getBusinessRules(tenantRuntimePolicy)?.lightFilterGuidance ?? null,
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile,
+      })
       return {
-        text: buildCustomerLightFilterGuidanceText({
-          subject: productFollowUpSubject,
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-          channel,
-          channelProfile,
-        }),
-        wordingKey: 'customer.product.light_filter_guidance.roller',
+        text: lightFilterText,
+        wordingKey: 'customer.product.light_filter_guidance',
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(lightFilterText, {
+          sourceType: 'tenant_policy',
+          scope: 'product_guidance',
+          sourceKey: `light_filter:${compactText(productFollowUpSubject) || 'topic'}`,
+          title: `Light filter guidance · ${productFollowUpSubject}`,
+        }),
         debug: {
           actionKey: effectiveIntentKey,
-          wordingKey: 'customer.product.light_filter_guidance.roller',
+          wordingKey: 'customer.product.light_filter_guidance',
           detail:
-            'Se priorizó guía contextual de variantes para roller con paso de luz, sin degradar la consulta a agenda ni a lookup de producto publicado.',
+            'Se priorizó guía contextual de variantes configuradas para paso de luz sin degradar la consulta a agenda ni a lookup de producto publicado.',
+        },
+      }
+    }
+
+    if (
+      ['customer.product_info', 'customer.topic_info'].includes(effectiveIntentKey) &&
+      hasProductFollowUpContext &&
+      effectiveFaqSubtype === 'variants'
+    ) {
+      const productOptionsSubject =
+        buildContextualProductReference({
+          requestedTopicLabel: productFollowUpSubject,
+          topicLabel: interpretation?.topic?.label || null,
+          contextTopicLabel: interpretation?.contextTopic?.label || null,
+          tenantTopicTaxonomy,
+        }) || productFollowUpSubject
+      const optionsText = pickWordingVariant({
+        key: 'customer.product.options_offer',
+        variationSeed,
+        overrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile,
+        variables: {
+          topic: productOptionsSubject,
+        },
+        fallback: `Perfecto, trabajamos con distintas opciones de ${productOptionsSubject}. Si querés, te cuento cuáles convienen más según uso, luz y privacidad.`,
+      })
+
+      return {
+        text: optionsText,
+        wordingKey: 'customer.product.options_offer',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: buildWorkflowGrounding(optionsText, {
+          sourceType: 'tenant_policy',
+          scope: 'product_options',
+          sourceKey: `options:${compactText(productOptionsSubject) || 'topic'}`,
+          title: `Product options · ${productOptionsSubject}`,
+        }),
+        debug: {
+          actionKey: effectiveIntentKey,
+          wordingKey: 'customer.product.options_offer',
+          detail:
+            'Se mantuvo el hilo activo del producto para responder un follow-up de variantes sin reabrir intake ni caer al proveedor.',
         },
       }
     }
 
     if (
       ['customer.quote', 'customer.price_inquiry'].includes(effectiveIntentKey) &&
-      looksLikeInstalledReplacementAssessmentRequest(input)
+      looksLikeInstalledReplacementAssessmentRequest(
+        input,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      )
     ) {
       const replacementSubjectLabel = compactText(
         interpretation?.quoteContext?.topicLabel ||
@@ -6665,26 +11376,29 @@ export class AiAgentRuntime {
       const replacementSubjectClause = replacementSubjectLabel
         ? `el cambio de ${replacementSubjectLabel}`
         : 'ese cambio'
+      const replacementText = pickWordingVariant({
+        key: 'customer.quote.replacement_followup',
+        variationSeed,
+        overrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile,
+        variables: {
+          subjectClause: replacementSubjectClause,
+        },
+        fallback:
+          `Perfecto. Para orientarte mejor con ${replacementSubjectClause}, pasame una foto y las medidas que tengas. Si querés, además decime la zona o dirección y lo dejamos encaminado.`,
+      })
       return {
-        text: pickWordingVariant({
-          key: 'customer.quote.replacement_followup',
-          variationSeed,
-          overrides: this.getCustomerWordingOverrides(),
-          channel,
-          channelProfile,
-          variables: {
-            subjectClause: replacementSubjectClause,
-          },
-          fallback:
-            `Perfecto. Para orientarte mejor con ${replacementSubjectClause}, pasame una foto y las medidas que tengas. Si querés, además decime la zona o dirección y lo dejamos encaminado.`,
-        }),
+        text: replacementText,
         wordingKey: 'customer.quote.replacement_followup',
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(replacementText, {
+          sourceType: 'quote_workflow',
+          scope: 'quote',
+          sourceKey: `replacement:${compactText(replacementSubjectLabel) || 'general'}`,
+          title: `Replacement follow-up · ${replacementSubjectLabel || 'general'}`,
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           wordingKey: 'customer.quote.replacement_followup',
@@ -6701,20 +11415,25 @@ export class AiAgentRuntime {
         standaloneAttachmentArtifactKind ||
         hasMultimodalFollowUpReference)
     ) {
+      const supportProofText = buildCustomerSupportRequestText(input, {
+        interpretation,
+        tenantTopicTaxonomy,
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile,
+      })
       return {
-        text: buildCustomerSupportRequestText(input, {
-          interpretation,
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-          channel,
-          channelProfile,
-        }),
+        text: supportProofText,
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(supportProofText, {
+          sourceType: 'support_workflow',
+          scope: 'support',
+          sourceKey: 'payment_proof_followup',
+          title: 'Support payment-proof workflow',
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           detail:
@@ -6724,15 +11443,17 @@ export class AiAgentRuntime {
     }
 
     if (
-      hasSupportContext &&
-      currentFaqSubtype === 'payment_methods' &&
+      (hasSupportContext || activeFaqThreadLane === 'support') &&
+      threadScopedFaqSubtype === 'payment_methods' &&
       !(hasSupportReviewCue && hasSupportVisitCue) &&
       !hasPaymentProofContinuitySignal &&
       !standaloneAttachmentArtifactKind &&
       !hasMultimodalArtifactPlan &&
       !hasMultimodalFollowUpReference
     ) {
-      const paymentMethods = resolveOperationalPaymentMethodsInline(input)
+      const paymentMethods = resolveOperationalPaymentMethodsInline(input, {
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+      })
       return {
         text: pickWordingVariant({
           key: 'customer.faq.payment_methods_operational_followup',
@@ -6748,10 +11469,18 @@ export class AiAgentRuntime {
         wordingKey: 'customer.faq.payment_methods_operational_followup',
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildGroundingContract({
+          knowledgeRetrieved: false,
+          usedFacts: [`Aceptamos ${paymentMethods}.`],
+          sources: buildTenantPolicyGroundingSource({
+            tenantKey:
+              unifiedMessage?.tenantKey ||
+              tenantRuntimePolicy?.tenantKey ||
+              'default',
+            sourceKey: 'payment_methods',
+            title: 'Tenant payment methods',
+          }),
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           wordingKey: 'customer.faq.payment_methods_operational_followup',
@@ -6761,34 +11490,131 @@ export class AiAgentRuntime {
       }
     }
 
+    if (canUseStandalonePaymentMethodsResponse) {
+      const paymentMethods = resolveOperationalPaymentMethodsInline(input, {
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+      })
+      if (compactText(paymentMethods)) {
+        return {
+          text: pickWordingVariant({
+            key: 'customer.faq.payment_methods',
+            variationSeed,
+            overrides: this.getCustomerWordingOverrides(),
+            channel,
+            channelProfile,
+            variables: {
+              paymentMethods,
+            },
+            fallback:
+              `Aceptamos ${paymentMethods}. Si querés, te indico opciones o condiciones según el medio de pago.`,
+          }),
+          wordingKey: 'customer.faq.payment_methods',
+          toolCalls: [],
+          needsHuman: false,
+          grounding: buildGroundingContract({
+            knowledgeRetrieved: false,
+            usedFacts: [`Aceptamos ${paymentMethods}.`],
+            sources: buildTenantPolicyGroundingSource({
+              tenantKey:
+                unifiedMessage?.tenantKey ||
+                tenantRuntimePolicy?.tenantKey ||
+                'default',
+              sourceKey: 'payment_methods',
+              title: 'Tenant payment methods',
+            }),
+          }),
+          debug: {
+            actionKey: effectiveIntentKey,
+            wordingKey: 'customer.faq.payment_methods',
+            detail:
+              'Se respondió una consulta standalone de medios de pago usando business rules del tenant, sin caer en fallback de contacto ni en retrieval-only.',
+          },
+        }
+      }
+    }
+
+    if (
+      (hasCommercialThreadPaymentContext || activeFaqThreadLane === 'quote') &&
+      threadScopedFaqSubtype === 'payment_methods' &&
+      !hasSupportContext &&
+      !hasPaymentProofContinuitySignal &&
+      !standaloneAttachmentArtifactKind &&
+      !hasMultimodalArtifactPlan &&
+      !hasMultimodalFollowUpReference
+    ) {
+      const paymentMethods = resolveOperationalPaymentMethodsInline(input, {
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+      })
+      return {
+        text: pickWordingVariant({
+          key: 'customer.faq.payment_methods',
+          variationSeed,
+          overrides: this.getCustomerWordingOverrides(),
+          channel,
+          channelProfile,
+          variables: {
+            paymentMethods,
+          },
+          fallback:
+            `Aceptamos ${paymentMethods}. Si querés, te indico opciones o condiciones según el medio de pago para ese presupuesto.`,
+        }),
+        wordingKey: 'customer.faq.payment_methods',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: buildGroundingContract({
+          knowledgeRetrieved: false,
+          usedFacts: [`Aceptamos ${paymentMethods}.`],
+          sources: buildTenantPolicyGroundingSource({
+            tenantKey:
+              unifiedMessage?.tenantKey ||
+              tenantRuntimePolicy?.tenantKey ||
+              'default',
+            sourceKey: 'payment_methods',
+            title: 'Tenant payment methods',
+          }),
+        }),
+        debug: {
+          actionKey: effectiveIntentKey,
+          wordingKey: 'customer.faq.payment_methods',
+          detail:
+            'Se respondió una consulta de medios de pago dentro de un hilo comercial activo usando business rules del tenant, sin abrir un retrieval que no se iba a usar.',
+        },
+      }
+    }
+
     if (
       hasMultimodalArtifactPlan &&
       (hasSupportContext || hasQuoteContext)
     ) {
+      const multimodalPlannedText = hasSupportContext
+        ? buildCustomerMultimodalSupportArtifactPlannedText({
+            variationSeed,
+            wordingOverrides: this.getCustomerWordingOverrides(),
+            channel,
+            channelProfile,
+          })
+        : buildCustomerMultimodalQuoteArtifactPlannedText({
+            variationSeed,
+            wordingOverrides: this.getCustomerWordingOverrides(),
+            channel,
+            channelProfile,
+            interpretation,
+          })
       return {
-        text: hasSupportContext
-          ? buildCustomerMultimodalSupportArtifactPlannedText({
-              variationSeed,
-              wordingOverrides: this.getCustomerWordingOverrides(),
-              channel,
-              channelProfile,
-            })
-          : buildCustomerMultimodalQuoteArtifactPlannedText({
-              variationSeed,
-              wordingOverrides: this.getCustomerWordingOverrides(),
-              channel,
-              channelProfile,
-              interpretation,
-            }),
+        text: multimodalPlannedText,
         wordingKey: hasSupportContext
           ? 'customer.multimodal.support_artifact_planned'
           : 'customer.multimodal.quote_artifact_planned',
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(multimodalPlannedText, {
+          sourceType: hasSupportContext ? 'support_workflow' : 'quote_workflow',
+          scope: hasSupportContext ? 'support' : 'quote',
+          sourceKey: hasSupportContext ? 'artifact_planned_support' : 'artifact_planned_quote',
+          title: hasSupportContext
+            ? 'Support artifact planned'
+            : 'Quote artifact planned',
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           detail:
@@ -6824,23 +11650,26 @@ export class AiAgentRuntime {
       hasReengagementReference &&
       (hasSupportContext || hasQuoteContext)
     ) {
+      const reengagementText = buildCustomerReengagementFollowUpText({
+        kind: hasSupportContext ? 'support' : 'quote',
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile,
+      })
       return {
-        text: buildCustomerReengagementFollowUpText({
-          kind: hasSupportContext ? 'support' : 'quote',
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-          channel,
-          channelProfile,
-        }),
+        text: reengagementText,
         wordingKey: hasSupportContext
           ? 'customer.reengagement.support_followup'
           : 'customer.reengagement.quote_followup',
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(reengagementText, {
+          sourceType: hasSupportContext ? 'support_workflow' : 'quote_workflow',
+          scope: hasSupportContext ? 'support' : 'quote',
+          sourceKey: hasSupportContext ? 'reengagement_support' : 'reengagement_quote',
+          title: hasSupportContext ? 'Support reengagement' : 'Quote reengagement',
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           detail:
@@ -6881,30 +11710,33 @@ export class AiAgentRuntime {
       standaloneAttachmentArtifactKind &&
       (hasSupportContext || hasQuoteContext)
     ) {
+      const contextualArtifactText = hasSupportContext
+        ? buildCustomerMultimodalSupportArtifactText({
+            variationSeed,
+            wordingOverrides: this.getCustomerWordingOverrides(),
+            channel,
+            channelProfile,
+          })
+        : buildCustomerMultimodalQuoteArtifactText({
+            variationSeed,
+            wordingOverrides: this.getCustomerWordingOverrides(),
+            channel,
+            channelProfile,
+            interpretation,
+          })
       return {
-        text: hasSupportContext
-          ? buildCustomerMultimodalSupportArtifactText({
-              variationSeed,
-              wordingOverrides: this.getCustomerWordingOverrides(),
-              channel,
-              channelProfile,
-            })
-          : buildCustomerMultimodalQuoteArtifactText({
-              variationSeed,
-              wordingOverrides: this.getCustomerWordingOverrides(),
-              channel,
-              channelProfile,
-              interpretation,
-            }),
+        text: contextualArtifactText,
         wordingKey: hasSupportContext
           ? 'customer.multimodal.support_artifact_received'
           : 'customer.multimodal.quote_artifact_received',
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(contextualArtifactText, {
+          sourceType: hasSupportContext ? 'support_workflow' : 'quote_workflow',
+          scope: hasSupportContext ? 'support' : 'quote',
+          sourceKey: hasSupportContext ? 'artifact_received_support' : 'artifact_received_quote',
+          title: hasSupportContext ? 'Support artifact received' : 'Quote artifact received',
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           detail:
@@ -6941,32 +11773,35 @@ export class AiAgentRuntime {
       hasMultimodalFollowUpReference &&
       (hasSupportContext || hasQuoteContext)
     ) {
+      const contextualArtifactReferenceText = hasSupportContext
+        ? buildCustomerMultimodalSupportArtifactText({
+            variationSeed,
+            wordingOverrides: this.getCustomerWordingOverrides(),
+            channel,
+            channelProfile,
+            referenceOnly: true,
+          })
+        : buildCustomerMultimodalQuoteArtifactText({
+            variationSeed,
+            wordingOverrides: this.getCustomerWordingOverrides(),
+            channel,
+            channelProfile,
+            referenceOnly: true,
+            interpretation,
+          })
       return {
-        text: hasSupportContext
-          ? buildCustomerMultimodalSupportArtifactText({
-              variationSeed,
-              wordingOverrides: this.getCustomerWordingOverrides(),
-              channel,
-              channelProfile,
-              referenceOnly: true,
-            })
-          : buildCustomerMultimodalQuoteArtifactText({
-              variationSeed,
-              wordingOverrides: this.getCustomerWordingOverrides(),
-              channel,
-              channelProfile,
-              referenceOnly: true,
-              interpretation,
-            }),
+        text: contextualArtifactReferenceText,
         wordingKey: hasSupportContext
           ? 'customer.multimodal.support_artifact_reference'
           : 'customer.multimodal.quote_artifact_reference',
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: false,
-          fallbackReason: null,
-        },
+        grounding: buildWorkflowGrounding(contextualArtifactReferenceText, {
+          sourceType: hasSupportContext ? 'support_workflow' : 'quote_workflow',
+          scope: hasSupportContext ? 'support' : 'quote',
+          sourceKey: hasSupportContext ? 'artifact_reference_support' : 'artifact_reference_quote',
+          title: hasSupportContext ? 'Support artifact reference' : 'Quote artifact reference',
+        }),
         debug: {
           actionKey: effectiveIntentKey,
           detail:
@@ -7014,6 +11849,8 @@ export class AiAgentRuntime {
           config: this.activeConfig,
           interpretation,
           tenantTopicTaxonomy,
+          paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+          installationTerms: getBusinessRules(tenantRuntimePolicy)?.installationTerms ?? [],
           locale: resolveUnifiedLocale(unifiedMessage || { text: standaloneAttachmentArtifactInput }),
           variationSeed,
           wordingOverrides: this.getCustomerWordingOverrides(),
@@ -7034,7 +11871,35 @@ export class AiAgentRuntime {
       }
     }
 
+    if (canUseAvailabilityDeterministicResponse) {
+      const availabilityText = buildCustomerAvailabilityFallbackText()
+      return {
+        text: availabilityText,
+        toolCalls: [],
+        needsHuman: false,
+        grounding: buildWorkflowGrounding(availabilityText, {
+          sourceType: 'availability_workflow',
+          scope: 'availability',
+          sourceKey: 'delivery_time_guidance',
+          title: 'Availability guidance',
+        }),
+        debug: {
+          actionKey: effectiveIntentKey === 'customer.topic_info' ? effectiveIntentKey : 'customer.topic_info',
+          detail:
+            'Se devolvió una respuesta determinística para disponibilidad o tiempo de entrega sin abrir retrieval ni depender del proveedor.',
+        },
+      }
+    }
+
     if (effectiveIntentKey === 'customer.product_info') {
+      return null
+    }
+
+    if (
+      effectiveIntentKey === 'customer.topic_info' &&
+      effectiveFaqSubtype === 'definition' &&
+      hasProductFollowUpContext
+    ) {
       return null
     }
 
@@ -7056,6 +11921,9 @@ export class AiAgentRuntime {
       config: this.activeConfig,
       interpretation,
       tenantTopicTaxonomy,
+      paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+      installationTerms: getBusinessRules(tenantRuntimePolicy)?.installationTerms ?? [],
+      faqSubtype: effectiveFaqSubtype,
       locale: resolveUnifiedLocale(unifiedMessage || { text: input }),
       variationSeed,
       wordingOverrides: this.getCustomerWordingOverrides(),
@@ -7113,6 +11981,12 @@ export class AiAgentRuntime {
         detail =
           'Se devolvió una respuesta determinística de contacto cuando todavía no había evidencia suficiente para una respuesta más específica.'
         break
+      case 'customer.topic_info':
+        detail =
+          effectiveFaqSubtype === 'availability'
+            ? 'Se devolvió una respuesta determinística sobre disponibilidad o tiempo de entrega sin abrir retrieval ni depender del proveedor.'
+            : 'Se devolvió una respuesta determinística para una consulta informativa del cliente.'
+        break
       case 'customer.multi_intent':
         detail =
           'Se devolvió una guía determinística para dividir una consulta multi-intención de cliente.'
@@ -7147,14 +12021,69 @@ export class AiAgentRuntime {
         break
     }
 
+    const defaultDeterministicGroundingByIntent =
+      effectiveIntentKey === 'customer.quote' || effectiveIntentKey === 'customer.price_inquiry'
+        ? buildWorkflowGrounding(text, {
+            sourceType: 'quote_workflow',
+            scope: 'quote',
+            sourceKey:
+              interpretation?.quoteContext?.profileKey ||
+              compactText(
+                interpretation?.quoteContext?.topicLabel ||
+                  interpretation?.quoteContext?.familyLabel ||
+                  'quote_intake',
+              ),
+            title:
+              interpretation?.quoteContext?.profileLabel ||
+              interpretation?.quoteContext?.topicLabel ||
+              interpretation?.quoteContext?.familyLabel ||
+              'Quote workflow',
+          })
+        : effectiveIntentKey === 'customer.support_request'
+          ? buildWorkflowGrounding(text, {
+              sourceType: 'support_workflow',
+              scope: 'support',
+              sourceKey: compactText(
+                interpretation?.supportContext?.productType || 'support_intake',
+              ),
+              title: interpretation?.supportContext?.productType || 'Support workflow',
+            })
+          : effectiveIntentKey === 'customer.schedule_request' ||
+              effectiveIntentKey === 'customer.confirmation' ||
+              effectiveIntentKey === 'customer.cancellation'
+            ? buildWorkflowGrounding(text, {
+                sourceType: 'schedule_workflow',
+                scope: 'schedule',
+                sourceKey: String(effectiveIntentKey || 'schedule_request'),
+                title: 'Schedule workflow',
+              })
+            : [
+                'customer.auth_required',
+                'customer.owned_document_request',
+                'customer.private_account_data',
+                'customer.sensitive',
+                'customer.out_of_scope',
+              ].includes(effectiveIntentKey)
+              ? buildWorkflowGrounding(text, {
+                  sourceType: 'runtime_policy',
+                  scope: 'policy',
+                  sourceKey: String(effectiveIntentKey || 'policy'),
+                  title: 'Runtime policy',
+                })
+              : effectiveIntentKey === 'customer.multi_intent'
+                ? buildWorkflowGrounding(text, {
+                    sourceType: 'conversation_workflow',
+                    scope: 'conversation',
+                    sourceKey: 'multi_intent_priority',
+                    title: 'Multi-intent prioritization',
+                  })
+                : { grounded: false, fallbackReason: null }
+
     return {
       text,
       toolCalls: [],
       needsHuman: intentKey === 'customer.sensitive',
-      grounding: {
-        grounded: false,
-        fallbackReason: null,
-      },
+      grounding: defaultDeterministicGroundingByIntent,
       debug: {
         actionKey: effectiveIntentKey,
         detail,
@@ -7285,10 +12214,18 @@ export class AiAgentRuntime {
         text: lines.join(' '),
         toolCalls: [],
         needsHuman: false,
-        grounding: {
-          grounded: true,
-          fallbackReason: null,
-        },
+        grounding: buildGroundingContract({
+          knowledgeRetrieved: false,
+          usedFacts: lines,
+          sources: buildStructuredGroundingSource({
+            sourceType: 'owned_document',
+            scope: 'customer_document',
+            sourceKey:
+              ownedDocument.reference ||
+              `${ownedDocument.documentType || 'document'}:${customerId || 'customer'}`,
+            title: `${documentLabel} ${ownedDocument.reference || ''}`.trim(),
+          }),
+        }),
         debug: {
           actionKey: protectedData.suggestedIntent,
           detail:
@@ -7321,6 +12258,7 @@ export class AiAgentRuntime {
     retrievalContext,
     interpretation = null,
     tenantTopicTaxonomy = [],
+    tenantRuntimePolicy = null,
     variationSeed = '',
     channel = null,
   }) {
@@ -7390,6 +12328,8 @@ export class AiAgentRuntime {
         intentKey,
         interpretation,
         tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
         variationSeed,
         wordingOverrides: this.getCustomerWordingOverrides(),
         previousIntentKey,
@@ -7406,18 +12346,29 @@ export class AiAgentRuntime {
       return null
     }
 
+    const groundedText = composeQuoteKnowledgeFirstText({
+      informationText: text,
+      input,
+      interpretation,
+      tenantTopicTaxonomy,
+    })
+
     return {
-      text,
+      text: groundedText,
       wordingKey: this.resolveCustomerHybridWordingKey({
         intentKey,
         interpretation,
       }),
       toolCalls: [],
       needsHuman: false,
-      grounding: {
-        grounded: true,
-        fallbackReason: null,
-      },
+      grounding: buildRetrievalFaqGroundingContract({
+        input,
+        retrievalItems,
+        interpretation,
+        tenantRuntimePolicy,
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+        text: groundedText,
+      }),
       debug: {
         actionKey: intentKey,
         wordingKey: this.resolveCustomerHybridWordingKey({
@@ -7456,6 +12407,10 @@ export class AiAgentRuntime {
         typeof interpretation?.followUp?.inheritedIntentKey === 'string'
           ? interpretation.followUp.inheritedIntentKey
           : null,
+      tenantRuntimePolicy:
+        interpretation?.tenantRuntimePolicy && typeof interpretation.tenantRuntimePolicy === 'object'
+          ? interpretation.tenantRuntimePolicy
+          : null,
     })
     if (
       /^customer\.multimodal\./.test(String(wordingKey || '')) ||
@@ -7474,9 +12429,10 @@ export class AiAgentRuntime {
     ) {
       return false
     }
-    const safeWordingKey = this.shouldApplySafeCustomerHybridRewrite({
+    const rewriteMode = this.resolveCustomerRewriteMode({
       wordingKey,
       input,
+      response,
     })
 
     const capabilityMode = this.getCustomerCapabilityMode(intentKey)
@@ -7484,7 +12440,7 @@ export class AiAgentRuntime {
       return false
     }
 
-    if (!safeWordingKey) {
+    if (rewriteMode !== 'light_style') {
       if (
         ![
           'customer.topic_info',
@@ -7505,7 +12461,7 @@ export class AiAgentRuntime {
       return false
     }
 
-    if (safeWordingKey) {
+    if (rewriteMode === 'light_style') {
       return true
     }
 
@@ -7556,9 +12512,10 @@ export class AiAgentRuntime {
       response,
       interpretation,
     })
-    const safeWordingKey = this.shouldApplySafeCustomerHybridRewrite({
+    const rewriteMode = this.resolveCustomerRewriteMode({
       wordingKey,
       input,
+      response,
       channel,
     })
     const templateMeta = this.getCustomerWordingTemplateMeta(wordingKey, {
@@ -7616,8 +12573,8 @@ export class AiAgentRuntime {
         }),
         goal:
           templateMeta.goal ||
-          (safeWordingKey
-            ? 'Variar la redacción de una respuesta segura sin cambiar su sentido operativo.'
+          (rewriteMode === 'light_style'
+            ? 'Aplicar solo light-style: mejorar fluidez y claridad sin cambiar lane, responseContract, knowledgeNeed, retrieval ni reglas de negocio.'
             : 'Mejorar naturalidad de una respuesta grounded sin perder facts aprobados.'),
         mustAskQuestion: templateMeta.mustAskQuestion === true,
         maxChars,
@@ -7637,9 +12594,49 @@ export class AiAgentRuntime {
         ...response,
         text: rewrittenText,
         finalUserText: rewrittenText,
+        rewriteExchange:
+          rewritten?.debugContext && typeof rewritten.debugContext === 'object'
+            ? {
+                request: {
+                  mode:
+                    rewriteMode === 'light_style' ? 'llm_light_style' : 'llm_rewrite',
+                  processedInput: String(input || '').trim() || null,
+                  contextBlock: null,
+                  taskSummary: null,
+                  currentTask: null,
+                  approvedDraft:
+                    typeof rewritten.debugContext.approvedDraft === 'string'
+                      ? rewritten.debugContext.approvedDraft
+                      : String(response?.text || '').trim() || null,
+                  approvedFacts: Array.isArray(rewritten.debugContext.approvedFacts)
+                    ? rewritten.debugContext.approvedFacts
+                    : [],
+                  systemPrompt:
+                    typeof rewritten.debugContext.systemPrompt === 'string'
+                      ? rewritten.debugContext.systemPrompt
+                      : null,
+                  promptInput:
+                    typeof rewritten.debugContext.promptInput === 'string'
+                      ? rewritten.debugContext.promptInput
+                      : null,
+                  promptHistory: Array.isArray(rewritten.debugContext.promptHistory)
+                    ? rewritten.debugContext.promptHistory
+                    : [],
+                },
+                response: {
+                  source: rewritten?.source || 'llm_rewrite',
+                  text:
+                    typeof rewritten.debugContext.rawResponseText === 'string'
+                      ? rewritten.debugContext.rawResponseText
+                      : rewrittenText,
+                  toolCalls: [],
+                },
+              }
+            : null,
         grounding: {
           ...(response?.grounding || {}),
           rewriteApplied: true,
+          rewriteMode,
         },
         wordingKey: wordingKey || response?.wordingKey || null,
         debug: {
@@ -7650,8 +12647,14 @@ export class AiAgentRuntime {
               ? response.debug.wordingKey
               : null),
           detail: response?.debug?.detail
-            ? `${response.debug.detail} Se aplicó una reescritura grounded opcional para mejorar naturalidad sin cambiar la base factual.`
-            : 'Se aplicó una reescritura grounded opcional para mejorar naturalidad sin cambiar la base factual.',
+            ? `${response.debug.detail} ${
+                rewriteMode === 'light_style'
+                  ? 'Se aplicó light-style opcional sobre un turno determinístico sin alterar decisiones ni retrieval.'
+                  : 'Se aplicó una reescritura grounded opcional para mejorar naturalidad sin cambiar la base factual.'
+              }`
+            : rewriteMode === 'light_style'
+              ? 'Se aplicó light-style opcional sobre un turno determinístico sin alterar decisiones ni retrieval.'
+              : 'Se aplicó una reescritura grounded opcional para mejorar naturalidad sin cambiar la base factual.',
         },
       }
     } catch {
@@ -7764,10 +12767,14 @@ export class AiAgentRuntime {
       wordingKey,
       toolCalls: [],
       needsHuman: false,
-      grounding: {
-        grounded: true,
-        fallbackReason: null,
-      },
+      grounding: buildGroundingContract({
+        knowledgeRetrieved: false,
+        usedFacts: extractGroundingFactsFromText(text, 1),
+        sources: buildTenantPolicyGroundingSource({
+          sourceKey: `topic:${displayLabel}`,
+          title: `Tenant topic · ${displayLabel}`,
+        }),
+      }),
       debug: {
         actionKey: intentKey,
         wordingKey,
@@ -7777,7 +12784,11 @@ export class AiAgentRuntime {
     }
   }
 
-  detectRawKnowledgeLeak({ responseText, retrievalContext }) {
+  detectRawKnowledgeLeak({
+    responseText,
+    retrievalContext,
+    tenantRuntimePolicy = null,
+  }) {
     const normalizedResponse = this.normalizeResponseComparableText(responseText)
     if (!normalizedResponse) {
       return false
@@ -7790,15 +12801,21 @@ export class AiAgentRuntime {
       return false
     }
 
+    const tenantCatalogTerms = getTenantCatalogTerms(tenantRuntimePolicy)
+    const tenantBrandTokens = getTenantBrandTokens(tenantRuntimePolicy)
+    const hasTenantCatalogLeakSignal =
+      tenantCatalogTerms.length > 0 &&
+      ((responseText.match(/,/g) || []).length >= 3) &&
+      tenantCatalogTerms.some((term) => normalizedResponse.includes(term))
+    const hasTenantBrandLeakSignal = tenantBrandTokens.some((term) =>
+      normalizedResponse.includes(term),
+    )
+
     const suspiciousResponse =
       /[|·]/.test(responseText) ||
-      /\b(catalogo|catálogo|preguntas frecuentes|menu|inicio|urucortinas)\b/i.test(
-        responseText,
-      ) ||
-      (((responseText.match(/,/g) || []).length >= 3) &&
-        /\b(roller|venecianas|persianas|automatizacion|automatización|aberturas|dvh|screen|blackout)\b/i.test(
-          responseText,
-        ))
+      /\b(catalogo|catálogo|preguntas frecuentes|menu|inicio)\b/i.test(responseText) ||
+      hasTenantBrandLeakSignal ||
+      hasTenantCatalogLeakSignal
 
     if (!suspiciousResponse) {
       return false
@@ -7911,6 +12928,7 @@ export class AiAgentRuntime {
     retrievalContext = null,
     interpretation = null,
     tenantTopicTaxonomy = [],
+    tenantRuntimePolicy = null,
     previousIntentKey = null,
     channel = null,
   }) {
@@ -7988,11 +13006,90 @@ export class AiAgentRuntime {
       ) &&
       Array.isArray(retrievalContext?.items) &&
       retrievalContext.items.length > 0
+    const validationFaqSubtype = detectCustomerFaqSubtype(input, {
+      previousIntentKey:
+        typeof interpretation?.followUp?.inheritedIntentKey === 'string'
+          ? interpretation.followUp.inheritedIntentKey
+          : previousIntentKey,
+      tenantRuntimePolicy:
+        interpretation?.tenantRuntimePolicy && typeof interpretation.tenantRuntimePolicy === 'object'
+          ? interpretation.tenantRuntimePolicy
+          : null,
+    })
+    const hasProductTopicContext =
+      /^product_/.test(String(interpretation?.topic?.type || '')) ||
+      /^product_/.test(String(interpretation?.contextTopic?.type || ''))
+    const isProductFollowUpThread =
+      Boolean(interpretation?.followUp?.detected) &&
+      (hasProductTopicContext ||
+        Boolean(
+          interpretation?.topic?.label ||
+            interpretation?.contextTopic?.label ||
+            interpretation?.quoteContext?.topicLabel,
+        ))
     const stableText = compactText(nextResponse?.finalUserText || nextResponse?.text || '')
+    const responseContainsDirectPrice =
+      /\b(?:usd|uyu|us\$|\$)\s*\d+(?:[.,]\d+)?\b/i.test(stableText) ||
+      /\b\d+(?:[.,]\d+)?\s*(?:usd|uyu|us\$)\b/i.test(stableText)
     const topicGuardFallback = this.resolveTopicGuardFallback({
       input,
       interpretation,
     })
+    const buildGroundedKnowledgeReplacement = () => {
+      const candidates = [
+        this.buildDeterministicKnowledgeResponse({
+          role,
+          input,
+          intentKey,
+          previousIntentKey,
+          retrievalContext,
+          interpretation,
+          tenantTopicTaxonomy,
+          tenantRuntimePolicy,
+          channel,
+        }),
+        this.buildCustomerKnowledgeFallbackResponse({
+          role,
+          intentKey,
+          input,
+          retrievalContext,
+          fallbackReason: null,
+          interpretation,
+          tenantTopicTaxonomy,
+          tenantRuntimePolicy,
+          previousIntentKey,
+          channel,
+        }),
+        this.buildCanonicalTopicGuardResponse(
+          intentKey,
+          interpretation?.topic,
+          tenantTopicTaxonomy,
+          '',
+          {
+            fallbackTopicLabel: topicGuardFallback?.label || null,
+            fallbackTopicType: topicGuardFallback?.type || 'product_topic',
+          },
+        ),
+        intentKey === 'customer.quote'
+          ? this.buildDeterministicCustomerResponse({
+              role,
+              input,
+              intentKey,
+              previousIntentKey,
+              inboundClassification,
+              interpretation,
+              tenantTopicTaxonomy,
+              unifiedMessage: channel ? { channel } : null,
+            })
+          : null,
+      ].filter(Boolean)
+
+      return (
+        candidates.find((entry) => entry?.grounding?.grounded === true) ||
+        candidates[0] ||
+        null
+      )
+    }
 
     const shouldReplaceGenericClarificationWithTopicGuard =
       isCustomerRole &&
@@ -8026,55 +13123,13 @@ export class AiAgentRuntime {
       const rawSnippetLeakDetected = this.detectRawKnowledgeLeak({
         responseText: stableText,
         retrievalContext,
+        tenantRuntimePolicy,
       })
       if (rawSnippetLeakDetected) {
         validation.applied = true
         validation.rawSnippetLeakDetected = true
         validation.issues.push('raw_knowledge_leak')
-        const deterministicKnowledgeResponse =
-          (intentKey === 'customer.quote'
-            ? this.buildDeterministicCustomerResponse({
-                role,
-                input,
-                intentKey,
-                previousIntentKey,
-                inboundClassification,
-                interpretation,
-                tenantTopicTaxonomy,
-                unifiedMessage: channel ? { channel } : null,
-              })
-            : null) ||
-          this.buildCanonicalTopicGuardResponse(
-            intentKey,
-            interpretation?.topic,
-            tenantTopicTaxonomy,
-            '',
-            {
-              fallbackTopicLabel: topicGuardFallback?.label || null,
-              fallbackTopicType: topicGuardFallback?.type || 'product_topic',
-            },
-          ) ||
-          this.buildDeterministicKnowledgeResponse({
-            role,
-            input,
-            intentKey,
-            previousIntentKey,
-            retrievalContext,
-            interpretation,
-            tenantTopicTaxonomy,
-            channel,
-          }) ||
-          this.buildCustomerKnowledgeFallbackResponse({
-            role,
-            intentKey,
-            input,
-            retrievalContext,
-            fallbackReason: null,
-            interpretation,
-            tenantTopicTaxonomy,
-            previousIntentKey,
-            channel,
-          })
+        const deterministicKnowledgeResponse = buildGroundedKnowledgeReplacement()
         if (deterministicKnowledgeResponse) {
           validation.adjusted = true
           nextResponse = this.appendValidationDetail(
@@ -8098,55 +13153,38 @@ export class AiAgentRuntime {
         validation.applied = true
         validation.topicMismatchDetected = true
         validation.issues.push('follow_up_topic_mismatch')
-        const deterministicKnowledgeResponse =
-          (intentKey === 'customer.quote'
-            ? this.buildDeterministicCustomerResponse({
-                role,
-                input,
-                intentKey,
-                previousIntentKey,
-                inboundClassification,
-                interpretation,
-                tenantTopicTaxonomy,
-                unifiedMessage: channel ? { channel } : null,
-              })
-            : null) ||
-          this.buildCanonicalTopicGuardResponse(
-            intentKey,
-            interpretation?.topic,
-            tenantTopicTaxonomy,
-            '',
-            {
-              fallbackTopicLabel: topicGuardFallback?.label || null,
-              fallbackTopicType: topicGuardFallback?.type || 'product_topic',
-            },
-          ) ||
-          this.buildDeterministicKnowledgeResponse({
-            role,
-            input,
-            intentKey,
-            previousIntentKey,
-            retrievalContext,
-            interpretation,
-            tenantTopicTaxonomy,
-            channel,
-          }) ||
-          this.buildCustomerKnowledgeFallbackResponse({
-            role,
-            intentKey,
-            input,
-            retrievalContext,
-            fallbackReason: null,
-            interpretation,
-            tenantTopicTaxonomy,
-            previousIntentKey,
-            channel,
-          })
+        const deterministicKnowledgeResponse = buildGroundedKnowledgeReplacement()
         if (deterministicKnowledgeResponse) {
           validation.adjusted = true
           nextResponse = this.appendValidationDetail(
             deterministicKnowledgeResponse,
             `Se rearmó la respuesta para mantener continuidad con el tópico "${interpretation?.topic?.label || 'actual'}".`,
+          )
+        }
+      }
+
+      const shouldReplaceUngroundedKnowledgeResponse =
+        nextResponse?.grounding?.grounded !== true &&
+        !responseContainsDirectPrice &&
+        !responseActivatesFallback(nextResponse) &&
+        !rawSnippetLeakDetected &&
+        !validation.topicMismatchDetected &&
+        !(
+          isProductFollowUpThread &&
+          intentKey === 'customer.topic_info' &&
+          validationFaqSubtype === 'general' &&
+          hasProductTopicContext
+        )
+
+      if (shouldReplaceUngroundedKnowledgeResponse) {
+        const deterministicKnowledgeResponse = buildGroundedKnowledgeReplacement()
+        if (deterministicKnowledgeResponse?.grounding?.grounded === true) {
+          validation.applied = true
+          validation.adjusted = true
+          validation.issues.push('retrieval_without_grounded_response')
+          nextResponse = this.appendValidationDetail(
+            deterministicKnowledgeResponse,
+            'Se reemplazó una respuesta sin grounding efectivo por una formulación determinística basada en el retrieval aprobado.',
           )
         }
       }
@@ -8167,8 +13205,18 @@ export class AiAgentRuntime {
     response,
     validation = null,
     providerGenerationAttempted = false,
+    unifiedMessage = null,
+    providerCallTrace = null,
+    aiExchange = null,
+    decisionSource = null,
+    retrievalContext = null,
   }) {
     const previousAuditPayload = this.getLastAgentAuditPayload(previousSnapshot)
+    const previousAgentTurn = Array.isArray(previousSnapshot?.turns)
+      ? [...previousSnapshot.turns]
+          .reverse()
+          .find((entry) => entry?.role === 'agent' && typeof entry?.text === 'string')
+      : null
     const clarificationCategories = new Set([
       'generic_help_request',
       'clarification_request',
@@ -8194,10 +13242,89 @@ export class AiAgentRuntime {
       clarificationCategories.has(currentCategory) ||
       clarificationIntents.has(currentResponseIntent)
     const followUpDetected = Boolean(interpretation?.followUp?.detected)
+    const waitForMore =
+      readInterpretationResolutionReadiness(interpretation)?.waitForMore === true
     const isCustomerRole =
       role === 'customer_public' || role === 'customer_authenticated'
+    const naturality = scoreNaturality({
+      responseText: response?.finalUserText || response?.text || '',
+      previousAgentText: previousAgentTurn?.text || '',
+      currentTurnText: interpretation?.currentTurnText || '',
+      followUpDetected,
+      clarificationRequested,
+      previousClarificationRequested,
+    })
+    const knowledgeGrounded =
+      typeof response?.grounding?.knowledgeGrounded === 'boolean'
+        ? response.grounding.knowledgeGrounded
+        : response?.grounding?.grounded === true
+    const knowledgeRetrieved =
+      typeof response?.grounding?.knowledgeRetrieved === 'boolean'
+        ? response.grounding.knowledgeRetrieved
+        : Array.isArray(retrievalContext?.items)
+          ? retrievalContext.items.length > 0
+          : Array.isArray(response?.grounding?.sources)
+            ? response.grounding.sources.length > 0
+            : false
+    const knowledgeUsed =
+      typeof response?.grounding?.knowledgeUsed === 'boolean'
+        ? response.grounding.knowledgeUsed
+        : response?.grounding?.used === true
+          ? true
+          : knowledgeGrounded
+    const semanticTurnId =
+      typeof unifiedMessage?.metadata?.semanticTurnId === 'string'
+        ? unifiedMessage.metadata.semanticTurnId
+        : null
+    const effectiveAnswerMode = resolveEffectiveCustomerAnswerMode({
+      input: interpretation?.currentTurnText || '',
+      interpretation,
+      response,
+    })
+    const responseContract =
+      typeof retrievalContext?.responseContract === 'string'
+        ? retrievalContext.responseContract
+        : null
+    const knowledgeNeed =
+      typeof retrievalContext?.knowledgeNeed === 'string'
+        ? retrievalContext.knowledgeNeed
+        : null
+    const providerCallCount =
+      typeof providerCallTrace?.count === 'number' ? providerCallTrace.count : 0
+    const rewriteMode =
+      typeof response?.grounding?.rewriteMode === 'string'
+        ? response.grounding.rewriteMode
+        : null
+    const rewriteRequestMode =
+      typeof response?.rewriteExchange?.request?.mode === 'string'
+        ? response.rewriteExchange.request.mode
+        : null
+    const aiRequestMode =
+      typeof aiExchange?.request?.mode === 'string' ? aiExchange.request.mode : null
+    const aiCallMode =
+      providerCallCount <= 0
+        ? 'none'
+        : rewriteMode === 'light_style' || rewriteRequestMode === 'llm_light_style'
+          ? 'light_style'
+          : aiRequestMode === 'llm_conversational' ||
+              aiRequestMode === 'provider_generate' ||
+              rewriteRequestMode === 'llm_rewrite'
+            ? 'controlled_generation'
+            : 'controlled_generation'
+    const aiModeExclusiveSatisfied =
+      providerCallCount <= 1 &&
+      !(
+        Boolean(aiExchange && typeof aiExchange === 'object') &&
+        response?.grounding?.rewriteApplied === true
+      )
 
     return {
+      semanticTurnId,
+      providerCallCount,
+      aiCallMode,
+      singleAiCallSatisfied: providerCallCount <= 1,
+      aiModeExclusiveSatisfied,
+      waitForMore,
       followUpDetected,
       followUpFallback: followUpDetected && responseActivatesFallback(response),
       followUpResolvedWithoutProvider:
@@ -8205,9 +13332,26 @@ export class AiAgentRuntime {
         !providerGenerationAttempted &&
         response?.grounding?.rewriteApplied !== true &&
         !responseActivatesFallback(response),
+      knowledgeRetrieved,
+      knowledgeUsed,
+      knowledgeGrounded,
+      responseContract,
+      knowledgeNeed,
+      retrievalSkippedByKnowledgeNeed:
+        retrievalContext?.disabledReason === 'not_needed_for_turn' || knowledgeNeed === 'none',
+      responseContractResolvedBeforeRetrieval:
+        Boolean(responseContract) && Boolean(knowledgeNeed),
+      decisionSource,
+      effectiveAnswerMode,
+      naturalityScore: naturality.score,
+      naturalityPenalties: naturality.penalties,
+      naturalityAddsNewInformation: naturality.addsNewInformation,
       intentInherited: Boolean(interpretation?.intent?.inherited),
       rawSnippetLeakDetected: Boolean(validation?.rawSnippetLeakDetected),
       groundedRewriteApplied: Boolean(response?.grounding?.rewriteApplied),
+      lightStyleApplied:
+        response?.grounding?.rewriteApplied === true &&
+        response?.grounding?.rewriteMode === 'light_style',
       clarificationRequested,
       clarificationResolved:
         isCustomerRole &&
@@ -8268,9 +13412,9 @@ export class AiAgentRuntime {
       case 'admin_support':
         return 'Puedo ayudarte a buscar clientes, pedidos, presupuestos y pagos, y también a agendar, editar o cancelar actividades. Si me das la gestión puntual, te preparo el siguiente paso.'
       case 'admin_sales':
-        return 'Puedo ayudarte con clientes, presupuestos y cotización de aberturas. También puedo dejar listos envíos, confirmaciones y cambios de estado de presupuestos con validación previa.'
+        return 'Puedo ayudarte con clientes, presupuestos y cotizaciones estructuradas de catálogo. También puedo dejar listos envíos, confirmaciones y cambios de estado de presupuestos con validación previa.'
       case 'admin_operations':
-        return 'Puedo ayudarte con productos, categorías, pedidos, pagos y altas de aberturas. Si la acción modifica datos, primero te muestro un borrador y luego ejecuto con tu confirmación.'
+        return 'Puedo ayudarte con productos, categorías, pedidos, pagos y altas estructuradas de catálogo. Si la acción modifica datos, primero te muestro un borrador y luego ejecuto con tu confirmación.'
       case 'admin_supervisor':
         return 'Puedo ayudarte a revisar y coordinar operaciones internas de ventas, soporte y ejecución. Si la acción cambia datos, te muestro el borrador y dejo trazabilidad antes de ejecutar.'
       case 'superadmin':
@@ -8441,6 +13585,33 @@ export class AiAgentRuntime {
     if (Array.isArray(context.messageContextOrigin) && context.messageContextOrigin.length) {
       debugLines.push(`origen=${context.messageContextOrigin.join(',')}`)
     }
+    if (typeof context.knowledgeMode === 'string') {
+      debugLines.push(`knowledge_mode=${context.knowledgeMode}`)
+    }
+    if (typeof context.knowledgeModeReason === 'string') {
+      debugLines.push(`knowledge_mode_reason=${context.knowledgeModeReason}`)
+    }
+    if (typeof context.retrievalMode === 'string') {
+      debugLines.push(`retrieval_mode=${context.retrievalMode}`)
+    }
+    if (
+      context.embeddingMode &&
+      typeof context.embeddingMode === 'object' &&
+      typeof context.embeddingMode.mode === 'string'
+    ) {
+      debugLines.push(
+        `embedding_mode=${context.embeddingMode.mode}:${context.embeddingMode.provider || 'unknown'}`,
+      )
+    }
+    if (
+      context.queryEmbedding &&
+      typeof context.queryEmbedding === 'object' &&
+      typeof context.queryEmbedding.latencyMs === 'number'
+    ) {
+      debugLines.push(
+        `embedding_latency_ms=${context.queryEmbedding.latencyMs}`,
+      )
+    }
     if (context.detail) {
       debugLines.push(`detalle=${context.detail}`)
     }
@@ -8517,6 +13688,21 @@ export class AiAgentRuntime {
           }))
         : []),
     ]
+    const orchestratorDecision = sanitizeOrchestratorDecisionForAudit(
+      context?.orchestratorDecision ?? previousAuditPayload?.orchestratorDecision,
+    )
+    const responseMode = inferResponseModeForAudit({
+      response,
+      context,
+      previousAuditPayload,
+    })
+    const decisionTrace = buildDecisionTraceForAudit({
+      response,
+      context,
+      previousAuditPayload,
+      toolCalls,
+      fallbackReason,
+    })
 
     return {
       stage: fallbackReason && previousStage ? previousStage : currentStage,
@@ -8531,10 +13717,26 @@ export class AiAgentRuntime {
             : null,
       intentSource:
         context?.intentSource || previousAuditPayload?.intentSource || null,
+      matchedKeywords: Array.from(
+        new Set([
+          ...(Array.isArray(previousAuditPayload?.matchedKeywords)
+            ? previousAuditPayload.matchedKeywords
+            : []),
+          ...(Array.isArray(context?.matchedKeywords) ? context.matchedKeywords : []),
+        ]),
+      ),
       actionKey: context?.actionKey || previousAuditPayload?.actionKey || null,
       input:
         String(context?.input || '').slice(0, 240) ||
         previousAuditPayload?.input ||
+        null,
+      aiExchange:
+        sanitizeAiExchangeForAudit(context?.aiExchange) ??
+        previousAuditPayload?.aiExchange ??
+        null,
+      rewriteExchange:
+        sanitizeAiExchangeForAudit(response?.rewriteExchange) ??
+        previousAuditPayload?.rewriteExchange ??
         null,
       blockedTools,
       toolCalls,
@@ -8595,6 +13797,58 @@ export class AiAgentRuntime {
         typeof response?.grounding?.grounded === 'boolean'
           ? response.grounding.grounded
           : null,
+      providerCallCount:
+        typeof context?.metrics?.providerCallCount === 'number'
+          ? context.metrics.providerCallCount
+          : typeof previousAuditPayload?.providerCallCount === 'number'
+            ? previousAuditPayload.providerCallCount
+            : typeof decisionTrace?.provider?.callCount === 'number'
+              ? decisionTrace.provider.callCount
+              : 0,
+      aiCallMode:
+        typeof context?.metrics?.aiCallMode === 'string'
+          ? context.metrics.aiCallMode
+          : typeof previousAuditPayload?.aiCallMode === 'string'
+            ? previousAuditPayload.aiCallMode
+            : null,
+      knowledgeRetrieved:
+        typeof context?.metrics?.knowledgeRetrieved === 'boolean'
+          ? context.metrics.knowledgeRetrieved
+          : Boolean(previousAuditPayload?.knowledgeRetrieved),
+      knowledgeUsed:
+        typeof context?.metrics?.knowledgeUsed === 'boolean'
+          ? context.metrics.knowledgeUsed
+          : Boolean(previousAuditPayload?.knowledgeUsed),
+      knowledgeGrounded:
+        typeof context?.metrics?.knowledgeGrounded === 'boolean'
+          ? context.metrics.knowledgeGrounded
+          : Boolean(previousAuditPayload?.knowledgeGrounded),
+      decisionSource:
+        typeof context?.metrics?.decisionSource === 'string'
+          ? context.metrics.decisionSource
+          : typeof previousAuditPayload?.decisionSource === 'string'
+            ? previousAuditPayload.decisionSource
+            : typeof decisionTrace?.conversation?.decisionSource === 'string'
+              ? decisionTrace.conversation.decisionSource
+              : null,
+      effectiveAnswerMode:
+        typeof context?.metrics?.effectiveAnswerMode === 'string'
+          ? context.metrics.effectiveAnswerMode
+          : typeof previousAuditPayload?.effectiveAnswerMode === 'string'
+            ? previousAuditPayload.effectiveAnswerMode
+            : null,
+      naturalityScore:
+        typeof context?.metrics?.naturalityScore === 'number'
+          ? context.metrics.naturalityScore
+          : typeof previousAuditPayload?.naturalityScore === 'number'
+            ? previousAuditPayload.naturalityScore
+            : null,
+      semanticTurnId:
+        typeof context?.semanticTurnId === 'string'
+          ? context.semanticTurnId
+          : typeof previousAuditPayload?.semanticTurnId === 'string'
+            ? previousAuditPayload.semanticTurnId
+            : null,
       turnInterpretation:
         context?.turnInterpretation && typeof context.turnInterpretation === 'object'
           ? {
@@ -8646,6 +13900,15 @@ export class AiAgentRuntime {
                         typeof context.turnInterpretation.followUp.source === 'string'
                           ? context.turnInterpretation.followUp.source
                           : null,
+                      quantityOnly: Boolean(
+                        context.turnInterpretation.followUp.quantityOnly,
+                      ),
+                      measurementOnly: Boolean(
+                        context.turnInterpretation.followUp.measurementOnly,
+                      ),
+                      quoteWaiting: Boolean(
+                        context.turnInterpretation.followUp.quoteWaiting,
+                      ),
                     }
                   : null,
               topic:
@@ -8716,6 +13979,60 @@ export class AiAgentRuntime {
       metrics:
         context?.metrics && typeof context.metrics === 'object'
           ? {
+              semanticTurnId:
+                typeof context.metrics.semanticTurnId === 'string'
+                  ? context.metrics.semanticTurnId
+                  : null,
+              providerCallCount:
+                typeof context.metrics.providerCallCount === 'number'
+                  ? context.metrics.providerCallCount
+                  : 0,
+              aiCallMode:
+                typeof context.metrics.aiCallMode === 'string'
+                  ? context.metrics.aiCallMode
+                  : null,
+              singleAiCallSatisfied: Boolean(
+                context.metrics.singleAiCallSatisfied,
+              ),
+              aiModeExclusiveSatisfied: Boolean(
+                context.metrics.aiModeExclusiveSatisfied,
+              ),
+              waitForMore: Boolean(context.metrics.waitForMore),
+              knowledgeRetrieved: Boolean(context.metrics.knowledgeRetrieved),
+              knowledgeUsed: Boolean(context.metrics.knowledgeUsed),
+              knowledgeGrounded: Boolean(context.metrics.knowledgeGrounded),
+              responseContract:
+                typeof context.metrics.responseContract === 'string'
+                  ? context.metrics.responseContract
+                  : null,
+              knowledgeNeed:
+                typeof context.metrics.knowledgeNeed === 'string'
+                  ? context.metrics.knowledgeNeed
+                  : null,
+              retrievalSkippedByKnowledgeNeed: Boolean(
+                context.metrics.retrievalSkippedByKnowledgeNeed,
+              ),
+              responseContractResolvedBeforeRetrieval: Boolean(
+                context.metrics.responseContractResolvedBeforeRetrieval,
+              ),
+              decisionSource:
+                typeof context.metrics.decisionSource === 'string'
+                  ? context.metrics.decisionSource
+                  : null,
+              effectiveAnswerMode:
+                typeof context.metrics.effectiveAnswerMode === 'string'
+                  ? context.metrics.effectiveAnswerMode
+                  : null,
+              naturalityScore:
+                typeof context.metrics.naturalityScore === 'number'
+                  ? context.metrics.naturalityScore
+                  : null,
+              naturalityPenalties: Array.isArray(context.metrics.naturalityPenalties)
+                ? context.metrics.naturalityPenalties
+                : [],
+              naturalityAddsNewInformation: Boolean(
+                context.metrics.naturalityAddsNewInformation,
+              ),
               followUpDetected: Boolean(context.metrics.followUpDetected),
               followUpFallback: Boolean(context.metrics.followUpFallback),
               followUpResolvedWithoutProvider: Boolean(
@@ -8728,6 +14045,7 @@ export class AiAgentRuntime {
               groundedRewriteApplied: Boolean(
                 context.metrics.groundedRewriteApplied,
               ),
+              lightStyleApplied: Boolean(context.metrics.lightStyleApplied),
               clarificationRequested: Boolean(
                 context.metrics.clarificationRequested,
               ),
@@ -8736,6 +14054,15 @@ export class AiAgentRuntime {
               ),
             }
           : previousAuditPayload?.metrics ?? null,
+      responseMode,
+      responseOrigin:
+        typeof decisionTrace?.deterministic?.responseOrigin === 'string'
+          ? decisionTrace.deterministic.responseOrigin
+          : typeof previousAuditPayload?.responseOrigin === 'string'
+            ? previousAuditPayload.responseOrigin
+            : null,
+      orchestratorDecision,
+      decisionTrace,
       fallbackReason,
       fallbackSubtype,
     }
@@ -8749,6 +14076,7 @@ export class AiAgentRuntime {
     fallbackReason,
     interpretation = null,
     tenantTopicTaxonomy = [],
+    tenantRuntimePolicy = null,
     variationSeed = '',
     previousIntentKey = null,
     channel = null,
@@ -8798,19 +14126,27 @@ export class AiAgentRuntime {
       'esa opción'
 
     if (looksLikeMaterialFollowUpRequest(input)) {
+      const materialFollowUpText = buildCustomerMaterialFollowUpText({
+        subject,
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile: this.getResponseChannelProfile(channel),
+      })
       return {
-        text: buildCustomerMaterialFollowUpText({
-          subject,
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-          channel,
-          channelProfile: this.getResponseChannelProfile(channel),
-        }),
+        text: materialFollowUpText,
         wordingKey: 'customer.fallback.material_followup',
         toolCalls: [],
         needsHuman: false,
         grounding: {
-          grounded: false,
+          ...buildRetrievalFaqGroundingContract({
+            input,
+            retrievalItems,
+            interpretation,
+            tenantRuntimePolicy,
+            paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+            text: materialFollowUpText,
+          }),
           fallbackReason,
           fallbackSubtype: 'material_followup',
         },
@@ -8824,19 +14160,27 @@ export class AiAgentRuntime {
     }
 
     if (looksLikeInformationExpansionRequest(input)) {
+      const informationHandoffText = buildCustomerInformationThenHandoffText({
+        subject,
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile: this.getResponseChannelProfile(channel),
+      })
       return {
-        text: buildCustomerInformationThenHandoffText({
-          subject,
-          variationSeed,
-          wordingOverrides: this.getCustomerWordingOverrides(),
-          channel,
-          channelProfile: this.getResponseChannelProfile(channel),
-        }),
+        text: informationHandoffText,
         wordingKey: 'customer.fallback.information_then_handoff',
         toolCalls: [],
         needsHuman: false,
         grounding: {
-          grounded: false,
+          ...buildRetrievalFaqGroundingContract({
+            input,
+            retrievalItems,
+            interpretation,
+            tenantRuntimePolicy,
+            paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+            text: informationHandoffText,
+          }),
           fallbackReason,
           fallbackSubtype: 'information_then_handoff',
         },
@@ -8856,6 +14200,8 @@ export class AiAgentRuntime {
         intentKey,
         interpretation,
         tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
         variationSeed,
         wordingOverrides: this.getCustomerWordingOverrides(),
         previousIntentKey,
@@ -8872,8 +14218,15 @@ export class AiAgentRuntime {
       return null
     }
 
+    const groundedText = composeQuoteKnowledgeFirstText({
+      informationText: text,
+      input,
+      interpretation,
+      tenantTopicTaxonomy,
+    })
+
     return {
-      text,
+      text: groundedText,
       wordingKey: this.resolveCustomerHybridWordingKey({
         intentKey,
         interpretation,
@@ -8881,7 +14234,14 @@ export class AiAgentRuntime {
       toolCalls: [],
       needsHuman: false,
       grounding: {
-        grounded: true,
+        ...buildRetrievalFaqGroundingContract({
+          input,
+          retrievalItems,
+          interpretation,
+          tenantRuntimePolicy,
+          paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+          text: groundedText,
+        }),
         fallbackReason,
         fallbackSubtype: null,
       },
@@ -8969,9 +14329,7 @@ export class AiAgentRuntime {
     }
 
     if (intentKey === 'customer.quote') {
-      lines.push(
-        'Si quieres, un asesor puede continuar contigo para confirmar medidas, vidrio y disponibilidad antes de cerrar la cotización.',
-      )
+      lines.push(buildQuoteProgressHint(quoteContext))
     } else {
       lines.push(
         'Si necesitas más detalle o una cotización, un asesor puede continuar contigo y ayudarte con el siguiente paso.',
@@ -8983,7 +14341,21 @@ export class AiAgentRuntime {
       toolCalls: [],
       needsHuman: false,
       grounding: {
-        grounded: true,
+        ...buildGroundingContract({
+          knowledgeRetrieved: false,
+          usedFacts: lines.filter(
+            (entry, index) => index < 2 || /precio de referencia/i.test(entry),
+          ),
+          sources: buildStructuredGroundingSource({
+            sourceType: 'published_catalog',
+            scope: 'catalog',
+            sourceKey:
+              firstMatch?.id != null
+                ? `product:${firstMatch.id}`
+                : compactText(productName || 'catalog_match'),
+            title: productName,
+          }),
+        }),
         fallbackReason,
       },
     }
@@ -9238,8 +14610,8 @@ export class AiAgentRuntime {
     }
 
     switch (actionDefinition.draftBuilder) {
-      case 'buildAberturasRegisterDraft':
-        return this.buildAberturasRegisterDraft(actionIntent, operationalContext)
+      case 'buildStructuredCatalogRegisterDraft':
+        return this.buildStructuredCatalogRegisterDraft(actionIntent, operationalContext)
       case 'buildAppointmentCreateDraft':
         return this.buildAppointmentCreateDraft(actionIntent, input)
       case 'buildAppointmentUpdateDraft':
@@ -9327,12 +14699,12 @@ export class AiAgentRuntime {
 
     const insertDraft = toolCalls.find(
       (entry) =>
-        entry?.name === 'prepare_aberturas_insert' &&
+        entry?.name === STRUCTURED_CATALOG_INSERT_TOOL &&
         entry?.status === 'executed' &&
         entry?.result?.itemCount,
     )?.result
 
-    if (pendingIntentKey === 'aberturas.register' && insertDraft) {
+    if (pendingIntentKey === STRUCTURED_CATALOG_REGISTER_INTENT && insertDraft) {
       const readyItems = Array.isArray(insertDraft.items)
         ? insertDraft.items.filter((item) => item?.validForInsert && item?.insertPayload)
         : []
@@ -9344,7 +14716,7 @@ export class AiAgentRuntime {
           needsHuman: false,
           grounding: { grounded: false, fallbackReason: 'pending_required_fields' },
           debug: {
-            actionKey: 'aberturas.register.confirm',
+            actionKey: `${STRUCTURED_CATALOG_REGISTER_INTENT}.confirm`,
             detail: 'La confirmación llegó, pero el draft no contiene insertPayloads válidos.',
           },
         }
@@ -9400,7 +14772,7 @@ export class AiAgentRuntime {
           fallbackReason: failed.length > 0 ? 'execution_partial_failure' : null,
         },
         debug: {
-          actionKey: 'aberturas.register.confirm',
+          actionKey: `${STRUCTURED_CATALOG_REGISTER_INTENT}.confirm`,
           detail: `Se confirmó el draft de alta. Productos creados: ${success.length}. Fallidos: ${failed.length}.`,
         },
       }
@@ -9504,10 +14876,13 @@ export class AiAgentRuntime {
     actionIntent,
     intentDetection = null,
     turnInterpretation = null,
+    tenantRuntimePolicy = null,
   ) {
     const now = new Date().toISOString()
     const previousTaskState = snapshot?.taskState ?? null
     const previousIntentKey = previousTaskState?.intentKey || null
+    const previousTurnIntentKey =
+      previousTaskState?.turnIntentKey || previousIntentKey || null
     const previousCanonicalTopic =
       previousTaskState?.canonicalTopic && typeof previousTaskState.canonicalTopic === 'object'
         ? previousTaskState.canonicalTopic
@@ -9531,6 +14906,14 @@ export class AiAgentRuntime {
       typeof previousTaskState.conversationContext === 'object'
         ? previousTaskState.conversationContext
         : null
+    const previousConversationState =
+      previousTaskState?.conversationState &&
+      typeof previousTaskState.conversationState === 'object'
+        ? previousTaskState.conversationState
+        : previousConversationContext?.conversationState &&
+            typeof previousConversationContext.conversationState === 'object'
+          ? previousConversationContext.conversationState
+          : null
     const previousConversationThreads = Array.isArray(previousTaskState?.conversationThreads)
       ? previousTaskState.conversationThreads
       : []
@@ -9538,8 +14921,7 @@ export class AiAgentRuntime {
       typeof previousTaskState?.activeThreadKey === 'string'
         ? previousTaskState.activeThreadKey
         : null
-    let currentIntentKey =
-      intentDetection?.intent || deriveIntentKey(role, input, actionIntent)
+    const previousActiveLane = readConversationActiveLane(previousConversationContext)
     const interpretedTopicLabel =
       typeof turnInterpretation?.topic?.label === 'string'
         ? turnInterpretation.topic.label
@@ -9587,329 +14969,48 @@ export class AiAgentRuntime {
       turnInterpretation.threadResolution.activeThreadKey.trim()
         ? turnInterpretation.threadResolution.activeThreadKey.trim()
         : previousActiveThreadKey
-    const hasCurrentQuotePayload =
-      Boolean(currentQuoteContext?.measurements) ||
-      Number(currentQuoteContext?.quantity?.total || 0) > 0 ||
-      (currentQuoteContext?.capturedAttributes &&
-        Object.keys(currentQuoteContext.capturedAttributes).length > 0)
-    const currentTurnTextForQuoteContinuation =
-      turnInterpretation?.currentTurnText || input || ''
-    const currentTurnLooksLikeAttachmentArtifact = Boolean(
-      detectStandaloneAttachmentArtifactKind(input),
-    )
-    const currentTurnHasMultimodalReferenceSignal = hasMultimodalReferenceSignal(
-      currentTurnTextForQuoteContinuation || input,
-    )
-    const currentTurnHasMultimodalPlannedArtifactSignal =
-      hasMultimodalPlannedArtifactSignal(currentTurnTextForQuoteContinuation || input)
-    const currentTurnHasReengagementSignal = hasReengagementReferenceSignal(
-      currentTurnTextForQuoteContinuation || input,
-    )
-    const currentTurnFaqSubtype = detectCustomerFaqSubtype(
-      currentTurnTextForQuoteContinuation,
-      {
-        previousIntentKey,
-      },
-    )
-    const quoteContinuationFaqSubtype = currentTurnFaqSubtype
-    const measurementPromotableCustomerIntents = new Set([
-      'customer.product_info',
-      'customer.price_inquiry',
-      'customer.topic_info',
-      'customer.other',
-      'unknown',
-    ])
-    const currentTurnCarriesQuoteSignal = hasCurrentTurnQuoteSignal({
-      currentTurnText: currentTurnTextForQuoteContinuation,
-      currentQuoteContext,
-      previousQuoteContext,
+
+    const readiness =
+      readInterpretationResolutionReadiness(turnInterpretation) ||
+      currentConversationContext?.resolutionReadiness ||
+      null
+    const turnIntentKey =
+      normalizeIntentKeyValue(readiness?.turnIntent) ||
+      normalizeIntentKeyValue(intentDetection?.intent) ||
+      deriveIntentKey(role, input, actionIntent, tenantRuntimePolicy)
+    let activeLane = normalizeIntentKeyValue(readiness?.lane) || null
+    let effectiveReadiness =
+      readiness && typeof readiness === 'object'
+        ? {
+            ...readiness,
+            lane: activeLane || readiness.lane || null,
+            turnIntent: turnIntentKey || readiness.turnIntent || null,
+          }
+        : null
+    const currentTurnText = turnInterpretation?.currentTurnText || input || ''
+    let currentIntentKey = resolveCustomerActiveIntentKeyFromReadiness({
+      role,
+      turnIntentKey,
+      readiness: effectiveReadiness,
     })
-    const currentTurnCarriesFreshQuotePayload =
-      Boolean(currentQuoteContext?.measurements) &&
-      Boolean(
-        currentQuoteContext?.measurements?.widthMm !==
-          previousQuoteContext?.measurements?.widthMm ||
-          currentQuoteContext?.measurements?.heightMm !==
-            previousQuoteContext?.measurements?.heightMm,
-      ) ||
-      (Number(currentQuoteContext?.quantity?.total || 0) > 0 &&
-        currentQuoteContext?.quantity?.total !== previousQuoteContext?.quantity?.total) ||
-      looksLikeQuoteRequirementsQuestion(currentTurnTextForQuoteContinuation) ||
-      looksLikeQuoteWaitingFollowUp(currentTurnTextForQuoteContinuation)
-    const currentTurnLooksLikeExplicitFaqSwitch =
-      !currentTurnCarriesFreshQuotePayload &&
-      NON_QUOTE_CONTINUATION_FAQ_SUBTYPES.has(quoteContinuationFaqSubtype)
-    const currentTurnLooksLikeCommercialConditionSwitch =
-      !currentTurnCarriesFreshQuotePayload &&
-      looksLikeCommercialConditionQuestion(currentTurnTextForQuoteContinuation)
-    const quoteContinuationBlockedByFaq =
-      !currentTurnCarriesFreshQuotePayload &&
-      (currentTurnLooksLikeExplicitFaqSwitch ||
-        currentTurnLooksLikeCommercialConditionSwitch ||
-        String(currentIntentKey || '') === 'customer.schedule_request' ||
-        explicitResetRequested(currentTurnTextForQuoteContinuation))
-    const hasMeasurementDrivenTurnSignal =
-      Boolean(currentQuoteContext?.measurements) &&
-      Boolean(
-        currentQuoteContext?.measurements?.widthMm !==
-          previousQuoteContext?.measurements?.widthMm ||
-          currentQuoteContext?.measurements?.heightMm !==
-            previousQuoteContext?.measurements?.heightMm ||
-          currentQuoteContext?.quantity?.total !== previousQuoteContext?.quantity?.total ||
-          looksLikeShortContextualFollowUp(currentTurnTextForQuoteContinuation) ||
-          currentTurnCarriesQuoteSignal,
-      )
-    const shouldPromoteMeasurementProgressToQuote =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      measurementPromotableCustomerIntents.has(String(currentIntentKey || '')) &&
-      hasMeasurementDrivenTurnSignal &&
-      !quoteContinuationBlockedByFaq &&
-      Boolean(
-        currentQuoteContext?.requiresMeasurements ||
-          previousQuoteContext?.requiresMeasurements ||
-          (turnInterpretation?.followUp?.detected &&
-            (currentCanonicalTopic?.label || previousCanonicalTopic?.label)),
-      )
 
-    if (shouldPromoteMeasurementProgressToQuote) {
-      currentIntentKey = 'customer.quote'
-    }
-
-    const shouldDemoteQuoteToExplicitSideQuestion =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      currentIntentKey === 'customer.quote' &&
-      (previousIntentKey === 'customer.quote' || Boolean(previousQuoteContext)) &&
-      (currentTurnLooksLikeExplicitFaqSwitch ||
-        currentTurnLooksLikeCommercialConditionSwitch)
-
-    if (shouldDemoteQuoteToExplicitSideQuestion) {
-      currentIntentKey = 'customer.topic_info'
-    }
-
-    const quoteContinuationPromotableCustomerIntents = new Set([
-      'customer.product_info',
-      'customer.topic_info',
-      'customer.price_inquiry',
-      'customer.other',
-      'unknown',
-    ])
-    const shouldKeepCurrentIntentOutsideQuote = quoteContinuationBlockedByFaq
-    const quoteProgressChanged =
-      Boolean(currentQuoteContext) &&
-      (currentQuoteContext?.topicLabel !== previousQuoteContext?.topicLabel ||
-        currentQuoteContext?.familyLabel !== previousQuoteContext?.familyLabel ||
-        currentQuoteContext?.completionStatus !== previousQuoteContext?.completionStatus ||
-        currentQuoteContext?.measurements?.widthMm !==
-          previousQuoteContext?.measurements?.widthMm ||
-        currentQuoteContext?.measurements?.heightMm !==
-          previousQuoteContext?.measurements?.heightMm ||
-        currentQuoteContext?.quantity?.total !== previousQuoteContext?.quantity?.total ||
-        (Array.isArray(currentQuoteContext?.missingFields)
-          ? currentQuoteContext.missingFields.join('|')
-          : '') !==
-          (Array.isArray(previousQuoteContext?.missingFields)
-            ? previousQuoteContext.missingFields.join('|')
-            : ''))
-    const hasExplicitQuoteContinuationTurnSignal =
-      currentTurnCarriesQuoteSignal ||
-      looksLikeCustomerFollowUp(currentTurnTextForQuoteContinuation)
-    const hasQuoteContinuationSignal =
-      Boolean(currentQuoteContext) &&
-      Boolean(
-        quoteProgressChanged ||
-          hasExplicitQuoteContinuationTurnSignal ||
-          turnInterpretation?.followUp?.detected,
-      )
-    const shouldPromoteQuoteContinuation =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      previousIntentKey === 'customer.quote' &&
-      quoteContinuationPromotableCustomerIntents.has(String(currentIntentKey || '')) &&
-      !shouldKeepCurrentIntentOutsideQuote &&
-      hasQuoteContinuationSignal
-
-    if (shouldPromoteQuoteContinuation) {
-      currentIntentKey = 'customer.quote'
-    }
-
-    const shouldPreserveQuoteIntentOnProductFollowUp =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      previousIntentKey === 'customer.quote' &&
-      ['customer.product_info', 'customer.topic_info'].includes(String(currentIntentKey || '')) &&
-      !quoteContinuationBlockedByFaq &&
-      (turnInterpretation?.followUp?.detected ||
-        looksLikeCustomerFollowUp(currentTurnTextForQuoteContinuation) ||
-        Boolean(currentCanonicalTopic))
-
-    if (shouldPreserveQuoteIntentOnProductFollowUp) {
-      currentIntentKey = 'customer.quote'
-    }
-
-    const shouldRestoreExplorationIntentAfterQuoteContextCarry =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      currentIntentKey === 'customer.quote' &&
-      ['customer.product_info', 'customer.topic_info'].includes(
-        String(intentDetection?.intent || ''),
-      ) &&
-      previousIntentKey !== 'customer.quote' &&
-      !currentTurnCarriesQuoteSignal &&
-      !currentTurnCarriesFreshQuotePayload &&
-      !turnInterpretation?.followUp?.detected &&
-      !currentTurnLooksLikeExplicitFaqSwitch &&
-      !currentTurnLooksLikeCommercialConditionSwitch
-
-    if (shouldRestoreExplorationIntentAfterQuoteContextCarry) {
-      currentIntentKey = intentDetection.intent
-    }
-
-    const shouldDemoteStaleQuoteCarryOverToProductInfo =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      currentIntentKey === 'customer.quote' &&
-      intentDetection?.intent === 'customer.product_info' &&
-      previousIntentKey !== 'customer.quote' &&
-      !quoteContinuationBlockedByFaq &&
-      !currentTurnCarriesQuoteSignal &&
-      !turnInterpretation?.followUp?.detected &&
-      Boolean(
-        currentQuoteContext?.measurements || Number(currentQuoteContext?.quantity?.total || 0) > 0,
-      )
-
-    if (shouldDemoteStaleQuoteCarryOverToProductInfo) {
-      currentIntentKey = 'customer.product_info'
-    }
-
-    const scheduleContinuationPromotableCustomerIntents = new Set([
-      'customer.other',
-      'unknown',
-      'customer.light',
-      'customer.clarify_request',
-      'customer.product_info',
-      'customer.topic_info',
-      'customer.contact_info',
-      'customer.quote',
-    ])
-    const currentTurnTextForScheduleContinuation =
-      turnInterpretation?.currentTurnText || input || ''
-    const scheduleProgressChanged =
-      Boolean(currentScheduleContext) &&
-      (currentScheduleContext?.startAt !== previousScheduleContext?.startAt ||
-        currentScheduleContext?.address !== previousScheduleContext?.address ||
-        currentScheduleContext?.contactPhone !== previousScheduleContext?.contactPhone ||
-        currentScheduleContext?.contactEmail !== previousScheduleContext?.contactEmail ||
-        currentScheduleContext?.date?.dateLabel !== previousScheduleContext?.date?.dateLabel ||
-        currentScheduleContext?.time?.timeLabel !== previousScheduleContext?.time?.timeLabel)
-    const hasScheduleContinuationSignal =
-      Boolean(currentScheduleContext) &&
-      (scheduleProgressChanged ||
-        looksLikeScheduleContinuationInput(currentTurnTextForScheduleContinuation))
-    const quoteMultimodalContinuationTurn =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      (previousIntentKey === 'customer.quote' ||
-        Boolean(
-          previousQuoteContext?.topicLabel ||
-            previousQuoteContext?.familyLabel ||
-            previousQuoteContext?.measurements ||
-            Number(previousQuoteContext?.quantity?.total || 0) > 0,
-        )) &&
-      (currentTurnLooksLikeAttachmentArtifact ||
-        currentTurnHasMultimodalReferenceSignal ||
-        currentTurnHasMultimodalPlannedArtifactSignal)
-    const shouldPromoteScheduleContinuation =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      (previousIntentKey === 'customer.schedule_request' ||
-        previousIntentKey === 'customer.support_request' ||
-        Boolean(previousScheduleContext)) &&
-      scheduleContinuationPromotableCustomerIntents.has(String(currentIntentKey || '')) &&
-      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
-      !quoteMultimodalContinuationTurn &&
-      hasScheduleContinuationSignal
-
-    if (shouldPromoteScheduleContinuation) {
-      currentIntentKey = 'customer.schedule_request'
-    }
-
-    const shouldPreferQuoteOverSchedule =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      currentIntentKey === 'customer.schedule_request' &&
-      previousIntentKey !== 'customer.support_request' &&
-      !Boolean(
-        previousSupportContext?.issueSummary ||
-          previousSupportContext?.productType ||
-          previousSupportContext?.wantsVisit,
-      ) &&
-      !looksLikeScheduleContinuationInput(currentTurnTextForScheduleContinuation) &&
-      (quoteMultimodalContinuationTurn ||
-        (currentTurnCarriesQuoteSignal &&
-          (previousIntentKey === 'customer.quote' ||
-            Boolean(previousQuoteContext) ||
-            Boolean(currentQuoteContext?.measurements) ||
-            Number(currentQuoteContext?.quantity?.total || 0) > 0)))
-
-    if (shouldPreferQuoteOverSchedule) {
-      currentIntentKey = 'customer.quote'
-    }
-
-    const shouldPreserveSupportContinuation =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      previousIntentKey === 'customer.support_request' &&
-      (CONTEXTUAL_CUSTOMER_CONTINUATION_INTENTS.has(String(currentIntentKey || '')) ||
-        (String(currentIntentKey || '') === 'customer.schedule_request' &&
-          !looksLikeScheduleContinuationInput(currentTurnTextForScheduleContinuation))) &&
-      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
-      (currentTurnLooksLikeAttachmentArtifact ||
-        currentTurnHasMultimodalReferenceSignal ||
-        currentTurnHasMultimodalPlannedArtifactSignal ||
-        currentTurnHasReengagementSignal ||
-        looksLikeSupportContinuationInput(currentTurnTextForScheduleContinuation))
-
-    if (shouldPreserveSupportContinuation) {
-      currentIntentKey = 'customer.support_request'
-    }
-
-    const shouldPreferExplicitFaqSwitchOverOperationalContinuation =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      (previousIntentKey === 'customer.schedule_request' ||
-        previousIntentKey === 'customer.support_request' ||
-        Boolean(previousScheduleContext)) &&
-      currentTurnLooksLikeExplicitFaqSwitch &&
-      looksLikeExplicitFaqQuestionInput(currentTurnTextForScheduleContinuation) &&
-      !looksLikeScheduleContinuationInput(currentTurnTextForScheduleContinuation) &&
-      !currentTurnLooksLikeAttachmentArtifact &&
-      !currentTurnHasMultimodalReferenceSignal &&
-      !currentTurnHasMultimodalPlannedArtifactSignal
-
-    if (shouldPreferExplicitFaqSwitchOverOperationalContinuation) {
-      currentIntentKey =
-        currentTurnFaqSubtype === 'contact'
-          ? 'customer.contact_info'
-          : 'customer.topic_info'
-    }
-
-    const shouldPreserveQuoteContinuation =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      (previousIntentKey === 'customer.quote' ||
-        Boolean(
-          previousQuoteContext?.topicLabel ||
-            previousQuoteContext?.familyLabel ||
-            previousQuoteContext?.measurements ||
-            Number(previousQuoteContext?.quantity?.total || 0) > 0 ||
-            (previousQuoteContext?.capturedAttributes &&
-              Object.keys(previousQuoteContext.capturedAttributes).length > 0),
-        )) &&
-      CONTEXTUAL_CUSTOMER_CONTINUATION_INTENTS.has(String(currentIntentKey || '')) &&
-      String(currentIntentKey || '') !== 'customer.schedule_request' &&
-      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
-      (currentTurnLooksLikeAttachmentArtifact ||
-        currentTurnHasMultimodalReferenceSignal ||
-        currentTurnHasMultimodalPlannedArtifactSignal ||
-        currentTurnHasReengagementSignal)
-
-    if (shouldPreserveQuoteContinuation) {
-      currentIntentKey = 'customer.quote'
+    if (currentConversationContext && typeof currentConversationContext === 'object') {
+      currentConversationContext = {
+        ...currentConversationContext,
+        activeLane: activeLane || currentConversationContext.activeLane || null,
+        activeDomain:
+          activeLane ||
+          currentConversationContext.activeDomain ||
+          currentConversationContext.activeLane ||
+          null,
+        resolutionReadiness:
+          effectiveReadiness || currentConversationContext.resolutionReadiness || null,
+      }
     }
 
     const shouldCarryQuoteTopicFromMemory =
       (role === 'customer_public' || role === 'customer_authenticated') &&
-      previousIntentKey === 'customer.quote' &&
+      activeLane === 'quote' &&
       currentIntentKey === 'customer.quote' &&
       !currentCanonicalTopic &&
       previousCanonicalTopic &&
@@ -9955,16 +15056,16 @@ export class AiAgentRuntime {
           : currentTopicTokens
     }
 
-    if (
+    const shouldCarryPreviousTopicIntoGenericFollowUp =
       !(role.startsWith('admin_') || role === 'superadmin') &&
       previousIntentKey &&
       isGenericCustomerIntentKey(currentIntentKey) &&
       (turnInterpretation?.followUp?.detected ||
-        looksLikeCustomerFollowUp(input) ||
-        looksLikeShortContextualFollowUp(input) ||
-        looksLikeContextualReference(input))
-    ) {
-      currentIntentKey = previousIntentKey
+        looksLikeCustomerFollowUp(currentTurnText) ||
+        looksLikeShortContextualFollowUp(currentTurnText) ||
+        looksLikeContextualReference(currentTurnText))
+
+    if (shouldCarryPreviousTopicIntoGenericFollowUp) {
       currentTopicTokens = Array.from(
         new Set([...(previousTaskState?.topicTokens ?? []), ...currentTopicTokens]),
       ).slice(0, 12)
@@ -9974,46 +15075,6 @@ export class AiAgentRuntime {
           tokens: currentTopicTokens,
         }
       }
-    }
-
-    const normalizedTurnForScheduleConfirmation = normalizeText(
-      currentTurnTextForScheduleContinuation,
-    )
-    const hasPendingScheduleData =
-      Boolean(currentScheduleContext) &&
-      Array.isArray(currentScheduleContext?.missingFields) &&
-      currentScheduleContext.missingFields.length > 0
-    const shouldTreatConfirmationAsScheduleContinuation =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      Boolean(previousScheduleContext) &&
-      Boolean(currentScheduleContext) &&
-      hasPendingScheduleData &&
-      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
-      /^(si|sí|dale|ok|perfecto|listo)$/i.test(normalizedTurnForScheduleConfirmation)
-    const shouldRestoreScheduleConfirmationIntent =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      Boolean(previousScheduleContext) &&
-      Boolean(currentScheduleContext) &&
-      !hasPendingScheduleData &&
-      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
-      /^(si|sí|dale|ok|perfecto|confirmo|listo)$/i.test(
-        normalizedTurnForScheduleConfirmation,
-      )
-    const shouldRestoreScheduleCancellationIntent =
-      (role === 'customer_public' || role === 'customer_authenticated') &&
-      Boolean(previousScheduleContext) &&
-      Boolean(currentScheduleContext) &&
-      !explicitResetRequested(currentTurnTextForScheduleContinuation) &&
-      /^(no|no eso no|mejor no|cancelar|dejalo|déjalo|dejemos eso|eso no)$/i.test(
-        normalizedTurnForScheduleConfirmation,
-      )
-
-    if (shouldTreatConfirmationAsScheduleContinuation) {
-      currentIntentKey = 'customer.schedule_request'
-    } else if (shouldRestoreScheduleConfirmationIntent) {
-      currentIntentKey = 'customer.confirmation'
-    } else if (shouldRestoreScheduleCancellationIntent) {
-      currentIntentKey = 'customer.cancellation'
     }
 
     const previousNamespace = intentNamespace(previousIntentKey)
@@ -10029,16 +15090,24 @@ export class AiAgentRuntime {
       if (role.startsWith('admin_') || role === 'superadmin') {
         shouldReset =
           previousNamespace !== currentNamespace ||
-          ((currentNamespace === 'aberturas' || previousNamespace === 'aberturas') &&
+          ((isStructuredCatalogActionKey(currentIntentKey) ||
+            isStructuredCatalogActionKey(previousIntentKey)) &&
             overlap < 0.18 &&
             currentTopicTokens.length > 0)
       } else {
+        const laneStableContinuation =
+          previousActiveLane &&
+          activeLane &&
+          previousActiveLane === activeLane &&
+          ['quote', 'support', 'schedule'].includes(String(activeLane || ''))
+
         shouldReset =
           previousIntentKey !== currentIntentKey &&
+          !laneStableContinuation &&
           overlap < 0.12 &&
           currentIntentKey !== 'customer.light'
 
-        if (preserveProductThreadOnBusinessFaq) {
+        if (preserveProductThreadOnBusinessFaq || laneStableContinuation) {
           shouldReset = false
         }
       }
@@ -10060,6 +15129,152 @@ export class AiAgentRuntime {
       currentSupportContext = null
       currentConversationThreads = []
       currentActiveThreadKey = null
+    }
+
+    const previousAgentText = Array.isArray(snapshot?.turns)
+      ? [...snapshot.turns]
+          .reverse()
+          .find((entry) => entry?.role === 'agent' && typeof entry?.text === 'string')
+          ?.text || ''
+      : ''
+    let currentConversationState = buildConversationState({
+      previousConversationState,
+      tenantRuntimePolicy,
+      readiness: effectiveReadiness,
+      intentKey: currentIntentKey,
+      intentConfidence: intentDetection?.confidence ?? null,
+      topic: currentCanonicalTopic,
+      contextTopic: previousCanonicalTopic,
+      quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
+      scheduleContext: currentScheduleContext,
+      currentTurnText,
+      previousAgentText,
+    })
+    const normalizedContexts = normalizeOperationalContextsWithConversationState({
+      quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
+      scheduleContext: currentScheduleContext,
+      conversationState: currentConversationState,
+    })
+    currentQuoteContext = normalizedContexts.quoteContext
+    currentSupportContext = normalizedContexts.supportContext
+    currentScheduleContext = normalizedContexts.scheduleContext
+    effectiveReadiness = applyPreResponseDecisionGuards({
+      readiness: effectiveReadiness,
+      previousConversationContext,
+      previousActiveThreadKey,
+      threadResolution: turnInterpretation?.threadResolution || null,
+      quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
+      scheduleContext: currentScheduleContext,
+      conversationState: currentConversationState,
+    })
+    activeLane = normalizeIntentKeyValue(effectiveReadiness?.lane) || activeLane
+    currentIntentKey = resolveCustomerActiveIntentKeyFromReadiness({
+      role,
+      turnIntentKey,
+      readiness: effectiveReadiness,
+    })
+    currentConversationState = buildConversationState({
+      previousConversationState,
+      tenantRuntimePolicy,
+      readiness: effectiveReadiness,
+      intentKey: currentIntentKey,
+      intentConfidence: intentDetection?.confidence ?? null,
+      topic: currentCanonicalTopic,
+      contextTopic: previousCanonicalTopic,
+      quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
+      scheduleContext: currentScheduleContext,
+      currentTurnText,
+      previousAgentText,
+    })
+    let stabilizedReadiness = stabilizeReadinessWithConversationState({
+      readiness: effectiveReadiness,
+      conversationState: currentConversationState,
+      quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
+      scheduleContext: currentScheduleContext,
+    })
+    stabilizedReadiness = applyPreResponseDecisionGuards({
+      readiness: stabilizedReadiness,
+      previousConversationContext,
+      previousActiveThreadKey,
+      threadResolution: turnInterpretation?.threadResolution || null,
+      quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
+      scheduleContext: currentScheduleContext,
+      conversationState: currentConversationState,
+    })
+    const projectedContexts = projectOperationalContextsForDecision({
+      readiness: stabilizedReadiness,
+      quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
+      scheduleContext: currentScheduleContext,
+      conversationState: currentConversationState,
+    })
+    currentQuoteContext = projectedContexts.quoteContext
+    currentSupportContext = projectedContexts.supportContext
+    currentScheduleContext = projectedContexts.scheduleContext
+    activeLane = normalizeIntentKeyValue(stabilizedReadiness?.lane) || activeLane
+    currentIntentKey = resolveCustomerActiveIntentKeyFromReadiness({
+      role,
+      turnIntentKey,
+      readiness: stabilizedReadiness,
+    })
+    currentConversationState = buildConversationState({
+      previousConversationState,
+      tenantRuntimePolicy,
+      readiness: stabilizedReadiness,
+      intentKey: currentIntentKey,
+      intentConfidence: intentDetection?.confidence ?? null,
+      topic: currentCanonicalTopic,
+      contextTopic: previousCanonicalTopic,
+      quoteContext: currentQuoteContext,
+      supportContext: currentSupportContext,
+      scheduleContext: currentScheduleContext,
+      currentTurnText,
+      previousAgentText,
+    })
+    currentActiveThreadKey =
+      compactText(
+        stabilizedReadiness?.activeThreadId ||
+          stabilizedReadiness?.threadKey ||
+          currentActiveThreadKey ||
+          '',
+      ) || null
+
+    if (currentConversationContext && typeof currentConversationContext === 'object') {
+      currentConversationContext = {
+        ...currentConversationContext,
+        activeLane: activeLane || currentConversationContext.activeLane || null,
+        activeDomain:
+          activeLane ||
+          currentConversationContext.activeDomain ||
+          currentConversationContext.activeLane ||
+          null,
+        threadKey:
+          currentActiveThreadKey || currentConversationContext.threadKey || null,
+        resumePointer:
+          stabilizedReadiness?.resumePointer ||
+          currentConversationContext.resumePointer ||
+          null,
+        resolutionReadiness: stabilizedReadiness,
+        conversationState: currentConversationState,
+      }
+    }
+
+    if (turnInterpretation && typeof turnInterpretation === 'object') {
+      turnInterpretation.quoteContext = currentQuoteContext
+      turnInterpretation.supportContext = currentSupportContext
+      turnInterpretation.scheduleContext = currentScheduleContext
+      if (currentConversationContext && typeof currentConversationContext === 'object') {
+        turnInterpretation.conversationContext = currentConversationContext
+      }
+      if (stabilizedReadiness && typeof stabilizedReadiness === 'object') {
+        turnInterpretation.resolutionReadiness = stabilizedReadiness
+      }
     }
 
     const taskId = shouldReset
@@ -10101,6 +15316,8 @@ export class AiAgentRuntime {
     )
     const currentTask = {
       intentKey: currentIntentKey,
+      turnIntentKey,
+      activeLane,
       entities: [
         ...(currentCanonicalTopic?.label
           ? [
@@ -10185,6 +15402,8 @@ export class AiAgentRuntime {
     nextSnapshot.taskState = {
       taskId,
       intentKey: currentIntentKey,
+      turnIntentKey,
+      activeLane,
       state: detectedState.state,
       stateHistory: detectedState.stateHistory,
       lastTransitionAt: detectedState.lastTransitionAt,
@@ -10194,6 +15413,7 @@ export class AiAgentRuntime {
       supportContext: currentSupportContext,
       scheduleContext: currentScheduleContext,
       conversationContext: currentConversationContext,
+      conversationState: currentConversationState,
       conversationThreads: currentConversationThreads,
       activeThreadKey: currentActiveThreadKey,
       taskSummary,
@@ -10207,6 +15427,8 @@ export class AiAgentRuntime {
       snapshot: nextSnapshot,
       taskId,
       intentKey: currentIntentKey,
+      turnIntentKey,
+      activeLane,
       taskSummary,
       currentTask,
       canonicalTopic: currentCanonicalTopic,
@@ -10214,6 +15436,7 @@ export class AiAgentRuntime {
       supportContext: currentSupportContext,
       scheduleContext: currentScheduleContext,
       conversationContext: currentConversationContext,
+      conversationState: currentConversationState,
       conversationThreads: currentConversationThreads,
       activeThreadKey: currentActiveThreadKey,
       resetApplied: shouldReset,
@@ -10256,6 +15479,7 @@ export class AiAgentRuntime {
     decisionPath = [],
     messageContext,
     messageContextAudit,
+    runtimeOptions = {},
   }) {
     const fallback = this.buildRoleBlockedResponse(role, roleResolution)
     const debugResponse = this.appendAdminDebugSummary(
@@ -10287,7 +15511,52 @@ export class AiAgentRuntime {
     const finalizedTask = this.applyTaskStateFromResponse(taskMemory, debugResponse, {
       events: [AGENT_STATE_EVENTS.EXECUTION_FAILED],
     })
-    await this.memoryStore.replace(conversationId, finalizedTask.snapshot)
+    const memoryTransaction = this.pendingMemoryTransaction({
+      conversationId,
+      snapshot: finalizedTask.snapshot,
+      scope,
+      role,
+      runtimeOptions,
+    })
+    const now = new Date().toISOString()
+    if (typeof input === 'string' && input.trim()) {
+      this.stageConversationTurn(memoryTransaction, {
+        role: 'customer',
+        text: input.trim(),
+        createdAt: now,
+        metadata: {
+          taskId: taskMemory?.taskId ?? null,
+          intentKey,
+          role,
+          authorKind: 'customer',
+          messageKind: 'human_message',
+          messageElementCount: Array.isArray(messageContext?.usedElementKinds)
+            ? messageContext.usedElementKinds.length
+            : 0,
+        },
+      })
+    }
+    this.stageConversationTurn(memoryTransaction, {
+      role: 'agent',
+      text: debugResponse.text,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        provider: this.provider.providerName,
+        authorKind: 'agent_runtime',
+        messageKind: 'human_message',
+        toolCalls: [],
+        finalUserText: debugResponse.finalUserText ?? debugResponse.text ?? null,
+        debugSummary: debugResponse.debugSummary ?? null,
+        auditPayload: debugResponse.auditPayload ?? null,
+        taskId: taskMemory?.taskId ?? null,
+        intentKey,
+        role,
+        messageElementCount: Array.isArray(messageContext?.usedElementKinds)
+          ? messageContext.usedElementKinds.length
+          : 0,
+      },
+    })
+    await this.responseCommit(memoryTransaction)
 
     return {
       conversationId,

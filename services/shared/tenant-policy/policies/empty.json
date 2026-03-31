@@ -1,0 +1,38 @@
+{
+  "tenantKey": "empty",
+  "vocabulary": {
+    "fragmentDescriptors": [],
+    "brandTokens": [],
+    "catalogSignalTerms": [],
+    "quoteItemTerms": [],
+    "productContextTerms": [],
+    "supportComponentTerms": [],
+    "catalogCarrierTerms": [],
+    "catalogStructuralTerms": [],
+    "catalogStructuralPhrases": [],
+    "topicResolutionFillerTerms": [],
+    "variantContextTerms": [],
+    "catalogFamilyLabel": null,
+    "genericCustomerSignalTerms": [],
+    "faqSignals": {},
+    "quoteAttributeFollowUpHints": {},
+    "knowledgeStatementPrefixes": []
+  },
+  "businessRules": {
+    "paymentMethods": [],
+    "installationTerms": [],
+    "lightFilterComparableFamilies": [],
+    "lightFilterGuidance": null
+  },
+  "businessFacts": {
+    "contact": [],
+    "businessHours": [],
+    "location": []
+  },
+  "conversationState": {
+    "slotAliases": {},
+    "tenantSlots": []
+  },
+  "topicTaxonomy": [],
+  "quoteProfiles": []
+}

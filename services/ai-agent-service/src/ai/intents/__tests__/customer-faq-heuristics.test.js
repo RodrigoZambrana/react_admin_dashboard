@@ -4,10 +4,31 @@ import {
   detectCustomerFaqSubtype,
   extractRequestedTopicLabel,
 } from '../customer-faq-heuristics.js'
+import { buildTenantRuntimePolicy } from '../../tenant-policy/runtime-tenant-policy.js'
 
 test('detectCustomerFaqSubtype resolves payment methods from broader payment wording', () => {
   assert.equal(
     detectCustomerFaqSubtype('¿Puedo abonar con débito o transferencia?'),
+    'payment_methods',
+  )
+})
+
+test('detectCustomerFaqSubtype resolves tenant-configured bank-account requests as payment methods', () => {
+  const tenantRuntimePolicy = buildTenantRuntimePolicy({
+    tenantKey: 'urucortinas',
+  })
+
+  assert.equal(detectCustomerFaqSubtype('Me pasas cuenta bancaria?'), 'general')
+  assert.equal(
+    detectCustomerFaqSubtype('Me pasas cuenta bancaria?', {
+      tenantRuntimePolicy,
+    }),
+    'payment_methods',
+  )
+  assert.equal(
+    detectCustomerFaqSubtype('Pásame cuenta en pesos', {
+      tenantRuntimePolicy,
+    }),
     'payment_methods',
   )
 })
@@ -54,6 +75,26 @@ test('detectCustomerFaqSubtype resolves location questions from broader city wor
   )
 })
 
+test('detectCustomerFaqSubtype resolves delivery-time wording as availability', () => {
+  assert.equal(
+    detectCustomerFaqSubtype('Hola, ok, qeu tiempo de entrega tiene?'),
+    'availability',
+  )
+  assert.equal(
+    detectCustomerFaqSubtype('¿Cuánto demora?'),
+    'availability',
+  )
+})
+
+test('detectCustomerFaqSubtype ignores the web lead intro when the turn is really a quote opening', () => {
+  assert.equal(
+    detectCustomerFaqSubtype(
+      'Hola, te contacto desde la web de urucortinas: Buenas tardes, quisiera solicitar presupuesto para puerta ventana de aluminio de 1.20 x 2.34 con doble vidrio',
+    ),
+    'general',
+  )
+})
+
 test('detectCustomerFaqSubtype does not treat private-account changes as public location/contact FAQs', () => {
   assert.equal(
     detectCustomerFaqSubtype(
@@ -75,6 +116,15 @@ test('extractRequestedTopicLabel ignores standalone attachment artifacts and exp
   )
   assert.equal(extractRequestedTopicLabel('Perdón, me quedó para atrás el mensaje'), null)
   assert.equal(extractRequestedTopicLabel('Hola, retomo esto.'), null)
+})
+
+test('extractRequestedTopicLabel ignores message placeholders and schedule availability payloads', () => {
+  assert.equal(extractRequestedTopicLabel('Esperando este mensaje'), null)
+  assert.equal(
+    extractRequestedTopicLabel('Este viernes en la mañana pueden ir a mi domicilio?'),
+    null,
+  )
+  assert.equal(extractRequestedTopicLabel('Pueden sobre las 9 am?'), null)
 })
 
 test('extractRequestedTopicLabel keeps the product subject clean on transfer-style follow-ups', () => {
