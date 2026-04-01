@@ -95,6 +95,8 @@ export const analyzeMessage = async ({
   intentKey = null,
   interpretation = null,
   intentRegistryHints = [],
+  taskSummary = null,
+  currentTask = null,
   allowModel = true,
   providerOptions = {},
 }) => {
@@ -150,6 +152,8 @@ export const analyzeMessage = async ({
         intentKey,
         interpretation,
         intentRegistryHints,
+        taskSummary,
+        currentTask,
       }),
       input: String(input || ''),
       schema,

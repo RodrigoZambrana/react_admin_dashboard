@@ -38,12 +38,32 @@ import {
 import { resolveCustomerResponseContract } from './conversation/response-resolver.js'
 import { resolveTurnKnowledgeControl } from './conversation/turn-controller.js'
 import {
+  hasPaymentContinuationSignal,
+  looksLikeAmountOnlyReply,
+  looksLikeAwaitingProofResponse,
+  looksLikeGenericClarificationResponse,
+  looksLikeGenericContactResponse,
+  looksLikeGenericConsultationClosureResponse,
+  looksLikeGenericQuoteHandoffResponse,
+  looksLikeGenericQuoteIntakeResponse,
+  looksLikeSpecificPaymentMethodQuestion,
+} from './conversation/response-signals.js'
+import {
   buildConversationState,
   filterResolvedConversationFields,
   isConversationFieldResolved,
   mapConversationFieldToSlot,
   resolveNextConversationField,
 } from './conversation/conversation-state.js'
+import {
+  applyPreResponseDecisionGuards,
+  faqSubtypeBelongsToOperationalLane,
+  normalizeIntentKeyValue,
+  projectOperationalContextsForDecision,
+  readConversationActiveLane,
+  resolveCustomerActiveIntentKeyFromReadiness,
+  resolveSideQuestionIntentKey,
+} from './conversation/decision-runtime.js'
 import { generateResponse } from './nlp/generate-response.js'
 import { validateResponseGuardrails } from './guardrails/validate-response.js'
 import { detectIntent } from './intents/detect-intent.js'
@@ -112,6 +132,7 @@ import {
   looksLikeQuoteWaitingFollowUp,
 } from './intents/customer-intent-patterns.js'
 import { normalizeCustomerTextForIntent } from './intents/customer-text-normalizer.js'
+import { isGenericQuoteTopicLabel } from './intents/quote-semantics.js'
 import {
   detectStandaloneAttachmentArtifactKind,
   hasMultimodalPlannedArtifactSignal,
@@ -309,6 +330,57 @@ const normalizeText = (value) =>
     .trim()
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
+
+const hydrateQuoteContextFromConversationState = ({
+  quoteContext = null,
+  conversationState = null,
+} = {}) => {
+  if (!quoteContext || typeof quoteContext !== 'object') {
+    return quoteContext
+  }
+
+  if (
+    quoteContext.measurements ||
+    (Array.isArray(quoteContext.measurementItems) &&
+      quoteContext.measurementItems.length > 0)
+  ) {
+    return quoteContext
+  }
+
+  const dimensionLabel = compactText(conversationState?.slots?.dimensions?.value || '')
+  if (!dimensionLabel) {
+    return quoteContext
+  }
+
+  const missingFields = Array.isArray(quoteContext.missingFields)
+    ? quoteContext.missingFields.filter(
+        (entry) => typeof entry === 'string' && entry !== 'measurements',
+      )
+    : []
+  const capturedAttributes =
+    quoteContext.capturedAttributes && typeof quoteContext.capturedAttributes === 'object'
+      ? { ...quoteContext.capturedAttributes }
+      : {}
+
+  if (!capturedAttributes.measurements) {
+    capturedAttributes.measurements = {
+      value: dimensionLabel,
+      label: dimensionLabel,
+      source: 'conversation_state',
+    }
+  }
+
+  return {
+    ...quoteContext,
+    measurements: {
+      displayLabel: dimensionLabel,
+      confirmationLabel: dimensionLabel,
+      source: 'conversation_state',
+    },
+    capturedAttributes,
+    missingFields,
+  }
+}
 
 const normalizeUniqueTerms = (values = []) =>
   Array.from(
@@ -784,45 +856,10 @@ const sanitizeLoopSubjectLabel = (value = null) => {
   return compacted
 }
 
-const looksLikeGenericClarificationResponse = (text) =>
-  /no me queda totalmente claro|que necesit[aá]s resolver exactamente|quer[eé]s contarme un poco m[aá]s para orientarte mejor|contame un poco m[aá]s y lo vemos/i.test(
-    normalizeText(text),
-  )
-
-const looksLikeGenericQuoteIntakeResponse = (text) =>
-  /contame que queres cotizar|que producto te interesa|para prepararte un presupuesto|orientarte mejor con el precio/i.test(
-    normalizeText(text),
-  )
-
-const looksLikeGenericContactResponse = (text) =>
-  /tenemos atenci[oó]n por tel[eé]fono y whatsapp|te comparto el contacto por este medio|si, tenemos tel[eé]fono y whatsapp/i.test(
-    normalizeText(text),
-  )
-
-const looksLikeGenericConsultationClosureResponse = (text) =>
-  /si quieres, seguimos con tu consulta|si quer[eé]s, seguimos con tu consulta/i.test(
-    normalizeText(text),
-  )
-
-const looksLikeGenericQuoteHandoffResponse = (text) =>
-  /no tengo una configuraci[oó]n publicada con precio inmediato|le enviamos la cotizaci[oó]n a la brevedad|asesor del equipo se comunica para continuar/i.test(
-    normalizeText(text),
-  )
-
-const looksLikeAwaitingProofResponse = (text) =>
-  /cuando lo env[ií]es por ac[aá], lo tomo|cuando lo env[ií]es por ac[aá], lo dejo en seguimiento/i.test(
-    normalizeText(text),
-  )
-
 const looksLikeOperationalStatusContinuation = (text) =>
   looksLikeScheduleContinuationInput(text) ||
   /\b(quedaron de avisar|ya e llamado|ya he llamado|pasaran|pasarán|estoy en|los espero|las espero|te espero)\b/i.test(
     String(text || ''),
-  )
-
-const looksLikeAmountOnlyReply = (text) =>
-  /^\s*(?:usd|uyu|\$)?\s*\d+(?:[.,]\d{1,2})?\s*(?:usd|uyu)?\s*$/iu.test(
-    String(text || '').trim(),
   )
 
 const looksLikeAddressOrTimeReply = (text) =>
@@ -1195,6 +1232,32 @@ const hasSpecificFaqSubtype = (value) => {
   return Boolean(normalized) && normalized !== 'general' && normalized !== 'unknown'
 }
 
+const resolveSignalOperationalLane = ({
+  readinessLane = null,
+  quoteContext = null,
+  supportContext = null,
+  scheduleContext = null,
+} = {}) => {
+  if (hasQuoteDecisionContext(quoteContext)) {
+    return 'quote'
+  }
+
+  if (hasSupportDecisionContext(supportContext)) {
+    return 'support'
+  }
+
+  if (hasScheduleDecisionContext(scheduleContext)) {
+    return 'schedule'
+  }
+
+  const normalizedReadinessLane = normalizeIntentKeyValue(readinessLane)
+  return ['quote', 'support', 'schedule'].includes(
+    String(normalizedReadinessLane || ''),
+  )
+    ? normalizedReadinessLane
+    : null
+}
+
 const resolveFaqSubtypeDecisionContext = ({
   faqSubtype = null,
   readiness = null,
@@ -1203,7 +1266,16 @@ const resolveFaqSubtypeDecisionContext = ({
   scheduleContext = null,
 } = {}) => {
   const specificFaqSubtype = hasSpecificFaqSubtype(faqSubtype) ? faqSubtype : null
-  const activeThreadLane = normalizeIntentKeyValue(readiness?.lane)
+  const activeThreadLane = resolveSignalOperationalLane({
+    readinessLane: readiness?.lane,
+    quoteContext,
+    supportContext,
+    scheduleContext,
+  })
+  const faqBelongsToActiveThread = faqSubtypeBelongsToOperationalLane({
+    faqSubtype: specificFaqSubtype,
+    lane: activeThreadLane,
+  })
   const hasOperationalThread =
     ['quote', 'support', 'schedule'].includes(String(activeThreadLane || '')) &&
     (
@@ -1234,9 +1306,11 @@ const resolveFaqSubtypeDecisionContext = ({
 
   return {
     activeThreadLane: hasOperationalThread ? activeThreadLane : null,
-    threadScopedFaqSubtype: hasOperationalThread ? specificFaqSubtype : null,
-    fallbackFaqSubtype: hasOperationalThread ? null : specificFaqSubtype,
-    belongsToActiveThread: hasOperationalThread,
+    threadScopedFaqSubtype:
+      hasOperationalThread && faqBelongsToActiveThread ? specificFaqSubtype : null,
+    fallbackFaqSubtype:
+      hasOperationalThread && faqBelongsToActiveThread ? null : specificFaqSubtype,
+    belongsToActiveThread: hasOperationalThread && faqBelongsToActiveThread,
   }
 }
 
@@ -1614,46 +1688,6 @@ const CUSTOMER_OPERATIONAL_INTENT_KEYS = new Set([
   'customer.private_account_data',
 ])
 
-const normalizeIntentKeyValue = (value) => {
-  if (typeof value !== 'string') {
-    return null
-  }
-
-  const normalized = value.trim()
-  if (!normalized.length || normalized === 'unknown') {
-    return null
-  }
-
-  return normalized
-}
-
-const readConversationActiveLane = (conversationContext = null) => {
-  if (
-    conversationContext?.resolutionReadiness &&
-    typeof conversationContext.resolutionReadiness === 'object' &&
-    typeof conversationContext.resolutionReadiness.lane === 'string' &&
-    conversationContext.resolutionReadiness.lane.trim()
-  ) {
-    return conversationContext.resolutionReadiness.lane.trim()
-  }
-
-  if (
-    typeof conversationContext?.activeLane === 'string' &&
-    conversationContext.activeLane.trim()
-  ) {
-    return conversationContext.activeLane.trim()
-  }
-
-  if (
-    typeof conversationContext?.activeDomain === 'string' &&
-    conversationContext.activeDomain.trim()
-  ) {
-    return conversationContext.activeDomain.trim()
-  }
-
-  return null
-}
-
 const hasConcreteSchedulePayload = (scheduleContext = null) =>
   Boolean(
     scheduleContext?.startAt ||
@@ -1817,6 +1851,82 @@ const chooseNextMissingFieldForDecision = ({
   return alternativeField || preferredField
 }
 
+const normalizeDecisionTopicLabel = (value) =>
+  normalizeCustomerTextForIntent(compactText(value || ''))
+
+const hasQuoteSlotContribution = (quoteContext = null) =>
+  Boolean(
+    quoteContext &&
+      (
+        quoteContext?.measurements ||
+        (Array.isArray(quoteContext?.measurementItems) &&
+          quoteContext.measurementItems.length > 0) ||
+        Number(quoteContext?.quantity?.total || 0) > 0 ||
+        (quoteContext?.capturedAttributes &&
+          typeof quoteContext.capturedAttributes === 'object' &&
+          Object.keys(quoteContext.capturedAttributes).length > 0)
+      ),
+  )
+
+const resolveQuoteThreadConflictExploration = ({
+  readiness = null,
+  previousConversationContext = null,
+  previousActiveThreadKey = null,
+  threadResolution = null,
+  quoteContext = null,
+} = {}) => {
+  const readinessLane = normalizeIntentKeyValue(readiness?.lane)
+  const previousLane = normalizeIntentKeyValue(
+    readConversationActiveLane(previousConversationContext),
+  )
+
+  if (readinessLane !== 'quote' || previousLane !== 'quote') {
+    return false
+  }
+
+  const previousReadiness =
+    previousConversationContext?.resolutionReadiness &&
+    typeof previousConversationContext.resolutionReadiness === 'object'
+      ? previousConversationContext.resolutionReadiness
+      : null
+  const previousThreadKey =
+    compactText(
+      previousConversationContext?.threadKey ||
+        previousReadiness?.threadKey ||
+        previousActiveThreadKey ||
+        '',
+    ) || null
+  const currentThreadKey =
+    compactText(
+      threadResolution?.activeThreadKey || readiness?.threadKey || previousThreadKey || '',
+    ) || null
+
+  if (!previousThreadKey || !currentThreadKey || previousThreadKey === currentThreadKey) {
+    return false
+  }
+
+  const previousTopicLabel = normalizeDecisionTopicLabel(
+    previousConversationContext?.topicLabel ||
+      previousReadiness?.knownFacts?.topic ||
+      previousConversationContext?.conversationState?.slots?.product?.value ||
+      '',
+  )
+  const currentTopicLabel = normalizeDecisionTopicLabel(
+    threadResolution?.activeThread?.resolvedLabel ||
+      threadResolution?.activeThread?.baseLabel ||
+      readiness?.knownFacts?.topic ||
+      quoteContext?.topicLabel ||
+      quoteContext?.familyLabel ||
+      '',
+  )
+
+  if (!previousTopicLabel || !currentTopicLabel || previousTopicLabel === currentTopicLabel) {
+    return false
+  }
+
+  return !hasQuoteSlotContribution(quoteContext)
+}
+
 const GENERIC_NON_PROGRESS_ANSWER_MODES = new Set([
   'guided_exploration',
   'guide_quote_exploration',
@@ -1824,531 +1934,201 @@ const GENERIC_NON_PROGRESS_ANSWER_MODES = new Set([
   'hold_for_more_context',
 ])
 
-const applyPreResponseDecisionGuards = ({
+const SIGNAL_ONLY_ANSWER_MODES = new Set([
+  'answer_side_question',
+])
+
+const hasRecognizedQuoteProgressProfile = (quoteContext = null) =>
+  Boolean(
+    quoteContext &&
+      (
+        quoteContext?.profileResolved === true ||
+        (typeof quoteContext?.profileKey === 'string' && quoteContext.profileKey.trim())
+      ),
+  )
+
+const buildDecisionProgressGuard = ({
   readiness = null,
-  previousConversationContext = null,
-  previousActiveThreadKey = null,
-  threadResolution = null,
+  lane = null,
+  answerMode = null,
+  nextUsefulField = null,
+  operationalAnswerMode = null,
+  hasOperationalThread = false,
   quoteContext = null,
   supportContext = null,
   scheduleContext = null,
-  conversationState = null,
+  quoteThreadConflictExploration = false,
+  quoteExplorationWithoutSlotContribution = false,
 } = {}) => {
-  if (!readiness || typeof readiness !== 'object') {
-    return readiness
+  const normalizedLane = normalizeIntentKeyValue(lane)
+  const normalizedAnswerMode =
+    typeof answerMode === 'string' && answerMode.trim() ? answerMode.trim() : null
+  const result = {
+    active: ['quote', 'support', 'schedule'].includes(String(normalizedLane || '')),
+    blocked: false,
+    allowAdvance: false,
+    reason: null,
+    forcedMode: null,
+    forcedAnswerMode: null,
   }
 
-  const previousLane = normalizeIntentKeyValue(
-    readConversationActiveLane(previousConversationContext),
-  )
-  const previousReadiness =
-    previousConversationContext?.resolutionReadiness &&
-    typeof previousConversationContext.resolutionReadiness === 'object'
-      ? previousConversationContext.resolutionReadiness
-      : null
-  const activeThreadId =
-    compactText(
-      threadResolution?.activeThreadKey ||
-        readiness?.threadKey ||
-        previousConversationContext?.threadKey ||
-        previousReadiness?.threadKey ||
-        previousActiveThreadKey ||
-        '',
-    ) || null
-  const hasCurrentOperationalContext = (lane) =>
-    hasOperationalDecisionContext({
-      lane,
-      quoteContext,
-      supportContext,
-      scheduleContext,
-    })
-  const hasOperationalThreadToResume = ['quote', 'support', 'schedule'].includes(
-    String(previousLane || ''),
-  )
-  let lane = normalizeIntentKeyValue(readiness?.lane) || previousLane || null
-  if (
-    hasOperationalThreadToResume &&
-    (
-      !['quote', 'support', 'schedule'].includes(String(lane || '')) ||
-      (lane !== previousLane && hasCurrentOperationalContext(previousLane))
-    ) &&
-    (readiness?.followUpDetected === true ||
-      activeThreadId ||
-      hasCurrentOperationalContext(previousLane))
-  ) {
-    lane = previousLane
+  if (!result.active) {
+    result.reason = 'non_operational_lane'
+    return result
   }
 
-  const missingFields = getOperationalMissingFieldsForLane({
-    lane,
-    quoteContext,
-    supportContext,
-    scheduleContext,
-    conversationState,
-  })
-  const requestedField =
-    compactText(
-      readiness?.resumePointer ||
-        readiness?.nextUsefulField ||
-        previousConversationContext?.resumePointer ||
-        previousReadiness?.nextUsefulField ||
-        '',
-    ) || null
-  let nextUsefulField = chooseNextMissingFieldForDecision({
-    requestedField,
-    missingFields,
-    conversationState,
-  })
-  let answerMode =
-    typeof readiness?.answerMode === 'string' && readiness.answerMode.trim()
-      ? readiness.answerMode.trim()
-      : null
-  const operationalAnswerMode = getOperationalAnswerModeForLane(lane, nextUsefulField)
-  const hasOperationalThread =
-    ['quote', 'support', 'schedule'].includes(String(lane || '')) &&
-    (Boolean(activeThreadId) ||
-      hasCurrentOperationalContext(lane) ||
-      hasOperationalThreadToResume)
-
-  if (
-    /^ask_/.test(String(answerMode || '')) &&
-    nextUsefulField &&
-    isConversationFieldResolved(nextUsefulField, conversationState)
-  ) {
-    nextUsefulField = chooseNextMissingFieldForDecision({
-      requestedField: null,
-      missingFields,
-      conversationState,
-    })
+  if (readiness?.sideQuestionSubtype) {
+    result.reason = 'side_question'
+    return result
   }
 
-  if (/^ask_/.test(String(answerMode || '')) && !nextUsefulField) {
-    answerMode = operationalAnswerMode
-  } else if (
-    hasOperationalThread &&
-    GENERIC_NON_PROGRESS_ANSWER_MODES.has(String(answerMode || ''))
-  ) {
-    answerMode = operationalAnswerMode
+  if (readiness?.requiresDisambiguation === true) {
+    result.reason = 'requires_disambiguation'
+    return result
   }
 
-  if (!answerMode && operationalAnswerMode) {
-    answerMode = operationalAnswerMode
-  }
-
-  return {
-    ...readiness,
-    lane: lane || readiness?.lane || null,
-    missingFields,
-    nextUsefulField,
-    answerMode,
-    threadKey: activeThreadId || readiness?.threadKey || null,
-    activeThreadId,
-    activeIntent:
-      (lane && CUSTOMER_LANE_ACTIVE_INTENT_KEYS[lane]) || readiness?.turnIntent || null,
-    resumePointer:
-      nextUsefulField ||
-      requestedField ||
-      (typeof readiness?.resumePointer === 'string' ? readiness.resumePointer : null),
-  }
-}
-
-const projectOperationalContextsForDecision = ({
-  readiness = null,
-  quoteContext = null,
-  supportContext = null,
-  scheduleContext = null,
-  conversationState = null,
-} = {}) => {
-  const lane = normalizeIntentKeyValue(readiness?.lane)
-  const answerMode = normalizeIntentKeyValue(readiness?.answerMode)
-  const nextUsefulField =
-    typeof readiness?.nextUsefulField === 'string' && readiness.nextUsefulField.trim()
-      ? readiness.nextUsefulField.trim()
-      : null
-
-  const projectContext = (context, { emptyOnResolved = false } = {}) => {
-    if (!context || typeof context !== 'object') {
-      return context
-    }
-
-    const normalizedMissingFields = filterResolvedConversationFields({
-      missingFields: Array.isArray(context?.missingFields) ? context.missingFields : [],
-      conversationState,
-    })
-
-    let projectedMissingFields = normalizedMissingFields
-    if (nextUsefulField && /^ask_/.test(String(answerMode || ''))) {
-      projectedMissingFields = normalizedMissingFields.includes(nextUsefulField)
-        ? [nextUsefulField]
-        : normalizedMissingFields
-    } else if (emptyOnResolved) {
-      projectedMissingFields = []
-    }
-
-    const projectedMissingAttributes = Array.isArray(context?.missingAttributes)
-      ? context.missingAttributes.filter(
-          (entry) =>
-            entry &&
-            typeof entry === 'object' &&
-            projectedMissingFields.includes(String(entry.key || '').trim()),
-        )
-      : Array.isArray(context?.requiredAttributes)
-        ? context.requiredAttributes.filter(
-            (entry) =>
-              entry &&
-              typeof entry === 'object' &&
-              projectedMissingFields.includes(String(entry.key || '').trim()),
-          )
-        : []
-
+  if (quoteThreadConflictExploration) {
     return {
-      ...context,
-      missingFields: projectedMissingFields,
-      missingAttributes: projectedMissingAttributes,
-      nextUsefulField,
+      ...result,
+      blocked: true,
+      reason: 'quote_thread_conflict',
+      forcedMode: 'exploration',
+      forcedAnswerMode: 'guide_quote_exploration',
     }
   }
 
-  return {
-    quoteContext:
-      lane === 'quote'
-        ? (() => {
-            const projected = projectContext(quoteContext, {
-              emptyOnResolved: answerMode === 'quote_ready',
-            })
-            if (!projected || typeof projected !== 'object') {
-              return projected
-            }
-            if (answerMode !== 'quote_ready') {
-              return projected
-            }
-            return {
-              ...projected,
-              completionStatus:
-                typeof projected.completionStatus === 'string' &&
-                projected.completionStatus.trim()
-                  ? projected.completionStatus
-                  : 'ready_for_handoff',
-            }
-          })()
-        : quoteContext,
-    supportContext:
-      lane === 'support'
-        ? projectContext(supportContext, {
-            emptyOnResolved: answerMode === 'continue_support_resolution',
-          })
-        : supportContext,
-    scheduleContext:
-      lane === 'schedule'
-        ? projectContext(scheduleContext, {
-            emptyOnResolved: answerMode === 'confirm_schedule',
-          })
-        : scheduleContext,
-  }
-}
-
-const resolveCustomerActiveIntentKeyFromReadiness = ({
-  role,
-  turnIntentKey = null,
-  readiness = null,
-}) => {
-  const normalizedTurnIntentKey = normalizeIntentKeyValue(turnIntentKey)
-
-  if (!(role === 'customer_public' || role === 'customer_authenticated')) {
-    return normalizedTurnIntentKey || 'unknown'
+  if (quoteExplorationWithoutSlotContribution) {
+    return {
+      ...result,
+      blocked: true,
+      reason: 'quote_exploration_without_slot_contribution',
+      forcedMode: 'exploration',
+      forcedAnswerMode: 'guide_quote_exploration',
+    }
   }
 
-  if (!readiness || typeof readiness !== 'object') {
-    return normalizedTurnIntentKey || 'unknown'
+  if (!hasOperationalThread) {
+    result.reason = 'no_active_thread'
+    return result
   }
 
-  const readinessLane = normalizeIntentKeyValue(readiness.lane)
-  const laneIntentKey = readinessLane
-    ? CUSTOMER_LANE_ACTIVE_INTENT_KEYS[readinessLane] || null
-    : null
-  const answerMode = normalizeIntentKeyValue(readiness.answerMode)
-  const waitForMoreReasons = Array.isArray(readiness?.waitForMoreReasons)
-    ? readiness.waitForMoreReasons.filter((entry) => typeof entry === 'string')
-    : []
-  const hasStructuredQuoteSignal =
-    readiness?.quoteStructuredContext === true ||
-    readiness?.quoteActionReady === true ||
-    Number(readiness?.knownFacts?.quantity || 0) > 0 ||
-    typeof readiness?.knownFacts?.measurements === 'string'
-  const hasQuoteFragmentCarryover = waitForMoreReasons.some(
-    (reason) =>
-      reason === 'quote_related_fragment' || String(reason).startsWith('quote_missing_'),
-  )
-  const shortQuoteSeedWait =
-    waitForMoreReasons.length > 0 &&
-    waitForMoreReasons.every((reason) => reason === 'short_quote_seed')
-  const hasQuoteContinuationSignal =
-    readiness?.quoteOriginThread === true ||
-    readiness?.quoteSeedDetected === true ||
-    hasStructuredQuoteSignal ||
-    hasQuoteFragmentCarryover
-  const previousIntentWasQuote = readiness?.previousIntentWasQuote === true
-  const previousQuoteDisambiguationPending =
-    readiness?.previousQuoteDisambiguationPending === true
-  const resetCueDetected = readiness?.resetCueDetected === true
-  const topicOnlyExplorationTurn =
-    readiness?.quoteTopicOnlyTurn === true ||
-    readiness?.quoteTopicOnlyTurnText === true
-  const canIgnoreInheritedQuoteStructure =
-    CUSTOMER_PURE_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || '')) &&
-    previousIntentWasQuote !== true &&
-    topicOnlyExplorationTurn
-  const canPreserveExploratoryIntent =
-    CUSTOMER_PURE_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || '')) ||
-    (
-      normalizedTurnIntentKey === 'customer.price_inquiry' &&
-      previousIntentWasQuote !== true &&
-      previousQuoteDisambiguationPending !== true
+  if (normalizedLane === 'quote') {
+    const normalizedTurnIntentKey = normalizeIntentKeyValue(readiness?.turnIntent)
+    const quoteCompletionStatus = String(quoteContext?.completionStatus || '')
+    const quoteCanClose = ['ready_for_pricing_or_handoff', 'ready_for_handoff'].includes(
+      quoteCompletionStatus,
     )
-  const shouldDowngradeWeakQuoteTurn =
-    readinessLane === 'quote' &&
-    normalizedTurnIntentKey === 'customer.quote' &&
-    readiness?.quoteOriginThread !== true &&
-    readiness?.quoteSeedDetected !== true &&
-    !hasStructuredQuoteSignal &&
-    !hasQuoteFragmentCarryover &&
-    readiness?.requiresDisambiguation !== true &&
-    readiness?.quoteMultiTopic !== true &&
-    (
-      String(answerMode || '') === 'guide_quote_exploration' ||
-      shortQuoteSeedWait ||
+    const quoteProfileRecognized = hasRecognizedQuoteProgressProfile(quoteContext)
+    const quoteNeedsOperationalField = Boolean(nextUsefulField)
+    const quoteInformationFirst =
+      readiness?.quoteInformationFirst === true ||
       readiness?.quoteTopicOnlyTurn === true ||
       readiness?.quoteTopicOnlyTurnText === true
-    )
-  const isOperationalContinuation =
-    Boolean(laneIntentKey) &&
-    ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
-    (
-      readinessLane === 'quote'
-        ? hasQuoteContinuationSignal &&
-          (
-            CUSTOMER_FLOW_CARRYOVER_ANSWER_MODES.has(String(answerMode || '')) ||
-            readiness?.followUpDetected === true ||
-            (
-              typeof readiness?.threadKey === 'string' &&
-              readiness.threadKey.trim()
-            )
-          )
-        : CUSTOMER_FLOW_CARRYOVER_ANSWER_MODES.has(String(answerMode || '')) ||
-          readiness?.followUpDetected === true ||
-          (
-            typeof readiness?.threadKey === 'string' &&
-            readiness.threadKey.trim() &&
-            (readinessLane !== 'quote' || hasStructuredQuoteSignal)
-          )
-    )
-  const shouldPreserveQuoteExplorationIntent =
-    readinessLane === 'quote' &&
-    canPreserveExploratoryIntent &&
-    (!hasStructuredQuoteSignal || canIgnoreInheritedQuoteStructure) &&
-    !hasQuoteFragmentCarryover &&
-    readiness?.requiresDisambiguation !== true &&
-    readiness?.quoteMultiTopic !== true &&
-    previousQuoteDisambiguationPending !== true &&
-    (
-      resetCueDetected ||
-      readiness?.quoteInformationFirst === true ||
-      topicOnlyExplorationTurn ||
-      shortQuoteSeedWait ||
-      String(answerMode || '') === 'guide_quote_exploration'
-    ) &&
-    (
-      previousIntentWasQuote !== true ||
-      resetCueDetected
-    )
-  const shouldElevateDisambiguatedQuoteTurn =
-    readiness?.requiresDisambiguation === true &&
-    CUSTOMER_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || '')) &&
-    (
-      hasQuoteContinuationSignal
-    )
-  const shouldPreserveTurnIntent =
-    CUSTOMER_TURN_INTENT_PRESERVATION_KEYS.has(String(normalizedTurnIntentKey || '')) &&
-    !(
-      readinessLane === 'quote' &&
-      hasQuoteContinuationSignal &&
-      ['customer.clarify_request', 'customer.other', 'customer.incomplete'].includes(
-        String(normalizedTurnIntentKey || ''),
-      )
-    )
-  const isWeakGenericTurnIntent = ['customer.other', 'customer.incomplete', 'unknown', null].includes(
-    normalizedTurnIntentKey,
-  )
+    const quoteExplorationOutsideOperationalThread =
+      CUSTOMER_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || '')) &&
+      readiness?.quoteOriginThread !== true
 
-  if (normalizedTurnIntentKey === 'customer.multi_intent') {
-    return normalizedTurnIntentKey
-  }
-
-  if (
-    readiness?.supportThreadPresent === true &&
-    typeof readiness?.knownFacts?.supportIssue === 'string' &&
-    (
-      normalizedTurnIntentKey === 'customer.support_request' ||
-      normalizeIntentKeyValue(readiness?.turnIntent) === 'customer.support_request'
-    )
-  ) {
-    return 'customer.support_request'
-  }
-
-  if (shouldDowngradeWeakQuoteTurn) {
-    return 'customer.product_info'
-  }
-
-  if (
-    readiness?.quoteThreadPresent === true &&
-    readiness?.artifactTurn === true &&
-    ['customer.incomplete', 'customer.other', 'unknown', null].includes(
-      normalizedTurnIntentKey,
-    )
-  ) {
-    return 'customer.quote'
-  }
-
-  if (readinessLane === 'quote' && laneIntentKey) {
-    if (CUSTOMER_OPERATIONAL_INTENT_KEYS.has(String(normalizedTurnIntentKey || ''))) {
-      return normalizedTurnIntentKey
+    if (quoteExplorationOutsideOperationalThread) {
+      return {
+        ...result,
+        blocked: true,
+        reason: 'quote_exploration_root',
+        forcedMode: 'exploration',
+        forcedAnswerMode:
+          normalizedAnswerMode === 'inform_then_guide_quote'
+            ? 'inform_then_guide_quote'
+            : 'guide_quote_exploration',
+      }
     }
-    if (shouldElevateDisambiguatedQuoteTurn) {
-      return laneIntentKey
+
+    if (!quoteProfileRecognized && !quoteCanClose) {
+      return {
+        ...result,
+        blocked: true,
+        reason: 'quote_profile_unrecognized',
+        forcedMode: 'exploration',
+        forcedAnswerMode: 'guide_quote_exploration',
+      }
     }
-    if (shouldPreserveQuoteExplorationIntent) {
-      return normalizedTurnIntentKey
+
+    if (quoteInformationFirst) {
+      return {
+        ...result,
+        blocked: true,
+        reason: 'quote_information_first',
+        forcedMode:
+          normalizedAnswerMode === 'inform_then_guide_quote' ? 'exploration' : null,
+        forcedAnswerMode:
+          normalizedAnswerMode === 'inform_then_guide_quote'
+            ? 'inform_then_guide_quote'
+            : 'guide_quote_exploration',
+      }
     }
-    if (
-      (isOperationalContinuation ||
-        hasQuoteFragmentCarryover ||
-        readiness?.quoteSeedDetected === true ||
-        readiness?.artifactTurn === true) &&
-      !readiness?.sideQuestionSubtype &&
-      (
-        isWeakGenericTurnIntent ||
-        shouldPreserveTurnIntent ||
-        CUSTOMER_EXPLORATION_INTENT_KEYS.has(String(normalizedTurnIntentKey || ''))
-      )
-    ) {
-      return laneIntentKey
+
+    if (quoteNeedsOperationalField || quoteCanClose) {
+      return {
+        ...result,
+        allowAdvance: true,
+        reason: quoteNeedsOperationalField ? 'ask_next_missing_field' : 'quote_ready',
+        forcedMode: 'flow',
+        forcedAnswerMode: operationalAnswerMode,
+      }
+    }
+
+    return {
+      ...result,
+      blocked: true,
+      reason: 'quote_no_progress_target',
+      forcedMode: 'exploration',
+      forcedAnswerMode: 'guide_quote_exploration',
     }
   }
 
-  if (
-    readinessLane === 'support' &&
-    laneIntentKey &&
-    CUSTOMER_OPERATIONAL_INTENT_KEYS.has(String(normalizedTurnIntentKey || ''))
-  ) {
-    return normalizedTurnIntentKey
-  }
-
-  if (
-    readinessLane === 'support' &&
-    laneIntentKey &&
-    isOperationalContinuation &&
-    !readiness?.sideQuestionSubtype &&
-    (
-      normalizedTurnIntentKey == null ||
-      shouldPreserveTurnIntent
-    )
-  ) {
-    return laneIntentKey
-  }
-
-  if (
-    readiness?.supportThreadPresent === true &&
-    readiness?.artifactTurn === true &&
-    ['customer.schedule_request', 'customer.incomplete', 'customer.other', null].includes(
-      normalizedTurnIntentKey,
-    )
-  ) {
-    return 'customer.support_request'
-  }
-
-  if (
-    readinessLane === 'schedule' &&
-    laneIntentKey &&
-    readiness?.quoteThreadPresent === true &&
-    hasStructuredQuoteSignal &&
-    readiness?.scheduleTurnSignals !== true &&
-    (
-      readiness?.artifactTurn === true ||
-      readiness?.followUpDetected === true
-    ) &&
-    ['customer.schedule_request', 'customer.incomplete', 'customer.other', null].includes(
-      normalizedTurnIntentKey,
-    )
-  ) {
-    return 'customer.quote'
-  }
-
-  if (
-    readinessLane === 'schedule' &&
-    laneIntentKey &&
-    CUSTOMER_OPERATIONAL_INTENT_KEYS.has(String(normalizedTurnIntentKey || ''))
-  ) {
-    return normalizedTurnIntentKey
-  }
-
-  if (
-    readinessLane === 'schedule' &&
-    laneIntentKey &&
-    isOperationalContinuation &&
-    !readiness?.sideQuestionSubtype &&
-    (
-      normalizedTurnIntentKey == null ||
-      shouldPreserveTurnIntent
-    )
-  ) {
-    return laneIntentKey
-  }
-
-  if (
-    readiness?.sideQuestionSubtype &&
-    laneIntentKey &&
-    ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
-    (
-      typeof readiness?.activeThreadId === 'string' ||
+  if (normalizedLane === 'support') {
+    const hasSupportTarget =
+      hasSupportDecisionContext(supportContext) ||
       typeof readiness?.threadKey === 'string' ||
-      readiness?.followUpDetected === true
-    )
-  ) {
-    return laneIntentKey
+      typeof readiness?.activeThreadId === 'string'
+    if (!hasSupportTarget) {
+      return {
+        ...result,
+        blocked: true,
+        reason: 'support_no_progress_target',
+      }
+    }
+
+    return {
+      ...result,
+      allowAdvance: true,
+      reason: nextUsefulField ? 'ask_next_missing_field' : 'support_continue',
+      forcedMode: 'flow',
+      forcedAnswerMode: operationalAnswerMode,
+    }
   }
 
-  if (
-    answerMode === 'answer_side_question' &&
-    laneIntentKey &&
-    ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
-    (
-      typeof readiness?.activeThreadId === 'string' ||
+  if (normalizedLane === 'schedule') {
+    const hasScheduleTarget =
+      hasConcreteSchedulePayload(scheduleContext) ||
       typeof readiness?.threadKey === 'string' ||
-      readiness?.followUpDetected === true
-    ) &&
-    !shouldPreserveTurnIntent
-  ) {
-    return laneIntentKey
+      typeof readiness?.activeThreadId === 'string'
+    if (!hasScheduleTarget) {
+      return {
+        ...result,
+        blocked: true,
+        reason: 'schedule_no_progress_target',
+      }
+    }
+
+    return {
+      ...result,
+      allowAdvance: true,
+      reason: nextUsefulField ? 'ask_next_missing_field' : 'schedule_confirm',
+      forcedMode: 'flow',
+      forcedAnswerMode: operationalAnswerMode,
+    }
   }
 
-  if (
-    readiness?.sideQuestionSubtype ||
-    answerMode === 'answer_side_question' ||
-    readiness?.mode === 'small_talk' ||
-    readiness?.mode === 'unclear' ||
-    shouldPreserveTurnIntent
-  ) {
-    return normalizedTurnIntentKey || laneIntentKey || 'unknown'
-  }
-
-  if (
-    laneIntentKey &&
-    CUSTOMER_FLOW_CARRYOVER_ANSWER_MODES.has(String(answerMode || ''))
-  ) {
-    return laneIntentKey
-  }
-
-  return normalizedTurnIntentKey || laneIntentKey || 'unknown'
+  return result
 }
 
 const parsePositiveInteger = (value) => {
@@ -7908,12 +7688,22 @@ export class AiAgentRuntime {
         looksLikeGenericQuoteHandoffResponse(responseText) ||
         looksLikeCoordinationAskResponse(responseText))
     const quoteDetailContinuationCandidate =
-      hasActiveQuoteThread &&
       Boolean(previousAgentText) &&
       (readiness?.lane === 'quote' || quoteContext) &&
-      looksLikeQuoteDetailFollowUp(currentTurnText) &&
+      (
+        looksLikeQuoteDetailFollowUp(currentTurnText) ||
+        (
+          Boolean(measurementsLabel) &&
+          !/\d/.test(String(currentTurnText || ''))
+        )
+      ) &&
       (looksLikeGenericQuoteIntakeResponse(responseText) ||
         looksLikeGenericQuoteHandoffResponse(responseText))
+    const paymentFollowUpLoopCandidate =
+      Boolean(previousAgentText) &&
+      looksLikeAmountOnlyReply(currentTurnText) &&
+      looksLikeGenericContactResponse(responseText) &&
+      hasPaymentContinuationSignal(previousAgentText)
     const quoteSubjectSpecificityRegressionCandidate =
       hasActiveQuoteThread &&
       Boolean(previousAgentText) &&
@@ -7956,6 +7746,7 @@ export class AiAgentRuntime {
       !loopingResponse &&
       !courtesyContinuationCandidate &&
       !quoteDetailContinuationCandidate &&
+      !paymentFollowUpLoopCandidate &&
       !quoteSubjectSpecificityRegressionCandidate &&
       !asksResolvedField &&
       !fallbackContractCandidate &&
@@ -7980,6 +7771,15 @@ export class AiAgentRuntime {
       if (quantity > 0) {
         stateNotes.push(quantity === 1 ? 'anoto 1 unidad' : `anoto ${quantity} unidades`)
       }
+      const currentTurnAddsFreshMeasurement =
+        /\d/.test(String(currentTurnText || '')) &&
+        /\b(?:x|×|ancho|alto|cm|mm|mts?|metros?)\b/i.test(
+          String(currentTurnText || ''),
+        )
+      const previousAgentAlreadyMentionsMeasurements =
+        Boolean(previousAgentText) &&
+        Boolean(measurementsLabel) &&
+        normalizeText(previousAgentText).includes(normalizeText(measurementsLabel))
 
       const remainingConfigurationEntries = (
         Array.isArray(quoteContext?.missingAttributes)
@@ -8096,7 +7896,11 @@ export class AiAgentRuntime {
         )
       }
       if (quoteSubjectSpecificityRegressionCandidate && stableQuoteSubject) {
-        if (measurementsLabel) {
+        if (
+          measurementsLabel &&
+          currentTurnAddsFreshMeasurement &&
+          !previousAgentAlreadyMentionsMeasurements
+        ) {
           return compactText(
             [
               'Perfecto.',
@@ -8302,9 +8106,7 @@ export class AiAgentRuntime {
         }
         if (
           looksLikeAmountOnlyReply(currentTurnText) ||
-          /\b(cuenta bancaria|cuenta|transferencia|se[nñ]a|comprobante|giro)\b/i.test(
-            currentTurnText,
-          )
+          hasPaymentContinuationSignal(currentTurnText)
         ) {
           return 'Perfecto. Si vas a transferir o dejar una seña, cuando hagas el pago mandame el comprobante por acá y lo dejamos encaminado.'
         }
@@ -10805,7 +10607,13 @@ export class AiAgentRuntime {
     const readinessLane =
       typeof readiness?.lane === 'string' ? readiness.lane.trim() : null
     const readinessAnswerMode = normalizeIntentKeyValue(readiness?.answerMode)
+    const preserveExplicitDeterministicIntent = [
+      'customer.multi_intent',
+      'customer.cancellation',
+      'customer.confirmation',
+    ].includes(String(intentKey || ''))
     const mustHonorOperationalReadiness =
+      !preserveExplicitDeterministicIntent &&
       ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
       [
         'ask_quote_field',
@@ -11242,9 +11050,15 @@ export class AiAgentRuntime {
       'customer.price_inquiry',
       'customer.support_request',
     ].includes(String(inheritedIntentKey || previousIntentKey || ''))
+    const paymentAmountContinuationCandidate =
+      looksLikeAmountOnlyReply(input) &&
+      ['customer.topic_info', 'customer.contact_info'].includes(
+        String(previousIntentKey || inheritedIntentKey || ''),
+      )
     const hasCommercialThreadPaymentContext = Boolean(
       hasQuoteContext ||
         interpretation?.followUp?.detected ||
+        paymentAmountContinuationCandidate ||
         hasInheritedCommercialIntentContext ||
         (interpretation?.followUp?.detected &&
           (interpretation?.contextTopic?.label ||
@@ -11279,6 +11093,37 @@ export class AiAgentRuntime {
       interpretation?.quoteContext?.topicLabel ||
       interpretation?.quoteContext?.familyLabel ||
       'esa opción'
+
+    if (
+      hasCommercialThreadPaymentContext &&
+      looksLikeAmountOnlyReply(input) &&
+      !hasSupportContext &&
+      !hasPaymentProofContinuitySignal &&
+      !standaloneAttachmentArtifactKind &&
+      !hasMultimodalArtifactPlan &&
+      !hasMultimodalFollowUpReference
+    ) {
+      const paymentText =
+        'Perfecto. Si vas a transferir o dejar una seña, cuando hagas el pago mandame el comprobante por acá y lo dejamos encaminado.'
+      return {
+        text: paymentText,
+        wordingKey: 'customer.faq.payment_methods_operational_followup',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: buildWorkflowGrounding(paymentText, {
+          sourceType: 'payment_workflow',
+          scope: 'payment',
+          sourceKey: 'payment_amount_followup',
+          title: 'Payment amount follow-up',
+        }),
+        debug: {
+          actionKey: effectiveIntentKey,
+          wordingKey: 'customer.faq.payment_methods_operational_followup',
+          detail:
+            'Se priorizó continuidad operativa de pago cuando el cliente envió solo un monto después de una consulta de cuenta o transferencia.',
+        },
+      }
+    }
 
     if (
       ['customer.product_info', 'customer.topic_info'].includes(effectiveIntentKey) &&
@@ -11490,7 +11335,7 @@ export class AiAgentRuntime {
       }
     }
 
-    if (canUseStandalonePaymentMethodsResponse) {
+    if (canUseStandalonePaymentMethodsResponse && looksLikeSpecificPaymentMethodQuestion(input)) {
       const paymentMethods = resolveOperationalPaymentMethodsInline(input, {
         paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
       })
@@ -11528,6 +11373,57 @@ export class AiAgentRuntime {
             wordingKey: 'customer.faq.payment_methods',
             detail:
               'Se respondió una consulta standalone de medios de pago usando business rules del tenant, sin caer en fallback de contacto ni en retrieval-only.',
+          },
+        }
+      }
+    }
+
+    if (
+      fallbackFaqSubtype === 'payment_methods' &&
+      hasCommercialThreadPaymentContext &&
+      !hasSupportContext &&
+      !hasPaymentProofContinuitySignal &&
+      !standaloneAttachmentArtifactKind &&
+      !hasMultimodalArtifactPlan &&
+      !hasMultimodalFollowUpReference
+    ) {
+      const paymentMethods = resolveOperationalPaymentMethodsInline(input, {
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+      })
+      if (compactText(paymentMethods)) {
+        return {
+          text: pickWordingVariant({
+            key: 'customer.faq.payment_methods',
+            variationSeed,
+            overrides: this.getCustomerWordingOverrides(),
+            channel,
+            channelProfile,
+            variables: {
+              paymentMethods,
+            },
+            fallback:
+              `Aceptamos ${paymentMethods}. Si querés, te indico opciones o condiciones según el medio de pago para ese presupuesto.`,
+          }),
+          wordingKey: 'customer.faq.payment_methods',
+          toolCalls: [],
+          needsHuman: false,
+          grounding: buildGroundingContract({
+            knowledgeRetrieved: false,
+            usedFacts: [`Aceptamos ${paymentMethods}.`],
+            sources: buildTenantPolicyGroundingSource({
+              tenantKey:
+                unifiedMessage?.tenantKey ||
+                tenantRuntimePolicy?.tenantKey ||
+                'default',
+              sourceKey: 'payment_methods',
+              title: 'Tenant payment methods',
+            }),
+          }),
+          debug: {
+            actionKey: effectiveIntentKey,
+            wordingKey: 'customer.faq.payment_methods',
+            detail:
+              'Se respondió una consulta de medios de pago con continuidad del hilo comercial activo aunque la señal FAQ no haya quedado thread-scoped explícitamente.',
           },
         }
       }
@@ -12270,6 +12166,15 @@ export class AiAgentRuntime {
         'customer.product_info',
         'customer.quote',
       ].includes(intentKey)
+    ) {
+      return null
+    }
+
+    if (
+      looksLikeAmountOnlyReply(input) &&
+      ['customer.topic_info', 'customer.contact_info'].includes(
+        String(previousIntentKey || ''),
+      )
     ) {
       return null
     }
@@ -15056,6 +14961,73 @@ export class AiAgentRuntime {
           : currentTopicTokens
     }
 
+    const currentCanonicalTopicType = String(currentCanonicalTopic?.type || '')
+    const currentCanonicalTopicLabel = compactText(currentCanonicalTopic?.label || '')
+    const activeThreadTopicLabel = compactText(
+      turnInterpretation?.threadResolution?.activeThread?.resolvedLabel ||
+        turnInterpretation?.threadResolution?.activeThread?.baseLabel ||
+        '',
+    )
+    const activeThreadFamilyLabel = compactText(
+      turnInterpretation?.threadResolution?.activeThread?.familyLabel || '',
+    )
+    const activeThreadBaseType = compactText(
+      turnInterpretation?.threadResolution?.activeThread?.baseType || '',
+    )
+    const activeThreadSupportsRecognizedTopic =
+      ['product_family', 'product_topic', 'product_variant'].includes(
+        activeThreadBaseType,
+      ) && !isGenericQuoteTopicLabel(activeThreadTopicLabel)
+    const hydratedQuoteTopicLabel =
+      currentCanonicalTopicType &&
+      ['product_family', 'product_topic', 'product_variant'].includes(
+        currentCanonicalTopicType,
+      )
+        ? currentCanonicalTopicLabel
+        : activeThreadSupportsRecognizedTopic
+          ? activeThreadTopicLabel
+          : ''
+    const hydratedQuoteFamilyLabel =
+      compactText(currentCanonicalTopic?.familyLabel || '') ||
+      activeThreadFamilyLabel ||
+      compactText(previousQuoteContext?.familyLabel || '')
+    const canHydrateRecognizedQuoteTopic =
+      (
+        currentCanonicalTopicType &&
+        ['product_family', 'product_topic', 'product_variant'].includes(
+          currentCanonicalTopicType,
+        )
+      ) ||
+      activeThreadSupportsRecognizedTopic
+    if (
+      currentQuoteContext &&
+      typeof currentQuoteContext === 'object' &&
+      hydratedQuoteTopicLabel
+    ) {
+      const nextMissingFields = Array.isArray(currentQuoteContext.missingFields)
+        ? currentQuoteContext.missingFields.filter(
+            (entry) =>
+              typeof entry === 'string' &&
+              (canHydrateRecognizedQuoteTopic || entry !== 'product'),
+          )
+        : []
+
+      currentQuoteContext = {
+        ...currentQuoteContext,
+        topicLabel:
+          compactText(currentQuoteContext.topicLabel || '') || hydratedQuoteTopicLabel,
+        familyLabel:
+          compactText(currentQuoteContext.familyLabel || '') ||
+          (currentCanonicalTopicType === 'product_family'
+            ? currentCanonicalTopicLabel
+            : hydratedQuoteFamilyLabel || null),
+        topicRecognized:
+          currentQuoteContext.topicRecognized === true ||
+          canHydrateRecognizedQuoteTopic,
+        missingFields: nextMissingFields,
+      }
+    }
+
     const shouldCarryPreviousTopicIntoGenericFollowUp =
       !(role.startsWith('admin_') || role === 'superadmin') &&
       previousIntentKey &&
@@ -15157,7 +15129,10 @@ export class AiAgentRuntime {
       scheduleContext: currentScheduleContext,
       conversationState: currentConversationState,
     })
-    currentQuoteContext = normalizedContexts.quoteContext
+    currentQuoteContext = hydrateQuoteContextFromConversationState({
+      quoteContext: normalizedContexts.quoteContext,
+      conversationState: currentConversationState,
+    })
     currentSupportContext = normalizedContexts.supportContext
     currentScheduleContext = normalizedContexts.scheduleContext
     effectiveReadiness = applyPreResponseDecisionGuards({
@@ -15214,7 +15189,10 @@ export class AiAgentRuntime {
       scheduleContext: currentScheduleContext,
       conversationState: currentConversationState,
     })
-    currentQuoteContext = projectedContexts.quoteContext
+    currentQuoteContext = hydrateQuoteContextFromConversationState({
+      quoteContext: projectedContexts.quoteContext,
+      conversationState: currentConversationState,
+    })
     currentSupportContext = projectedContexts.supportContext
     currentScheduleContext = projectedContexts.scheduleContext
     activeLane = normalizeIntentKeyValue(stabilizedReadiness?.lane) || activeLane

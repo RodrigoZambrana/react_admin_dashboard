@@ -68,3 +68,24 @@ test('decideNextStep can use a high-confidence assistant recommendation to stay 
   assert.equal(result.assistantSuggestion?.applied, true)
   assert.match(result.reason, /assistant_override/)
 })
+
+test('decideNextStep reads wait-for-more from resolutionReadiness when present', () => {
+  const result = decideNextStep({
+    role: 'customer_public',
+    conversationMode: { mode: 'flow' },
+    deterministicResponse: { text: 'draft' },
+    interpretation: {
+      resolutionReadiness: {
+        lane: 'quote',
+        turnIntent: 'customer.quote',
+        waitForMore: true,
+        nextUsefulField: 'color',
+        answerMode: 'hold_for_more_context',
+        mode: 'exploration',
+      },
+    },
+  })
+
+  assert.equal(result.nextStep, 'conversational_mode')
+  assert.equal(result.reason, 'wait_for_more_context')
+})

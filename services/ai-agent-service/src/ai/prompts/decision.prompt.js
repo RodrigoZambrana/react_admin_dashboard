@@ -1,23 +1,32 @@
-const formatConversation = (conversation = []) =>
-  conversation
-    .slice(-6)
-    .map((turn) => {
-      const role = turn?.role === 'agent' ? 'agent' : 'customer'
-      const text = String(turn?.text || '')
-        .replace(/\s+/g, ' ')
-        .trim()
-      return text ? `${role}: ${text}` : null
-    })
-    .filter(Boolean)
-    .join('\n')
+import {
+  buildCustomerLlmContextBlock,
+  formatRecentTurnsForLlm,
+} from '../conversation/customer-llm-context.js'
 
 export const buildDecisionAssistPrompt = ({
   conversation = [],
   state = {},
   allowedActions = [],
   requiredFieldsByAction = {},
+  interpretation = null,
+  taskSummary = null,
+  currentTask = null,
 }) =>
-  [
+  (() => {
+    const recentConversation = formatRecentTurnsForLlm(conversation, {
+      limit: 8,
+      maxCharsPerTurn: 160,
+    })
+    const llmContextBlock = buildCustomerLlmContextBlock({
+      recentTurns: conversation,
+      interpretation,
+      taskSummary,
+      currentTask,
+      recentTurnLimit: 8,
+      maxCharsPerTurn: 160,
+    })
+
+    return [
     'ACTÚA COMO UN MOTOR DE DECISIÓN PARA UN SISTEMA DE ATENCIÓN AL CLIENTE.',
     'Tu tarea es recomendar el siguiente paso dentro de un flujo controlado.',
     'No generes respuesta final para el cliente.',
@@ -37,9 +46,13 @@ export const buildDecisionAssistPrompt = ({
     `Acciones permitidas: ${allowedActions.join(', ') || 'ninguna'}.`,
     `Campos requeridos por acción: ${JSON.stringify(requiredFieldsByAction)}.`,
     `Estado actual: ${JSON.stringify(state)}.`,
-    formatConversation(conversation)
-      ? `Conversación reciente:\n${formatConversation(conversation)}`
+    llmContextBlock
+      ? `Contexto conversacional compacto:\n${llmContextBlock}`
+      : null,
+    recentConversation
+      ? `Conversación reciente:\n${recentConversation}`
       : 'Conversación reciente: sin contexto útil.',
   ]
     .filter(Boolean)
     .join('\n\n')
+  })()

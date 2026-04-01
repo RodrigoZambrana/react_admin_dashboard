@@ -1,3 +1,5 @@
+import { getVocabulary } from '../tenant-policy/runtime-tenant-policy.js'
+
 export const normalizeSemanticText = (value) =>
   String(value || '')
     .toLowerCase()
@@ -245,55 +247,48 @@ export const BASE_CONVERSATIONAL_ES_SIGNALS = {
       'me quedo para atras el mensaje',
     ],
   },
-  openings: {
-    structuralStems: [
-      'ventan',
-      'ventanal',
-      'abertur',
-      'corrediz',
-      'oscilobat',
-      'mosquiter',
-      'dvh',
-      'pvc',
-      'hierro',
-      'alumin',
-      'monoblock',
-      'pano',
-      'paño',
-      'hoja',
-      'vidrio',
-    ],
-    structuralPhrases: [
-      'paño fijo',
-      'pano fijo',
-      'hojas corredizas',
-      'hoja corrediza',
-      'ventana de hierro',
-      'ventana de pvc',
-      'doble vidrio',
-      'serie 25',
-      'serie 20',
-      'serie 30',
-      'ventanales con dvh',
-    ],
-  },
 }
 
 export const DOMAIN_SUPPORT_ES_SIGNALS = {
-  componentStems: [
-    'cinta',
-    'enrollador',
-    'lama',
-    'panel',
-    'eje',
-    'soport',
-    'guia',
-    'polea',
-    'tambor',
-    'motor',
-    'resort',
-  ],
-  productContextStems: ['cortin', 'persian', 'abertur', 'ventan', 'puert', 'producto'],
+  componentStems: [],
+  productContextStems: ['producto', 'servicio', 'item'],
+}
+
+const uniqueTerms = (values = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .filter((value) => typeof value === 'string')
+        .map((value) => normalizeSemanticText(value))
+        .filter(Boolean),
+    ),
+  )
+
+const hasConfiguredTerm = (normalizedValue, terms = []) =>
+  uniqueTerms(terms).some((term) => normalizedValue.includes(term))
+
+export const getDomainSupportSignals = (tenantRuntimePolicy = null) => {
+  const vocabulary = getVocabulary(tenantRuntimePolicy)
+  const productContextTerms = uniqueTerms(vocabulary?.productContextTerms)
+  const supportComponentTerms = uniqueTerms(vocabulary?.supportComponentTerms)
+
+  return {
+    componentStems: supportComponentTerms.length
+      ? supportComponentTerms
+      : DOMAIN_SUPPORT_ES_SIGNALS.componentStems,
+    productContextStems: productContextTerms.length
+      ? productContextTerms
+      : DOMAIN_SUPPORT_ES_SIGNALS.productContextStems,
+  }
+}
+
+export const getCatalogStructureSignals = (tenantRuntimePolicy = null) => {
+  const vocabulary = getVocabulary(tenantRuntimePolicy)
+  return {
+    carrierTerms: uniqueTerms(vocabulary?.catalogCarrierTerms),
+    structuralTerms: uniqueTerms(vocabulary?.catalogStructuralTerms),
+    structuralPhrases: uniqueTerms(vocabulary?.catalogStructuralPhrases),
+  }
 }
 
 const CONVERSATIONAL_GREETING_PREFIX =
@@ -355,9 +350,26 @@ export const hasScheduleAdministrativeSignal = (value) => {
       BASE_CONVERSATIONAL_ES_SIGNALS.schedule.administrativePhrases,
     ) ||
     /\b\d{1,2}\/\d{1,2}(?:\/\d{4})?\b/.test(String(value || '')) ||
+    /\b(?:a\s+las|a\s+la|tipo|hora|horario)\s+\d{1,2}(?::\d{2})?\b/iu.test(
+      String(value || ''),
+    ) ||
+    /\b\d{1,2}:\d{2}\b/.test(String(value || '')) ||
+    /\b\d{1,2}(?::\d{2})?\s*(?:am|pm)\b/iu.test(String(value || '')) ||
     SCHEDULE_ADMINISTRATIVE_PHONE_REGEX.test(String(value || '')) ||
     SCHEDULE_ADMINISTRATIVE_ADDRESS_SHAPE_REGEX.test(String(value || ''))
   )
+}
+
+const SCHEDULE_STATUS_FOLLOW_UP_REGEX =
+  /\b(?:alguna\s+novedad|novedades?|pudiste|pudieron|confirmaron|confirmaste|avisaron|avisaste|entonces)\b/u
+
+export const hasScheduleStatusFollowUpSignal = (value) => {
+  const normalized = stripConversationalGreetingPrefix(value)
+  if (!normalized) {
+    return false
+  }
+
+  return SCHEDULE_STATUS_FOLLOW_UP_REGEX.test(normalized)
 }
 
 const QUANTITY_ONLY_FOLLOW_UP_REGEX =
@@ -478,7 +490,7 @@ export const hasReengagementReferenceSignal = (value) => {
   )
 }
 
-export const looksLikeQuoteExpansionSignal = (value) => {
+export const looksLikeQuoteExpansionSignal = (value, tenantRuntimePolicy = null) => {
   const normalized = stripConversationalGreetingPrefix(value)
   if (!normalized) {
     return false
@@ -489,39 +501,37 @@ export const looksLikeQuoteExpansionSignal = (value) => {
   }
 
   const tokens = tokenizeSemanticText(normalized)
+  const domainSignals = getDomainSupportSignals(tenantRuntimePolicy)
+  const productVocabulary = [
+    ...domainSignals.productContextStems,
+    ...(getVocabulary(tenantRuntimePolicy)?.quoteItemTerms ?? []),
+  ]
   const hasExpansionAction =
     countStemMatches(tokens, BASE_CONVERSATIONAL_ES_SIGNALS.quote.expansionActionStems) >= 1
   const hasExpansionQuantity =
     countStemMatches(tokens, BASE_CONVERSATIONAL_ES_SIGNALS.quote.expansionQuantityStems) >= 1
   const hasProductContext =
-    countStemMatches(tokens, DOMAIN_SUPPORT_ES_SIGNALS.productContextStems) >= 1 ||
-    /\b(roller|screen|blackout|venecianas?|persianas?|aberturas?|dvh|automatizacion|automatización)\b/u.test(
-      normalized,
-    )
+    countStemMatches(tokens, domainSignals.productContextStems) >= 1 ||
+    hasConfiguredTerm(normalized, productVocabulary)
 
   return hasExpansionAction && hasExpansionQuantity && hasProductContext
 }
 
-export const looksLikeOpeningStructureSignal = (value) => {
+export const looksLikeCatalogStructureSignal = (value, tenantRuntimePolicy = null) => {
   const normalized = stripConversationalGreetingPrefix(value)
   if (!normalized) {
     return false
   }
 
-  if (
-    hasPhraseMatch(normalized, BASE_CONVERSATIONAL_ES_SIGNALS.openings.structuralPhrases)
-  ) {
+  const catalogSignals = getCatalogStructureSignals(tenantRuntimePolicy)
+
+  if (hasPhraseMatch(normalized, catalogSignals.structuralPhrases)) {
     return true
   }
 
   const tokens = tokenizeSemanticText(normalized)
-  const structuralMatches = countStemMatches(
-    tokens,
-    BASE_CONVERSATIONAL_ES_SIGNALS.openings.structuralStems,
-  )
-  const hasOpeningCarrier =
-    /\b(ventana|ventanas|ventanal|ventanales|abertura|aberturas)\b/u.test(normalized) ||
-    /\b(hojas?\s+corredizas?|pa(?:n|ñ)o\s+fijo)\b/u.test(normalized)
+  const structuralMatches = countStemMatches(tokens, catalogSignals.structuralTerms)
+  const hasCatalogCarrier = hasConfiguredTerm(normalized, catalogSignals.carrierTerms)
 
-  return hasOpeningCarrier && structuralMatches >= 2
+  return hasCatalogCarrier && structuralMatches >= 2
 }

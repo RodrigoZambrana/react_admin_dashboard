@@ -7,7 +7,7 @@ const roleCatalog = [
     key: 'customer_public',
     type: 'customer',
     allowedTools: ['search_products'],
-    forbiddenIntents: ['catalog.manage', 'orders.manage', 'aberturas.register'],
+    forbiddenIntents: ['catalog.manage', 'orders.manage', 'catalog.register_structured_items'],
     requiresConfirmation: [],
   },
   {

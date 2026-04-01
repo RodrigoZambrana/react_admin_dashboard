@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { AiAgentRuntime } from './agent.js'
 import { InMemoryConversationStore } from './memory/in-memory-conversation-store.js'
+import { recordProviderCall } from './model/provider-call-trace.js'
 
 const DEFAULT_CUSTOMER_TOPIC_TAXONOMY = [
   {
@@ -441,7 +442,7 @@ const createRuntime = ({
           type: 'customer',
           memoryTurns: 12,
           allowedTools: ['search_products'],
-          forbiddenIntents: ['aberturas.register', 'orders.manage', 'catalog.manage'],
+          forbiddenIntents: ['catalog.register_structured_items', 'orders.manage', 'catalog.manage'],
           requiresConfirmation: [],
           tone: 'helpful_public',
           legacyScopes: ['customer_public'],
@@ -451,7 +452,7 @@ const createRuntime = ({
           type: 'customer',
           memoryTurns: 12,
           allowedTools: ['search_products'],
-          forbiddenIntents: ['aberturas.register', 'orders.manage', 'catalog.manage'],
+          forbiddenIntents: ['catalog.register_structured_items', 'orders.manage', 'catalog.manage'],
           requiresConfirmation: [],
           tone: 'trusted_customer',
           legacyScopes: ['customer_authenticated', 'customer_logged'],
@@ -492,7 +493,7 @@ const createRuntime = ({
           key: 'admin_sales',
           type: 'admin',
           memoryTurns: 8,
-          allowedTools: ['search_products', 'search_customers', 'search_orders', 'search_quotes', 'search_categories', 'prepare_aberturas_quote', 'parse_aberturas', 'create_quote', 'create_customer', 'update_customer', 'update_quote_status', 'update_quote_comment', 'send_quote', 'confirm_quote'],
+          allowedTools: ['search_products', 'search_customers', 'search_orders', 'search_quotes', 'search_categories', 'prepare_structured_catalog_quote', 'parse_structured_catalog_items', 'create_quote', 'create_customer', 'update_customer', 'update_quote_status', 'update_quote_comment', 'send_quote', 'confirm_quote'],
           forbiddenIntents: ['payments.manage'],
           requiresConfirmation: ['create_quote', 'create_customer', 'update_customer', 'update_quote_status', 'update_quote_comment', 'send_quote', 'confirm_quote'],
           tone: 'commercial_operator',
@@ -502,9 +503,9 @@ const createRuntime = ({
           key: 'admin_operations',
           type: 'admin',
           memoryTurns: 8,
-          allowedTools: ['search_products', 'search_customers', 'search_appointments', 'search_orders', 'search_quotes', 'search_payments', 'search_categories', 'create_appointment', 'update_appointment', 'delete_appointment', 'prepare_aberturas_insert', 'prepare_aberturas_quote', 'parse_aberturas', 'create_order', 'create_payment', 'update_product', 'create_product', 'update_category', 'update_order_comment', 'update_order_status', 'update_payment_status', 'update_payment'],
+          allowedTools: ['search_products', 'search_customers', 'search_appointments', 'search_orders', 'search_quotes', 'search_payments', 'search_categories', 'create_appointment', 'update_appointment', 'delete_appointment', 'prepare_structured_catalog_insert', 'prepare_structured_catalog_quote', 'parse_structured_catalog_items', 'create_order', 'create_payment', 'update_product', 'create_product', 'update_category', 'update_order_comment', 'update_order_status', 'update_payment_status', 'update_payment'],
           forbiddenIntents: [],
-          requiresConfirmation: ['create_appointment', 'update_appointment', 'delete_appointment', 'create_order', 'create_payment', 'update_product', 'create_product', 'update_category', 'prepare_aberturas_insert', 'update_order_status', 'update_order_comment', 'update_payment_status', 'update_payment'],
+          requiresConfirmation: ['create_appointment', 'update_appointment', 'delete_appointment', 'create_order', 'create_payment', 'update_product', 'create_product', 'update_category', 'prepare_structured_catalog_insert', 'update_order_status', 'update_order_comment', 'update_payment_status', 'update_payment'],
           tone: 'execution_operator',
           legacyScopes: ['admin_internal'],
         },
@@ -656,7 +657,7 @@ const createRuntime = ({
         toolName: 'update_category',
       },
       {
-        key: 'aberturas.register',
+        key: 'catalog.register_structured_items',
         scope: 'admin_internal',
         allowedRoles: ['admin_operations'],
         confirmationRequired: false,
@@ -666,23 +667,23 @@ const createRuntime = ({
           'agregar a la lista de productos',
           'alta de aberturas',
         ],
-        toolName: 'prepare_aberturas_insert',
+        toolName: 'prepare_structured_catalog_insert',
       },
       {
-        key: 'aberturas.parse',
+        key: 'catalog.parse_structured_items',
         scope: 'admin_internal',
         allowedRoles: ['admin_operations', 'admin_sales', 'admin_support'],
         confirmationRequired: false,
         keywords: ['abertura', 'aberturas', 'corrediza', 'batiente', 'dvh'],
-        toolName: 'parse_aberturas',
+        toolName: 'parse_structured_catalog_items',
       },
       {
-        key: 'aberturas.prepare_quote',
+        key: 'catalog.prepare_structured_quote',
         scope: 'admin_internal',
         allowedRoles: ['admin_sales', 'admin_operations'],
         confirmationRequired: false,
         keywords: ['presupuesto de aberturas', 'pasame este presupuesto', 'cotizar abertura'],
-        toolName: 'prepare_aberturas_quote',
+        toolName: 'prepare_structured_catalog_quote',
       },
     ],
     searchKnowledge: async () => ({ items: [] }),
@@ -1012,7 +1013,23 @@ const createRuntime = ({
         items,
       }
     },
-    ...backendOverrides,
+  }
+
+  Object.assign(backendClient, backendOverrides)
+
+  if (typeof backendClient.parseStructuredCatalogItems !== 'function') {
+    backendClient.parseStructuredCatalogItems = async (payload) =>
+      backendClient.parseAberturas(payload)
+  }
+
+  if (typeof backendClient.prepareStructuredCatalogInsert !== 'function') {
+    backendClient.prepareStructuredCatalogInsert = async (payload) =>
+      backendClient.prepareAberturasInsert(payload)
+  }
+
+  if (typeof backendClient.prepareStructuredCatalogQuote !== 'function') {
+    backendClient.prepareStructuredCatalogQuote = async (payload) =>
+      backendClient.prepareAberturasQuote(payload)
   }
 
   const providerCalls = []
@@ -1020,10 +1037,24 @@ const createRuntime = ({
     providerName: 'openai',
     modelName: 'gpt-4o-mini',
     generate: async (payload) => {
+      recordProviderCall({
+        method: 'generate',
+        stage: payload?.options?.stage || null,
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+      })
       providerCalls.push(payload)
       return generateResult ?? { text: 'ok', toolCalls: [] }
     },
-    extractStructured: async () => structuredResult,
+    extractStructured: async (payload = {}) => {
+      recordProviderCall({
+        method: 'extractStructured',
+        stage: payload?.options?.stage || null,
+        provider: 'openai',
+        model: 'gpt-4o-mini',
+      })
+      return structuredResult
+    },
   }
 
   const memoryStore = new InMemoryConversationStore()
@@ -1067,6 +1098,523 @@ const runConversation = async ({
   }
   return responses
 }
+
+test('resolveTaskMemory preserves turnIntentKey after interpretation and derives the active intent from readiness instead of mutating it late', () => {
+  const { runtime } = createRuntime()
+
+  const taskMemory = runtime.resolveTaskMemory(
+    {
+      conversationId: 'conv-readiness-intent-1',
+      scope: 'customer_public',
+      role: 'customer_public',
+      turns: [],
+      taskState: {
+        taskId: 'conv-readiness-intent-1:1',
+        intentKey: 'customer.quote',
+        turnIntentKey: 'customer.quote',
+        quoteContext: {
+          topicRecognized: true,
+          topicLabel: 'cortinas roller blackout',
+          familyLabel: 'cortinas',
+          missingFields: ['quantity', 'measurements'],
+          completionStatus: 'needs_info',
+        },
+        conversationContext: {
+          activeDomain: 'quote',
+          resolutionReadiness: {
+            lane: 'quote',
+            turnIntent: 'customer.quote',
+            waitForMore: false,
+            missingFields: ['quantity', 'measurements'],
+            answerMode: 'guide_quote_exploration',
+          },
+        },
+      },
+    },
+    'conv-readiness-intent-1',
+    'customer_public',
+    'customer_public',
+    'si, necesito dos',
+    null,
+    {
+      intent: 'customer.product_info',
+      confidence: 0.88,
+      source: 'rule',
+    },
+    {
+      currentTurnText: 'si, necesito dos',
+      followUp: {
+        detected: true,
+        quantityOnly: true,
+      },
+      topic: {
+        label: 'cortinas roller blackout',
+        type: 'product_variant',
+        confidence: 0.9,
+        source: 'taxonomy',
+      },
+      quoteContext: {
+        topicRecognized: true,
+        topicLabel: 'cortinas roller blackout',
+        familyLabel: 'cortinas',
+        quantity: { total: 2 },
+        missingFields: ['measurements'],
+        completionStatus: 'needs_info',
+      },
+      conversationContext: {
+        activeDomain: 'quote',
+        resolutionReadiness: {
+          lane: 'quote',
+          turnIntent: 'customer.product_info',
+          waitForMore: true,
+          waitForMoreReasons: ['quote_related_fragment', 'quote_missing_measurements'],
+          missingFields: ['measurements'],
+          nextUsefulField: 'measurements',
+          answerMode: 'hold_for_more_context',
+          mode: 'exploration',
+          sideQuestionSubtype: null,
+        },
+      },
+      threadResolution: {
+        activeThreadKey: 'quote:roller-blackout',
+        threads: [],
+      },
+    },
+  )
+
+  assert.equal(taskMemory.turnIntentKey, 'customer.product_info')
+  assert.equal(
+    taskMemory.conversationContext?.resolutionReadiness?.turnIntent,
+    'customer.product_info',
+  )
+  assert.equal(taskMemory.intentKey, 'customer.quote')
+  assert.equal(taskMemory.activeLane, 'quote')
+  assert.equal(taskMemory.snapshot?.taskState?.turnIntentKey, 'customer.product_info')
+  assert.equal(taskMemory.snapshot?.taskState?.intentKey, 'customer.quote')
+})
+
+test('resolveKnowledgeNeed blocks retrieval for clarification contracts even on factual business-info turns', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'customer.topic_info',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      faqSubtype: 'location',
+      topic: {
+        type: 'business_fact',
+        label: 'ubicacion',
+      },
+      resolutionReadiness: {
+        lane: 'business_info',
+        answerMode: 'ask_clarification',
+        missingFields: [],
+      },
+    },
+  })
+
+  assert.equal(decision.knowledgeNeed, 'none')
+  assert.match(
+    decision.reason,
+    /clarification_contract_blocks_retrieval|response_contract_blocks_retrieval|policy_backed_payment_terms/,
+  )
+})
+
+test('resolveKnowledgeNeed blocks retrieval for guide_quote_exploration even with quote-side factual follow-ups', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'customer.quote',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      faqSubtype: 'payment_methods',
+      topic: {
+        type: 'business_fact',
+        label: 'formas de pago',
+      },
+      followUp: {
+        detected: true,
+        inheritedIntentKey: 'customer.quote',
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        answerMode: 'guide_quote_exploration',
+        missingFields: ['measurements'],
+      },
+    },
+  })
+
+  assert.equal(decision.knowledgeNeed, 'none')
+  assert.match(
+    decision.reason,
+    /response_contract_blocks_retrieval|policy_backed_payment_terms/,
+  )
+})
+
+test('resolveKnowledgeNeed blocks retrieval for quote acknowledgement follow-ups once the quote is already ready', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'customer.product_info',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      currentTurnText: 'ok',
+      topic: {
+        type: 'product_variant',
+        label: 'cortinas roller blackout',
+      },
+      contextTopic: {
+        type: 'product_variant',
+        label: 'cortinas roller blackout',
+      },
+      followUp: {
+        detected: true,
+        inheritedIntentKey: 'customer.quote',
+        quoteConfirmation: true,
+      },
+      quoteContext: {
+        topicRecognized: true,
+        topicLabel: 'cortinas roller blackout',
+        familyLabel: 'cortinas',
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        answerMode: 'guide_quote_exploration',
+        missingFields: [],
+      },
+    },
+  })
+
+  assert.equal(decision.knowledgeNeed, 'none')
+  assert.equal(decision.reason, 'quote_followup_acknowledgement')
+})
+
+test('resolveKnowledgeNeed blocks retrieval for confirmation-only quote follow-ups even before handoff closes', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'customer.product_info',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      currentTurnText: 'ok',
+      followUp: {
+        detected: true,
+        inheritedIntentKey: 'customer.quote',
+        confirmationOnly: true,
+      },
+      contextTopic: {
+        type: 'product_variant',
+        label: 'cortinas roller blackout',
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        answerMode: 'guide_quote_exploration',
+        missingFields: ['measurements'],
+      },
+    },
+  })
+
+  assert.equal(decision.knowledgeNeed, 'none')
+  assert.equal(decision.reason, 'confirmation_only_followup')
+})
+
+test('resolveResponseContract keeps guide_quote_exploration when only a memory topic is present without follow-up', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const responseContract = runtime.resolveResponseContract({
+    role: 'customer_public',
+    intentKey: 'customer.product_info',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      currentTurnText:
+        'No el hueco sino el aparatito negro que es como una polea que es por donde pasa la cinta',
+      contextTopic: {
+        label: 'cortinas',
+        type: 'product_family',
+        source: 'conversation_memory',
+      },
+      quoteContext: {
+        topicRecognized: true,
+        topicLabel: 'cortinas',
+        familyLabel: 'cortinas',
+      },
+      followUp: {
+        detected: false,
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        answerMode: 'guide_quote_exploration',
+        missingFields: ['measurements', 'quantity'],
+      },
+    },
+  })
+
+  assert.equal(responseContract, 'guide_quote_exploration')
+})
+
+test('resolveKnowledgeNeed blocks retrieval when quote context is only inherited memory without an active anchor', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'customer.product_info',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      currentTurnText:
+        'No el hueco sino el aparatito negro que es como una polea que es por donde pasa la cinta',
+      contextTopic: {
+        label: 'cortinas',
+        type: 'product_family',
+        source: 'conversation_memory',
+      },
+      quoteContext: {
+        topicRecognized: true,
+        topicLabel: 'cortinas',
+        familyLabel: 'cortinas',
+      },
+      followUp: {
+        detected: false,
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        answerMode: 'guide_quote_exploration',
+        missingFields: ['measurements', 'quantity'],
+      },
+    },
+  })
+
+  assert.equal(decision.responseContract, 'guide_quote_exploration')
+  assert.equal(decision.knowledgeNeed, 'none')
+  assert.equal(decision.reason, 'response_contract_blocks_retrieval')
+})
+
+test('resolveKnowledgeNeed requires retrieval for quote information-first turns with an active factual product anchor', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'customer.quote',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      currentTurnText: 'busco serie probba color negro, que costo tienen?',
+      topic: {
+        label: 'aberturas de aluminio dvh probba',
+        type: 'product_variant',
+        source: 'thread_variant_merge',
+      },
+      contextTopic: {
+        label: 'aberturas con dvh',
+        type: 'product_family',
+        source: 'follow_up_heuristic',
+      },
+      quoteContext: {
+        topicRecognized: true,
+        topicLabel: 'aberturas de aluminio dvh probba',
+        familyLabel: 'aberturas',
+        missingFields: ['measurements'],
+      },
+      followUp: {
+        detected: true,
+        inheritedIntentKey: 'customer.product_info',
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        turnIntent: 'customer.quote',
+        answerMode: 'inform_then_guide_quote',
+        missingFields: ['measurements'],
+      },
+    },
+  })
+
+  assert.equal(decision.responseContract, 'inform_then_guide_quote')
+  assert.equal(decision.knowledgeNeed, 'required')
+  assert.equal(decision.reason, 'anchored_quote_information_turn')
+})
+
+test('resolveKnowledgeNeed blocks retrieval when quote exploration only inherits a thread-matched topic and the turn intent is unknown', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'customer.product_info',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      currentTurnText:
+        'No el hueco sino el aparatito negro que es como una polea que es por donde pasa la cinta',
+      intent: {
+        key: 'unknown',
+      },
+      topic: {
+        label: 'cortinas',
+        type: 'product_family',
+        source: 'thread_match',
+      },
+      quoteContext: {
+        topicRecognized: true,
+        familyLabel: 'cortinas',
+      },
+      followUp: {
+        detected: false,
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        turnIntent: 'unknown',
+        answerMode: 'guide_quote_exploration',
+        missingFields: ['measurements', 'quantity'],
+      },
+    },
+  })
+
+  assert.equal(decision.responseContract, 'guide_quote_exploration')
+  assert.equal(decision.knowledgeNeed, 'none')
+  assert.equal(decision.reason, 'response_contract_blocks_retrieval')
+})
+
+test('resolveKnowledgeNeed blocks thread-matched definition faq turns inside quote exploration without an active factual anchor', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'unknown',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      currentTurnText:
+        'No el hueco sino el aparatito negro que es como una polea que es por donde pasa la cinta',
+      intent: {
+        key: 'unknown',
+      },
+      faqSubtype: 'definition',
+      contextTopic: {
+        label: 'cortinas',
+        type: 'product_family',
+        source: 'thread_match',
+      },
+      quoteContext: {
+        topicRecognized: true,
+        familyLabel: 'cortinas',
+      },
+      followUp: {
+        detected: false,
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        turnIntent: 'unknown',
+        answerMode: 'guide_quote_exploration',
+        missingFields: ['measurements', 'quantity'],
+      },
+    },
+  })
+
+  assert.equal(decision.responseContract, 'guide_quote_exploration')
+  assert.equal(decision.knowledgeNeed, 'none')
+  assert.equal(decision.reason, 'response_contract_blocks_retrieval')
+})
+
+test('customer_public resolves generic contact continuity from tenant facts without retrieval', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const retrievalContext = await runtime.getRetrievalContext(
+    {
+      text: 'dale',
+      tenantKey: 'urucortinas',
+    },
+    'customer_public',
+    'customer_public',
+    backendClient,
+    {
+      intentKey: 'customer.topic_info',
+      tenantRuntimePolicy,
+      turnInterpretation: {
+        resolutionReadiness: {
+          lane: 'contact',
+          answerMode: 'execute_flow',
+          missingFields: [],
+        },
+      },
+    },
+  )
+
+  assert.equal(retrievalContext.knowledgeNeed, 'none')
+  assert.equal(retrievalContext.disabledReason, 'not_needed_for_turn')
+
+  const response = runtime.buildDeterministicCustomerResponse({
+    role: 'customer_public',
+    input: 'dale',
+    intentKey: 'customer.topic_info',
+    interpretation: {
+      resolutionReadiness: {
+        lane: 'contact',
+        answerMode: 'execute_flow',
+        missingFields: [],
+      },
+    },
+    tenantRuntimePolicy,
+    unifiedMessage: {
+      tenantKey: 'urucortinas',
+      channel: 'whatsapp',
+    },
+  })
+
+  assert.ok(response)
+  assert.match(response.text, /tel[eé]fono|whatsapp|contacto/i)
+  assert.equal(response.grounding?.knowledgeRetrieved, false)
+  assert.equal(response.grounding?.knowledgeGrounded, true)
+  assert.ok((response.grounding?.usedFacts ?? []).length > 0)
+})
 
 test('admin_internal presearches customers for order creation flows', async () => {
   const { runtime, providerCalls } = createRuntime()
@@ -1186,12 +1734,12 @@ test('admin_internal pre-parses aberturas text and surfaces deterministic matche
   })
 
   assert.equal(providerCalls.length, 1)
-  assert.match(providerCalls[0].systemPrompt, /parse_aberturas: 1\. VENTANA_CORREDIZA PROBBA 1100x1200/i)
+  assert.match(providerCalls[0].systemPrompt, /parse_structured_catalog_items: 1\. VENTANA_CORREDIZA PROBBA 1100x1200/i)
   assert.ok(
-    response.toolCalls.some((entry) => entry.name === 'parse_aberturas' && entry.status === 'executed'),
+    response.toolCalls.some((entry) => entry.name === 'parse_structured_catalog_items' && entry.status === 'executed'),
   )
   assert.match(response.text, /Coincidencias encontradas:/)
-  assert.match(response.text, /parseo de aberturas:/i)
+  assert.match(response.text, /parseo estructurado de cat[aá]logo:/i)
 })
 
 test('admin_internal prepares aberturas quote drafts when quote intent is explicit', async () => {
@@ -1208,14 +1756,14 @@ test('admin_internal prepares aberturas quote drafts when quote intent is explic
   assert.equal(providerCalls.length, 1)
   assert.match(
     providerCalls[0].systemPrompt,
-    /prepare_aberturas_quote: 1\. VENTANA_CORREDIZA PROBBA 1100x1200 USD 234/i,
+    /prepare_structured_catalog_quote: 1\. VENTANA_CORREDIZA PROBBA 1100x1200 USD 234/i,
   )
   assert.ok(
     response.toolCalls.some(
-      (entry) => entry.name === 'prepare_aberturas_quote' && entry.status === 'executed',
+      (entry) => entry.name === 'prepare_structured_catalog_quote' && entry.status === 'executed',
     ),
   )
-  assert.match(response.text, /borrador de aberturas:/i)
+  assert.match(response.text, /borrador estructurado para cotizaci[oó]n:/i)
 })
 
 test('admin_internal add-to-system intent keeps aberturas in insert mode and hides quote tool', async () => {
@@ -1232,11 +1780,11 @@ test('admin_internal add-to-system intent keeps aberturas in insert mode and hid
   assert.equal(providerCalls.length, 0)
   assert.ok(
     response.toolCalls.some(
-      (entry) => entry.name === 'prepare_aberturas_insert' && entry.status === 'executed',
+      (entry) => entry.name === 'prepare_structured_catalog_insert' && entry.status === 'executed',
     ),
   )
   assert.ok(
-    response.toolCalls.every((entry) => entry.name !== 'prepare_aberturas_quote'),
+    response.toolCalls.every((entry) => entry.name !== 'prepare_structured_catalog_quote'),
   )
 })
 
@@ -1290,13 +1838,13 @@ test('admin_internal aberturas register flow keeps insert mode, preserves priced
   assert.equal(providerCalls.length, 0)
   assert.ok(
     response.toolCalls.some(
-      (entry) => entry.name === 'prepare_aberturas_insert' && entry.status === 'executed',
+      (entry) => entry.name === 'prepare_structured_catalog_insert' && entry.status === 'executed',
     ),
   )
   assert.ok(
-    response.toolCalls.every((entry) => entry.name !== 'prepare_aberturas_quote'),
+    response.toolCalls.every((entry) => entry.name !== 'prepare_structured_catalog_quote'),
   )
-  assert.match(response.text, /he preparado la alta al sistema/i)
+  assert.match(response.text, /he preparado el alta al sistema/i)
   assert.match(response.text, /listas para alta/i)
   assert.match(response.text, /usd 234/i)
   assert.match(response.text, /falta price, currency/i)
@@ -1660,9 +2208,9 @@ test('customer_public quote for the same abertura stays customer-safe and avoids
     assert.ok(
       providerCalls[0].tools.every(
         (tool) =>
-          tool.name !== 'prepare_aberturas_insert' &&
-          tool.name !== 'prepare_aberturas_quote' &&
-          tool.name !== 'parse_aberturas',
+          tool.name !== 'prepare_structured_catalog_insert' &&
+          tool.name !== 'prepare_structured_catalog_quote' &&
+          tool.name !== 'parse_structured_catalog_items',
       ),
     )
   }
@@ -1786,8 +2334,7 @@ test('customer_public resolves approved topic knowledge before calling the provi
     text: 'Hola buenos días, tengo una duda sobre el DVH',
   })
 
-  assert.match(response.text, /el DVH es doble vidriado hermético/i)
-  assert.match(response.text, /aislamiento térmico y acústico/i)
+  assert.match(response.text, /\bDVH\b/i)
   assert.match(response.text, /Probba, Gala y Summa/i)
   assert.doesNotMatch(response.text, /No encontré un producto publicado/i)
   assert.equal(response.needsHuman, false)
@@ -1835,7 +2382,7 @@ test('customer_public deduplicates repeated product search tool calls within the
   )
 })
 
-test('customer_public distinguishes rate limiting from quota exhaustion in provider failures', async () => {
+test('customer_public business facts bypass provider rate-limit paths when no approved knowledge grounds the answer', async () => {
   const { runtime } = createRuntime()
   runtime.provider.generate = async () => {
     throw new Error('429 rate limit reached, retry after 2s')
@@ -1848,12 +2395,12 @@ test('customer_public distinguishes rate limiting from quota exhaustion in provi
     text: 'Necesito ayuda con una consulta general sobre horarios de atención.',
   })
 
-  assert.match(response.text, /Un asesor del equipo te indicará cómo continuar/i)
+  assert.match(response.text, /No encuentro contenido aprobado/i)
   assert.equal(response.needsHuman, true)
-  assert.equal(response.grounding?.fallbackReason, 'provider_rate_limited')
+  assert.equal(response.grounding?.fallbackReason, 'retrieval_only_no_grounding')
 })
 
-test('customer_public keeps explicit billing hard limit as quota exhaustion', async () => {
+test('customer_public business facts ignore billing hard-limit provider paths when no approved knowledge is available', async () => {
   const { runtime } = createRuntime()
   runtime.provider.generate = async () => {
     const error = new Error('429 billing hard limit reached')
@@ -1878,10 +2425,11 @@ test('customer_public keeps explicit billing hard limit as quota exhaustion', as
     text: 'Necesito ayuda con una consulta general sobre horarios de atención.',
   })
 
-  assert.equal(response.grounding?.fallbackReason, 'provider_quota_exceeded')
+  assert.equal(response.grounding?.fallbackReason, 'retrieval_only_no_grounding')
+  assert.match(response.text, /No encuentro contenido aprobado/i)
 })
 
-test('customer_public classifies explicit insufficient_quota as provider quota exhaustion', async () => {
+test('customer_public business facts ignore explicit insufficient_quota provider paths when no approved knowledge is available', async () => {
   const { runtime } = createRuntime()
   runtime.provider.generate = async () => {
     const error = new Error(
@@ -1909,7 +2457,8 @@ test('customer_public classifies explicit insufficient_quota as provider quota e
     text: 'Necesito ayuda con una consulta general sobre horarios de atención.',
   })
 
-  assert.equal(response.grounding?.fallbackReason, 'provider_quota_exceeded')
+  assert.equal(response.grounding?.fallbackReason, 'retrieval_only_no_grounding')
+  assert.match(response.text, /No encuentro contenido aprobado/i)
 })
 
 test('customer_public skips provider calls when internal monthly budget is exceeded and still uses catalog fallback', async () => {
@@ -2066,9 +2615,18 @@ test('customer_public keeps short-term memory for a related follow-up but resets
   })
 
   assert.equal(quoteFollowUp.audit?.intentKey, 'customer.quote')
-  assert.equal(quoteFollowUp.memory?.quoteContext?.series, 'probba')
-  assert.equal(quoteFollowUp.memory?.quoteContext?.glass, 'dvh')
-  assert.equal(quoteFollowUp.memory?.quoteContext?.color, 'negro')
+  assert.equal(
+    quoteFollowUp.memory?.quoteContext?.capturedAttributes?.series?.value,
+    'probba',
+  )
+  assert.equal(
+    quoteFollowUp.memory?.quoteContext?.capturedAttributes?.glass?.value,
+    'dvh',
+  )
+  assert.equal(
+    quoteFollowUp.memory?.quoteContext?.capturedAttributes?.color?.value,
+    'negro',
+  )
   assert.equal(topicSwitch.audit?.intentKey, 'customer.topic_info')
 
   const snapshot = await memoryStore.get('conv-customer-memory')
@@ -2123,6 +2681,210 @@ test('customer_public resolves immediate square-meter quotes when the profile an
   assert.match(response.text, /1,20 x 1,20 m/i)
   assert.match(response.text, /USD 172,80/i)
   assert.doesNotMatch(response.text, /por m²|por m2|a razón de|USD 60/i)
+})
+
+test('customer_public keeps an ambiguous roller blackout quote in guided clarification instead of repeating a handoff loop', async () => {
+  const quoteProfiles = overrideQuoteProfile('quote_profile:cortinas_roller', {
+    pricingStrategy: 'immediate_square_meter',
+    closureMode: 'collect_then_price_or_handoff',
+  })
+  const { runtime, providerCalls } = createRuntime({
+    backendOverrides: {
+      getQuoteProfiles: async () => ({
+        tenantKey: 'urucortinas',
+        scope: 'customer_public',
+        items: quoteProfiles,
+        updatedAt: '2026-03-30T00:00:00.000Z',
+      }),
+      searchProducts: async (query) =>
+        /\broller\b|\bblackout\b/i.test(String(query || ''))
+          ? [
+              {
+                id: 401,
+                name: 'Cortina Roller Blackout Boston',
+                currency: 'USD',
+                amount: 84,
+                unitOfMeasure: 'SQUARE_METER',
+                mode: 'SIMPLE',
+              },
+              {
+                id: 402,
+                name: 'Cortina Roller Blackout Premium',
+                currency: 'USD',
+                amount: 92,
+                unitOfMeasure: 'SQUARE_METER',
+                mode: 'SIMPLE',
+              },
+              {
+                id: 403,
+                name: 'Cortina Roller Blackout Noche',
+                currency: 'USD',
+                amount: 88,
+                unitOfMeasure: 'SQUARE_METER',
+                mode: 'SIMPLE',
+              },
+            ]
+          : [],
+    },
+  })
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for ambiguous quote clarification')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-roller-blackout-ambiguous-options',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: ['Necesito una roller blackout de 2x2', 'Que pociones', 'Si'],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.quote')
+  assert.equal(
+    responses[0].quoteResolution?.productNotFoundSubtype,
+    'catalog_match_ambiguous',
+  )
+  assert.equal(responses[0].needsHuman, false)
+  assert.match(
+    responses[0].memory?.quoteContext?.measurements?.displayLabel || '',
+    /2,00 x 2,00 m|200 x 200 cm/i,
+  )
+  assert.match(responses[0].text, /roller blackout/i)
+  assert.match(responses[0].text, /boston|premium|noche|opci[oó]n|alternativa|l[ií]nea/i)
+  assert.doesNotMatch(responses[0].text, /coincidencia parcial|lo revisa un asesor/i)
+
+  assert.equal(responses[1].audit?.intentKey, 'customer.quote')
+  assert.equal(responses[1].needsHuman, false)
+  assert.match(responses[1].text, /boston|premium|noche|opci[oó]n|alternativa|l[ií]nea/i)
+  assert.doesNotMatch(responses[1].text, /coincidencia parcial|lo revisa un asesor/i)
+
+  assert.equal(responses[2].audit?.intentKey, 'customer.quote')
+  assert.equal(responses[2].needsHuman, false)
+  assert.match(responses[2].text, /boston|premium|noche|cu[aá]l|cotizar/i)
+  assert.doesNotMatch(responses[2].text, /coincidencia parcial|lo revisa un asesor/i)
+})
+
+test('customer_public does not offer overbroad catalog topics when the quote subject is roller blackout', async () => {
+  const quoteProfiles = overrideQuoteProfile('quote_profile:cortinas_roller', {
+    pricingStrategy: 'immediate_square_meter',
+    closureMode: 'collect_then_price_or_handoff',
+  })
+  const { runtime, providerCalls } = createRuntime({
+    backendOverrides: {
+      getQuoteProfiles: async () => ({
+        tenantKey: 'urucortinas',
+        scope: 'customer_public',
+        items: quoteProfiles,
+        updatedAt: '2026-03-30T00:00:00.000Z',
+      }),
+      searchProducts: async (query) =>
+        /\broller\b|\bblackout\b/i.test(String(query || ''))
+          ? [
+              {
+                id: 451,
+                name: 'Cortina',
+                currency: 'USD',
+                amount: 70,
+                unitOfMeasure: 'SQUARE_METER',
+                mode: 'SIMPLE',
+              },
+              {
+                id: 452,
+                name: 'Cortina de Enrollar en Aluminio',
+                currency: 'USD',
+                amount: 95,
+                unitOfMeasure: 'SQUARE_METER',
+                mode: 'SIMPLE',
+              },
+            ]
+          : [],
+      searchKnowledge: async () => ({
+        items: [
+          {
+            id: 'doc-roller-blackout',
+            title: 'Roller Blackout | Urucortinas',
+            summary:
+              'Trabajamos con roller blackout en distintas líneas y terminaciones según el ambiente.',
+            snippet:
+              'Trabajamos con roller blackout en distintas líneas y terminaciones según el ambiente.',
+          },
+        ],
+      }),
+    },
+  })
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for overbroad catalog rejection')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-roller-blackout-overbroad-catalog',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: ['Hola', 'Necesito cortina roller', 'De 2x2', '2 unidades blackout', '2x2'],
+  })
+
+  const finalResponse = responses.at(-1)
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(finalResponse?.audit?.intentKey, 'customer.quote')
+  assert.match(responses[3]?.memory?.canonicalTopic?.label || '', /roller blackout/i)
+  assert.match(responses[3]?.memory?.quoteContext?.topicLabel || '', /roller blackout/i)
+  assert.notEqual(
+    finalResponse?.quoteResolution?.productNotFoundSubtype,
+    'catalog_match_ambiguous',
+  )
+  assert.match(finalResponse?.text || '', /roller blackout/i)
+  assert.doesNotMatch(
+    finalResponse?.text || '',
+    /cortina de enrollar en aluminio|las que mejor encajan acá son cortina/i,
+  )
+})
+
+test('customer_public degrades to a safe handoff when immediate quote preview fails', async () => {
+  const quoteProfiles = overrideQuoteProfile('quote_profile:cortinas_roller', {
+    pricingStrategy: 'immediate_square_meter',
+    closureMode: 'collect_then_price_or_handoff',
+  })
+  const { runtime } = createRuntime({
+    backendOverrides: {
+      getQuoteProfiles: async () => ({
+        tenantKey: 'urucortinas',
+        scope: 'customer_public',
+        items: quoteProfiles,
+        updatedAt: '2026-03-30T00:00:00.000Z',
+      }),
+      searchProducts: async (query) =>
+        /\broller\b|\bblackout\b/i.test(String(query || ''))
+          ? [
+              {
+                id: 460,
+                name: 'Cortina Roller Blackout',
+                currency: 'USD',
+                amount: 84,
+                unitOfMeasure: 'SQUARE_METER',
+                mode: 'SIMPLE',
+              },
+            ]
+          : [],
+      previewProductQuote: async () => {
+        throw new Error('backend/ai/products/quote-preview 400: Missing exchange rate for UYU -> USD')
+      },
+    },
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-roller-blackout-preview-error',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Quiero 2 cortinas roller blackout de 2x2',
+  })
+
+  assert.equal(response.audit?.intentKey, 'customer.quote')
+  assert.equal(response.needsHuman, true)
+  assert.match(response.text, /gracias por la información|cotización a la brevedad|asesor/i)
+  assert.doesNotMatch(response.text, /Missing exchange rate|quote-preview|400/i)
 })
 
 test('customer_public falls back to handoff when a square-meter quote is complete but no priced product exists', async () => {
@@ -2499,14 +3261,14 @@ test('customer_authenticated is treated as a customer scope with clean reset beh
 test('customer_authenticated keeps task continuity for referential follow-ups before resetting on a real topic change', async () => {
   const { runtime, providerCalls, memoryStore } = createRuntime()
 
-  await runtime.respond({
+  const opening = await runtime.respond({
     conversationId: 'conv-customer-auth-followup',
     scope: 'customer_authenticated',
     tenantKey: 'urucortinas',
     text: 'Quiero cotización para una corrediza 2h2g serie probba blanco v4mm cierre fenix 110 x 120.',
   })
 
-  await runtime.respond({
+  const quoteFollowUp = await runtime.respond({
     conversationId: 'conv-customer-auth-followup',
     scope: 'customer_authenticated',
     tenantKey: 'urucortinas',
@@ -2521,12 +3283,50 @@ test('customer_authenticated keeps task continuity for referential follow-ups be
   })
 
   assert.ok(Array.isArray(providerCalls))
+  assert.equal(opening.audit?.intentKey, 'customer.quote')
+  assert.equal(quoteFollowUp.audit?.intentKey, 'customer.quote')
 
   const snapshot = await memoryStore.get('conv-customer-auth-followup')
   assert.equal(snapshot?.scope, 'customer_authenticated')
   assert.equal(snapshot?.role, 'customer_authenticated')
   assert.equal(snapshot?.taskState?.intentKey, 'customer.private_account_data')
   assert.equal(snapshot?.taskState?.resetCount, 1)
+})
+
+test('respond does not persist memory for a canceled turn', async () => {
+  const { runtime, memoryStore } = createRuntime()
+  const replaceCalls = []
+  const appendCalls = []
+  const originalReplace = runtime.memoryStore.replace.bind(runtime.memoryStore)
+  const originalAppendTurn = runtime.memoryStore.appendTurn.bind(runtime.memoryStore)
+
+  runtime.memoryStore.replace = async (...args) => {
+    replaceCalls.push(args)
+    return originalReplace(...args)
+  }
+  runtime.memoryStore.appendTurn = async (...args) => {
+    appendCalls.push(args)
+    return originalAppendTurn(...args)
+  }
+
+  const response = await runtime.respond(
+    {
+      conversationId: 'conv-canceled-turn-memory',
+      scope: 'customer_public',
+      tenantKey: 'urucortinas',
+      text: 'hola',
+    },
+    {
+      cancellationToken: {
+        canceled: true,
+      },
+    },
+  )
+
+  assert.equal(replaceCalls.length, 0)
+  assert.equal(appendCalls.length, 0)
+  assert.equal(await memoryStore.get('conv-canceled-turn-memory'), null)
+  assert.ok(typeof response.text === 'string' && response.text.length > 0)
 })
 
 test('customer_public requires authentication before exposing order or budget information', async () => {
@@ -2595,7 +3395,7 @@ test('customer_authenticated keeps private account data out of chat when the req
   assert.equal(response.auditPayload?.intentKey, 'customer.private_account_data')
 })
 
-test('customer_public provider fallback stays user-friendly and avoids internal provider details', async () => {
+test('customer_public business fact fallback stays user-friendly and avoids internal provider details', async () => {
   const { runtime } = createRuntime()
   runtime.provider.generate = async () => {
     throw new Error('429 quota exceeded')
@@ -2608,7 +3408,7 @@ test('customer_public provider fallback stays user-friendly and avoids internal 
     text: 'Necesito ayuda con una consulta general sobre horarios de atención.',
   })
 
-  assert.match(response.text, /Un asesor del equipo te indicará cómo continuar/i)
+  assert.match(response.text, /No encuentro contenido aprobado/i)
   assert.doesNotMatch(response.text, /cuota|proveedor|configuración|takeover/i)
   assert.equal(response.needsHuman, true)
 })
@@ -3028,7 +3828,7 @@ test('customer_public can switch from product context to payment methods without
   assert.doesNotMatch(paymentSwitch.text, /roller blackout|opciones, l[ií]neas y prestaciones/i)
 })
 
-test('customer_public lets an explicit payment-method question override a previous operational scheduling thread', async () => {
+test('customer_public lets an explicit payment-method question override a previous installation-condition thread without drifting to scheduling', async () => {
   const { runtime, backendClient, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
     throw new Error('provider should not be called for explicit payment faq switches')
@@ -3069,7 +3869,7 @@ test('customer_public lets an explicit payment-method question override a previo
   })
 
   assert.equal(providerCalls.length, 0)
-  assert.equal(responses[0].audit?.intentKey, 'customer.schedule_request')
+  assert.notEqual(responses[0].audit?.intentKey, 'customer.schedule_request')
   assert.ok(
     ['customer.topic_info', 'customer.contact_info'].includes(responses[1].audit?.intentKey),
   )
@@ -3399,7 +4199,7 @@ test('customer_public routes payment proof follow-ups as non-commercial operatio
   assert.equal(providerCalls.length, 0)
   assert.equal(response.audit?.intentKey, 'customer.support_request')
   assert.match(response.text, /comprobante|acreditaci[oó]n|seguimiento/i)
-  assert.match(response.text, /asesor/i)
+  assert.match(response.text, /recib[ií]|confirmar/i)
   assert.doesNotMatch(response.text, /cotizaci[oó]n|presupuesto|medidas/i)
 })
 
@@ -3442,6 +4242,29 @@ test('customer_public keeps payment-proof continuity when the next turn is only 
   assert.equal(responses[1].audit?.intentKey, 'customer.support_request')
   assert.match(responses[1].text, /comprobante|acreditaci[oó]n|seguimiento/i)
   assert.doesNotMatch(responses[1].text, /contame un poco m[aá]s|cotizaci[oó]n|presupuesto/i)
+})
+
+test('customer_public differentiates planned payment proof follow-ups from received proof artifacts', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for payment proof continuity wording')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-payment-proof-planned-vs-received',
+    turns: [
+      'Ya te envío el comprobante de la seña',
+      'Comprobante_TransferenciaTercerosEnElBanco_16_02_2026_12_43.pdf',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(responses[0].audit?.intentKey, 'customer.support_request')
+  assert.equal(responses[1].audit?.intentKey, 'customer.support_request')
+  assert.match(responses[0].text, /cuando lo env[ií]es por ac[aá]/i)
+  assert.match(responses[1].text, /recib[ií] el comprobante/i)
+  assert.notEqual(responses[0].text, responses[1].text)
 })
 
 test('customer_public keeps persiana quote requests and installation side-questions on the same commercial thread without drifting to aberturas', async () => {
@@ -3605,7 +4428,7 @@ test('customer_public keeps a guided schedule flow across day, time and ambiguou
   assert.match(responses[1].text, /horario|dirección|contacto/i)
   assert.match(
     responses[2].text,
-    /horario concreto|horario puntual|proponga uno|te propongo uno/i,
+    /horario concreto|horario puntual|proponga uno|te propongo uno|qu[eé] horario te queda mejor/i,
   )
   assert.match(responses[3].text, /dirección|teléfono|email/i)
   assert.match(
@@ -3659,6 +4482,91 @@ test('customer_public can complete a technical visit schedule across multiple sh
   assert.equal(createdAppointments.length, 1)
   assert.match(createdAppointments[0]?.description || '', /visita t[eé]cnica/i)
   assert.match(createdAppointments[0]?.location || '', /avenida italia 1428/i)
+})
+
+test('customer_public keeps operational status follow-ups inside a pending schedule thread and avoids generic loops', async () => {
+  const { runtime, providerCalls } = createRuntime({
+    initialSnapshot: {
+      conversationId: 'conv-public-schedule-status-followup',
+      turns: [
+        {
+          role: 'customer',
+          text: 'A las 18hs',
+          createdAt: '2026-03-31T10:00:00.000Z',
+        },
+        {
+          role: 'agent',
+          text: 'Perfecto. Hablamos con los técnicos y te avisamos apenas confirmen la disponibilidad.',
+          createdAt: '2026-03-31T10:00:05.000Z',
+        },
+      ],
+      taskState: {
+        taskId: 'task-public-schedule-status-followup',
+        intentKey: 'customer.schedule_request',
+        turnIntentKey: 'customer.schedule_request',
+        scheduleContext: {
+          reason: 'revisión técnica',
+          purpose: 'revisar persianas',
+          completionStatus: 'needs_info',
+          missingFields: ['date', 'address', 'contact'],
+          date: null,
+          time: {
+            timeLabel: '18:00',
+            exact: true,
+          },
+          address: null,
+          contactPhone: null,
+          contactEmail: null,
+        },
+        conversationContext: {
+          activeDomain: 'schedule',
+          responseStrategy: 'ask_schedule_field',
+          resolutionReadiness: {
+            lane: 'schedule',
+            turnIntent: 'customer.schedule_request',
+            waitForMore: false,
+            answerMode: 'ask_schedule_field',
+            missingFields: ['date', 'address', 'contact'],
+            followUpDetected: true,
+          },
+        },
+      },
+    },
+  })
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for schedule status follow-ups')
+  }
+
+  const noveltyFollowUp = await runtime.respond({
+    conversationId: 'conv-public-schedule-status-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Tenés alguna novedad?',
+  })
+  const dayConfirmationFollowUp = await runtime.respond({
+    conversationId: 'conv-public-schedule-status-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Jueves?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(noveltyFollowUp.audit?.intentKey, 'customer.schedule_request')
+  assert.match(
+    noveltyFollowUp.text,
+    /d[ií]a|jueves|viernes|horario|direcci[oó]n|contacto/i,
+  )
+  assert.doesNotMatch(
+    noveltyFollowUp.text,
+    /qu[eé] necesit[aá]s resolver exactamente|contame un poco m[aá]s y lo vemos/i,
+  )
+  assert.equal(dayConfirmationFollowUp.audit?.intentKey, 'customer.schedule_request')
+  assert.match(dayConfirmationFollowUp.text, /direcci[oó]n|contacto|horario/i)
+  assert.doesNotMatch(
+    dayConfirmationFollowUp.text,
+    /qu[eé] necesit[aá]s resolver exactamente|contame un poco m[aá]s y lo vemos/i,
+  )
+  assert.notEqual(dayConfirmationFollowUp.text, noveltyFollowUp.text)
 })
 
 test('customer_public turns same-turn support plus visit intent into guided coordination instead of a generic support fallback', async () => {
@@ -3853,6 +4761,106 @@ test('customer_public keeps consecutive standalone attachments in a neutral mult
   assert.doesNotMatch(responses[1].text, /trabajamos con img|luz, privacidad y uso/i)
   assert.match(responses[2].text, /seguimiento|revisi[oó]n|consulta/i)
   assert.doesNotMatch(responses[2].text, /trabajamos con img|luz, privacidad y uso/i)
+})
+
+test('customer_public does not repeat tenant contact fallback when a payment amount follows a bank-account request', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for payment amount continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-payment-amount-after-bank-account',
+    turns: ['Me pasas cuenta bancaria?', 'USD 462'],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.doesNotMatch(
+    responses[1].text,
+    /tel[eé]fono y whatsapp|contacto por este medio/i,
+  )
+  assert.match(
+    responses[1].text,
+    /transferir|se[nñ]a|comprobante|pago/i,
+  )
+})
+
+test('customer_public answers standalone bank-account questions with payment continuity instead of contact fallback', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for bank-account faq resolution')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-bank-account-standalone',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Me pasas cuenta bancaria?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.doesNotMatch(
+    response.text,
+    /tel[eé]fono y whatsapp|contacto por este medio/i,
+  )
+  assert.match(
+    response.text,
+    /transferencia|efectivo|tarjetas|pago|cuenta/i,
+  )
+})
+
+test('customer_public does not let web lead quote openings fall into contact fallback', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for web lead quote openings')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-web-lead-quote-opening-real',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'Hola, te contacto desde la web de urucortinas: Buenas tardes, quisiera solicitar presupuesto para puerta ventana de aluminio de 1.20 x 2.34 con doble vidrio',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.auditPayload?.intentKey, 'customer.quote')
+  assert.doesNotMatch(
+    response.text,
+    /tel[eé]fono y whatsapp|contacto por este medio/i,
+  )
+  assert.match(
+    response.text,
+    /presupuesto|cotizaci[oó]n|aluminio|doble vidrio|medidas|puerta ventana/i,
+  )
+})
+
+test('customer_public does not repeat tenant contact fallback on address follow-ups inside support coordination', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for support address continuity')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-support-address-loop-break',
+    turns: [
+      'Tengo una cortina eléctrica en un local y quería saber si pueden venir a revisarla.',
+      'Punta Carretas, cerca del shop',
+      'José Ellauri 553',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.doesNotMatch(
+    responses[2].text,
+    /tel[eé]fono y whatsapp|contacto por este medio/i,
+  )
+  assert.match(
+    responses[2].text,
+    /d[ií]a|horario|coordinar|encamin/i,
+  )
 })
 
 test('customer_public splits multi-intent openings without calling the provider', async () => {
@@ -4171,6 +5179,37 @@ test('customer_public only treats no as cancellation when a confirmation state i
   assert.match(response.text, /dejamos eso sin efecto/i)
 })
 
+test('customer_public treats explicit schedule cancellation as a cancellation instead of reopening coordination', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for deterministic schedule cancellations')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-schedule-cancellation-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: [
+      'Necesito coordinar una visita técnica',
+      'Buschental 1234',
+      'Mañana 9am me sirve',
+    ],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-schedule-cancellation-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'No puede esperar el chico, les voy a cancelar la ida. Gracias igual.',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.cancellation')
+  assert.match(response.text, /dejamos sin coordinar|retomarlo m[aá]s adelante/i)
+  assert.doesNotMatch(response.text, /direcci[oó]n|qu[eé] d[ií]a|horario|coordinar una visita/i)
+})
+
 test('customer_public resolves approved business FAQ from knowledge before calling the provider', async () => {
   const { runtime, backendClient, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
@@ -4207,6 +5246,34 @@ test('customer_public resolves approved business FAQ from knowledge before calli
   assert.equal(response.audit?.intentKey, 'customer.topic_info')
   assert.match(response.text, /lunes a viernes de 9:00 a 18:00/i)
   assert.match(response.text, /s[aá]bados de 9:00 a 13:00/i)
+})
+
+test('customer_public business facts without approved knowledge fall back deterministically without calling the provider', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for ungrounded business facts')
+  }
+
+  backendClient.searchKnowledge = async () => ({
+    items: [],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-business-fact-no-grounding',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: '¿Qué medios de pago tienen?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.needsHuman, true)
+  assert.equal(response.grounding?.grounded, false)
+  assert.equal(response.grounding?.fallbackReason, 'retrieval_only_no_grounding')
+  assert.equal(
+    response.auditPayload?.decisionTrace?.knowledge?.mode,
+    'retrieval_only',
+  )
+  assert.match(response.text, /no encuentro contenido aprobado/i)
 })
 
 test('customer_public normalizes voice-to-text business hour questions before knowledge retrieval', async () => {
@@ -4690,6 +5757,43 @@ test('customer_public keeps product options follow-ups like dime las opciones in
   assert.doesNotMatch(optionsFollowUp.text, /medidas aproximadas|cu[aá]ntas unidades/i)
 })
 
+test('customer_public uses product knowledge as the first reply layer on quote-seeded openings before collecting quote fields', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for information-first quote openings')
+  }
+
+  backendClient.searchKnowledge = async () => ({
+    items: [
+      {
+        id: 'doc-quote-info-first-roller-blackout',
+        title: 'Urucortinas · Roller blackout',
+        scope: 'customer_public',
+        sourceType: 'curated_document',
+        summary:
+          'Trabajamos con roller blackout para privacidad y control de luz.',
+        snippet:
+          'Las roller blackout bloquean casi por completo la luz, a diferencia de las screen que dejan pasar luz.',
+        score: 0.95,
+      },
+    ],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-quote-information-first-opening',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'necesito roller blackout',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(response.text, /roller blackout/i)
+  assert.match(response.text, /luz|screen|privacidad/i)
+  assert.match(response.text, /medidas aproximadas|ancho por alto/i)
+  assert.match(response.text, /cu[aá]ntas unidades|cantidad/i)
+  assert.doesNotMatch(response.text, /precio inmediato|cotizaci[oó]n de \d+/i)
+})
+
 test('customer_public keeps aberturas quote context across typoed opening, dvh refinement and price follow-up', async () => {
   const { runtime, backendClient, providerCalls } = createRuntime()
   const searchQueries = []
@@ -4813,6 +5917,47 @@ test('runtime suppresses business auto replies before they enter conversational 
   assert.equal(snapshot, null)
 })
 
+test('runtime ignores whatsapp export noise before intent detection or memory updates', async () => {
+  const { runtime, providerCalls, memoryStore } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for whatsapp export noise')
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-whatsapp-export-noise',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Esperando este mensaje',
+  })
+
+  const snapshot = await memoryStore.get('conv-public-whatsapp-export-noise')
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.text, '')
+  assert.equal(response.finalUserText, '')
+  assert.equal(response.suppressed, true)
+  assert.equal(response.audit?.ignoredInbound, true)
+  assert.equal(response.audit?.ignoreReason, 'whatsapp_export_noise')
+  assert.equal(snapshot, null)
+})
+
+test('runtime does not ignore real customer context that merely mentions waiting for a message', async () => {
+  const { runtime, memoryStore } = createRuntime()
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-real-waiting-message',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Estoy esperando el mensaje con la cotización',
+  })
+
+  const snapshot = await memoryStore.get('conv-public-real-waiting-message')
+
+  assert.notEqual(response.audit?.ignoreReason, 'whatsapp_export_noise')
+  assert.notEqual(response.suppressed, true)
+  assert.ok(snapshot)
+})
+
 test('customer_public can optionally rewrite grounded follow-ups without changing the factual base', async () => {
   const { runtime, backendClient, providerCalls } = createRuntime({
     generateResult: {
@@ -4875,11 +6020,28 @@ test('customer_public can optionally rewrite grounded follow-ups without changin
     text: 'Y venecianas?',
   })
 
-  assert.equal(providerCalls.length, 1)
-  assert.match(providerCalls.at(-1)?.input || '', /Borrador grounded:/)
   assert.match(response.text, /tambi[eé]n contamos con venecianas/i)
   assert.equal(response.grounding?.grounded, true)
-  assert.equal(response.auditPayload?.metrics?.groundedRewriteApplied, true)
+  assert.ok(providerCalls.length <= 1)
+  assert.equal(
+    response.auditPayload?.metrics?.providerCallCount,
+    providerCalls.length,
+  )
+  assert.equal(
+    response.auditPayload?.metrics?.aiCallMode,
+    providerCalls.length === 1 ? 'light_style' : 'none',
+  )
+  assert.equal(response.auditPayload?.metrics?.singleAiCallSatisfied, true)
+  assert.equal(response.auditPayload?.metrics?.aiModeExclusiveSatisfied, true)
+  if (providerCalls.length === 1) {
+    assert.match(providerCalls.at(-1)?.input || '', /Borrador grounded:/)
+    assert.equal(response.auditPayload?.metrics?.groundedRewriteApplied, true)
+    assert.equal(response.grounding?.rewriteMode, 'light_style')
+    assert.equal(response.auditPayload?.metrics?.lightStyleApplied, true)
+  } else {
+    assert.notEqual(response.grounding?.rewriteMode, 'light_style')
+    assert.equal(response.auditPayload?.metrics?.lightStyleApplied, false)
+  }
   assert.equal(response.auditPayload?.responseValidation?.adjusted, false)
 })
 
@@ -5569,6 +6731,40 @@ test('customer_public keeps schedule coordination context on follow-ups about ti
   assert.doesNotMatch(response.text, /horario de atenci[oó]n|lunes a viernes/i)
 })
 
+test('customer_public completes the missing time slot without re-asking captured day or address', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for deterministic slot completion')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-slot-completion-day-address',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: ['Quiero coordinar una visita el miércoles en Fraga 2137'],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-slot-completion-day-address',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: '¿Pueden 9am?',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.schedule_request')
+  assert.equal(response.memory?.conversationState?.slots?.address?.value, 'Fraga 2137')
+  assert.ok(response.memory?.conversationState?.slots?.date?.value)
+  assert.match(
+    String(response.memory?.conversationState?.slots?.time?.value || ''),
+    /09:00|9:00/i,
+  )
+  assert.doesNotMatch(response.text, /qu[eé] d[ií]a te queda bien/i)
+  assert.doesNotMatch(response.text, /pasame la direcci[oó]n/i)
+  assert.match(response.text, /tel[eé]fono|email|contacto|coordinar/i)
+})
+
 test('customer_public keeps support context on material-compatibility follow-ups inside a service thread', async () => {
   const { runtime, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
@@ -5660,6 +6856,49 @@ test('customer_public acknowledges a sent budget without reopening the quote as 
   assert.equal(response.audit?.intentKey, 'customer.quote')
   assert.match(response.text, /gracias|presupuesto|aclar/i)
   assert.doesNotMatch(response.text, /qu[eé] producto te interesa|orientarte mejor con el precio/i)
+})
+
+test('buildDeterministicQuoteResolutionResponse keeps quote follow-up acknowledgements in handoff mode without retrieval', async () => {
+  const { runtime } = createRuntime()
+
+  const response = await runtime.buildDeterministicQuoteResolutionResponse({
+    role: 'customer_public',
+    input: 'ok',
+    intentKey: 'customer.product_info',
+    interpretation: {
+      contextTopic: {
+        label: 'cortinas roller blackout',
+        type: 'product_variant',
+      },
+      followUp: {
+        detected: true,
+        inheritedIntentKey: 'customer.quote',
+        quoteConfirmation: true,
+      },
+      quoteContext: {
+        topicRecognized: true,
+        topicLabel: 'cortinas roller blackout',
+        familyLabel: 'cortinas',
+        measurements: {
+          widthMm: 2000,
+          heightMm: 2000,
+          confirmationLabel: '2,00 x 2,00 m',
+        },
+        quantity: { total: 2 },
+        completionStatus: 'ready_for_pricing_or_handoff',
+      },
+    },
+    backendClient: runtime.backendClient,
+    tenantKey: 'urucortinas',
+    unifiedMessage: {
+      tenantKey: 'urucortinas',
+      channel: 'whatsapp',
+    },
+  })
+
+  assert.ok(response)
+  assert.match(response.text, /seguimiento|dato adicional|por aqu[ií]/i)
+  assert.equal(response.grounding?.knowledgeRetrieved, false)
 })
 
 test('customer_public treats explicit neutral reengagement markers as guided continuation instead of inventing a product topic', async () => {
@@ -6007,6 +7246,42 @@ test('customer_public normalizes mixed dimensions and completes quote intake whe
   assert.doesNotMatch(quantityTurn.text, /decime las medidas aproximadas/i)
 })
 
+test('customer_public does not duplicate measurement asks after a quote follow-up adds only one configuration detail', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for quote loop-break regressions')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-loop-break-no-duplicate-measurements',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: [
+      'Quiero cotizar aberturas',
+      'de 1,20x1,20',
+      '2',
+    ],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-quote-loop-break-no-duplicate-measurements',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Blanco, gracias',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.doesNotMatch(
+    response.text,
+    /medidas aproximadas \(ancho por alto\).+medidas aproximadas \(ancho por alto\)/i,
+  )
+  assert.doesNotMatch(
+    response.text,
+    /cu[aá]ntas unidades necesit[aá]s.+cu[aá]ntas unidades necesit[aá]s/i,
+  )
+})
+
 test('customer_public keeps quote intake deterministic when multiple product families are mentioned together', async () => {
   const { runtime, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
@@ -6345,6 +7620,173 @@ test('customer_public keeps quote handoff context when the customer says they wi
   assert.doesNotMatch(response.text, /decime las medidas aproximadas|cu[aá]ntas unidades|orientarte con el precio/i)
 })
 
+test('customer_public rewrites repeated quote handoff when a new configuration detail arrives', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for repeated quote handoff detail turns')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-handoff-detail-loop-break',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: [
+      'Buenos días, me puede cotizar una cortina metálica de 160 x 260 aprox.',
+      'Sería una cortina ciega de tablilla.',
+    ],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-quote-handoff-detail-loop-break',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Ciega de tablilla, sí.',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(response.text, /tomo ese detalle|misma cotizaci[oó]n/i)
+  assert.doesNotMatch(
+    response.text,
+    /no tengo una configuraci[oó]n publicada con precio inmediato/i,
+  )
+})
+
+test('customer_public closes ready quote threads on polite deferral without reopening generic intake', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for polite quote deferral follow-ups')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-deferral-loop-break',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: ['Necesito roller blackout', 'de 2x2', '2 unidades'],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-quote-deferral-loop-break',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Lo vemos más adelante. Muchas gracias',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.quote')
+  assert.match(response.text, /cuando quieras retomarlo|seguimos por ac[aá]/i)
+  assert.doesNotMatch(response.text, /qu[eé] producto te interesa|orientarte mejor con el precio/i)
+})
+
+test('customer_public alternates repeated quote closure wording on consecutive courtesy follow-ups', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for repeated quote closure follow-ups')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-deferral-repeated-closure',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: [
+      'Necesito roller blackout',
+      'de 2x2',
+      '2 unidades',
+      'Lo vemos más adelante. Muchas gracias',
+      'Gracias',
+    ],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(responses[3].text, /cuando quieras retomarlo|seguimos por ac[aá]/i)
+  assert.match(responses[4].text, /cualquier cosa me escrib[ií]s/i)
+  assert.doesNotMatch(responses[4].text, /cuando quieras retomarlo|seguimos por ac[aá]/i)
+})
+
+test('customer_public turns ready quote visit follow-ups into visit coordination instead of reopening intake', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for quote visit coordination follow-ups')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-visit-coordination-loop-break',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: ['Necesito roller blackout', 'de 2x2', '2 unidades'],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-quote-visit-coordination-loop-break',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Prefiero que la midan ustedes, mañana no puedo',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(response.audit?.intentKey, 'customer.quote')
+  assert.match(response.text, /zona|direcci[oó]n/i)
+  assert.match(response.text, /d[ií]a|horario|visita/i)
+  assert.doesNotMatch(response.text, /qu[eé] producto te interesa|orientarte mejor con el precio/i)
+})
+
+test('customer_public closes schedule courtesy-only follow-ups without repeating the same coordination ask', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for schedule courtesy loop breaks')
+  }
+
+  await runConversation({
+    runtime,
+    conversationId: 'conv-public-schedule-courtesy-loop-break',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: [
+      'Se me salió un fleje de la cortina motorizada y quería coordinar un service para el lunes.',
+      'Ingeniero José Acquistapace 2079',
+    ],
+  })
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-schedule-courtesy-loop-break',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Bien, gracias',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.match(response.text, /cuando quieras retomarlo|seguimos por ac[aá]/i)
+  assert.doesNotMatch(response.text, /zona o direcci[oó]n|qu[eé] d[ií]a|horario te queda mejor/i)
+})
+
+test('customer_public does not fall back to generic contact info on delivery-time follow-ups', async () => {
+  const { runtime, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for delivery-time follow-ups')
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-delivery-time-followup',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    turns: ['Me pasás el contacto?', 'Hola, ok, qeu tiempo de entrega tiene?'],
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.doesNotMatch(
+    responses[1].text,
+    /tel[eé]fono y whatsapp|contacto por este medio/i,
+  )
+  assert.match(
+    responses[1].text,
+    /tiempo de entrega|agenda disponible|te lo dejo encaminado/i,
+  )
+})
+
 test('customer_public does not apply quote progression without a recognized product profile even if measurements were provided', async () => {
   const { runtime, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
@@ -6387,8 +7829,88 @@ test('customer_public without approved knowledge keeps the conversation open and
   assert.equal(response.audit?.intentKey, 'customer.clarify_request')
   assert.equal(response.grounding?.fallbackReason, null)
   assert.equal(response.needsHuman, false)
+  assert.equal(response.auditPayload?.responseMode, 'deterministic')
+  assert.equal(
+    response.auditPayload?.decisionTrace?.intent?.key,
+    'customer.clarify_request',
+  )
+  assert.equal(
+    response.auditPayload?.decisionTrace?.knowledge?.used,
+    false,
+  )
   assert.match(response.text, /sobre qu[eé] te gustar[ií]a informaci[oó]n|contame un poco m[aá]s/i)
   assert.doesNotMatch(response.text, /asesor del equipo/i)
+})
+
+test('customer_public can disable knowledge retrieval in debug mode and exposes that choice in decisionTrace', async () => {
+  const { runtime, backendClient } = createRuntime({
+    generateResult: { text: 'ok', toolCalls: [] },
+  })
+  let searchKnowledgeCalls = 0
+
+  backendClient.searchKnowledge = async () => {
+    searchKnowledgeCalls += 1
+    return {
+      items: [
+        {
+          id: 'doc_blackout',
+          title: 'Roller blackout',
+          sourceType: 'web_url',
+          scope: 'customer_public',
+          snippet: 'Bloquea casi por completo la luz.',
+          score: 12,
+        },
+      ],
+    }
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-debug-disable-knowledge',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text: 'Necesito roller blackout',
+    metadata: {
+      debugOptions: {
+        disableKnowledge: true,
+      },
+    },
+  })
+
+  assert.equal(searchKnowledgeCalls, 0)
+  assert.equal(
+    response.auditPayload?.decisionTrace?.knowledge?.mode,
+    'retrieval_disabled',
+  )
+  assert.equal(response.auditPayload?.decisionTrace?.knowledge?.disabled, true)
+  assert.equal(response.auditPayload?.decisionTrace?.knowledge?.sourceCount, 0)
+  assert.equal(response.auditPayload?.decisionTrace?.knowledge?.grounded, false)
+})
+
+test('retrieval_only blocks domain-looking answers when no retrieval grounded the response', async () => {
+  const { runtime } = createRuntime()
+
+  const response = runtime.enforceKnowledgeModePolicy({
+    response: {
+      text: 'El roller blackout suele ser una muy buena opción para dormitorio.',
+      finalUserText:
+        'El roller blackout suele ser una muy buena opción para dormitorio.',
+      grounding: {
+        grounded: false,
+        fallbackReason: null,
+      },
+      toolCalls: [],
+      debug: {},
+    },
+    retrievalContext: {
+      items: [],
+    },
+    role: 'customer_public',
+    knowledgeMode: 'retrieval_only',
+  })
+
+  assert.match(response.text, /base de conocimiento|consulta/i)
+  assert.equal(response.needsHuman, true)
+  assert.equal(response.grounding?.fallbackReason, 'retrieval_only_no_grounding')
 })
 
 test('customer_public blocks internal registration intents and keeps a safe fallback', async () => {
@@ -6485,7 +8007,7 @@ test('admin_support product creation requests are blocked before retrieval or ex
   assert.equal(searchProductsCalls, 0)
   assert.equal(createProductCalls, 0)
   assert.equal(response.grounding?.fallbackReason, 'role_tool_blocked')
-  assert.match(response.finalUserText, /alcance conversacional|rol actual/i)
+  assert.match(response.finalUserText, /alcance conversacional|rol conversacional actual|rol actual/i)
 })
 
 test('admin_sales payment status changes are blocked by forbidden intent family before retrieval or execution', async () => {
@@ -6522,7 +8044,7 @@ test('admin_sales payment status changes are blocked by forbidden intent family 
   assert.equal(searchPaymentsCalls, 0)
   assert.equal(updatePaymentStatusCalls, 0)
   assert.equal(response.grounding?.fallbackReason, 'role_intent_blocked')
-  assert.match(response.finalUserText, /alcance conversacional|rol actual/i)
+  assert.match(response.finalUserText, /alcance conversacional|rol conversacional actual|rol actual/i)
 })
 
 test('admin_internal provider fallback stays operational without exposing provider diagnostics to the operator', async () => {
@@ -6630,11 +8152,11 @@ test('admin_internal capability requests are answered locally with role-aware sc
   assert.match(response.finalUserText, /productos/i)
   assert.match(response.finalUserText, /pedidos/i)
   assert.match(response.finalUserText, /pagos/i)
-  assert.match(response.finalUserText, /aberturas/i)
+  assert.match(response.finalUserText, /altas estructuradas de catálogo/i)
   assert.equal(response.auditPayload?.actionKey, 'admin.capabilities')
 })
 
-test('admin_internal can infer aberturas.register from recent conversation context when the new input is ambiguous', async () => {
+test('admin_internal can infer catalog.register_structured_items from recent conversation context when the new input is ambiguous', async () => {
   const { runtime } = createRuntime()
 
   await runtime.respond({
@@ -6655,9 +8177,9 @@ test('admin_internal can infer aberturas.register from recent conversation conte
     text: 'Agregala al sistema',
   })
 
-  assert.match(response.text, /He preparado la alta al sistema de las aberturas detectadas/i)
+  assert.match(response.text, /He preparado el alta al sistema de los ítems estructurados detectados/i)
   assert.match(response.text, /USD 234/i)
-  assert.equal(response.audit.intentKey, 'aberturas.register')
+  assert.equal(response.audit.intentKey, 'catalog.register_structured_items')
   assert.equal(response.audit.intentSource, 'hybrid')
   assert.ok(Array.isArray(response.audit.decisionPath))
   assert.ok(response.audit.decisionPath.includes('context:referenced_messages'))
@@ -7085,7 +8607,7 @@ test('uses structured extraction from attachments to normalize aberturas before 
     ],
   })
 
-  assert.match(response.text, /He preparado la alta al sistema de las aberturas detectadas/i)
+  assert.match(response.text, /He preparado el alta al sistema de los ítems estructurados detectados/i)
   assert.match(receivedText, /Corrediza 2h2g serie probba blanco v4mm cierre fenix 110 x 120 usd 234/i)
 })
 

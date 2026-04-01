@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/main.js",
-    "test:conversation-quality": "node --test src/ai/agent.test.js"
+    "test:conversation-quality": "node --test src/ai/agent.test.js",
+    "eval:knowledge-regression": "node scripts/run-knowledge-evaluation.js"
   },
   "dependencies": {
     "@langchain/core": "^0.3.79",

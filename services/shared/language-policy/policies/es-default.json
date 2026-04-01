@@ -1,0 +1,286 @@
+{
+  "policyKey": "es-default",
+  "webLeadIntroPattern": {
+    "source": "^(?:hola|buen dia|buenos dias|buenas tardes|buenas noches)?\\s*(?:te contacto|te escribo|me contacto)\\s+desde\\s+la\\s+web(?:\\s+de\\s+)?",
+    "flags": "u"
+  },
+  "genericQuoteTopicLabels": [
+    "cotizar",
+    "cotizacion",
+    "presupuesto",
+    "precio",
+    "precios",
+    "cotizacion de",
+    "presupuesto de",
+    "precio de",
+    "precios de"
+  ],
+  "genericQuoteTopicPatterns": [
+    {
+      "source": "^(?:quiero|necesito|preciso|busco|seria|serian)?\\s*(?:una?\\s+)?(?:cotizar|cotizacion|presupuesto|precio|precios)$",
+      "flags": "u"
+    }
+  ],
+  "customerTopicPatterns": [
+    {
+      "source": "\\b(que es|duda sobre|consulta sobre|consulta por|consultar sobre|consultar por|como funciona|para que sirve|beneficios|ventajas|desventajas|diferencia entre|que diferencia hay|informacion sobre|info sobre|explicame|explicame sobre|contame sobre|quiero saber sobre|quiero consultar sobre|quiero consultar por|como se limpia|como limpian|mantenimiento de|como mantener)\\b",
+      "flags": "u"
+    },
+    {
+      "source": "\\b(tienen|manejan|ofrecen|trabajan con|cuentan con)\\b",
+      "flags": "u"
+    }
+  ],
+  "businessFaqDefinitions": [
+    {
+      "subtype": "business_hours",
+      "directPatterns": [
+        {
+          "source": "\\b(horario|horarios|horario de atencion|horario de atención|cuando abren|cuando cierran)\\b",
+          "flags": "u"
+        },
+        {
+          "source": "\\b(cual|cu[aá]l)\\s+es\\s+su\\s+horario\\b",
+          "flags": "u"
+        },
+        {
+          "source": "\\bcomo\\b.*\\batienden\\b",
+          "flags": "u"
+        }
+      ],
+      "conceptStems": ["horari", "atiend", "abren", "cierran", "atencion"],
+      "queryStems": ["cual", "cuando", "como", "hoy", "manana"],
+      "knowledgeFactTypes": ["business_hours"],
+      "knowledgePageKinds": ["hours_page", "contact_page", "faq_page"],
+      "knowledgeTagStems": ["horari", "business_hour"],
+      "knowledgeCueStems": ["horari", "lunes", "viernes", "sabado", "domingo"]
+    },
+    {
+      "subtype": "location",
+      "directPatterns": [
+        {
+          "source": "\\b(donde estan|donde están|de donde son|donde quedan|ubicacion|ubicación|direccion|dirección|local comercial|sucursal|showroom|ciudad)\\b",
+          "flags": "u"
+        },
+        {
+          "source": "\\b(en\\s+que\\s+ciudad)\\b",
+          "flags": "u"
+        }
+      ],
+      "conceptStems": ["ubic", "direccion", "local", "sucursal", "showroom", "ciudad", "montevideo", "donde", "quedan"],
+      "queryStems": ["estan", "son", "encuentran", "queda", "quedan"],
+      "knowledgeFactTypes": ["location", "local_commercial"],
+      "knowledgePageKinds": ["contact_page", "faq_page"],
+      "knowledgeTagStems": ["location", "local", "contact"],
+      "knowledgeCueStems": ["nos encontramos", "estamos en", "montevideo", "local comercial", "visitas a domicilio"]
+    },
+    {
+      "subtype": "payment_methods",
+      "directPatterns": [
+        {
+          "source": "\\b(medios de pago|medios de pagos|formas de pago|formas de pagos)\\b",
+          "flags": "u"
+        },
+        {
+          "source": "\\b(aceptan|manejan|trabajan con)\\s+(tarjeta|tarjetas|transferencia|efectivo|cuotas)\\b",
+          "flags": "u"
+        },
+        {
+          "source": "\\b(como|cómo)\\s+se\\s+(paga|abona)\\b",
+          "flags": "u"
+        },
+        {
+          "source": "\\b(se puede pagar|puedo pagar)\\b",
+          "flags": "u"
+        }
+      ],
+      "conceptStems": ["pag", "abon", "tarjet", "transfer", "efectiv", "cuot", "financi", "debit", "credit"],
+      "queryStems": ["acept", "manej", "trabaj", "pued", "medio", "forma", "como"],
+      "knowledgeFactTypes": ["payment_methods"],
+      "knowledgePageKinds": ["payments_page", "faq_page"],
+      "knowledgeTagStems": ["payment", "pag", "tarjet", "transfer"],
+      "knowledgeCueStems": ["efectivo", "transferencia", "tarjetas", "cuotas", "medios de pago"]
+    },
+    {
+      "subtype": "contact",
+      "directPatterns": [
+        {
+          "source": "\\b(telefono|teléfono|celular|whatsapp|numero de contacto|número de contacto|correo|mail|email|datos? de contacto)\\b",
+          "flags": "u"
+        },
+        {
+          "source": "\\b(tienen|manejan)\\s+(telefono|teléfono|whatsapp|mail|email)\\b",
+          "flags": "u"
+        },
+        {
+          "source": "\\b(hablar con alguien|comunicarme|comunicarse|llamar)\\b",
+          "flags": "u"
+        }
+      ],
+      "conceptStems": ["telefon", "celular", "whatsapp", "contact", "llamar", "comunic", "correo", "mail", "email", "numero"],
+      "queryStems": ["tienen", "manejan", "puedo", "como", "hablar"],
+      "knowledgeFactTypes": ["contact_phone", "contact_email"],
+      "knowledgePageKinds": ["contact_page", "faq_page"],
+      "knowledgeTagStems": ["contact", "phone", "email", "whatsapp"],
+      "knowledgeCueStems": ["whatsapp", "telefono", "email", "@"]
+    }
+  ],
+  "paymentMethodShortFollowUpPatterns": [
+    {
+      "source": "^(?:y\\s+)?con\\s+(transferencia|transferencia bancaria|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\\??$",
+      "flags": "iu"
+    },
+    {
+      "source": "^(?:y\\s+)?(transferencia|transferencia bancaria|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\\??$",
+      "flags": "iu"
+    },
+    {
+      "source": "^(?:aceptan|manejan|trabajan con)\\s+(transferencia|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\\??$",
+      "flags": "iu"
+    }
+  ],
+  "paymentMethodContextIntents": [
+    "customer.quote",
+    "customer.price_inquiry",
+    "customer.product_info",
+    "customer.topic_info",
+    "customer.schedule_request",
+    "customer.support_request"
+  ],
+  "customerTransactionalPatterns": [
+    {
+      "source": "\\b(stock|disponibilidad|pedido|orden|envio|entrega|comprar|quiero una|quiero uno|medida|medidas)\\b",
+      "flags": "u"
+    }
+  ],
+  "commonCustomerSignalTokens": [
+    "hola",
+    "buenas",
+    "buenos",
+    "dias",
+    "tardes",
+    "noches",
+    "necesito",
+    "quiero",
+    "consulta",
+    "consultar",
+    "informacion",
+    "info",
+    "ayuda",
+    "horario",
+    "ubicacion",
+    "direccion",
+    "telefono",
+    "whatsapp",
+    "contacto",
+    "pago",
+    "pagos",
+    "envio",
+    "entrega",
+    "precio",
+    "cotizacion",
+    "presupuesto"
+  ],
+  "privateAccountFaqGuardPatterns": [
+    {
+      "source": "\\b(mi direccion|direccion de entrega|domicilio de entrega)\\b",
+      "flags": "u"
+    },
+    {
+      "source": "\\b(mi factura|mis facturas|factura de mi pedido|facturas de mi cuenta)\\b",
+      "flags": "u"
+    },
+    {
+      "source": "\\b(mi correo|mi email|mail del sistema|correo del sistema|email del sistema)\\b",
+      "flags": "u"
+    },
+    {
+      "source": "\\b(mi cuenta|datos de cuenta|mis datos)\\b",
+      "flags": "u"
+    }
+  ],
+  "availabilityPatterns": [
+    {
+      "source": "\\b(tienen|manejan|ofrecen|trabajan con|cuentan con|tiempo de entrega|plazo de entrega|demora|tarda|stock|disponibilidad|hay stock)\\b",
+      "flags": "i"
+    }
+  ],
+  "variantQuestionPatterns": [
+    {
+      "source": "\\b((que|qué)\\s+(tipos|opciones|variantes|lineas|líneas|modelos)\\s+(tienen|hay|manejan)|cuales\\s+(tienen|hay|manejan)|cu[aá]les\\s+(tienen|hay|manejan)|((que|qué)\\s+(versiones|formatos)\\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\\s+(las\\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\\b",
+      "flags": "i"
+    }
+  ],
+  "definitionPatterns": [
+    {
+      "source": "\\b(que es|duda sobre|como funciona|para que sirve|explicame|explicame sobre|contame sobre|quiero saber sobre)\\b",
+      "flags": "i"
+    }
+  ],
+  "benefitsPatterns": [
+    {
+      "source": "\\b(beneficios|ventajas|desventajas|diferencia entre|que diferencia hay)\\b",
+      "flags": "i"
+    }
+  ],
+  "maintenancePatterns": [
+    {
+      "source": "\\b(como se limpia|como limpian|mantenimiento de|como mantener)\\b",
+      "flags": "i"
+    }
+  ],
+  "responseSignalPatterns": {
+    "genericClarification": [
+      {
+        "source": "no me queda totalmente claro|que necesitas resolver exactamente|queres contarme un poco mas para orientarte mejor|contame un poco mas y lo vemos",
+        "flags": "u"
+      }
+    ],
+    "genericQuoteIntake": [
+      {
+        "source": "contame que queres cotizar|que producto te interesa|para prepararte un presupuesto|orientarte mejor con el precio",
+        "flags": "u"
+      }
+    ],
+    "genericContact": [
+      {
+        "source": "tenemos atencion por telefono y whatsapp|te comparto el contacto por este medio|si tenemos telefono y whatsapp",
+        "flags": "u"
+      }
+    ],
+    "genericConsultationClosure": [
+      {
+        "source": "si queres seguimos con tu consulta",
+        "flags": "u"
+      }
+    ],
+    "genericQuoteHandoff": [
+      {
+        "source": "no tengo una configuracion publicada con precio inmediato|le enviamos la cotizacion a la brevedad|asesor del equipo se comunica para continuar",
+        "flags": "u"
+      }
+    ],
+    "awaitingProof": [
+      {
+        "source": "cuando lo envies por aca lo tomo|cuando lo envies por aca lo dejo en seguimiento",
+        "flags": "u"
+      }
+    ],
+    "paymentContinuation": [
+      {
+        "source": "\\b(transfer|sena|comprobante|medio de pago|cuenta bancaria|tarjeta|efectivo|contacto por este medio|pago)\\b",
+        "flags": "u"
+      }
+    ],
+    "specificPaymentMethodQuestion": [
+      {
+        "source": "\\b(cuenta bancaria|datos? bancarios?|transferencia bancaria|cuenta en pesos|cuenta en dolares)\\b",
+        "flags": "u"
+      },
+      {
+        "source": "\\b(transferencia|efectivo|tarjeta|tarjetas|debito|credito|cuotas?)\\b",
+        "flags": "u"
+      }
+    ]
+  }
+}

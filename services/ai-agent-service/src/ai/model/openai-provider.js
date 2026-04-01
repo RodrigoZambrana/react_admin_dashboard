@@ -7,6 +7,8 @@ import {
 import { ChatOpenAI } from '@langchain/openai'
 import { z } from 'zod'
 
+import { recordProviderCall } from './provider-call-trace.js'
+
 const flattenTextContent = (content) => {
   if (typeof content === 'string') {
     return content
@@ -136,6 +138,12 @@ export class OpenAIProvider {
   }
 
   async generate({ systemPrompt, history, input, tools, options = {} }) {
+    recordProviderCall({
+      method: 'generate',
+      stage: options?.stage || null,
+      provider: this.providerName,
+      model: this.modelName,
+    })
     const client = this.resolveClient(options)
     const messages = [
       new SystemMessage(systemPrompt),
@@ -223,6 +231,12 @@ export class OpenAIProvider {
       throw new Error('structured extraction schema is required')
     }
 
+    recordProviderCall({
+      method: 'extractStructured',
+      stage: options?.stage || null,
+      provider: this.providerName,
+      model: this.modelName,
+    })
     const targetSchema = z.object(schema)
     const client = this.resolveClient(options)
     const runnable = client.withStructuredOutput(targetSchema, {

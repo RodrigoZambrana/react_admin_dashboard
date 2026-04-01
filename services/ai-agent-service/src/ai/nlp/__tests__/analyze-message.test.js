@@ -72,6 +72,38 @@ test('analyzeMessage forwards configured hybrid intent hints into the prompt', a
     role: 'customer_public',
     input: 'me quedó medio raro el precio final',
     allowModel: true,
+    recentTurns: [
+      { role: 'customer', text: 'Necesito roller blackout de 2x2' },
+      { role: 'agent', text: 'Perfecto. Decime cuántas unidades necesitás.' },
+      { role: 'customer', text: '2 unidades' },
+    ],
+    taskSummary:
+      'intención=customer.quote ; contexto_reciente=customer: Necesito roller blackout de 2x2 ; cantidad=2 ; consulta_actual=me quedó medio raro el precio final',
+    currentTask: {
+      intentKey: 'customer.quote',
+      status: 'open',
+      entities: [{ type: 'topic', value: 'cortinas roller blackout' }],
+    },
+    interpretation: {
+      threadResolution: {
+        activeThread: {
+          resolvedLabel: 'cortinas roller blackout',
+        },
+      },
+      conversationContext: {
+        mode: 'flow',
+        activeDomain: 'quote',
+        nextUsefulField: 'measurements',
+        responseStrategy: 'ask_quote_field',
+        knownFacts: {
+          topic: 'cortinas roller blackout',
+          quantity: 2,
+        },
+      },
+      quoteContext: {
+        missingFields: ['measurements'],
+      },
+    },
     intentRegistryHints: [
       {
         id: 'quote_clarification_runtime',
@@ -83,4 +115,8 @@ test('analyzeMessage forwards configured hybrid intent hints into the prompt', a
 
   assert.match(capturedPrompt, /Hints configurados relevantes:/)
   assert.match(capturedPrompt, /quote_clarification_runtime => customer\.quote/)
+  assert.match(capturedPrompt, /Contexto conversacional compacto:/)
+  assert.match(capturedPrompt, /Resumen operativo:/)
+  assert.match(capturedPrompt, /Hilo activo: cortinas roller blackout\./)
+  assert.match(capturedPrompt, /Próximo dato útil: measurements\./)
 })

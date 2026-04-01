@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
+  buildCustomerQuoteRequestText,
   buildCustomerSupportRequestText,
   buildCustomerScheduleCreatedText,
   renderCustomerDeterministicText,
@@ -12,7 +13,10 @@ import {
 
 test('renderOutcomeText keeps customer and admin wording separated on the same semantic base', () => {
   assert.match(renderOutcomeText({ audience: 'customer', outcome: 'blocked' }), /asesor/i)
-  assert.match(renderOutcomeText({ audience: 'admin', outcome: 'blocked' }), /alcance conversacional/i)
+  assert.match(
+    renderOutcomeText({ audience: 'admin', outcome: 'blocked' }),
+    /alcance conversacional|rol conversacional actual|rol actual/i,
+  )
 })
 
 test('renderOperationDraftOutcome builds confirmation wording for ready drafts', () => {
@@ -139,6 +143,21 @@ test('buildCustomerScheduleCreatedText hides internal appointment wording and tr
   assert.doesNotMatch(text, /actividad/i)
 })
 
+test('buildCustomerScheduleCreatedText omits narrative payloads from the schedule address summary', () => {
+  const text = buildCustomerScheduleCreatedText({
+    scheduleContext: {
+      date: { dateLabel: 'mañana' },
+      time: { timeLabel: '14:45' },
+      address:
+        'Buenas tardes, realizamos todas las cortinas con ustedes, esta es la 4 y vamos a realizar un cambio de guías.',
+    },
+    appointment: { id: 77 },
+  })
+
+  assert.equal(text, 'Perfecto. Ya dejé agendada la visita técnica para mañana a las 14:45.')
+  assert.doesNotMatch(text, /realizamos todas las cortinas|cambio de gu[ií]as/i)
+})
+
 test('buildCustomerScheduleCreatedText honors runtime wording overrides', () => {
   const text = buildCustomerScheduleCreatedText(
     {
@@ -201,4 +220,107 @@ test('buildCustomerSupportRequestText asks only for the missing support issue on
 
   assert.match(text, /persiana de pvc/i)
   assert.match(text, /problema|revisar/i)
+})
+
+test('buildCustomerQuoteRequestText closes ready quote threads on polite deferral without reopening intake', () => {
+  const text = buildCustomerQuoteRequestText('Lo vemos más adelante. Muchas gracias', {
+    interpretation: {
+      quoteContext: {
+        topicLabel: 'cortinas roller blackout',
+        familyLabel: 'cortinas',
+        quantity: { total: 2 },
+        measurements: {
+          confirmationLabel: '2,00 x 2,00 m',
+        },
+      },
+    },
+  })
+
+  assert.match(text, /cuando quieras retomarlo|seguimos por ac[aá]/i)
+  assert.doesNotMatch(text, /qu[eé] quer[eé]s cotizar|producto te interesa/i)
+})
+
+test('buildCustomerQuoteRequestText alternates closure wording when the previous bot message already closed the thread', () => {
+  const text = buildCustomerQuoteRequestText('Gracias', {
+    interpretation: {
+      conversationState: {
+        context: {
+          lastBotMessage: 'Perfecto. Cuando quieras retomarlo, seguimos por acá.',
+        },
+      },
+      quoteContext: {
+        topicLabel: 'cortinas roller blackout',
+        familyLabel: 'cortinas',
+        quantity: { total: 2 },
+        measurements: {
+          confirmationLabel: '2,00 x 2,00 m',
+        },
+      },
+    },
+  })
+
+  assert.match(text, /cualquier cosa me escrib[ií]s/i)
+  assert.doesNotMatch(text, /cuando quieras retomarlo, seguimos por ac[aá]/i)
+})
+
+test('buildCustomerQuoteRequestText turns quote visit follow-ups into coordination guidance', () => {
+  const text = buildCustomerQuoteRequestText('Prefiero que la midan ustedes, mañana no puedo', {
+    interpretation: {
+      quoteContext: {
+        topicLabel: 'cortinas roller blackout',
+        familyLabel: 'cortinas',
+        quantity: { total: 2 },
+        measurements: {
+          confirmationLabel: '2,00 x 2,00 m',
+        },
+      },
+    },
+  })
+
+  assert.match(text, /zona|direcci[oó]n/i)
+  assert.match(text, /d[ií]a|horario|visita/i)
+  assert.doesNotMatch(text, /qu[eé] quer[eé]s cotizar|producto te interesa/i)
+})
+
+test('buildCustomerQuoteRequestText drops garbage quote subjects that come from free-form descriptors', () => {
+  const text = buildCustomerQuoteRequestText('Hola acá encontré necesito para el dormitorio de mi hija', {
+    interpretation: {
+      quoteContext: {
+        topicRecognized: true,
+        profileResolved: true,
+        topicLabel: 'para el dormitorio de mi hija',
+        missingFields: ['measurements', 'quantity'],
+      },
+    },
+  })
+
+  assert.doesNotMatch(text, /presupuesto de para/i)
+  assert.doesNotMatch(text, /\bde para\b/i)
+})
+
+test('buildCustomerQuoteRequestText drops numeric placeholder subjects before asking quote details', () => {
+  const text = buildCustomerQuoteRequestText('Qué valor tiene? Son 250 km', {
+    interpretation: {
+      quoteContext: {
+        topicRecognized: true,
+        profileResolved: true,
+        topicLabel: 'dos',
+        missingFields: ['measurements'],
+      },
+    },
+  })
+
+  assert.doesNotMatch(text, /presupuesto de dos/i)
+  assert.match(text, /medidas aproximadas|cotizaci[oó]n|presupuesto/i)
+})
+
+test('buildCustomerSupportRequestText differentiates announced payment proof from received proof', () => {
+  const planned = buildCustomerSupportRequestText('Ya te envío el comprobante de la seña')
+  const received = buildCustomerSupportRequestText(
+    'Comprobante_TransferenciaTercerosEnElBanco_16_02_2026_12_43.pdf',
+  )
+
+  assert.match(planned, /cuando lo env[ií]es por ac[aá]/i)
+  assert.match(received, /recib[ií] el comprobante/i)
+  assert.notEqual(planned, received)
 })

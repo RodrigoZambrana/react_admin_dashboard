@@ -1,8 +1,8 @@
 import {
   BASE_CONVERSATIONAL_ES_SIGNALS,
-  DOMAIN_SUPPORT_ES_SIGNALS,
   countStemMatches,
   detectStandaloneAttachmentArtifactKind,
+  getDomainSupportSignals,
   hasPhraseMatch,
   normalizeSemanticText,
   tokenizeSemanticText,
@@ -12,31 +12,19 @@ import {
   looksLikeCustomerSupportComponentReplacementRequest,
   looksLikeCustomerSupportServiceRequest,
 } from './customer-operational-heuristics.js'
+import { findBestTenantTopicMatch } from './customer-topic-taxonomy.js'
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 const normalizeText = normalizeSemanticText
 const tokenize = tokenizeSemanticText
 
 const SUPPORT_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.support
-const DOMAIN_SIGNAL_SETS = DOMAIN_SUPPORT_ES_SIGNALS
-
-const PRODUCT_TYPE_PATTERNS = [
-  /\b(persianas?\s+de\s+pvc)\b/iu,
-  /\b(cortinas?\s+roller(?:\s+(?:blackout|screen))?)\b/iu,
-  /\b(cortinas?\s+de\s+enrollar)\b/iu,
-  /\b(cortinas?)\b/iu,
-  /\b(persianas?)\b/iu,
-  /\b(roller(?:\s+(?:blackout|screen))?)\b/iu,
-  /\b(aberturas?(?:\s+de\s+[a-záéíóúñ]+)?)\b/iu,
-  /\b(ventanas?(?:\s+de\s+[a-záéíóúñ]+)?)\b/iu,
-  /\b(puertas?(?:\s+de\s+[a-záéíóúñ]+)?)\b/iu,
-]
 
 const SUPPORT_PRODUCT_IDENTIFICATION_REGEX =
   /^(?:es|son|tengo|tenemos|seria|sería|es una|es un)\b/iu
 
 const SUPPORT_EXISTING_ITEM_REGEX =
-  /\b(existent\w*|instalad\w*|ya\s+instalad\w*|la\s+que\s+tengo|lo\s+que\s+tengo)\b/iu
+  /\b(existent\w*|instalad\w*|ya\s+instalad\w*|colocad\w*|colocaron|la\s+que\s+tengo|lo\s+que\s+tengo)\b/iu
 
 const SUPPORT_VISIT_SIGNAL_REGEX =
   /\b(visita|coordinar|pasar|venir|domicilio|direccion|dirección|zona|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|mañana|manana|hoy|a las|\d{1,2}:\d{2})\b/iu
@@ -61,6 +49,7 @@ const resolveProductType = ({
   currentTopic = null,
   previousSupportContext = null,
   previousQuoteContext = null,
+  tenantTopicTaxonomy = [],
 }) => {
   const topicLabel =
     typeof currentTopic?.label === 'string'
@@ -74,23 +63,35 @@ const resolveProductType = ({
             : null
 
   const source = String(currentTurnText || '')
-  for (const pattern of PRODUCT_TYPE_PATTERNS) {
-    const match = source.match(pattern)
-    if (match?.[1]) {
-      return formatProductLabel(match[1])
-    }
+  const taxonomyMatch = findBestTenantTopicMatch(source, tenantTopicTaxonomy)
+  if (taxonomyMatch?.label) {
+    return formatProductLabel(taxonomyMatch.label)
   }
 
   return topicLabel ? formatProductLabel(topicLabel) : null
 }
 
-const looksLikeProductIdentificationOnly = (currentTurnText) => {
+const looksLikeProductIdentificationOnly = ({
+  currentTurnText,
+  tenantTopicTaxonomy = [],
+  currentTopic = null,
+  previousSupportContext = null,
+  previousQuoteContext = null,
+}) => {
   const normalized = normalizeText(currentTurnText)
   if (!normalized) {
     return false
   }
 
-  const hasProductLabel = PRODUCT_TYPE_PATTERNS.some((pattern) => pattern.test(currentTurnText))
+  const hasProductLabel = Boolean(
+    resolveProductType({
+      currentTurnText,
+      currentTopic,
+      previousSupportContext,
+      previousQuoteContext,
+      tenantTopicTaxonomy,
+    }),
+  )
   const hasExplicitIssue = SUPPORT_ISSUE_EXPLICIT_PATTERNS.some((pattern) =>
     pattern.test(currentTurnText),
   )
@@ -116,12 +117,24 @@ const sanitizeIssueText = (value) => {
 const resolveIssueSummary = ({
   currentTurnText,
   previousSupportContext = null,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+  currentTopic = null,
+  previousQuoteContext = null,
 }) => {
   if (detectStandaloneAttachmentArtifactKind(currentTurnText)) {
     return previousSupportContext?.issueSummary || null
   }
 
-  if (looksLikeProductIdentificationOnly(currentTurnText)) {
+  if (
+    looksLikeProductIdentificationOnly({
+      currentTurnText,
+      tenantTopicTaxonomy,
+      currentTopic,
+      previousSupportContext,
+      previousQuoteContext,
+    })
+  ) {
     return previousSupportContext?.issueSummary || null
   }
 
@@ -131,10 +144,11 @@ const resolveIssueSummary = ({
   }
 
   const tokens = tokenize(normalized)
+  const domainSignalSets = getDomainSupportSignals(tenantRuntimePolicy)
   const serviceMatches = countStemMatches(tokens, SUPPORT_SIGNAL_SETS.serviceStems)
   const replacementMatches = countStemMatches(tokens, SUPPORT_SIGNAL_SETS.replacementStems)
   const problemMatches = countStemMatches(tokens, SUPPORT_SIGNAL_SETS.problemStems)
-  const componentMatches = countStemMatches(tokens, DOMAIN_SIGNAL_SETS.componentStems)
+  const componentMatches = countStemMatches(tokens, domainSignalSets.componentStems)
   const hasProblemPhrase = hasPhraseMatch(normalized, SUPPORT_SIGNAL_SETS.problemPhrases)
 
   const looksLikeIssue =
@@ -153,13 +167,21 @@ const resolveIssueSummary = ({
   return sanitized || previousSupportContext?.issueSummary || null
 }
 
-const resolveIssueKind = (currentTurnText, issueSummary = null) => {
+const resolveIssueKind = (
+  currentTurnText,
+  issueSummary = null,
+  tenantRuntimePolicy = null,
+) => {
   const normalized = normalizeText(currentTurnText || issueSummary)
   if (!normalized) {
     return null
   }
 
-  if (looksLikeCustomerSupportComponentReplacementRequest(normalized)) {
+  if (
+    looksLikeCustomerSupportComponentReplacementRequest(normalized, {
+      tenantRuntimePolicy,
+    })
+  ) {
     return 'component_replacement'
   }
   if (/\b(repar\w*|service|revisi\w*)\b/u.test(normalized)) {
@@ -188,7 +210,7 @@ const buildMissingFields = ({
   const missing = []
 
   if (!productType) {
-    missing.push('product_type')
+    missing.push('product')
   }
   if (!issueSummary) {
     missing.push('issue')
@@ -196,7 +218,7 @@ const buildMissingFields = ({
 
   if (wantsVisit) {
     if (!preferredDate) {
-      missing.push('day')
+      missing.push('date')
     }
     if (!preferredTime) {
       missing.push('time')
@@ -219,6 +241,8 @@ export const buildCustomerSupportContext = ({
   currentScheduleContext = null,
   currentTopic = null,
   previousQuoteContext = null,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
 }) => {
   const previous =
     previousSupportContext && typeof previousSupportContext === 'object'
@@ -236,14 +260,25 @@ export const buildCustomerSupportContext = ({
     currentTopic,
     previousSupportContext: previous,
     previousQuoteContext,
+    tenantTopicTaxonomy,
   })
   const issueSummary = resolveIssueSummary({
     currentTurnText,
     previousSupportContext: previous,
+    tenantTopicTaxonomy,
+    tenantRuntimePolicy,
+    currentTopic,
+    previousQuoteContext,
   })
-  const issueKind = resolveIssueKind(currentTurnText, issueSummary || previous?.issueSummary)
+  const issueKind = resolveIssueKind(
+    currentTurnText,
+    issueSummary || previous?.issueSummary,
+    tenantRuntimePolicy,
+  )
   const wantsVisit = Boolean(
-    looksLikeCustomerScheduleAvailabilityRequest(currentTurnText) ||
+    looksLikeCustomerScheduleAvailabilityRequest(currentTurnText, {
+      tenantRuntimePolicy,
+    }) ||
       SUPPORT_VISIT_SIGNAL_REGEX.test(String(currentTurnText || '')) ||
       scheduleContext ||
       previous?.wantsVisit,
@@ -298,7 +333,10 @@ export const buildCustomerSupportContext = ({
     stage = wantsVisit ? 'visit_intake' : 'issue_defined'
   }
 
-  if (wantsVisit && missingFields.every((field) => !['day', 'time', 'address', 'contact'].includes(field))) {
+  if (
+    wantsVisit &&
+    missingFields.every((field) => !['date', 'time', 'address', 'contact'].includes(field))
+  ) {
     stage = 'ready_to_schedule'
   }
 
@@ -324,6 +362,9 @@ export const buildCustomerSupportContext = ({
     existingInstallation:
       SUPPORT_EXISTING_ITEM_REGEX.test(String(currentTurnText || '')) ||
       previous?.existingInstallation === true ||
-      looksLikeCustomerSupportServiceRequest(String(currentTurnText || '')),
+      looksLikeCustomerSupportServiceRequest(String(currentTurnText || ''), {
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      }),
   }
 }
