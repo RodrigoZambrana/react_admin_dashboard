@@ -136,6 +136,7 @@ import { normalizeCustomerTextForIntent } from './intents/customer-text-normaliz
 import { isGenericQuoteTopicLabel } from './intents/quote-semantics.js'
 import {
   detectStandaloneAttachmentArtifactKind,
+  hasAttachmentReferenceSignal,
   hasMultimodalPlannedArtifactSignal,
   hasMultimodalReferenceSignal,
   hasReengagementReferenceSignal,
@@ -200,12 +201,6 @@ import {
   shouldSkipKnowledgeRetrieval,
 } from './retrieval/retrieval-gate.js'
 import { reconcileResponseGroundingAudit } from './grounding/grounding-audit.js'
-import { preventCustomerResponseLoop } from './runtime/loop-prevention.js'
-import {
-  finalizeResponseRuntimeContract,
-  reconcileResponseProvenance,
-  sanitizeResponseRuntimeContract,
-} from './runtime/response-provenance.js'
 
 const STOP_TOKENS = new Set([
   'de',
@@ -654,11 +649,6 @@ const looksLikeCustomerFollowUp = (text) =>
     String(text || ''),
   )
 
-const looksLikeAttachmentReference = (text) =>
-  /(adjunto|archivo|pdf|imagen|captura|audio|voz|excel|planilla|csv|xlsx|foto|comprobante)/i.test(
-    String(text || ''),
-  )
-
 const looksLikeScheduleContinuationInput = (text) =>
   /\b(hoy|mañana|pasado mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{4})?|a las\s+\d{1,2}(?::\d{2})?|\d{1,2}:\d{2}|entre las|franja|temprano|temprana|despues de las|después de las|por la mañana|por la tarde|por la noche|direccion|dirección|ubicacion|ubicación|avenida|av\.|calle|ruta|telefono|teléfono|celular|whatsapp|mail|email|correo)\b/i.test(
     String(text || ''),
@@ -667,22 +657,6 @@ const looksLikeScheduleContinuationInput = (text) =>
     String(text || ''),
   ) ||
   /\b(podrian|podrían|pueden)\s+(pasar|venir)\b/i.test(String(text || ''))
-
-const looksLikeExplicitFaqQuestionInput = (text) => {
-  const value = String(text || '').trim()
-  if (!value) {
-    return false
-  }
-
-  return (
-    /[?¿]/.test(value) ||
-    /\b(cual|cu[aá]l|como|cómo|donde|dónde|cuando|cuándo)\b/i.test(value) ||
-    /\b(medios de pago|formas de pago|horario|horarios)\b/i.test(value) ||
-    /\b(?:aceptan|manejan|trabajan con|tienen)\b.*\b(?:tarjeta|tarjetas|transferencia|efectivo|debito|d[eé]bito|credito|cr[eé]dito|telefono|tel[eé]fono|whatsapp|mail|email)\b/i.test(
-      value,
-    )
-  )
-}
 
 const NON_QUOTE_CONTINUATION_FAQ_SUBTYPES = new Set([
   'business_hours',
@@ -845,6 +819,33 @@ const buildClosureContinuationReply = (previousAgentText = '') =>
     ? 'Dale, cualquier cosa me escribís.'
     : 'Perfecto. Cuando quieras retomarlo, seguimos por acá.'
 
+const buildContextualClosureContinuationReply = ({
+  context = 'general',
+  previousAgentText = '',
+} = {}) => {
+  const repeated = looksLikeClosureContinuationResponse(previousAgentText)
+
+  if (context === 'quote') {
+    return repeated
+      ? 'Dale. Si más adelante querés retomar la cotización, seguimos por acá.'
+      : 'Perfecto. La cotización queda encaminada y, cuando quieras retomarla, seguimos por acá.'
+  }
+
+  if (context === 'schedule') {
+    return repeated
+      ? 'Dale. Si más adelante querés retomar la coordinación, seguimos por acá.'
+      : 'Perfecto. La coordinación queda encaminada y, cuando quieras retomarla, seguimos por acá.'
+  }
+
+  if (context === 'support') {
+    return repeated
+      ? 'Dale. Si más adelante querés retomar la revisión, seguimos por acá.'
+      : 'Perfecto. La revisión queda encaminada y, cuando quieras retomarla, seguimos por acá.'
+  }
+
+  return buildClosureContinuationReply(previousAgentText)
+}
+
 const sanitizeLoopSubjectLabel = (value = null) => {
   const compacted = compactText(value)
   const normalized = normalizeText(compacted)
@@ -873,6 +874,11 @@ const looksLikeAddressOrTimeReply = (text) =>
   /\b(direcci[oó]n|zona|esq|esquina|avenida|av\.?|calle|apto|apartamento|shop|local|horario|hoy|mañana|lunes|martes|mi[eé]rcoles|miercoles|jueves|viernes|s[aá]bado|sabado|domingo|a las|pasen|ir[ií]an|volver|vuelvan)\b/i.test(
     String(text || ''),
   ) || /\b\d{3,5}\b/.test(String(text || ''))
+
+const looksLikeQuoteVisitCoordinationFollowUp = (text) =>
+  /\b(medir|midan|midieras|midan\s+ustedes|pasen\s+a\s+medir|tomen\s+medidas|visita|coordinar|direccion|direcci[oó]n|ubicacion|ubicaci[oó]n|manana|ma[nñ]ana|lunes|martes|miercoles|mi[eé]rcoles|jueves|viernes|sabado|s[aá]bado|domingo|horario|a\s+las|no\s+puedo)\b/u.test(
+    normalizeText(text),
+  )
 
 const QUOTE_DETAIL_FOLLOW_UP_STOP_TOKENS = new Set([
   'si',
@@ -909,7 +915,7 @@ const looksLikeQuoteDetailFollowUp = (text) => {
     looksLikeInformationExpansionRequest(raw) ||
     looksLikeCommercialConditionQuestion(raw) ||
     looksLikeOperationalStatusContinuation(raw) ||
-    looksLikeAttachmentReference(raw)
+    hasAttachmentReferenceSignal(raw)
   ) {
     return false
   }
@@ -973,7 +979,10 @@ const shouldPreferCustomerQuoteGuidance = ({
     return false
   }
 
-  if (readiness.answerMode === 'inform_then_guide_quote') {
+  if (
+    readiness.answerMode === 'inform_then_guide_quote' ||
+    readiness.answerMode === 'answer_side_question'
+  ) {
     return false
   }
 
@@ -1012,6 +1021,46 @@ const shouldPreferCustomerQuoteGuidance = ({
   )
 }
 
+const shouldResumeQuoteProgressFromOperationalFollowUp = ({
+  intentKey,
+  input,
+  interpretation = null,
+  tenantTopicTaxonomy = [],
+}) => {
+  if (!['customer.product_info', 'customer.topic_info'].includes(String(intentKey || ''))) {
+    return false
+  }
+
+  const readiness = readInterpretationResolutionReadiness(interpretation)
+  const readinessLane = normalizeIntentKeyValue(readiness?.lane)
+  const readinessAnswerMode = normalizeIntentKeyValue(readiness?.answerMode)
+  if (readinessLane !== 'quote' || readinessAnswerMode !== 'answer_side_question') {
+    return false
+  }
+
+  const quoteContext =
+    interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
+      ? interpretation.quoteContext
+      : null
+  const quoteCapturedAttributes =
+    quoteContext?.capturedAttributes &&
+    typeof quoteContext.capturedAttributes === 'object'
+      ? Object.keys(quoteContext.capturedAttributes)
+      : []
+
+  return (
+    (
+      looksLikeConfiguredProductInterest(input, tenantTopicTaxonomy) ||
+      looksLikeGenericPriceInquiry(input) ||
+      looksLikeQuoteRequirementsQuestion(input)
+    ) &&
+    (
+      Boolean(quoteContext?.topicLabel || quoteContext?.familyLabel) ||
+      quoteCapturedAttributes.length > 0
+    )
+  )
+}
+
 const composeQuoteKnowledgeFirstText = ({
   informationText = '',
   input = '',
@@ -1030,6 +1079,7 @@ const composeQuoteKnowledgeFirstText = ({
   if (
     readiness?.lane !== 'quote' ||
     readiness?.waitForMore === true ||
+    readiness?.answerMode === 'answer_side_question' ||
     missingFields.length === 0
   ) {
     return baseText
@@ -1043,6 +1093,7 @@ const composeQuoteKnowledgeFirstText = ({
       readiness?.turnIntent !== 'customer.quote'
     ) &&
     !readiness?.sideQuestionSubtype &&
+    readiness?.answerMode !== 'answer_side_question' &&
     !looksLikeInformationExpansionRequest(input) &&
     !looksLikeMaterialFollowUpRequest(input) &&
     (
@@ -1495,10 +1546,16 @@ const buildRetrievalFaqGroundingContract = ({
     interpretation.normalizedCurrentTurn.trim()
       ? interpretation.normalizedCurrentTurn.trim()
       : input
-  const faqSubtype = detectCustomerFaqSubtype(detectionInput, {
-    retrievalItems,
-    tenantRuntimePolicy,
-  })
+  const interpretedFaqSubtype = [
+    readInterpretationResolutionReadiness(interpretation)?.sideQuestionSubtype,
+    interpretation?.faqSubtype,
+  ].find((value) => hasSpecificFaqSubtype(value))
+  const faqSubtype =
+    interpretedFaqSubtype ||
+    detectCustomerFaqSubtype(detectionInput, {
+      retrievalItems,
+      tenantRuntimePolicy,
+    })
   const evidence = selectCustomerFaqEvidence({
     input: detectionInput,
     retrievalItems,
@@ -5354,7 +5411,7 @@ export class AiAgentRuntime {
       looksLikeContextualReference(baseInput) ||
       looksLikeShortContextualFollowUp(baseInput) ||
       looksLikeCustomerFollowUp(baseInput) ||
-      looksLikeAttachmentReference(baseInput) ||
+      hasAttachmentReferenceSignal(baseInput) ||
       (extractedAssets.length > 0 &&
         !extractedAssets.some(
           (item) => item?.usableForContext && String(item?.normalizedText || '').trim(),
@@ -6382,6 +6439,7 @@ export class AiAgentRuntime {
             operationalContext,
             backendClient: scopedBackendClient,
             tenantTopicTaxonomy,
+            tenantRuntimePolicy,
             tenantKey: unifiedMessage.tenantKey || null,
             unifiedMessage,
             variationSeed: customerVariationSeed,
@@ -6543,6 +6601,21 @@ export class AiAgentRuntime {
       ) &&
       (!Array.isArray(retrievalContext.items) || retrievalContext.items.length === 0) &&
       deterministicResult?.response?.grounding?.grounded !== true
+    const deterministicProviderFallbackText =
+      typeof deterministicResult?.response?.finalUserText === 'string' &&
+      deterministicResult.response.finalUserText.trim()
+        ? deterministicResult.response.finalUserText.trim()
+        : typeof deterministicResult?.response?.text === 'string' &&
+            deterministicResult.response.text.trim()
+          ? deterministicResult.response.text.trim()
+          : ''
+    const deterministicProviderFallbackResponse = deterministicProviderFallbackText
+      ? {
+          ...deterministicResult.response,
+          text: deterministicProviderFallbackText,
+          finalUserText: deterministicProviderFallbackText,
+        }
+      : null
 
     let generatedResponse
     let aiExchange = null
@@ -6586,20 +6659,22 @@ export class AiAgentRuntime {
     } else {
       const quotaCheck = await this.ensureProviderQuotaAvailable()
       if (!quotaCheck.allowed) {
-        generatedResponse = this.buildProviderFallbackResponse({
-          role,
-          roleConfig,
-          intentKey: taskMemory.intentKey,
-          input: effectiveInput,
-          retrievalContext,
-          operationalContext: resolvedOperationalContext,
-          fallbackReason: 'budget_exceeded',
-          interpretation: turnInterpretation,
-          tenantTopicTaxonomy,
-          tenantRuntimePolicy,
-          previousIntentKey: priorIntentKey,
-          channel: unifiedMessage.channel || null,
-        })
+        generatedResponse =
+          deterministicProviderFallbackResponse ||
+          this.buildProviderFallbackResponse({
+            role,
+            roleConfig,
+            intentKey: taskMemory.intentKey,
+            input: effectiveInput,
+            retrievalContext,
+            operationalContext: resolvedOperationalContext,
+            fallbackReason: 'budget_exceeded',
+            interpretation: turnInterpretation,
+            tenantTopicTaxonomy,
+            tenantRuntimePolicy,
+            previousIntentKey: priorIntentKey,
+            channel: unifiedMessage.channel || null,
+          })
         generatedResponse = this.appendAdminDebugSummary(generatedResponse, {
           stage: 'provider_generation',
           role,
@@ -6774,20 +6849,22 @@ export class AiAgentRuntime {
               error: `${fallbackReason}${providerFailure.statusCode ? ` (HTTP ${providerFailure.statusCode})` : ''}`,
             },
           }
-          generatedResponse = this.buildProviderFallbackResponse({
-            role,
-            roleConfig,
-            intentKey: taskMemory.intentKey,
-            input: effectiveInput,
-            retrievalContext,
-            operationalContext: resolvedOperationalContext,
-            fallbackReason,
-            interpretation: turnInterpretation,
-            tenantTopicTaxonomy,
-            tenantRuntimePolicy,
-            previousIntentKey: priorIntentKey,
-            channel: unifiedMessage.channel || null,
-          })
+          generatedResponse =
+            deterministicProviderFallbackResponse ||
+            this.buildProviderFallbackResponse({
+              role,
+              roleConfig,
+              intentKey: taskMemory.intentKey,
+              input: effectiveInput,
+              retrievalContext,
+              operationalContext: resolvedOperationalContext,
+              fallbackReason,
+              interpretation: turnInterpretation,
+              tenantTopicTaxonomy,
+              tenantRuntimePolicy,
+              previousIntentKey: priorIntentKey,
+              channel: unifiedMessage.channel || null,
+            })
 
           generatedResponse = this.appendAdminDebugSummary(generatedResponse, {
             stage: 'provider_generation',
@@ -6899,87 +6976,25 @@ export class AiAgentRuntime {
       role,
       knowledgeMode: retrievalContext.knowledgeMode || 'full',
     })
-    const effectiveAnswerMode = resolveEffectiveCustomerAnswerMode({
-      input: turnInterpretation?.currentTurnText || effectiveInput,
-      interpretation: turnInterpretation,
-      response: knowledgeControlledResponse,
-    })
-    const { response: groundedResponse, responseRuntime } = reconcileResponseProvenance({
+    const groundedResponse = this.reconcileResponseGrounding({
       response: knowledgeControlledResponse,
       retrievalContext,
       interpretation: turnInterpretation,
       tenantRuntimePolicy,
-      intentKey: taskMemory.intentKey,
-      answerMode: effectiveAnswerMode,
-      responseMode,
-      aiExchange,
-      providerGenerationAttempted,
-      dependencies: {
-        reconcileResponseGroundingAudit,
-        compactText,
-        normalizeGroundingFactList,
-        extractMeaningfulTokens,
-        extractTopicTokens,
-        responseMentionsCanonicalTopic: (responseText, topic) =>
-          this.responseMentionsCanonicalTopic(responseText, topic),
-      },
     })
-    const { response: loopCheckedResponse, loopIntervention } = preventCustomerResponseLoop({
+    const finalConversationResponse = this.preventCustomerResponseLoop({
       response: groundedResponse,
       previousSnapshot,
       interpretation: turnInterpretation,
-      tenantRuntimePolicy,
-      dependencies: {
-        compactText,
-        normalizeText,
-        readInterpretationResolutionReadiness,
-        looksLikePaymentProofArtifact,
-        looksLikePaymentProofFollowUpRequest,
-        looksLikePaymentOperationalUpdate,
-        filterResolvedConversationFields,
-        isConversationFieldResolved,
-        normalizeIntentKeyValue,
-        sanitizeLoopSubjectLabel,
-        buildClosureContinuationReply,
-        hasPaymentContinuationSignal,
-        looksLikeAmountOnlyReply,
-        looksLikeAwaitingProofResponse,
-        looksLikeGenericClarificationResponse,
-        looksLikeGenericContactResponse,
-        looksLikeGenericConsultationClosureResponse,
-        looksLikeGenericQuoteHandoffResponse,
-        looksLikeGenericQuoteIntakeResponse,
-        looksLikeOperationalStatusContinuation,
-        looksLikeLightClosureFollowUp,
-        looksLikeClosureContinuationResponse,
-        looksLikeQuoteDetailFollowUp,
-        looksLikeCoordinationAskResponse,
-        looksLikeAttachmentReference,
-        hasCatalogVocabularySignal,
-        looksLikeGenericPriceInquiry,
-        looksLikeAddressOrTimeReply,
-      },
-    })
-    const finalizedResponseRuntime = finalizeResponseRuntimeContract({
-      responseRuntime,
-      response: loopCheckedResponse,
       retrievalContext,
-      loopIntervention,
-      finalizationStage: loopIntervention.applied
-        ? 'loop_prevention_applied'
-        : 'loop_prevention_checked',
+      tenantRuntimePolicy,
     })
-    const finalConversationResponse = {
-      ...loopCheckedResponse,
-      responseRuntime: finalizedResponseRuntime,
-    }
     const responseMetrics = this.buildConversationalMetrics({
       role,
       interpretation: turnInterpretation,
       inboundClassification,
       previousSnapshot,
       response: finalConversationResponse,
-      responseRuntime: finalizedResponseRuntime,
       validation: responseValidation.validation,
       providerGenerationAttempted,
       unifiedMessage,
@@ -7020,7 +7035,6 @@ export class AiAgentRuntime {
         messageContextOrigin: messageContextAudit.messageContextOrigin,
         turnInterpretation,
         responseValidation: responseValidation.validation,
-        responseRuntime: finalizedResponseRuntime,
         conversationAnalysis: llmInterpretation,
         conversationMode,
         orchestratorDecision,
@@ -7143,7 +7157,6 @@ export class AiAgentRuntime {
       finalUserText: annotatedResponse.finalUserText ?? annotatedResponse.text,
       debugSummary: annotatedResponse.debugSummary ?? null,
       auditPayload: annotatedResponse.auditPayload ?? null,
-      responseRuntime: annotatedResponse.responseRuntime ?? null,
       toolCalls: annotatedResponse.toolCalls ?? [],
       quoteResolution: annotatedResponse.quoteResolution ?? null,
       needsHuman: Boolean(annotatedResponse.needsHuman),
@@ -7560,6 +7573,909 @@ export class AiAgentRuntime {
           .join(' '),
       },
       toolCalls: Array.isArray(response?.toolCalls) ? response.toolCalls : [],
+    }
+  }
+
+  reconcileResponseGrounding({
+    response,
+    retrievalContext,
+    interpretation = null,
+    tenantRuntimePolicy = null,
+  }) {
+    return reconcileResponseGroundingAudit({
+      response,
+      retrievalContext,
+      interpretation,
+      tenantRuntimePolicy,
+      compactText,
+      normalizeGroundingFactList,
+      extractMeaningfulTokens,
+      extractTopicTokens,
+      responseMentionsCanonicalTopic: (responseText, topic) =>
+        this.responseMentionsCanonicalTopic(responseText, topic),
+    })
+  }
+
+  preventCustomerResponseLoop({
+    response,
+    previousSnapshot = null,
+    interpretation = null,
+    retrievalContext = null,
+    tenantRuntimePolicy = null,
+  }) {
+    if (!response || typeof response !== 'object') {
+      return response
+    }
+
+    const responseText = compactText(response?.finalUserText || response?.text || '')
+    if (!responseText) {
+      return response
+    }
+    const retrievalItems = Array.isArray(retrievalContext?.items)
+      ? retrievalContext.items.filter((item) => item && typeof item === 'object')
+      : []
+    const hasRetrievedKnowledge = retrievalItems.length > 0
+    const currentTurnText = String(
+      interpretation?.currentTurnText ||
+        interpretation?.effectiveInput ||
+        interpretation?.originalInput ||
+        '',
+    )
+    const paymentProofContinuityInput =
+      looksLikePaymentProofArtifact(currentTurnText) ||
+      looksLikePaymentProofFollowUpRequest(currentTurnText) ||
+      looksLikePaymentOperationalUpdate(currentTurnText)
+
+    const previousAgentTurn = Array.isArray(previousSnapshot?.turns)
+      ? [...previousSnapshot.turns]
+          .reverse()
+          .find((entry) => entry?.role === 'agent' && typeof entry?.text === 'string')
+      : null
+    const previousAgentText = compactText(previousAgentTurn?.text || '')
+    const tokenizeLoopText = (value) =>
+      normalizeText(value)
+        .split(/[^a-z0-9]+/u)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length >= 3)
+    const tokenJaccard = (left, right) => {
+      const leftSet = new Set(left)
+      const rightSet = new Set(right)
+      if (!leftSet.size && !rightSet.size) {
+        return 1
+      }
+      const intersection = Array.from(leftSet).filter((token) =>
+        rightSet.has(token),
+      ).length
+      const union = new Set([...leftSet, ...rightSet]).size
+      return union === 0 ? 0 : intersection / union
+    }
+    const repeatedResponse =
+      previousAgentText &&
+      normalizeText(previousAgentText) === normalizeText(responseText)
+    const loopingResponse =
+      previousAgentText &&
+      !repeatedResponse &&
+      tokenJaccard(
+        tokenizeLoopText(previousAgentText),
+        tokenizeLoopText(responseText),
+      ) >= 0.78
+    if (paymentProofContinuityInput && !repeatedResponse && !loopingResponse) {
+      return response
+    }
+    const readiness = readInterpretationResolutionReadiness(interpretation)
+    const missingFields = Array.isArray(readiness?.missingFields)
+      ? readiness.missingFields.filter((entry) => typeof entry === 'string')
+      : []
+    const conversationState =
+      interpretation?.conversationState && typeof interpretation.conversationState === 'object'
+        ? interpretation.conversationState
+        : null
+    const effectiveMissingFields = filterResolvedConversationFields({
+      missingFields,
+      conversationState,
+    })
+    const quoteContext =
+      interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
+        ? interpretation.quoteContext
+        : null
+    const supportContext =
+      interpretation?.supportContext && typeof interpretation.supportContext === 'object'
+        ? interpretation.supportContext
+        : null
+    const scheduleContext =
+      interpretation?.scheduleContext && typeof interpretation.scheduleContext === 'object'
+        ? interpretation.scheduleContext
+        : null
+    const resolveRequestedFieldFromResponse = (text) => {
+      const normalized = normalizeText(text)
+      if (!normalized) {
+        return null
+      }
+      if (/\b(zona|direccion|dirección|domicilio|ubicacion|ubicación)\b/u.test(normalized)) {
+        return 'address'
+      }
+      if (/\b(que dia|qué día|dia te sirve|día te sirve)\b/u.test(normalized)) {
+        return 'date'
+      }
+      if (
+        /\b(horario|franja|a que hora|a qué hora|hora te queda|hora te sirve)\b/u.test(
+          normalized,
+        )
+      ) {
+        return 'time'
+      }
+      if (/\b(cuantas unidades|cuántas unidades|cantidad)\b/u.test(normalized)) {
+        return 'quantity'
+      }
+      if (
+        /\b(medidas|ancho por alto|medida aproximada|medidas aproximadas)\b/u.test(
+          normalized,
+        )
+      ) {
+        return 'measurements'
+      }
+      if (
+        /\b(que producto|qué producto|que solucion|qué solución|que queres cotizar|qué querés cotizar)\b/u.test(
+          normalized,
+        )
+      ) {
+        return 'product'
+      }
+      return null
+    }
+    const requestedField = resolveRequestedFieldFromResponse(responseText)
+    const asksResolvedField =
+      requestedField && isConversationFieldResolved(requestedField, conversationState)
+    const quantity = Number(quoteContext?.quantity?.total || readiness?.knownFacts?.quantity || 0)
+    const measurementsLabel =
+      quoteContext?.measurements?.displayLabel ||
+      quoteContext?.measurements?.confirmationLabel ||
+      null
+    const effectiveIntentKey = normalizeIntentKeyValue(
+      interpretation?.intent?.key || readiness?.turnIntent || null,
+    )
+    const previousQuoteSubject = compactText(conversationState?.slots?.product?.value || '')
+    const currentQuoteSubject = compactText(
+      quoteContext?.topicLabel || quoteContext?.familyLabel || '',
+    )
+    const selectStablePolicyQuoteSubject = (...candidates) => {
+      const validCandidates = candidates
+        .map((candidate) => compactText(candidate || ''))
+        .filter(Boolean)
+        .filter(
+          (candidate) =>
+            hasCatalogVocabularySignal(candidate, tenantRuntimePolicy) ||
+            Boolean(findBestPolicyTopicMatch(candidate, tenantRuntimePolicy)),
+        )
+
+      if (!validCandidates.length) {
+        return null
+      }
+
+      const directTopicCandidate = validCandidates.find(
+        (candidate) =>
+          normalizeText(candidate) === normalizeText(currentQuoteSubject) ||
+          normalizeText(candidate) === normalizeText(quoteContext?.topicLabel || '') ||
+          normalizeText(candidate) === normalizeText(quoteContext?.familyLabel || ''),
+      )
+      if (directTopicCandidate) {
+        return directTopicCandidate
+      }
+
+      const previousSpecificCandidate =
+        previousQuoteSubject &&
+        validCandidates.find(
+          (candidate) =>
+            normalizeText(candidate) === normalizeText(previousQuoteSubject) &&
+            currentQuoteSubject &&
+            normalizeText(candidate).includes(normalizeText(currentQuoteSubject)) &&
+            previousQuoteSubject.split(/\s+/u).length > currentQuoteSubject.split(/\s+/u).length,
+        )
+      if (previousSpecificCandidate) {
+        return previousSpecificCandidate
+      }
+
+      return validCandidates[0]
+    }
+    const stableQuoteSubject = sanitizeLoopSubjectLabel(
+      selectStablePolicyQuoteSubject(
+        quoteContext?.topicLabel,
+        quoteContext?.familyLabel,
+        interpretation?.threadResolution?.activeThread?.displayLabel,
+        interpretation?.topic?.label,
+        interpretation?.contextTopic?.label,
+        previousQuoteSubject,
+      ),
+    )
+    const hasActiveQuoteThread = Boolean(
+      quoteContext?.topicLabel ||
+        quoteContext?.familyLabel ||
+        quantity > 0 ||
+        measurementsLabel,
+    )
+    const quoteLoopBreakEligible =
+      (readiness?.lane === 'quote' || quoteContext) &&
+      effectiveIntentKey !== 'customer.schedule_request' &&
+      effectiveIntentKey !== 'customer.support_request' &&
+      !scheduleContext &&
+      !supportContext
+    const sideQuestionContractActive =
+      readiness?.answerMode === 'answer_side_question' &&
+      ['quote', 'support', 'schedule'].includes(String(readiness?.lane || ''))
+    const groundedSideQuestionProtected =
+      sideQuestionContractActive &&
+      (
+        response?.grounding?.grounded === true ||
+        hasRetrievedKnowledge
+      )
+    const initialReadyQuoteHandoff =
+      !previousAgentText &&
+      ['ready_for_pricing_or_handoff', 'ready_for_handoff'].includes(
+        String(quoteContext?.completionStatus || ''),
+      ) &&
+      looksLikeGenericQuoteHandoffResponse(responseText)
+    if (initialReadyQuoteHandoff) {
+      return response
+    }
+    const courtesyContinuationCandidate =
+      looksLikeLightClosureFollowUp(currentTurnText) &&
+      ((readiness?.lane === 'quote' && hasActiveQuoteThread) ||
+        readiness?.lane === 'support' ||
+        readiness?.lane === 'schedule' ||
+        quoteContext ||
+        supportContext ||
+        scheduleContext) &&
+      (looksLikeGenericContactResponse(responseText) ||
+        looksLikeGenericQuoteIntakeResponse(responseText) ||
+        looksLikeGenericQuoteHandoffResponse(responseText) ||
+        looksLikeCoordinationAskResponse(responseText))
+    const quoteDetailContinuationCandidate =
+      Boolean(previousAgentText) &&
+      (readiness?.lane === 'quote' || quoteContext) &&
+      (
+        looksLikeQuoteDetailFollowUp(currentTurnText) ||
+        (
+          Boolean(measurementsLabel) &&
+          !/\d/.test(String(currentTurnText || ''))
+        )
+      ) &&
+      (looksLikeGenericQuoteIntakeResponse(responseText) ||
+        looksLikeGenericQuoteHandoffResponse(responseText))
+    const paymentFollowUpLoopCandidate =
+      Boolean(previousAgentText) &&
+      looksLikeAmountOnlyReply(currentTurnText) &&
+      looksLikeGenericContactResponse(responseText) &&
+      hasPaymentContinuationSignal(previousAgentText)
+    const responseReintroducesKnownMeasurements =
+      Boolean(measurementsLabel) &&
+      normalizeText(responseText).includes(normalizeText(measurementsLabel))
+    const quoteMeasurementCarryoverCandidate =
+      hasActiveQuoteThread &&
+      Boolean(previousAgentText) &&
+      looksLikeQuoteDetailFollowUp(currentTurnText) &&
+      !/\d/.test(String(currentTurnText || '')) &&
+      responseReintroducesKnownMeasurements
+    const quoteSubjectSpecificityRegressionCandidate =
+      hasActiveQuoteThread &&
+      Boolean(previousAgentText) &&
+      (looksLikeQuoteDetailFollowUp(currentTurnText) ||
+        Boolean(measurementsLabel) ||
+        quantity > 0) &&
+      stableQuoteSubject &&
+      !normalizeText(responseText).includes(normalizeText(stableQuoteSubject)) &&
+      Boolean(currentQuoteSubject) &&
+      normalizeText(responseText).includes(normalizeText(currentQuoteSubject))
+    const strongActiveThread =
+      hasActiveQuoteThread ||
+      Boolean(
+        interpretation?.threadResolution?.activeThread?.displayLabel ||
+          interpretation?.topic?.label ||
+          interpretation?.contextTopic?.label ||
+          supportContext?.issueSummary ||
+          supportContext?.address ||
+          scheduleContext?.address ||
+          scheduleContext?.date?.dateLabel ||
+          scheduleContext?.time?.timeLabel,
+      )
+    const fallbackContractCandidate =
+      strongActiveThread &&
+      !looksLikeLightClosureFollowUp(currentTurnText) &&
+      (looksLikeGenericClarificationResponse(responseText) ||
+        looksLikeGenericConsultationClosureResponse(responseText))
+    const closureLoopCandidate =
+      strongActiveThread &&
+      !looksLikeLightClosureFollowUp(currentTurnText) &&
+      looksLikeClosureContinuationResponse(responseText)
+    const partialScheduleLoopCandidate =
+      (readiness?.lane === 'schedule' || scheduleContext) &&
+      /\b(d[ií]a y horario|horario y d[ií]a|qu[eé] d[ií]a y horario)\b/i.test(responseText) &&
+      effectiveMissingFields.length === 1 &&
+      ['date', 'time'].includes(String(effectiveMissingFields[0] || ''))
+
+    if (
+      groundedSideQuestionProtected &&
+      response?.grounding?.grounded === true
+    ) {
+      return response
+    }
+
+    if (
+      !repeatedResponse &&
+      !loopingResponse &&
+      !courtesyContinuationCandidate &&
+      !quoteDetailContinuationCandidate &&
+      !quoteMeasurementCarryoverCandidate &&
+      !paymentFollowUpLoopCandidate &&
+      !quoteSubjectSpecificityRegressionCandidate &&
+      !asksResolvedField &&
+      !fallbackContractCandidate &&
+      !closureLoopCandidate &&
+      !partialScheduleLoopCandidate
+    ) {
+      return response
+    }
+
+    const buildGroundedSideQuestionLoopBreak = () => {
+      if (!groundedSideQuestionProtected || !hasRetrievedKnowledge) {
+        return null
+      }
+
+      const detectionInput =
+        typeof interpretation?.normalizedCurrentTurn === 'string' &&
+        interpretation.normalizedCurrentTurn.trim()
+          ? interpretation.normalizedCurrentTurn.trim()
+          : currentTurnText
+      const faqSubtype =
+        [
+          readiness?.sideQuestionSubtype,
+          interpretation?.faqSubtype,
+        ].find((value) => hasSpecificFaqSubtype(value)) ||
+        detectCustomerFaqSubtype(detectionInput, {
+          retrievalItems,
+          tenantRuntimePolicy,
+        })
+      const evidenceFacts = selectCustomerFaqEvidence({
+        input: detectionInput,
+        retrievalItems,
+        faqSubtype,
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+        tenantRuntimePolicy,
+      })
+        .map((entry) => entry?.text)
+        .filter(Boolean)
+      const factCandidates =
+        evidenceFacts.length > 0
+          ? evidenceFacts
+          : extractKnowledgeFallbackStatements(retrievalItems, {
+              input: detectionInput,
+              tenantRuntimePolicy,
+              limit: 2,
+            })
+      const factText =
+        factCandidates[0] ||
+        extractGroundingFactsFromText(
+          [retrievalItems[0]?.snippet, retrievalItems[0]?.summary]
+            .filter(Boolean)
+            .join('. '),
+          1,
+        )[0] ||
+        null
+
+      if (!factText) {
+        return null
+      }
+
+      const continuation =
+        readiness?.lane === 'quote' && hasActiveQuoteThread
+          ? ' Si querés, seguimos con la misma cotización por acá.'
+          : ''
+
+      return compactText(
+        `${factText}${/[.!?]$/.test(factText) ? '' : '.'}${continuation}`,
+      )
+    }
+
+    const buildQuoteLoopBreak = () => {
+      if (looksLikeLightClosureFollowUp(currentTurnText)) {
+        return buildContextualClosureContinuationReply({
+          context: 'quote',
+          previousAgentText,
+        })
+      }
+
+      const stateNotes = []
+      if (stableQuoteSubject) {
+        stateNotes.push(`ya tomé ${stableQuoteSubject}`)
+      }
+      if (measurementsLabel) {
+        stateNotes.push(`me queda ${measurementsLabel}`)
+      }
+      if (quantity > 0) {
+        stateNotes.push(quantity === 1 ? 'anoto 1 unidad' : `anoto ${quantity} unidades`)
+      }
+      const currentTurnAddsFreshMeasurement =
+        /\d/.test(String(currentTurnText || '')) &&
+        /\b(?:x|×|ancho|alto|cm|mm|mts?|metros?)\b/i.test(
+          String(currentTurnText || ''),
+        )
+      const previousAgentAlreadyMentionsMeasurements =
+        Boolean(previousAgentText) &&
+        Boolean(measurementsLabel) &&
+        normalizeText(previousAgentText).includes(normalizeText(measurementsLabel))
+      const hasCapturedMeasurements = Boolean(measurementsLabel)
+      const hasCapturedQuantity = quantity > 0
+
+      const remainingConfigurationEntries = (
+        Array.isArray(quoteContext?.missingAttributes)
+          ? quoteContext.missingAttributes
+          : Array.isArray(quoteContext?.requiredAttributes)
+          ? quoteContext.requiredAttributes.filter((attribute) =>
+                effectiveMissingFields.includes(attribute?.key),
+              )
+            : []
+      )
+        .filter((attribute) => {
+          const key = String(attribute?.key || '').trim()
+          if (!key) {
+            return false
+          }
+
+          if (
+            hasCapturedMeasurements &&
+            (key === 'measurements' || key === 'measurement_items')
+          ) {
+            return false
+          }
+
+          if (hasCapturedQuantity && key === 'quantity') {
+            return false
+          }
+
+          if (effectiveMissingFields.includes('product') && key === 'product') {
+            return false
+          }
+
+          return true
+        })
+        .map((attribute) => ({
+          key: compactText(attribute?.key || ''),
+          label: compactText(
+            attribute?.label || attribute?.subjectPrefix || attribute?.key || '',
+          ),
+        }))
+        .filter((entry) => entry.key && entry.label)
+      const uniqueRemainingConfigurationEntries = Array.from(
+        new Map(
+          remainingConfigurationEntries.map((entry) => [
+            normalizeText(entry.key || entry.label),
+            entry,
+          ]),
+        ).values(),
+      )
+      const preferredRemainingConfigurationEntry =
+        uniqueRemainingConfigurationEntries.length > 1 &&
+        conversationState?.lastAskedSlot &&
+        String(conversationState.lastAskedSlot) ===
+          String(uniqueRemainingConfigurationEntries[0]?.key || '')
+          ? uniqueRemainingConfigurationEntries[1]
+          : uniqueRemainingConfigurationEntries[0] || null
+      const nextTenantConfigurationLabel =
+        preferredRemainingConfigurationEntry?.label || null
+      const remainingConfigurationLabel =
+        uniqueRemainingConfigurationEntries.length === 0
+          ? null
+          : uniqueRemainingConfigurationEntries.length === 1
+            ? uniqueRemainingConfigurationEntries[0].label
+            : `${uniqueRemainingConfigurationEntries
+                .slice(0, -1)
+                .map((entry) => entry.label)
+                .join(', ')} y ${uniqueRemainingConfigurationEntries.at(-1)?.label}`
+      const coreQuoteMissingFields = effectiveMissingFields.filter((field) =>
+        (String(field || '') === 'measurements' && !hasCapturedMeasurements) ||
+        (String(field || '') === 'quantity' && !hasCapturedQuantity) ||
+        String(field || '') === 'product',
+      )
+      const onlyTenantConfigurationPending =
+        quoteLoopBreakEligible &&
+        coreQuoteMissingFields.length === 0 &&
+        Boolean(remainingConfigurationLabel)
+      const repeatedMeasurementsAskCandidate =
+        (repeatedResponse || loopingResponse) &&
+        conversationState?.lastAskedSlot === 'dimensions' &&
+        coreQuoteMissingFields.includes('measurements')
+      const repeatedQuantityAskCandidate =
+        (repeatedResponse || loopingResponse) &&
+        conversationState?.lastAskedSlot === 'quantity' &&
+        coreQuoteMissingFields.includes('quantity')
+
+      const nextAsk =
+        repeatedMeasurementsAskCandidate
+          ? 'Si no las tenés exactas, pasame una medida aproximada o una foto y avanzo con eso.'
+          : repeatedQuantityAskCandidate
+            ? 'Si no sabés la cantidad exacta, decime aunque sea aproximada y sigo con eso.'
+            : coreQuoteMissingFields.includes('measurements')
+          ? remainingConfigurationLabel
+            ? `Decime las medidas aproximadas (ancho por alto). Si ya lo sabés, después confirmame ${remainingConfigurationLabel}.`
+            : 'Decime las medidas aproximadas (ancho por alto).'
+          : coreQuoteMissingFields.includes('quantity')
+            ? remainingConfigurationLabel
+              ? `Decime cuántas unidades necesitás. Si ya lo sabés, además confirmame ${remainingConfigurationLabel}.`
+              : 'Decime cuántas unidades necesitás.'
+            : coreQuoteMissingFields.includes('product')
+              ? 'Decime qué producto querés cotizar.'
+              : nextTenantConfigurationLabel
+                ? stableQuoteSubject
+                  ? `Para seguir con la cotización de ${stableQuoteSubject}, confirmame ${nextTenantConfigurationLabel}.`
+                  : `Para seguir con la cotización, confirmame ${nextTenantConfigurationLabel}.`
+                : null
+      if (
+        quoteDetailContinuationCandidate ||
+        quoteMeasurementCarryoverCandidate
+      ) {
+        return compactText(
+          [
+            'Perfecto.',
+            stableQuoteSubject
+              ? `Sumo ese dato para la misma cotización de ${stableQuoteSubject}.`
+              : 'Sumo ese dato para la misma cotización.',
+            nextAsk || 'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
+          ]
+            .filter(Boolean)
+            .join(' '),
+        )
+      }
+      if (quoteSubjectSpecificityRegressionCandidate && stableQuoteSubject) {
+        if (
+          measurementsLabel &&
+          currentTurnAddsFreshMeasurement &&
+          !previousAgentAlreadyMentionsMeasurements
+        ) {
+          return compactText(
+            [
+              'Perfecto.',
+              `Tomo una medida aproximada de ${measurementsLabel} para ${stableQuoteSubject}.`,
+              nextAsk || 'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
+            ].join(' '),
+          )
+        }
+        return compactText(
+          [
+            'Perfecto.',
+            `Sumo ese dato para la misma cotización de ${stableQuoteSubject}.`,
+            nextAsk || 'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
+          ].join(' '),
+        )
+      }
+      if (onlyTenantConfigurationPending) {
+        return compactText(
+          [
+            'Perfecto.',
+            stateNotes.length ? `${stateNotes.join(', ')}.` : null,
+            nextAsk,
+          ]
+            .filter(Boolean)
+            .join(' '),
+        )
+      }
+      if (!nextAsk) {
+        return null
+      }
+
+      return compactText(
+        [
+          'Perfecto.',
+          stateNotes.length ? `${stateNotes.join(', ')}.` : null,
+          nextAsk,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+    }
+
+    const buildSupportLoopBreak = () => {
+      if (looksLikeLightClosureFollowUp(currentTurnText)) {
+        return buildContextualClosureContinuationReply({
+          context: 'support',
+          previousAgentText,
+        })
+      }
+
+      const stateNotes = []
+      if (supportContext?.productType) {
+        stateNotes.push(`ya tomo que es ${supportContext.productType}`)
+      }
+      if (supportContext?.issueSummary) {
+        stateNotes.push('ya me queda qué habría que revisar')
+      }
+      if (supportContext?.address) {
+        stateNotes.push('ya tengo la dirección')
+      }
+
+      const nextAsk =
+        effectiveMissingFields.includes('issue')
+          ? 'Contame qué falla o qué habría que revisar.'
+          : effectiveMissingFields.includes('product')
+            ? 'Decime qué producto es.'
+            : effectiveMissingFields.includes('date')
+              ? 'Decime qué día te sirve.'
+              : effectiveMissingFields.includes('time')
+                ? 'Decime qué horario te queda mejor.'
+                : effectiveMissingFields.includes('address')
+                  ? 'Pasame la zona o dirección.'
+                  : effectiveMissingFields.includes('contact')
+                    ? 'Pasame un teléfono o mail de contacto.'
+                    : null
+      if (!nextAsk) {
+        return null
+      }
+
+      return compactText(
+        [
+          'Perfecto.',
+          stateNotes.length ? `${stateNotes.join(', ')}.` : null,
+          nextAsk,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+    }
+
+    const buildScheduleLoopBreak = () => {
+      if (looksLikeLightClosureFollowUp(currentTurnText)) {
+        return buildContextualClosureContinuationReply({
+          context: 'schedule',
+          previousAgentText,
+        })
+      }
+
+      const stateNotes = []
+      const scheduleDateLabel =
+        scheduleContext?.date?.dateLabel || scheduleContext?.date?.label || null
+      const scheduleTimeLabel =
+        scheduleContext?.time?.timeLabel || scheduleContext?.time?.label || null
+      if (scheduleContext?.address) {
+        stateNotes.push('ya tengo la dirección')
+      }
+      if (scheduleDateLabel) {
+        stateNotes.push(`me sirve ${scheduleDateLabel}`)
+      }
+      if (scheduleTimeLabel) {
+        stateNotes.push(`y ${scheduleTimeLabel}`)
+      }
+
+      const nextAsk =
+        effectiveMissingFields.includes('date')
+          ? 'Decime qué día te sirve.'
+          : effectiveMissingFields.includes('time')
+            ? 'Decime qué horario te queda mejor.'
+            : effectiveMissingFields.includes('address')
+              ? 'Pasame la zona o dirección.'
+              : effectiveMissingFields.includes('contact')
+                ? 'Pasame un teléfono o mail de contacto.'
+                : null
+      if (!nextAsk) {
+        return null
+      }
+
+      return compactText(
+        [
+          'Perfecto.',
+          stateNotes.length ? `${stateNotes.join(', ')}.` : null,
+          nextAsk,
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+    }
+
+    const buildGenericLoopBreak = () => {
+      const subjectLabel = sanitizeLoopSubjectLabel(
+        interpretation?.topic?.label ||
+          interpretation?.contextTopic?.label ||
+          quoteContext?.topicLabel ||
+          quoteContext?.familyLabel ||
+          supportContext?.productType ||
+          '',
+      )
+
+      if (looksLikeLightClosureFollowUp(currentTurnText)) {
+        if (readiness?.lane === 'quote' || hasActiveQuoteThread) {
+          return buildContextualClosureContinuationReply({
+            context: 'quote',
+            previousAgentText,
+          })
+        }
+        if (readiness?.lane === 'schedule' || scheduleContext) {
+          return buildContextualClosureContinuationReply({
+            context: 'schedule',
+            previousAgentText,
+          })
+        }
+        if (readiness?.lane === 'support' || supportContext) {
+          return buildContextualClosureContinuationReply({
+            context: 'support',
+            previousAgentText,
+          })
+        }
+        return buildClosureContinuationReply(previousAgentText)
+      }
+
+      if (looksLikeAwaitingProofResponse(responseText)) {
+        if (looksLikePaymentProofArtifact(currentTurnText)) {
+          return 'Perfecto. Recibí el comprobante y lo dejo en seguimiento para confirmar la acreditación a la brevedad.'
+        }
+        if (
+          looksLikePaymentProofFollowUpRequest(currentTurnText) ||
+          looksLikePaymentOperationalUpdate(currentTurnText)
+        ) {
+          return 'Perfecto. Quedo atento al comprobante por acá para dejarlo en seguimiento.'
+        }
+      }
+
+      if (looksLikeGenericClarificationResponse(responseText)) {
+        if (looksLikeOperationalStatusContinuation(currentTurnText)) {
+          return 'Perfecto. Si esto sigue por coordinación o visita, pasame día, horario o dirección y avanzo por ahí.'
+        }
+        if (subjectLabel) {
+          return `Claro. Si seguimos con ${subjectLabel}, decime si querés precio, fotos o material de referencia, o coordinar cómo seguir.`
+        }
+        if (hasAttachmentReferenceSignal(currentTurnText)) {
+          return 'Perfecto. Recibí eso. Decime si esto sigue por una cotización, una revisión o una coordinación, y avanzo por ahí.'
+        }
+        return 'Perfecto. Para no mezclar temas, decime si esto sigue por una cotización, una revisión o una coordinación, y avanzo por ahí.'
+      }
+
+      if (looksLikeGenericConsultationClosureResponse(responseText)) {
+        if (
+          looksLikeGenericPriceInquiry(currentTurnText) ||
+          hasCatalogVocabularySignal(currentTurnText, tenantRuntimePolicy)
+        ) {
+          return 'Claro. Si es por esa consulta, pasame la medida aproximada y te oriento con la cotización.'
+        }
+        if (/\b(ambas|los dos|las dos)\b/i.test(currentTurnText)) {
+          return 'Perfecto. Si querés ambas opciones, te las comparo por acá. Si podés, pasame la medida aproximada.'
+        }
+      }
+
+      if (looksLikeGenericContactResponse(responseText)) {
+        if (readiness?.lane === 'schedule' || scheduleContext) {
+          return (
+            buildScheduleLoopBreak() ||
+            'Perfecto. Con eso lo dejamos encaminado. Decime qué día u horario te queda mejor.'
+          )
+        }
+        if (readiness?.lane === 'support' || supportContext) {
+          return (
+            buildSupportLoopBreak() ||
+            'Perfecto. Con eso lo dejamos encaminado. Pasame zona o dirección y qué día u horario te queda bien.'
+          )
+        }
+        if (
+          /\b(tiempo de entrega|cuanto demora|cuánto demora|demora|cuanto tarda|cuánto tarda|tarda|plazo de entrega|entrega)\b/i.test(
+            currentTurnText,
+          )
+        ) {
+          return 'Claro. El tiempo de entrega se confirma según el trabajo y la agenda disponible. Si querés, te lo dejo encaminado para que te lo confirmen por acá.'
+        }
+        if (
+          looksLikeAmountOnlyReply(currentTurnText) ||
+          hasPaymentContinuationSignal(currentTurnText)
+        ) {
+          return 'Perfecto. Si vas a transferir o dejar una seña, cuando hagas el pago mandame el comprobante por acá y lo dejamos encaminado.'
+        }
+        if (looksLikeAddressOrTimeReply(currentTurnText)) {
+          return 'Perfecto. Con eso ya lo encamino. Si querés coordinar visita o revisión, decime qué día u horario te queda mejor.'
+        }
+      }
+
+      if (looksLikeGenericQuoteIntakeResponse(responseText)) {
+        if (looksLikeOperationalStatusContinuation(currentTurnText)) {
+          return 'Perfecto. Si preferís coordinar visita para medir o revisar, pasame la zona o dirección y qué día u horario te queda bien.'
+        }
+        if (
+          subjectLabel &&
+          /\b(foto|fotos|imagen|imagenes|material|catalogo|cat[aá]logo|referencias)\b/i.test(
+            currentTurnText,
+          )
+        ) {
+          return `Claro. Si querés referencias de ${subjectLabel}, lo dejo encaminado para compartir fotos o material por este canal.`
+        }
+      }
+
+      if (looksLikeGenericQuoteHandoffResponse(responseText)) {
+        if (looksLikeLightClosureFollowUp(currentTurnText)) {
+          return buildContextualClosureContinuationReply({
+            context: 'quote',
+            previousAgentText,
+          })
+        }
+        if (subjectLabel || looksLikeQuoteDetailFollowUp(currentTurnText)) {
+          return compactText(
+            [
+              'Perfecto.',
+              subjectLabel
+                ? `Sumo ese dato para la misma cotización de ${subjectLabel}.`
+                : 'Sumo ese dato para la misma cotización.',
+              'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
+            ].join(' '),
+          )
+        }
+      }
+
+      return null
+    }
+
+    let rewrittenText = null
+    let rewrittenGrounding = null
+    const preferGroundedSideQuestionLoopBreak =
+      groundedSideQuestionProtected &&
+      readiness?.answerMode === 'answer_side_question' &&
+      readiness?.lane === 'quote'
+
+    if (preferGroundedSideQuestionLoopBreak) {
+      rewrittenText = buildGroundedSideQuestionLoopBreak()
+      if (rewrittenText) {
+        rewrittenGrounding = buildRetrievalFaqGroundingContract({
+          input: currentTurnText,
+          retrievalItems,
+          interpretation,
+          tenantRuntimePolicy,
+          paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+          text: rewrittenText,
+          existing: response?.grounding || null,
+        })
+      }
+    }
+
+    if (!rewrittenText && quoteLoopBreakEligible) {
+      rewrittenText = buildQuoteLoopBreak()
+    }
+
+    if (!rewrittenText && (readiness?.lane === 'schedule' || scheduleContext)) {
+      rewrittenText = buildScheduleLoopBreak()
+    }
+
+    if (!rewrittenText && (readiness?.lane === 'support' || supportContext)) {
+      rewrittenText = buildSupportLoopBreak()
+    }
+
+    if (!rewrittenText && !preferGroundedSideQuestionLoopBreak) {
+      rewrittenText = buildGroundedSideQuestionLoopBreak()
+      if (rewrittenText) {
+        rewrittenGrounding = buildRetrievalFaqGroundingContract({
+          input: currentTurnText,
+          retrievalItems,
+          interpretation,
+          tenantRuntimePolicy,
+          paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+          text: rewrittenText,
+          existing: response?.grounding || null,
+        })
+      }
+    }
+
+    if (!rewrittenText) {
+      rewrittenText = buildGenericLoopBreak()
+    }
+
+    if (!rewrittenText || normalizeText(rewrittenText) === normalizeText(responseText)) {
+      return response
+    }
+
+    return {
+      ...response,
+      text: rewrittenText,
+      finalUserText: rewrittenText,
+      grounding:
+        rewrittenGrounding && typeof rewrittenGrounding === 'object'
+          ? rewrittenGrounding
+          : response?.grounding,
+      debug: {
+        ...(response?.debug || {}),
+        detail: response?.debug?.detail
+          ? `${response.debug.detail} Se reformuló la salida para cortar un loop y avanzar con el próximo dato útil.`
+          : 'Se reformuló la salida para cortar un loop y avanzar con el próximo dato útil.',
+      },
     }
   }
 
@@ -9102,6 +10018,7 @@ export class AiAgentRuntime {
     operationalContext = null,
     backendClient,
     tenantTopicTaxonomy = [],
+    tenantRuntimePolicy = null,
     tenantKey = null,
     unifiedMessage = null,
     variationSeed = '',
@@ -9139,6 +10056,14 @@ export class AiAgentRuntime {
     const channel = unifiedMessage?.channel || null
     const channelProfile = this.getResponseChannelProfile(channel)
     const effectiveIntentKey = intentKey
+    const readiness = readInterpretationResolutionReadiness(interpretation)
+    const readinessLane =
+      typeof readiness?.lane === 'string' ? readiness.lane.trim() : null
+    const readinessAnswerMode = normalizeIntentKeyValue(readiness?.answerMode)
+    const currentFaqSubtype = detectCustomerFaqSubtype(input, {
+      previousIntentKey: inheritedIntentKey || effectiveIntentKey,
+      tenantRuntimePolicy,
+    })
     const quoteWorkflowFollowUp =
       effectiveIntentKey === 'customer.quote' ||
       (quoteConfirmationFollowUp && inheritedIntentKey === 'customer.quote')
@@ -9147,6 +10072,14 @@ export class AiAgentRuntime {
       !quoteWorkflowFollowUp ||
       looksLikeCommercialConditionQuestion(input) ||
       String(quoteContext.completionStatus || '') !== 'ready_for_pricing_or_handoff'
+    ) {
+      return null
+    }
+
+    if (
+      readinessLane === 'quote' &&
+      readinessAnswerMode === 'answer_side_question' &&
+      currentFaqSubtype === 'availability'
     ) {
       return null
     }
@@ -10009,6 +10942,26 @@ export class AiAgentRuntime {
         CUSTOMER_LANE_ACTIVE_INTENT_KEYS[String(readinessLane || '')] ||
         effectiveIntentKey
     }
+    const initialQuoteContext =
+      interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
+        ? interpretation.quoteContext
+        : null
+    const initialQuoteCapturedAttributes =
+      initialQuoteContext?.capturedAttributes &&
+      typeof initialQuoteContext.capturedAttributes === 'object'
+        ? Object.keys(initialQuoteContext.capturedAttributes)
+        : []
+    const shouldResumeQuoteProgressFromConfiguredFollowUp =
+      shouldResumeQuoteProgressFromOperationalFollowUp({
+        intentKey: effectiveIntentKey,
+        input,
+        interpretation,
+        tenantTopicTaxonomy,
+      })
+
+    if (shouldResumeQuoteProgressFromConfiguredFollowUp) {
+      effectiveIntentKey = 'customer.quote'
+    }
     const quoteTopicType = String(interpretation?.topic?.type || '')
     const hasSpecificQuoteTopic =
       interpretation?.topic &&
@@ -10045,9 +10998,15 @@ export class AiAgentRuntime {
       interpretation.threadResolution.promptText.trim()
         ? interpretation.threadResolution.promptText.trim()
         : null
+    const hasQuoteProgressEvidence =
+      Boolean(interpretation?.quoteContext?.measurements) ||
+      (Array.isArray(interpretation?.quoteContext?.measurementItems) &&
+        interpretation.quoteContext.measurementItems.length > 0) ||
+      Number(interpretation?.quoteContext?.quantity?.total || 0) > 0
     const shouldSuppressThreadDisambiguation =
       effectiveIntentKey === 'customer.quote' &&
-      Boolean(interpretation?.quoteContext?.mixedPricingStrategies)
+      Boolean(interpretation?.quoteContext?.mixedPricingStrategies) &&
+      hasQuoteProgressEvidence
     const hasQuoteProgressContext =
       effectiveIntentKey === 'customer.quote' &&
       ((Boolean(interpretation?.quoteContext?.measurements) &&
@@ -10350,11 +11309,26 @@ export class AiAgentRuntime {
         'customer.price_inquiry',
       ].includes(effectiveIntentKey)
     ) {
+      const disambiguationText =
+        effectiveIntentKey === 'customer.quote' &&
+        Boolean(interpretation?.threadResolution?.requiresDisambiguation) &&
+        Boolean(interpretation?.quoteContext?.mixedPricingStrategies) &&
+        threadLabels.length > 1
+          ? `Perfecto. Podemos ver ${
+              threadLabels.length === 2
+                ? `${threadLabels[0]} y ${threadLabels[1]}`
+                : `${threadLabels.slice(0, -1).join(', ')} y ${threadLabels.at(-1)}`
+            }. Como requieren una distinta forma de cotización, conviene dejar cada uno por separado o derivarlo a un asesor. ${
+              threadLabels.length === 2
+                ? `¿Querés que empecemos por ${threadLabels[0]} o por ${threadLabels[1]}?`
+                : 'Si querés, decime con cuál querés empezar.'
+            }`
+          : threadDisambiguationText
       return {
-        text: threadDisambiguationText,
+        text: disambiguationText,
         toolCalls: [],
         needsHuman: false,
-        grounding: buildWorkflowGrounding(threadDisambiguationText, {
+        grounding: buildWorkflowGrounding(disambiguationText, {
           sourceType: 'thread_resolution',
           scope: 'conversation',
           sourceKey: `prompt:${effectiveIntentKey}`,
@@ -10431,6 +11405,22 @@ export class AiAgentRuntime {
       readinessLane === 'quote' &&
       readinessAnswerMode === 'answer_side_question' &&
       hasProductFollowUpContext
+    const quoteVisitCoordinationFollowUp =
+      effectiveIntentKey === 'customer.quote' &&
+      readinessLane === 'quote' &&
+      readinessAnswerMode === 'answer_side_question' &&
+      looksLikeQuoteVisitCoordinationFollowUp(input)
+    const canUseQuoteSideQuestionAvailabilityResponse =
+      effectiveFaqSubtype === 'availability' &&
+      !mustHonorOperationalReadiness &&
+      !hasPaymentProofContinuitySignal &&
+      !standaloneAttachmentArtifactKind &&
+      !hasSupportContext &&
+      hasQuoteContext &&
+      readinessLane === 'quote' &&
+      readinessAnswerMode === 'answer_side_question' &&
+      !quoteVisitCoordinationFollowUp &&
+      !shouldResumeQuoteProgressFromConfiguredFollowUp
     const hasInheritedCommercialIntentContext = [
       'customer.product_info',
       'customer.topic_info',
@@ -10453,6 +11443,8 @@ export class AiAgentRuntime {
             interpretation?.quoteContext?.topicLabel ||
             interpretation?.quoteContext?.familyLabel)),
     )
+    const isSpecificPaymentMethodQuestion =
+      looksLikeSpecificPaymentMethodQuestion(input)
     const isBankAccountPaymentQuestion =
       looksLikeBankAccountPaymentQuestion(input)
     const standalonePaymentMethodStrictKnowledgeRequired =
@@ -10741,7 +11733,12 @@ export class AiAgentRuntime {
       }
     }
 
-    if (canUseStandalonePaymentMethodsResponse && looksLikeSpecificPaymentMethodQuestion(input)) {
+    if (
+      canUseStandalonePaymentMethodsResponse &&
+      (isBankAccountPaymentQuestion ||
+        (!standalonePaymentMethodStrictKnowledgeRequired &&
+          isSpecificPaymentMethodQuestion))
+    ) {
       const paymentMethods = resolveOperationalPaymentMethodsInline(input, {
         paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
       })
@@ -11173,8 +12170,18 @@ export class AiAgentRuntime {
       }
     }
 
-    if (canUseAvailabilityDeterministicResponse) {
-      const availabilityText = buildCustomerAvailabilityFallbackText()
+    if (
+      canUseAvailabilityDeterministicResponse ||
+      canUseQuoteSideQuestionAvailabilityResponse
+    ) {
+      const baseAvailabilityText = buildCustomerAvailabilityFallbackText()
+      const availabilityText = canUseQuoteSideQuestionAvailabilityResponse
+        ? compactText(
+            `${baseAvailabilityText}${
+              /[.!?]$/u.test(baseAvailabilityText) ? '' : '.'
+            } Si querés, seguimos con la misma cotización por acá.`,
+          )
+        : baseAvailabilityText
       return {
         text: availabilityText,
         toolCalls: [],
@@ -11186,9 +12193,16 @@ export class AiAgentRuntime {
           title: 'Availability guidance',
         }),
         debug: {
-          actionKey: effectiveIntentKey === 'customer.topic_info' ? effectiveIntentKey : 'customer.topic_info',
+          actionKey:
+            canUseQuoteSideQuestionAvailabilityResponse
+              ? effectiveIntentKey
+              : effectiveIntentKey === 'customer.topic_info'
+                ? effectiveIntentKey
+                : 'customer.topic_info',
           detail:
-            'Se devolvió una respuesta determinística para disponibilidad o tiempo de entrega sin abrir retrieval ni depender del proveedor.',
+            canUseQuoteSideQuestionAvailabilityResponse
+              ? 'Se devolvió una respuesta determinística para disponibilidad dentro del hilo activo de cotización, evitando reabrir intake.'
+              : 'Se devolvió una respuesta determinística para disponibilidad o tiempo de entrega sin abrir retrieval ni depender del proveedor.',
         },
       }
     }
@@ -11201,6 +12215,17 @@ export class AiAgentRuntime {
       effectiveIntentKey === 'customer.topic_info' &&
       effectiveFaqSubtype === 'definition' &&
       hasProductFollowUpContext
+    ) {
+      return null
+    }
+
+    if (
+      readinessAnswerMode === 'answer_side_question' &&
+      readinessLane === 'quote' &&
+      !preserveExplicitDeterministicIntent &&
+      !quoteVisitCoordinationFollowUp &&
+      !shouldResumeQuoteProgressFromConfiguredFollowUp &&
+      !['payment_methods', 'contact'].includes(String(effectiveFaqSubtype || ''))
     ) {
       return null
     }
@@ -11606,7 +12631,37 @@ export class AiAgentRuntime {
     }
 
     if (
+      shouldResumeQuoteProgressFromOperationalFollowUp({
+        intentKey,
+        input,
+        interpretation,
+        tenantTopicTaxonomy,
+      })
+    ) {
+      return null
+    }
+
+    const readiness = readInterpretationResolutionReadiness(interpretation)
+    const quoteSideQuestionKnowledgeAnchor =
       intentKey === 'customer.quote' &&
+      readiness?.lane === 'quote' &&
+      readiness?.answerMode === 'answer_side_question' &&
+      (
+        ['product_family', 'product_topic', 'product_variant'].includes(
+          String(interpretation?.topic?.type || ''),
+        ) ||
+        ['product_family', 'product_topic', 'product_variant'].includes(
+          String(interpretation?.contextTopic?.type || ''),
+        ) ||
+        Boolean(
+          interpretation?.quoteContext?.topicLabel ||
+            interpretation?.quoteContext?.familyLabel,
+        )
+      )
+
+    if (
+      intentKey === 'customer.quote' &&
+      !quoteSideQuestionKnowledgeAnchor &&
       !(
         interpretation?.topic &&
         ['product_family', 'product_topic', 'product_variant'].includes(
@@ -11652,6 +12707,7 @@ export class AiAgentRuntime {
         wordingOverrides: this.getCustomerWordingOverrides(),
         channel,
         channelProfile: this.getResponseChannelProfile(channel),
+        interpretation,
       })
     if (!text) {
       return null
@@ -12346,8 +13402,87 @@ export class AiAgentRuntime {
       input,
       interpretation,
     })
+    const buildStrictSideQuestionGroundedReplacement = () => {
+      if (
+        !isCustomerRole ||
+        !Array.isArray(retrievalContext?.items) ||
+        retrievalContext.items.length === 0
+      ) {
+        return null
+      }
+
+      const readiness = readInterpretationResolutionReadiness(interpretation)
+      if (readiness?.answerMode !== 'answer_side_question') {
+        return null
+      }
+
+      const retrievalItems = retrievalContext.items.filter(
+        (item) => item && typeof item === 'object',
+      )
+      if (!retrievalItems.length) {
+        return null
+      }
+
+      const text =
+        buildCustomerFaqKnowledgeResponse({
+          input,
+          retrievalItems,
+          intentKey,
+          interpretation,
+          tenantTopicTaxonomy,
+          tenantRuntimePolicy,
+          paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+          previousIntentKey,
+          channel,
+          channelProfile: this.getResponseChannelProfile(channel),
+        }) ||
+        buildGenericCustomerKnowledgeFallbackText(intentKey, retrievalItems, input, {
+          interpretation,
+          tenantRuntimePolicy,
+          channel,
+          channelProfile: this.getResponseChannelProfile(channel),
+        })
+      if (!text) {
+        return null
+      }
+
+      const groundedText = composeQuoteKnowledgeFirstText({
+        informationText: text,
+        input,
+        interpretation,
+        tenantTopicTaxonomy,
+      })
+
+      return {
+        text: groundedText,
+        wordingKey: this.resolveCustomerHybridWordingKey({
+          intentKey,
+          interpretation,
+        }),
+        toolCalls: [],
+        needsHuman: false,
+        grounding: buildRetrievalFaqGroundingContract({
+          input,
+          retrievalItems,
+          interpretation,
+          tenantRuntimePolicy,
+          paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+          text: groundedText,
+        }),
+        debug: {
+          actionKey: intentKey,
+          wordingKey: this.resolveCustomerHybridWordingKey({
+            intentKey,
+            interpretation,
+          }),
+          detail:
+            'Se reconstruyó una side-question grounded usando evidencia aprobada del retrieval sin degradarla a guidance genérico ni a intake.',
+        },
+      }
+    }
     const buildGroundedKnowledgeReplacement = () => {
       const candidates = [
+        buildStrictSideQuestionGroundedReplacement(),
         this.buildDeterministicKnowledgeResponse({
           role,
           input,
@@ -12395,8 +13530,21 @@ export class AiAgentRuntime {
           : null,
       ].filter(Boolean)
 
+      const groundedCandidates = candidates.filter(
+        (entry) => entry?.grounding?.grounded === true,
+      )
+      const safeGroundedCandidates = groundedCandidates.filter(
+        (entry) =>
+          !this.detectRawKnowledgeLeak({
+            responseText: compactText(entry?.finalUserText || entry?.text || ''),
+            retrievalContext,
+            tenantRuntimePolicy,
+          }),
+      )
+
       return (
-        candidates.find((entry) => entry?.grounding?.grounded === true) ||
+        safeGroundedCandidates[0] ||
+        groundedCandidates[0] ||
         candidates[0] ||
         null
       )
@@ -12514,7 +13662,6 @@ export class AiAgentRuntime {
     inboundClassification = null,
     previousSnapshot = null,
     response,
-    responseRuntime = null,
     validation = null,
     providerGenerationAttempted = false,
     unifiedMessage = null,
@@ -12594,16 +13741,12 @@ export class AiAgentRuntime {
       response,
     })
     const responseContract =
-      typeof responseRuntime?.responseContract === 'string'
-        ? responseRuntime.responseContract
-        : typeof retrievalContext?.responseContract === 'string'
-          ? retrievalContext.responseContract
+      typeof retrievalContext?.responseContract === 'string'
+        ? retrievalContext.responseContract
         : null
     const knowledgeNeed =
-      typeof responseRuntime?.provenance?.knowledgeNeed === 'string'
-        ? responseRuntime.provenance.knowledgeNeed
-        : typeof retrievalContext?.knowledgeNeed === 'string'
-          ? retrievalContext.knowledgeNeed
+      typeof retrievalContext?.knowledgeNeed === 'string'
+        ? retrievalContext.knowledgeNeed
         : null
     const providerCallCount =
       typeof providerCallTrace?.count === 'number' ? providerCallTrace.count : 0
@@ -12658,10 +13801,7 @@ export class AiAgentRuntime {
       responseContractResolvedBeforeRetrieval:
         Boolean(responseContract) && Boolean(knowledgeNeed),
       decisionSource,
-      effectiveAnswerMode:
-        typeof responseRuntime?.answerMode === 'string'
-          ? responseRuntime.answerMode
-          : effectiveAnswerMode,
+      effectiveAnswerMode,
       naturalityScore: naturality.score,
       naturalityPenalties: naturality.penalties,
       naturalityAddsNewInformation: naturality.addsNewInformation,
@@ -13010,19 +14150,11 @@ export class AiAgentRuntime {
     const orchestratorDecision = sanitizeOrchestratorDecisionForAudit(
       context?.orchestratorDecision ?? previousAuditPayload?.orchestratorDecision,
     )
-    const responseRuntime = sanitizeResponseRuntimeContract(
-      context?.responseRuntime ??
-        response?.responseRuntime ??
-        previousAuditPayload?.responseRuntime,
-    )
-    const responseMode =
-      typeof responseRuntime?.provenance?.responseMode === 'string'
-        ? responseRuntime.provenance.responseMode
-        : inferResponseModeForAudit({
-            response,
-            context,
-            previousAuditPayload,
-          })
+    const responseMode = inferResponseModeForAudit({
+      response,
+      context,
+      previousAuditPayload,
+    })
     const decisionTrace = buildDecisionTraceForAudit({
       response,
       context,
@@ -13383,10 +14515,8 @@ export class AiAgentRuntime {
           : previousAuditPayload?.metrics ?? null,
       responseMode,
       responseOrigin:
-        typeof responseRuntime?.provenance?.responseOrigin === 'string'
-          ? responseRuntime.provenance.responseOrigin
-          : typeof decisionTrace?.deterministic?.responseOrigin === 'string'
-            ? decisionTrace.deterministic.responseOrigin
+        typeof decisionTrace?.deterministic?.responseOrigin === 'string'
+          ? decisionTrace.deterministic.responseOrigin
           : typeof previousAuditPayload?.responseOrigin === 'string'
             ? previousAuditPayload.responseOrigin
             : null,
@@ -13394,7 +14524,6 @@ export class AiAgentRuntime {
       decisionTrace,
       fallbackReason,
       fallbackSubtype,
-      responseRuntime,
     }
   }
 
@@ -13431,8 +14560,27 @@ export class AiAgentRuntime {
       return null
     }
 
+    const readiness = readInterpretationResolutionReadiness(interpretation)
+    const quoteSideQuestionKnowledgeAnchor =
+      intentKey === 'customer.quote' &&
+      readiness?.lane === 'quote' &&
+      readiness?.answerMode === 'answer_side_question' &&
+      (
+        ['product_family', 'product_topic', 'product_variant'].includes(
+          String(interpretation?.topic?.type || ''),
+        ) ||
+        ['product_family', 'product_topic', 'product_variant'].includes(
+          String(interpretation?.contextTopic?.type || ''),
+        ) ||
+        Boolean(
+          interpretation?.quoteContext?.topicLabel ||
+            interpretation?.quoteContext?.familyLabel,
+        )
+      )
+
     if (
       intentKey === 'customer.quote' &&
+      !quoteSideQuestionKnowledgeAnchor &&
       !(
         interpretation?.topic &&
         ['product_family', 'product_topic', 'product_variant'].includes(
@@ -13448,6 +14596,76 @@ export class AiAgentRuntime {
       : []
     if (!retrievalItems.length) {
       return null
+    }
+
+    const quoteCapturedAttributes =
+      interpretation?.quoteContext?.capturedAttributes &&
+      typeof interpretation.quoteContext.capturedAttributes === 'object'
+        ? Object.keys(interpretation.quoteContext.capturedAttributes)
+        : []
+    const quoteMissingFields = Array.isArray(interpretation?.quoteContext?.missingFields)
+      ? interpretation.quoteContext.missingFields.filter((entry) => typeof entry === 'string')
+      : []
+    const shouldBridgeConfiguredQuoteFollowUpFromKnowledge =
+      shouldResumeQuoteProgressFromOperationalFollowUp({
+        intentKey,
+        input,
+        interpretation,
+        tenantTopicTaxonomy,
+      }) &&
+      quoteCapturedAttributes.length > 0 &&
+      quoteMissingFields.length > 0
+
+    if (shouldBridgeConfiguredQuoteFollowUpFromKnowledge) {
+      const quoteBridgeText = renderCustomerDeterministicText({
+        intentKey: 'customer.quote',
+        input,
+        inboundClassification: null,
+        config: this.activeConfig,
+        interpretation,
+        tenantTopicTaxonomy,
+        paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+        installationTerms: getBusinessRules(tenantRuntimePolicy)?.installationTerms ?? [],
+        locale: 'es-UY',
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile: this.getResponseChannelProfile(channel),
+      })
+
+      if (quoteBridgeText) {
+        return {
+          text: quoteBridgeText,
+          toolCalls: [],
+          needsHuman: false,
+          grounding: {
+            ...buildGroundingContract({
+              knowledgeRetrieved: false,
+              usedFacts: extractGroundingFactsFromText(quoteBridgeText, 2),
+              sources: buildStructuredGroundingSource({
+                sourceType: 'quote_workflow',
+                scope: 'quote',
+                sourceKey:
+                  compactText(interpretation?.quoteContext?.topicLabel || '') ||
+                  compactText(interpretation?.quoteContext?.familyLabel || '') ||
+                  'quote_followup_bridge',
+                title:
+                  interpretation?.quoteContext?.profileLabel ||
+                  interpretation?.quoteContext?.topicLabel ||
+                  interpretation?.quoteContext?.familyLabel ||
+                  'Quote workflow',
+              }),
+            }),
+            fallbackReason,
+            fallbackSubtype: 'quote_followup_bridge',
+          },
+          debug: {
+            actionKey: 'customer.quote',
+            detail:
+              'Se priorizó el retorno al intake de cotización cuando el turno aportó configuración útil dentro de un hilo quote activo, evitando degradarlo a explicación conceptual grounded.',
+          },
+        }
+      }
     }
 
     const subject =
@@ -13543,6 +14761,7 @@ export class AiAgentRuntime {
         wordingOverrides: this.getCustomerWordingOverrides(),
         channel,
         channelProfile: this.getResponseChannelProfile(channel),
+        interpretation,
       })
     if (!text) {
       return null
@@ -13596,10 +14815,28 @@ export class AiAgentRuntime {
     interpretation = null,
     tenantTopicTaxonomy = [],
   }) {
+    const quoteContext =
+      interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
+        ? interpretation.quoteContext
+        : null
+    const readiness = readInterpretationResolutionReadiness(interpretation)
+    const readinessLane = normalizeIntentKeyValue(readiness?.lane)
+    const readinessAnswerMode = normalizeIntentKeyValue(readiness?.answerMode)
+    const searchFallbackConflictsWithTurnContract =
+      interpretation?.threadResolution?.requiresDisambiguation === true ||
+      (
+        readinessLane === 'quote' &&
+        readinessAnswerMode === 'answer_side_question'
+      )
+
     if (
       !(role === 'customer_public' || role === 'customer_authenticated') ||
       !(intentKey === 'customer.quote' || intentKey === 'customer.product_info')
     ) {
+      return null
+    }
+
+    if (searchFallbackConflictsWithTurnContract) {
       return null
     }
 
@@ -14566,6 +15803,7 @@ export class AiAgentRuntime {
       previousActiveThreadKey,
       threadResolution: turnInterpretation?.threadResolution || null,
       quoteContext: currentQuoteContext,
+      previousQuoteContext,
       supportContext: currentSupportContext,
       scheduleContext: currentScheduleContext,
       conversationState: currentConversationState,
@@ -14603,6 +15841,7 @@ export class AiAgentRuntime {
       previousActiveThreadKey,
       threadResolution: turnInterpretation?.threadResolution || null,
       quoteContext: currentQuoteContext,
+      previousQuoteContext,
       supportContext: currentSupportContext,
       scheduleContext: currentScheduleContext,
       conversationState: currentConversationState,

@@ -1470,6 +1470,55 @@ test('resolveKnowledgeNeed requires retrieval for quote information-first turns 
   assert.equal(decision.reason, 'anchored_quote_information_turn')
 })
 
+test('resolveKnowledgeNeed keeps retrieval enabled for quote side-questions with an active product anchor even without faq subtype', async () => {
+  const { runtime, backendClient } = createRuntime()
+  const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
+    backendClient,
+    'urucortinas',
+    'customer_public',
+  )
+
+  const decision = runtime.resolveKnowledgeNeed({
+    role: 'customer_public',
+    intentKey: 'customer.quote',
+    tenantRuntimePolicy,
+    turnInterpretation: {
+      currentTurnText:
+        'Y evaluar lo mismo en la línea Probba, no sé si la diferencia de calidad baja.',
+      topic: {
+        type: 'product_variant',
+        label: 'aberturas probba',
+      },
+      contextTopic: {
+        type: 'product_family',
+        label: 'aberturas',
+      },
+      followUp: {
+        detected: true,
+        inheritedIntentKey: 'customer.quote',
+      },
+      quoteContext: {
+        topicRecognized: true,
+        profileResolved: true,
+        topicLabel: 'aberturas de aluminio dvh',
+        familyLabel: 'aberturas',
+        missingFields: ['quantity'],
+      },
+      resolutionReadiness: {
+        lane: 'quote',
+        answerMode: 'answer_side_question',
+        turnIntent: 'customer.product_info',
+        missingFields: ['quantity'],
+        nextUsefulField: null,
+      },
+    },
+  })
+
+  assert.equal(decision.responseContract, 'answer_side_question')
+  assert.match(decision.knowledgeNeed, /optional|required/)
+  assert.equal(decision.reason, 'anchored_quote_side_question')
+})
+
 test('resolveKnowledgeNeed blocks retrieval when quote exploration only inherits a thread-matched topic and the turn intent is unknown', async () => {
   const { runtime, backendClient } = createRuntime()
   const tenantRuntimePolicy = await runtime.getTenantRuntimePolicy(
@@ -4836,6 +4885,61 @@ test('customer_public does not let web lead quote openings fall into contact fal
   )
 })
 
+test('customer_public answers made-to-measure plus installation lead intros with service guidance instead of generic clarification', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for service-capability lead intros')
+  }
+
+  backendClient.searchKnowledge = async (query) => {
+    if (
+      /\ba medida\b|\bcolocacion\b|\bcolocación\b|\binstalacion\b|\binstalación\b/i.test(
+        String(query || ''),
+      )
+    ) {
+      return {
+        items: [
+          {
+            id: 'doc-service-capability-1',
+            title: 'Urucortinas · Trabajos a medida con colocación',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Trabajamos a medida y la colocación se coordina según el producto y el alcance del trabajo.',
+            snippet:
+              'Trabajamos a medida y la colocación se coordina según el producto y el alcance del trabajo.',
+            score: 0.97,
+            metadata: {
+              factType: 'service_capability',
+            },
+          },
+        ],
+      }
+    }
+
+    return { items: [] }
+  }
+
+  const response = await runtime.respond({
+    conversationId: 'conv-public-service-capability-lead-intro',
+    scope: 'customer_public',
+    tenantKey: 'urucortinas',
+    text:
+      'Hola, te contacto desde la web de urucortinas: Buen día. Necesito saber por favor si hacen trabajos a medida con colocación. Gracias',
+  })
+
+  assert.equal(providerCalls.length, 0)
+  assert.notEqual(response.auditPayload?.intentKey, 'customer.other')
+  assert.doesNotMatch(
+    response.text,
+    /qu[eé] necesit[aá]s resolver exactamente|contame un poco m[aá]s y lo vemos|quer[eé]s contarme un poco m[aá]s/i,
+  )
+  assert.match(
+    response.text,
+    /a medida|colocaci[oó]n|instalaci[oó]n|trabajamos/i,
+  )
+})
+
 test('customer_public does not repeat tenant contact fallback on address follow-ups inside support coordination', async () => {
   const { runtime, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
@@ -6538,6 +6642,189 @@ test('customer_public prioritizes visual follow-ups on an active quote thread wi
   assert.doesNotMatch(visualFollowUp.text, /medidas aproximadas|cu[aá]ntas unidades|tipo de vidrio|color/i)
 })
 
+test('customer_public keeps informational quote side-questions inside the active aberturas thread without reopening slot intake', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for quote side-question continuity')
+  }
+
+  backendClient.searchKnowledge = async (query) => {
+    const normalizedQuery = String(query || '').toLowerCase()
+    if (
+      normalizedQuery.includes('probba') ||
+      normalizedQuery.includes('gala') ||
+      normalizedQuery.includes('aberturas')
+    ) {
+      return {
+        items: [
+          {
+            id: 'doc-aberturas-side-question-1',
+            title: 'Urucortinas · Líneas Gala y Probba',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Trabajamos con líneas como Gala y Probba. La diferencia se orienta según prestación, uso y configuración final.',
+            snippet:
+              'Gala y Probba se orientan según prestación, uso y configuración final; la confirmación técnica se termina de definir con la cotización.',
+            score: 0.96,
+            metadata: {
+              factType: 'product_features',
+            },
+          },
+        ],
+      }
+    }
+
+    return { items: [] }
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-aberturas-side-question-inside-quote',
+    turns: [
+      'Quería solicitar presupuesto para cambiar una puerta ventana de 2mts de alto por 2,20 de ancho, quisiera en aluminio anodizado línea gala, negro o anolok DVH.',
+      'Y evaluar lo mismo en la línea Probba, no sé si la diferencia de calidad baja.',
+    ],
+  })
+
+  const sideQuestion = responses[1]
+  assert.equal(providerCalls.length, 0)
+  assert.match(sideQuestion.text, /probba|gala|prestaci[oó]n|calidad|configuraci[oó]n/i)
+  assert.doesNotMatch(
+    sideQuestion.text,
+    /confirmame la serie|tipo de vidrio|color|medidas aproximadas|cu[aá]ntas unidades/i,
+  )
+  assert.equal(sideQuestion.grounding?.grounded, true)
+  assert.ok((sideQuestion.grounding?.usedFacts || []).length > 0)
+})
+
+test('customer_public keeps quote side-questions about location grounded instead of rewriting them to generic quote guidance', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for grounded quote side-question continuity')
+  }
+
+  backendClient.searchKnowledge = async (query) => {
+    const normalizedQuery = String(query || '').toLowerCase()
+    if (normalizedQuery.includes('ubicacion') || normalizedQuery.includes('ubicación')) {
+      return {
+        items: [
+          {
+            id: 'doc-location-side-question-1',
+            title: 'Urucortinas · ubicación comercial',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Estamos en Montevideo y coordinamos visitas o seguimiento por este canal según el caso.',
+            snippet:
+              'Nos encontramos en Montevideo y coordinamos por WhatsApp cuando el cliente ya está avanzando una consulta.',
+            score: 0.96,
+            metadata: {
+              factType: 'location',
+            },
+          },
+        ],
+      }
+    }
+
+    return { items: [] }
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-side-question-location-grounded',
+    turns: [
+      'Quiero presupuesto para una abertura de aluminio dvh.',
+      '¿Y ubicación?',
+    ],
+  })
+
+  const sideQuestion = responses[1]
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(sideQuestion.grounding?.grounded, true)
+  assert.ok((sideQuestion.grounding?.usedFacts || []).length > 0)
+  assert.ok((sideQuestion.grounding?.usedSourceIds || []).length > 0)
+  assert.match(sideQuestion.text, /montevideo|whatsapp|visitas/i)
+  assert.doesNotMatch(
+    sideQuestion.text,
+    /Urucortinas · ubicación comercial|ubicación comercial/i,
+  )
+  assert.doesNotMatch(
+    sideQuestion.text,
+    /si seguimos con|quer[eé]s precio|material de referencia|coordinar c[oó]mo seguir/i,
+  )
+})
+
+test('customer_public prefers the stronger FAQ grounded candidate over a weaker document title when replacing raw knowledge leaks', async () => {
+  const { runtime, backendClient, providerCalls } = createRuntime()
+  runtime.provider.generate = async () => {
+    throw new Error('provider should not be called for grounded replacement priority')
+  }
+
+  backendClient.searchKnowledge = async (query) => {
+    const normalizedQuery = String(query || '').toLowerCase()
+    if (normalizedQuery.includes('ubicacion') || normalizedQuery.includes('ubicación')) {
+      return {
+        items: [
+          {
+            id: 'doc-location-side-question-1',
+            title: 'Urucortinas · ubicación comercial',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Estamos en Montevideo y coordinamos visitas o seguimiento por este canal según el caso.',
+            snippet:
+              'Nos encontramos en Montevideo y coordinamos por WhatsApp cuando el cliente ya está avanzando una consulta.',
+            score: 0.96,
+            metadata: {
+              factType: 'location',
+            },
+          },
+          {
+            id: 'doc-location-side-question-2',
+            title: 'Urucortinas · Montevideo',
+            scope: 'customer_public',
+            sourceType: 'curated_document',
+            summary:
+              'Atendemos en Montevideo y podemos coordinar visitas según el avance de la consulta.',
+            snippet:
+              'Atendemos en Montevideo y coordinamos por WhatsApp cuando hace falta avanzar la consulta.',
+            score: 0.78,
+            metadata: {
+              factType: 'location',
+            },
+          },
+        ],
+      }
+    }
+
+    return { items: [] }
+  }
+
+  const responses = await runConversation({
+    runtime,
+    conversationId: 'conv-public-quote-side-question-location-grounded-priority',
+    turns: [
+      'Quiero presupuesto para una abertura de aluminio dvh.',
+      '¿Y ubicación?',
+    ],
+  })
+
+  const sideQuestion = responses[1]
+
+  assert.equal(providerCalls.length, 0)
+  assert.equal(sideQuestion.grounding?.grounded, true)
+  assert.ok((sideQuestion.grounding?.usedFacts || []).length > 0)
+  assert.ok((sideQuestion.grounding?.usedSourceIds || []).length > 0)
+  assert.match(sideQuestion.text, /montevideo|whatsapp|visitas/i)
+  assert.doesNotMatch(sideQuestion.text, /Urucortinas · ubicación comercial|Montevideo$/i)
+  assert.doesNotMatch(
+    sideQuestion.text,
+    /si seguimos con|quer[eé]s precio|material de referencia|coordinar c[oó]mo seguir/i,
+  )
+})
+
 test('customer_public does not drift to scheduling when the customer asks for roller that lets light pass', async () => {
   const { runtime, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {
@@ -7645,30 +7932,10 @@ test('customer_public rewrites repeated quote handoff when a new configuration d
   })
 
   assert.equal(providerCalls.length, 0)
-  assert.match(
-    response.text,
-    /tomo ese detalle|misma cotizaci[oó]n|tomo una medida aproximada/i,
-  )
+  assert.match(response.text, /tomo ese detalle|misma cotizaci[oó]n/i)
   assert.doesNotMatch(
     response.text,
     /no tengo una configuraci[oó]n publicada con precio inmediato/i,
-  )
-  assert.equal(
-    response.auditPayload?.responseRuntime?.intentKey,
-    'customer.quote',
-  )
-  assert.equal(
-    response.auditPayload?.responseRuntime?.responseContract,
-    'guide_quote_exploration',
-  )
-  assert.equal(
-    typeof response.auditPayload?.responseRuntime?.loopIntervention?.applied,
-    'boolean',
-  )
-  assert.ok(
-    ['loop_prevention_checked', 'loop_prevention_applied'].includes(
-      response.auditPayload?.responseRuntime?.finalizationStage,
-    ),
   )
 })
 
