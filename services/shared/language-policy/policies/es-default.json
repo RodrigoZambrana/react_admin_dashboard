@@ -252,6 +252,150 @@
     "foto",
     "comprobante"
   ],
+  "conversationTopicStopTokens": [
+    "de",
+    "del",
+    "la",
+    "el",
+    "los",
+    "las",
+    "un",
+    "una",
+    "unos",
+    "unas",
+    "y",
+    "o",
+    "con",
+    "sin",
+    "para",
+    "por",
+    "que",
+    "me",
+    "mi",
+    "tu",
+    "su",
+    "es",
+    "en",
+    "al",
+    "lo",
+    "se",
+    "ya",
+    "ahora",
+    "necesito",
+    "quiero",
+    "hola",
+    "buenas",
+    "gracias"
+  ],
+  "quoteDetailFollowUpStopTokens": [
+    "si",
+    "sí",
+    "no",
+    "ok",
+    "dale",
+    "perfecto",
+    "listo",
+    "gracias",
+    "muchas",
+    "bien",
+    "claro",
+    "buen",
+    "dia",
+    "días",
+    "dias"
+  ],
+  "conversationSignalPatterns": {
+    "explicitResetRequested": [
+      {
+        "source": "\\b(nuevo caso|nuevo tema|otra consulta|otro tema|cambiando de tema|dejando eso|aparte|por otro lado)\\b",
+        "flags": "u"
+      }
+    ],
+    "customerFollowUp": [
+      {
+        "source": "\\b(ese mismo|esa misma|el mismo|la misma|mismo modelo|mismo item|misma configuracion|misma configuración|mismas caracteristicas|mismas características|ese modelo|ese item|ese producto|esa opcion|esa opción|puede venir|viene en|incluye|tambien|también)\\b",
+        "flags": "u"
+      }
+    ],
+    "scheduleContinuationInput": [
+      {
+        "source": "\\b(hoy|mañana|pasado mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|\\d{1,2}\\/\\d{1,2}(?:\\/\\d{4})?|a las\\s+\\d{1,2}(?::\\d{2})?|\\d{1,2}:\\d{2}|entre las|franja|temprano|temprana|despues de las|después de las|por la mañana|por la tarde|por la noche|direccion|dirección|ubicacion|ubicación|avenida|av\\.|calle|ruta|telefono|teléfono|celular|whatsapp|mail|email|correo)\\b",
+        "flags": "u"
+      },
+      {
+        "source": "\\b(a\\s+que\\s+hora|a\\s+qué\\s+hora)\\b.*\\b(pasan|pasar|podrian|podrían|pueden|venir)\\b",
+        "flags": "u"
+      },
+      {
+        "source": "\\b(podrian|podrían|pueden)\\s+(pasar|venir)\\b",
+        "flags": "u"
+      }
+    ],
+    "explicitFaqQuestionInput": [
+      {
+        "source": "\\b(cual|cu[aá]l|como|cómo|donde|dónde|cuando|cuándo)\\b",
+        "flags": "u"
+      },
+      {
+        "source": "\\b(medios de pago|formas de pago|horario|horarios)\\b",
+        "flags": "u"
+      },
+      {
+        "source": "\\b(?:aceptan|manejan|trabajan con|tienen)\\b.*\\b(?:tarjeta|tarjetas|transferencia|efectivo|debito|d[eé]bito|credito|cr[eé]dito|telefono|tel[eé]fono|whatsapp|mail|email)\\b",
+        "flags": "u"
+      }
+    ],
+    "shortContextualFollowUp": [
+      {
+        "source": "^(?:si[\\s,.]+)?(?:y|tambien|también|eso|este|esta|ese|esa|el mismo|la misma|mismo modelo|misma opcion|misma opción|cuanto|cuánto|cuanto demora|cuánto demora|demora|tarda|sirve|viene|incluye|se puede|puede venir)\\b",
+        "flags": "u"
+      }
+    ],
+    "contextualReference": [
+      {
+        "source": "\\b(esto|eso|este|esta|ese|esa|lo de arriba|lo anterior|el anterior|la anterior|ese mismo|esa misma|registral[oa]s?|agregal[oa]s?|cargal[oa]s?|procesal[oa]s?|usalo|úsalo|usala|úsala|seg[uú]n|tomando lo anterior)\\b",
+        "flags": "u"
+      }
+    ],
+    "lightClosureFollowUp": [
+      {
+        "source": "^(ok|dale|perfecto|listo|gracias|muchas gracias|saludos?|buen dia|buenos dias|buenas tardes|buenas noches|claro|bien|genial|barbaro|b[aá]rbaro)(?:\\s+(ok|dale|perfecto|listo|gracias|muchas gracias|saludos?|buen dia|buenos dias|buenas tardes|buenas noches|claro|bien|genial|barbaro|b[aá]rbaro))*$",
+        "flags": "u"
+      },
+      {
+        "source": "\\b(vemos?\\s+mas\\s+adelante|vemos?\\s+m[aá]s\\s+adelante|lo\\s+vemos?\\s+mas\\s+adelante|lo\\s+vemos?\\s+m[aá]s\\s+adelante|por\\s+ahora\\s+no|por\\s+ahora\\s+no\\s+puedo|m[aá]s\\s+adelante|despu[eé]s\\s+vemos|veo\\s+y\\s+me\\s+comunico|te\\s+aviso|les\\s+aviso|voy\\s+a\\s+evaluarlo|voy\\s+a\\s+evaluarla|lo\\s+voy\\s+a\\s+evaluar|la\\s+voy\\s+a\\s+evaluar|voy\\s+a\\s+pensarlo|voy\\s+a\\s+pensarla|lo\\s+voy\\s+a\\s+pensar|la\\s+voy\\s+a\\s+pensar)\\b",
+        "flags": "u"
+      }
+    ],
+    "closureContinuationResponse": [
+      {
+        "source": "(cuando quieras retomarlo, seguimos por aca|cuando quieras retomarla, seguimos por aca|retomar la cotizacion|retomar la coordinacion|retomar la revision|cualquier cosa me escribis|quedo por aca|queda encaminad[ao])",
+        "flags": "u"
+      }
+    ],
+    "operationalStatusContinuation": [
+      {
+        "source": "\\b(quedaron de avisar|ya e llamado|ya he llamado|pasaran|pasarán|estoy en|los espero|las espero|te espero)\\b",
+        "flags": "u"
+      }
+    ],
+    "addressOrTimeReply": [
+      {
+        "source": "\\b(direcci[oó]n|zona|esq|esquina|avenida|av\\.?|calle|apto|apartamento|shop|local|horario|hoy|mañana|lunes|martes|mi[eé]rcoles|miercoles|jueves|viernes|s[aá]bado|sabado|domingo|a las|pasen|ir[ií]an|volver|vuelvan)\\b",
+        "flags": "u"
+      },
+      {
+        "source": "\\b\\d{3,5}\\b",
+        "flags": "u"
+      }
+    ],
+    "coordinationAskResponse": [
+      {
+        "source": "podemos coordinar|coordinar (?:una )?(?:visita|revision|revisión|instalacion|instalación)|zona o direcci[oó]n|d[ií]a u horario|horario te queda mejor|tel[eé]fono o mail",
+        "flags": "u"
+      }
+    ]
+  },
   "privateAccountFaqGuardPatterns": [
     {
       "source": "\\b(mi direccion|direccion de entrega|domicilio de entrega)\\b",
@@ -353,5 +497,88 @@
         "flags": "u"
       }
     ]
+  },
+  "wordingTemplates": {
+    "customer.closure.continuation_open": {
+      "messages": [
+        "Perfecto. Cuando quieras retomarlo, seguimos por acá.",
+        "Claro. Cuando quieras volver sobre eso, seguimos por este medio."
+      ],
+      "goal": "Cerrar un follow-up liviano sin reabrir intake ni perder continuidad contextual.",
+      "allowHybridRewrite": false,
+      "maxChars": 160
+    },
+    "customer.closure.continuation_ack": {
+      "messages": [
+        "Dale, cualquier cosa me escribís.",
+        "Perfecto. Si después querés retomarlo, escribime por acá."
+      ],
+      "goal": "Responder un cierre liviano cuando el canal ya quedó explícitamente abierto en el turno anterior.",
+      "allowHybridRewrite": false,
+      "maxChars": 140
+    },
+    "customer.search_fallback.no_match": {
+      "messages": [
+        "No encontré un producto publicado que coincida exactamente con esa configuración. Un asesor del equipo te indicará cómo continuar y te ayudará a confirmar alternativas, medidas y disponibilidad.",
+        "No veo una coincidencia publicada exacta para esa configuración. Lo dejo encaminado para que un asesor confirme opciones, medidas y disponibilidad por este medio."
+      ],
+      "goal": "Cerrar un search fallback sin match exacto manteniendo continuidad comercial sin copy rígido inline.",
+      "allowHybridRewrite": false,
+      "maxChars": 260
+    },
+    "customer.search_fallback.match_found": {
+      "messages": [
+        "Encontré una coincidencia publicada para tu consulta: {productName}.",
+        "Veo una coincidencia publicada que encaja con lo que consultaste: {productName}."
+      ],
+      "goal": "Introducir un match publicado de catálogo antes de sumar el siguiente paso contextual.",
+      "allowHybridRewrite": false,
+      "maxChars": 180
+    },
+    "customer.search_fallback.price_available": {
+      "messages": [
+        "Precio de referencia: {currency} {amount}.",
+        "Referencia publicada: {currency} {amount}."
+      ],
+      "goal": "Comunicar el precio publicado como referencia de forma breve y sin wording inline en agent.js.",
+      "allowHybridRewrite": false,
+      "maxChars": 120
+    },
+    "customer.search_fallback.price_missing": {
+      "messages": [
+        "En este momento no pude confirmar el precio exacto, pero un asesor puede ayudarte a validarlo.",
+        "No pude validar ahora mismo el precio exacto; si hace falta, un asesor puede confirmártelo por este medio."
+      ],
+      "goal": "Resolver el caso donde hay match publicado pero falta precio exacto sin copy inline en agent.js.",
+      "allowHybridRewrite": false,
+      "maxChars": 180
+    },
+    "customer.search_fallback.next_step": {
+      "messages": [
+        "Si necesitas más detalle o una cotización, un asesor puede continuar contigo y ayudarte con el siguiente paso.",
+        "Si querés más detalle o avanzar con una cotización, un asesor puede seguir contigo por acá."
+      ],
+      "goal": "Cerrar un fallback de búsqueda publicada en product/info sin repetir copy inline en agent.js.",
+      "allowHybridRewrite": false,
+      "maxChars": 180
+    },
+    "customer.search_fallback.quote_next_step_default": {
+      "messages": [
+        "Si querés, te ayudo a revisar la configuración pendiente o la disponibilidad.",
+        "Si querés, te ayudo a repasar lo que falta de la configuración o la disponibilidad."
+      ],
+      "goal": "Cerrar un fallback publicado manteniendo la cotización en lane quote con siguiente paso determinístico.",
+      "allowHybridRewrite": false,
+      "maxChars": 180
+    },
+    "customer.search_fallback.quote_next_step_pending": {
+      "messages": [
+        "Si querés, te ayudo a revisar {pendingLabels} o la disponibilidad.",
+        "Si te sirve, repasamos {pendingLabels} o la disponibilidad y seguimos desde ahí."
+      ],
+      "goal": "Cerrar un fallback publicado preservando el siguiente paso exacto de quote según los datos faltantes.",
+      "allowHybridRewrite": false,
+      "maxChars": 200
+    }
   }
 }

@@ -2340,6 +2340,47 @@ test('customer_public product quote recovers from provider quota exhaustion usin
   assert.equal(response.grounding?.fallbackReason, null)
 })
 
+test('customer_public published search fallback keeps quote guidance and grounding inside the shaping seam', () => {
+  const { runtime } = createRuntime()
+
+  const response = runtime.buildCustomerSearchFallbackResponse({
+    role: 'customer_public',
+    intentKey: 'customer.quote',
+    fallbackReason: 'provider_error',
+    input: 'Quiero cotizar roller blackout',
+    interpretation: {
+      quoteContext: {
+        missingFields: ['measurements', 'quantity'],
+      },
+    },
+    operationalContext: {
+      toolCalls: [
+        {
+          name: 'search_products',
+          status: 'executed',
+          result: [
+            {
+              id: 91,
+              name: 'Roller blackout premium',
+              currency: 'usd',
+              amount: 123,
+            },
+          ],
+        },
+      ],
+    },
+    channel: 'whatsapp',
+  })
+
+  assert.equal(response?.wordingKey, 'customer.search_fallback.match_found')
+  assert.equal(response?.needsHuman, false)
+  assert.match(response?.text || '', /Roller blackout premium/i)
+  assert.match(response?.text || '', /USD 123/i)
+  assert.match(response?.text || '', /medidas aproximadas|cantidad|disponibilidad/i)
+  assert.equal(response?.grounding?.grounded, true)
+  assert.equal(response?.grounding?.sources?.[0]?.title, 'Roller blackout premium')
+})
+
 test('customer_public resolves approved topic knowledge before calling the provider or catalog fallback', async () => {
   const { runtime, backendClient, providerCalls } = createRuntime()
   runtime.provider.generate = async () => {

@@ -50,6 +50,22 @@ import {
   looksLikeSpecificPaymentMethodQuestion,
 } from './conversation/response-signals.js'
 import {
+  calculateConversationTopicOverlap as calculateTopicOverlap,
+  extractConversationTopicTokens as extractTopicTokens,
+  hasExplicitConversationReset as explicitResetRequested,
+  looksLikeAddressOrTimeReply,
+  looksLikeAttachmentReference,
+  looksLikeClosureContinuationResponse,
+  looksLikeContextualReference,
+  looksLikeCoordinationAskResponse,
+  looksLikeCustomerFollowUp,
+  looksLikeLightClosureFollowUp,
+  looksLikeOperationalStatusContinuation,
+  looksLikeQuoteDetailFollowUp,
+  looksLikeShortContextualFollowUp,
+  sanitizeLoopSubjectLabel,
+} from './conversation/closure-signals.js'
+import {
   buildConversationState,
   filterResolvedConversationFields,
   isConversationFieldResolved,
@@ -65,6 +81,10 @@ import {
   resolveCustomerActiveIntentKeyFromReadiness,
   resolveSideQuestionIntentKey,
 } from './conversation/decision-runtime.js'
+import {
+  resolveClosureContinuationShape,
+  resolveCustomerSearchFallbackShape,
+} from './conversation/response-shaping.js'
 import { generateResponse } from './nlp/generate-response.js'
 import { validateResponseGuardrails } from './guardrails/validate-response.js'
 import { detectIntent } from './intents/detect-intent.js'
@@ -88,7 +108,6 @@ import {
   buildContextualProductReference,
   buildCustomerFaqKnowledgeResponse,
   buildGenericCustomerKnowledgeFallbackText,
-  buildQuoteProgressHint,
   extractKnowledgeFallbackStatements,
   resolveOperationalPaymentMethodsInline,
   selectCustomerFaqEvidence,
@@ -201,42 +220,6 @@ import {
   shouldSkipKnowledgeRetrieval,
 } from './retrieval/retrieval-gate.js'
 import { reconcileResponseGroundingAudit } from './grounding/grounding-audit.js'
-
-const STOP_TOKENS = new Set([
-  'de',
-  'del',
-  'la',
-  'el',
-  'los',
-  'las',
-  'un',
-  'una',
-  'unos',
-  'unas',
-  'y',
-  'o',
-  'con',
-  'sin',
-  'para',
-  'por',
-  'que',
-  'me',
-  'mi',
-  'tu',
-  'su',
-  'es',
-  'en',
-  'al',
-  'lo',
-  'se',
-  'ya',
-  'ahora',
-  'necesito',
-  'quiero',
-  'hola',
-  'buenas',
-  'gracias',
-])
 
 const NON_REASONING_AUTHOR_KINDS = new Set(['business_auto', 'channel_system'])
 const NON_REASONING_MESSAGE_KINDS = new Set([
@@ -614,60 +597,6 @@ const dedupeToolCalls = (toolCalls = []) => {
   return Array.from(uniqueEntries.values())
 }
 
-const extractTopicTokens = (text) =>
-  Array.from(
-    new Set(
-      normalizeText(text)
-        .split(' ')
-        .filter((token) => token.length >= 3 && !STOP_TOKENS.has(token)),
-    ),
-  ).slice(0, 12)
-
-const calculateTopicOverlap = (a = [], b = []) => {
-  if (!a.length || !b.length) {
-    return 0
-  }
-
-  const left = new Set(a)
-  const right = new Set(b)
-  let intersection = 0
-  for (const token of left) {
-    if (right.has(token)) {
-      intersection += 1
-    }
-  }
-  return intersection / new Set([...left, ...right]).size
-}
-
-const explicitResetRequested = (text) =>
-  /(nuevo caso|nuevo tema|otra consulta|otro tema|cambiando de tema|dejando eso|aparte|por otro lado)/i.test(
-    String(text || ''),
-  )
-
-const looksLikeCustomerFollowUp = (text) =>
-  /(ese mismo|esa misma|el mismo|la misma|mismo modelo|mismo item|misma configuracion|misma configuración|mismas caracteristicas|mismas características|ese modelo|ese item|ese producto|esa opcion|esa opción|puede venir|viene en|incluye|tambien|también)/i.test(
-    String(text || ''),
-  )
-
-const looksLikeScheduleContinuationInput = (text) =>
-  /\b(hoy|mañana|pasado mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|\d{1,2}\/\d{1,2}(?:\/\d{4})?|a las\s+\d{1,2}(?::\d{2})?|\d{1,2}:\d{2}|entre las|franja|temprano|temprana|despues de las|después de las|por la mañana|por la tarde|por la noche|direccion|dirección|ubicacion|ubicación|avenida|av\.|calle|ruta|telefono|teléfono|celular|whatsapp|mail|email|correo)\b/i.test(
-    String(text || ''),
-  ) ||
-  /\b(a\s+que\s+hora|a\s+qué\s+hora)\b.*\b(pasan|pasar|podrian|podrían|pueden|venir)\b/i.test(
-    String(text || ''),
-  ) ||
-  /\b(podrian|podrían|pueden)\s+(pasar|venir)\b/i.test(String(text || ''))
-
-const NON_QUOTE_CONTINUATION_FAQ_SUBTYPES = new Set([
-  'business_hours',
-  'location',
-  'payment_methods',
-  'contact',
-  'maintenance',
-  'benefits',
-  'definition',
-])
-
 const SAFE_CUSTOMER_HYBRID_REWRITE_KEYS = new Set()
 const WEAK_NEUTRAL_REENGAGEMENT_INTENTS = new Set([
   'customer.other',
@@ -678,74 +607,8 @@ const WEAK_NEUTRAL_REENGAGEMENT_INTENTS = new Set([
   'customer.incomplete',
 ])
 
-const looksLikeShortContextualFollowUp = (text) => {
-  const normalized = normalizeText(text)
-  const tokens = normalized.split(' ').filter(Boolean)
-  if (!normalized || tokens.length > 8) {
-    return false
-  }
-
-  return /^(?:si[\s,.]+)?(y|tambien|también|eso|este|esta|ese|esa|el mismo|la misma|mismo modelo|misma opcion|misma opción|cuanto|cuánto|cuanto demora|cuánto demora|demora|tarda|sirve|viene|incluye|se puede|puede venir)/i.test(
-    normalized,
-  )
-}
-
-const hasCurrentTurnQuoteSignal = ({
-  currentTurnText = '',
-  currentQuoteContext = null,
-  previousQuoteContext = null,
-}) => {
-  const currentMeasurements =
-    currentQuoteContext?.measurements && typeof currentQuoteContext.measurements === 'object'
-      ? currentQuoteContext.measurements
-      : null
-  const previousMeasurements =
-    previousQuoteContext?.measurements && typeof previousQuoteContext.measurements === 'object'
-      ? previousQuoteContext.measurements
-      : null
-  const currentQuantity =
-    currentQuoteContext?.quantity && typeof currentQuoteContext.quantity === 'object'
-      ? currentQuoteContext.quantity
-      : null
-  const previousQuantity =
-    previousQuoteContext?.quantity && typeof previousQuoteContext.quantity === 'object'
-      ? previousQuoteContext.quantity
-      : null
-
-  const measurementsChanged =
-    Boolean(currentMeasurements) &&
-    (currentMeasurements?.widthMm !== previousMeasurements?.widthMm ||
-      currentMeasurements?.heightMm !== previousMeasurements?.heightMm)
-  const quantityChanged =
-    Number(currentQuantity?.total || 0) > 0 &&
-    currentQuantity?.total !== previousQuantity?.total
-
-  return (
-    measurementsChanged ||
-    quantityChanged ||
-    looksLikeGenericPriceInquiry(currentTurnText) ||
-    looksLikeQuoteRequirementsQuestion(currentTurnText) ||
-    looksLikeQuoteWaitingFollowUp(currentTurnText)
-  )
-}
-
-const looksLikeContextualReference = (text) =>
-  /(esto|eso|este|esta|ese|esa|lo de arriba|lo anterior|el anterior|la anterior|ese mismo|esa misma|registral[oa]s?|agregal[oa]s?|cargal[oa]s?|procesal[oa]s?|usalo|úsalo|usala|úsala|seg[uú]n|tomando lo anterior)/i.test(
-    String(text || ''),
-  )
-
 const isGenericCustomerIntentKey = (intentKey) =>
   ['customer.other', 'unknown'].includes(String(intentKey || ''))
-
-const CONTEXTUAL_CUSTOMER_CONTINUATION_INTENTS = new Set([
-  'customer.other',
-  'unknown',
-  'customer.light',
-  'customer.clarify_request',
-  'customer.incomplete',
-  'customer.product_info',
-  'customer.topic_info',
-])
 
 const intentNamespace = (intentKey) => String(intentKey || '').split('.')[0] || 'other'
 
@@ -793,31 +656,10 @@ const resolveLightConversationKind = (text) => {
   return 'greeting'
 }
 
-const looksLikeLightClosureFollowUp = (text) => {
-  const normalized = normalizeText(text)
-  if (!normalized) {
-    return false
-  }
-
-  return (
-    /^(ok|dale|perfecto|listo|gracias|muchas gracias|saludos?|buen dia|buenos dias|buenas tardes|buenas noches|claro|bien|genial|barbaro|b[aá]rbaro)(?:\s+(ok|dale|perfecto|listo|gracias|muchas gracias|saludos?|buen dia|buenos dias|buenas tardes|buenas noches|claro|bien|genial|barbaro|b[aá]rbaro))*$/i.test(
-      normalized,
-    ) ||
-    /\b(vemos?\s+mas\s+adelante|vemos?\s+m[aá]s\s+adelante|lo\s+vemos?\s+mas\s+adelante|lo\s+vemos?\s+m[aá]s\s+adelante|por\s+ahora\s+no|por\s+ahora\s+no\s+puedo|m[aá]s\s+adelante|despu[eé]s\s+vemos|veo\s+y\s+me\s+comunico|te\s+aviso|les\s+aviso|voy\s+a\s+evaluarlo|voy\s+a\s+evaluarla|lo\s+voy\s+a\s+evaluar|la\s+voy\s+a\s+evaluar|voy\s+a\s+pensarlo|voy\s+a\s+pensarla|lo\s+voy\s+a\s+pensar|la\s+voy\s+a\s+pensar)\b/i.test(
-      normalized,
-    )
-  )
-}
-
-const looksLikeClosureContinuationResponse = (text) =>
-  /(cuando quieras retomarlo, seguimos por aca|cuando quieras retomarla, seguimos por aca|retomar la cotizacion|retomar la coordinacion|retomar la revision|cualquier cosa me escribis|quedo por aca|queda encaminad[ao])/i.test(
-    normalizeText(text),
-  )
-
 const buildClosureContinuationReply = (previousAgentText = '') =>
-  looksLikeClosureContinuationResponse(previousAgentText)
-    ? 'Dale, cualquier cosa me escribís.'
-    : 'Perfecto. Cuando quieras retomarlo, seguimos por acá.'
+  resolveClosureContinuationShape({
+    previousAgentText,
+  }).text
 
 const buildContextualClosureContinuationReply = ({
   context = 'general',
@@ -846,97 +688,10 @@ const buildContextualClosureContinuationReply = ({
   return buildClosureContinuationReply(previousAgentText)
 }
 
-const sanitizeLoopSubjectLabel = (value = null) => {
-  const compacted = compactText(value)
-  const normalized = normalizeText(compacted)
-  if (!normalized) {
-    return null
-  }
-
-  if (
-    /^\d+(?:[.,]\d+)?$/u.test(normalized) ||
-    /^(uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)$/u.test(normalized) ||
-    QUOTE_DETAIL_FOLLOW_UP_STOP_TOKENS.has(normalized)
-  ) {
-    return null
-  }
-
-  return compacted
-}
-
-const looksLikeOperationalStatusContinuation = (text) =>
-  looksLikeScheduleContinuationInput(text) ||
-  /\b(quedaron de avisar|ya e llamado|ya he llamado|pasaran|pasarán|estoy en|los espero|las espero|te espero)\b/i.test(
-    String(text || ''),
-  )
-
-const looksLikeAddressOrTimeReply = (text) =>
-  /\b(direcci[oó]n|zona|esq|esquina|avenida|av\.?|calle|apto|apartamento|shop|local|horario|hoy|mañana|lunes|martes|mi[eé]rcoles|miercoles|jueves|viernes|s[aá]bado|sabado|domingo|a las|pasen|ir[ií]an|volver|vuelvan)\b/i.test(
-    String(text || ''),
-  ) || /\b\d{3,5}\b/.test(String(text || ''))
-
 const looksLikeQuoteVisitCoordinationFollowUp = (text) =>
   /\b(medir|midan|midieras|midan\s+ustedes|pasen\s+a\s+medir|tomen\s+medidas|visita|coordinar|direccion|direcci[oó]n|ubicacion|ubicaci[oó]n|manana|ma[nñ]ana|lunes|martes|miercoles|mi[eé]rcoles|jueves|viernes|sabado|s[aá]bado|domingo|horario|a\s+las|no\s+puedo)\b/u.test(
     normalizeText(text),
   )
-
-const QUOTE_DETAIL_FOLLOW_UP_STOP_TOKENS = new Set([
-  'si',
-  'sí',
-  'no',
-  'ok',
-  'dale',
-  'perfecto',
-  'listo',
-  'gracias',
-  'muchas',
-  'bien',
-  'claro',
-  'buen',
-  'dia',
-  'días',
-  'dias',
-])
-
-const looksLikeQuoteDetailFollowUp = (text) => {
-  const raw = String(text || '')
-  const normalized = normalizeText(raw)
-  if (!normalized || /[?¿]/u.test(raw) || looksLikeLightClosureFollowUp(raw)) {
-    return false
-  }
-
-  if (
-    looksLikeAmountOnlyReply(raw) ||
-    /\b\d{1,4}(?:[.,]\d+)?\s*[x×]\s*\d{1,4}(?:[.,]\d+)?\b/u.test(normalized) ||
-    looksLikeGenericPriceInquiry(raw) ||
-    looksLikeQuoteRequirementsQuestion(raw) ||
-    looksLikeQuoteWaitingFollowUp(raw) ||
-    looksLikeMaterialFollowUpRequest(raw) ||
-    looksLikeInformationExpansionRequest(raw) ||
-    looksLikeCommercialConditionQuestion(raw) ||
-    looksLikeOperationalStatusContinuation(raw) ||
-    hasAttachmentReferenceSignal(raw)
-  ) {
-    return false
-  }
-
-  const tokens = normalized.split(/\s+/u).filter(Boolean)
-  if (!tokens.length || tokens.length > 8) {
-    return false
-  }
-
-  const meaningfulTokens = tokens.filter(
-    (token) => !QUOTE_DETAIL_FOLLOW_UP_STOP_TOKENS.has(token),
-  )
-
-  return meaningfulTokens.some((token) => token.length >= 4 || /\d/u.test(token))
-}
-
-const looksLikeCoordinationAskResponse = (text) =>
-  /podemos coordinar|coordinar (?:una )?(?:visita|revision|revisión|instalacion|instalación)|zona o direcci[oó]n|d[ií]a u horario|horario te queda mejor|tel[eé]fono o mail/i.test(
-    normalizeText(text),
-  )
-
 const responseActivatesFallback = (response) =>
   Boolean(response?.needsHuman || response?.grounding?.fallbackReason)
 
@@ -9003,6 +8758,7 @@ export class AiAgentRuntime {
         input,
         interpretation,
         tenantTopicTaxonomy,
+        channel,
       }) || {
         text: this.buildSharedOutcomeText({
           audience: this.getConversationAudience(role),
@@ -14814,6 +14570,7 @@ export class AiAgentRuntime {
     input = '',
     interpretation = null,
     tenantTopicTaxonomy = [],
+    channel = null,
   }) {
     const quoteContext =
       interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
@@ -14860,10 +14617,23 @@ export class AiAgentRuntime {
     }
 
     const firstMatch = matches[0] ?? null
-    if (!firstMatch) {
+    const searchFallbackShape = resolveCustomerSearchFallbackShape({
+      firstMatch,
+      intentKey,
+      quoteContext: interpretation?.quoteContext || null,
+      variationSeed: input,
+      wordingOverrides: this.getCustomerWordingOverrides(),
+      channel,
+      channelProfile: this.getResponseChannelProfile(channel),
+    })
+    if (!searchFallbackShape?.text) {
+      return null
+    }
+
+    if (searchFallbackShape.needsHuman) {
       return {
-        text:
-          'No encontré un producto publicado que coincida exactamente con esa configuración. Un asesor del equipo te indicará cómo continuar y te ayudará a confirmar alternativas, medidas y disponibilidad.',
+        text: searchFallbackShape.text,
+        wordingKey: searchFallbackShape.wordingKey,
         toolCalls: [],
         needsHuman: true,
         grounding: {
@@ -14873,54 +14643,25 @@ export class AiAgentRuntime {
       }
     }
 
-    const amount =
-      typeof firstMatch.amount === 'number' && Number.isFinite(firstMatch.amount)
-        ? firstMatch.amount
-        : null
-    const currency =
-      typeof firstMatch.currency === 'string' && firstMatch.currency.trim()
-        ? firstMatch.currency.trim().toUpperCase()
-        : null
-    const productName = String(firstMatch.name || 'el producto consultado').trim()
-
-    const lines = [
-      `Encontré una coincidencia publicada para tu consulta: ${productName}.`,
-    ]
-
-    if (amount != null && currency) {
-      lines.push(`Precio de referencia: ${currency} ${amount}.`)
-    } else {
-      lines.push(
-        'En este momento no pude confirmar el precio exacto, pero un asesor puede ayudarte a validarlo.',
-      )
-    }
-
-    if (intentKey === 'customer.quote') {
-      lines.push(buildQuoteProgressHint(quoteContext))
-    } else {
-      lines.push(
-        'Si necesitas más detalle o una cotización, un asesor puede continuar contigo y ayudarte con el siguiente paso.',
-      )
-    }
+    const referenceTitle = compactText(searchFallbackShape.referenceTitle || '')
 
     return {
-      text: lines.join(' '),
+      text: searchFallbackShape.text,
+      wordingKey: searchFallbackShape.wordingKey,
       toolCalls: [],
       needsHuman: false,
       grounding: {
         ...buildGroundingContract({
           knowledgeRetrieved: false,
-          usedFacts: lines.filter(
-            (entry, index) => index < 2 || /precio de referencia/i.test(entry),
-          ),
+          usedFacts: [searchFallbackShape.text],
           sources: buildStructuredGroundingSource({
             sourceType: 'published_catalog',
             scope: 'catalog',
             sourceKey:
               firstMatch?.id != null
                 ? `product:${firstMatch.id}`
-                : compactText(productName || 'catalog_match'),
-            title: productName,
+                : referenceTitle || 'catalog_match',
+            title: referenceTitle || null,
           }),
         }),
         fallbackReason,
