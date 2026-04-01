@@ -1,3 +1,5 @@
+name: ${APP_STACK_NAME:-admin-dashboard-dev}
+
 x-backend-common: &backend-common
   env_file:
     - path: ./env/backend.dev.env
@@ -28,6 +30,7 @@ x-storefront-common: &storefront-common
 services:
   backend:
     <<: *backend-common
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-backend
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -63,6 +66,7 @@ services:
 
   frontend:
     <<: *frontend-common
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-frontend
     build:
       context: ..
       dockerfile: frontend/Dockerfile
@@ -87,6 +91,7 @@ services:
 
   storefront:
     <<: *storefront-common
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-storefront
     build:
       context: ..
       dockerfile: ecommerce/Dockerfile
@@ -121,22 +126,32 @@ services:
         npm run dev -- --hostname 0.0.0.0 --port 3000;
       '
     volumes:
-      - ../ecommerce:/app
-      - ../src:/src
-      - storefront-node-modules:/app/node_modules
-      - storefront-next-cache:/app/.next
+      - type: bind
+        source: ../ecommerce
+        target: /app
+      - type: bind
+        source: ../src
+        target: /src
+      - type: bind
+        source: ${STACK_RUNTIME_ROOT:-../.docker/admin-dashboard-dev}/storefront/node_modules
+        target: /app/node_modules
+      - type: bind
+        source: ${STACK_RUNTIME_ROOT:-../.docker/admin-dashboard-dev}/storefront/.next
+        target: /app/.next
     ports:
       - "${STOREFRONT_HOST_PORT:-3000}:3000"
     depends_on:
       - backend
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/api/health || exit 1"]
-
-volumes:
-  storefront-node-modules:
-  storefront-next-cache:
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 180s
 
 networks:
+  default:
+    name: ${APP_STACK_NAME:-admin-dashboard-dev}
   external_postgres:
     external: true
-    name: ${EXTERNAL_POSTGRES_NETWORK:-admin-dashboard-dev_default}
+    name: ${EXTERNAL_POSTGRES_NETWORK:-postgres-local}

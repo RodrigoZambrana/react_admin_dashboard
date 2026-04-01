@@ -48,7 +48,7 @@ one worktree. The canonical command is expected to resolve from the versioned fi
 above, with `.local` overlays used only when a developer needs an extra override.
 
 The versioned dev compose baseline expects PostgreSQL to remain external to this stack.
-By default the backend joins `${EXTERNAL_POSTGRES_NETWORK:-admin-dashboard-dev_default}`
+By default the backend joins `${EXTERNAL_POSTGRES_NETWORK:-postgres-local}`
 and resolves the database at `db:5432`, which matches the external PostgreSQL container
 alias used in the local setup. If a developer needs a different target, use
 `EXTERNAL_POSTGRES_NETWORK`, `DEV_DATABASE_URL` or `DEV_DB_*` via environment/local

@@ -1,6 +1,7 @@
 services:
   ai-agent-service:
     profiles: ["ai"]
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-ai-agent-service
     build:
       context: ../services
       dockerfile: ai-agent-service/Dockerfile
@@ -25,6 +26,7 @@ services:
 
   channel-adapter:
     profiles: ["ai"]
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-channel-adapter
     build:
       context: ../services
       dockerfile: channel-adapter/Dockerfile
@@ -46,14 +48,14 @@ services:
     ports:
       - "${CHANNEL_ADAPTER_PORT:-4200}:4200"
     volumes:
-      - channel-adapter-whatsapp-runtime:/app/runtime/whatsapp-qr
+      - type: bind
+        source: ${STACK_RUNTIME_ROOT:-../.docker/admin-dashboard-dev}/channel-adapter/whatsapp-qr
+        target: /app/runtime/whatsapp-qr
 
   redis:
     profiles: ["ai", "ai-cache"]
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-redis
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
-
-volumes:
-  channel-adapter-whatsapp-runtime:

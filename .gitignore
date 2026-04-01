@@ -31,6 +31,8 @@ ecommerce/playwright-report/
 ecommerce/test-results/
 ecommerce/.cache/
 .qa/
+.docker/
+backups/db/*_legacy_postgres_local.sql
 
 # Prisma
 backend/prisma/generated/
