@@ -148,7 +148,7 @@ test('buildCustomerScheduleContext strips conversational lead-ins from mixed pho
   assert.equal(context.address, 'ne fraga 2137')
   assert.equal(context.contactPhone, '091285304')
   assert.equal(context.completionStatus, 'needs_info')
-  assert.deepEqual(context.missingFields, ['day', 'time'])
+  assert.deepEqual(context.missingFields, ['date', 'time'])
 })
 
 test('buildCustomerScheduleContext does not infer a fake address from quote narrative text', () => {
@@ -163,5 +163,27 @@ test('buildCustomerScheduleContext does not infer a fake address from quote narr
   })
 
   assert.equal(context.address, null)
-  assert.deepEqual(context.missingFields, ['day', 'time', 'address', 'contact'])
+  assert.deepEqual(context.missingFields, ['date', 'time', 'address', 'contact'])
+})
+
+test('buildCustomerScheduleContext keeps the previous address when the current turn only adds a time option', () => {
+  const previous = buildCustomerScheduleContext({
+    currentTurnText:
+      'Buschental M37 S22, Esq, Juan Zorrilla de San Martin San José de Carrasco ubicación: https://maps.google.com/?q=-34.84792,-55.9874733',
+    previousScheduleContext: {
+      reason: 'visita técnica',
+      purpose: 'cotizar ubicación',
+    },
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  const next = buildCustomerScheduleContext({
+    currentTurnText: 'Pueden sobre las 9 am?',
+    previousScheduleContext: previous,
+    now: new Date('2026-03-28T10:00:00.000Z'),
+  })
+
+  assert.equal(next.address, 'https://maps.google.com/?q=-34.84792,-55.9874733')
+  assert.equal(next.time?.timeLabel, '09:00')
+  assert.deepEqual(next.missingFields, ['date', 'contact'])
 })

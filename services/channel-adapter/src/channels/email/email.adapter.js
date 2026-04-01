@@ -1,8 +1,138 @@
 import { normalizeEmailPayload } from '../../normalization/unified-message.js'
+import {
+  PendingUtteranceAssembler,
+  estimatePendingUtteranceDelay,
+} from '../../runtime/pending-utterance-assembler.js'
+
+const DEFAULT_EMAIL_QUIET_WINDOW_MS = 1200
+const DEFAULT_EMAIL_MAX_WINDOW_MS = 5000
 
 export class EmailAdapter {
-  constructor(clients) {
+  constructor(clients, options = {}) {
     this.clients = clients
+    this.quietWindowMs =
+      options.quietWindowMs ?? DEFAULT_EMAIL_QUIET_WINDOW_MS
+    this.maxWindowMs =
+      options.maxWindowMs ?? DEFAULT_EMAIL_MAX_WINDOW_MS
+    this.turnAssembler =
+      options.turnAssembler ||
+      options.coalescer ||
+      new PendingUtteranceAssembler({
+        defaultDelayMs: this.quietWindowMs,
+        maxWindowMs: this.maxWindowMs,
+      })
+  }
+
+  buildCoalescerKey({ normalized, projection }) {
+    return [
+      'email',
+      projection?.conversationId || normalized?.conversationId || 'conversation',
+      normalized?.userId || normalized?.metadata?.threadId || 'user',
+    ].join(':')
+  }
+
+  async processBufferedInbound(items = [], context = {}) {
+    const lastItem = items.at(-1)
+    if (!lastItem) {
+      return {
+        normalized: null,
+        conversation: null,
+        ai: null,
+      }
+    }
+
+    const normalizedMessages = items.map((entry) => entry.normalized).filter(Boolean)
+    const latestNormalized = lastItem.normalized
+    const projection = lastItem.projection
+    const semanticTurn = context?.semanticTurn || null
+    const evaluation = context?.evaluation || null
+    const combinedText = normalizedMessages
+      .map((entry) => String(entry?.text || '').trim())
+      .filter(Boolean)
+      .join('\n')
+      .trim()
+    const combinedAttachments = normalizedMessages.flatMap((entry) =>
+      Array.isArray(entry?.attachments) ? entry.attachments : [],
+    )
+
+    if (evaluation?.canceled) {
+      return {
+        normalized: latestNormalized,
+        conversation: projection,
+        ai: null,
+        coalescedInboundCount: normalizedMessages.length,
+        semanticTurn,
+        suppressed: true,
+      }
+    }
+
+    const aiResult = await this.clients.ai.respond(
+      {
+        ...latestNormalized,
+        conversationId: projection.conversationId,
+        text: combinedText,
+        attachments: combinedAttachments,
+        metadata: {
+          ...(latestNormalized?.metadata || {}),
+          coalescedInboundCount: normalizedMessages.length,
+          semanticTurnId:
+            typeof semanticTurn?.id === 'string' ? semanticTurn.id : null,
+          semanticTurnInputCount:
+            typeof semanticTurn?.inputCount === 'number'
+              ? semanticTurn.inputCount
+              : normalizedMessages.length,
+        },
+      },
+      {
+        cancellationToken: evaluation,
+      },
+    )
+
+    if (evaluation?.canceled) {
+      return {
+        normalized: latestNormalized,
+        conversation: projection,
+        ai: aiResult?.response ?? null,
+        coalescedInboundCount: normalizedMessages.length,
+        semanticTurn,
+        suppressed: true,
+      }
+    }
+
+    const responseText =
+      aiResult?.response?.finalUserText?.trim() ||
+      aiResult?.response?.text?.trim()
+    if (responseText) {
+      await this.clients.conversations.replyAsAgent(projection.conversationId, {
+        body: responseText,
+        finalUserText: responseText,
+        debugSummary: aiResult?.response?.debugSummary ?? null,
+        auditPayload: aiResult?.response?.auditPayload ?? null,
+        metadata: {
+          provider: aiResult?.response?.provider || 'mock',
+          model: aiResult?.response?.model || null,
+          channel: 'email',
+          deliveryStatus: 'pending_external',
+          aiMemory: aiResult?.response?.memory || null,
+          coalescedInboundCount: normalizedMessages.length,
+          semanticTurnId:
+            typeof semanticTurn?.id === 'string' ? semanticTurn.id : null,
+          semanticTurnInputCount:
+            typeof semanticTurn?.inputCount === 'number'
+              ? semanticTurn.inputCount
+              : normalizedMessages.length,
+        },
+        toolCalls: aiResult?.response?.toolCalls ?? [],
+      })
+    }
+
+    return {
+      normalized: latestNormalized,
+      conversation: projection,
+      ai: aiResult?.response ?? null,
+      coalescedInboundCount: normalizedMessages.length,
+      semanticTurn,
+    }
   }
 
   async handleInbound(payload) {
@@ -38,30 +168,23 @@ export class EmailAdapter {
 
     let ai = null
     if (projection.controlMode !== 'human') {
-      const aiResult = await this.clients.ai.respond({
-        ...normalized,
-        conversationId: projection.conversationId,
-      })
-      const responseText =
-        aiResult?.response?.finalUserText?.trim() ||
-        aiResult?.response?.text?.trim()
-      if (responseText) {
-        await this.clients.conversations.replyAsAgent(projection.conversationId, {
-          body: responseText,
-          finalUserText: responseText,
-          debugSummary: aiResult?.response?.debugSummary ?? null,
-          auditPayload: aiResult?.response?.auditPayload ?? null,
-          metadata: {
-            provider: aiResult?.response?.provider || 'mock',
-            model: aiResult?.response?.model || null,
-            channel: 'email',
-            deliveryStatus: 'pending_external',
-            aiMemory: aiResult?.response?.memory || null,
-          },
-          toolCalls: aiResult?.response?.toolCalls ?? [],
-        })
+      const turnItem = {
+        normalized,
+        projection,
       }
-      ai = aiResult?.response ?? null
+      const flushDelayMs = estimatePendingUtteranceDelay({
+        items: [turnItem],
+        defaultDelayMs: this.quietWindowMs,
+      })
+      const result = await this.turnAssembler.enqueue(
+        this.buildCoalescerKey({ normalized, projection }),
+        turnItem,
+        (items, context) => this.processBufferedInbound(items, context),
+        {
+          maxWindowMs: Math.max(this.maxWindowMs, flushDelayMs),
+        },
+      )
+      ai = result?.ai ?? result ?? null
     }
 
     return {

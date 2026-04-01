@@ -32,23 +32,25 @@ export const generateResponse = async ({
   }
 
   try {
+    const systemPrompt = buildControlledResponsePrompt({
+      goal,
+      approvedFacts,
+      mustAskQuestion,
+      maxChars,
+      channel,
+      channelProfile,
+    })
+    const promptInput = [
+      `Consulta original: ${String(input || '').trim()}`,
+      `${String(draftLabel || 'Borrador aprobado').trim()}: ${draft}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n')
     const generated = await provider.generate({
       role,
-      systemPrompt: buildControlledResponsePrompt({
-        goal,
-        approvedFacts,
-        mustAskQuestion,
-        maxChars,
-        channel,
-        channelProfile,
-      }),
+      systemPrompt,
       history: [],
-      input: [
-        `Consulta original: ${String(input || '').trim()}`,
-        `${String(draftLabel || 'Borrador aprobado').trim()}: ${draft}`,
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
+      input: promptInput,
       tools: [],
       options: providerOptions,
     })
@@ -68,6 +70,14 @@ export const generateResponse = async ({
       text,
       source: 'llm_rewrite',
       applied: text !== draft,
+      debugContext: {
+        systemPrompt,
+        promptInput,
+        promptHistory: [],
+        approvedDraft: draft,
+        approvedFacts,
+        rawResponseText: text,
+      },
     }
   } catch {
     return {

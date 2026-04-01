@@ -98,6 +98,27 @@ const resolveAttachmentPreviewUrl = (attachment: {
   content?: string | null;
 }) => (typeof attachment.content === "string" && attachment.content.trim() ? attachment.content : null);
 
+const renderAttachmentDetails = (
+  attachment: {
+    fileName?: string | null;
+    assetType?: string | null;
+    contentType?: string | null;
+    textContent?: string | null;
+  },
+  attachmentType: string,
+) => (
+  <div className={styles.fileAttach}>
+    <span className={styles.fileIcon}>
+      {attachmentType.slice(0, 1).toUpperCase() || "A"}
+    </span>
+    <div className={styles.fileDetails}>
+      <h6>{attachment.fileName || "Adjunto"}</h6>
+      <span className={styles.fileTypePill}>{attachmentType}</span>
+      <p>{formatAttachmentLabel(attachment)}</p>
+    </div>
+  </div>
+);
+
 const ATTACHMENT_SUMMARY_LINE_REGEX = /^\[Adjunto:[^\]]+\](?:\s.*)?$/i;
 
 const isSyntheticAttachmentSummary = (value: string | null | undefined) => {
@@ -192,6 +213,7 @@ export default function WebchatDrawer() {
     isReady,
     isHydrating,
     isSending,
+    isAwaitingReply,
     isSyncing,
     close,
     messages,
@@ -312,6 +334,8 @@ export default function WebchatDrawer() {
     ? "Recuperando historial"
     : isSending
       ? "Enviando mensaje"
+      : isAwaitingReply
+        ? "Analizando tu consulta"
       : isSyncing
         ? "Actualizando conversación"
         : lastSyncedAt
@@ -507,12 +531,11 @@ export default function WebchatDrawer() {
                 ? ""
                 : message.text;
             const hasMessageText = Boolean(renderableText?.trim());
-            const nonTextElements =
-              messageAttachments.length === 0 && Array.isArray(message.messageElements)
-                ? message.messageElements.filter(
-                  (element) => element?.kind && element.kind !== "text",
-                )
-                : [];
+            const nonTextElements = Array.isArray(message.messageElements)
+              ? message.messageElements.filter(
+                (element) => element?.kind && element.kind !== "text",
+              )
+              : [];
             return (
               <div
                 key={message.id}
@@ -560,56 +583,54 @@ export default function WebchatDrawer() {
                           data-testid={`storefront-webchat-attachment-${message.id}-${index}`}
                         >
                           {showsImagePreview ? (
-                            <a
-                              href={previewUrl || undefined}
-                              target="_blank"
-                              rel="noreferrer"
-                              className={styles.mediaLink}
-                              data-testid={`storefront-webchat-image-${message.id}-${index}`}
-                            >
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={previewUrl || undefined}
-                                alt={attachment.fileName || "Imagen"}
-                                className={styles.messageImage}
-                              />
-                            </a>
+                            <>
+                              <a
+                                href={previewUrl || undefined}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={styles.mediaLink}
+                                data-testid={`storefront-webchat-image-${message.id}-${index}`}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  src={previewUrl || undefined}
+                                  alt={attachment.fileName || "Imagen"}
+                                  className={styles.messageImage}
+                                />
+                              </a>
+                              {renderAttachmentDetails(attachment, attachmentType)}
+                            </>
                           ) : null}
                           {showsAudioPreview ? (
-                            <div
-                              className={styles.messageAudio}
-                              data-testid={`storefront-webchat-audio-${message.id}-${index}`}
-                            >
-                              <audio controls src={previewUrl || undefined}>
-                                <track kind="captions" />
-                                Tu navegador no soporta audio embebido.
-                              </audio>
-                            </div>
+                            <>
+                              <div
+                                className={styles.messageAudio}
+                                data-testid={`storefront-webchat-audio-${message.id}-${index}`}
+                              >
+                                <audio controls src={previewUrl || undefined}>
+                                  <track kind="captions" />
+                                  Tu navegador no soporta audio embebido.
+                                </audio>
+                              </div>
+                              {renderAttachmentDetails(attachment, attachmentType)}
+                            </>
                           ) : null}
                           {showsVideoPreview ? (
-                            <div
-                              className={styles.messageVideo}
-                              data-testid={`storefront-webchat-video-${message.id}-${index}`}
-                            >
-                              <video controls src={previewUrl || undefined}>
-                                <track kind="captions" />
-                                Tu navegador no soporta video embebido.
-                              </video>
-                            </div>
+                            <>
+                              <div
+                                className={styles.messageVideo}
+                                data-testid={`storefront-webchat-video-${message.id}-${index}`}
+                              >
+                                <video controls src={previewUrl || undefined}>
+                                  <track kind="captions" />
+                                  Tu navegador no soporta video embebido.
+                                </video>
+                              </div>
+                              {renderAttachmentDetails(attachment, attachmentType)}
+                            </>
                           ) : null}
                           {!showsImagePreview && !showsAudioPreview && !showsVideoPreview ? (
-                            <div className={styles.fileAttach}>
-                              <span className={styles.fileIcon}>
-                                {attachmentType.slice(0, 1).toUpperCase() || "A"}
-                              </span>
-                              <div className={styles.fileDetails}>
-                                <h6>{attachment.fileName || "Adjunto"}</h6>
-                                <span className={styles.fileTypePill}>
-                                  {attachmentType}
-                                </span>
-                                <p>{formatAttachmentLabel(attachment)}</p>
-                              </div>
-                            </div>
+                            renderAttachmentDetails(attachment, attachmentType)
                           ) : null}
                         </div>
                       );
@@ -706,6 +727,41 @@ export default function WebchatDrawer() {
               </div>
             );
           })}
+
+          {isAwaitingReply ? (
+            <div
+              className={styles.chats}
+              data-testid="storefront-webchat-agent-thinking"
+            >
+              <div className={styles.chatAvatar}>
+                <div className={styles.avatarShell}>
+                  <Image
+                    src="/assets/images/chat/dreamschat-mark.svg"
+                    alt="Chat"
+                    width={40}
+                    height={40}
+                    className={styles.chatAvatarImage}
+                  />
+                </div>
+              </div>
+              <div className={styles.chatContent}>
+                <div className={styles.chatProfileName}>
+                  <h6>
+                    {headerTitle}
+                    <span className={styles.chatTime}>ahora</span>
+                  </h6>
+                </div>
+                <div className={styles.messageContent}>
+                  <span className={styles.typing}>
+                    escribiendo
+                    <span className={styles.dot} />
+                    <span className={styles.dot} />
+                    <span className={styles.dot} />
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {error ? (
             <div className={styles.chats}>

@@ -30,7 +30,7 @@ async function openInternalConversation(
   ).toBeVisible({ timeout: 20_000 });
   await expect(
     page.locator('[data-testid^="admin-conversation-message-"]').filter({
-      hasText: "Agent",
+      hasText: /Agent|Agente IA|Asistente IA/,
     }).first(),
   ).toBeVisible({ timeout: 20_000 });
 }

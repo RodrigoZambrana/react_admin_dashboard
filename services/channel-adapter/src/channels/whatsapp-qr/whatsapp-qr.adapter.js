@@ -19,13 +19,13 @@ import makeWASocket, {
 import pino from 'pino'
 import QRCode from 'qrcode'
 import {
-  estimateInboundCompletionDelay,
-  InboundTurnCoalescer,
-} from '../../runtime/inbound-turn-coalescer.js'
+  PendingUtteranceAssembler,
+  estimatePendingUtteranceDelay,
+} from '../../runtime/pending-utterance-assembler.js'
 
 const DEFAULT_CONFIG = Object.freeze({
   enabled: false,
-  tenantKey: 'urucortinas',
+  tenantKey: null,
   inboxAccountId: null,
   displayName: 'WhatsApp QR',
   address: 'whatsapp-qr-primary',
@@ -541,13 +541,19 @@ export class WhatsappQrAdapter {
     this.clients = clients
     this.config = config
     this.logger = pino({ level: 'silent' })
-    this.coalescer =
+    this.quietWindowMs = options.quietWindowMs
+    this.maxWindowMs = options.maxWindowMs
+    this.turnAssembler =
+      options.turnAssembler ||
       options.coalescer ||
-      new InboundTurnCoalescer({
-        quietWindowMs: options.quietWindowMs,
+      new PendingUtteranceAssembler({
+        defaultDelayMs: options.quietWindowMs,
         maxWindowMs: options.maxWindowMs,
       })
-    this.runtimeConfig = { ...DEFAULT_CONFIG, tenantKey: config.clientSlug || 'urucortinas' }
+    this.runtimeConfig = {
+      ...DEFAULT_CONFIG,
+      tenantKey: config.clientSlug || DEFAULT_CONFIG.tenantKey || undefined,
+    }
     this.status = DEFAULT_STATUS()
     this.sock = null
     this.saveCreds = null
@@ -581,13 +587,15 @@ export class WhatsappQrAdapter {
     ].join(':')
   }
 
-  async processBufferedLiveInbound(items = []) {
+  async processBufferedLiveInbound(items = [], context = {}) {
     const lastItem = items.at(-1)
     if (!lastItem) {
       return null
     }
 
     const projection = lastItem.projection
+    const semanticTurn = context?.semanticTurn || null
+    const evaluation = context?.evaluation || null
     const combinedText = items
       .map((entry) => String(entry?.text || '').trim())
       .filter(Boolean)
@@ -597,29 +605,58 @@ export class WhatsappQrAdapter {
       Array.isArray(entry?.attachments) ? entry.attachments : [],
     )
 
-    const aiResult = await this.clients.ai.respond({
-      channel: 'whatsapp',
-      tenantKey: this.runtimeConfig.tenantKey,
-      conversationId: projection.conversationId,
-      userId: lastItem.externalUserId,
-      scope: 'customer_public',
-      authLevel: 'anonymous',
-      authenticated: false,
-      authorKind: 'customer_human',
-      messageKind: combinedText ? 'human_message' : 'attachment_only',
-      text: combinedText,
-      attachments: combinedAttachments,
-      locale: projection?.preferences?.locale || undefined,
-      currency: projection?.preferences?.currency || undefined,
-      metadata: {
-        transport: 'whatsapp_qr',
-        remoteJid: lastItem.remoteJid ? jidNormalizedUser(lastItem.remoteJid) : null,
-        providerMessageId: lastItem.providerMessageId || null,
-        locale: projection?.preferences?.locale || null,
-        currency: projection?.preferences?.currency || null,
+    if (evaluation?.canceled) {
+      return {
+        ai: null,
+        semanticTurn,
+        suppressed: true,
         coalescedInboundCount: items.length,
+      }
+    }
+
+    const aiResult = await this.clients.ai.respond(
+      {
+        channel: 'whatsapp',
+        tenantKey: this.runtimeConfig.tenantKey,
+        conversationId: projection.conversationId,
+        userId: lastItem.externalUserId,
+        scope: 'customer_public',
+        authLevel: 'anonymous',
+        authenticated: false,
+        authorKind: 'customer_human',
+        messageKind: combinedText ? 'human_message' : 'attachment_only',
+        text: combinedText,
+        attachments: combinedAttachments,
+        locale: projection?.preferences?.locale || undefined,
+        currency: projection?.preferences?.currency || undefined,
+        metadata: {
+          transport: 'whatsapp_qr',
+          remoteJid: lastItem.remoteJid ? jidNormalizedUser(lastItem.remoteJid) : null,
+          providerMessageId: lastItem.providerMessageId || null,
+          locale: projection?.preferences?.locale || null,
+          currency: projection?.preferences?.currency || null,
+          coalescedInboundCount: items.length,
+          semanticTurnId:
+            typeof semanticTurn?.id === 'string' ? semanticTurn.id : null,
+          semanticTurnInputCount:
+            typeof semanticTurn?.inputCount === 'number'
+              ? semanticTurn.inputCount
+              : items.length,
+        },
       },
-    })
+      {
+        cancellationToken: evaluation,
+      },
+    )
+
+    if (evaluation?.canceled) {
+      return {
+        ai: aiResult?.response ?? null,
+        semanticTurn,
+        suppressed: true,
+        coalescedInboundCount: items.length,
+      }
+    }
 
     const responseText =
       aiResult?.response?.finalUserText?.trim() ||
@@ -642,6 +679,12 @@ export class WhatsappQrAdapter {
         transport: 'whatsapp_qr',
         aiMemory: aiResult?.response?.memory || null,
         coalescedInboundCount: items.length,
+        semanticTurnId:
+          typeof semanticTurn?.id === 'string' ? semanticTurn.id : null,
+        semanticTurnInputCount:
+          typeof semanticTurn?.inputCount === 'number'
+            ? semanticTurn.inputCount
+            : items.length,
       },
       toolCalls: aiResult?.response?.toolCalls ?? [],
     })
@@ -1608,26 +1651,29 @@ export class WhatsappQrAdapter {
           continue
         }
 
-        await this.coalescer.enqueue(
+        const turnItem = {
+          projection,
+          text,
+          attachments,
+          externalUserId,
+          remoteJid,
+          providerMessageId: message?.key?.id || null,
+        }
+        const flushDelayMs = estimatePendingUtteranceDelay({
+          items: [turnItem],
+          defaultDelayMs: this.quietWindowMs,
+        })
+
+        await this.turnAssembler.enqueue(
           this.buildLiveInboundCoalescerKey({
             projection,
             externalUserId,
             remoteJid,
           }),
+          turnItem,
+          (items, context) => this.processBufferedLiveInbound(items, context),
           {
-            projection,
-            text,
-            attachments,
-            externalUserId,
-            remoteJid,
-            providerMessageId: message?.key?.id || null,
-          },
-          (items) => this.processBufferedLiveInbound(items),
-          {
-            flushDelayMs: estimateInboundCompletionDelay({
-              text,
-              attachments,
-            }),
+            maxWindowMs: Math.max(Number(this.maxWindowMs) || 0, flushDelayMs),
           },
         )
       } catch (error) {

@@ -95,6 +95,7 @@ Actualización 2026-03-30 sobre cierre del slice profundo:
   - clasificación explícita de modo conversacional
   - orchestrator con política `understand first -> choose lane -> ask next useful thing`
   - `decision assist` configurable desde runtime AI
+  - bloque compacto de contexto LLM para interpretación, decisión y respuesta conversacional
   - perfiles de wording por canal:
     - `chat`
     - `email`
@@ -102,6 +103,7 @@ Actualización 2026-03-30 sobre cierre del slice profundo:
 - criterio de test fijado:
   - memoria/contexto no necesitan una llamada obligatoria al provider para considerarse correctos
   - el bloque contextual y el guard de snippets crudos se testean por estado y salida, no por dependencia artificial del LLM
+  - el provider debe recibir contexto operativo compacto, no solo los últimos mensajes crudos
 
 Artefactos vigentes para revisión real:
 

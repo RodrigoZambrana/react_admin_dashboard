@@ -1,19 +1,22 @@
 import {
   detectCustomerFaqSubtype,
-  extractCurrentCustomerTurnText,
-  extractSemanticCustomerTurnText,
   extractRequestedTopicLabel,
 } from './customer-faq-heuristics.js'
+import {
+  extractCurrentCustomerTurnText,
+  extractSemanticCustomerTurnText,
+} from '../ingress/customer-turn-normalization.js'
 import {
   BASE_CONVERSATIONAL_ES_SIGNALS,
   countStemMatches,
   detectStandaloneAttachmentArtifactKind,
   hasMultimodalReferenceSignal,
   hasQuantityOnlyFollowUpSignal,
-  looksLikeOpeningStructureSignal,
+  looksLikeCatalogStructureSignal,
   looksLikeQuoteExpansionSignal,
   hasReengagementReferenceSignal,
   hasScheduleAdministrativeSignal,
+  hasScheduleStatusFollowUpSignal,
 } from './customer-semantic-signals.js'
 import {
   looksLikeCommercialConditionQuestion,
@@ -42,6 +45,8 @@ import {
   isContextualTopicDescriptorMatch,
 } from './customer-topic-taxonomy.js'
 import { buildConversationContext } from '../conversation/conversation-context.js'
+import { getVocabulary } from '../tenant-policy/runtime-tenant-policy.js'
+import { isGenericQuoteTopicLabel } from './quote-semantics.js'
 
 const normalizeText = (value) =>
   String(value || '')
@@ -51,6 +56,8 @@ const normalizeText = (value) =>
     .replace(/[^a-z0-9\s]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+
+const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
 const TOPIC_STOP_TOKENS = new Set([
   'y',
@@ -92,28 +99,48 @@ const TOPIC_RESOLUTION_FILLER_TOKENS = new Set([
   ...TOPIC_STOP_TOKENS,
   'si',
   'total',
-  'serie',
-  'linea',
-  'lineas',
-  'color',
-  'blanco',
-  'blanca',
-  'blancos',
-  'blancas',
-  'negro',
-  'negra',
-  'negros',
-  'negras',
-  'gris',
-  'plateado',
-  'bronce',
-  'dvh',
-  'doble',
-  'vidrio',
-  'vidriado',
-  'hermetico',
-  'hermetica',
 ])
+
+const getTopicResolutionFillerTokens = (tenantRuntimePolicy = null) =>
+  new Set([
+    ...TOPIC_RESOLUTION_FILLER_TOKENS,
+    ...((getVocabulary(tenantRuntimePolicy)?.topicResolutionFillerTerms ?? [])
+      .flatMap((entry) => normalizeText(entry).split(/\s+/u))
+      .filter(Boolean)),
+  ])
+
+const getVariantContextTerms = (tenantRuntimePolicy = null) =>
+  (getVocabulary(tenantRuntimePolicy)?.variantContextTerms ?? [])
+    .flatMap((entry) => normalizeText(entry).split(/\s+/u))
+    .filter(Boolean)
+
+const getQuoteAttributeFollowUpHints = ({
+  attribute = null,
+  tenantRuntimePolicy = null,
+} = {}) => {
+  const hints =
+    getVocabulary(tenantRuntimePolicy)?.quoteAttributeFollowUpHints &&
+    typeof getVocabulary(tenantRuntimePolicy).quoteAttributeFollowUpHints === 'object'
+      ? getVocabulary(tenantRuntimePolicy).quoteAttributeFollowUpHints
+      : {}
+  const keys = [
+    attribute?.taxonomyTag,
+    attribute?.key,
+  ]
+    .map((entry) => normalizeText(entry).replace(/\s+/g, '_'))
+    .filter(Boolean)
+
+  return Array.from(
+    new Set(
+      keys.flatMap((key) => {
+        const configured = Array.isArray(hints[key]) ? hints[key] : []
+        return configured
+          .map((entry) => normalizeText(entry))
+          .filter(Boolean)
+      }),
+    ),
+  )
+}
 
 const FAQ_TOPIC_LABELS = {
   location: 'ubicación',
@@ -129,17 +156,18 @@ const looksLikeVariantFollowUp = (currentTurnText) =>
 
 const SCHEDULE_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.schedule
 
-const looksLikeScheduleSeedInput = (currentTurnText) => {
+const looksLikeScheduleSeedInput = (currentTurnText, tenantRuntimePolicy = null) => {
   const text = String(currentTurnText || '')
   if (looksLikeCommercialConditionQuestion(text)) {
     return false
   }
 
-  return looksLikeCustomerScheduleAvailabilityRequest(text)
+  return looksLikeCustomerScheduleAvailabilityRequest(text, { tenantRuntimePolicy })
 }
 
 const looksLikeScheduleAdministrativePayload = (currentTurnText) =>
-  hasScheduleAdministrativeSignal(currentTurnText)
+  hasScheduleAdministrativeSignal(currentTurnText) ||
+  hasScheduleStatusFollowUpSignal(currentTurnText)
 
 const looksLikeScheduleAcknowledgement = (currentTurnText) =>
   /^(si|sí|dale|ok|perfecto|listo)$/i.test(String(currentTurnText || '').trim())
@@ -155,6 +183,7 @@ const shouldCarrySupportContext = ({
   previousConversationContext = null,
   quoteContext = null,
   tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
   followUpDetected = false,
   attachmentArtifactTurn = false,
 }) => {
@@ -184,6 +213,7 @@ const shouldCarrySupportContext = ({
 
   const explicitSupportSignal = looksLikeCustomerSupportServiceRequest(currentTurnText, {
     tenantTopicTaxonomy,
+    tenantRuntimePolicy,
   })
 
   if (strongQuotePivot && !explicitSupportSignal) {
@@ -219,6 +249,158 @@ const looksLikeMeasurementOnlyFollowUp = (currentTurnText) =>
 const looksLikeQuantityOnlyFollowUp = (currentTurnText) =>
   hasQuantityOnlyFollowUpSignal(currentTurnText)
 
+const QUOTE_ATTRIBUTE_MAX_TOKENS = 6
+
+const escapeRegex = (value) =>
+  String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const normalizeAttributeOptionAliases = (attribute = null) =>
+  Array.isArray(attribute?.options)
+    ? attribute.options
+        .flatMap((option) => [
+          option?.value,
+          ...(Array.isArray(option?.aliases) ? option.aliases : []),
+        ])
+        .map((entry) => normalizeText(entry))
+        .filter(Boolean)
+    : []
+
+const matchesQuoteAttributeEnumOnlyFollowUp = (currentTurnText, attribute = null) => {
+  const normalized = normalizeText(currentTurnText)
+  if (!normalized) {
+    return false
+  }
+
+  return normalizeAttributeOptionAliases(attribute).some((alias) =>
+    new RegExp(`\\b${escapeRegex(alias)}\\b`, 'iu').test(normalized),
+  )
+}
+
+const matchesQuoteAttributeTaxonomyOnlyFollowUp = (
+  currentTurnText,
+  attribute = null,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
+  const normalizedTag = normalizeText(attribute?.taxonomyTag).replace(/\s+/g, '_')
+  if (!normalizedTag) {
+    return false
+  }
+
+  const matches = findTenantTopicMatches(currentTurnText, tenantTopicTaxonomy, {
+    kinds: ['product_variant', 'product_topic', 'product_family'],
+    limit: 8,
+    variantContextTerms: getVariantContextTerms(tenantRuntimePolicy),
+  })
+  const hasTaggedMatch = matches.some((entry) =>
+    (Array.isArray(entry?.tags) ? entry.tags : []).some(
+      (tag) => normalizeText(tag).replace(/\s+/g, '_') === normalizedTag,
+    ),
+  )
+
+  if (hasTaggedMatch) {
+    return true
+  }
+
+  const hintTerms = getQuoteAttributeFollowUpHints({
+    attribute,
+    tenantRuntimePolicy,
+  })
+  if (!hintTerms.length) {
+    return false
+  }
+
+  const normalizedInput = normalizeText(currentTurnText)
+  return hintTerms.some((term) =>
+    new RegExp(`\\b${escapeRegex(term)}\\b`, 'iu').test(normalizedInput),
+  )
+}
+
+const matchesQuoteAttributeOnlyFollowUp = ({
+  currentTurnText,
+  attribute = null,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+}) => {
+  switch (attribute?.captureKind) {
+    case 'measurements':
+      return looksLikeMeasurementOnlyFollowUp(currentTurnText)
+    case 'quantity':
+      return looksLikeQuantityOnlyFollowUp(currentTurnText)
+    case 'enum':
+      return matchesQuoteAttributeEnumOnlyFollowUp(currentTurnText, attribute)
+    case 'taxonomy_tag':
+      return matchesQuoteAttributeTaxonomyOnlyFollowUp(
+        currentTurnText,
+        attribute,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      )
+    default:
+      return false
+  }
+}
+
+const detectQuoteAttributeOnlyFollowUp = ({
+  currentTurnText,
+  previousQuoteContext = null,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+}) => {
+  const missingFields = Array.isArray(previousQuoteContext?.missingFields)
+    ? previousQuoteContext.missingFields.filter((entry) => typeof entry === 'string')
+    : []
+  if (!missingFields.length) {
+    return {
+      detected: false,
+      keys: [],
+    }
+  }
+
+  const normalized = normalizeText(currentTurnText)
+  if (!normalized || /[?¿]/u.test(String(currentTurnText || ''))) {
+    return {
+      detected: false,
+      keys: [],
+    }
+  }
+
+  const tokens = normalized.split(' ').filter(Boolean)
+  if (tokens.length > QUOTE_ATTRIBUTE_MAX_TOKENS) {
+    return {
+      detected: false,
+      keys: [],
+    }
+  }
+
+  const requiredAttributes = Array.isArray(previousQuoteContext?.requiredAttributes)
+    ? previousQuoteContext.requiredAttributes.filter(
+        (entry) => entry && typeof entry === 'object' && typeof entry.key === 'string',
+      )
+    : []
+  const missingAttributes = requiredAttributes.length
+    ? requiredAttributes.filter((attribute) => missingFields.includes(attribute.key))
+    : missingFields.map((key) => ({ key }))
+  const keys = []
+  for (const attribute of missingAttributes) {
+    const matched =
+      matchesQuoteAttributeOnlyFollowUp({
+        currentTurnText,
+        attribute,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      })
+    if (matched) {
+      keys.push(attribute.key)
+    }
+  }
+
+  return {
+    detected: keys.length > 0,
+    keys,
+  }
+}
+
 const isCustomerRole = (role) =>
   String(role || '') === 'customer_public' ||
   String(role || '') === 'customer_authenticated'
@@ -248,6 +430,11 @@ const looksLikeReferentialFollowUp = (currentTurnText) =>
     String(currentTurnText || ''),
   )
 
+const looksLikeConfirmationOnlyFollowUp = (currentTurnText) =>
+  /^(si|sí|dale|ok|perfecto|listo|de acuerdo|esta bien|está bien)$/i.test(
+    String(currentTurnText || '').trim(),
+  )
+
 const extractTopicTokens = (value) =>
   normalizeText(value)
     .split(/\s+/)
@@ -257,11 +444,16 @@ const extractTopicTokens = (value) =>
 const looksLikePriceOrQuoteTurn = (value) =>
   looksLikeGenericPriceInquiry(String(value || ''))
 
-const selectPreferredTopicMatchFromInput = (value, tenantTopicTaxonomy = []) => {
+const selectPreferredTopicMatchFromInput = (
+  value,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
   const normalizedInput = normalizeText(value)
   const matches = findTenantTopicMatches(value, tenantTopicTaxonomy, {
     kinds: ['product_family', 'product_topic', 'product_variant'],
     limit: 6,
+    variantContextTerms: getVariantContextTerms(tenantRuntimePolicy),
   })
   if (!matches.length) {
     return null
@@ -286,7 +478,7 @@ const buildCanonicalTopic = ({
   source,
 }) => {
   const cleanLabel = String(label || '').replace(/\s+/g, ' ').trim()
-  if (!cleanLabel) {
+  if (!cleanLabel || isGenericQuoteTopicLabel(cleanLabel)) {
     return null
   }
 
@@ -322,6 +514,46 @@ const buildCanonicalTopicFromThread = (thread = null) => {
   })
 }
 
+const buildCanonicalTopicFromQuoteMemory = ({
+  previousTopic = null,
+  previousQuoteContext = null,
+  activeThread = null,
+} = {}) => {
+  if (previousTopic?.label && !isGenericQuoteTopicLabel(previousTopic.label)) {
+    return {
+      label: previousTopic.label,
+      type: previousTopic.type || 'unknown',
+      confidence:
+        typeof previousTopic.confidence === 'number' ? previousTopic.confidence : 0.68,
+      source: previousTopic.source || 'conversation_memory',
+      tokens: Array.isArray(previousTopic.tokens)
+        ? previousTopic.tokens
+        : extractTopicTokens(previousTopic.label || ''),
+    }
+  }
+
+  const threadTopic = buildCanonicalTopicFromThread(activeThread)
+  if (threadTopic?.label) {
+    return threadTopic
+  }
+
+  const fallbackLabel =
+    previousQuoteContext?.topicLabel || previousQuoteContext?.familyLabel || null
+  if (!fallbackLabel || isGenericQuoteTopicLabel(fallbackLabel)) {
+    return null
+  }
+
+  return buildCanonicalTopic({
+    label: fallbackLabel,
+    type:
+      typeof previousQuoteContext?.topicType === 'string'
+        ? previousQuoteContext.topicType
+        : 'product_topic',
+    confidence: 0.66,
+    source: 'quote_memory',
+  })
+}
+
 const inferTopicType = (label, faqSubtype, tenantTopicTaxonomy = []) => {
   if (
     faqSubtype === 'location' ||
@@ -347,9 +579,13 @@ const inferTopicType = (label, faqSubtype, tenantTopicTaxonomy = []) => {
   return 'product_topic'
 }
 
-const resolveTopicLabel = (label, tenantTopicTaxonomy = []) => {
+const resolveTopicLabel = (
+  label,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
   const cleanLabel = String(label || '').replace(/\s+/g, ' ').trim()
-  if (!cleanLabel) {
+  if (!cleanLabel || isGenericQuoteTopicLabel(cleanLabel)) {
     return null
   }
 
@@ -375,7 +611,7 @@ const resolveTopicLabel = (label, tenantTopicTaxonomy = []) => {
     residualTokens.length > 0 &&
     residualTokens.every(
       (token) =>
-        TOPIC_RESOLUTION_FILLER_TOKENS.has(token) ||
+        getTopicResolutionFillerTokens(tenantRuntimePolicy).has(token) ||
         familyTokens.includes(token) ||
         /^\d+$/.test(token),
     )
@@ -391,29 +627,66 @@ const resolveTopicLabel = (label, tenantTopicTaxonomy = []) => {
   return cleanLabel
 }
 
-const isAberturasScopedTopic = (topic, tenantTopicTaxonomy = []) => {
-  const topicLabel = String(topic?.label || '').trim()
-  if (!topicLabel) {
-    return false
-  }
-
-  if (/\babertur/.test(normalizeText(topicLabel))) {
-    return true
+const resolveStructuralFamilyLabel = (
+  tenantRuntimePolicy = null,
+  tenantTopicTaxonomy = [],
+) => {
+  const configuredFamilyLabel =
+    typeof getVocabulary(tenantRuntimePolicy)?.catalogFamilyLabel === 'string'
+      ? getVocabulary(tenantRuntimePolicy).catalogFamilyLabel.trim()
+      : ''
+  if (!configuredFamilyLabel) {
+    return null
   }
 
   return (
-    extractTenantFamilyLabel(topicLabel, tenantTopicTaxonomy) === 'aberturas' ||
-    extractTenantFamilyLabel(topic?.familyLabel || '', tenantTopicTaxonomy) === 'aberturas'
+    resolveTopicLabel(configuredFamilyLabel, tenantTopicTaxonomy, tenantRuntimePolicy) ||
+    configuredFamilyLabel
   )
 }
 
-const buildAberturasCanonicalTopic = (tenantTopicTaxonomy = []) => {
-  const resolvedLabel = resolveTopicLabel('aberturas', tenantTopicTaxonomy) || 'aberturas'
+const isStructuralScopedTopic = (
+  topic,
+  tenantRuntimePolicy = null,
+  tenantTopicTaxonomy = [],
+) => {
+  const structuralFamilyLabel = resolveStructuralFamilyLabel(
+    tenantRuntimePolicy,
+    tenantTopicTaxonomy,
+  )
+  const topicLabel = String(topic?.label || '').trim()
+  if (!topicLabel || !structuralFamilyLabel) {
+    return false
+  }
+
+  const normalizedStructuralFamily = normalizeText(structuralFamilyLabel)
+
+  return (
+    normalizeText(topicLabel) === normalizedStructuralFamily ||
+    normalizeText(extractTenantFamilyLabel(topicLabel, tenantTopicTaxonomy) || '') ===
+      normalizedStructuralFamily ||
+    normalizeText(extractTenantFamilyLabel(topic?.familyLabel || '', tenantTopicTaxonomy) || '') ===
+      normalizedStructuralFamily
+  )
+}
+
+const buildStructuralCanonicalTopic = (
+  tenantRuntimePolicy = null,
+  tenantTopicTaxonomy = [],
+) => {
+  const resolvedLabel = resolveStructuralFamilyLabel(
+    tenantRuntimePolicy,
+    tenantTopicTaxonomy,
+  )
+  if (!resolvedLabel) {
+    return null
+  }
+
   return buildCanonicalTopic({
     label: resolvedLabel,
     type: inferTopicType(resolvedLabel, null, tenantTopicTaxonomy),
     confidence: 0.82,
-    source: 'opening_structure_heuristic',
+    source: 'catalog_structure_heuristic',
   })
 }
 
@@ -422,7 +695,10 @@ const buildRetrievalQuery = ({
   intentKey,
   topic,
   previousTopic,
+  previousQuoteContext = null,
   faqSubtype,
+  quoteContext = null,
+  threadResolution = null,
   tenantTopicTaxonomy = [],
 }) => {
   if (!topic?.label) {
@@ -453,7 +729,23 @@ const buildRetrievalQuery = ({
     }
     const familyHint =
       extractTenantFamilyLabel(topic.label, tenantTopicTaxonomy) ||
-      extractTenantFamilyLabel(previousTopic?.label || '', tenantTopicTaxonomy)
+      extractTenantFamilyLabel(previousTopic?.label || '', tenantTopicTaxonomy) ||
+      compactText(previousQuoteContext?.familyLabel || '') ||
+      compactText(quoteContext?.familyLabel || '') ||
+      compactText(threadResolution?.activeThread?.familyLabel || '') ||
+      extractTenantFamilyLabel(previousQuoteContext?.topicLabel || '', tenantTopicTaxonomy) ||
+      extractTenantFamilyLabel(quoteContext?.familyLabel || '', tenantTopicTaxonomy) ||
+      extractTenantFamilyLabel(quoteContext?.topicLabel || '', tenantTopicTaxonomy) ||
+      extractTenantFamilyLabel(
+        threadResolution?.activeThread?.familyLabel || '',
+        tenantTopicTaxonomy,
+      ) ||
+      extractTenantFamilyLabel(
+        threadResolution?.activeThread?.resolvedLabel ||
+          threadResolution?.activeThread?.baseLabel ||
+          '',
+        tenantTopicTaxonomy,
+      )
     if (intentKey === 'customer.quote') {
       pushQueryPart('precio')
     }
@@ -474,7 +766,8 @@ const buildRetrievalQuery = ({
       }
     }
 
-    return queryParts.join(' ').replace(/\s+/g, ' ').trim()
+    const query = queryParts.join(' ').replace(/\s+/g, ' ').trim()
+    return query
   }
 
   if (topic.type === 'product_variant' && previousTopic?.label) {
@@ -521,6 +814,7 @@ export const buildTurnInterpretation = ({
   referencedMessages = [],
   tenantTopicTaxonomy = [],
   tenantQuoteProfiles = [],
+  tenantRuntimePolicy = null,
   nluAnalysis = null,
 }) => {
   const rawInterpretationInput = originalInput || effectiveInput || normalizedInput || ''
@@ -531,7 +825,8 @@ export const buildTurnInterpretation = ({
     normalizedInterpretationInput,
   )
   const attachmentArtifactTurn = Boolean(
-    detectStandaloneAttachmentArtifactKind(rawCurrentTurnText),
+    detectStandaloneAttachmentArtifactKind(rawInterpretationInput) ||
+      detectStandaloneAttachmentArtifactKind(rawCurrentTurnText),
   )
   const topicDetectionInput =
     intentDetection?.intent === 'customer.quote' ||
@@ -573,14 +868,44 @@ export const buildTurnInterpretation = ({
     typeof previousTaskState.conversationContext === 'object'
       ? previousTaskState.conversationContext
       : null
+  const quoteConfirmationFollowUp =
+    isCustomerRole(role) &&
+    previousIntentKey === 'customer.quote' &&
+    Boolean(previousQuoteContext?.topicLabel) &&
+    String(previousQuoteContext?.pendingClarification?.type || '') !==
+      'catalog_match_ambiguous' &&
+    ['ready_for_pricing_or_handoff', 'ready_for_handoff'].includes(
+      String(previousQuoteContext?.completionStatus || ''),
+    ) &&
+    !['guide_quote_exploration', 'ask_clarification', 'hold_for_more_context'].includes(
+      String(
+        previousConversationContext?.responseStrategy ||
+          previousConversationContext?.resolutionReadiness?.answerMode ||
+          '',
+      ),
+    ) &&
+    looksLikeConfirmationOnlyFollowUp(currentTurnText)
+  const confirmationOnlyFollowUp =
+    isCustomerRole(role) &&
+    Boolean(previousIntentKey) &&
+    looksLikeConfirmationOnlyFollowUp(currentTurnText)
+  const quoteAttributeOnlyFollowUp = detectQuoteAttributeOnlyFollowUp({
+    currentTurnText,
+    previousQuoteContext,
+    tenantTopicTaxonomy,
+    tenantRuntimePolicy,
+  })
   const followUpDetected =
     isCustomerRole(role) &&
     Boolean(previousIntentKey) &&
     (attachmentArtifactTurn ||
       looksLikeEllipticFollowUp(normalizedCurrentTurnText) ||
       looksLikeReferentialFollowUp(normalizedCurrentTurnText) ||
+      confirmationOnlyFollowUp ||
+      quoteConfirmationFollowUp ||
       measurementOnlyFollowUp ||
       quantityOnlyFollowUp ||
+      quoteAttributeOnlyFollowUp.detected ||
       quoteWaitingFollowUp)
   const intentInherited =
     followUpDetected &&
@@ -589,6 +914,7 @@ export const buildTurnInterpretation = ({
 
   const faqSubtype = detectCustomerFaqSubtype(normalizedCurrentTurnText, {
     previousIntentKey,
+    tenantRuntimePolicy,
   })
   const threadResolution = resolveConversationThreads({
     currentTurnText,
@@ -610,11 +936,22 @@ export const buildTurnInterpretation = ({
       : null
   const resolvedTopicLabel = FAQ_TOPIC_LABELS[faqSubtype]
     ? null
-    : resolveTopicLabel(requestedTopicLabel, tenantTopicTaxonomy)
+    : resolveTopicLabel(requestedTopicLabel, tenantTopicTaxonomy, tenantRuntimePolicy)
   const preferStandaloneVariantTopic =
     requestedTopicMatch?.kind === 'product_variant' && !previousTopic?.label
-  const openingStructureSignal = looksLikeOpeningStructureSignal(currentTurnText)
-  const quoteExpansionSignal = looksLikeQuoteExpansionSignal(currentTurnText)
+  const catalogStructureSignal = looksLikeCatalogStructureSignal(
+    currentTurnText,
+    tenantRuntimePolicy,
+  )
+  const quoteExpansionSignal = looksLikeQuoteExpansionSignal(
+    currentTurnText,
+    tenantRuntimePolicy,
+  )
+  const quoteCarryTopic = buildCanonicalTopicFromQuoteMemory({
+    previousTopic,
+    previousQuoteContext,
+    activeThread: threadResolution?.activeThread || null,
+  })
 
   let canonicalTopic = null
   if (FAQ_TOPIC_LABELS[faqSubtype]) {
@@ -648,6 +985,7 @@ export const buildTurnInterpretation = ({
     const fullInputTopicMatch = selectPreferredTopicMatchFromInput(
       normalizedTopicDetectionInput,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
     )
 
     if (fullInputTopicMatch?.label) {
@@ -665,26 +1003,35 @@ export const buildTurnInterpretation = ({
     }
   }
 
-  if (!canonicalTopic && (followUpDetected || attachmentArtifactTurn) && previousTopic?.label) {
+  if (!canonicalTopic && (followUpDetected || attachmentArtifactTurn) && quoteCarryTopic?.label) {
     canonicalTopic = buildCanonicalTopic({
-      label: previousTopic.label,
-      type: previousTopic.type || 'unknown',
+      label: quoteCarryTopic.label,
+      type: quoteCarryTopic.type || 'unknown',
       confidence: 0.66,
       source: 'conversation_memory',
     })
   }
 
   if (
-    openingStructureSignal &&
-    !isAberturasScopedTopic(canonicalTopic, tenantTopicTaxonomy)
+    catalogStructureSignal &&
+    !isStructuralScopedTopic(
+      canonicalTopic,
+      tenantRuntimePolicy,
+      tenantTopicTaxonomy,
+    )
   ) {
-    canonicalTopic = buildAberturasCanonicalTopic(tenantTopicTaxonomy)
+    canonicalTopic =
+      buildStructuralCanonicalTopic(
+        tenantRuntimePolicy,
+        tenantTopicTaxonomy,
+      ) || canonicalTopic
   }
 
   if (
     !canonicalTopic &&
-    previousTopic?.label &&
+    quoteCarryTopic?.label &&
     (looksLikeQuoteRequirementsQuestion(normalizedCurrentTurnText) ||
+      faqSubtype === 'variants' ||
       looksLikeConfiguredProductInterest(
         normalizedCurrentTurnText,
         tenantTopicTaxonomy,
@@ -694,8 +1041,8 @@ export const buildTurnInterpretation = ({
       quoteWaitingFollowUp)
   ) {
     canonicalTopic = buildCanonicalTopic({
-      label: previousTopic.label,
-      type: previousTopic.type || 'unknown',
+      label: quoteCarryTopic.label,
+      type: quoteCarryTopic.type || 'unknown',
       confidence: 0.72,
       source: 'conversation_memory',
     })
@@ -704,47 +1051,47 @@ export const buildTurnInterpretation = ({
   if (
     !canonicalTopic &&
     quoteExpansionSignal &&
-    previousTopic?.label
+    quoteCarryTopic?.label
   ) {
     canonicalTopic = buildCanonicalTopic({
-      label: previousTopic.label,
-      type: previousTopic.type || 'unknown',
+      label: quoteCarryTopic.label,
+      type: quoteCarryTopic.type || 'unknown',
       confidence: 0.74,
       source: 'quote_expansion_memory',
     })
   }
 
-  if (attachmentArtifactTurn && previousTopic?.label) {
+  if (attachmentArtifactTurn && quoteCarryTopic?.label) {
     canonicalTopic = buildCanonicalTopic({
-      label: previousTopic.label,
-      type: previousTopic.type || 'unknown',
+      label: quoteCarryTopic.label,
+      type: quoteCarryTopic.type || 'unknown',
       confidence: 0.78,
       source: 'attachment_memory',
     })
   }
 
-  const retrievalQuery = buildRetrievalQuery({
-    currentTurnText: normalizedCurrentTurnText,
-    intentKey: intentDetection?.intent || null,
-    topic: canonicalTopic,
-    previousTopic,
-    faqSubtype,
-    tenantTopicTaxonomy,
-  })
+  const switchedQuoteSubject =
+    Boolean(threadResolution?.switchDetected) &&
+    Boolean(quoteCarryTopic?.label) &&
+    Boolean(canonicalTopic?.label) &&
+    normalizeText(canonicalTopic.label) !== normalizeText(quoteCarryTopic.label)
   const shouldCarryQuoteContextFromMemory =
-    Boolean(previousTopic?.label) &&
+    Boolean(quoteCarryTopic?.label) &&
+    !switchedQuoteSubject &&
     (attachmentArtifactTurn ||
       followUpDetected ||
+      quoteAttributeOnlyFollowUp.detected ||
       looksLikeQuoteRequirementsQuestion(normalizedCurrentTurnText) ||
       looksLikeConfiguredProductInterest(
         normalizedCurrentTurnText,
         tenantTopicTaxonomy,
       ) ||
+      quoteConfirmationFollowUp ||
       looksLikeGenericPriceInquiry(normalizedCurrentTurnText) ||
       quantityOnlyFollowUp ||
       quoteWaitingFollowUp ||
       (canonicalTopic?.label &&
-        normalizeText(canonicalTopic.label) === normalizeText(previousTopic.label)))
+        normalizeText(canonicalTopic.label) === normalizeText(quoteCarryTopic.label)))
   const quoteContext = buildCustomerQuoteContext({
     currentTurnText,
     topic: canonicalTopic,
@@ -754,15 +1101,44 @@ export const buildTurnInterpretation = ({
       previousQuoteContext
         ? previousQuoteContext
         : null,
+    activeThread: threadResolution?.activeThread || null,
     tenantTopicTaxonomy,
     tenantQuoteProfiles,
   })
+  const fallbackQuoteContext =
+    !quoteContext &&
+    shouldCarryQuoteContextFromMemory &&
+    previousQuoteContext &&
+    quoteAttributeOnlyFollowUp.detected
+      ? (() => {
+          const previousMissingFields = Array.isArray(previousQuoteContext?.missingFields)
+            ? previousQuoteContext.missingFields.filter((entry) => typeof entry === 'string')
+            : []
+          const remainingMissingFields = previousMissingFields.filter(
+            (entry) => !quoteAttributeOnlyFollowUp.keys.includes(entry),
+          )
+
+          return {
+            ...previousQuoteContext,
+            missingFields: remainingMissingFields,
+            completionStatus: remainingMissingFields.length ? 'needs_info' : 'ready_for_handoff',
+          }
+        })()
+      : null
+  const effectiveQuoteContext = quoteContext || fallbackQuoteContext
   const shouldBuildScheduleContext =
     isCustomerRole(role) &&
     (() => {
       const explicitScheduleSignal =
         intentDetection?.intent === 'customer.schedule_request' ||
-        looksLikeScheduleSeedInput(currentTurnText)
+        looksLikeScheduleSeedInput(currentTurnText, tenantRuntimePolicy)
+      const explicitScheduleCancellation =
+        intentDetection?.intent === 'customer.cancellation' &&
+        Boolean(
+          previousScheduleContext ||
+            previousIntentKey === 'customer.schedule_request' ||
+            previousConversationContext?.activeDomain === 'schedule',
+        )
       const contextualScheduleSignal =
         looksLikeScheduleAdministrativePayload(currentTurnText) &&
         (previousIntentKey === 'customer.schedule_request' ||
@@ -775,7 +1151,12 @@ export const buildTurnInterpretation = ({
         (looksLikeScheduleAdministrativePayload(currentTurnText) ||
           looksLikeScheduleAcknowledgement(currentTurnText))
 
-      return explicitScheduleSignal || contextualScheduleSignal || carriedScheduleLane
+      return (
+        explicitScheduleSignal ||
+        explicitScheduleCancellation ||
+        contextualScheduleSignal ||
+        carriedScheduleLane
+      )
     })()
   const scheduleContext = shouldBuildScheduleContext
     ? buildCustomerScheduleContext({
@@ -800,6 +1181,7 @@ export const buildTurnInterpretation = ({
       previousConversationContext,
       quoteContext,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
       followUpDetected,
       attachmentArtifactTurn,
     })
@@ -810,20 +1192,46 @@ export const buildTurnInterpretation = ({
           currentScheduleContext: scheduleContext,
           currentTopic: canonicalTopic,
           previousQuoteContext,
+          tenantTopicTaxonomy,
+          tenantRuntimePolicy,
         })
       : null
+  const retrievalQuery = buildRetrievalQuery({
+    currentTurnText: normalizedCurrentTurnText,
+    intentKey: intentDetection?.intent || null,
+    topic: canonicalTopic,
+    previousTopic,
+    previousQuoteContext,
+    faqSubtype,
+    quoteContext,
+    threadResolution,
+    tenantTopicTaxonomy,
+  })
   const conversationContext = buildConversationContext({
     role,
     currentTurnText,
+    attachmentArtifactTurn,
     inboundClassification,
     intentDetection,
+    previousIntentKey,
     previousConversationContext,
+    previousQuoteContext,
+    tenantRuntimePolicy,
     topic: canonicalTopic,
-    quoteContext,
+    contextTopic: previousTopic,
+    quoteContext: effectiveQuoteContext,
     supportContext,
     scheduleContext,
+    faqSubtype,
     followUp: {
       detected: Boolean(followUpDetected),
+      quantityOnly: Boolean(quantityOnlyFollowUp),
+      measurementOnly: Boolean(measurementOnlyFollowUp),
+      attributeOnly: Boolean(quoteAttributeOnlyFollowUp.detected),
+      attributeKeys: quoteAttributeOnlyFollowUp.keys,
+      confirmationOnly: Boolean(confirmationOnlyFollowUp),
+      quoteConfirmation: Boolean(quoteConfirmationFollowUp),
+      quoteWaiting: Boolean(quoteWaitingFollowUp),
     },
     threadResolution,
     nluAnalysis,
@@ -834,6 +1242,7 @@ export const buildTurnInterpretation = ({
     effectiveInput: String(effectiveInput || ''),
     normalizedInput: String(normalizedInput || ''),
     currentTurnText,
+    attachmentArtifactTurn,
     normalizedCurrentTurn,
     reasoningInput: String(reasoningInput || ''),
     category: inboundClassification?.category || 'other',
@@ -851,6 +1260,13 @@ export const buildTurnInterpretation = ({
       inheritedIntentKey: intentInherited ? previousIntentKey : null,
       confidence: followUpDetected ? (intentInherited ? 0.92 : 0.76) : 0,
       source: followUpDetected ? 'conversation_memory' : 'none',
+      quantityOnly: Boolean(quantityOnlyFollowUp),
+      measurementOnly: Boolean(measurementOnlyFollowUp),
+      attributeOnly: Boolean(quoteAttributeOnlyFollowUp.detected),
+      attributeKeys: quoteAttributeOnlyFollowUp.keys,
+      confirmationOnly: Boolean(confirmationOnlyFollowUp),
+      quoteConfirmation: Boolean(quoteConfirmationFollowUp),
+      quoteWaiting: Boolean(quoteWaitingFollowUp),
       referencedMessageCount: Array.isArray(referencedMessages)
         ? referencedMessages.length
         : 0,
@@ -869,9 +1285,11 @@ export const buildTurnInterpretation = ({
         }
       : null,
     conversationContext,
-    quoteContext,
+    resolutionReadiness: conversationContext?.resolutionReadiness || null,
+    quoteContext: effectiveQuoteContext,
     supportContext,
     scheduleContext,
+    faqSubtype,
     retrievalQuery,
     operationalQuery: retrievalQuery,
     threadResolution,

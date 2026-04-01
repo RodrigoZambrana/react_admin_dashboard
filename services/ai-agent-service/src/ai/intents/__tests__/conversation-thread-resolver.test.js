@@ -62,6 +62,16 @@ const TAXONOMY = [
     parentLabels: ['aberturas de aluminio', 'aberturas'],
     familyLabel: 'aberturas',
   },
+  {
+    key: 'product_variant:serie-20',
+    label: '20',
+    kind: 'product_variant',
+    aliases: ['20', 'serie 20', 'linea 20'],
+    normalizationValue: '20',
+    parentKeys: ['product_topic:aberturas-aluminio', 'product_family:abertura'],
+    parentLabels: ['ventanas corredizas', 'aberturas'],
+    familyLabel: 'aberturas',
+  },
 ]
 
 test('resolveConversationThreads asks to split when the turn mixes two product threads', () => {
@@ -114,6 +124,50 @@ test('resolveConversationThreads keeps the selected roller thread through varian
   assert.match(fourthTurn.activeThread?.resolvedLabel || '', /blackout/i)
 })
 
+test('resolveConversationThreads can reconstruct the previous quote thread from canonical topic memory when explicit threads are missing', () => {
+  const restoredMeasurementTurn = resolveConversationThreads({
+    currentTurnText: 'de 2x2',
+    previousTaskState: {
+      canonicalTopic: {
+        label: 'cortinas roller',
+        type: 'product_topic',
+        confidence: 0.7,
+        source: 'conversation_memory',
+      },
+      quoteContext: {
+        topicLabel: 'cortinas roller',
+        familyLabel: 'cortinas',
+      },
+      conversationThreads: [],
+      activeThreadKey: null,
+    },
+    tenantTopicTaxonomy: TAXONOMY,
+  })
+
+  const variantFollowUp = resolveConversationThreads({
+    currentTurnText: '2 unidades blackout',
+    previousTaskState: {
+      canonicalTopic: {
+        label: 'cortinas roller',
+        type: 'product_topic',
+        confidence: 0.66,
+        source: 'conversation_memory',
+      },
+      quoteContext: {
+        topicLabel: 'cortinas roller',
+        familyLabel: 'cortinas',
+        measurements: { widthMm: 2000, heightMm: 2000 },
+      },
+      conversationThreads: restoredMeasurementTurn.threads,
+      activeThreadKey: restoredMeasurementTurn.activeThreadKey,
+    },
+    tenantTopicTaxonomy: TAXONOMY,
+  })
+
+  assert.match(restoredMeasurementTurn.activeThread?.resolvedLabel || '', /roller/i)
+  assert.match(variantFollowUp.activeThread?.resolvedLabel || '', /roller blackout/i)
+})
+
 test('resolveConversationThreads switches to the explicit aberturas family when the turn names a new family plus a configuration term', () => {
   const previous = resolveConversationThreads({
     currentTurnText: 'cortinas roller',
@@ -143,4 +197,16 @@ test('resolveConversationThreads keeps venecianas de aluminio on the venecianas 
   assert.equal(resolution.requiresDisambiguation, false)
   assert.match(resolution.activeThread?.resolvedLabel || '', /venecianas/i)
   assert.doesNotMatch(resolution.activeThread?.resolvedLabel || '', /aberturas de aluminio/i)
+})
+
+test('resolveConversationThreads does not treat measurement tails as numeric series variants', () => {
+  const resolution = resolveConversationThreads({
+    currentTurnText:
+      'Quería solicitar presupuesto de cortinas venecianas de aluminio sin instalación: - 6 de 0,9 x 1,2 - 8 de 0,9 x 1,4 - 2 de 0,9 x 2,20',
+    tenantTopicTaxonomy: TAXONOMY,
+  })
+
+  assert.equal(resolution.requiresDisambiguation, false)
+  assert.match(resolution.activeThread?.resolvedLabel || '', /venecianas/i)
+  assert.doesNotMatch(resolution.activeThread?.resolvedLabel || '', /20/i)
 })

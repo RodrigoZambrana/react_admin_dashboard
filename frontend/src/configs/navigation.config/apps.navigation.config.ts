@@ -425,6 +425,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         authority: getRolesForFeature(FEATURES.CUSTOMERS),
                         subMenu: [],
                     },
+                    {
+                        key: 'appsCrm.conversationsDebug',
+                        path: `${APP_PREFIX_PATH}/crm/conversations/debug`,
+                        title: 'Mensajes Debug',
+                        translateKey: 'nav.appsCrm.messagesDebug',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+                        subMenu: [],
+                    },
                 ],
             },
             // Productos (nuevo menú)

@@ -3,11 +3,23 @@ import { classifyInboundMessage } from './classify-inbound-message.js'
 import { extractRequestedTopicLabel } from './customer-faq-heuristics.js'
 import {
   looksLikeCommercialConditionQuestion,
+  looksLikeCustomerOrderStatusQuestion,
   looksLikeGenericPriceInquiry,
+  looksLikeMaterialFollowUpRequest,
 } from './customer-intent-patterns.js'
+import { looksLikeCustomerScheduleAvailabilityRequest } from './customer-operational-heuristics.js'
 import { hasTenantTopicSignal } from './customer-topic-taxonomy.js'
 import { hasReengagementReferenceSignal } from './customer-semantic-signals.js'
 import { matchCustomerHybridIntentRegistry } from './hybrid-intent-registry.js'
+import {
+  getBusinessRules,
+  hasCatalogVocabularySignal,
+  matchesBusinessRuleValue,
+} from '../tenant-policy/runtime-tenant-policy.js'
+import {
+  STRUCTURED_CATALOG_REGISTER_INTENT,
+  hasStructuredCatalogSignal,
+} from '../structured-catalog-runtime.js'
 
 const normalizeText = (value) =>
   String(value || '')
@@ -29,7 +41,7 @@ const ACTIONABLE_HINTS = [
   'pedido',
   'presupuesto',
   'cotiz',
-  'abertura',
+  'catalog',
   'producto',
   'cliente',
   'stock',
@@ -37,6 +49,9 @@ const ACTIONABLE_HINTS = [
 
 const hasActionableHints = (normalizedInput) =>
   ACTIONABLE_HINTS.some((hint) => normalizedInput.includes(hint))
+
+const LIGHT_ONLY_EXPRESSION =
+  /^(?:hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|como estas|como andas|que tal|gracias|muchas gracias|ok|dale|perfecto|entendido|listo|saludos?)(?:\s+(?:hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches|como estas|como andas|que tal|gracias|muchas gracias|ok|dale|perfecto|entendido|listo|saludos?))*$/u
 
 const ADMIN_OPERATIONAL_ROLE_PREFIX = 'admin_'
 const shouldUseLegacyDeriveIntent = (role) =>
@@ -57,9 +72,7 @@ const CUSTOMER_INTENT_FALLBACK_RULES = [
     intent: 'customer.order_status',
     decisionPath: ['registry:customer_order_status_fallback'],
     matches: ({ normalizedInput }) =>
-      /\b(pedido|orden|estado|seguimiento|envio|envío|entrega)\b/.test(
-        normalizedInput,
-      ),
+      looksLikeCustomerOrderStatusQuestion(normalizedInput),
   },
   {
     intent: 'customer.support_request',
@@ -72,11 +85,10 @@ const CUSTOMER_INTENT_FALLBACK_RULES = [
   {
     intent: 'customer.schedule_request',
     decisionPath: ['registry:customer_schedule_request_fallback'],
-    matches: ({ normalizedInput }) =>
-      /\b(coordinar|agendar|programar|visita|cita|instalacion|instalación|colocacion|colocación|disponibilidad|venir|direccion|dirección)\b/.test(
-        normalizedInput,
-      ) ||
-      /\b(pasar a medir|pasar a ver|pasar por)\b/.test(normalizedInput),
+    matches: ({ normalizedInput, tenantRuntimePolicy }) =>
+      looksLikeCustomerScheduleAvailabilityRequest(normalizedInput, {
+        tenantRuntimePolicy,
+      }),
   },
   {
     intent: 'customer.product_info',
@@ -100,7 +112,8 @@ const CUSTOMER_INTENT_FALLBACK_RULES = [
           normalizedInput,
         ) ||
         hasTenantTopicSignal(normalizedInput, tenantTopicTaxonomy) ||
-        Boolean(extractRequestedTopicLabel(semanticSource))
+        Boolean(extractRequestedTopicLabel(semanticSource)) ||
+        looksLikeMaterialFollowUpRequest(semanticSource)
       )
     },
   },
@@ -129,12 +142,14 @@ const CUSTOMER_NLP_INTENT_MAP = {
 
 const CUSTOMER_RESTRICTED_ACTION_RULES = [
   {
-    intent: 'aberturas.register',
-    decisionPath: ['policy:customer_restricted_aberturas'],
-    matches: ({ normalizedInput }) =>
-      /(agregar|registrar|dar de alta|alta de|crear|cargar).*(abertura|aberturas|producto|productos).*(sistema|lista de productos)?/.test(
+    intent: STRUCTURED_CATALOG_REGISTER_INTENT,
+    decisionPath: ['policy:customer_restricted_structured_catalog'],
+    matches: ({ normalizedInput, tenantRuntimePolicy }) =>
+      /(agregar|registrar|dar de alta|alta de|crear|cargar).*(producto|productos|catalogo|catálogo).*(sistema|lista de productos)?/.test(
         normalizedInput,
-      ),
+      ) ||
+      (/(agregar|registrar|dar de alta|alta de|crear|cargar)/.test(normalizedInput) &&
+        hasStructuredCatalogSignal(normalizedInput, tenantRuntimePolicy)),
   },
   {
     intent: 'catalog.manage',
@@ -163,10 +178,15 @@ const CUSTOMER_RESTRICTED_ACTION_RULES = [
   {
     intent: 'payments.manage',
     decisionPath: ['policy:customer_restricted_payments'],
-    matches: ({ normalizedInput }) =>
-      /(marcar|confirmar|actualizar|anular|rechazar|modificar).*(pago|transferencia|cobro)/.test(
+    matches: ({ normalizedInput, tenantRuntimePolicy }) =>
+      /(marcar|confirmar|actualizar|anular|rechazar|modificar).*(pago|cobro)/.test(
         normalizedInput,
-      ),
+      ) ||
+      (/(marcar|confirmar|actualizar|anular|rechazar|modificar)/.test(normalizedInput) &&
+        matchesBusinessRuleValue(
+          normalizedInput,
+          getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
+        )),
   },
 ]
 
@@ -279,31 +299,35 @@ const OPERATIONAL_RULES = [
       ),
   },
   {
-    key: 'aberturas.register',
-    keywords: ['aberturas_register_rule'],
+    key: STRUCTURED_CATALOG_REGISTER_INTENT,
+    keywords: ['structured_catalog_register_rule'],
     confidence: 0.91,
-    decisionPath: ['registry:aberturas_register_rule'],
-    matches: ({ normalizedInput, normalizedReasoningInput }) =>
+    decisionPath: ['registry:structured_catalog_register_rule'],
+    matches: ({
+      normalizedInput,
+      normalizedReasoningInput,
+      tenantRuntimePolicy,
+    }) =>
       /(agregar|registrar|dar de alta|alta de|cargar)/.test(normalizedInput) &&
-      /(abertura|aberturas|corrediza|batiente|dvh|monoblock|pano fijo)/.test(
-        normalizedReasoningInput,
-      ) &&
+      hasStructuredCatalogSignal(normalizedReasoningInput, tenantRuntimePolicy) &&
       /(sistema|lista de productos|producto|productos)/.test(
         normalizedReasoningInput,
       ),
   },
   {
-    key: 'aberturas.register',
-    keywords: ['contextual_aberturas_register'],
+    key: STRUCTURED_CATALOG_REGISTER_INTENT,
+    keywords: ['contextual_structured_catalog_register'],
     confidence: 0.93,
-    decisionPath: ['registry:aberturas_register_contextual'],
-    matches: ({ normalizedInput, normalizedReasoningInput }) =>
+    decisionPath: ['registry:structured_catalog_register_contextual'],
+    matches: ({
+      normalizedInput,
+      normalizedReasoningInput,
+      tenantRuntimePolicy,
+    }) =>
       /(agregar|agrega|agregalo|agregala|registrar|registralo|registrala|cargar|cargalo|cargala|dar de alta|alta)/.test(
         normalizedInput,
       ) &&
-      /(abertura|aberturas|corrediza|batiente|dvh|monoblock|pano fijo|paño fijo)/.test(
-        normalizedReasoningInput,
-      ),
+      hasStructuredCatalogSignal(normalizedReasoningInput, tenantRuntimePolicy),
   },
 ]
 
@@ -388,8 +412,11 @@ const matchRegisteredIntent = ({
   )
   const isAckOnly = /^(ok|dale|perfecto|entendido)$/.test(normalizedInput)
   const isStatusCheck = /^(como estas|como andas|estas ahi)$/.test(normalizedInput)
+  const isLightOnly =
+    !hasActionableHints(normalizedInput) &&
+    LIGHT_ONLY_EXPRESSION.test(normalizedInput)
 
-  if (isGreetingOnly || isThanksOnly || isAckOnly || isStatusCheck) {
+  if (isGreetingOnly || isThanksOnly || isAckOnly || isStatusCheck || isLightOnly) {
     return {
       intent: isAdmin ? 'admin.light' : 'customer.light',
       keywords: ['light_conversation'],
@@ -422,6 +449,7 @@ const matchOperationalRegistryIntent = ({
   normalizedReasoningInput,
   actionCatalog,
   directActionIntent,
+  tenantRuntimePolicy = null,
 }) => {
   const isAdmin =
     String(role || '').startsWith(ADMIN_OPERATIONAL_ROLE_PREFIX) ||
@@ -431,7 +459,13 @@ const matchOperationalRegistryIntent = ({
   }
 
   for (const rule of OPERATIONAL_RULES) {
-    if (!rule.matches({ normalizedInput, normalizedReasoningInput })) {
+    if (
+      !rule.matches({
+        normalizedInput,
+        normalizedReasoningInput,
+        tenantRuntimePolicy,
+      })
+    ) {
       continue
     }
 
@@ -454,13 +488,14 @@ const matchCustomerRestrictedIntent = ({
   role,
   normalizedInput,
   directActionIntent,
+  tenantRuntimePolicy = null,
 }) => {
   if (String(role || '').startsWith(ADMIN_OPERATIONAL_ROLE_PREFIX) || directActionIntent?.key) {
     return null
   }
 
   for (const rule of CUSTOMER_RESTRICTED_ACTION_RULES) {
-    if (rule.matches({ normalizedInput })) {
+    if (rule.matches({ normalizedInput, tenantRuntimePolicy })) {
       return rule
     }
   }
@@ -477,6 +512,7 @@ const matchCustomerFallbackIntent = ({
   inboundClassification,
   directActionIntent,
   tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
 }) => {
   if (
     String(role || '').startsWith(ADMIN_OPERATIONAL_ROLE_PREFIX) ||
@@ -490,6 +526,7 @@ const matchCustomerFallbackIntent = ({
     role,
     normalizedInput,
     directActionIntent,
+    tenantRuntimePolicy,
   })
   if (restrictedRule) {
     return restrictedRule
@@ -643,6 +680,7 @@ export const detectIntent = ({
   messageContext = null,
   inboundClassification = null,
   tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
   nluAnalysis = null,
   customerHybridIntentRegistry = [],
   legacy = {},
@@ -659,6 +697,7 @@ export const detectIntent = ({
       role,
       input: effectiveInput,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
     })
   const directActionIntent = findCatalogActionIntent(normalizedInput, actionCatalog)
   const customerFallbackIntent = matchCustomerFallbackIntent({
@@ -670,6 +709,7 @@ export const detectIntent = ({
     inboundClassification: resolvedInboundClassification,
     directActionIntent,
     tenantTopicTaxonomy,
+    tenantRuntimePolicy,
   })
   const configuredCustomerFallbackIntent = matchConfiguredCustomerFallbackIntent({
     role,
@@ -691,6 +731,7 @@ export const detectIntent = ({
     normalizedReasoningInput,
     actionCatalog,
     directActionIntent,
+    tenantRuntimePolicy,
   })
   const nlpCustomerIntent = matchNlpCustomerIntent({
     role,
@@ -727,6 +768,7 @@ export const detectIntent = ({
           role,
           effectiveInput,
           directActionIntent ?? operationalRegistryIntent?.actionIntent ?? null,
+          tenantRuntimePolicy,
         )
       : 'unknown')
 
@@ -746,6 +788,7 @@ export const detectIntent = ({
       effectiveInput,
       effectiveReasoningInput,
       actionCatalog,
+      tenantRuntimePolicy,
     )
     if (actionIntent) {
       decisionPath.push('legacy:inferActionIntentFromConversationContext')
@@ -780,7 +823,12 @@ export const detectIntent = ({
     : operationalRegistryIntent?.intent
       ? operationalRegistryIntent.intent
     : shouldUseLegacyDeriveIntent(role) && legacy.deriveIntentKey
-      ? legacy.deriveIntentKey(role, effectiveReasoningInput, actionIntent)
+      ? legacy.deriveIntentKey(
+          role,
+          effectiveReasoningInput,
+          actionIntent,
+          tenantRuntimePolicy,
+        )
       : directIntent || 'customer.other'
 
   const usedContextualSignals =

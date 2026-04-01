@@ -3,16 +3,68 @@ const DEFAULT_MAX_WINDOW_MS = 2600
 
 const normalizeText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
+const FRAGMENTARY_CONTINUATION_REGEX =
+  /^(?:de|del|con|sin|para|por|en|y|o|pero|si|sí)\b/iu
+
+const QUOTE_SLOT_FRAGMENT_REGEX =
+  /^(?:\d+(?:[.,]\d+)?\s*(?:x|por)\s*\d+(?:[.,]\d+)?(?:\s*(?:cm|cms|m|mt|mts|mm))?|\d+\s*(?:unidad(?:es)?|unid(?:ades)?|u)\b)/iu
+
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const buildDescriptorFragmentRegex = (descriptorTerms = []) => {
+  const terms = (Array.isArray(descriptorTerms) ? descriptorTerms : [])
+    .filter((entry) => typeof entry === 'string' && entry.trim())
+    .map((entry) => entry.trim())
+    .sort((left, right) => right.length - left.length)
+
+  if (!terms.length) {
+    return null
+  }
+
+  return new RegExp(`\\b(?:${terms.map((entry) => escapeRegex(entry)).join('|')})\\b`, 'iu')
+}
+
+const looksLikeFragmentaryContinuation = (normalizedText, descriptorTerms = []) => {
+  if (!normalizedText) {
+    return false
+  }
+
+  if (/[?¿]$/.test(normalizedText)) {
+    return false
+  }
+
+  if (FRAGMENTARY_CONTINUATION_REGEX.test(normalizedText)) {
+    return true
+  }
+
+  if (QUOTE_SLOT_FRAGMENT_REGEX.test(normalizedText)) {
+    return true
+  }
+
+  const words = normalizedText.split(/\s+/u).filter(Boolean)
+  const descriptorRegex = buildDescriptorFragmentRegex(descriptorTerms)
+  if (words.length <= 4 && descriptorRegex?.test(normalizedText)) {
+    return true
+  }
+
+  return false
+}
+
 export const estimateInboundCompletionDelay = ({
   text = '',
   attachments = [],
   defaultDelayMs = DEFAULT_QUIET_WINDOW_MS,
+  descriptorTerms = [],
 } = {}) => {
   const normalizedText = normalizeText(text)
   const hasAttachments = Array.isArray(attachments) && attachments.length > 0
 
   if (!normalizedText) {
     return hasAttachments ? 350 : defaultDelayMs
+  }
+
+  if (looksLikeFragmentaryContinuation(normalizedText, descriptorTerms)) {
+    return Math.max(defaultDelayMs + 500, 1700)
   }
 
   if (/[.!?…]$/.test(normalizedText) && normalizedText.length >= 50) {
@@ -24,15 +76,15 @@ export const estimateInboundCompletionDelay = ({
       normalizedText,
     )
   ) {
-    return 1200
+    return Math.max(defaultDelayMs + 300, 1500)
   }
 
   if (normalizedText.length <= 24) {
-    return 1100
+    return Math.max(defaultDelayMs, 1300)
   }
 
   if (!/[.!?…]$/.test(normalizedText) && normalizedText.length <= 120) {
-    return 850
+    return Math.max(defaultDelayMs - 200, 1000)
   }
 
   return defaultDelayMs

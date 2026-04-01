@@ -45,7 +45,7 @@ const config = {
   metaGraphVersion: process.env.META_GRAPH_VERSION || 'v23.0',
   metaGraphBaseUrl: process.env.META_GRAPH_BASE_URL || 'https://graph.facebook.com',
   metaSenderMaxRetries: process.env.META_SENDER_MAX_RETRIES || '2',
-  clientSlug: process.env.CLIENT_SLUG || 'urucortinas',
+  clientSlug: process.env.CLIENT_SLUG || '',
   whatsappRuntimeDir: process.env.WHATSAPP_QR_RUNTIME_DIR || '/app/runtime/whatsapp-qr',
 }
 

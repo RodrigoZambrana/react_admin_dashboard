@@ -1,6 +1,7 @@
 import {
   BASE_CONVERSATIONAL_ES_SIGNALS,
   hasScheduleAdministrativeSignal,
+  hasScheduleStatusFollowUpSignal,
   normalizeSemanticText,
 } from './customer-semantic-signals.js'
 
@@ -44,6 +45,7 @@ const DAY_TIME_PATTERNS = [
 const TIME_PATTERNS = [
   /\b(?:a\s+las|a\s+la|tipo|hora|horario)\s+(\d{1,2})(?::(\d{2}))?\b/iu,
   /\b(\d{1,2}):(\d{2})\b/,
+  /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/iu,
 ]
 
 const TIME_PREFERENCE_PATTERNS = [
@@ -58,7 +60,8 @@ const SCHEDULE_REASON_LABELS = BASE_CONVERSATIONAL_ES_SIGNALS.schedule.reasonLab
 const SCHEDULE_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.schedule
 
 const looksLikeScheduleAdministrativeFollowUp = (input) =>
-  hasScheduleAdministrativeSignal(input)
+  hasScheduleAdministrativeSignal(input) ||
+  hasScheduleStatusFollowUpSignal(input)
 
 const looksLikeAddressValue = (value) => {
   const normalized = normalizeText(value)
@@ -71,6 +74,32 @@ const looksLikeAddressValue = (value) => {
       normalized,
     ) || /\d/.test(normalized)
   )
+}
+
+const looksLikeAvailabilityOnlyAddressFalsePositive = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const explicitAddressMarker =
+    /\b(avenida|av|av\.|calle|ruta|camino|bulevar|blvr|esquina|esq|km|kilometro|kilómetro|manzana|solar|apto|apartamento|local)\b/iu.test(
+      normalized,
+    )
+  if (explicitAddressMarker) {
+    return false
+  }
+
+  const scheduleVerb =
+    /\b(pueden|puedo|podrian|podrían|pasan|pasar|ir|venir|me sirve|te sirve|les sirve)\b/iu.test(
+      normalized,
+    )
+  const temporalCue =
+    /\b(hoy|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|a las|am|pm|hora|horario|mañana|tarde|noche)\b/iu.test(
+      normalized,
+    )
+
+  return scheduleVerb && temporalCue
 }
 
 const hasStreetAddressShape = (value) => {
@@ -112,6 +141,17 @@ const formatTimeLabel = (hour, minute = 0) =>
     minimumIntegerDigits: 2,
     useGrouping: false,
   }).format(minute)
+
+const normalizeMeridiemHour = (hour, meridiem = '') => {
+  const normalizedMeridiem = String(meridiem || '').toLowerCase()
+  if (normalizedMeridiem === 'am') {
+    return hour === 12 ? 0 : hour
+  }
+  if (normalizedMeridiem === 'pm') {
+    return hour === 12 ? 12 : hour + 12
+  }
+  return hour
+}
 
 const extractPhone = (nluAnalysis = null) => {
   const firstPhone = Array.isArray(nluAnalysis?.entities?.phones)
@@ -177,6 +217,9 @@ const extractAddress = (input) => {
     const match = String(input || '').match(pattern)
     if (match?.[1]) {
       const value = sanitizeAddressValue(match[1])
+      if (!value || looksLikeAvailabilityOnlyAddressFalsePositive(value)) {
+        continue
+      }
       const requiresExplicitStreetShape = index === 1
       if (
         value.length >= 8 &&
@@ -206,6 +249,7 @@ const extractAddress = (input) => {
   )
   if (
     residualCandidate &&
+    !looksLikeAvailabilityOnlyAddressFalsePositive(residualCandidate) &&
     residualCandidate.length >= 8 &&
     looksLikeAddressValue(residualCandidate) &&
     hasStreetAddressShape(residualCandidate)
@@ -294,8 +338,9 @@ const extractRequestedTime = (input) => {
   for (const pattern of TIME_PATTERNS) {
     const match = source.match(pattern)
     if (match?.[1]) {
-      const hour = Number(match[1])
+      const rawHour = Number(match[1])
       const minute = match[2] ? Number(match[2]) : 0
+      const hour = normalizeMeridiemHour(rawHour, match[3] || '')
       if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
         return {
           hour,
@@ -487,7 +532,7 @@ export const buildCustomerScheduleContext = ({
 
   const missingFields = []
   if (!hasExactDate) {
-    missingFields.push('day')
+    missingFields.push('date')
   }
   if (!hasExactTime) {
     missingFields.push('time')

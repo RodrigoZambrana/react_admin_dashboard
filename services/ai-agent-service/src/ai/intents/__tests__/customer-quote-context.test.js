@@ -28,6 +28,16 @@ const CUSTOMER_TOPIC_TAXONOMY = [
     tags: ['quote_requires_measurements', 'quote_requires_quantity', 'roller'],
   },
   {
+    key: 'product_variant:blackout',
+    label: 'blackout',
+    kind: 'product_variant',
+    aliases: ['blackout', 'black out'],
+    familyLabel: 'cortinas',
+    parentKeys: ['product_family:cortina', 'product_topic:cortinas-roller'],
+    parentLabels: ['cortinas', 'cortinas roller'],
+    tags: [],
+  },
+  {
     key: 'product_family:abertura',
     label: 'aberturas',
     kind: 'product_family',
@@ -380,6 +390,103 @@ test('extractCustomerQuotedQuantity captures leading product quantities without 
   assert.equal(quantity?.source, 'explicit_total')
 })
 
+test('buildCustomerQuoteContext preserves the base quote topic when a follow-up only adds a variant', () => {
+  const previousQuoteContext = buildCustomerQuoteContext({
+    currentTurnText: 'De 2x2',
+    topic: {
+      label: 'cortinas roller',
+      type: 'product_topic',
+      familyLabel: 'cortinas',
+    },
+    previousTopic: {
+      label: 'cortinas roller',
+      type: 'product_topic',
+      familyLabel: 'cortinas',
+    },
+    previousQuoteContext: null,
+    tenantTopicTaxonomy: CUSTOMER_TOPIC_TAXONOMY,
+    tenantQuoteProfiles: CUSTOMER_QUOTE_PROFILES,
+  })
+
+  const context = buildCustomerQuoteContext({
+    currentTurnText: '2 unidades blackout',
+    topic: {
+      label: 'blackout',
+      type: 'product_variant',
+      familyLabel: 'cortinas',
+    },
+    previousTopic: {
+      label: 'cortinas roller',
+      type: 'product_topic',
+      familyLabel: 'cortinas',
+    },
+    previousQuoteContext,
+    activeThread: {
+      key: 'thread:product_topic:cortinas-roller',
+      baseKey: 'product_topic:cortinas-roller',
+      baseLabel: 'cortinas roller',
+      baseType: 'product_topic',
+      familyLabel: 'cortinas',
+      variantLabels: ['blackout'],
+      resolvedLabel: 'cortinas roller blackout',
+      displayLabel: 'cortinas roller blackout',
+    },
+    tenantTopicTaxonomy: CUSTOMER_TOPIC_TAXONOMY,
+    tenantQuoteProfiles: CUSTOMER_QUOTE_PROFILES,
+  })
+
+  assert.equal(context?.topicLabel, 'cortinas roller blackout')
+  assert.equal(context?.variantLabel, 'blackout')
+  assert.equal(context?.quantity?.total, 2)
+  assert.equal(context?.measurements?.widthMm, 2000)
+  assert.equal(context?.measurements?.heightMm, 2000)
+})
+
+test('buildCustomerQuoteContext restores the quote profile from the active thread after a business-fact detour', () => {
+  const previousQuoteContext = buildCustomerQuoteContext({
+    currentTurnText: 'Si necsito una de 2x2',
+    topic: {
+      label: 'cortinas roller',
+      type: 'product_topic',
+      familyLabel: 'cortinas',
+    },
+    previousTopic: null,
+    previousQuoteContext: null,
+    tenantTopicTaxonomy: CUSTOMER_TOPIC_TAXONOMY,
+    tenantQuoteProfiles: CUSTOMER_QUOTE_PROFILES,
+  })
+
+  const context = buildCustomerQuoteContext({
+    currentTurnText: 'cortinas roller',
+    topic: {
+      label: 'medios de pago',
+      type: 'business_fact',
+    },
+    previousTopic: {
+      label: 'medios de pago',
+      type: 'business_fact',
+    },
+    previousQuoteContext,
+    activeThread: {
+      key: 'thread:product_topic:cortinas-roller',
+      baseKey: 'product_topic:cortinas-roller',
+      baseLabel: 'cortinas roller',
+      baseType: 'product_topic',
+      familyLabel: 'cortinas',
+      variantLabels: [],
+      resolvedLabel: 'cortinas roller',
+      displayLabel: 'cortinas roller',
+    },
+    tenantTopicTaxonomy: CUSTOMER_TOPIC_TAXONOMY,
+    tenantQuoteProfiles: CUSTOMER_QUOTE_PROFILES,
+  })
+
+  assert.equal(context?.profileKey, 'quote_profile:cortinas_roller')
+  assert.equal(context?.topicRecognized, true)
+  assert.equal(context?.topicLabel, 'cortinas roller')
+  assert.doesNotMatch(JSON.stringify(context?.missingFields || []), /product/i)
+})
+
 test('buildCustomerQuoteContext marks multi-item quote intake as ready for handoff once minimum fields are complete', () => {
   const context = buildCustomerQuoteContext({
     currentTurnText: `
@@ -404,7 +511,7 @@ test('buildCustomerQuoteContext marks multi-item quote intake as ready for hando
 
   assert.equal(context?.quantity?.total, 14)
   assert.equal(context?.measurementItems?.length, 6)
-  assert.equal(context?.color, 'blanco')
+  assert.equal(context?.capturedAttributes?.color?.value, 'blanco')
   assert.deepEqual(context?.missingFields, [])
   assert.equal(context?.completionStatus, 'ready_for_pricing_or_handoff')
 })
@@ -480,9 +587,9 @@ test('buildCustomerQuoteContext derives aberturas series, glass and color slots 
     tenantQuoteProfiles: CUSTOMER_QUOTE_PROFILES,
   })
 
-  assert.equal(context?.series, 'probba')
-  assert.equal(context?.glass, 'dvh')
-  assert.equal(context?.color, 'negro')
+  assert.equal(context?.capturedAttributes?.series?.value, 'probba')
+  assert.equal(context?.capturedAttributes?.glass?.value, 'dvh')
+  assert.equal(context?.capturedAttributes?.color?.value, 'negro')
   assert.equal(context?.quantity?.total, 1)
   assert.deepEqual(context?.missingFields, [])
   assert.equal(context?.completionStatus, 'ready_for_pricing_or_handoff')
@@ -505,9 +612,9 @@ test('buildCustomerQuoteContext prefers a specific published topic profile over 
 
   assert.equal(context?.profileKey, 'quote_profile:ventanas_corredizas_publicadas')
   assert.equal(context?.pricingStrategy, 'immediate_unit_price')
-  assert.equal(context?.series, '20')
-  assert.equal(context?.glass, '3mm')
-  assert.equal(context?.color, 'blanco')
+  assert.equal(context?.capturedAttributes?.series?.value, '20')
+  assert.equal(context?.capturedAttributes?.glass?.value, '3mm')
+  assert.equal(context?.capturedAttributes?.color?.value, 'blanco')
   assert.equal(context?.quantity?.total, 1)
   assert.equal(context?.measurements?.widthMm, 1500)
   assert.deepEqual(context?.missingFields, [])
@@ -530,7 +637,7 @@ test('buildCustomerQuoteContext infers single configured item quantity and gener
 
   assert.equal(context?.quantity?.total, 1)
   assert.equal(context?.quantity?.source, 'implicit_single_item')
-  assert.equal(context?.glass, '4mm')
+  assert.equal(context?.capturedAttributes?.glass?.value, '4mm')
   assert.deepEqual(context?.missingFields, [])
   assert.equal(context?.completionStatus, 'ready_for_pricing_or_handoff')
 })

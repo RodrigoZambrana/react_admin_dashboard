@@ -1,15 +1,5 @@
-const formatRecentTurns = (recentTurns = []) =>
-  recentTurns
-    .slice(-5)
-    .map((turn) => {
-      const role = turn?.role === 'agent' ? 'agent' : 'customer'
-      const text = String(turn?.text || '')
-        .replace(/\s+/g, ' ')
-        .trim()
-      return text ? `${role}: ${text}` : null
-    })
-    .filter(Boolean)
-    .join('\n')
+import { buildCustomerLlmContextBlock } from '../conversation/customer-llm-context.js'
+import { readInterpretationResolutionReadiness } from '../conversation/resolution-readiness.js'
 
 export const CUSTOMER_INTERPRETATION_INTENTS = [
   'customer.light',
@@ -44,7 +34,10 @@ export const buildAnalyzeMessagePrompt = ({
   intentKey = null,
   interpretation = null,
   intentRegistryHints = [],
+  taskSummary = null,
+  currentTask = null,
 }) => {
+  const readiness = readInterpretationResolutionReadiness(interpretation)
   const knownTopic =
     interpretation?.topic?.label ||
     interpretation?.contextTopic?.label ||
@@ -52,14 +45,21 @@ export const buildAnalyzeMessagePrompt = ({
     interpretation?.quoteContext?.familyLabel ||
     null
   const activeDomain =
-    typeof interpretation?.conversationContext?.activeDomain === 'string'
-      ? interpretation.conversationContext.activeDomain
+    typeof readiness?.lane === 'string'
+      ? readiness.lane
       : null
   const nextUsefulField =
-    typeof interpretation?.conversationContext?.nextUsefulField === 'string'
-      ? interpretation.conversationContext.nextUsefulField
+    typeof readiness?.nextUsefulField === 'string'
+      ? readiness.nextUsefulField
       : null
-  const recentHistory = formatRecentTurns(recentTurns)
+  const llmContextBlock = buildCustomerLlmContextBlock({
+    recentTurns,
+    interpretation,
+    taskSummary,
+    currentTask,
+    recentTurnLimit: 8,
+    maxCharsPerTurn: 160,
+  })
 
   return [
     'Tu tarea es analizar el mensaje actual de una conversación de cliente y devolver JSON válido.',
@@ -88,7 +88,7 @@ export const buildAnalyzeMessagePrompt = ({
     knownTopic ? `Tema heurístico actual: ${knownTopic}.` : null,
     activeDomain ? `Dominio conversacional actual: ${activeDomain}.` : null,
     nextUsefulField ? `Siguiente dato útil esperado: ${nextUsefulField}.` : null,
-    interpretation?.conversationContext?.waitForMore
+    readiness?.waitForMore
       ? 'El turno parece todavía en construcción o incompleto: evitá forzar flow demasiado pronto.'
       : null,
     interpretation?.supportContext?.productType
@@ -111,7 +111,9 @@ export const buildAnalyzeMessagePrompt = ({
             .join('\n'),
         ].join('\n')
       : null,
-    recentHistory ? `Historial reciente:\n${recentHistory}` : 'Historial reciente: sin contexto útil.',
+    llmContextBlock
+      ? `Contexto conversacional compacto:\n${llmContextBlock}`
+      : 'Contexto conversacional compacto: sin contexto útil.',
     `Mensaje actual: ${String(input || '').trim()}`,
   ]
     .filter(Boolean)
@@ -125,6 +127,7 @@ export const buildControlledConversationalPrompt = ({
   currentState = null,
   channel = null,
   channelProfile = 'chat',
+  llmContextBlock = null,
 }) =>
   [
     'Respondé como asesor conversacional guiado.',
@@ -146,6 +149,7 @@ export const buildControlledConversationalPrompt = ({
       : 'El canal es chat: usá un tono ágil, natural y directo, sin sonar robótico.',
     channel ? `Canal: ${String(channel).trim()}.` : null,
     `Rol: ${String(role || 'customer_public')}.`,
+    llmContextBlock ? `Contexto conversacional compacto:\n${llmContextBlock}` : null,
     approvedFacts.length
       ? `Hechos aprobados:\n${approvedFacts.map((entry) => `- ${entry}`).join('\n')}`
       : 'Hechos aprobados: sin facts adicionales.',

@@ -6,9 +6,12 @@ import {
 } from './meta.webhook.js'
 import { MetaSender } from './meta.sender.js'
 import {
-  estimateInboundCompletionDelay,
-  InboundTurnCoalescer,
-} from '../../runtime/inbound-turn-coalescer.js'
+  PendingUtteranceAssembler,
+  estimatePendingUtteranceDelay,
+} from '../../runtime/pending-utterance-assembler.js'
+
+const DEFAULT_META_QUIET_WINDOW_MS = 900
+const DEFAULT_META_MAX_WINDOW_MS = 2600
 
 const cleanString = (value) => {
   if (typeof value !== 'string') {
@@ -23,11 +26,16 @@ export class MetaAdapter {
     this.clients = clients
     this.config = config
     this.sender = options.sender || new MetaSender(config, options)
-    this.coalescer =
+    this.quietWindowMs =
+      options.quietWindowMs ?? DEFAULT_META_QUIET_WINDOW_MS
+    this.maxWindowMs =
+      options.maxWindowMs ?? DEFAULT_META_MAX_WINDOW_MS
+    this.turnAssembler =
+      options.turnAssembler ||
       options.coalescer ||
-      new InboundTurnCoalescer({
-        quietWindowMs: options.quietWindowMs,
-        maxWindowMs: options.maxWindowMs,
+      new PendingUtteranceAssembler({
+        defaultDelayMs: this.quietWindowMs,
+        maxWindowMs: this.maxWindowMs,
       })
   }
 
@@ -39,7 +47,7 @@ export class MetaAdapter {
     ].join(':')
   }
 
-  async processBufferedInboundEvents(items = []) {
+  async processBufferedInboundEvents(items = [], context = {}) {
     const lastItem = items.at(-1)
     if (!lastItem) {
       return {
@@ -52,6 +60,8 @@ export class MetaAdapter {
     const normalizedMessages = items.map((entry) => entry.normalized).filter(Boolean)
     const latestNormalized = lastItem.normalized
     const projection = lastItem.projection
+    const semanticTurn = context?.semanticTurn || null
+    const evaluation = context?.evaluation || null
     const combinedText = normalizedMessages
       .map((entry) => String(entry?.text || '').trim())
       .filter(Boolean)
@@ -60,6 +70,17 @@ export class MetaAdapter {
     const combinedAttachments = normalizedMessages.flatMap((entry) =>
       Array.isArray(entry?.attachments) ? entry.attachments : [],
     )
+
+    if (evaluation?.canceled) {
+      return {
+        normalized: latestNormalized,
+        conversation: projection,
+        ai: null,
+        coalescedInboundCount: normalizedMessages.length,
+        semanticTurn,
+        suppressed: true,
+      }
+    }
 
     const aiResult = await this.clients.ai.respond({
       ...latestNormalized,
@@ -87,8 +108,27 @@ export class MetaAdapter {
             ? latestNormalized.metadata.currency || null
             : null),
         coalescedInboundCount: normalizedMessages.length,
+        semanticTurnId:
+          typeof semanticTurn?.id === 'string' ? semanticTurn.id : null,
+        semanticTurnInputCount:
+          typeof semanticTurn?.inputCount === 'number'
+            ? semanticTurn.inputCount
+            : normalizedMessages.length,
       },
+    }, {
+      cancellationToken: evaluation,
     })
+
+    if (evaluation?.canceled) {
+      return {
+        normalized: latestNormalized,
+        conversation: projection,
+        ai: aiResult?.response ?? null,
+        coalescedInboundCount: normalizedMessages.length,
+        semanticTurn,
+        suppressed: true,
+      }
+    }
 
     const responseText =
       aiResult?.response?.finalUserText?.trim() ||
@@ -106,6 +146,12 @@ export class MetaAdapter {
           deliveryStatus: 'pending_external',
           aiMemory: aiResult?.response?.memory || null,
           coalescedInboundCount: normalizedMessages.length,
+          semanticTurnId:
+            typeof semanticTurn?.id === 'string' ? semanticTurn.id : null,
+          semanticTurnInputCount:
+            typeof semanticTurn?.inputCount === 'number'
+              ? semanticTurn.inputCount
+              : normalizedMessages.length,
         },
         toolCalls: aiResult?.response?.toolCalls ?? [],
         needsHuman: aiResult?.response?.needsHuman ?? false,
@@ -118,6 +164,7 @@ export class MetaAdapter {
       conversation: projection,
       ai: aiResult?.response ?? null,
       coalescedInboundCount: normalizedMessages.length,
+      semanticTurn,
     }
   }
 
@@ -265,7 +312,7 @@ export class MetaAdapter {
 
   async handleWebhook(payload) {
     const events = extractMetaWebhookEvents(payload, {
-      tenantKey: this.config.clientSlug || 'default',
+      tenantKey: this.config.clientSlug || undefined,
     })
 
     const results = []
@@ -328,18 +375,21 @@ export class MetaAdapter {
     })
 
     if (projection.controlMode !== 'human') {
-      return this.coalescer.enqueue(
+      const turnItem = {
+        normalized,
+        projection,
+      }
+      const flushDelayMs = estimatePendingUtteranceDelay({
+        items: [turnItem],
+        defaultDelayMs: this.quietWindowMs,
+      })
+
+      return this.turnAssembler.enqueue(
         this.buildCoalescerKey({ normalized, projection }),
+        turnItem,
+        (items, context) => this.processBufferedInboundEvents(items, context),
         {
-          normalized,
-          projection,
-        },
-        (items) => this.processBufferedInboundEvents(items),
-        {
-          flushDelayMs: estimateInboundCompletionDelay({
-            text: normalized.text,
-            attachments: normalized.attachments,
-          }),
+          maxWindowMs: Math.max(this.maxWindowMs, flushDelayMs),
         },
       )
     }

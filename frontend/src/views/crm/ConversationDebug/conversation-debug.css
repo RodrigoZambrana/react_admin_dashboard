@@ -1,0 +1,362 @@
+.conversation-debug {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    padding: 1.25rem;
+    min-height: 100%;
+    background:
+        radial-gradient(circle at top right, rgba(14, 165, 233, 0.08), transparent 28%),
+        radial-gradient(circle at bottom left, rgba(16, 185, 129, 0.08), transparent 24%);
+}
+
+.conversation-debug__header,
+.conversation-debug__chat-header,
+.conversation-debug__panel-header,
+.conversation-debug__entry-head {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.conversation-debug__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgb(8 145 178);
+}
+
+.conversation-debug__title {
+    margin: 0.35rem 0 0.4rem;
+}
+
+.conversation-debug__subtitle,
+.conversation-debug__entry-head p,
+.conversation-debug__chat-header p,
+.conversation-debug__panel-header p {
+    margin: 0;
+    color: rgb(100 116 139);
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
+.conversation-debug__header-actions,
+.conversation-debug__entry-actions,
+.conversation-debug__composer-actions,
+.conversation-debug__meta,
+.conversation-debug__pill-row,
+.conversation-debug__mode-switch {
+    display: flex;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.conversation-debug__entry-grid,
+.conversation-debug__workspace {
+    display: grid;
+    gap: 1rem;
+}
+
+.conversation-debug__workspace {
+    grid-template-columns: minmax(0, 1.35fr) minmax(360px, 0.95fr);
+}
+
+.conversation-debug__entry-card,
+.conversation-debug__chat-card,
+.conversation-debug__panel-card {
+    height: 100%;
+}
+
+.conversation-debug__entry-icon {
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.9rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.14), rgba(16, 185, 129, 0.14));
+    color: rgb(15 118 110);
+}
+
+.conversation-debug__mode-button,
+.conversation-debug__pill,
+.conversation-debug__turn-anchor {
+    border: 1px solid rgb(226 232 240);
+    background: rgb(255 255 255);
+    color: rgb(15 23 42);
+    transition: all 150ms ease;
+}
+
+.conversation-debug__mode-button,
+.conversation-debug__pill {
+    border-radius: 9999px;
+    padding: 0.55rem 0.9rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+}
+
+.conversation-debug__mode-button--active,
+.conversation-debug__pill--active {
+    background: rgb(15 23 42);
+    color: rgb(248 250 252);
+    border-color: rgb(15 23 42);
+}
+
+.conversation-debug__form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+    margin-top: 1rem;
+}
+
+.conversation-debug__field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.conversation-debug__field--full {
+    grid-column: 1 / -1;
+}
+
+.conversation-debug__fieldset {
+    margin: 0;
+    padding: 0;
+    border: 0;
+}
+
+.conversation-debug__field label,
+.conversation-debug__legend,
+.conversation-debug__switch-title,
+.conversation-debug__section-title,
+.conversation-debug__summary-label,
+.conversation-debug__metric-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: rgb(71 85 105);
+}
+
+.conversation-debug__switch-row {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.9rem 1rem;
+    border-radius: 1rem;
+    background: rgb(248 250 252);
+    border: 1px solid rgb(226 232 240);
+}
+
+.conversation-debug__switch-help,
+.conversation-debug__metric-detail,
+.conversation-debug__bubble-meta {
+    color: rgb(100 116 139);
+    font-size: 0.8rem;
+}
+
+.conversation-debug__inspect {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.conversation-debug__metrics {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.conversation-debug__metric-card {
+    padding: 0.95rem 1rem;
+    border-radius: 1rem;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 250, 252, 0.96));
+    border: 1px solid rgb(226 232 240);
+}
+
+.conversation-debug__metric-value {
+    margin-top: 0.25rem;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: rgb(15 23 42);
+}
+
+.conversation-debug__timeline,
+.conversation-debug__panel-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    min-height: 240px;
+}
+
+.conversation-debug__timeline {
+    max-height: 58vh;
+    overflow: auto;
+    padding-right: 0.2rem;
+}
+
+.conversation-debug__turn {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.conversation-debug__turn-anchor {
+    align-self: flex-start;
+    border-radius: 9999px;
+    padding: 0.3rem 0.7rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+
+.conversation-debug__turn-anchor--active {
+    background: rgba(14, 165, 233, 0.12);
+    border-color: rgba(14, 165, 233, 0.35);
+    color: rgb(14 116 144);
+}
+
+.conversation-debug__bubble {
+    max-width: min(88%, 680px);
+    padding: 0.95rem 1rem;
+    border-radius: 1.1rem;
+    border: 1px solid rgb(226 232 240);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.04);
+}
+
+.conversation-debug__bubble--user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, rgba(14, 165, 233, 0.12), rgba(14, 165, 233, 0.04));
+}
+
+.conversation-debug__bubble--agent {
+    align-self: flex-start;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.04), rgba(16, 185, 129, 0.08));
+}
+
+.conversation-debug__bubble-label {
+    font-size: 0.76rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: rgb(71 85 105);
+    margin-bottom: 0.4rem;
+}
+
+.conversation-debug__bubble-topline {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.4rem;
+}
+
+.conversation-debug__mode-tag,
+.conversation-debug__badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.28rem 0.55rem;
+    border-radius: 9999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    background: rgb(241 245 249);
+    color: rgb(51 65 85);
+}
+
+.conversation-debug__badge--accent {
+    background: rgba(16, 185, 129, 0.14);
+    color: rgb(6 95 70);
+}
+
+.conversation-debug__composer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgb(226 232 240);
+}
+
+.conversation-debug__section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.conversation-debug__summary-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.conversation-debug__summary-value {
+    font-size: 0.95rem;
+    line-height: 1.5;
+    color: rgb(15 23 42);
+    white-space: pre-wrap;
+}
+
+.conversation-debug__code {
+    margin: 0;
+    padding: 0.95rem 1rem;
+    border-radius: 0.9rem;
+    background: rgb(15 23 42);
+    color: rgb(226 232 240);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow: auto;
+}
+
+.conversation-debug__empty {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+    justify-content: center;
+    color: rgb(100 116 139);
+    text-align: center;
+}
+
+.conversation-debug__empty--panel {
+    min-height: 360px;
+}
+
+@media (max-width: 1280px) {
+    .conversation-debug__workspace {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 960px) {
+    .conversation-debug {
+        padding: 0.75rem;
+    }
+
+    .conversation-debug__form-grid,
+    .conversation-debug__summary-grid,
+    .conversation-debug__metrics {
+        grid-template-columns: 1fr;
+    }
+
+    .conversation-debug__header,
+    .conversation-debug__chat-header,
+    .conversation-debug__panel-header,
+    .conversation-debug__entry-head,
+    .conversation-debug__switch-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .conversation-debug__bubble {
+        max-width: 100%;
+    }
+}

@@ -303,6 +303,11 @@ export class KnowledgeController {
     return this.knowledge.indexDocuments(dto, Number(req.user?.sub))
   }
 
+  @Get('index/status')
+  getIndexStatus(@Query('tenantKey') tenantKey?: string) {
+    return this.knowledge.getKnowledgeIndexStatus(tenantKey)
+  }
+
   @Post('candidates/from-conversation')
   createCandidate(
     @Body() dto: CreateKnowledgeCandidateDto,

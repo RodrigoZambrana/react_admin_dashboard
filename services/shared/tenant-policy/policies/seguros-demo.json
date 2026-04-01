@@ -1,0 +1,82 @@
+{
+  "tenantKey": "seguros-demo",
+  "vocabulary": {
+    "fragmentDescriptors": [
+      "poliza",
+      "póliza",
+      "seguro",
+      "cobertura",
+      "deducible",
+      "auto",
+      "hogar",
+      "vida"
+    ],
+    "brandTokens": [
+      "seguros-demo"
+    ],
+    "catalogSignalTerms": [
+      "poliza",
+      "póliza",
+      "seguro",
+      "cobertura",
+      "deducible",
+      "siniestro"
+    ],
+    "quoteItemTerms": [
+      "poliza",
+      "póliza",
+      "seguro",
+      "seguros",
+      "cobertura",
+      "coberturas"
+    ],
+    "productContextTerms": [
+      "poliza",
+      "póliza",
+      "seguro",
+      "seguros",
+      "cobertura",
+      "coberturas",
+      "deducible",
+      "siniestro",
+      "plan"
+    ],
+    "supportComponentTerms": [],
+    "catalogCarrierTerms": [],
+    "catalogStructuralTerms": [],
+    "catalogStructuralPhrases": [],
+    "catalogFamilyLabel": null,
+    "genericCustomerSignalTerms": [
+      "seguro",
+      "póliza",
+      "cobertura",
+      "siniestro"
+    ]
+  },
+  "businessRules": {
+    "paymentMethods": [
+      "debito automatico",
+      "tarjeta",
+      "transferencia"
+    ],
+    "installationTerms": [],
+    "lightFilterComparableFamilies": [],
+    "lightFilterGuidance": null
+  },
+  "businessFacts": {
+    "contact": [
+      "línea telefónica",
+      "WhatsApp"
+    ],
+    "businessHours": [
+      "lunes a viernes de 9 a 18 horas"
+    ],
+    "location": [
+      "La atención se realiza por canales remotos y agenda previa."
+    ]
+  },
+  "conversationState": {
+    "slotAliases": {},
+    "tenantSlots": []
+  }
+}

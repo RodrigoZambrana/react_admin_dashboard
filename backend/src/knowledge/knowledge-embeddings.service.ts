@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createHash } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
+import { buildKnowledgeDocumentChunks } from './knowledge-chunking'
 
 type EmbeddingProjection = {
   provider: string
@@ -9,23 +10,41 @@ type EmbeddingProjection = {
   dimensions: number
   vector: number[]
   contentHash: string
+  latencyMs: number
+  cacheHit: boolean
+  providerError: string | null
+}
+
+type EmbeddingModeSummary = {
+  provider: string
+  mode: 'semantic' | 'fallback'
+  model: string
+  dimensions: number
 }
 
 @Injectable()
 export class KnowledgeEmbeddingsService {
+  private static readonly OPENAI_TIMEOUT_MS = 12_000
+  private static readonly DEFAULT_CACHE_SIZE = 2_000
+  private readonly projectionCache = new Map<string, EmbeddingProjection>()
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
 
   async indexDocument(document: {
+    tenantKey: string
     id: string
+    scope: string
+    sourceType: string
     title: string
     summary: string | null
     content: string
     tags: string[]
+    metadata?: unknown
   }) {
-    const projection = this.projectDocument(document)
+    const projection = await this.projectDocument(document)
 
     await this.prisma.knowledgeDocumentEmbedding.upsert({
       where: { documentId: document.id },
@@ -46,27 +65,75 @@ export class KnowledgeEmbeddingsService {
       },
     })
 
-    return projection
+    const chunkResult = await this.indexDocumentChunks(document)
+
+    return {
+      ...projection,
+      chunksIndexed: chunkResult.indexed,
+    }
   }
 
   async indexDocuments(documents: Array<{
+    tenantKey: string
     id: string
+    scope: string
+    sourceType: string
     title: string
     summary: string | null
     content: string
     tags: string[]
+    metadata?: unknown
   }>) {
+    let chunkCount = 0
     for (const document of documents) {
-      await this.indexDocument(document)
+      const result = await this.indexDocument(document)
+      chunkCount += Number(result?.chunksIndexed || 0)
     }
 
     return {
       indexed: documents.length,
+      chunksIndexed: chunkCount,
     }
   }
 
-  projectQuery(query: string) {
-    return this.embedText(query)
+  async projectQuery(query: string) {
+    return this.projectText(query)
+  }
+
+  async projectQueryProjection(query: string) {
+    return this.embedTextProjection(query)
+  }
+
+  async projectText(input: string) {
+    const projection = await this.embedTextProjection(input)
+    return projection.vector
+  }
+
+  describeProjectionMode(projection: {
+    provider?: string | null
+    model?: string | null
+    dimensions?: number | null
+  } | null): EmbeddingModeSummary {
+    const provider =
+      typeof projection?.provider === 'string' && projection.provider.trim()
+        ? projection.provider.trim().toLowerCase()
+        : 'local'
+    return {
+      provider,
+      mode: provider === 'openai' ? 'semantic' : 'fallback',
+      model:
+        typeof projection?.model === 'string' && projection.model.trim()
+          ? projection.model.trim()
+          : provider === 'openai'
+            ? this.getModel('openai')
+            : this.getModel('local'),
+      dimensions:
+        typeof projection?.dimensions === 'number' &&
+        Number.isFinite(projection.dimensions) &&
+        projection.dimensions > 0
+          ? projection.dimensions
+          : this.getDimensions(provider === 'openai' ? 'openai' : 'local'),
+    }
   }
 
   cosineSimilarity(left: number[], right: number[]) {
@@ -91,12 +158,12 @@ export class KnowledgeEmbeddingsService {
     return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm))
   }
 
-  private projectDocument(document: {
+  private async projectDocument(document: {
     title: string
     summary: string | null
     content: string
     tags: string[]
-  }): EmbeddingProjection {
+  }): Promise<EmbeddingProjection> {
     const serialized = [
       document.title,
       document.summary ?? '',
@@ -106,17 +173,145 @@ export class KnowledgeEmbeddingsService {
       .filter(Boolean)
       .join('\n')
 
+    return this.embedTextProjection(serialized)
+  }
+
+  private async indexDocumentChunks(document: {
+    tenantKey: string
+    id: string
+    scope: string
+    sourceType: string
+    title: string
+    summary: string | null
+    content: string
+    tags: string[]
+    metadata?: unknown
+  }) {
+    const chunks = buildKnowledgeDocumentChunks({
+      id: document.id,
+      content: document.content,
+    })
+
+    if (!chunks.length) {
+      await this.prisma.knowledgeDocumentChunk.deleteMany({
+        where: { documentId: document.id },
+      })
+      return { indexed: 0 }
+    }
+
+    const chunkKeys: string[] = []
+
+    for (const chunk of chunks) {
+      const projection = await this.embedTextProjection(
+        [
+          document.title,
+          document.summary ?? '',
+          document.tags.join(' '),
+          chunk.text,
+        ]
+          .filter(Boolean)
+          .join('\n'),
+      )
+      chunkKeys.push(chunk.id)
+      await this.prisma.knowledgeDocumentChunk.upsert({
+        where: { chunkKey: chunk.id },
+        update: {
+          tenantKey: document.tenantKey,
+          scope: document.scope as never,
+          sourceType: document.sourceType as never,
+          chunkIndex: chunk.index,
+          charStart: chunk.charStart,
+          charEnd: chunk.charEnd,
+          charLength: chunk.text.length,
+          content: chunk.text,
+          tags: document.tags,
+          metadata:
+            document.metadata && typeof document.metadata === 'object'
+              ? (document.metadata as never)
+              : undefined,
+          provider: projection.provider,
+          model: projection.model,
+          dimensions: projection.dimensions,
+          contentHash: projection.contentHash,
+          vector: projection.vector,
+        },
+        create: {
+          chunkKey: chunk.id,
+          tenantKey: document.tenantKey,
+          documentId: document.id,
+          scope: document.scope as never,
+          sourceType: document.sourceType as never,
+          chunkIndex: chunk.index,
+          charStart: chunk.charStart,
+          charEnd: chunk.charEnd,
+          charLength: chunk.text.length,
+          content: chunk.text,
+          tags: document.tags,
+          metadata:
+            document.metadata && typeof document.metadata === 'object'
+              ? (document.metadata as never)
+              : undefined,
+          provider: projection.provider,
+          model: projection.model,
+          dimensions: projection.dimensions,
+          contentHash: projection.contentHash,
+          vector: projection.vector,
+        },
+      })
+    }
+
+    await this.prisma.knowledgeDocumentChunk.deleteMany({
+      where: {
+        documentId: document.id,
+        chunkKey: { notIn: chunkKeys },
+      },
+    })
+
     return {
-      provider: this.getProvider(),
-      model: this.getModel(),
-      dimensions: this.getDimensions(),
-      vector: this.embedText(serialized),
-      contentHash: createHash('sha256').update(serialized).digest('hex'),
+      indexed: chunkKeys.length,
     }
   }
 
-  private embedText(input: string) {
-    const dimensions = this.getDimensions()
+  private async embedTextProjection(input: string): Promise<EmbeddingProjection> {
+    const serialized = String(input || '')
+    const contentHash = createHash('sha256').update(serialized).digest('hex')
+    const cached = this.projectionCache.get(contentHash)
+
+    if (cached) {
+      return {
+        ...cached,
+        cacheHit: true,
+      }
+    }
+
+    const provider = this.resolveProvider()
+    const startedAt = Date.now()
+
+    if (provider === 'openai') {
+      const projection = await this.embedWithOpenAi(serialized, contentHash)
+      if (projection) {
+        return this.memoizeProjection(projection, contentHash)
+      }
+    }
+
+    return this.memoizeProjection(
+      {
+      provider: 'local',
+      model: 'local-hash-v1',
+      dimensions: this.getDimensions('local'),
+      vector: this.embedTextLocal(serialized),
+      contentHash,
+      latencyMs: Date.now() - startedAt,
+      cacheHit: false,
+      providerError:
+        provider === 'openai' ? 'knowledge_embedding_provider_fallback' : null,
+    },
+      contentHash,
+    )
+  }
+
+  private embedTextLocal(input: string) {
+    const dimensions = this.getDimensions('local')
     const vector = Array.from({ length: dimensions }, () => 0)
     const tokens = input
       .toLowerCase()
@@ -139,21 +334,135 @@ export class KnowledgeEmbeddingsService {
     return vector.map((value) => Number((value / norm).toFixed(6)))
   }
 
+  private async embedWithOpenAi(
+    input: string,
+    contentHash: string,
+  ): Promise<EmbeddingProjection | null> {
+    const apiKey = this.resolveOpenAiApiKey()
+    if (!apiKey) {
+      return null
+    }
+
+    const controller = new AbortController()
+    const timeout = setTimeout(
+      () => controller.abort(),
+      KnowledgeEmbeddingsService.OPENAI_TIMEOUT_MS,
+    )
+
+    try {
+      const startedAt = Date.now()
+      const response = await fetch('https://api.openai.com/v1/embeddings', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: this.getModel('openai'),
+          input,
+          encoding_format: 'float',
+          dimensions: this.getDimensions('openai'),
+        }),
+        signal: controller.signal,
+      })
+      const bodyText = await response.text()
+      if (!response.ok) {
+        throw new Error(`knowledge_embedding_openai_${response.status}:${bodyText}`)
+      }
+
+      const payload = JSON.parse(bodyText) as {
+        data?: Array<{ embedding?: number[] }>
+      }
+      const vector = Array.isArray(payload?.data?.[0]?.embedding)
+        ? payload.data[0].embedding.filter((value) => typeof value === 'number')
+        : []
+      if (!vector.length) {
+        throw new Error('knowledge_embedding_openai_empty_vector')
+      }
+
+      return {
+        provider: 'openai',
+        model: this.getModel('openai'),
+        dimensions: vector.length,
+        vector,
+        contentHash,
+        latencyMs: Date.now() - startedAt,
+        cacheHit: false,
+        providerError: null,
+      }
+    } catch (error) {
+      console.warn('[knowledge] Falling back to local embeddings', error)
+      return null
+    } finally {
+      clearTimeout(timeout)
+    }
+  }
+
   private hashToken(token: string) {
     const digest = createHash('sha1').update(token).digest()
     return digest.readUInt32BE(0)
   }
 
-  private getProvider() {
-    return this.config.get<string>('KNOWLEDGE_EMBEDDING_PROVIDER') || 'local'
+  private resolveProvider() {
+    const configured = String(
+      this.config.get<string>('KNOWLEDGE_EMBEDDING_PROVIDER') || 'auto',
+    )
+      .trim()
+      .toLowerCase()
+    if (configured === 'local') {
+      return 'local'
+    }
+    if (configured === 'openai') {
+      return this.resolveOpenAiApiKey() ? 'openai' : 'local'
+    }
+
+    return this.resolveOpenAiApiKey() ? 'openai' : 'local'
   }
 
-  private getModel() {
-    return this.config.get<string>('KNOWLEDGE_EMBEDDING_MODEL') || 'local-hash-v1'
+  private getModel(provider: 'local' | 'openai') {
+    if (provider === 'openai') {
+      return (
+        this.config.get<string>('KNOWLEDGE_EMBEDDING_MODEL') ||
+        'text-embedding-3-small'
+      )
+    }
+
+    return 'local-hash-v1'
   }
 
-  private getDimensions() {
-    const raw = Number(this.config.get<string>('KNOWLEDGE_EMBEDDING_DIMENSIONS') || 128)
-    return Number.isFinite(raw) && raw > 0 ? raw : 128
+  private getDimensions(provider: 'local' | 'openai') {
+    const fallback = provider === 'openai' ? 256 : 128
+    const raw = Number(
+      this.config.get<string>('KNOWLEDGE_EMBEDDING_DIMENSIONS') || fallback,
+    )
+    return Number.isFinite(raw) && raw > 0 ? raw : fallback
+  }
+
+  private resolveOpenAiApiKey() {
+    return this.config.get<string>('OPENAI_API_KEY')?.trim() || null
+  }
+
+  private memoizeProjection(
+    projection: EmbeddingProjection,
+    contentHash: string,
+  ): EmbeddingProjection {
+    const cachedProjection = {
+      ...projection,
+      cacheHit: false,
+    }
+    this.projectionCache.set(contentHash, cachedProjection)
+    if (
+      this.projectionCache.size >
+      Number(
+        this.config.get<number>('KNOWLEDGE_EMBEDDING_CACHE_SIZE') ||
+          KnowledgeEmbeddingsService.DEFAULT_CACHE_SIZE,
+      )
+    ) {
+      const oldestKey = this.projectionCache.keys().next().value
+      if (typeof oldestKey === 'string') {
+        this.projectionCache.delete(oldestKey)
+      }
+    }
+    return cachedProjection
   }
 }

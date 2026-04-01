@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Headers,
   NotFoundException,
@@ -50,6 +51,7 @@ import { ToggleWhatsappChatArchiveDto } from './dto/toggle-whatsapp-chat-archive
 import { ToggleWhatsappChatReadDto } from './dto/toggle-whatsapp-chat-read.dto'
 import { ToggleWhatsappChatPinDto } from './dto/toggle-whatsapp-chat-pin.dto'
 import { SetWhatsappChatMuteDto } from './dto/set-whatsapp-chat-mute.dto'
+import { ConversationDebugDto } from './dto/conversation-debug.dto'
 
 @Controller('conversations')
 export class ConversationsController {
@@ -90,6 +92,48 @@ export class ConversationsController {
     @Req() req: FastifyRequest & { user: { sub: string } },
   ) {
     return this.conversations.listContacts(query, Number(req.user?.sub))
+  }
+
+  @Get(':id/debug')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
+  async getDebugById(
+    @Param('id') id: string,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    const conversation = await this.conversations.getConversationDebug(
+      id,
+      Number(req.user?.sub),
+    )
+    if (!conversation) {
+      throw new NotFoundException('conversation.notFound')
+    }
+    return conversation
+  }
+
+  @Post(':id/debug')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
+  runDebugById(
+    @Param('id') id: string,
+    @Body() dto: ConversationDebugDto,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.runConversationDebug(
+      id,
+      dto,
+      Number(req.user?.sub),
+    )
+  }
+
+  @Delete(':id/debug')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES, ROLES.FINANCE)
+  deleteDebugById(
+    @Param('id') id: string,
+    @Req() req: FastifyRequest & { user: { sub: string } },
+  ) {
+    return this.conversations.deleteConversationDebug(id, Number(req.user?.sub))
   }
 
   @Get(':id')

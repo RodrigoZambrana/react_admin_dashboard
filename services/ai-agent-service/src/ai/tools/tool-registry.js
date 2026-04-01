@@ -17,9 +17,9 @@ import {
   createSearchProductsTool,
   createSearchQuotesTool,
   deleteAppointmentTool,
-  parseAberturasTool,
-  prepareAberturasInsertTool,
-  prepareAberturasQuoteTool,
+  parseStructuredCatalogItemsTool,
+  prepareStructuredCatalogInsertTool,
+  prepareStructuredCatalogQuoteTool,
   publishProductTool,
   sendQuoteTool,
   updateAppointmentTool,
@@ -69,9 +69,9 @@ const TOOL_BUILDERS = [
   createPaymentTool,
   updatePaymentStatusTool,
   updatePaymentTool,
-  prepareAberturasInsertTool,
-  prepareAberturasQuoteTool,
-  parseAberturasTool,
+  prepareStructuredCatalogInsertTool,
+  prepareStructuredCatalogQuoteTool,
+  parseStructuredCatalogItemsTool,
 ]
 
 export function buildToolRegistry(backendClient) {

@@ -61,6 +61,7 @@ import { ToggleWhatsappChatArchiveDto } from './dto/toggle-whatsapp-chat-archive
 import { ToggleWhatsappChatReadDto } from './dto/toggle-whatsapp-chat-read.dto'
 import { ToggleWhatsappChatPinDto } from './dto/toggle-whatsapp-chat-pin.dto'
 import { SetWhatsappChatMuteDto } from './dto/set-whatsapp-chat-mute.dto'
+import { ConversationDebugDto } from './dto/conversation-debug.dto'
 import { validateConversationAttachment } from './conversation-attachment-policy'
 import {
   buildConversationIdentityCandidates,
@@ -116,6 +117,10 @@ const NON_REASONING_MESSAGE_KINDS = new Set([
   'system_event',
 ])
 const DEFAULT_WHATSAPP_QR_ADDRESS = 'whatsapp-qr-primary'
+const delay = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
 
 type WebchatMessageReactionEntry = {
   emoji: string
@@ -149,15 +154,6 @@ export class ConversationsService {
     const pageSize = query.pageSize ?? 20
     const where: Prisma.ConversationWhereInput = {}
     const andFilters: Prisma.ConversationWhereInput[] = []
-
-    andFilters.push({
-      NOT: {
-        metadata: {
-          path: ['webchatChatState', 'deleted'],
-          equals: true,
-        },
-      },
-    })
 
     if (query.scope) {
       where.scope = this.mapScope(query.scope)
@@ -241,125 +237,145 @@ export class ConversationsService {
       where.AND = [...(Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : []), ...andFilters]
     }
 
-    const [items, total] = await this.prisma.$transaction([
-      this.prisma.conversation.findMany({
-        where,
-        orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-        include: {
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              phoneNumber: true,
+    const candidateConversations = await this.prisma.conversation.findMany({
+      where,
+      orderBy: [{ lastMessageAt: 'desc' }, { updatedAt: 'desc' }],
+      select: {
+        id: true,
+        channel: true,
+        metadata: true,
+      },
+    })
+    const visibleConversationIds = candidateConversations
+      .filter((conversation) => !this.isDeletedWebchatConversation(conversation))
+      .map((conversation) => conversation.id)
+    const paginatedConversationIds =
+      query.channel === 'admin_chat'
+        ? visibleConversationIds.slice(0, 1)
+        : visibleConversationIds.slice((page - 1) * pageSize, page * pageSize)
+    const items =
+      paginatedConversationIds.length > 0
+        ? await this.prisma.conversation.findMany({
+            where: {
+              id: {
+                in: paginatedConversationIds,
+              },
             },
-          },
-          assignedToUser: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-            },
-          },
-          inboxAccount: {
-            select: {
-              id: true,
-              displayName: true,
-              address: true,
-              channel: true,
-              metadata: true,
-            },
-          },
-          participants: {
-            orderBy: { createdAt: 'asc' },
-            select: {
-              id: true,
-              role: true,
-              displayName: true,
-              externalUserId: true,
+            include: {
               customer: {
                 select: {
                   id: true,
                   name: true,
                   email: true,
+                  phoneNumber: true,
                 },
               },
-              user: {
+              assignedToUser: {
                 select: {
                   id: true,
                   name: true,
                   email: true,
                 },
               },
-            },
-          },
-          messages: {
-            take: 5,
-            orderBy: { createdAt: 'desc' },
-            select: {
-              id: true,
-              authorType: true,
-              authorUser: {
+              inboxAccount: {
                 select: {
                   id: true,
-                  name: true,
-                  email: true,
+                  displayName: true,
+                  address: true,
+                  channel: true,
+                  metadata: true,
                 },
               },
-              kind: true,
-              body: true,
-              normalizedText: true,
-              metadata: true,
-              createdAt: true,
-              inboxMessage: {
+              participants: {
+                orderBy: { createdAt: 'asc' },
                 select: {
-                  queue: {
+                  id: true,
+                  role: true,
+                  displayName: true,
+                  externalUserId: true,
+                  customer: {
                     select: {
                       id: true,
-                      slug: true,
                       name: true,
-                      priority: true,
-                      slaTargetMinutes: true,
+                      email: true,
+                    },
+                  },
+                  user: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
                     },
                   },
                 },
               },
+              messages: {
+                take: 5,
+                orderBy: { createdAt: 'desc' },
+                select: {
+                  id: true,
+                  authorType: true,
+                  authorUser: {
+                    select: {
+                      id: true,
+                      name: true,
+                      email: true,
+                    },
+                  },
+                  kind: true,
+                  body: true,
+                  normalizedText: true,
+                  metadata: true,
+                  createdAt: true,
+                  inboxMessage: {
+                    select: {
+                      queue: {
+                        select: {
+                          id: true,
+                          slug: true,
+                          name: true,
+                          priority: true,
+                          slaTargetMinutes: true,
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              toolCalls: {
+                take: 10,
+                orderBy: { createdAt: 'desc' },
+                select: {
+                  toolName: true,
+                  status: true,
+                  updatedAt: true,
+                },
+              },
             },
-          },
-          toolCalls: {
-            take: 10,
-            orderBy: { createdAt: 'desc' },
-            select: {
-              toolName: true,
-              status: true,
-              updatedAt: true,
-            },
-          },
-        },
-      }),
-      this.prisma.conversation.count({ where }),
-    ])
-
-    const scopedItems =
-      query.channel === 'admin_chat' ? items.slice(0, 1) : items
-    const scopedTotal =
-      query.channel === 'admin_chat' ? Math.min(scopedItems.length, 1) : total
+          })
+        : []
+    const itemById = new Map(items.map((conversation) => [conversation.id, conversation]))
+    const orderedItems = paginatedConversationIds
+      .map((conversationId) => itemById.get(conversationId) ?? null)
+      .filter((conversation): conversation is (typeof items)[number] => Boolean(conversation))
+    const total =
+      query.channel === 'admin_chat'
+        ? Math.min(visibleConversationIds.length, 1)
+        : visibleConversationIds.length
 
     const readStateByConversationId = await this.buildReadStateMap(
-      scopedItems.map((item) => item.id),
+      orderedItems.map((item) => item.id),
       currentUserId,
     )
 
     return {
-      items: scopedItems.map((item) =>
+      items: orderedItems.map((item) =>
         this.mapConversationSummary(
           item,
           readStateByConversationId.get(item.id) ?? null,
         ),
       ),
-      total: scopedTotal,
+      total,
       page,
       pageSize,
       filters: {
@@ -513,11 +529,7 @@ export class ConversationsService {
       },
     })
 
-    if (
-      conversation?.channel === ConversationChannel.WEBCHAT &&
-      this.asRecord(this.asRecord(conversation.metadata)?.webchatChatState)?.deleted ===
-        true
-    ) {
+    if (this.isDeletedWebchatConversation(conversation)) {
       return null
     }
 
@@ -612,6 +624,424 @@ export class ConversationsService {
         createdAt: toolCall.createdAt,
         updatedAt: toolCall.updatedAt,
       })),
+    }
+  }
+
+  async getConversationDebug(id: string, currentUserId?: number) {
+    const conversation = await this.getConversation(id, currentUserId)
+    if (!conversation) {
+      return null
+    }
+
+    const conversationMetadata = await this.prisma.conversation.findUnique({
+      where: { id: conversation.id },
+      select: {
+        metadata: true,
+      },
+    })
+    const metadata = this.asRecord(conversationMetadata?.metadata)
+
+    const turns = this.buildConversationDebugTurns(conversation)
+
+    return {
+      conversation: {
+        id: conversation.id,
+        tenantKey: conversation.tenantKey,
+        scope: conversation.scope,
+        role: conversation.role,
+        channel: conversation.channel,
+        status: conversation.status,
+        controlMode: conversation.controlMode,
+        subject: conversation.subject,
+        externalUserId: conversation.externalUserId,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        customer: conversation.customer,
+        simulation: {
+          authenticated: conversation.scope === 'customer_authenticated',
+          externalUserId: conversation.externalUserId,
+          debugSession: metadata?.debugSession === true,
+        },
+      },
+      turns,
+      metrics: this.buildConversationDebugMetrics(turns),
+    }
+  }
+
+  async getAiMetrics(input?: { tenantKey?: string; days?: number }) {
+    const days =
+      typeof input?.days === 'number' && Number.isFinite(input.days)
+        ? Math.min(Math.max(Math.trunc(input.days), 1), 365)
+        : 30
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    const messages = await this.prisma.conversationMessage.findMany({
+      where: {
+        authorType: ConversationMessageAuthorType.AGENT,
+        createdAt: {
+          gte: since,
+        },
+        ...(input?.tenantKey?.trim()
+          ? {
+              conversation: {
+                tenantKey: input.tenantKey.trim(),
+              },
+            }
+          : {}),
+      },
+      select: {
+        id: true,
+        createdAt: true,
+        metadata: true,
+        conversation: {
+          select: {
+            tenantKey: true,
+            channel: true,
+            scope: true,
+          },
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: 5000,
+    })
+
+    const aggregates = {
+      totalResponses: 0,
+      knowledgeUsed: 0,
+      grounded: 0,
+      possibleHallucination: 0,
+      modelOnly: 0,
+      chunkUsage: 0,
+      semanticEmbedding: 0,
+      fallback: 0,
+      actionsExecuted: 0,
+    }
+    const responseOrigins = new Map<string, number>()
+    const embeddingModes = new Map<string, number>()
+
+    for (const message of messages) {
+      const metadata = this.asRecord(message.metadata)
+      const aiResponse = this.asRecord(metadata?.aiResponse)
+      const auditPayload = this.asRecord(aiResponse?.auditPayload)
+      if (!auditPayload) {
+        continue
+      }
+
+      aggregates.totalResponses += 1
+
+      const decisionTrace = this.asRecord(auditPayload.decisionTrace)
+      const knowledge = this.asRecord(decisionTrace?.knowledge)
+      const deterministic = this.asRecord(decisionTrace?.deterministic)
+      const grounding = this.asRecord(metadata?.ai)
+      const actions = Array.isArray(auditPayload.toolCalls)
+        ? auditPayload.toolCalls
+        : []
+      const responseOrigin =
+        typeof auditPayload.responseOrigin === 'string'
+          ? auditPayload.responseOrigin
+          : typeof deterministic?.responseOrigin === 'string'
+            ? deterministic.responseOrigin
+            : null
+      const knowledgeUsed =
+        knowledge?.knowledgeUsed === true || knowledge?.used === true
+      const grounded = grounding?.grounded === true || knowledge?.grounded === true
+      const chunkCount = Array.isArray(knowledge?.chunkIds)
+        ? knowledge.chunkIds.length
+        : 0
+      const embeddingMode = this.asRecord(knowledge?.embeddingMode)
+      const fallbackReason =
+        typeof grounding?.fallbackReason === 'string'
+          ? grounding.fallbackReason
+          : typeof auditPayload.fallbackReason === 'string'
+            ? auditPayload.fallbackReason
+            : null
+
+      if (knowledgeUsed) {
+        aggregates.knowledgeUsed += 1
+      }
+      if (grounded) {
+        aggregates.grounded += 1
+      }
+      if (knowledge?.possibleKnowledgeHallucination === true) {
+        aggregates.possibleHallucination += 1
+      }
+      if (chunkCount > 0) {
+        aggregates.chunkUsage += 1
+      }
+      if (embeddingMode?.mode === 'semantic') {
+        aggregates.semanticEmbedding += 1
+      }
+      if (fallbackReason) {
+        aggregates.fallback += 1
+      }
+      if (
+        actions.some(
+          (entry) =>
+            this.asRecord(entry)?.status === 'executed' &&
+            typeof this.asRecord(entry)?.name === 'string',
+        )
+      ) {
+        aggregates.actionsExecuted += 1
+      }
+      if (
+        responseOrigin === 'model_only' ||
+        (responseOrigin == null &&
+          !knowledgeUsed &&
+          (auditPayload.responseMode === 'generative' ||
+            auditPayload.responseMode === 'hybrid'))
+      ) {
+        aggregates.modelOnly += 1
+      }
+      if (responseOrigin) {
+        responseOrigins.set(
+          responseOrigin,
+          (responseOrigins.get(responseOrigin) ?? 0) + 1,
+        )
+      }
+      if (typeof embeddingMode?.mode === 'string') {
+        embeddingModes.set(
+          embeddingMode.mode,
+          (embeddingModes.get(embeddingMode.mode) ?? 0) + 1,
+        )
+      }
+    }
+
+    const percent = (count: number) =>
+      aggregates.totalResponses > 0
+        ? Number(((count / aggregates.totalResponses) * 100).toFixed(2))
+        : 0
+
+    return {
+      window: {
+        days,
+        since: since.toISOString(),
+        until: new Date().toISOString(),
+        tenantKey: input?.tenantKey?.trim() || null,
+        sampledResponses: messages.length,
+        measuredResponses: aggregates.totalResponses,
+      },
+      rates: {
+        groundingRate: percent(aggregates.grounded),
+        hallucinationRate: percent(aggregates.possibleHallucination),
+        modelOnlyRate: percent(aggregates.modelOnly),
+        chunkUsageRate: percent(aggregates.chunkUsage),
+        knowledgeUsageRate: percent(aggregates.knowledgeUsed),
+        fallbackRate: percent(aggregates.fallback),
+        semanticEmbeddingRate: percent(aggregates.semanticEmbedding),
+        actionExecutionRate: percent(aggregates.actionsExecuted),
+      },
+      counts: {
+        ...aggregates,
+      },
+      responseOrigins: Array.from(responseOrigins.entries()).map(
+        ([origin, count]) => ({
+          origin,
+          count,
+          percentage: percent(count),
+        }),
+      ),
+      embeddingModes: Array.from(embeddingModes.entries()).map(([mode, count]) => ({
+        mode,
+        count,
+        percentage: percent(count),
+      })),
+    }
+  }
+
+  async runConversationDebug(
+    id: string,
+    input: ConversationDebugDto,
+    currentUserId?: number,
+  ) {
+    const normalizedId = id.trim()
+    const shouldReset = input.reset === true
+    const waitTimeoutMs = this.normalizeConversationDebugWaitTimeout(
+      input.waitTimeoutMs,
+    )
+    const knowledgeMode = this.normalizeConversationDebugKnowledgeMode(input)
+    const normalizedMessages = Array.isArray(input.messages)
+      ? input.messages
+          .map((entry) => ({
+            text: entry?.text?.trim() || null,
+            delayMs:
+              typeof entry?.delayMs === 'number' &&
+              Number.isFinite(entry.delayMs) &&
+              entry.delayMs >= 0
+                ? Math.min(entry.delayMs, 30_000)
+                : 0,
+            attachments: this.normalizeConversationAttachments(entry?.attachments),
+          }))
+          .filter(
+            (entry) =>
+              Boolean(entry.text) ||
+              (Array.isArray(entry.attachments) && entry.attachments.length > 0),
+          )
+      : []
+
+    let session:
+      | Awaited<ReturnType<ConversationsService['createWebchatSession']>>
+      | Awaited<ReturnType<ConversationsService['getWebchatSession']>>
+      | null = null
+    let conversationId = normalizedId
+    let created = false
+    let reset = false
+    let existingMetadata: Record<string, unknown> | null = null
+
+    if (normalizedId !== 'new') {
+      const existingConversation = await this.prisma.conversation.findUnique({
+        where: { id: normalizedId },
+        select: {
+          metadata: true,
+        },
+      })
+      existingMetadata = this.asRecord(existingConversation?.metadata)
+      const mutatingExistingConversation =
+        shouldReset || normalizedMessages.length > 0
+      if (mutatingExistingConversation && existingMetadata?.debugSession !== true) {
+        throw new BadRequestException('conversation.debugReadonly')
+      }
+    }
+
+    if (normalizedId !== 'new') {
+      session = await this.getWebchatSession(normalizedId, {})
+    }
+
+    if (normalizedId === 'new' || shouldReset) {
+      const sessionInput = this.buildConversationDebugSessionInput(input, session)
+
+      if (normalizedId !== 'new') {
+        await this.deleteConversationDebug(normalizedId, currentUserId)
+        reset = true
+      }
+
+      session = await this.createWebchatSession(sessionInput)
+      conversationId = session.conversationId
+      created = true
+    }
+
+    if (!session) {
+      session = await this.getWebchatSession(conversationId, {})
+    }
+
+    const dispatches: Array<Record<string, unknown>> = []
+    let settled = true
+
+    if (normalizedMessages.length > 0) {
+      const guestId =
+        input.guestId?.trim() || session.participant?.guestId || 'guest'
+      const locale =
+        input.locale?.trim() ||
+        session.participant?.locale ||
+        undefined
+      const currency =
+        input.currency?.trim() ||
+        session.participant?.currency ||
+        undefined
+
+      for (let index = 0; index < normalizedMessages.length; index += 1) {
+        const message = normalizedMessages[index]
+        const payload: DispatchWebchatMessageDto = {
+          tenantKey: input.tenantKey?.trim() || session.tenantKey,
+          conversationId,
+          guestId,
+          text: message.text || undefined,
+          locale,
+          currency,
+          attachments: message.attachments,
+          metadata: {
+            source: 'admin_debug',
+            authenticated: session.scope === 'customer_authenticated',
+            debugSimulation: true,
+            debugActor: session.scope === 'customer_authenticated'
+              ? 'authenticated'
+              : 'guest',
+            debugOptions: {
+              disableKnowledge: knowledgeMode === 'retrieval_disabled',
+              knowledgeMode,
+            },
+          },
+        }
+        const dispatch = await this.dispatchWebchatMessage(payload)
+        dispatches.push({
+          index,
+          text: message.text,
+          attachments: message.attachments.length,
+          delayMs: message.delayMs,
+          dispatch,
+        })
+
+        if (index < normalizedMessages.length - 1 && message.delayMs > 0) {
+          await delay(message.delayMs)
+        }
+      }
+
+      const waitResult = await this.waitForConversationDebugSettlement(
+        conversationId,
+        currentUserId,
+        waitTimeoutMs,
+      )
+      settled = waitResult.settled
+    }
+
+    const debug = await this.getConversationDebug(conversationId, currentUserId)
+    if (!debug) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    return {
+      ...debug,
+      execution: {
+        created,
+        reset,
+        messagesDispatched: dispatches.length,
+        settled,
+        waitTimeoutMs,
+        options: {
+          disableKnowledge: knowledgeMode === 'retrieval_disabled',
+          knowledgeMode,
+          simulateAs:
+            input.simulateAs ||
+            (session?.scope === 'customer_authenticated'
+              ? 'authenticated'
+              : 'guest'),
+        },
+        dispatches,
+      },
+    }
+  }
+
+  async deleteConversationDebug(id: string, _currentUserId?: number) {
+    const normalizedId = id.trim()
+    if (!normalizedId || normalizedId === 'new') {
+      throw new BadRequestException('conversation.debugIdInvalid')
+    }
+
+    const existing = await this.prisma.conversation.findUnique({
+      where: { id: normalizedId },
+      select: {
+        id: true,
+        channel: true,
+        metadata: true,
+      },
+    })
+
+    if (!existing) {
+      throw new NotFoundException('conversation.notFound')
+    }
+
+    const metadata = this.asRecord(existing.metadata)
+    if (metadata?.debugSession !== true) {
+      throw new BadRequestException('conversation.debugOnlyDelete')
+    }
+
+    await this.prisma.conversation.delete({
+      where: { id: normalizedId },
+    })
+
+    return {
+      ok: true,
+      deleted: true,
+      conversationId: normalizedId,
+      channel: this.normalizeEnum(existing.channel),
     }
   }
 
@@ -1272,7 +1702,8 @@ export class ConversationsService {
           locale: resolvedLocale,
           currency: resolvedCurrency,
           page: input.page?.trim() || null,
-          source: 'webchat-session',
+          source: input.debugSession === true ? 'admin_debug' : 'webchat-session',
+          debugSession: input.debugSession === true,
         },
         lastMessageAt: new Date(),
         participants: {
@@ -1295,7 +1726,7 @@ export class ConversationsService {
             body: 'webchat session created',
             normalizedText: 'webchat session created',
             metadata: {
-              source: 'webchat-session',
+              source: input.debugSession === true ? 'admin_debug' : 'webchat-session',
             },
           },
         },
@@ -1313,6 +1744,7 @@ export class ConversationsService {
         locale: resolvedLocale,
         currency: resolvedCurrency,
         page: input.page?.trim() || null,
+        debugSession: input.debugSession === true,
       },
       participants: [
         {
@@ -5021,18 +5453,57 @@ export class ConversationsService {
         if (isOperationalEmailInboxAccount(existingRequested, this.config)) {
           return existingRequested
         }
+
+        if (existingRequested) {
+          return existingRequested
+        }
       }
 
       const configuredAddress = resolveConfiguredEmailInboxAddress(this.config)
-      if (!configuredAddress) {
-        return null
+      if (configuredAddress) {
+        const configuredAccount = await tx.inboxAccount.findUnique({
+          where: {
+            channel_address: {
+              channel,
+              address: configuredAddress,
+            },
+          },
+        })
+
+        if (configuredAccount) {
+          return configuredAccount
+        }
       }
 
-      return tx.inboxAccount.findUnique({
+      const fallbackAddress =
+        requestedAddress ||
+        configuredAddress ||
+        input.inboxAddress?.trim() ||
+        `${input.tenantKey.trim()}:email`
+
+      return tx.inboxAccount.upsert({
         where: {
           channel_address: {
             channel,
-            address: configuredAddress,
+            address: fallbackAddress,
+          },
+        },
+        update: {
+          displayName: input.inboxAddress?.trim() || 'Email',
+          active: true,
+          metadata: {
+            source: 'conversation-hub',
+            operational: false,
+          },
+        },
+        create: {
+          channel,
+          address: fallbackAddress,
+          displayName: input.inboxAddress?.trim() || 'Email',
+          active: true,
+          metadata: {
+            source: 'conversation-hub',
+            operational: false,
           },
         },
       })
@@ -7095,7 +7566,7 @@ export class ConversationsService {
     return {
       needsHuman,
       grounded:
-        typeof input.grounded === 'boolean' ? input.grounded : sourceCount > 0,
+        typeof input.grounded === 'boolean' ? input.grounded : false,
       fallbackReason:
         typeof input.fallbackReason === 'string'
           ? input.fallbackReason
@@ -7479,6 +7950,25 @@ export class ConversationsService {
         url: typeof entry.url === 'string' ? entry.url : null,
         metadata: this.asRecord(entry.metadata),
       }))
+  }
+
+  private isDeletedWebchatConversation(
+    conversation:
+      | {
+          channel?: ConversationChannel | null
+          metadata?: Prisma.JsonValue | null
+        }
+      | null
+      | undefined,
+  ) {
+    if (!conversation || conversation.channel !== ConversationChannel.WEBCHAT) {
+      return false
+    }
+
+    return (
+      this.asRecord(this.asRecord(conversation.metadata)?.webchatChatState)?.deleted ===
+      true
+    )
   }
 
   private asRecord(input: unknown): Record<string, unknown> | null {
@@ -8358,16 +8848,41 @@ export class ConversationsService {
     const state = this.asRecord(audit)
     const detailedState = this.asRecord(auditPayload)
     const sourceState = detailedState ?? state
+    const normalizedToolCalls = Array.isArray(sourceState?.toolCalls)
+      ? sourceState.toolCalls
+          .map((entry) => this.asRecord(entry))
+          .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+          .map((entry) => ({
+            name: typeof entry.name === 'string' ? entry.name : null,
+            status: typeof entry.status === 'string' ? entry.status : null,
+            target: typeof entry.target === 'string' ? entry.target : null,
+          }))
+      : []
     const blockedTools = Array.isArray(sourceState?.blockedTools)
       ? sourceState?.blockedTools.filter(
           (entry): entry is string => typeof entry === 'string',
         )
       : []
-    const executedTools = Array.isArray(sourceState?.executedTools)
-      ? sourceState?.executedTools.filter(
+    const explicitExecutedTools = Array.isArray(sourceState?.executedTools)
+      ? sourceState.executedTools.filter(
           (entry): entry is string => typeof entry === 'string',
         )
       : []
+    const executedTools =
+      explicitExecutedTools.length > 0
+        ? explicitExecutedTools
+        : Array.from(
+            new Set(
+              normalizedToolCalls
+                .filter(
+                  (entry): entry is { name: string; status: string; target: string | null } =>
+                    typeof entry.name === 'string' &&
+                    entry.name.trim().length > 0 &&
+                    entry.status === 'executed',
+                )
+                .map((entry) => entry.name),
+            ),
+          )
 
     return {
       role:
@@ -8403,16 +8918,7 @@ export class ConversationsService {
         : [],
       blockedTools,
       executedTools,
-      toolCalls: Array.isArray(sourceState?.toolCalls)
-        ? sourceState.toolCalls
-            .map((entry) => this.asRecord(entry))
-            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
-            .map((entry) => ({
-              name: typeof entry.name === 'string' ? entry.name : null,
-              status: typeof entry.status === 'string' ? entry.status : null,
-              target: typeof entry.target === 'string' ? entry.target : null,
-            }))
-        : [],
+      toolCalls: normalizedToolCalls,
       referencedMessages: Array.isArray(sourceState?.referencedMessages)
         ? sourceState.referencedMessages
             .map((entry) => this.asRecord(entry))
@@ -8480,6 +8986,598 @@ export class ConversationsService {
       : []
 
     return [...current.slice(-19), next]
+  }
+
+  private buildConversationDebugTurns(
+    conversation: NonNullable<
+      Awaited<ReturnType<ConversationsService['getConversation']>>
+    >,
+  ) {
+    const turns: Array<Record<string, unknown>> = []
+    let pendingCustomerMessages: Array<Record<string, unknown>> = []
+
+    for (const message of Array.isArray(conversation.messages)
+      ? conversation.messages
+      : []) {
+      const authorKind = String(message.authorKind || '').trim().toLowerCase()
+
+      if (authorKind === 'customer_human') {
+        pendingCustomerMessages.push(
+          this.normalizeConversationDebugInputMessage(message),
+        )
+        continue
+      }
+
+      if (authorKind !== 'agent_runtime') {
+        pendingCustomerMessages = []
+        continue
+      }
+
+      const metadataRecord = this.asRecord(message.metadata)
+      const aiResponse = this.asRecord(metadataRecord?.aiResponse)
+      const grounding = this.asRecord(metadataRecord?.ai)
+      const auditPayload = this.asRecord(aiResponse?.auditPayload)
+      if (!aiResponse || !auditPayload) {
+        pendingCustomerMessages = []
+        continue
+      }
+
+      const aiExchange = this.asRecord(auditPayload.aiExchange)
+      const rewriteExchange = this.asRecord(auditPayload.rewriteExchange)
+      const finalExchange = rewriteExchange ?? aiExchange
+      const aiRequest = this.asRecord(aiExchange?.request)
+      const finalAiRequest = this.asRecord(finalExchange?.request)
+      const finalAiResponse = this.asRecord(finalExchange?.response)
+      const toolCalls = Array.isArray(auditPayload.toolCalls)
+        ? auditPayload.toolCalls
+            .map((entry) => this.asRecord(entry))
+            .filter((entry): entry is Record<string, unknown> => Boolean(entry))
+        : []
+      const blockedTools = Array.isArray(auditPayload.blockedTools)
+        ? auditPayload.blockedTools
+            .map((entry) => String(entry || '').trim())
+            .filter(Boolean)
+        : []
+      const discardedActions = [
+        ...blockedTools,
+        ...toolCalls
+          .filter((entry) => String(entry.status || '') !== 'executed')
+          .map((entry) => String(entry.name || '').trim())
+          .filter(Boolean),
+      ]
+      const originalUserInput = pendingCustomerMessages
+        .map((entry) => String(entry.body || '').trim())
+        .filter(Boolean)
+        .join('\n')
+        .trim()
+
+      turns.push({
+        turnId: message.id,
+        createdAt: message.createdAt,
+        semanticTurnId:
+          typeof auditPayload.semanticTurnId === 'string'
+            ? auditPayload.semanticTurnId
+            : typeof this.asRecord(message.metadata)?.semanticTurnId === 'string'
+              ? String(this.asRecord(message.metadata)?.semanticTurnId)
+              : null,
+        userMessages: pendingCustomerMessages,
+        originalUserInput: originalUserInput || null,
+        processedInput:
+          typeof auditPayload.input === 'string' ? auditPayload.input : null,
+        contextSent: aiRequest
+          ? {
+              mode:
+                typeof aiRequest.mode === 'string' ? aiRequest.mode : null,
+              contextBlock:
+                typeof aiRequest.contextBlock === 'string'
+                  ? aiRequest.contextBlock
+                  : null,
+              taskSummary:
+                typeof aiRequest.taskSummary === 'string'
+                  ? aiRequest.taskSummary
+                  : null,
+              currentTask:
+                aiRequest.currentTask && typeof aiRequest.currentTask === 'object'
+                  ? aiRequest.currentTask
+                  : null,
+              approvedDraft:
+                typeof aiRequest.approvedDraft === 'string'
+                  ? aiRequest.approvedDraft
+                  : null,
+              approvedFacts: Array.isArray(aiRequest.approvedFacts)
+                ? aiRequest.approvedFacts
+                : [],
+            }
+          : null,
+        promptSent: finalAiRequest
+          ? {
+              mode:
+                typeof finalAiRequest.mode === 'string'
+                  ? finalAiRequest.mode
+                  : null,
+              systemPrompt:
+                typeof finalAiRequest.systemPrompt === 'string'
+                  ? finalAiRequest.systemPrompt
+                  : null,
+              input:
+                typeof finalAiRequest.promptInput === 'string'
+                  ? finalAiRequest.promptInput
+                  : typeof finalAiRequest.processedInput === 'string'
+                    ? finalAiRequest.processedInput
+                    : null,
+              history: Array.isArray(finalAiRequest.promptHistory)
+                ? finalAiRequest.promptHistory
+                : [],
+            }
+          : null,
+        rawAiResponse: finalAiResponse
+          ? {
+              source:
+                typeof finalAiResponse.source === 'string'
+                  ? finalAiResponse.source
+                  : null,
+              text:
+                typeof finalAiResponse.text === 'string'
+                  ? finalAiResponse.text
+                  : null,
+              toolCalls: Array.isArray(finalAiResponse.toolCalls)
+                ? finalAiResponse.toolCalls
+                : [],
+              error:
+                typeof finalAiResponse.error === 'string'
+                  ? finalAiResponse.error
+                  : null,
+            }
+          : null,
+        finalResponse:
+          typeof aiResponse.finalUserText === 'string'
+            ? aiResponse.finalUserText
+            : message.body ?? null,
+        debugSummary:
+          typeof aiResponse.debugSummary === 'string'
+            ? aiResponse.debugSummary
+            : null,
+        responseMode:
+          typeof auditPayload.responseMode === 'string'
+            ? auditPayload.responseMode
+            : null,
+        providerCallCount:
+          typeof auditPayload.providerCallCount === 'number'
+            ? auditPayload.providerCallCount
+            : typeof this.asRecord(auditPayload.decisionTrace)?.provider &&
+                  typeof this.asRecord(this.asRecord(auditPayload.decisionTrace)?.provider)
+                    ?.callCount === 'number'
+              ? Number(
+                  this.asRecord(this.asRecord(auditPayload.decisionTrace)?.provider)
+                    ?.callCount,
+                )
+              : 0,
+        decisionSource:
+          typeof auditPayload.decisionSource === 'string'
+            ? auditPayload.decisionSource
+            : typeof this.asRecord(this.asRecord(auditPayload.decisionTrace)?.conversation)
+                  ?.decisionSource === 'string'
+              ? String(
+                  this.asRecord(this.asRecord(auditPayload.decisionTrace)?.conversation)
+                    ?.decisionSource,
+                )
+              : null,
+        naturalityScore:
+          typeof auditPayload.naturalityScore === 'number'
+            ? auditPayload.naturalityScore
+            : typeof this.asRecord(auditPayload.metrics)?.naturalityScore === 'number'
+              ? Number(this.asRecord(auditPayload.metrics)?.naturalityScore)
+              : null,
+        waitForMore:
+          typeof this.asRecord(auditPayload.metrics)?.waitForMore === 'boolean'
+            ? Boolean(this.asRecord(auditPayload.metrics)?.waitForMore)
+            : typeof this.asRecord(this.asRecord(auditPayload.decisionTrace)?.conversation)
+                  ?.waitForMore === 'boolean'
+              ? Boolean(
+                  this.asRecord(this.asRecord(auditPayload.decisionTrace)?.conversation)
+                    ?.waitForMore,
+                )
+              : null,
+        knowledgeRetrieved:
+          typeof auditPayload.knowledgeRetrieved === 'boolean'
+            ? auditPayload.knowledgeRetrieved
+            : typeof this.asRecord(auditPayload.metrics)?.knowledgeRetrieved === 'boolean'
+              ? Boolean(this.asRecord(auditPayload.metrics)?.knowledgeRetrieved)
+              : typeof this.asRecord(this.asRecord(auditPayload.decisionTrace)?.knowledge)
+                    ?.retrieved === 'boolean'
+                ? Boolean(
+                    this.asRecord(this.asRecord(auditPayload.decisionTrace)?.knowledge)
+                      ?.retrieved,
+                  )
+                : null,
+        knowledgeGrounded:
+          typeof auditPayload.knowledgeGrounded === 'boolean'
+            ? auditPayload.knowledgeGrounded
+            : typeof this.asRecord(auditPayload.metrics)?.knowledgeGrounded === 'boolean'
+              ? Boolean(this.asRecord(auditPayload.metrics)?.knowledgeGrounded)
+              : typeof this.asRecord(this.asRecord(auditPayload.decisionTrace)?.knowledge)
+                    ?.grounded === 'boolean'
+                ? Boolean(
+                    this.asRecord(this.asRecord(auditPayload.decisionTrace)?.knowledge)
+                      ?.grounded,
+                  )
+                : null,
+        intent: {
+          key:
+            typeof auditPayload.intentKey === 'string'
+              ? auditPayload.intentKey
+              : this.asRecord(auditPayload.turnInterpretation)?.intent &&
+                  typeof this.asRecord(
+                    this.asRecord(auditPayload.turnInterpretation)?.intent,
+                  )?.key === 'string'
+                ? String(
+                    this.asRecord(
+                      this.asRecord(auditPayload.turnInterpretation)?.intent,
+                    )?.key,
+                  )
+                : null,
+          confidence:
+            typeof auditPayload.intentConfidence === 'number'
+              ? auditPayload.intentConfidence
+              : null,
+          source:
+            typeof auditPayload.intentSource === 'string'
+              ? auditPayload.intentSource
+              : null,
+        },
+        turnInterpretation:
+          auditPayload.turnInterpretation &&
+          typeof auditPayload.turnInterpretation === 'object'
+            ? auditPayload.turnInterpretation
+            : null,
+        decisionTrace:
+          auditPayload.decisionTrace &&
+          typeof auditPayload.decisionTrace === 'object'
+            ? auditPayload.decisionTrace
+            : null,
+        metrics:
+          auditPayload.metrics && typeof auditPayload.metrics === 'object'
+            ? auditPayload.metrics
+            : null,
+        grounding: grounding
+          ? {
+              grounded:
+                typeof grounding.grounded === 'boolean'
+                  ? grounding.grounded
+                  : null,
+              fallbackReason:
+                typeof grounding.fallbackReason === 'string'
+                  ? grounding.fallbackReason
+                  : null,
+              sourceCount:
+                typeof grounding.sourceCount === 'number'
+                  ? grounding.sourceCount
+                  : 0,
+              sources: Array.isArray(grounding.sources) ? grounding.sources : [],
+            }
+          : null,
+        actions: {
+          evaluated: Array.isArray(auditPayload.decisionPath)
+            ? auditPayload.decisionPath
+            : [],
+          executed: toolCalls
+            .filter((entry) => String(entry.status || '') === 'executed')
+            .map((entry) => ({
+              name:
+                typeof entry.name === 'string' ? entry.name : null,
+              status:
+                typeof entry.status === 'string' ? entry.status : null,
+              target:
+                typeof entry.target === 'string' ? entry.target : null,
+            })),
+          discarded: Array.from(new Set(discardedActions)),
+        },
+      })
+
+      pendingCustomerMessages = []
+    }
+
+    if (pendingCustomerMessages.length > 0) {
+      const originalUserInput = pendingCustomerMessages
+        .map((entry) => String(entry.body || '').trim())
+        .filter(Boolean)
+        .join('\n')
+        .trim()
+
+      turns.push({
+        turnId: null,
+        createdAt:
+          pendingCustomerMessages[pendingCustomerMessages.length - 1]?.createdAt ??
+          null,
+        userMessages: pendingCustomerMessages,
+        originalUserInput: originalUserInput || null,
+        processedInput: null,
+        contextSent: null,
+        promptSent: null,
+        rawAiResponse: null,
+        finalResponse: null,
+        debugSummary: null,
+        responseMode: null,
+        intent: null,
+        turnInterpretation: null,
+        decisionTrace: null,
+        metrics: null,
+        grounding: null,
+        actions: {
+          evaluated: [],
+          executed: [],
+          discarded: [],
+        },
+        pending: true,
+      })
+    }
+
+    return turns
+  }
+
+  private buildConversationDebugMetrics(turns: Array<Record<string, unknown>>) {
+    const completedTurns = turns.filter((turn) => this.asRecord(turn)?.pending !== true)
+    const total = completedTurns.length
+    const grounded = completedTurns.filter(
+      (turn) =>
+        this.asRecord(turn)?.knowledgeGrounded === true ||
+        this.asRecord(this.asRecord(turn)?.grounding)?.grounded === true,
+    ).length
+    const retrievedOnly = completedTurns.filter((turn) => {
+      const record = this.asRecord(turn)
+      return record?.knowledgeRetrieved === true && record?.knowledgeGrounded !== true
+    }).length
+    const fallback = completedTurns.filter((turn) => {
+      const grounding = this.asRecord(this.asRecord(turn)?.grounding)
+      return typeof grounding?.fallbackReason === 'string' && grounding.fallbackReason.length > 0
+    }).length
+    const deterministic = completedTurns.filter(
+      (turn) => this.asRecord(turn)?.responseMode === 'deterministic',
+    ).length
+    const hybrid = completedTurns.filter(
+      (turn) => this.asRecord(turn)?.responseMode === 'hybrid',
+    ).length
+    const generative = completedTurns.filter(
+      (turn) => this.asRecord(turn)?.responseMode === 'generative',
+    ).length
+    const actionsExecuted = completedTurns.filter((turn) => {
+      const actions = this.asRecord(this.asRecord(turn)?.actions)
+      return Array.isArray(actions?.executed) && actions.executed.length > 0
+    }).length
+    const chunkGrounded = completedTurns.filter((turn) => {
+      const decisionTrace = this.asRecord(this.asRecord(turn)?.decisionTrace)
+      const knowledge = this.asRecord(decisionTrace?.knowledge)
+      return Array.isArray(knowledge?.chunkIds) && knowledge.chunkIds.length > 0
+    }).length
+    const knowledgeUsed = completedTurns.filter((turn) => {
+      const decisionTrace = this.asRecord(this.asRecord(turn)?.decisionTrace)
+      const knowledge = this.asRecord(decisionTrace?.knowledge)
+      return knowledge?.knowledgeUsed === true || knowledge?.used === true
+    }).length
+    const semanticEmbedding = completedTurns.filter((turn) => {
+      const decisionTrace = this.asRecord(this.asRecord(turn)?.decisionTrace)
+      const knowledge = this.asRecord(decisionTrace?.knowledge)
+      const embeddingMode = this.asRecord(knowledge?.embeddingMode)
+      return embeddingMode?.mode === 'semantic'
+    }).length
+    const modelOnly = completedTurns.filter((turn) => {
+      const decisionTrace = this.asRecord(this.asRecord(turn)?.decisionTrace)
+      const deterministic = this.asRecord(decisionTrace?.deterministic)
+      return deterministic?.responseOrigin === 'model_only'
+    }).length
+    const possibleHallucinations = completedTurns.filter((turn) => {
+      const decisionTrace = this.asRecord(this.asRecord(turn)?.decisionTrace)
+      const knowledge = this.asRecord(decisionTrace?.knowledge)
+      return knowledge?.possibleKnowledgeHallucination === true
+    }).length
+    const chunksUtilized = Array.from(
+      new Set(
+        completedTurns.flatMap((turn) => {
+          const decisionTrace = this.asRecord(this.asRecord(turn)?.decisionTrace)
+          const knowledge = this.asRecord(decisionTrace?.knowledge)
+          return Array.isArray(knowledge?.chunkIds)
+            ? knowledge.chunkIds
+                .filter((entry): entry is string => typeof entry === 'string')
+                .slice(0, 50)
+            : []
+        }),
+      ),
+    ).length
+    const multiCallTurns = completedTurns.filter((turn) => {
+      const providerCallCount = Number(this.asRecord(turn)?.providerCallCount || 0)
+      return Number.isFinite(providerCallCount) && providerCallCount > 1
+    }).length
+    const waitForMoreTurns = completedTurns.filter(
+      (turn) => this.asRecord(turn)?.waitForMore === true,
+    ).length
+    const naturalityScores = completedTurns
+      .map((turn) => Number(this.asRecord(turn)?.naturalityScore))
+      .filter((value) => Number.isFinite(value))
+    const avgNaturalityScore = naturalityScores.length
+      ? Number(
+          (
+            naturalityScores.reduce((total, value) => total + Number(value), 0) /
+            naturalityScores.length
+          ).toFixed(1),
+        )
+      : 0
+
+    const percent = (count: number) =>
+      total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0
+
+    return {
+      totalTurns: total,
+      groundedResponses: {
+        count: grounded,
+        percentage: percent(grounded),
+      },
+      retrievedOnlyResponses: {
+        count: retrievedOnly,
+        percentage: percent(retrievedOnly),
+      },
+      fallbackResponses: {
+        count: fallback,
+        percentage: percent(fallback),
+      },
+      deterministicResponses: {
+        count: deterministic,
+        percentage: percent(deterministic),
+      },
+      hybridResponses: {
+        count: hybrid,
+        percentage: percent(hybrid),
+      },
+      generativeResponses: {
+        count: generative,
+        percentage: percent(generative),
+      },
+      actionsExecuted: {
+        count: actionsExecuted,
+        percentage: percent(actionsExecuted),
+      },
+      realChunkResponses: {
+        count: chunkGrounded,
+        percentage: percent(chunkGrounded),
+      },
+      knowledgeUsedResponses: {
+        count: knowledgeUsed,
+        percentage: percent(knowledgeUsed),
+      },
+      modelOnlyResponses: {
+        count: modelOnly,
+        percentage: percent(modelOnly),
+      },
+      semanticEmbeddingResponses: {
+        count: semanticEmbedding,
+        percentage: percent(semanticEmbedding),
+      },
+      possibleKnowledgeHallucinations: {
+        count: possibleHallucinations,
+        percentage: percent(possibleHallucinations),
+      },
+      multiCallTurns: {
+        count: multiCallTurns,
+        percentage: percent(multiCallTurns),
+      },
+      waitForMoreTurns: {
+        count: waitForMoreTurns,
+        percentage: percent(waitForMoreTurns),
+      },
+      avgNaturalityScore,
+      chunksUtilized,
+    }
+  }
+
+  private normalizeConversationDebugInputMessage(
+    message: {
+      id: string
+      body?: string | null
+      normalizedText?: string | null
+      createdAt?: Date | string | null
+      authorKind?: string | null
+      metadata?: unknown
+      payload?: unknown
+    },
+  ) {
+    const payloadRecord = this.asRecord(message.payload)
+    const attachments = Array.isArray(payloadRecord?.attachments)
+      ? payloadRecord.attachments
+      : []
+
+    return {
+      id: message.id,
+      authorKind:
+        typeof message.authorKind === 'string' ? message.authorKind : null,
+      body: message.body ?? null,
+      normalizedText: message.normalizedText ?? null,
+      createdAt: message.createdAt ?? null,
+      attachments,
+    }
+  }
+
+  private buildConversationDebugSessionInput(
+    input: ConversationDebugDto,
+    seed?:
+      | Awaited<ReturnType<ConversationsService['createWebchatSession']>>
+      | Awaited<ReturnType<ConversationsService['getWebchatSession']>>
+      | null,
+  ): CreateWebchatSessionDto {
+    const simulateAs =
+      input.simulateAs ||
+      (seed?.scope === 'customer_authenticated' ? 'authenticated' : 'guest')
+
+    return {
+      tenantKey: input.tenantKey?.trim() || seed?.tenantKey || undefined,
+      guestId: input.guestId?.trim() || seed?.participant?.guestId || undefined,
+      name: input.name?.trim() || seed?.participant?.name || undefined,
+      email: input.email?.trim() || seed?.participant?.email || undefined,
+      locale:
+        input.locale?.trim() || seed?.participant?.locale || undefined,
+      currency:
+        input.currency?.trim() || seed?.participant?.currency || undefined,
+      page: input.page?.trim() || seed?.context?.page || undefined,
+      authenticated: simulateAs === 'authenticated',
+      debugSession: true,
+    }
+  }
+
+  private normalizeConversationDebugWaitTimeout(value?: number | null) {
+    if (!Number.isFinite(value) || value == null) {
+      return 10_000
+    }
+
+    return Math.max(0, Math.min(Math.trunc(value), 30_000))
+  }
+
+  private normalizeConversationDebugKnowledgeMode(input: ConversationDebugDto) {
+    if (
+      input.knowledgeMode === 'full' ||
+      input.knowledgeMode === 'retrieval_disabled' ||
+      input.knowledgeMode === 'retrieval_only'
+    ) {
+      return input.knowledgeMode
+    }
+
+    return input.disableKnowledge === true ? 'retrieval_disabled' : 'full'
+  }
+
+  private async waitForConversationDebugSettlement(
+    conversationId: string,
+    currentUserId?: number,
+    timeoutMs = 10_000,
+  ) {
+    let snapshot = await this.getConversationDebug(conversationId, currentUserId)
+    if (!snapshot) {
+      return {
+        settled: false,
+      }
+    }
+
+    if (timeoutMs <= 0) {
+      return {
+        settled: !this.hasPendingConversationDebugTurn(snapshot.turns),
+      }
+    }
+
+    const startedAt = Date.now()
+    while (
+      snapshot &&
+      this.hasPendingConversationDebugTurn(snapshot.turns) &&
+      Date.now() - startedAt < timeoutMs
+    ) {
+      await delay(250)
+      snapshot = await this.getConversationDebug(conversationId, currentUserId)
+    }
+
+    return {
+      settled: Boolean(snapshot) && !this.hasPendingConversationDebugTurn(snapshot?.turns),
+    }
+  }
+
+  private hasPendingConversationDebugTurn(turns: unknown) {
+    const items = Array.isArray(turns) ? turns : []
+    const lastTurn = items.length > 0 ? this.asRecord(items[items.length - 1]) : null
+    return Boolean(lastTurn?.pending === true)
   }
 
   private mapControlMode(mode: NonNullable<ListConversationsDto['controlMode']>) {

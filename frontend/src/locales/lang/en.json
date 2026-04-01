@@ -16,6 +16,7 @@
       "customerDetails": "Customer Details",
       "mail": "Mail",
       "messages": "Messages",
+      "messagesDebug": "Messages Debug",
       "conversationsLegacy": "Messages legacy"
     },
     "appsCalendar": {
