@@ -453,6 +453,140 @@ export type ConversationMessageAttachmentInput = {
     metadata?: Record<string, unknown> | null
 }
 
+export type ConversationDebugMessageInput = {
+    text?: string
+    delayMs?: number
+    attachments?: ConversationMessageAttachmentInput[]
+}
+
+export type ConversationDebugKnowledgeMode =
+    | 'full'
+    | 'retrieval_disabled'
+    | 'retrieval_only'
+
+export type ConversationDebugRunInput = {
+    simulateAs?: 'guest' | 'authenticated'
+    reset?: boolean
+    disableKnowledge?: boolean
+    knowledgeMode?: ConversationDebugKnowledgeMode
+    tenantKey?: string
+    guestId?: string
+    name?: string
+    email?: string
+    locale?: string
+    currency?: string
+    page?: string
+    waitTimeoutMs?: number
+    messages?: ConversationDebugMessageInput[]
+}
+
+export type ConversationDebugTurn = {
+    turnId: string | null
+    createdAt: string | null
+    semanticTurnId?: string | null
+    userMessages: Array<{
+        id: string
+        authorKind: string | null
+        body: string | null
+        normalizedText: string | null
+        createdAt: string | null
+        attachments?: Array<Record<string, unknown>>
+    }>
+    originalUserInput: string | null
+    processedInput: string | null
+    contextSent: Record<string, unknown> | null
+    promptSent: Record<string, unknown> | null
+    rawAiResponse: Record<string, unknown> | null
+    finalResponse: string | null
+    debugSummary: string | null
+    responseMode: 'deterministic' | 'generative' | 'hybrid' | null
+    providerCallCount?: number | null
+    decisionSource?: string | null
+    naturalityScore?: number | null
+    waitForMore?: boolean | null
+    knowledgeRetrieved?: boolean | null
+    knowledgeGrounded?: boolean | null
+    intent: {
+        key: string | null
+        confidence: number | null
+        source: string | null
+    } | null
+    turnInterpretation: Record<string, unknown> | null
+    decisionTrace: Record<string, unknown> | null
+    metrics: Record<string, unknown> | null
+    grounding: {
+        grounded: boolean | null
+        fallbackReason: string | null
+        sourceCount: number
+        sources: Array<Record<string, unknown>>
+    } | null
+    actions: {
+        evaluated: unknown[]
+        executed: Array<{
+            name: string | null
+            status: string | null
+            target: string | null
+        }>
+        discarded: string[]
+    }
+    pending?: boolean
+}
+
+export type ConversationDebugSnapshot = {
+    conversation: {
+        id: string
+        tenantKey: string
+        scope: string
+        role: string
+        channel: string
+        status: string
+        controlMode: string
+        subject: string | null
+        externalUserId: string | null
+        createdAt: string
+        updatedAt: string
+        customer: ConversationSummary['customer']
+        simulation: {
+            authenticated: boolean
+            externalUserId: string | null
+            debugSession?: boolean
+        }
+    }
+    turns: ConversationDebugTurn[]
+    metrics?: {
+        totalTurns: number
+        groundedResponses: { count: number; percentage: number }
+        fallbackResponses: { count: number; percentage: number }
+        deterministicResponses: { count: number; percentage: number }
+        hybridResponses: { count: number; percentage: number }
+        generativeResponses: { count: number; percentage: number }
+        actionsExecuted: { count: number; percentage: number }
+        realChunkResponses: { count: number; percentage: number }
+        knowledgeUsedResponses?: { count: number; percentage: number }
+        retrievedOnlyResponses?: { count: number; percentage: number }
+        modelOnlyResponses?: { count: number; percentage: number }
+        semanticEmbeddingResponses: { count: number; percentage: number }
+        possibleKnowledgeHallucinations: { count: number; percentage: number }
+        multiCallTurns?: { count: number; percentage: number }
+        waitForMoreTurns?: { count: number; percentage: number }
+        avgNaturalityScore?: number
+        chunksUtilized?: number
+    }
+    execution?: {
+        created: boolean
+        reset: boolean
+        messagesDispatched: number
+        settled: boolean
+        waitTimeoutMs: number
+        options?: {
+            disableKnowledge: boolean
+            knowledgeMode: ConversationDebugKnowledgeMode
+            simulateAs: 'guest' | 'authenticated'
+        }
+        dispatches: Array<Record<string, unknown>>
+    }
+}
+
 const ConversationsService = {
     async fetchConversations(params?: Record<string, unknown>) {
         const response = await ApiService.fetchData<ConversationListResponse>({
@@ -959,6 +1093,45 @@ const ConversationsService = {
         const response = await ApiService.fetchData<ConversationDetail>({
             url: `/conversations/${id}/unpin`,
             method: 'post',
+        })
+        return response.data
+    },
+
+    async fetchConversationDebug(id: string) {
+        const response = await ApiService.fetchData<ConversationDebugSnapshot>({
+            url: `/conversations/${id}/debug`,
+            method: 'get',
+        })
+        return response.data
+    },
+
+    async runConversationDebug(id: string, data: ConversationDebugRunInput) {
+        const response = await ApiService.fetchData<ConversationDebugSnapshot>({
+            url: `/conversations/${id}/debug`,
+            method: 'post',
+            data,
+        })
+        return response.data
+    },
+
+    async createConversationDebug(data: ConversationDebugRunInput) {
+        const response = await ApiService.fetchData<ConversationDebugSnapshot>({
+            url: '/conversations/new/debug',
+            method: 'post',
+            data,
+        })
+        return response.data
+    },
+
+    async deleteConversationDebug(id: string) {
+        const response = await ApiService.fetchData<{
+            ok: boolean
+            deleted: boolean
+            conversationId: string
+            channel: string
+        }>({
+            url: `/conversations/${id}/debug`,
+            method: 'delete',
         })
         return response.data
     },

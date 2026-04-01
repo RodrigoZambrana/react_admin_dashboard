@@ -28,6 +28,11 @@ const createPrisma = () => ({
   knowledgeDocumentEmbedding: {
     upsert: vi.fn(),
   },
+  knowledgeDocumentChunk: {
+    findMany: vi.fn(),
+    upsert: vi.fn(),
+    deleteMany: vi.fn(),
+  },
   knowledgeDerivedArtifact: {
     findMany: vi.fn(),
     deleteMany: vi.fn(),
@@ -105,11 +110,49 @@ const createConfig = () => ({
 })
 
 const createEmbeddings = (): Partial<KnowledgeEmbeddingsService> => ({
-    indexDocument: vi.fn(),
+    indexDocument: vi.fn(async () => ({
+      provider: 'local',
+      model: 'local-hash-v1',
+      dimensions: 128,
+      vector: [1, 0, 0],
+      contentHash: 'doc_hash',
+      latencyMs: 0,
+      cacheHit: false,
+      providerError: null,
+      chunksIndexed: 2,
+    })),
     indexDocuments: vi.fn(async (documents: Array<{ id: string }>) => ({
       indexed: documents.length,
+      chunksIndexed: documents.length * 2,
     })),
-    projectQuery: vi.fn(() => [1, 0, 0]),
+    projectQuery: vi.fn(async () => [1, 0, 0]),
+    projectQueryProjection: vi.fn(async () => ({
+      provider: 'local',
+      model: 'local-hash-v1',
+      dimensions: 128,
+      vector: [1, 0, 0],
+      contentHash: 'query_hash',
+      latencyMs: 0,
+      cacheHit: false,
+      providerError: null,
+    })),
+    describeProjectionMode: vi.fn((projection: {
+      provider?: string | null
+      model?: string | null
+      dimensions?: number | null
+    } | null) => ({
+      provider: projection?.provider || 'local',
+      mode:
+        projection?.provider === 'openai'
+          ? ('semantic' as const)
+          : ('fallback' as const),
+      model:
+        projection?.model || (projection?.provider === 'openai'
+          ? 'text-embedding-3-small'
+          : 'local-hash-v1'),
+      dimensions:
+        projection?.dimensions || (projection?.provider === 'openai' ? 256 : 128),
+    })),
     cosineSimilarity: vi.fn(() => 0.25),
   })
 
@@ -127,6 +170,8 @@ describe('KnowledgeService', () => {
     knowledgeUploadMocks.deleteKnowledgeSourceFile.mockReset()
     knowledgeUploadMocks.readKnowledgeSourceFile.mockReset()
     prisma.knowledgeDocument.findMany.mockResolvedValue([])
+    prisma.knowledgeDocumentChunk.findMany.mockResolvedValue([])
+    prisma.knowledgeDocumentChunk.deleteMany.mockResolvedValue({ count: 0 })
     prisma.knowledgeDocument.deleteMany.mockResolvedValue({ count: 0 })
     prisma.knowledgeDerivedArtifact.findMany.mockResolvedValue([])
     prisma.knowledgeDerivedArtifact.deleteMany.mockResolvedValue({ count: 0 })
@@ -1302,10 +1347,16 @@ describe('KnowledgeService', () => {
           approvedAt: { not: null },
           scope: { in: ['CUSTOMER_PUBLIC'] },
         }),
-        take: 2000,
+        take: 160,
       }),
     )
     expect(result.items).toHaveLength(3)
+    expect(result.embeddingMode).toMatchObject({
+      provider: 'local',
+      mode: 'fallback',
+      model: 'local-hash-v1',
+      dimensions: 128,
+    })
     expect(result.items[0]).toMatchObject({
       id: 'doc_public',
       scope: 'customer_public',
@@ -1313,6 +1364,7 @@ describe('KnowledgeService', () => {
       vectorScore: expect.any(Number),
       embedding: {
         provider: 'local',
+        mode: 'fallback',
         model: 'local-hash-v1',
         dimensions: 128,
         indexedAt: new Date('2026-03-25T12:00:00.000Z'),
@@ -1598,21 +1650,100 @@ describe('KnowledgeService', () => {
     expect(result.items[0].snippet).toContain('riesgos principales')
   })
 
+  it('prefers persisted knowledge chunks when they are available', async () => {
+    prisma.knowledgeDocumentChunk.findMany.mockResolvedValue([
+      {
+        id: 'chunk_row_1',
+        chunkKey: 'chunk_blackout_1',
+        tenantKey: 'urucortinas',
+        documentId: 'doc_blackout',
+        scope: 'CUSTOMER_PUBLIC',
+        sourceType: 'WEB_URL',
+        chunkIndex: 0,
+        charStart: 0,
+        charEnd: 96,
+        charLength: 96,
+        content:
+          'El roller blackout bloquea casi por completo la luz y se recomienda para dormitorios y salas de proyección.',
+        tags: ['roller', 'blackout'],
+        metadata: {
+          url: 'https://urucortinas.com.uy/roller-blackout.html',
+        },
+        provider: 'openai',
+        model: 'text-embedding-3-small',
+        dimensions: 256,
+        contentHash: 'hash_chunk',
+        vector: [1, 0, 0],
+        createdAt: new Date('2026-03-30T12:00:00.000Z'),
+        updatedAt: new Date('2026-03-30T12:00:00.000Z'),
+        document: {
+          id: 'doc_blackout',
+          title: 'Roller blackout',
+          summary: 'Oscurecimiento alto.',
+          content:
+            'El roller blackout bloquea casi por completo la luz y se recomienda para dormitorios y salas de proyección.',
+          tags: ['roller', 'blackout'],
+          metadata: {
+            url: 'https://urucortinas.com.uy/roller-blackout.html',
+          },
+          sourceType: 'WEB_URL',
+          scope: 'CUSTOMER_PUBLIC',
+          updatedAt: new Date('2026-03-30T12:00:00.000Z'),
+        },
+      },
+    ])
+
+    const result = await service.retrieve({
+      query: 'blackout dormitorio',
+      scope: 'customer_public',
+      limit: 3,
+    })
+
+    expect(prisma.knowledgeDocument.findMany).not.toHaveBeenCalled()
+    expect(result.retrievalMode).toBe('chunk')
+    expect(result.embeddingMode).toMatchObject({
+      provider: 'local',
+      mode: 'fallback',
+    })
+    expect(result.items[0]).toMatchObject({
+      id: 'doc_blackout',
+      retrievalMode: 'chunk',
+      chunk: {
+        id: 'chunk_blackout_1',
+        index: 0,
+      },
+      embedding: {
+        provider: 'openai',
+        mode: 'semantic',
+        model: 'text-embedding-3-small',
+        dimensions: 256,
+      },
+    })
+  })
+
   it('indexes approved documents on demand', async () => {
     prisma.knowledgeDocument.findMany.mockResolvedValue([
       {
+        tenantKey: 'urucortinas',
         id: 'doc_1',
+        scope: 'CUSTOMER_PUBLIC',
+        sourceType: 'DOCS',
         title: 'Entrega Montevideo',
         summary: 'Resumen',
         content: 'Contenido',
         tags: ['envios'],
+        metadata: null,
       },
       {
+        tenantKey: 'urucortinas',
         id: 'doc_2',
+        scope: 'CUSTOMER_PUBLIC',
+        sourceType: 'DOCS',
         title: 'Instalaciones',
         summary: null,
         content: 'Otro contenido',
         tags: ['instalacion'],
+        metadata: null,
       },
     ])
 
@@ -1626,14 +1757,27 @@ describe('KnowledgeService', () => {
         }),
       }),
     )
-    expect(embeddings.indexDocuments).toHaveBeenCalledWith([
+    expect(embeddings.indexDocument).toHaveBeenCalledTimes(2)
+    expect(embeddings.indexDocument).toHaveBeenNthCalledWith(
+      1,
       expect.objectContaining({ id: 'doc_1' }),
+    )
+    expect(embeddings.indexDocument).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({ id: 'doc_2' }),
-    ])
-    expect(result).toEqual({
+    )
+    expect(result).toMatchObject({
       tenantKey: 'urucortinas',
+      trigger: 'manual',
+      selection: 'pending',
+      batchSize: 25,
       indexed: 2,
-      documentIds: ['doc_1', 'doc_2'],
+      chunksIndexed: 4,
+      completed: 2,
+      failed: 0,
+      retries: 0,
+      processedDocumentIds: ['doc_1', 'doc_2'],
+      failedDocumentIds: [],
     })
   })
 
@@ -2090,6 +2234,55 @@ describe('KnowledgeService', () => {
         }),
       ]),
     )
+
+    const aberturasFamily = result.items.find(
+      (entry) => entry.key === 'product_family:aberturas',
+    )
+    expect(aberturasFamily?.aliases || []).not.toEqual(
+      expect.arrayContaining(['customer', 'topic']),
+    )
+  })
+
+  it('drops overbroad family aliases from explicit topic taxonomy entries', async () => {
+    prisma.knowledgeDocument.findMany.mockResolvedValue([
+      {
+        id: 'doc_taxonomy_curated_2',
+        title: 'Taxonomía customer · Urucortinas',
+        tags: ['taxonomy', 'customer_public'],
+        metadata: {
+          sourceKind: 'tenant_topic_taxonomy',
+          topicTaxonomy: [
+            {
+              key: 'product_topic:cortinas-roller',
+              kind: 'product_topic',
+              label: 'cortinas roller',
+              aliases: ['cortinas roller', 'roller', 'cortinas'],
+              normalizationValue: 'roller',
+              familyLabel: 'cortinas',
+              parentKeys: ['product_family:cortinas'],
+              parentLabels: ['cortinas'],
+              tags: ['customer', 'quote requires measurements'],
+            },
+          ],
+        },
+      },
+    ])
+
+    const result = await service.getTopicTaxonomy({
+      tenantKey: 'urucortinas',
+      scope: 'customer_public',
+    })
+
+    const rollerTopic = result.items.find(
+      (entry) => entry.key === 'product_topic:cortinas-roller',
+    )
+
+    expect(rollerTopic?.aliases || []).toEqual(
+      expect.arrayContaining(['cortinas roller', 'roller']),
+    )
+    expect(rollerTopic?.aliases || []).not.toEqual(
+      expect.arrayContaining(['cortinas', 'customer', 'quote requires measurements']),
+    )
   })
 
   it('derives tenant quote profiles from approved curated knowledge metadata', async () => {
@@ -2373,7 +2566,7 @@ describe('KnowledgeService', () => {
       createdAt: new Date('2026-03-27T12:00:00.000Z'),
       updatedAt: new Date('2026-03-28T00:00:00.000Z'),
     }))
-    prisma.knowledgeDocument.findUnique.mockResolvedValueOnce({
+    prisma.knowledgeDocument.findUnique.mockResolvedValue({
       id: 'doc_quote_rules',
       tenantKey: 'urucortinas',
       scope: 'CUSTOMER_PUBLIC',
@@ -2493,7 +2686,7 @@ describe('KnowledgeService', () => {
       createdAt: new Date('2026-03-27T12:00:00.000Z'),
       updatedAt: new Date('2026-03-28T00:00:00.000Z'),
     }))
-    prisma.knowledgeDocument.findUnique.mockResolvedValueOnce({
+    prisma.knowledgeDocument.findUnique.mockResolvedValue({
       id: 'doc_managed_quote_profiles',
       tenantKey: 'urucortinas',
       scope: 'CUSTOMER_PUBLIC',
@@ -2648,7 +2841,7 @@ describe('KnowledgeService', () => {
       createdAt: new Date('2026-03-25T12:00:00.000Z'),
       updatedAt: new Date('2026-03-26T12:00:00.000Z'),
     }))
-    prisma.knowledgeDocument.findUnique.mockResolvedValueOnce({
+    prisma.knowledgeDocument.findUnique.mockResolvedValue({
       id: 'doc_1',
       tenantKey: 'urucortinas',
       scope: 'ADMIN_INTERNAL',

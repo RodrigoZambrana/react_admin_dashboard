@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type Page } from "@playwright/tes
 import {
   createAdminInternalSessionForUser,
   createManagedAdminUser,
+  signInAdmin,
   startAdminInternalAssistantConversationForUser,
 } from "./support/admin-api";
 import { loginAsAdmin, loginAsAdminUser, resolveAdminAppUrl } from "./support/admin-ui";
@@ -122,7 +123,46 @@ async function createWebchatConversationWithAgentReply(
   );
 
   expect(dispatchResponse.ok()).toBeTruthy();
-  return sessionPayload;
+
+  const adminToken = await signInAdmin(request);
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 30_000) {
+    const detailResponse = await request.get(
+      `${backendBaseUrl}/api/conversations/${sessionPayload.conversationId}`,
+      {
+        headers: {
+          authorization: `Bearer ${adminToken}`,
+        },
+      },
+    );
+
+    expect(detailResponse.ok()).toBeTruthy();
+    const detail = (await detailResponse.json()) as {
+      messages?: Array<{
+        authorType?: string | null;
+        body?: string | null;
+      }>;
+    };
+
+    const hasAgentReply = Array.isArray(detail.messages)
+      ? detail.messages.some(
+          (message) =>
+            message.authorType?.toLowerCase() === "agent" &&
+            typeof message.body === "string" &&
+            message.body.trim().length > 0,
+        )
+      : false;
+
+    if (hasAgentReply) {
+      return sessionPayload;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
+  throw new Error(
+    `Conversation ${sessionPayload.conversationId} did not receive an agent reply in time`,
+  );
 }
 
 async function openInternalAssistantContact(page: Page) {
@@ -305,27 +345,30 @@ test.describe.serial("admin inbox regression", () => {
     request,
   }) => {
     const uniqueId = Date.now();
-    const users = await Promise.all(
-      ["one", "two", "three"].map(async (suffix) => {
-        const email = `ia.filter.${suffix}.${uniqueId}@example.com`;
-        const password = `InboxFilter@${uniqueId}${suffix}`;
-        await createManagedAdminUser(request, {
-          name: `Inbox ${suffix}`,
-          lastName: "Filter",
-          email,
-          password,
-          role: "ADMIN",
-          capabilityGroups: ["support"],
-        });
+    const users: Array<{
+      email: string;
+      password: string;
+      conversation: Awaited<ReturnType<typeof startAdminInternalAssistantConversationForUser>>;
+    }> = [];
+    for (const suffix of ["one", "two", "three"]) {
+      const email = `ia.filter.${suffix}.${uniqueId}@example.com`;
+      const password = `InboxFilter@${uniqueId}${suffix}`;
+      await createManagedAdminUser(request, {
+        name: `Inbox ${suffix}`,
+        lastName: "Filter",
+        email,
+        password,
+        role: "ADMIN",
+        capabilityGroups: ["support"],
+      });
 
-        const conversation = await startAdminInternalAssistantConversationForUser(
-          request,
-          { email, password },
-        );
+      const conversation = await startAdminInternalAssistantConversationForUser(
+        request,
+        { email, password },
+      );
 
-        return { email, password, conversation };
-      }),
-    );
+      users.push({ email, password, conversation });
+    }
 
     const current = users[0];
 
@@ -438,7 +481,11 @@ test.describe.serial("admin inbox regression", () => {
     await expect(page).toHaveURL(
       new RegExp(`/app/crm/conversations/${conversation.conversationId}$`),
     );
-    const interpretedContext = page.getByText("Contexto interpretado").last();
+    const debugPanel = page
+      .locator('[data-testid^="admin-conversation-message-debug-panel-"]')
+      .last();
+    await debugPanel.locator("summary").click();
+    const interpretedContext = debugPanel.getByText("Contexto interpretado");
     await expect(interpretedContext).toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/Origen:\s*message_text/i).last()).toBeVisible({
       timeout: 20_000,

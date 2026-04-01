@@ -320,6 +320,13 @@ enum KnowledgeDocumentStatus {
   ARCHIVED
 }
 
+enum KnowledgeChunkIndexStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 enum KnowledgeDocumentScope {
   CUSTOMER_PUBLIC
   ADMIN_INTERNAL
@@ -2007,6 +2014,14 @@ model KnowledgeDocument {
   scope            KnowledgeDocumentScope
   sourceType       KnowledgeSourceType
   status           KnowledgeDocumentStatus     @default(ACTIVE)
+  chunkIndexStatus KnowledgeChunkIndexStatus   @default(PENDING)
+  chunkIndexVersion Int                        @default(1)
+  chunkCount       Int                         @default(0)
+  chunkIndexAttempts Int                       @default(0)
+  chunkIndexedAt   DateTime?
+  chunkIndexRequestedAt DateTime?
+  chunkIndexStartedAt DateTime?
+  chunkIndexError  String?
   sourceKey        String
   title            String
   summary          String?
@@ -2026,10 +2041,12 @@ model KnowledgeDocument {
   createdAt        DateTime                    @default(now())
   updatedAt        DateTime                    @updatedAt
   embedding        KnowledgeDocumentEmbedding?
+  chunks           KnowledgeDocumentChunk[]
   derivedArtifacts KnowledgeDerivedArtifact[]
 
   @@unique([tenantKey, scope, sourceType, sourceKey])
   @@index([tenantKey, scope, status, sourceType])
+  @@index([tenantKey, chunkIndexStatus, updatedAt])
 }
 
 model KnowledgeDocumentEmbedding {
@@ -2044,6 +2061,35 @@ model KnowledgeDocumentEmbedding {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
+  @@index([provider, model])
+}
+
+model KnowledgeDocumentChunk {
+  id          String                 @id @default(cuid())
+  chunkKey    String                 @unique
+  tenantKey   String
+  documentId  String
+  document    KnowledgeDocument      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  scope       KnowledgeDocumentScope
+  sourceType  KnowledgeSourceType
+  chunkIndex  Int
+  charStart   Int
+  charEnd     Int
+  charLength  Int
+  content     String
+  tags        String[]               @default([])
+  metadata    Json?
+  provider    String
+  model       String
+  dimensions  Int
+  contentHash String
+  vector      Json
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  @@unique([documentId, chunkIndex])
+  @@index([tenantKey, scope, sourceType])
+  @@index([documentId])
   @@index([provider, model])
 }
 

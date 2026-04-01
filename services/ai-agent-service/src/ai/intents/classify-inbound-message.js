@@ -1,5 +1,6 @@
 import {
   extractRequestedTopicLabel,
+  looksLikeCustomerAvailabilityQuestion,
   looksLikeCustomerContactQuestion,
   looksLikeCustomerTopicQuestion,
   looksLikeCustomerUnintelligibleText,
@@ -7,11 +8,13 @@ import {
 import {
   looksLikeGenericPriceInquiry,
   looksLikeInstalledReplacementAssessmentRequest,
+  looksLikeCustomerOrderStatusQuestion,
   looksLikeQuoteExpansionFollowUp,
   looksLikeStructuredQuoteSeed,
   looksLikePaymentProofArtifact,
   looksLikePaymentOperationalUpdate,
   looksLikePaymentProofFollowUpRequest,
+  looksLikeCommercialConditionQuestion,
   looksLikeQuoteRequirementsQuestion,
 } from './customer-intent-patterns.js'
 import {
@@ -25,40 +28,77 @@ import {
 } from './customer-topic-taxonomy.js'
 import { normalizeCustomerTextForIntent } from './customer-text-normalizer.js'
 import {
+  detectServiceCapabilityHints,
   detectStandaloneAttachmentArtifactKind,
+  hasGenericHelpSignal,
   hasMultimodalPlaceholderSignal,
-  looksLikeOpeningStructureSignal,
+  looksLikeCatalogStructureSignal,
+  looksLikeIncompleteSeedSignal,
   hasScheduleAdministrativeSignal,
+  hasScheduleStatusFollowUpSignal,
   normalizeSemanticText,
 } from './customer-semantic-signals.js'
+import { getVocabulary } from '../tenant-policy/runtime-tenant-policy.js'
 
 const normalizeText = normalizeSemanticText
 const DIMENSION_PAIR_REGEX = /\b\d+(?:[.,]\d+)?\s*x\s*\d+(?:[.,]\d+)?\b/u
 const MULTIMODAL_PLACEHOLDER_PHRASE_REGEX =
   /\b(?:multimedia omitido|imagen omitida|audio omitido|video omitido)\b/gu
-const WEB_LEAD_INTRO_ONLY_REGEX =
-  /^(?:hola|buen dia|buenos dias|buenas tardes|buenas noches)?\s*(?:[,!:.-]\s*)?(?:te contacto|te escribo|me contacto)\s+desde\s+la\s+web(?:\s+de\s+urucortinas)?\s*:?\s*$/iu
+const WEB_LEAD_INTRO_PREFIX_REGEX =
+  /^(?:hola|buen dia|buenos dias|buenas tardes|buenas noches)?\s*(?:te contacto|te escribo|me contacto)\s+desde\s+la\s+web(?:\s+de\s+)?/u
 
-const looksLikeInstallationQuoteContext = (normalizedInput) =>
+const uniqueTerms = (values = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .filter((value) => typeof value === 'string')
+        .map((value) => normalizeText(value))
+        .filter(Boolean),
+    ),
+  )
+
+const hasConfiguredVocabularyTerm = (normalizedInput, terms = []) =>
+  uniqueTerms(terms).some((term) => normalizedInput.includes(term))
+
+const getConfiguredCatalogTerms = (tenantRuntimePolicy = null) => ({
+  carrierTerms: uniqueTerms(getVocabulary(tenantRuntimePolicy)?.catalogCarrierTerms ?? []),
+  structuralTerms: uniqueTerms(
+    getVocabulary(tenantRuntimePolicy)?.catalogStructuralTerms ?? [],
+  ),
+})
+
+const looksLikeInstallationQuoteContext = (
+  normalizedInput,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) =>
+  !looksLikeCommercialConditionQuestion(normalizedInput) &&
   /\b(cotiz\w*|presupuest\w*|precio|precios|costo|costos|valor|importe)\b/u.test(
     normalizedInput,
   ) &&
   /\b(instalacion|instalación|colocacion|colocación|colocar)\b/u.test(normalizedInput) &&
   (DIMENSION_PAIR_REGEX.test(normalizedInput) ||
-    /\b(ventana|ventanas|abertura|aberturas|marco|marcos|guia|gu[ií]a|guias|gu[ií]as)\b/u.test(
-      normalizedInput,
-    ))
+    hasTenantTopicSignal(normalizedInput, tenantTopicTaxonomy) ||
+    hasConfiguredVocabularyTerm(normalizedInput, [
+      ...getConfiguredCatalogTerms(tenantRuntimePolicy).carrierTerms,
+      ...getConfiguredCatalogTerms(tenantRuntimePolicy).structuralTerms,
+    ]))
 
-const looksLikeOpeningInstallationAssessmentContext = (normalizedInput) => {
+const looksLikeCatalogInstallationAssessmentContext = (
+  normalizedInput,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
+  const catalogTerms = getConfiguredCatalogTerms(tenantRuntimePolicy)
+  const commercialConditionQuestion =
+    looksLikeCommercialConditionQuestion(normalizedInput)
   const hasRelevantProduct =
-    /\b(cortina|cortinas|persiana|persianas|ventana|ventanas|abertura|aberturas)\b/u.test(
-      normalizedInput,
-    )
-  const hasOpeningContext =
-    looksLikeOpeningStructureSignal(normalizedInput) ||
-    /\b(marco|marcos|guia|gu[ií]a|guias|gu[ií]as|ventana|ventanas|abertura|aberturas)\b/u.test(
-      normalizedInput,
-    )
+    hasTenantTopicSignal(normalizedInput, tenantTopicTaxonomy) ||
+    Boolean(extractRequestedTopicLabel(normalizedInput)) ||
+    looksLikeCatalogStructureSignal(normalizedInput, tenantRuntimePolicy)
+  const hasCatalogContext =
+    looksLikeCatalogStructureSignal(normalizedInput, tenantRuntimePolicy) ||
+    hasConfiguredVocabularyTerm(normalizedInput, catalogTerms.carrierTerms)
   const hasInstallationAssessmentSignal =
     /\b(superficie|exterior|colocar|colocacion|colocación|instalacion|instalación|uniforme|lisa)\b/u.test(
       normalizedInput,
@@ -69,9 +109,10 @@ const looksLikeOpeningInstallationAssessmentContext = (normalizedInput) => {
     )
 
   return (
-    hasRelevantProduct &&
-    hasOpeningContext &&
+    (hasRelevantProduct || hasCatalogContext) &&
+    hasCatalogContext &&
     hasInstallationAssessmentSignal &&
+    !commercialConditionQuestion &&
     !hasRepairSignal
   )
 }
@@ -127,17 +168,6 @@ const CONTACT_PATTERNS = [
   /\b(tienen telefono|tienen teléfono|tienen whatsapp|numero de contacto|número de contacto|datos de contacto|telefono|teléfono|whatsapp|llamar|comunicarme|comunicarse|hablar con alguien)\b/,
 ]
 
-const GENERIC_HELP_PATTERNS = [
-  /\b(info|informacion|consulta|consultar|quiero saber|quisiera saber|necesito saber|me ayudas|me ayuda|ayuda|necesito ayuda)\b/,
-]
-
-const INCOMPLETE_PATTERNS = [
-  /^(quiero|necesito|preciso|quisiera|busco|me interesa)$/u,
-  /^(quiero|necesito|preciso|quisiera)\s+(eso|esto)$/u,
-  /^(me interesa|busco)\s+(eso|esto)$/u,
-  /^(quiero|necesito|preciso|quisiera|busco|me interesa)\s+algo$/u,
-]
-
 const COURTESY_PATTERNS = [
   /^(gracias|muchas gracias|genial|excelente)$/u,
   /^(ok|dale|perfecto|entendido|listo)$/u,
@@ -151,6 +181,14 @@ const CONFIRMATION_PATTERNS = [
 const CANCELLATION_PATTERNS = [
   /^(no|no eso no|mejor no|cancelar|dejalo|déjalo|dejemos eso|eso no)$/u,
 ]
+
+const SCHEDULE_CANCELLATION_PATTERNS = [
+  /\b(cancelar|cancel[oó]|cancelaron|cancelar la ida|cancelar la visita|cancelar la coordinaci[oó]n)\b/u,
+  /\b(ya se fue|se fue|no puede esperar|no va a poder esperar|gracias igual)\b/u,
+]
+
+const SCHEDULE_CANCELLATION_CONTEXT_HINTS =
+  /\b(ida|visita|agenda|agendar|coordinar|coordinaci[oó]n|venir|vengan|pasar|pasen|horario|hora)\b/u
 
 const GREETING_PATTERNS = [
   /^(hola|buenas|buen dia|buenos dias|buenas tardes|buenas noches)$/u,
@@ -196,7 +234,7 @@ const MULTI_INTENT_BUCKETS = [
   {
     key: 'order_status',
     label: 'el pedido',
-    pattern: /\b(pedido|orden|seguimiento|estado del pedido|envio|envío|entrega)\b/,
+    matches: (normalizedInput) => looksLikeCustomerOrderStatusQuestion(normalizedInput),
   },
   {
     key: 'support',
@@ -231,6 +269,7 @@ const buildClassification = ({
   documentType = null,
   identifier = null,
   requestType = null,
+  semanticHints = null,
 }) => ({
   category: INBOUND_MESSAGE_CATEGORIES.includes(category) ? category : 'other',
   confidence:
@@ -252,12 +291,56 @@ const buildClassification = ({
   identifier:
     typeof identifier === 'string' && identifier.trim() ? identifier.trim() : null,
   requestType: typeof requestType === 'string' ? requestType : null,
+  semanticHints:
+    semanticHints && typeof semanticHints === 'object'
+      ? {
+          serviceCapabilityHint: semanticHints.serviceCapabilityHint === true,
+          installationCapabilityHint:
+            semanticHints.installationCapabilityHint === true,
+          customWorkCapabilityHint:
+            semanticHints.customWorkCapabilityHint === true,
+        }
+      : null,
 })
 
 const detectMultiIntentAreas = (normalizedInput) =>
-  MULTI_INTENT_BUCKETS.filter((entry) => entry.pattern.test(normalizedInput)).map(
+  MULTI_INTENT_BUCKETS.filter((entry) =>
+    typeof entry.matches === 'function'
+      ? entry.matches(normalizedInput)
+      : entry.pattern.test(normalizedInput),
+  ).map(
     ({ key, label }) => ({ key, label }),
   )
+
+const looksLikeWebLeadIntroOnly = (value, tenantRuntimePolicy = null) => {
+  const normalizedInput = normalizeText(value)
+  if (!normalizedInput) {
+    return false
+  }
+
+  const prefixMatch = normalizedInput.match(WEB_LEAD_INTRO_PREFIX_REGEX)
+  if (!prefixMatch) {
+    return false
+  }
+
+  const remainder = normalizedInput.slice(prefixMatch[0].length).trim()
+  if (!remainder) {
+    return true
+  }
+
+  if (
+    ACTIONABLE_HINTS.test(remainder) ||
+    CUSTOMER_GENERIC_DOMAIN_TERMS.test(remainder) ||
+    looksLikeCustomerSupportServiceRequest(remainder) ||
+    looksLikeCustomerScheduleAvailabilityRequest(remainder, {
+      tenantRuntimePolicy,
+    })
+  ) {
+    return false
+  }
+
+  return remainder.split(/\s+/u).filter(Boolean).length <= 3
+}
 
 const countRepeatedCustomerTurns = (
   normalizedInput,
@@ -299,7 +382,9 @@ const looksLikeScheduleAdministrativeFollowUp = (
     return false
   }
 
-  const hasAdministrativeSignal = hasScheduleAdministrativeSignal(normalizedInput)
+  const hasAdministrativeSignal =
+    hasScheduleAdministrativeSignal(normalizedInput) ||
+    hasScheduleStatusFollowUpSignal(normalizedInput)
 
   if (!hasAdministrativeSignal) {
     return false
@@ -312,7 +397,7 @@ const looksLikeScheduleAdministrativeFollowUp = (
     }
 
     const normalizedTurn = normalizeText(turn.text)
-    return /\b(coordinar|agendar|programar|visita|cita|disponibilidad|te propongo uno|proponga uno|terminar de coordinar|seguir con la visita|instalacion|instalación|colocacion|colocación|reparacion|reparación|revision|revisión|service|trabajos? a medida|a medida)\b/u.test(
+    return /\b(coordinar|agendar|programar|visita|cita|disponibilidad|horario|franja|dia|d[ií]a|te propongo uno|proponga uno|terminar de coordinar|seguir con la visita|instalacion|instalación|colocacion|colocación|reparacion|reparación|revision|revisión|service|trabajos? a medida|a medida|te avisamos|te confirmamos|t[eé]cnicos?|jueves|viernes|lunes|martes|miercoles|miércoles|manana|mañana|venir|pasar)\b/u.test(
       normalizedTurn,
     )
   })
@@ -389,6 +474,7 @@ export const classifyInboundMessage = ({
   recentTurns = [],
   pendingState = null,
   tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
 }) => {
   if (isCustomerRole(role) && looksLikeRawNoiseInput(input)) {
     return buildClassification({
@@ -404,6 +490,10 @@ export const classifyInboundMessage = ({
         tenantTopicTaxonomy,
       }).normalizedInput
     : normalizeText(input)
+  const serviceCapabilityHints = detectServiceCapabilityHints(
+    normalizedInput,
+    tenantRuntimePolicy,
+  )
   if (!normalizedInput) {
     return buildClassification({
       category: 'incomplete',
@@ -437,7 +527,7 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (WEB_LEAD_INTRO_ONLY_REGEX.test(String(input || '').trim())) {
+  if (looksLikeWebLeadIntroOnly(input, tenantRuntimePolicy)) {
     return buildClassification({
       category: 'generic_help_request',
       confidence: 0.82,
@@ -473,6 +563,18 @@ export const classifyInboundMessage = ({
       confidence: 0.96,
       suggestedIntent: 'customer.cancellation',
       decisionPath: ['classifier:cancellation'],
+    })
+  }
+
+  if (
+    SCHEDULE_CANCELLATION_PATTERNS.some((pattern) => pattern.test(normalizedInput)) &&
+    SCHEDULE_CANCELLATION_CONTEXT_HINTS.test(normalizedInput)
+  ) {
+    return buildClassification({
+      category: 'cancellation',
+      confidence: 0.93,
+      suggestedIntent: 'customer.cancellation',
+      decisionPath: ['classifier:schedule_cancellation'],
     })
   }
 
@@ -535,15 +637,28 @@ export const classifyInboundMessage = ({
     })
   }
 
+  if (looksLikeCommercialConditionQuestion(normalizedInput)) {
+    return buildClassification({
+      category: 'faq_topic',
+      confidence: 0.9,
+      suggestedIntent: 'customer.topic_info',
+      decisionPath: ['classifier:commercial_condition_question'],
+    })
+  }
+
   if (
-    looksLikeOpeningInstallationAssessmentContext(normalizedInput) &&
+    looksLikeCatalogInstallationAssessmentContext(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+    ) &&
     !looksLikeGenericPriceInquiry(normalizedInput)
   ) {
     return buildClassification({
       category: 'price_inquiry',
       confidence: 0.83,
       suggestedIntent: 'customer.quote',
-      decisionPath: ['classifier:opening_installation_assessment_quote'],
+      decisionPath: ['classifier:catalog_installation_assessment_quote'],
     })
   }
 
@@ -551,6 +666,7 @@ export const classifyInboundMessage = ({
     looksLikeCustomerSupportServiceRequest(normalizedInput, {
       recentTurns,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
     })
   ) {
     return buildClassification({
@@ -561,7 +677,13 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (looksLikeQuoteExpansionFollowUp(normalizedInput, tenantTopicTaxonomy)) {
+  if (
+    looksLikeQuoteExpansionFollowUp(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+    )
+  ) {
     return buildClassification({
       category: 'price_inquiry',
       confidence: 0.9,
@@ -570,7 +692,13 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (looksLikeStructuredQuoteSeed(normalizedInput, tenantTopicTaxonomy)) {
+  if (
+    looksLikeStructuredQuoteSeed(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+    )
+  ) {
     return buildClassification({
       category: 'price_inquiry',
       confidence: 0.91,
@@ -580,18 +708,24 @@ export const classifyInboundMessage = ({
   }
 
   if (
-    looksLikeOpeningStructureSignal(input) &&
+    looksLikeCatalogStructureSignal(input, tenantRuntimePolicy) &&
     (DIMENSION_PAIR_REGEX.test(normalizedInput) || looksLikeGenericPriceInquiry(normalizedInput))
   ) {
     return buildClassification({
       category: 'price_inquiry',
       confidence: 0.9,
       suggestedIntent: 'customer.quote',
-      decisionPath: ['classifier:opening_structure_quote'],
+      decisionPath: ['classifier:catalog_structure_quote'],
     })
   }
 
-  if (looksLikeInstalledReplacementAssessmentRequest(normalizedInput)) {
+  if (
+    looksLikeInstalledReplacementAssessmentRequest(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+    )
+  ) {
     return buildClassification({
       category: 'price_inquiry',
       confidence: 0.9,
@@ -627,7 +761,13 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (looksLikeInstallationQuoteContext(normalizedInput)) {
+  if (
+    looksLikeInstallationQuoteContext(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+    )
+  ) {
     return buildClassification({
       category: 'price_inquiry',
       confidence: 0.9,
@@ -636,7 +776,11 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (looksLikeCustomerScheduleAvailabilityRequest(normalizedInput)) {
+  if (
+    looksLikeCustomerScheduleAvailabilityRequest(normalizedInput, {
+      tenantRuntimePolicy,
+    })
+  ) {
     return buildClassification({
       category: 'schedule_request',
       confidence: 0.91,
@@ -672,7 +816,7 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (INCOMPLETE_PATTERNS.some((pattern) => pattern.test(normalizedInput))) {
+  if (looksLikeIncompleteSeedSignal(normalizedInput)) {
     return buildClassification({
       category: 'incomplete',
       confidence: 0.92,
@@ -690,7 +834,10 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (CONTACT_PATTERNS.some((pattern) => pattern.test(normalizedInput)) || looksLikeCustomerContactQuestion(normalizedInput)) {
+  if (
+    CONTACT_PATTERNS.some((pattern) => pattern.test(normalizedInput)) ||
+    looksLikeCustomerContactQuestion(normalizedInput, { tenantRuntimePolicy })
+  ) {
     return buildClassification({
       category: 'contact',
       confidence: 0.93,
@@ -712,6 +859,15 @@ export const classifyInboundMessage = ({
     })
   }
 
+  if (looksLikeCustomerAvailabilityQuestion(normalizedInput)) {
+    return buildClassification({
+      category: 'faq_topic',
+      confidence: 0.92,
+      suggestedIntent: 'customer.topic_info',
+      decisionPath: ['classifier:faq_topic'],
+    })
+  }
+
   if (looksLikeCustomerTopicQuestion(normalizedInput, { tenantTopicTaxonomy })) {
     return buildClassification({
       category: 'faq_topic',
@@ -721,7 +877,20 @@ export const classifyInboundMessage = ({
     })
   }
 
-  if (GENERIC_HELP_PATTERNS.some((pattern) => pattern.test(normalizedInput))) {
+  if (
+    hasGenericHelpSignal(normalizedInput) &&
+    serviceCapabilityHints.serviceCapabilityHint
+  ) {
+    return buildClassification({
+      category: 'faq_topic',
+      confidence: 0.89,
+      suggestedIntent: 'customer.topic_info',
+      decisionPath: ['classifier:service_capability_question'],
+      semanticHints: serviceCapabilityHints,
+    })
+  }
+
+  if (hasGenericHelpSignal(normalizedInput)) {
     if (!ACTIONABLE_HINTS.test(normalizedInput)) {
       return buildClassification({
         category: 'generic_help_request',
@@ -732,7 +901,12 @@ export const classifyInboundMessage = ({
     }
   }
 
-  if (looksLikeCustomerUnintelligibleText(normalizedInput)) {
+  if (
+    looksLikeCustomerUnintelligibleText(
+      normalizedInput,
+      tenantRuntimePolicy,
+    )
+  ) {
     return buildClassification({
       category: 'unintelligible',
       confidence: 0.95,

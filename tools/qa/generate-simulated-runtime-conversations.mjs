@@ -525,26 +525,7 @@ const buildPrimaryProviderReply = (input) => {
   return "Claro. Contame un poco más y lo vemos.";
 };
 
-const buildGenericKnowledgeItems = (playbookContent) => [
-  {
-    id: "playbook-conversational-guidance",
-    title: "Playbook conversacional derivado de chats reales",
-    scope: "customer_public",
-    sourceType: "curated_document",
-    summary:
-      "Respuestas cortas, un objetivo por turno, continuidad en follow-ups y cambio limpio hacia coordinación operativa.",
-    snippet: compact(playbookContent).slice(0, 220),
-    score: 0.35,
-    metadata: {
-      documentKind: "conversation_playbook",
-      tags: ["conversation_playbook", "response_style"]
-    }
-  }
-];
-
 const buildKnowledgeRouter = (playbookContent) => {
-  const generic = buildGenericKnowledgeItems(playbookContent);
-
   return async (query) => {
     const normalizedQuery = normalize(query);
     const items = [];
@@ -694,7 +675,7 @@ const buildKnowledgeRouter = (playbookContent) => {
     }
 
     return {
-      items: [...items, ...generic]
+      items
     };
   };
 };

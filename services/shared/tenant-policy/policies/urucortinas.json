@@ -1,0 +1,266 @@
+{
+  "tenantKey": "urucortinas",
+  "vocabulary": {
+    "fragmentDescriptors": [
+      "blackout",
+      "screen",
+      "roller",
+      "pvc",
+      "aluminio",
+      "manual",
+      "motorizado",
+      "motorizada",
+      "veneciana",
+      "vertical",
+      "tradicional",
+      "banda",
+      "de enrollar",
+      "cortina",
+      "persiana",
+      "abertura"
+    ],
+    "brandTokens": [
+      "urucortinas"
+    ],
+    "catalogSignalTerms": [
+      "roller",
+      "blackout",
+      "screen",
+      "persiana",
+      "veneciana",
+      "mosquitero",
+      "abertura",
+      "aluminio",
+      "dvh",
+      "monoblock",
+      "probba",
+      "summa",
+      "gala"
+    ],
+    "quoteItemTerms": [
+      "cortina",
+      "cortinas",
+      "roller",
+      "rollers",
+      "persiana",
+      "persianas",
+      "abertura",
+      "aberturas",
+      "ventana",
+      "ventanas",
+      "puerta",
+      "puertas",
+      "estera",
+      "esteras"
+    ],
+    "productContextTerms": [
+      "cortina",
+      "cortinas",
+      "roller",
+      "screen",
+      "blackout",
+      "persiana",
+      "persianas",
+      "abertura",
+      "aberturas",
+      "ventana",
+      "ventanas",
+      "puerta",
+      "puertas",
+      "automatizacion",
+      "automatización"
+    ],
+    "supportComponentTerms": [
+      "cinta",
+      "enrollador",
+      "lama",
+      "panel",
+      "eje",
+      "soporte",
+      "guia",
+      "guía",
+      "polea",
+      "tambor",
+      "motor",
+      "resorte"
+    ],
+    "catalogCarrierTerms": [
+      "abertura",
+      "aberturas",
+      "ventana",
+      "ventanas",
+      "ventanal",
+      "ventanales",
+      "puerta",
+      "puertas",
+      "marco",
+      "marcos",
+      "guia",
+      "guía",
+      "guias",
+      "guías"
+    ],
+    "catalogStructuralTerms": [
+      "corrediza",
+      "corredizas",
+      "oscilobatiente",
+      "mosquitero",
+      "dvh",
+      "pvc",
+      "hierro",
+      "aluminio",
+      "monoblock",
+      "paño",
+      "pano",
+      "hoja",
+      "hojas",
+      "vidrio"
+    ],
+    "catalogStructuralPhrases": [
+      "paño fijo",
+      "pano fijo",
+      "hojas corredizas",
+      "hoja corrediza",
+      "ventana de hierro",
+      "ventana de pvc",
+      "doble vidrio",
+      "serie 20",
+      "serie 25",
+      "serie 30",
+      "ventanales con dvh"
+    ],
+    "topicResolutionFillerTerms": [
+      "serie",
+      "linea",
+      "línea",
+      "lineas",
+      "líneas",
+      "color",
+      "blanco",
+      "blanca",
+      "blancos",
+      "blancas",
+      "negro",
+      "negra",
+      "negros",
+      "negras",
+      "gris",
+      "plateado",
+      "bronce",
+      "configuracion",
+      "configuración",
+      "atributo"
+    ],
+    "variantContextTerms": [
+      "serie",
+      "linea",
+      "línea",
+      "modelo"
+    ],
+    "catalogFamilyLabel": "aberturas",
+    "genericCustomerSignalTerms": [
+      "roller",
+      "blackout",
+      "screen",
+      "persiana",
+      "cortina",
+      "abertura",
+      "dvh",
+      "instalacion",
+      "instalación"
+    ],
+    "faqSignals": {
+      "payment_methods": [
+        "cuenta bancaria",
+        "datos bancarios",
+        "numero de cuenta",
+        "número de cuenta",
+        "cuenta en pesos",
+        "cuenta en dolares",
+        "cuenta en dólares",
+        "pasame la cuenta",
+        "pasame cuenta",
+        "pásame la cuenta",
+        "pásame cuenta"
+      ]
+    },
+    "quoteAttributeFollowUpHints": {
+      "quote_slot_series": [
+        "serie",
+        "linea",
+        "línea"
+      ],
+      "series": [
+        "serie",
+        "linea",
+        "línea"
+      ],
+      "color": [
+        "blanco",
+        "blanca",
+        "blancos",
+        "blancas",
+        "negro",
+        "negra",
+        "negros",
+        "negras",
+        "gris",
+        "plateado",
+        "bronce"
+      ]
+    },
+    "knowledgeStatementPrefixes": [
+      {
+        "match": "dvh",
+        "replacement": "El DVH es"
+      },
+      {
+        "match": "screen",
+        "replacement": "Screen:"
+      },
+      {
+        "match": "blackout",
+        "replacement": "Blackout:"
+      }
+    ]
+  },
+  "businessRules": {
+    "paymentMethods": [
+      "efectivo",
+      "transferencia bancaria",
+      "tarjetas"
+    ],
+    "installationTerms": [
+      "instalacion",
+      "instalación",
+      "colocacion",
+      "colocación"
+    ],
+    "lightFilterComparableFamilies": [
+      "roller"
+    ],
+    "lightFilterGuidance": {
+      "translucentOption": "screen",
+      "opaqueOption": "blackout",
+      "comparisonSubject": "control de luz y privacidad"
+    }
+  },
+  "businessFacts": {
+    "contact": [
+      "teléfono",
+      "WhatsApp"
+    ],
+    "businessHours": [
+      "lunes a viernes de 10 a 18 horas",
+      "sábados de 10 a 14"
+    ],
+    "location": [
+      "No contamos con local comercial de atención abierta.",
+      "La atención se coordina por este medio y por visitas planificadas."
+    ]
+  },
+  "conversationState": {
+    "slotAliases": {},
+    "tenantSlots": []
+  }
+}

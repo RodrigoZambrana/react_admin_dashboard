@@ -97,6 +97,24 @@ type KnowledgeDocumentForm = {
     refreshPolicy: 'manual' | 'daily' | 'weekly' | 'on_demand'
 }
 
+type KnowledgeIndexStatusSnapshot = {
+    tenantKey: string
+    runtime: {
+        running: boolean
+        trigger: string | null
+        startedAt: string | null
+        finishedAt: string | null
+        lastSummary: Record<string, unknown> | null
+        lastError: string | null
+    } | null
+    counts: Array<{
+        status: string
+        scope: string
+        count: number
+    }>
+    documentsWithoutChunks: number
+}
+
 const initialFilters: DocumentFilters = {
     search: '',
     scope: 'all',
@@ -205,6 +223,8 @@ const AiKnowledgeDocuments = () => {
     const [documentForm, setDocumentForm] = useState<KnowledgeDocumentForm>(
         initialKnowledgeDocumentForm,
     )
+    const [indexStatus, setIndexStatus] =
+        useState<KnowledgeIndexStatusSnapshot | null>(null)
 
     const fetchDocuments = useCallback(async () => {
         setLoading(true)
@@ -240,9 +260,13 @@ const AiKnowledgeDocuments = () => {
                         ? filters.hasEmbedding === 'true'
                         : undefined,
             }
-            const response = await AiKnowledgeService.listDocuments(params)
+            const [response, indexResponse] = await Promise.all([
+                AiKnowledgeService.listDocuments(params),
+                AiKnowledgeService.getIndexStatus(),
+            ])
             setItems(response.data.items)
             setTotal(response.data.total)
+            setIndexStatus(indexResponse.data)
         } catch (error) {
             console.error(error)
             toast.push(
@@ -476,12 +500,16 @@ const AiKnowledgeDocuments = () => {
     const reindexDocuments = useCallback(async () => {
         setActionLoading('index')
         try {
-            const response = await AiKnowledgeService.indexDocuments()
+            const response = await AiKnowledgeService.runIndexBatch({
+                selection: 'pending',
+                background: true,
+            })
             await fetchDocuments()
             toast.push(
-                <Notification title="Retrieval reindexado" type="success">
-                    Se actualizaron {response.data.indexed} documentos aprobados para búsqueda
-                    semántica.
+                <Notification title="Reindexado lanzado" type="success">
+                    {response.data.background
+                        ? 'El batch de reindexado quedó corriendo en background.'
+                        : `Se actualizaron ${response.data.indexed ?? 0} documentos aprobados.`}
                 </Notification>,
                 { placement: 'top-end' },
             )
@@ -489,6 +517,35 @@ const AiKnowledgeDocuments = () => {
             console.error(error)
             toast.push(
                 <Notification title="No fue posible reindexar" type="danger">
+                    Revisa disponibilidad del backend e intenta nuevamente.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setActionLoading(null)
+        }
+    }, [fetchDocuments])
+
+    const retryFailedDocuments = useCallback(async () => {
+        setActionLoading('retry-failed')
+        try {
+            const response = await AiKnowledgeService.runIndexBatch({
+                selection: 'failed',
+                background: true,
+            })
+            await fetchDocuments()
+            toast.push(
+                <Notification title="Retry de fallidos lanzado" type="success">
+                    {response.data.background
+                        ? 'Se reintentará la indexación de documentos fallidos en background.'
+                        : `Se reprocesaron ${response.data.indexed ?? 0} documentos.`}
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } catch (error) {
+            console.error(error)
+            toast.push(
+                <Notification title="No fue posible reintentar fallidos" type="danger">
                     Revisa disponibilidad del backend e intenta nuevamente.
                 </Notification>,
                 { placement: 'top-end' },
@@ -762,12 +819,25 @@ const AiKnowledgeDocuments = () => {
             {
                 header: 'Índice',
                 accessorKey: 'hasEmbedding',
-                cell: (props) =>
-                    props.row.original.hasEmbedding ? (
-                        <Badge className="bg-emerald-50 text-emerald-700">indexado</Badge>
-                    ) : (
-                        <Badge className="bg-amber-50 text-amber-700">sin índice</Badge>
-                    ),
+                cell: (props) => {
+                    const chunkIndex = props.row.original.chunkIndex
+                    const statusClassName =
+                        chunkIndex.status === 'completed'
+                            ? 'bg-emerald-50 text-emerald-700'
+                            : chunkIndex.status === 'failed'
+                              ? 'bg-rose-50 text-rose-700'
+                              : chunkIndex.status === 'processing'
+                                ? 'bg-sky-50 text-sky-700'
+                                : 'bg-amber-50 text-amber-700'
+                    return (
+                        <div className="flex flex-col gap-1">
+                            <Badge className={statusClassName}>{chunkIndex.status}</Badge>
+                            <div className="text-xs text-gray-500">
+                                {chunkIndex.chunkCount} chunks
+                            </div>
+                        </div>
+                    )
+                },
             },
             {
                 header: 'Actualizado',
@@ -798,6 +868,28 @@ const AiKnowledgeDocuments = () => {
                                 ABM operativo del contenido aprobado. Aquí vive el material curado,
                                 subido o promovido que realmente puede reutilizar el sistema.
                             </p>
+                            <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-500">
+                                <Badge className="bg-slate-100 text-slate-700">
+                                    {indexStatus?.runtime?.running
+                                        ? 'reindexando'
+                                        : 'batch inactivo'}
+                                </Badge>
+                                <Badge className="bg-amber-50 text-amber-700">
+                                    sin chunks: {indexStatus?.documentsWithoutChunks ?? 0}
+                                </Badge>
+                                <Badge className="bg-emerald-50 text-emerald-700">
+                                    completos:{' '}
+                                    {indexStatus?.counts.find(
+                                        (entry) => entry.status === 'completed',
+                                    )?.count ?? 0}
+                                </Badge>
+                                <Badge className="bg-rose-50 text-rose-700">
+                                    fallidos:{' '}
+                                    {indexStatus?.counts.find(
+                                        (entry) => entry.status === 'failed',
+                                    )?.count ?? 0}
+                                </Badge>
+                            </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <Button
@@ -820,7 +912,14 @@ const AiKnowledgeDocuments = () => {
                                 onClick={() => void reindexDocuments()}
                                 data-testid="ai-knowledge-index"
                             >
-                                Reindexar retrieval
+                                Reindexar pendientes
+                            </Button>
+                            <Button
+                                variant="default"
+                                loading={actionLoading === 'retry-failed'}
+                                onClick={() => void retryFailedDocuments()}
+                            >
+                                Retry fallidos
                             </Button>
                             <Button
                                 variant="default"
@@ -1704,6 +1803,27 @@ const AiKnowledgeDocuments = () => {
                                                 ? `${selectedDocument.embedding.model} · ${selectedDocument.embedding.dimensions}D`
                                                 : 'sin índice'}
                                         </div>
+                                        <div>
+                                            <span className="font-medium text-gray-900">
+                                                Estado chunks:
+                                            </span>{' '}
+                                            {selectedDocument.chunkIndex.status} ·{' '}
+                                            {selectedDocument.chunkIndex.chunkCount} chunks
+                                        </div>
+                                        <div>
+                                            <span className="font-medium text-gray-900">
+                                                Última indexación:
+                                            </span>{' '}
+                                            {formatDateTime(selectedDocument.chunkIndex.indexedAt)}
+                                        </div>
+                                        {selectedDocument.chunkIndex.error ? (
+                                            <div className="text-rose-600">
+                                                <span className="font-medium text-rose-700">
+                                                    Error indexación:
+                                                </span>{' '}
+                                                {selectedDocument.chunkIndex.error}
+                                            </div>
+                                        ) : null}
                                         {selectedDocument.sourceType === 'web_url' ? (
                                             <>
                                                 <div>

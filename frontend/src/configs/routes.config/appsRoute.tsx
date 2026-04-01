@@ -137,6 +137,17 @@ const baseAppsRoute: Routes = [
         },
     },
     {
+        key: 'appsCrm.conversationsDebug',
+        path: `${APP_PREFIX_PATH}/crm/conversations/debug/:conversationId?`,
+        component: lazy(() => import('@/views/crm/ConversationDebug')),
+        authority: getRolesForFeature(FEATURES.CUSTOMERS),
+        meta: {
+            pageContainerType: 'gutterless',
+            footer: false,
+            header: 'Mensajes Debug',
+        },
+    },
+    {
         key: 'appsCrm.conversationsLegacy',
         path: `${APP_PREFIX_PATH}/crm/conversations-v2`,
         component: lazy(() => import('@/views/crm/Conversations')),

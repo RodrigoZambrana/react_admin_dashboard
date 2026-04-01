@@ -1,7 +1,7 @@
 export const ACTION_REGISTRY = {
-  'aberturas.register': {
-    key: 'aberturas.register',
-    draftBuilder: 'buildAberturasRegisterDraft',
+  'catalog.register_structured_items': {
+    key: 'catalog.register_structured_items',
+    draftBuilder: 'buildStructuredCatalogRegisterDraft',
     requiresConfirmation: true,
   },
   'appointments.create': {

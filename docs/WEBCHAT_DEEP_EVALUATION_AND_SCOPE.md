@@ -36,6 +36,10 @@ Piezas cerradas:
 
 - `conversationContext` explícito como capa superior del hilo
 - `supportContext` explícito, alineado con `quoteContext` y `scheduleContext`
+- bloque compacto de contexto LLM reutilizable para:
+  - interpretación
+  - `decision assist`
+  - modo conversacional
 - clasificación de modo conversacional:
   - `small_talk`
   - `exploration`
@@ -52,6 +56,13 @@ Reglas que quedan fijadas:
 
 - memoria/contexto no dependen obligatoriamente de una llamada al provider
 - la IA puede interpretar y recomendar, pero no decidir libremente negocio
+- antes de llamar al provider no se manda solo turno crudo:
+  - se manda resumen operativo
+  - tarea vigente
+  - hilo activo
+  - hechos conocidos
+  - último mensaje/pregunta del sistema
+  - historial reciente compacto
 - la respuesta final puede variar por perfil de canal:
   - `chat`
   - `email`

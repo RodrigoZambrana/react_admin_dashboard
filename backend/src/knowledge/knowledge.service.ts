@@ -1,8 +1,15 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common'
 import {
   ConversationChannel,
   ConversationMessageAuthorType,
   ConversationScope,
+  KnowledgeChunkIndexStatus,
   KnowledgeConversationBundleStatus,
   KnowledgeCandidateStatus,
   KnowledgeDerivedArtifactStatus,
@@ -56,6 +63,10 @@ import { ReviewKnowledgeNegativeExampleDto } from './dto/review-knowledge-negati
 import { RefreshKnowledgeUrlDocumentsDto } from './dto/refresh-knowledge-url-documents.dto'
 import { GetKnowledgeQuoteProfilesAdminDto } from './dto/get-knowledge-quote-profiles-admin.dto'
 import { UpsertKnowledgeQuoteProfilesDto } from './dto/upsert-knowledge-quote-profiles.dto'
+import {
+  buildKnowledgeDocumentChunks,
+  KNOWLEDGE_RETRIEVAL_MAX_CHUNK_DOCUMENTS,
+} from './knowledge-chunking'
 
 const DOC_SOURCES = [
   'product.md',
@@ -67,7 +78,6 @@ const DOC_SOURCES = [
 ]
 
 const KNOWLEDGE_URL_REFRESH_POLICIES = ['manual', 'daily', 'weekly', 'on_demand'] as const
-
 type KnowledgeUrlRefreshPolicy =
   (typeof KNOWLEDGE_URL_REFRESH_POLICIES)[number]
 
@@ -350,6 +360,42 @@ type KnowledgeSuggestionFeedbackMetrics = KnowledgeSuggestionFeedbackCounts & {
   discardRate: number
 }
 
+type KnowledgeReindexSelection = 'all' | 'pending' | 'failed'
+
+type KnowledgeReindexBatchInput = {
+  tenantKey?: string
+  scope?: string
+  documentIds?: string[]
+  selection?: KnowledgeReindexSelection
+  batchSize?: number
+  trigger?: 'manual' | 'scheduled'
+}
+
+type KnowledgeReindexBatchSummary = {
+  tenantKey: string
+  trigger: 'manual' | 'scheduled'
+  selection: KnowledgeReindexSelection
+  batchSize: number
+  indexed: number
+  chunksIndexed: number
+  completed: number
+  failed: number
+  retries: number
+  processedDocumentIds: string[]
+  failedDocumentIds: string[]
+  startedAt: string
+  finishedAt: string
+}
+
+type KnowledgeReindexRuntimeState = {
+  running: boolean
+  trigger: 'manual' | 'scheduled' | null
+  startedAt: string | null
+  finishedAt: string | null
+  lastSummary: KnowledgeReindexBatchSummary | null
+  lastError: string | null
+}
+
 type PaginatedKnowledgeList<T> = {
   items: T[]
   total: number
@@ -463,20 +509,83 @@ type KnowledgeWebPageAnalysis = {
 }
 
 @Injectable()
-export class KnowledgeService {
+export class KnowledgeService implements OnModuleInit, OnModuleDestroy {
+  private autoReindexTimer: NodeJS.Timeout | null = null
+  private reindexPromise: Promise<KnowledgeReindexBatchSummary> | null = null
+  private reindexRuntimeState: KnowledgeReindexRuntimeState = {
+    running: false,
+    trigger: null,
+    startedAt: null,
+    finishedAt: null,
+    lastSummary: null,
+    lastError: null,
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly embeddings: KnowledgeEmbeddingsService,
   ) {}
 
+  onModuleInit() {
+    if (!this.isAutoChunkReindexEnabled()) {
+      return
+    }
+
+    const intervalMs = this.getAutoChunkReindexIntervalMs()
+    this.autoReindexTimer = setInterval(() => {
+      void this.startKnowledgeReindexBatch(
+        {
+          selection: 'pending',
+          batchSize: this.getChunkIndexBatchSize(),
+          trigger: 'scheduled',
+        },
+        null,
+        { background: true },
+      )
+    }, intervalMs)
+
+    void this.startKnowledgeReindexBatch(
+      {
+        selection: 'pending',
+        batchSize: this.getChunkIndexBatchSize(),
+        trigger: 'scheduled',
+      },
+      null,
+      { background: true },
+    )
+  }
+
+  onModuleDestroy() {
+    if (this.autoReindexTimer) {
+      clearInterval(this.autoReindexTimer)
+      this.autoReindexTimer = null
+    }
+  }
+
   async getOverview(tenantKey?: string) {
     const resolvedTenantKey = this.resolveTenantKey(tenantKey)
-    const [documentCounts, candidateCounts, rawEventCounts, runCounts, feedbackCounts] =
+    const [
+      documentCounts,
+      chunkIndexCounts,
+      candidateCounts,
+      rawEventCounts,
+      runCounts,
+      feedbackCounts,
+    ] =
       await Promise.all([
       this.prisma.knowledgeDocument.groupBy({
         by: ['status', 'sourceType', 'scope'],
         where: { tenantKey: resolvedTenantKey },
+        _count: { _all: true },
+      }),
+      this.prisma.knowledgeDocument.groupBy({
+        by: ['chunkIndexStatus', 'scope'],
+        where: {
+          tenantKey: resolvedTenantKey,
+          status: KnowledgeDocumentStatus.ACTIVE,
+          approvedAt: { not: null },
+        },
         _count: { _all: true },
       }),
       this.prisma.knowledgeCandidate.groupBy({
@@ -532,6 +641,14 @@ export class KnowledgeService {
         scope: this.normalizeEnum(entry.scope),
         count: entry._count._all,
       })),
+      chunkIndexing: {
+        statuses: chunkIndexCounts.map((entry) => ({
+          status: this.normalizeOptionalEnum(entry.chunkIndexStatus),
+          scope: this.normalizeEnum(entry.scope),
+          count: entry._count._all,
+        })),
+        runtime: this.reindexRuntimeState,
+      },
       candidates: candidateCounts.map((entry) => ({
         status: this.normalizeEnum(entry.status),
         scope: this.normalizeEnum(entry.scope),
@@ -1851,10 +1968,11 @@ export class KnowledgeService {
 
     const normalizedQuery = this.normalizeKnowledgeText(queryText)
     const queryVector = normalizedQuery
-      ? this.embeddings.projectQuery(queryText)
+      ? await this.embeddings.projectQuery(queryText)
       : []
-    const ranked = approvedCandidates
-      .map((candidate) => {
+    const ranked = (
+      await Promise.all(
+        approvedCandidates.map(async (candidate) => {
         const responseText =
           candidate.approvedResponse ??
           candidate.suggestedResponse ??
@@ -1914,7 +2032,7 @@ export class KnowledgeService {
 
         const semanticVector =
           normalizedQuery && lexicalHaystack.trim()
-            ? this.embeddings.projectQuery(lexicalHaystack)
+            ? await this.embeddings.projectQuery(lexicalHaystack)
             : []
         const semanticScore =
           queryVector.length && semanticVector.length
@@ -1956,7 +2074,9 @@ export class KnowledgeService {
             reviewedAt: candidate.reviewedAt,
           },
         }
-      })
+        }),
+      )
+    )
       .filter((item): item is NonNullable<typeof item> => Boolean(item))
       .sort((left, right) => {
         if (left.score !== right.score) {
@@ -2165,10 +2285,141 @@ export class KnowledgeService {
     const tenantKey = this.resolveTenantKey(query.tenantKey)
     const search = query.query.trim()
     const limit = Math.min(Math.max(query.limit ?? 5, 1), 10)
+    const maxChunksPerQuery = this.getRetrievalMaxChunksPerQuery(limit)
+    const rerankWindow = this.getRetrievalRerankWindow(maxChunksPerQuery)
+    const scoreThreshold = this.getRetrievalScoreThreshold()
     const scopes =
       query.scope?.trim() === 'customer_public'
         ? [KnowledgeDocumentScope.CUSTOMER_PUBLIC]
         : [KnowledgeDocumentScope.ADMIN_INTERNAL, KnowledgeDocumentScope.CUSTOMER_PUBLIC]
+
+    const queryProjection =
+      typeof this.embeddings.projectQueryProjection === 'function'
+        ? await this.embeddings.projectQueryProjection(search)
+        : {
+            provider: 'local',
+            model: 'local-hash-v1',
+            dimensions: 0,
+            vector: await this.embeddings.projectQuery(search),
+            contentHash: '',
+            latencyMs: 0,
+            cacheHit: false,
+            providerError: null,
+          }
+    const queryVector = Array.isArray(queryProjection?.vector)
+      ? queryProjection.vector
+      : await this.embeddings.projectQuery(search)
+    const embeddingMode =
+      typeof this.embeddings.describeProjectionMode === 'function'
+        ? this.embeddings.describeProjectionMode(queryProjection)
+        : {
+            provider: 'local',
+            mode: 'fallback',
+            model: 'local-hash-v1',
+            dimensions: Array.isArray(queryVector) ? queryVector.length : 0,
+          }
+    const queryEmbedding = {
+      ...embeddingMode,
+      latencyMs:
+        typeof queryProjection?.latencyMs === 'number'
+          ? queryProjection.latencyMs
+          : null,
+      cacheHit: queryProjection?.cacheHit === true,
+      providerError:
+        typeof queryProjection?.providerError === 'string'
+          ? queryProjection.providerError
+          : null,
+    }
+
+    const persistedChunks = await this.prisma.knowledgeDocumentChunk.findMany({
+      where: {
+        tenantKey,
+        scope: { in: scopes },
+        document: {
+          status: KnowledgeDocumentStatus.ACTIVE,
+          approvedAt: { not: null },
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
+      take: Math.max(rerankWindow * 12, 120),
+      include: {
+        document: {
+          select: {
+            id: true,
+            title: true,
+            summary: true,
+            content: true,
+            tags: true,
+            metadata: true,
+            sourceType: true,
+            scope: true,
+            updatedAt: true,
+          },
+        },
+      },
+    })
+
+    const rankedPersistedChunks = this.rankPersistedKnowledgeChunks(
+      persistedChunks,
+      search,
+      queryVector,
+    )
+    const selectedPersistedChunks = this.selectKnowledgeChunkResults(
+      rankedPersistedChunks,
+      {
+        limit: maxChunksPerQuery,
+        rerankWindow,
+        scoreThreshold,
+      },
+    )
+
+    if (selectedPersistedChunks.length > 0) {
+      return {
+        tenantKey,
+        query: search,
+        scope:
+          query.scope?.trim() === 'customer_public'
+            ? 'customer_public'
+            : 'admin_internal',
+        retrievalMode: 'chunk',
+        embeddingMode,
+        queryEmbedding,
+        retrievalControls: {
+          maxChunksPerQuery,
+          rerankWindow,
+          scoreThreshold,
+        },
+        retrievalDiagnostics: {
+          candidateCount: rankedPersistedChunks.length,
+          selectedCount: selectedPersistedChunks.length,
+          diversifiedDocuments: Array.from(
+            new Set(selectedPersistedChunks.map((entry) => entry.chunk.documentId)),
+          ).length,
+          fallbackUsed: false,
+        },
+        items: selectedPersistedChunks.map((entry) =>
+          this.buildKnowledgeRetrievalItem(entry.chunk.document, search, {
+            score: entry.score,
+            lexicalScore: entry.lexicalScore,
+            vectorScore: entry.vectorScore,
+            retrievalMode: 'chunk',
+            chunk: {
+              id: entry.chunk.chunkKey,
+              index: entry.chunk.chunkIndex,
+              text: entry.chunk.content,
+              charStart: entry.chunk.charStart,
+              charEnd: entry.chunk.charEnd,
+            },
+            embedding: {
+              provider: entry.chunk.provider,
+              model: entry.chunk.model,
+              dimensions: entry.chunk.dimensions,
+              indexedAt: entry.chunk.updatedAt,
+            },
+          }),
+        ),
+      }
+    }
 
     const documents = await this.prisma.knowledgeDocument.findMany({
       where: {
@@ -2178,7 +2429,7 @@ export class KnowledgeService {
         scope: { in: scopes },
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
-      take: 2000,
+      take: Math.max(rerankWindow * 8, 80),
       include: {
         embedding: {
           select: {
@@ -2191,9 +2442,7 @@ export class KnowledgeService {
         },
       },
     })
-
-    const queryVector = this.embeddings.projectQuery(search)
-    const ranked = documents
+    const rankedDocuments = documents
       .map((document) => ({
         document,
         lexicalScore: this.scoreDocument(document, search),
@@ -2223,7 +2472,34 @@ export class KnowledgeService {
         }
         return right.document.updatedAt.getTime() - left.document.updatedAt.getTime()
       })
-      .slice(0, limit)
+    const rankedChunks = this.rankKnowledgeDocumentChunks(rankedDocuments, search)
+    const selectedRankedChunks = this.selectKnowledgeChunkResults(rankedChunks, {
+      limit: maxChunksPerQuery,
+      rerankWindow,
+      scoreThreshold,
+    })
+    const selectedRankedDocuments = rankedDocuments
+      .filter((entry) => entry.score >= scoreThreshold)
+      .slice(0, maxChunksPerQuery)
+    const items =
+      selectedRankedChunks.length > 0
+        ? selectedRankedChunks.map((entry) =>
+            this.buildKnowledgeRetrievalItem(entry.document, search, {
+              score: entry.score,
+              lexicalScore: entry.lexicalScore,
+              vectorScore: entry.vectorScore,
+              chunk: entry.chunk,
+              retrievalMode: 'chunked_document',
+            }),
+          )
+        : selectedRankedDocuments.map((entry) =>
+            this.buildKnowledgeRetrievalItem(entry.document, search, {
+              score: entry.score,
+              lexicalScore: entry.lexicalScore,
+              vectorScore: entry.vectorScore,
+              retrievalMode: 'document',
+            }),
+          )
 
     return {
       tenantKey,
@@ -2232,60 +2508,25 @@ export class KnowledgeService {
         query.scope?.trim() === 'customer_public'
           ? 'customer_public'
           : 'admin_internal',
-      items: ranked.map(({ document, score, lexicalScore, vectorScore }) => {
-        const metadata = this.asRecord(document.metadata)
-        return {
-          id: document.id,
-          title: document.title,
-          scope: this.normalizeEnum(document.scope),
-          sourceType: this.normalizeEnum(document.sourceType),
-          summary: document.summary ?? null,
-          snippet: this.buildSnippet(document.content, search),
-          tags: document.tags ?? [],
-          score,
-          lexicalScore,
-          vectorScore,
-          embedding:
-            document.embedding != null
-              ? {
-                  provider: document.embedding.provider,
-                  model: document.embedding.model,
-                  dimensions: document.embedding.dimensions,
-                  indexedAt: document.embedding.updatedAt,
-                }
-              : null,
-          metadata: {
-            documentKind:
-              typeof metadata?.documentKind === 'string'
-                ? String(metadata.documentKind)
-                : null,
-            factType:
-              typeof metadata?.factType === 'string'
-                ? String(metadata.factType)
-                : null,
-            factValue:
-              typeof metadata?.factValue === 'string'
-                ? String(metadata.factValue)
-                : null,
-            topicType:
-              typeof metadata?.topicType === 'string'
-                ? String(metadata.topicType)
-                : null,
-            pageKinds: Array.isArray(metadata?.pageKinds)
-              ? metadata.pageKinds
-                  .filter((entry): entry is string => typeof entry === 'string')
-                  .slice(0, 6)
-              : [],
-            url:
-              typeof metadata?.url === 'string'
-                ? String(metadata.url)
-                : typeof metadata?.derivedFromUrl === 'string'
-                  ? String(metadata.derivedFromUrl)
-                  : null,
-          },
-          updatedAt: document.updatedAt,
-        }
-      }),
+      retrievalMode:
+        selectedRankedChunks.length > 0 ? 'chunked_document' : 'document',
+      embeddingMode,
+      queryEmbedding,
+      retrievalControls: {
+        maxChunksPerQuery,
+        rerankWindow,
+        scoreThreshold,
+      },
+      retrievalDiagnostics: {
+        candidateCount:
+          selectedRankedChunks.length > 0 ? rankedChunks.length : rankedDocuments.length,
+        selectedCount: items.length,
+        diversifiedDocuments: Array.from(
+          new Set(items.map((item) => String(item.documentId || item.id || ''))),
+        ).filter(Boolean).length,
+        fallbackUsed: selectedRankedChunks.length === 0,
+      },
+      items,
     }
   }
 
@@ -2880,7 +3121,7 @@ export class KnowledgeService {
       },
     })
 
-    await this.embeddings.indexDocument(document)
+    await this.indexApprovedKnowledgeDocument(document.id)
     await this.syncKnowledgeDerivedArtifactsForDocument(document)
     return this.getDocumentById(document.id)
   }
@@ -2936,7 +3177,7 @@ export class KnowledgeService {
       updated.status === KnowledgeDocumentStatus.ACTIVE &&
       updated.approvedAt
     ) {
-      await this.embeddings.indexDocument(updated)
+      await this.indexApprovedKnowledgeDocument(updated.id)
     }
 
     await this.syncKnowledgeDerivedArtifactsForDocument(updated)
@@ -3462,7 +3703,7 @@ export class KnowledgeService {
         },
       })
 
-      await this.embeddings.indexDocument(publicDocument)
+      await this.indexApprovedKnowledgeDocument(publicDocument.id)
       ingestedDocuments.push(await this.getDocumentById(publicDocument.id))
 
       const internalSummary = [
@@ -3515,7 +3756,7 @@ export class KnowledgeService {
         },
       })
 
-      await this.embeddings.indexDocument(internalDocument)
+      await this.indexApprovedKnowledgeDocument(internalDocument.id)
       ingestedDocuments.push(await this.getDocumentById(internalDocument.id))
     }
 
@@ -3591,7 +3832,7 @@ export class KnowledgeService {
         },
       })
 
-      await this.embeddings.indexDocument(document)
+      await this.indexApprovedKnowledgeDocument(document.id)
       ingestedDocuments.push(await this.getDocumentById(document.id))
     }
 
@@ -3738,7 +3979,7 @@ export class KnowledgeService {
           approvedAt: new Date(),
         },
       })
-      await this.embeddings.indexDocument(createdDocument)
+      await this.indexApprovedKnowledgeDocument(createdDocument.id)
       promotedDocument = await this.getDocumentById(createdDocument.id)
     }
 
@@ -4084,9 +4325,286 @@ export class KnowledgeService {
   }
 
   async indexDocuments(input: IndexKnowledgeDocumentsDto, _actorUserId: number) {
+    return this.startKnowledgeReindexBatch(
+      {
+        tenantKey: input.tenantKey,
+        scope: input.scope,
+        documentIds: input.documentIds,
+        selection: input.selection,
+        batchSize: input.batchSize,
+        trigger: 'manual',
+      },
+      _actorUserId ?? null,
+      {
+        background: input.background === true && !input.documentIds?.length,
+      },
+    )
+  }
+
+  async getKnowledgeIndexStatus(tenantKey?: string) {
+    const resolvedTenantKey = this.resolveTenantKey(tenantKey)
+    const counts = await this.prisma.knowledgeDocument.groupBy({
+      by: ['chunkIndexStatus', 'scope'],
+      where: {
+        tenantKey: resolvedTenantKey,
+        status: KnowledgeDocumentStatus.ACTIVE,
+        approvedAt: { not: null },
+      },
+      _count: { _all: true },
+    })
+    const documentsWithoutChunks = await this.prisma.knowledgeDocument.count({
+      where: {
+        tenantKey: resolvedTenantKey,
+        status: KnowledgeDocumentStatus.ACTIVE,
+        approvedAt: { not: null },
+        chunkCount: 0,
+      },
+    })
+
+    return {
+      tenantKey: resolvedTenantKey,
+      runtime: this.reindexRuntimeState,
+      counts: counts.map((entry) => ({
+        status: this.normalizeOptionalEnum(entry.chunkIndexStatus),
+        scope: this.normalizeEnum(entry.scope),
+        count: entry._count._all,
+      })),
+      documentsWithoutChunks,
+    }
+  }
+
+  private async startKnowledgeReindexBatch(
+    input: KnowledgeReindexBatchInput,
+    actorUserId: number | null,
+    options: { background?: boolean } = {},
+  ) {
+    const background = options.background === true
     const tenantKey = this.resolveTenantKey(input.tenantKey)
+    const selection = this.normalizeKnowledgeReindexSelection(input.selection)
+    const batchSize = this.normalizeKnowledgeIndexBatchSize(input.batchSize)
+    const trigger = input.trigger || 'manual'
+
+    if (background) {
+      if (!this.reindexPromise) {
+        this.reindexRuntimeState = {
+          running: true,
+          trigger,
+          startedAt: new Date().toISOString(),
+          finishedAt: null,
+          lastSummary: this.reindexRuntimeState.lastSummary,
+          lastError: null,
+        }
+        this.reindexPromise = this.processKnowledgeReindexBatch(
+          {
+            ...input,
+            tenantKey,
+            selection,
+            batchSize,
+            trigger,
+          },
+          actorUserId,
+        )
+          .then((summary) => {
+            this.reindexRuntimeState = {
+              running: false,
+              trigger,
+              startedAt: summary.startedAt,
+              finishedAt: summary.finishedAt,
+              lastSummary: summary,
+              lastError: null,
+            }
+            return summary
+          })
+          .catch((error) => {
+            this.reindexRuntimeState = {
+              running: false,
+              trigger,
+              startedAt: this.reindexRuntimeState.startedAt,
+              finishedAt: new Date().toISOString(),
+              lastSummary: this.reindexRuntimeState.lastSummary,
+              lastError: error instanceof Error ? error.message : String(error),
+            }
+            throw error
+          })
+          .finally(() => {
+            this.reindexPromise = null
+          })
+      }
+
+      return {
+        tenantKey,
+        started: true,
+        background: true,
+        selection,
+        batchSize,
+        runtime: this.reindexRuntimeState,
+      }
+    }
+
+    const summary = await this.processKnowledgeReindexBatch(
+      {
+        ...input,
+        tenantKey,
+        selection,
+        batchSize,
+        trigger,
+      },
+      actorUserId,
+    )
+
+    this.reindexRuntimeState = {
+      running: false,
+      trigger,
+      startedAt: summary.startedAt,
+      finishedAt: summary.finishedAt,
+      lastSummary: summary,
+      lastError: null,
+    }
+
+    return summary
+  }
+
+  private async processKnowledgeReindexBatch(
+    input: Required<
+      Pick<KnowledgeReindexBatchInput, 'tenantKey' | 'selection' | 'batchSize' | 'trigger'>
+    > &
+      Pick<KnowledgeReindexBatchInput, 'scope' | 'documentIds'>,
+    actorUserId: number | null,
+  ): Promise<KnowledgeReindexBatchSummary> {
+    const startedAt = new Date()
+    const candidateIds = await this.listKnowledgeDocumentIdsForIndexing(input)
+    let indexed = 0
+    let chunksIndexed = 0
+    let completed = 0
+    let failed = 0
+    let retries = 0
+    const processedDocumentIds: string[] = []
+    const failedDocumentIds: string[] = []
+
+    for (let index = 0; index < candidateIds.length; index += input.batchSize) {
+      const batch = candidateIds.slice(index, index + input.batchSize)
+      const documents = await this.prisma.knowledgeDocument.findMany({
+        where: { id: { in: batch.map((entry) => entry.id) } },
+        select: {
+          tenantKey: true,
+          id: true,
+          scope: true,
+          sourceType: true,
+          status: true,
+          title: true,
+          summary: true,
+          content: true,
+          tags: true,
+          metadata: true,
+          approvedAt: true,
+          updatedAt: true,
+          chunkIndexStatus: true,
+        },
+      })
+
+      for (const document of documents) {
+        const wasRetry = document.chunkIndexStatus === KnowledgeChunkIndexStatus.FAILED
+        try {
+          await this.prisma.knowledgeDocument.update({
+            where: { id: document.id },
+            data: {
+              chunkIndexStatus: KnowledgeChunkIndexStatus.PROCESSING,
+              chunkIndexRequestedAt: startedAt,
+              chunkIndexStartedAt: new Date(),
+              chunkIndexAttempts: {
+                increment: 1,
+              },
+              chunkIndexError: null,
+            },
+          })
+          const result = await this.embeddings.indexDocument(document)
+          const indexedAt = new Date()
+          await this.prisma.knowledgeDocument.update({
+            where: { id: document.id },
+            data: {
+              chunkIndexStatus: KnowledgeChunkIndexStatus.COMPLETED,
+              chunkCount: Number(result?.chunksIndexed || 0),
+              chunkIndexedAt: indexedAt,
+              chunkIndexStartedAt: null,
+              chunkIndexError: null,
+            },
+          })
+          await this.syncKnowledgeDerivedArtifactsForDocument(document)
+          indexed += 1
+          chunksIndexed += Number(result?.chunksIndexed || 0)
+          completed += 1
+          if (wasRetry) {
+            retries += 1
+          }
+          processedDocumentIds.push(document.id)
+        } catch (error) {
+          failed += 1
+          failedDocumentIds.push(document.id)
+          await this.prisma.knowledgeDocument.update({
+            where: { id: document.id },
+            data: {
+              chunkIndexStatus: KnowledgeChunkIndexStatus.FAILED,
+              chunkIndexStartedAt: null,
+              chunkIndexError: this.truncateText(
+                error instanceof Error ? error.message : String(error),
+                500,
+              ),
+            },
+          })
+        }
+      }
+    }
+
+    const finishedAt = new Date()
+
+    return {
+      tenantKey: input.tenantKey,
+      trigger: input.trigger,
+      selection: input.selection,
+      batchSize: input.batchSize,
+      indexed,
+      chunksIndexed,
+      completed,
+      failed,
+      retries,
+      processedDocumentIds,
+      failedDocumentIds,
+      startedAt: startedAt.toISOString(),
+      finishedAt: finishedAt.toISOString(),
+    }
+  }
+
+  private async listKnowledgeDocumentIdsForIndexing(
+    input: Pick<
+      KnowledgeReindexBatchInput,
+      'tenantKey' | 'scope' | 'documentIds' | 'selection'
+    >,
+  ) {
+    const where = this.buildKnowledgeIndexWhere(input)
+    const documents = await this.prisma.knowledgeDocument.findMany({
+      where,
+      select: {
+        id: true,
+        chunkIndexStatus: true,
+      },
+      orderBy: [
+        { chunkIndexedAt: 'asc' },
+        { updatedAt: 'asc' },
+      ],
+      take: 10_000,
+    })
+
+    return documents
+  }
+
+  private buildKnowledgeIndexWhere(
+    input: Pick<
+      KnowledgeReindexBatchInput,
+      'tenantKey' | 'scope' | 'documentIds' | 'selection'
+    >,
+  ): Prisma.KnowledgeDocumentWhereInput {
     const where: Prisma.KnowledgeDocumentWhereInput = {
-      tenantKey,
+      tenantKey: this.resolveTenantKey(input.tenantKey),
       status: KnowledgeDocumentStatus.ACTIVE,
       approvedAt: { not: null },
     }
@@ -4097,27 +4615,130 @@ export class KnowledgeService {
 
     if (input.documentIds?.length) {
       where.id = { in: input.documentIds }
+      return where
     }
 
-    const documents = await this.prisma.knowledgeDocument.findMany({
-      where,
+    const selection = this.normalizeKnowledgeReindexSelection(input.selection)
+    if (selection === 'pending') {
+      where.OR = [
+        { chunkIndexStatus: KnowledgeChunkIndexStatus.PENDING },
+        { chunkIndexedAt: null },
+        { chunkCount: 0 },
+      ]
+    } else if (selection === 'failed') {
+      where.chunkIndexStatus = KnowledgeChunkIndexStatus.FAILED
+    }
+
+    return where
+  }
+
+  private async indexApprovedKnowledgeDocument(documentId: string) {
+    const document = await this.prisma.knowledgeDocument.findUnique({
+      where: { id: documentId },
       select: {
+        tenantKey: true,
         id: true,
+        scope: true,
+        sourceType: true,
         title: true,
         summary: true,
         content: true,
         tags: true,
+        metadata: true,
+        status: true,
+        approvedAt: true,
       },
-      take: 500,
     })
 
-    const result = await this.embeddings.indexDocuments(documents)
-
-    return {
-      tenantKey,
-      indexed: result.indexed,
-      documentIds: documents.map((document) => document.id),
+    if (
+      !document ||
+      document.status !== KnowledgeDocumentStatus.ACTIVE ||
+      !document.approvedAt
+    ) {
+      return null
     }
+
+    await this.prisma.knowledgeDocument.update({
+      where: { id: document.id },
+      data: {
+        chunkIndexStatus: KnowledgeChunkIndexStatus.PROCESSING,
+        chunkIndexRequestedAt: new Date(),
+        chunkIndexStartedAt: new Date(),
+        chunkIndexAttempts: {
+          increment: 1,
+        },
+        chunkIndexError: null,
+      },
+    })
+
+    try {
+      const result = await this.embeddings.indexDocument(document)
+      await this.prisma.knowledgeDocument.update({
+        where: { id: document.id },
+        data: {
+          chunkIndexStatus: KnowledgeChunkIndexStatus.COMPLETED,
+          chunkCount: Number(result?.chunksIndexed || 0),
+          chunkIndexedAt: new Date(),
+          chunkIndexStartedAt: null,
+          chunkIndexError: null,
+        },
+      })
+      return result
+    } catch (error) {
+      await this.prisma.knowledgeDocument.update({
+        where: { id: document.id },
+        data: {
+          chunkIndexStatus: KnowledgeChunkIndexStatus.FAILED,
+          chunkIndexStartedAt: null,
+          chunkIndexError: this.truncateText(
+            error instanceof Error ? error.message : String(error),
+            500,
+          ),
+        },
+      })
+      throw error
+    }
+  }
+
+  private normalizeKnowledgeReindexSelection(
+    selection?: KnowledgeReindexBatchInput['selection'],
+  ): KnowledgeReindexSelection {
+    if (selection === 'all' || selection === 'failed') {
+      return selection
+    }
+    return 'pending'
+  }
+
+  private normalizeKnowledgeIndexBatchSize(value?: number | null) {
+    if (
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      value > 0
+    ) {
+      return Math.min(Math.max(Math.trunc(value), 1), 200)
+    }
+    return this.getChunkIndexBatchSize()
+  }
+
+  private getChunkIndexBatchSize() {
+    const raw = Number(this.config.get('KNOWLEDGE_CHUNK_REINDEX_BATCH_SIZE') ?? 25)
+    return Number.isFinite(raw) && raw > 0 ? Math.min(Math.trunc(raw), 200) : 25
+  }
+
+  private isAutoChunkReindexEnabled() {
+    const raw = String(
+      this.config.get('KNOWLEDGE_CHUNK_REINDEX_AUTO_ENABLED') ?? 'false',
+    )
+      .trim()
+      .toLowerCase()
+    return raw === '1' || raw === 'true' || raw === 'yes'
+  }
+
+  private getAutoChunkReindexIntervalMs() {
+    const raw = Number(
+      this.config.get('KNOWLEDGE_CHUNK_REINDEX_INTERVAL_MS') ?? 300_000,
+    )
+    return Number.isFinite(raw) && raw >= 60_000 ? raw : 300_000
   }
 
   private async collectSnapshotInputs(
@@ -5167,6 +5788,14 @@ export class KnowledgeService {
     scope: KnowledgeDocumentScope
     sourceType: KnowledgeSourceType
     status: KnowledgeDocumentStatus
+    chunkIndexStatus: KnowledgeChunkIndexStatus
+    chunkIndexVersion: number
+    chunkCount: number
+    chunkIndexAttempts: number
+    chunkIndexedAt: Date | null
+    chunkIndexRequestedAt?: Date | null
+    chunkIndexStartedAt?: Date | null
+    chunkIndexError?: string | null
     sourceKey: string
     title: string
     summary: string | null
@@ -5196,6 +5825,16 @@ export class KnowledgeService {
       scope: this.normalizeEnum(document.scope),
       sourceType: this.normalizeEnum(document.sourceType),
       status: this.normalizeEnum(document.status),
+      chunkIndex: {
+        status: this.normalizeOptionalEnum(document.chunkIndexStatus),
+        version: document.chunkIndexVersion,
+        chunkCount: document.chunkCount,
+        attempts: document.chunkIndexAttempts,
+        indexedAt: document.chunkIndexedAt,
+        requestedAt: document.chunkIndexRequestedAt ?? null,
+        startedAt: document.chunkIndexStartedAt ?? null,
+        error: document.chunkIndexError ?? null,
+      },
       originCategory,
       contentType,
       hasEmbedding: document.embedding != null,
@@ -7498,9 +8137,10 @@ export class KnowledgeService {
 
       return {
         ...item,
-        aliases: Array.from(
-          new Set([...item.aliases, ...derivedAliases]),
-        ).sort(),
+        aliases: this.sanitizeTenantTopicAliases(
+          Array.from(new Set([...item.aliases, ...derivedAliases])).sort(),
+          item,
+        ),
       }
     })
   }
@@ -7800,7 +8440,12 @@ export class KnowledgeService {
         key: item.key,
         label: item.label,
         kind: item.kind,
-        aliases: Array.from(item.aliases).sort(),
+        aliases: this.sanitizeTenantTopicAliases(Array.from(item.aliases), {
+          kind: item.kind,
+          label: item.label,
+          familyLabel: resolvedFamilyLabel,
+          parentLabels,
+        }),
         normalizationValue: item.normalizationValue ?? null,
         parentKeys,
         parentLabels,
@@ -8316,7 +8961,12 @@ export class KnowledgeService {
       key,
       label,
       kind,
-      aliases: Array.from(aliases).sort(),
+      aliases: this.sanitizeTenantTopicAliases(Array.from(aliases), {
+        kind,
+        label,
+        familyLabel,
+        parentLabels,
+      }),
       normalizationValue,
       parentKeys: Array.from(new Set(parentKeys)).sort(),
       parentLabels: Array.from(new Set(parentLabels)).sort(),
@@ -8368,11 +9018,70 @@ export class KnowledgeService {
     if (typeof input.metadata?.factKey === 'string') {
       addAlias(String(input.metadata.factKey))
     }
-    for (const tag of input.tags) {
-      addAlias(tag)
+    if (Array.isArray(input.metadata?.aliases)) {
+      for (const alias of input.metadata.aliases) {
+        addAlias(String(alias || ''))
+      }
+    }
+    if (Array.isArray(input.metadata?.topicAliases)) {
+      for (const alias of input.metadata.topicAliases) {
+        addAlias(String(alias || ''))
+      }
     }
 
     return Array.from(aliases)
+  }
+
+  private sanitizeTenantTopicAliases(
+    aliases: string[],
+    item: {
+      kind: TenantTopicTaxonomyKind
+      label: string
+      familyLabel?: string | null
+      parentLabels?: string[]
+    },
+  ) {
+    const familyLabel = this.normalizeKnowledgeSignalText(item.familyLabel || '')
+    const parentLabels = new Set(
+      Array.isArray(item.parentLabels)
+        ? item.parentLabels
+            .map((value) => this.normalizeKnowledgeSignalText(value))
+            .filter(Boolean)
+        : [],
+    )
+    const normalizedLabel = this.normalizeKnowledgeSignalText(item.label)
+
+    return Array.from(
+      new Set(
+        aliases.filter((alias) => {
+          const normalized = this.normalizeKnowledgeSignalText(alias)
+          if (!normalized || this.isTopicTaxonomyGenericAlias(normalized)) {
+            return false
+          }
+          if (
+            item.kind !== 'product_family' &&
+            familyLabel &&
+            normalized === familyLabel
+          ) {
+            return false
+          }
+          if (
+            (item.kind === 'product_topic' || item.kind === 'product_variant') &&
+            parentLabels.has(normalized)
+          ) {
+            return false
+          }
+          if (
+            item.kind === 'product_variant' &&
+            normalizedLabel &&
+            normalized === normalizedLabel
+          ) {
+            return true
+          }
+          return true
+        }),
+      ),
+    ).sort()
   }
 
   private resolveTenantTopicNormalizationValue(input: {
@@ -8416,7 +9125,10 @@ export class KnowledgeService {
       if (!current) {
         merged.set(item.key, {
           ...item,
-          aliases: Array.from(new Set(item.aliases)).sort(),
+          aliases: this.sanitizeTenantTopicAliases(
+            Array.from(new Set(item.aliases)).sort(),
+            item,
+          ),
           parentKeys: Array.from(new Set(item.parentKeys)).sort(),
           parentLabels: Array.from(new Set(item.parentLabels)).sort(),
           tags: Array.from(new Set(item.tags)).sort(),
@@ -8429,7 +9141,17 @@ export class KnowledgeService {
         ...current,
         label: current.label || item.label,
         kind: current.kind || item.kind,
-        aliases: Array.from(new Set([...current.aliases, ...item.aliases])).sort(),
+        aliases: this.sanitizeTenantTopicAliases(
+          Array.from(new Set([...current.aliases, ...item.aliases])).sort(),
+          {
+            kind: current.kind || item.kind,
+            label: current.label || item.label,
+            familyLabel: current.familyLabel || item.familyLabel || null,
+            parentLabels: Array.from(
+              new Set([...current.parentLabels, ...item.parentLabels]),
+            ).sort(),
+          },
+        ),
         normalizationValue:
           current.normalizationValue || item.normalizationValue || null,
         parentKeys: Array.from(
@@ -8484,9 +9206,15 @@ export class KnowledgeService {
   }
 
   private isTopicTaxonomyGenericAlias(value: string) {
-    return new Set([
+    const normalized = this.normalizeKnowledgeSignalText(value)
+    if (!normalized) {
+      return true
+    }
+
+    if (new Set([
       'product topic',
       'product variant',
+      'product family',
       'product page',
       'faq page',
       'contact page',
@@ -8495,7 +9223,19 @@ export class KnowledgeService {
       'website url',
       'derived web fact',
       'source',
-    ]).has(this.normalizeKnowledgeSignalText(value))
+      'customer',
+      'topic',
+      'family',
+      'variant',
+    ]).has(normalized)) {
+      return true
+    }
+
+    return (
+      /^quote requires? /.test(normalized) ||
+      /^quote slot /.test(normalized) ||
+      /^quote (?:close|closure|handoff)/.test(normalized)
+    )
   }
 
   private asRecord(value: unknown): Record<string, unknown> | null {
@@ -8515,6 +9255,13 @@ export class KnowledgeService {
   }
 
   private normalizeEnum(input: string) {
+    return input.toLowerCase()
+  }
+
+  private normalizeOptionalEnum(input?: string | null) {
+    if (typeof input !== 'string' || !input.trim()) {
+      return null
+    }
     return input.toLowerCase()
   }
 
@@ -8662,6 +9409,14 @@ export class KnowledgeService {
       : fallback
   }
 
+  private truncateText(value: string, maxLength: number) {
+    const text = String(value || '').trim()
+    if (!text || text.length <= maxLength) {
+      return text || null
+    }
+    return `${text.slice(0, Math.max(maxLength - 3, 0)).trimEnd()}...`
+  }
+
   private compareSortValues(left: unknown, right: unknown) {
     if (left == null && right == null) {
       return 0
@@ -8741,6 +9496,371 @@ export class KnowledgeService {
     score += this.scoreProductDocument(document, normalizedSearch)
 
     return score
+  }
+
+  private buildKnowledgeDocumentChunks(document: {
+    id: string
+    content: string
+  }) {
+    return buildKnowledgeDocumentChunks(document)
+  }
+
+  private rankKnowledgeDocumentChunks(
+    rankedDocuments: Array<{
+      document: {
+        id: string
+        title: string
+        summary: string | null
+        content: string
+        tags: string[]
+        metadata?: Prisma.JsonValue | null
+        sourceType: KnowledgeSourceType
+        scope: KnowledgeDocumentScope
+        updatedAt: Date
+        embedding?: {
+          provider: string
+          model: string
+          dimensions: number
+          updatedAt: Date
+        } | null
+      }
+      score: number
+      lexicalScore: number
+      vectorScore: number
+    }>,
+    search: string,
+  ) {
+    const rankedChunks = rankedDocuments
+      .slice(0, KNOWLEDGE_RETRIEVAL_MAX_CHUNK_DOCUMENTS)
+      .flatMap((entry) =>
+        this.buildKnowledgeDocumentChunks(entry.document).map((chunk) => {
+          const chunkLexicalScore = this.scoreDocument(
+            {
+              title: entry.document.title,
+              summary: entry.document.summary ?? chunk.text.slice(0, 320),
+              content: chunk.text,
+              tags: entry.document.tags ?? [],
+              metadata: entry.document.metadata ?? null,
+            },
+            search,
+          )
+          const score =
+            chunkLexicalScore +
+            Math.max(entry.vectorScore, 0) * 2 +
+            Math.max(Math.min(entry.lexicalScore, 10), 0) * 0.25 +
+            0.75
+          return {
+            ...entry,
+            chunk,
+            lexicalScore: chunkLexicalScore,
+            score: Number(score.toFixed(4)),
+          }
+        }),
+      )
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => {
+        if (left.score !== right.score) {
+          return right.score - left.score
+        }
+        return right.document.updatedAt.getTime() - left.document.updatedAt.getTime()
+      })
+    const seenDocumentIds = new Set<string>()
+
+    return rankedChunks.filter((entry) => {
+      if (seenDocumentIds.has(entry.document.id)) {
+        return false
+      }
+      seenDocumentIds.add(entry.document.id)
+      return true
+    })
+  }
+
+  private rankPersistedKnowledgeChunks(
+    persistedChunks: Array<{
+      chunkKey: string
+      documentId: string
+      sourceType: KnowledgeSourceType
+      chunkIndex: number
+      charStart: number
+      charEnd: number
+      content: string
+      vector: Prisma.JsonValue
+      provider: string
+      model: string
+      dimensions: number
+      updatedAt: Date
+      document: {
+        id: string
+        title: string
+        summary: string | null
+        content: string
+        tags: string[]
+        metadata: Prisma.JsonValue | null
+        sourceType: KnowledgeSourceType
+        scope: KnowledgeDocumentScope
+        updatedAt: Date
+      }
+      tags: string[]
+      metadata: Prisma.JsonValue | null
+    }>,
+    search: string,
+    queryVector: number[],
+  ) {
+    return persistedChunks
+      .map((chunk) => {
+        const lexicalScore = this.scoreDocument(
+          {
+            title: chunk.document.title,
+            summary: chunk.document.summary ?? chunk.content.slice(0, 320),
+            content: chunk.content,
+            tags: chunk.tags ?? chunk.document.tags ?? [],
+            metadata: chunk.metadata ?? chunk.document.metadata ?? null,
+          },
+          search,
+        )
+        const vectorScore = Array.isArray(chunk.vector)
+          ? this.embeddings.cosineSimilarity(queryVector, chunk.vector as number[])
+          : 0
+        const score =
+          lexicalScore +
+          vectorScore * 8 +
+          (lexicalScore > 0 &&
+          (chunk.sourceType === KnowledgeSourceType.DOCS ||
+            chunk.sourceType === KnowledgeSourceType.WEB_URL ||
+            chunk.sourceType === KnowledgeSourceType.ADMIN_CURATED)
+            ? 2
+            : 0) +
+          0.75
+        return {
+          chunk,
+          lexicalScore,
+          vectorScore,
+          score: Number(score.toFixed(4)),
+        }
+      })
+      .filter((entry) => entry.score > 0)
+      .sort((left, right) => {
+        if (left.score !== right.score) {
+          return right.score - left.score
+        }
+        return right.chunk.updatedAt.getTime() - left.chunk.updatedAt.getTime()
+      })
+  }
+
+  private selectKnowledgeChunkResults<
+    T extends {
+      score: number
+      document?: {
+        id: string
+      }
+    },
+  >(
+    entries: T[],
+    options: {
+      limit: number
+      rerankWindow: number
+      scoreThreshold: number
+    },
+  ) {
+    const windowed = entries
+      .filter((entry) => entry.score >= options.scoreThreshold)
+      .slice(0, Math.max(options.rerankWindow, options.limit))
+
+    if (windowed.length <= options.limit) {
+      return windowed.slice(0, options.limit)
+    }
+
+    const selected: T[] = []
+    const usedDocumentIds = new Set<string>()
+
+    for (const entry of windowed) {
+      const documentId = entry.document?.id
+      if (documentId && usedDocumentIds.has(documentId)) {
+        continue
+      }
+      selected.push(entry)
+      if (documentId) {
+        usedDocumentIds.add(documentId)
+      }
+      if (selected.length >= options.limit) {
+        break
+      }
+    }
+
+    if (selected.length < options.limit) {
+      for (const entry of windowed) {
+        if (selected.includes(entry)) {
+          continue
+        }
+        selected.push(entry)
+        if (selected.length >= options.limit) {
+          break
+        }
+      }
+    }
+
+    return selected.slice(0, options.limit)
+  }
+
+  private getRetrievalMaxChunksPerQuery(limit: number) {
+    const raw = Number(
+      this.config.get('KNOWLEDGE_RETRIEVAL_MAX_CHUNKS_PER_QUERY') ?? 5,
+    )
+    const configured =
+      Number.isFinite(raw) && raw > 0 ? Math.min(Math.trunc(raw), 10) : 5
+    return Math.min(configured, Math.max(limit, 1))
+  }
+
+  private getRetrievalRerankWindow(finalLimit: number) {
+    const raw = Number(
+      this.config.get('KNOWLEDGE_RETRIEVAL_RERANK_WINDOW') ?? 20,
+    )
+    const configured =
+      Number.isFinite(raw) && raw > 0 ? Math.min(Math.trunc(raw), 100) : 20
+    return Math.max(configured, finalLimit)
+  }
+
+  private getRetrievalScoreThreshold() {
+    const raw = Number(
+      this.config.get('KNOWLEDGE_RETRIEVAL_SCORE_THRESHOLD') ?? 1.1,
+    )
+    return Number.isFinite(raw) ? raw : 1.1
+  }
+
+  private buildKnowledgeRetrievalItem(
+    document: {
+      id: string
+      title: string
+      summary: string | null
+      content: string
+      tags: string[]
+      metadata?: Prisma.JsonValue | null
+      sourceType: KnowledgeSourceType
+      scope: KnowledgeDocumentScope
+      updatedAt: Date
+      embedding?: {
+        provider: string
+        model: string
+        dimensions: number
+        updatedAt: Date
+      } | null
+    },
+    search: string,
+    options: {
+      score: number
+      lexicalScore: number
+      vectorScore: number
+      retrievalMode: 'document' | 'chunked_document' | 'chunk'
+      chunk?: {
+        id: string
+        index: number
+        text: string
+        charStart: number
+        charEnd: number
+      }
+      embedding?: {
+        provider: string
+        model: string
+        dimensions: number
+        indexedAt: Date
+      }
+    },
+  ) {
+    const metadata = this.asRecord(document.metadata)
+    const snippetSource = options.chunk?.text || document.content
+    const embeddingRecord = options.embedding ?? document.embedding ?? null
+    const embeddingIndexedAt =
+      embeddingRecord && typeof embeddingRecord === 'object'
+        ? 'indexedAt' in embeddingRecord
+          ? embeddingRecord.indexedAt
+          : 'updatedAt' in embeddingRecord
+            ? embeddingRecord.updatedAt
+            : null
+        : null
+    const embeddingMode =
+      typeof this.embeddings.describeProjectionMode === 'function'
+        ? this.embeddings.describeProjectionMode(embeddingRecord)
+        : {
+            provider:
+              typeof embeddingRecord?.provider === 'string'
+                ? embeddingRecord.provider
+                : 'local',
+            mode:
+              embeddingRecord?.provider === 'openai' ? 'semantic' : 'fallback',
+            model:
+              typeof embeddingRecord?.model === 'string'
+                ? embeddingRecord.model
+                : 'local-hash-v1',
+            dimensions:
+              typeof embeddingRecord?.dimensions === 'number'
+                ? embeddingRecord.dimensions
+                : 0,
+          }
+
+    return {
+      id: document.id,
+      documentId: document.id,
+      title: document.title,
+      scope: this.normalizeEnum(document.scope),
+      sourceType: this.normalizeEnum(document.sourceType),
+      summary: document.summary ?? null,
+      snippet: this.buildSnippet(snippetSource, search),
+      content: snippetSource.slice(0, 1800),
+      tags: document.tags ?? [],
+      score: options.score,
+      lexicalScore: options.lexicalScore,
+      vectorScore: options.vectorScore,
+      retrievalMode: options.retrievalMode,
+      embedding:
+        embeddingRecord != null
+          ? {
+              provider: embeddingMode.provider,
+              mode: embeddingMode.mode,
+              model: embeddingMode.model,
+              dimensions: embeddingMode.dimensions,
+              indexedAt: embeddingIndexedAt,
+            }
+          : null,
+      metadata: {
+        documentKind:
+          typeof metadata?.documentKind === 'string'
+            ? String(metadata.documentKind)
+            : null,
+        factType:
+          typeof metadata?.factType === 'string'
+            ? String(metadata.factType)
+            : null,
+        factValue:
+          typeof metadata?.factValue === 'string'
+            ? String(metadata.factValue)
+            : null,
+        topicType:
+          typeof metadata?.topicType === 'string'
+            ? String(metadata.topicType)
+            : null,
+        pageKinds: Array.isArray(metadata?.pageKinds)
+          ? metadata.pageKinds
+              .filter((entry): entry is string => typeof entry === 'string')
+              .slice(0, 6)
+          : [],
+        url:
+          typeof metadata?.url === 'string'
+            ? String(metadata.url)
+            : typeof metadata?.derivedFromUrl === 'string'
+              ? String(metadata.derivedFromUrl)
+              : null,
+      },
+      chunk: options.chunk
+        ? {
+            id: options.chunk.id,
+            index: options.chunk.index,
+            charStart: options.chunk.charStart,
+            charEnd: options.chunk.charEnd,
+            charLength: options.chunk.text.length,
+          }
+        : null,
+      updatedAt: document.updatedAt,
+    }
   }
 
   private scoreBusinessFaqDocument(
@@ -10372,7 +11492,7 @@ export class KnowledgeService {
       } as any,
     })
 
-    await this.embeddings.indexDocument(document)
+    await this.indexApprovedKnowledgeDocument(document.id)
     await this.syncKnowledgeDerivedArtifactsForDocument(document)
     return document
   }

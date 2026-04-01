@@ -10,6 +10,45 @@ const toJson = async (response) => {
   }
 }
 
+const ACTION_KEY_ALIASES = Object.freeze({
+  'aberturas.register': 'catalog.register_structured_items',
+  'aberturas.prepare_quote': 'catalog.prepare_structured_quote',
+  'aberturas.parse': 'catalog.parse_structured_items',
+})
+
+const TOOL_NAME_ALIASES = Object.freeze({
+  prepare_aberturas_insert: 'prepare_structured_catalog_insert',
+  prepare_aberturas_quote: 'prepare_structured_catalog_quote',
+  parse_aberturas: 'parse_structured_catalog_items',
+})
+
+const normalizeActionKey = (value) =>
+  ACTION_KEY_ALIASES[String(value || '').trim()] || String(value || '').trim() || null
+
+const normalizeToolName = (value) =>
+  TOOL_NAME_ALIASES[String(value || '').trim()] || String(value || '').trim() || null
+
+const normalizeActionCatalogEntry = (entry = null) => {
+  if (!entry || typeof entry !== 'object') {
+    return entry
+  }
+
+  return {
+    ...entry,
+    key: normalizeActionKey(entry.key),
+    toolName: normalizeToolName(entry.toolName),
+    allowedTools: Array.isArray(entry.allowedTools)
+      ? entry.allowedTools.map((toolName) => normalizeToolName(toolName))
+      : entry.allowedTools,
+    forbiddenIntents: Array.isArray(entry.forbiddenIntents)
+      ? entry.forbiddenIntents.map((intentKey) => normalizeActionKey(intentKey))
+      : entry.forbiddenIntents,
+    requiresConfirmation: Array.isArray(entry.requiresConfirmation)
+      ? entry.requiresConfirmation.map((toolName) => normalizeToolName(toolName))
+      : entry.requiresConfirmation,
+  }
+}
+
 export class BackendAiClient {
   constructor(config) {
     this.baseUrl = config.backendBaseUrl.replace(/\/$/, '')
@@ -43,7 +82,12 @@ export class BackendAiClient {
       )
     }
 
-    return response.json()
+    const payload = await response.json()
+    return Array.isArray(payload)
+      ? payload.map(normalizeActionCatalogEntry)
+      : Array.isArray(payload?.items)
+        ? { ...payload, items: payload.items.map(normalizeActionCatalogEntry) }
+        : payload
   }
 
   async getActions() {
@@ -459,12 +503,24 @@ export class BackendAiClient {
     return this.post('/ai/aberturas/parse', payload)
   }
 
+  async parseStructuredCatalogItems(payload) {
+    return this.parseAberturas(payload)
+  }
+
   async prepareAberturasInsert(payload) {
     return this.post('/ai/aberturas/prepare-insert', payload)
   }
 
+  async prepareStructuredCatalogInsert(payload) {
+    return this.prepareAberturasInsert(payload)
+  }
+
   async prepareAberturasQuote(payload) {
     return this.post('/ai/aberturas/prepare-quote', payload)
+  }
+
+  async prepareStructuredCatalogQuote(payload) {
+    return this.prepareAberturasQuote(payload)
   }
 
   async extractAssets(payload) {

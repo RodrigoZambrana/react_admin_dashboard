@@ -9,8 +9,11 @@ import {
   validateMetaWebhookVerification,
 } from './meta.webhook.js'
 
-const createAdapter = () =>
-  new MetaAdapter(
+const createAdapter = ({ respond, options = {} } = {}) => {
+  const aiCalls = []
+  const replies = []
+
+  const adapter = new MetaAdapter(
     {
       conversations: {
         ingestInboundMessage: async (payload) => ({
@@ -18,22 +21,29 @@ const createAdapter = () =>
           controlMode: 'ai',
           payload,
         }),
-        replyAsAgent: async (conversationId, payload) => ({
-          conversationId,
-          payload,
-        }),
+        replyAsAgent: async (conversationId, payload) => {
+          replies.push({ conversationId, payload })
+          return { conversationId, payload }
+        },
       },
       ai: {
-        respond: async () => ({
-          response: {
-            finalUserText: 'Respuesta automática',
-            provider: 'mock',
-            model: 'mock-model',
-            toolCalls: [],
-            needsHuman: false,
-            grounding: null,
-          },
-        }),
+        respond: async (payload) => {
+          aiCalls.push(payload)
+          if (typeof respond === 'function') {
+            return respond(payload, { aiCalls, replies })
+          }
+
+          return {
+            response: {
+              finalUserText: 'Respuesta automática',
+              provider: 'mock',
+              model: 'mock-model',
+              toolCalls: [],
+              needsHuman: false,
+              grounding: null,
+            },
+          }
+        },
       },
     },
     {
@@ -57,8 +67,12 @@ const createAdapter = () =>
       },
       quietWindowMs: 10,
       maxWindowMs: 20,
+      ...options,
     },
   )
+
+  return { adapter, aiCalls, replies }
+}
 
 test('validateMetaWebhookVerification returns challenge when token matches', () => {
   const params = new URLSearchParams({
@@ -155,7 +169,7 @@ test('extractMetaWebhookEvents maps Instagram attachments and postbacks', () => 
 })
 
 test('MetaAdapter handleWebhook processes message events and skips status events', async () => {
-  const adapter = createAdapter()
+  const { adapter } = createAdapter()
 
   const result = await adapter.handleWebhook({
     object: 'page',
@@ -190,7 +204,7 @@ test('MetaAdapter handleWebhook processes message events and skips status events
 })
 
 test('MetaAdapter sendOutbound delegates to sender', async () => {
-  const adapter = createAdapter()
+  const { adapter } = createAdapter()
   const result = await adapter.sendOutbound({
     channel: 'facebook',
     recipientId: 'user-2',
@@ -225,6 +239,57 @@ test('MetaAdapter status exposes readiness and webhook URL', () => {
   assert.equal(status.publicWebhookUrl, 'https://public.example.com/webhooks/meta')
   assert.equal(status.messenger.outboundReady, true)
   assert.equal(status.instagram.outboundReady, true)
+})
+
+test('MetaAdapter coalesces related consecutive fragments into one semantic turn and one AI call', async () => {
+  const { adapter, aiCalls, replies } = createAdapter({
+    respond: async (payload) => ({
+      response: {
+        finalUserText:
+          String(payload.text || '').includes('2x2')
+            ? 'Perfecto, serían dos roller blackout de 2x2. Tomo los datos para cotizarte.'
+            : 'Necesito un dato más.',
+        provider: 'mock',
+        model: 'mock-model',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: null,
+      },
+    }),
+    options: {
+      quietWindowMs: 15,
+      maxWindowMs: 80,
+    },
+  })
+
+  void adapter.handleInboundEvent({
+    tenantKey: 'urucortinas',
+    channel: 'facebook',
+    userId: 'user-1',
+    conversationId: 'conv-meta-fragments',
+    text: 'si, necesito dos',
+    metadata: {},
+  })
+
+  await new Promise((resolve) => setTimeout(resolve, 5))
+
+  await adapter.handleInboundEvent({
+    tenantKey: 'urucortinas',
+    channel: 'facebook',
+    userId: 'user-1',
+    conversationId: 'conv-meta-fragments',
+    text: 'de 2x2',
+    metadata: {},
+  })
+
+  await new Promise((resolve) => setTimeout(resolve, 250))
+
+  assert.equal(aiCalls.length, 1)
+  assert.match(aiCalls[0].text, /si, necesito dos[\s\S]*de 2x2/i)
+  assert.equal(aiCalls[0].metadata?.semanticTurnInputCount, 2)
+  assert.equal(replies.length, 1)
+  assert.equal(replies[0].payload.metadata?.semanticTurnInputCount, 2)
+  assert.match(replies[0].payload.body, /roller blackout de 2x2/i)
 })
 
 test('MetaAdapter ignores disabled platform inbound and blocks outbound', async () => {

@@ -1,11 +1,11 @@
+import { recordProviderCall } from './provider-call-trace.js'
+
 const shouldSearchProducts = (input) =>
   [
     'producto',
-    'cortina',
-    'roller',
-    'persiana',
-    'mosquitero',
-    'abertura',
+    'item',
+    'configuración',
+    'configuracion',
     'precio',
     'catálogo',
   ].some((token) => input.includes(token))
@@ -31,7 +31,14 @@ export class MockProvider {
     role = 'customer_public',
     actionCatalog = [],
     retrievalContext = [],
+    options = {},
   }) {
+    recordProviderCall({
+      method: 'generate',
+      stage: options?.stage || null,
+      provider: this.providerName,
+      model: this.modelName,
+    })
     const normalized = input.trim().toLowerCase()
     let executedToolCalls = []
 
@@ -127,7 +134,13 @@ export class MockProvider {
     }
   }
 
-  async extractStructured() {
+  async extractStructured({ options = {} } = {}) {
+    recordProviderCall({
+      method: 'extractStructured',
+      stage: options?.stage || null,
+      provider: this.providerName,
+      model: this.modelName,
+    })
     return null
   }
 }

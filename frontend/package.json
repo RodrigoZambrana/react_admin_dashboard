@@ -12,6 +12,7 @@
     "prestart": "npm run sync:common",
     "prepreview": "npm run sync:common",
     "lint": "eslint . --ext .ts,.tsx",
+    "lint:conversation-debug": "eslint src/views/crm/ConversationDebug src/services/ConversationsService.ts src/configs/routes.config/appsRoute.tsx src/configs/navigation.config/apps.navigation.config.ts --ext .ts,.tsx",
     "lint:fix": "npm run lint -- --fix",
     "prettier": "npx prettier src --check",
     "prettier:fix": "npm run prettier -- --write",

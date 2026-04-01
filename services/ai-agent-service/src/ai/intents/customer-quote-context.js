@@ -2,7 +2,9 @@ import {
   findBestTenantTopicMatch,
   findTenantTopicMatches,
   isContextualTopicDescriptorMatch,
+  normalizeTenantTopicTaxonomy,
 } from './customer-topic-taxonomy.js'
+import { isGenericQuoteTopicLabel } from './quote-semantics.js'
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
@@ -22,11 +24,10 @@ const DIMENSION_PAIR_SOURCE = `\\b(${DIMENSION_VALUE_SOURCE})\\s*(${DIMENSION_UN
 
 const DIMENSION_PAIR_REGEX = new RegExp(DIMENSION_PAIR_SOURCE, 'iu')
 
-const EXPLICIT_TOTAL_QUANTITY_PATTERNS = [
+const BASE_EXPLICIT_TOTAL_QUANTITY_PATTERNS = [
   /\b(?:por\s+un\s+total\s+de|total\s+de)\s+(\d{1,4})\b/iu,
   /\bson\s+(\d{1,4})\b/iu,
   /\b(\d{1,4})\s+(?:unidades?|items?|item|piezas?)\b/iu,
-  /\b(\d{1,4})\s+(?:cortinas?|rollers?|persianas?|ventanas?|puertas?|aberturas?|esteras?)\b/iu,
 ]
 
 const BARE_QUANTITY_FOLLOW_UP_REGEX =
@@ -49,44 +50,18 @@ const QUOTE_MEASUREMENT_TAG_PATTERNS = [
   /\ba medida\b/,
 ]
 
-const QUOTE_REQUIREMENT_TAG_PATTERNS = [
-  { pattern: /\bquote[\s_-]*requires?[\s_-]*measurements?\b/, field: 'measurements' },
-  { pattern: /\bquote[\s_-]*requires?[\s_-]*quantity\b/, field: 'quantity' },
-  { pattern: /\bquote[\s_-]*requires?[\s_-]*series?\b/, field: 'series' },
-  { pattern: /\bquote[\s_-]*requires?[\s_-]*glass\b/, field: 'glass' },
-  { pattern: /\bquote[\s_-]*requires?[\s_-]*color\b/, field: 'color' },
-]
+const QUOTE_REQUIREMENT_TAG_REGEX = /\bquote[\s_-]*requires?[\s_-]*([a-z0-9_]+)\b/iu
 
-const QUOTE_SLOT_TAG_PATTERNS = [
-  { pattern: /\bquote[\s_-]*slot[\s_-]*series?\b/, field: 'series' },
-  { pattern: /\bquote[\s_-]*slot[\s_-]*glass\b/, field: 'glass' },
-  { pattern: /\bquote[\s_-]*slot[\s_-]*color\b/, field: 'color' },
-]
+const QUOTE_SLOT_TAG_REGEX = /\bquote[\s_-]*slot[\s_-]*([a-z0-9_]+)\b/iu
 
 const QUOTE_HANDOFF_TAG_PATTERNS = [
   /\bquote[\s_-]*(?:close|closure|complete)[\s_-]*handoff\b/,
   /\bquote[\s_-]*handoff\b/,
 ]
 
-const IMPLICIT_SINGLE_ITEM_QUOTE_PATTERNS = [
-  /\b(un|una)\b/iu,
-  /\buna\s+(?:corrediza|batiente|ventana|puerta|cortina|roller|persiana)\b/iu,
-]
+const BASE_IMPLICIT_SINGLE_ITEM_QUOTE_PATTERNS = [/\b(un|una)\b/iu]
 
-const DEFAULT_MEASUREMENT_CARRIER_TERMS = [
-  'ventana',
-  'ventanas',
-  'puerta',
-  'puertas',
-  'vano',
-  'vanos',
-  'hueco',
-  'huecos',
-  'paño',
-  'paños',
-  'pano',
-  'panos',
-]
+const DEFAULT_MEASUREMENT_CARRIER_TERMS = []
 
 const DEFAULT_LINE_ITEM_TERMS = ['unidad', 'unidades', 'item', 'items', 'pieza', 'piezas']
 
@@ -104,6 +79,86 @@ const normalizeQuoteProfileText = (value) =>
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9\s]+/g, ' '),
   )
+
+const sanitizeQuoteTopicCandidate = (topic = null) => {
+  if (!topic || typeof topic !== 'object') {
+    return null
+  }
+
+  const label = compactText(topic.label || '')
+  if (!label || isGenericQuoteTopicLabel(label)) {
+    return null
+  }
+
+  return {
+    ...topic,
+    label,
+    familyLabel: compactText(topic.familyLabel || '') || null,
+  }
+}
+
+const escapeRegex = (value) =>
+  String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+const collectTenantQuantityTargetTerms = ({
+  tenantTopicTaxonomy = [],
+  quantityTargetTerms = [],
+} = {}) =>
+  dedupeNormalizedTexts([
+    ...(Array.isArray(quantityTargetTerms) ? quantityTargetTerms : []),
+    ...normalizeTenantTopicTaxonomy(tenantTopicTaxonomy).flatMap((entry) => [
+      entry?.label,
+      ...(Array.isArray(entry?.aliases) ? entry.aliases : []),
+      ...(Array.isArray(entry?.parentLabels) ? entry.parentLabels : []),
+      entry?.familyLabel,
+    ]),
+  ]).filter((term) => term.length >= 3 && !/^\d+$/u.test(term))
+
+const buildExplicitTotalQuantityPatterns = ({
+  tenantTopicTaxonomy = [],
+  quantityTargetTerms = [],
+} = {}) => {
+  const terms = collectTenantQuantityTargetTerms({
+    tenantTopicTaxonomy,
+    quantityTargetTerms,
+  }).sort((left, right) => right.length - left.length)
+
+  const patterns = [...BASE_EXPLICIT_TOTAL_QUANTITY_PATTERNS]
+  if (terms.length) {
+    patterns.push(
+      new RegExp(
+        `\\b(\\d{1,4})\\s+(?:${terms.map(escapeRegex).join('|')})\\b`,
+        'iu',
+      ),
+    )
+  }
+  patterns.push(
+    /^\s*(?:(?:necesito|quiero|preciso|seria|serian|serían|son)\s+)?(\d{1,4})\s+(?!de\b|del\b|la\b|el\b|los\b|las\b|un\b|una\b)(?:[a-z][a-z0-9-]*)(?:\s+[a-z][a-z0-9-]*){0,2}\b/iu,
+  )
+  return patterns
+}
+
+const buildImplicitSingleItemQuotePatterns = ({
+  tenantTopicTaxonomy = [],
+  quantityTargetTerms = [],
+} = {}) => {
+  const terms = collectTenantQuantityTargetTerms({
+    tenantTopicTaxonomy,
+    quantityTargetTerms,
+  }).sort((left, right) => right.length - left.length)
+
+  if (!terms.length) {
+    return BASE_IMPLICIT_SINGLE_ITEM_QUOTE_PATTERNS
+  }
+
+  return [
+    ...BASE_IMPLICIT_SINGLE_ITEM_QUOTE_PATTERNS,
+    new RegExp(
+      `\\b(?:un|una)\\s+(?:${terms.map(escapeRegex).join('|')})\\b`,
+      'iu',
+    ),
+  ]
+}
 
 const normalizeUnit = (value) => {
   const normalized = normalizeText(value)
@@ -340,10 +395,9 @@ const extractQuoteRequirementFieldsFromTags = (tags = []) => {
   const fields = new Set()
   for (const tag of Array.isArray(tags) ? tags : []) {
     const normalizedTag = normalizeTag(tag)
-    for (const entry of QUOTE_REQUIREMENT_TAG_PATTERNS) {
-      if (entry.pattern.test(normalizedTag)) {
-        fields.add(entry.field)
-      }
+    const match = normalizedTag.match(QUOTE_REQUIREMENT_TAG_REGEX)
+    if (match?.[1]) {
+      fields.add(match[1])
     }
   }
   return Array.from(fields)
@@ -352,10 +406,9 @@ const extractQuoteRequirementFieldsFromTags = (tags = []) => {
 const extractQuoteSlotFieldFromTags = (tags = []) => {
   for (const tag of Array.isArray(tags) ? tags : []) {
     const normalizedTag = normalizeTag(tag)
-    for (const entry of QUOTE_SLOT_TAG_PATTERNS) {
-      if (entry.pattern.test(normalizedTag)) {
-        return entry.field
-      }
+    const match = normalizedTag.match(QUOTE_SLOT_TAG_REGEX)
+    if (match?.[1]) {
+      return match[1]
     }
   }
   return null
@@ -381,6 +434,41 @@ const dedupeNormalizedTexts = (values = []) => {
   }
   return result
 }
+
+const humanizeQuoteAttributeKey = (value = '') =>
+  compactText(
+    String(value || '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim(),
+  )
+
+const buildFallbackQuoteAttributeLabel = (field = '') => {
+  if (field === 'measurements') {
+    return 'las medidas aproximadas (ancho por alto)'
+  }
+  if (field === 'quantity') {
+    return 'cuántas unidades necesitás'
+  }
+
+  const humanized = humanizeQuoteAttributeKey(field)
+  return humanized ? `el dato de ${humanized}` : field
+}
+
+const buildFallbackQuoteAttributeCaptureKind = (field = '') => {
+  if (field === 'measurements') {
+    return 'measurements'
+  }
+  if (field === 'quantity') {
+    return 'quantity'
+  }
+  return 'taxonomy_tag'
+}
+
+const buildFallbackQuoteAttributeTaxonomyTag = (field = '') =>
+  field && field !== 'measurements' && field !== 'quantity'
+    ? `quote_slot_${field}`
+    : null
 
 const normalizeQuoteProfileAttributeOptions = (options = []) =>
   Array.isArray(options)
@@ -584,6 +672,45 @@ const collectTopicMatchSignals = (topic, tenantTopicTaxonomy = []) => {
   }
 }
 
+const buildQuoteThreadTopic = (activeThread = null) => {
+  const label = compactText(
+    activeThread?.resolvedLabel || activeThread?.baseLabel || '',
+  )
+  if (!label || isGenericQuoteTopicLabel(label)) {
+    return null
+  }
+
+  const familyLabel = compactText(activeThread?.familyLabel || '') || null
+
+  return {
+    label,
+    familyLabel,
+    type: compactText(activeThread?.baseType || '') || 'product_topic',
+  }
+}
+
+const resolveRecognizedQuoteTopic = (topic, tenantTopicTaxonomy = []) => {
+  const sanitizedTopic = sanitizeQuoteTopicCandidate(topic)
+  if (!sanitizedTopic?.label) {
+    return null
+  }
+
+  const topicMatch = findBestTenantTopicMatch(sanitizedTopic.label, tenantTopicTaxonomy, {
+    kinds: ['product_family', 'product_topic', 'product_variant'],
+  })
+
+  if (!topicMatch) {
+    return null
+  }
+
+  return {
+    ...sanitizedTopic,
+    familyLabel:
+      compactText(sanitizedTopic.familyLabel || topicMatch.familyLabel || '') || null,
+    type: sanitizedTopic.type || topicMatch.kind || 'unknown',
+  }
+}
+
 const getQuoteProfileSpecificityScore = (profile = null) => {
   const topicKeys = Array.isArray(profile?.appliesToTopicKeys)
     ? profile.appliesToTopicKeys
@@ -605,6 +732,7 @@ const resolveQuoteProfileForContext = ({
   topic = null,
   previousTopic = null,
   previousQuoteContext = null,
+  activeThread = null,
   quoteProfiles = [],
   tenantTopicTaxonomy = [],
 }) => {
@@ -619,6 +747,10 @@ const resolveQuoteProfileForContext = ({
       : null
   const currentSignals = collectTopicMatchSignals(topic, tenantTopicTaxonomy)
   const previousSignals = collectTopicMatchSignals(previousTopic, tenantTopicTaxonomy)
+  const threadSignals = collectTopicMatchSignals(
+    buildQuoteThreadTopic(activeThread),
+    tenantTopicTaxonomy,
+  )
 
   let bestProfile = null
   let bestScore = -1
@@ -669,6 +801,30 @@ const resolveQuoteProfileForContext = ({
     }
     if (profile.familyLabel && previousSignals.familyLabel === profile.familyLabel) {
       score += 8
+    }
+    if (
+      threadSignals.preferredTopicKey &&
+      profileKeySet.has(threadSignals.preferredTopicKey)
+    ) {
+      score += 144
+    }
+    if (
+      threadSignals.preferredTopicLabel &&
+      profileLabelSet.has(threadSignals.preferredTopicLabel)
+    ) {
+      score += 110
+    }
+    if (threadSignals.directKey && profileKeySet.has(threadSignals.directKey)) {
+      score += threadSignals.directKind === 'product_topic' ? 120 : 72
+    }
+    if (threadSignals.keys.some((key) => profileKeySet.has(key))) {
+      score += 72
+    }
+    if (threadSignals.labels.some((label) => profileLabelSet.has(label))) {
+      score += 54
+    }
+    if (profile.familyLabel && threadSignals.familyLabel === profile.familyLabel) {
+      score += 20
     }
 
     const specificity = getQuoteProfileSpecificityScore(profile)
@@ -761,46 +917,12 @@ const buildFallbackQuoteProfile = ({
 
   const attributes = requirements.requiredFields.map((field) => ({
     key: field,
-    label:
-      field === 'measurements'
-        ? 'las medidas aproximadas (ancho por alto)'
-        : field === 'quantity'
-          ? 'cuántas unidades necesitás'
-          : field === 'series'
-            ? 'la serie'
-            : field === 'glass'
-              ? 'el tipo de vidrio'
-              : field === 'color'
-                ? 'el color'
-                : field,
+    label: buildFallbackQuoteAttributeLabel(field),
     required: true,
-    captureKind:
-      field === 'measurements'
-        ? 'measurements'
-        : field === 'quantity'
-          ? 'quantity'
-          : field === 'series'
-            ? 'taxonomy_tag'
-            : field === 'glass'
-              ? 'taxonomy_tag'
-              : 'enum',
-    taxonomyTag:
-      field === 'series'
-        ? 'quote_slot_series'
-        : field === 'glass'
-          ? 'quote_slot_glass'
-          : field === 'color'
-            ? 'quote_slot_color'
-            : null,
+    captureKind: buildFallbackQuoteAttributeCaptureKind(field),
+    taxonomyTag: buildFallbackQuoteAttributeTaxonomyTag(field),
     options: [],
-    subjectPrefix:
-      field === 'series'
-        ? 'serie'
-        : field === 'glass'
-          ? 'con'
-          : field === 'color'
-            ? 'color'
-            : null,
+    subjectPrefix: null,
   }))
 
   return {
@@ -1134,10 +1256,36 @@ const findFirstPatternIndex = (value, patterns = []) => {
   return Number.isFinite(firstIndex) ? firstIndex : null
 }
 
-const extractLineItemQuantity = (line, lineItemTerms = []) => {
-  const match = compactText(line).match(buildLineItemQuantityRegex(lineItemTerms))
+const extractLineItemQuantity = (
+  line,
+  lineItemTerms = [],
+  measurementRawMatch = null,
+) => {
+  const compactLine = compactText(line)
+  const match = compactLine.match(buildLineItemQuantityRegex(lineItemTerms))
   if (!match?.[1]) {
-    return null
+    const normalizedMeasurementRawMatch = compactText(measurementRawMatch)
+    if (!normalizedMeasurementRawMatch) {
+      return null
+    }
+
+    const measurementStartIndex = compactLine.indexOf(normalizedMeasurementRawMatch)
+    if (measurementStartIndex <= 0) {
+      return null
+    }
+
+    const prefix = compactText(compactLine.slice(0, measurementStartIndex))
+    const genericPrefixMatch = prefix.match(/^(?:[-*]\s*)?(\d{1,4})\b(.*)$/iu)
+    if (!genericPrefixMatch?.[1]) {
+      return null
+    }
+
+    const quantity = Number(genericPrefixMatch[1])
+    const descriptor = compactText(genericPrefixMatch[2] || '')
+    const hasDescriptor =
+      descriptor.length > 0 &&
+      /\b[a-záéíóúñ][a-záéíóúñ0-9-]*\b/iu.test(descriptor)
+    return Number.isInteger(quantity) && quantity > 0 && hasDescriptor ? quantity : null
   }
   const parsed = Number(match[1])
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
@@ -1169,7 +1317,11 @@ export const extractCustomerQuotedMeasurementItems = (value, options = {}) => {
 
     items.push({
       ...measurement,
-      quantity: extractLineItemQuantity(line, lineItemTerms),
+      quantity: extractLineItemQuantity(
+        line,
+        lineItemTerms,
+        measurement.rawMatch,
+      ),
       lineNumber: index + 1,
     })
   }
@@ -1249,9 +1401,18 @@ export const extractCustomerQuotedQuantity = (
   const leadText = extractCustomerQuoteLeadText(value)
   const fullText = compactText(value)
   const quantitySearchTargets = dedupeNormalizedTexts([leadText, fullText])
+  const explicitTotalQuantityPatterns = buildExplicitTotalQuantityPatterns({
+    tenantTopicTaxonomy: options?.tenantTopicTaxonomy,
+    quantityTargetTerms: [
+      ...DEFAULT_LINE_ITEM_TERMS,
+      ...DEFAULT_MEASUREMENT_CARRIER_TERMS,
+      ...lineItemTerms,
+      ...(Array.isArray(options?.quantityTargetTerms) ? options.quantityTargetTerms : []),
+    ],
+  })
   let explicitQuantity = null
   for (const sourceText of quantitySearchTargets) {
-    for (const pattern of EXPLICIT_TOTAL_QUANTITY_PATTERNS) {
+    for (const pattern of explicitTotalQuantityPatterns) {
       const match = sourceText.match(pattern)
       if (match?.[1]) {
         const total = Number(match[1])
@@ -1443,6 +1604,8 @@ const sanitizeQuoteProfileAttribute = (attribute) => ({
   required: attribute.required !== false,
   captureKind: attribute.captureKind,
   subjectPrefix: attribute.subjectPrefix || null,
+  taxonomyTag: attribute.taxonomyTag || null,
+  options: normalizeQuoteProfileAttributeOptions(attribute.options),
 })
 
 const resolveQuoteCapturedAttributes = ({
@@ -1513,6 +1676,7 @@ const inferSingleConfiguredItemQuantity = ({
   mentionedTopics = [],
   topic = null,
   tenantTopicTaxonomy = [],
+  quantityTargetTerms = [],
 }) => {
   if (existingQuantity || measurementItems.length !== 1) {
     return null
@@ -1524,9 +1688,10 @@ const inferSingleConfiguredItemQuantity = ({
     return null
   }
 
-  const hasSingularCue = IMPLICIT_SINGLE_ITEM_QUOTE_PATTERNS.some((pattern) =>
-    pattern.test(leadText),
-  )
+  const hasSingularCue = buildImplicitSingleItemQuotePatterns({
+    tenantTopicTaxonomy,
+    quantityTargetTerms,
+  }).some((pattern) => pattern.test(leadText))
   if (!hasSingularCue) {
     return null
   }
@@ -1563,31 +1728,54 @@ export const buildCustomerQuoteContext = ({
   topic = null,
   previousTopic = null,
   previousQuoteContext = null,
+  activeThread = null,
   tenantTopicTaxonomy = [],
   tenantQuoteProfiles = [],
 }) => {
+  const sanitizedCurrentTopic = sanitizeQuoteTopicCandidate(topic)
+  const sanitizedPreviousTopic = sanitizeQuoteTopicCandidate(previousTopic)
+  const recognizedCurrentTopic = resolveRecognizedQuoteTopic(
+    sanitizedCurrentTopic,
+    tenantTopicTaxonomy,
+  )
+  const recognizedPreviousTopic = resolveRecognizedQuoteTopic(
+    sanitizedPreviousTopic,
+    tenantTopicTaxonomy,
+  )
+  const activeThreadTopic = buildQuoteThreadTopic(activeThread)
   const activeTopic =
-    topic && typeof topic === 'object' && topic.label
-      ? topic
-      : previousTopic && typeof previousTopic === 'object' && previousTopic.label
-        ? previousTopic
-        : null
+    recognizedCurrentTopic ||
+    recognizedPreviousTopic ||
+    activeThreadTopic ||
+    (sanitizedCurrentTopic?.label
+      ? sanitizedCurrentTopic
+      : sanitizedPreviousTopic?.label
+        ? sanitizedPreviousTopic
+        : null)
 
   const requiresMeasurements =
-    topicRequiresMeasurements(topic, tenantTopicTaxonomy) ||
-    topicRequiresMeasurements(previousTopic, tenantTopicTaxonomy) ||
+    topicRequiresMeasurements(
+      recognizedCurrentTopic || sanitizedCurrentTopic,
+      tenantTopicTaxonomy,
+    ) ||
+    topicRequiresMeasurements(
+      recognizedPreviousTopic || sanitizedPreviousTopic,
+      tenantTopicTaxonomy,
+    ) ||
+    topicRequiresMeasurements(activeThreadTopic, tenantTopicTaxonomy) ||
     Boolean(previousQuoteContext?.requiresMeasurements)
   const activeProfile =
     resolveQuoteProfileForContext({
-      topic,
-      previousTopic,
+      topic: recognizedCurrentTopic || sanitizedCurrentTopic,
+      previousTopic: recognizedPreviousTopic || sanitizedPreviousTopic,
       previousQuoteContext,
+      activeThread,
       quoteProfiles: tenantQuoteProfiles,
       tenantTopicTaxonomy,
     }) ||
     buildFallbackQuoteProfile({
-      topic,
-      previousTopic,
+      topic: recognizedCurrentTopic || activeThreadTopic || sanitizedCurrentTopic,
+      previousTopic: recognizedPreviousTopic || sanitizedPreviousTopic,
       tenantTopicTaxonomy,
       requiresMeasurements,
     })
@@ -1625,6 +1813,12 @@ export const buildCustomerQuoteContext = ({
       : shouldReusePreviousQuoteData && Array.isArray(previousQuoteContext?.measurementItems)
         ? previousQuoteContext.measurementItems
         : []
+  const pendingClarification =
+    shouldReusePreviousQuoteData &&
+    previousQuoteContext?.pendingClarification &&
+    typeof previousQuoteContext.pendingClarification === 'object'
+      ? { ...previousQuoteContext.pendingClarification }
+      : null
   const measurements =
     extractedMeasurements ||
     (shouldReusePreviousQuoteData &&
@@ -1644,6 +1838,16 @@ export const buildCustomerQuoteContext = ({
     extractCustomerQuotedQuantity(currentTurnText, measurementItems, {
       lineItemTerms: measurementCarrierTerms,
       allowBareQuantity: allowBareQuantityFollowUp,
+      tenantTopicTaxonomy,
+      quantityTargetTerms: [
+        ...measurementCarrierTerms,
+        ...(Array.isArray(activeProfile?.appliesToTopicLabels)
+          ? activeProfile.appliesToTopicLabels
+          : []),
+        activeProfile?.familyLabel,
+        sanitizedCurrentTopic?.label,
+        sanitizedPreviousTopic?.label,
+      ],
     }) ||
     (shouldReusePreviousQuoteData &&
     previousQuoteContext?.quantity &&
@@ -1697,6 +1901,15 @@ export const buildCustomerQuoteContext = ({
       mentionedTopics,
       topic,
       tenantTopicTaxonomy,
+      quantityTargetTerms: [
+        ...measurementCarrierTerms,
+        ...(Array.isArray(activeProfile?.appliesToTopicLabels)
+          ? activeProfile.appliesToTopicLabels
+          : []),
+        activeProfile?.familyLabel,
+        sanitizedCurrentTopic?.label,
+        sanitizedPreviousTopic?.label,
+      ],
     })
   if (effectiveQuantity?.total && !capturedAttributes.quantity) {
     capturedAttributes.quantity = {
@@ -1779,22 +1992,64 @@ export const buildCustomerQuoteContext = ({
         : !supportsImmediatePricing
         ? 'ready_for_handoff'
         : 'ready_for_pricing_or_handoff'
+  const activeThreadBaseLabel = compactText(activeThread?.baseLabel || '')
+  const activeThreadResolvedLabel = compactText(activeThread?.resolvedLabel || '')
+  const activeThreadFamilyLabel = compactText(activeThread?.familyLabel || '')
+  const activeThreadVariantLabel = compactText(
+    Array.isArray(activeThread?.variantLabels) ? activeThread.variantLabels.join(' ') : '',
+  )
+  const previousTopicLabel = isGenericQuoteTopicLabel(previousQuoteContext?.topicLabel)
+    ? ''
+    : compactText(previousQuoteContext?.topicLabel || '')
+  const previousVariantLabel = compactText(previousQuoteContext?.variantLabel || '')
+  const activeTopicLabel = compactText(activeTopic?.label || '')
+  const activeTopicKind = compactText(activeTopic?.type || activeTopicMatch?.kind || '')
+  const preferredSpecificTopicKind = compactText(preferredSpecificMentionedTopic?.kind || '')
+  const preferredSpecificTopicLabel = compactText(preferredSpecificMentionedTopic?.label || '')
+  const resolvedVariantLabel =
+    activeThreadVariantLabel ||
+    (preferredSpecificTopicKind === 'product_variant' ? preferredSpecificTopicLabel : '') ||
+    (activeTopicKind === 'product_variant' ? activeTopicLabel : '') ||
+    previousVariantLabel ||
+    null
+  const resolvedTopicBaseLabel =
+    activeThreadResolvedLabel ||
+    activeThreadBaseLabel ||
+    (preferredSpecificTopicKind === 'product_topic' ? preferredSpecificTopicLabel : '') ||
+    (activeTopicKind === 'product_topic' ? activeTopicLabel : '') ||
+    previousTopicLabel ||
+    null
+  const previousTopicLabelIsMoreSpecificThanBase =
+    previousTopicLabel &&
+    resolvedTopicBaseLabel &&
+    normalizeQuoteProfileText(previousTopicLabel).includes(
+      normalizeQuoteProfileText(resolvedTopicBaseLabel),
+    ) &&
+    previousTopicLabel.split(/\s+/u).length > resolvedTopicBaseLabel.split(/\s+/u).length
+  const resolvedTopicLabel =
+    resolvedTopicBaseLabel && resolvedVariantLabel
+      ? normalizeQuoteProfileText(resolvedTopicBaseLabel).includes(
+          normalizeQuoteProfileText(resolvedVariantLabel),
+        )
+        ? resolvedTopicBaseLabel
+        : compactText(`${resolvedTopicBaseLabel} ${resolvedVariantLabel}`)
+      : previousTopicLabelIsMoreSpecificThanBase
+        ? previousTopicLabel
+      : resolvedTopicBaseLabel || null
 
   return {
     requiresMeasurements,
     topicRecognized,
     familyLabel:
+      activeThreadFamilyLabel ||
       preferredSpecificMentionedTopic?.familyLabel ||
       activeTopic?.familyLabel ||
       activeTopicMatch?.familyLabel ||
       (activeTopicMatch?.kind === 'product_family' ? activeTopicMatch.label : null) ||
       previousQuoteContext?.familyLabel ||
       null,
-    topicLabel:
-      preferredSpecificMentionedTopic?.label ||
-      activeTopic?.label ||
-      previousQuoteContext?.topicLabel ||
-      null,
+    topicLabel: resolvedTopicLabel,
+    variantLabel: resolvedVariantLabel,
     profileKey: activeProfile?.key || null,
     profileLabel: activeProfile?.label || null,
     profileResolved,
@@ -1808,9 +2063,6 @@ export const buildCustomerQuoteContext = ({
     measurementItems,
     quantity: effectiveQuantity,
     capturedAttributes,
-    series: capturedAttributes?.series?.value || null,
-    glass: capturedAttributes?.glass?.value || null,
-    color: capturedAttributes?.color?.value || null,
     capturedFields,
     mentionedTopics,
     mentionedProfiles: mentionedProfiles.map((profile) => ({
@@ -1829,6 +2081,7 @@ export const buildCustomerQuoteContext = ({
     mixedPricingStrategies,
     multiTopic,
     multiItem,
+    pendingClarification,
     completionStatus,
     missingAttributes,
     missingFields,

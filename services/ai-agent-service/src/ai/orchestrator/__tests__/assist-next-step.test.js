@@ -38,6 +38,33 @@ test('assistNextStep returns a normalized assistant recommendation when provider
       productType: 'persiana pvc',
       issue: null,
     },
+    taskSummary:
+      'intención=customer.support_request ; contexto_reciente=customer: Hola reparan cortinas? | customer: Es una persiana de pvc ; consulta_actual=Es una persiana de pvc',
+    currentTask: {
+      intentKey: 'customer.support_request',
+      status: 'open',
+      entities: [{ type: 'support_product_type', value: 'persiana pvc' }],
+    },
+    interpretation: {
+      threadResolution: {
+        activeThread: {
+          resolvedLabel: 'service persiana pvc',
+        },
+      },
+      conversationContext: {
+        mode: 'flow',
+        activeDomain: 'support',
+        nextUsefulField: 'issue',
+        responseStrategy: 'ask_support_field',
+        knownFacts: {
+          supportProduct: 'persiana pvc',
+        },
+      },
+      supportContext: {
+        productType: 'persiana pvc',
+        missingFields: ['issue'],
+      },
+    },
     allowedActions: ['ask_clarification', 'execute_flow'],
     requiredFieldsByAction: {
       execute_flow: ['issue', 'address', 'phone'],
@@ -50,4 +77,7 @@ test('assistNextStep returns a normalized assistant recommendation when provider
   assert.equal(result?.confidence, 0.88)
   assert.match(capturedPrompt, /ACTÚA COMO UN MOTOR DE DECISIÓN/i)
   assert.match(capturedPrompt, /ask_clarification, execute_flow/i)
+  assert.match(capturedPrompt, /Contexto conversacional compacto:/i)
+  assert.match(capturedPrompt, /Resumen operativo:/i)
+  assert.match(capturedPrompt, /Datos faltantes de soporte: issue\./i)
 })

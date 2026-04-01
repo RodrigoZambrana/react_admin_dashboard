@@ -8,16 +8,36 @@ export async function loginAsAdminUser(
   page: Page,
   credentials?: { email?: string; password?: string },
 ) {
-  await page.goto(`${adminAppBaseUrl}/sign-in`);
-  await page
-    .locator('input[name="email"]')
-    .fill(credentials?.email ?? adminEmail);
-  await page
-    .locator('input[name="password"]')
-    .fill(credentials?.password ?? adminPassword);
-  await page.locator('button[type="submit"]').click();
-  await page.waitForURL(/\/app\//, { timeout: 15_000 });
-  await expect(page).toHaveURL(/\/app\//);
+  const targetUrl = `${adminAppBaseUrl}/sign-in`;
+  const emailInput = page.locator('input[name="email"]');
+  const passwordInput = page.locator('input[name="password"]');
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+
+    try {
+      await emailInput.waitFor({ state: "visible", timeout: 8_000 });
+    } catch (error) {
+      if (/\/app\//.test(page.url())) {
+        await expect(page).toHaveURL(/\/app\//);
+        return;
+      }
+
+      if (attempt === 2) {
+        throw error;
+      }
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      continue;
+    }
+
+    await emailInput.fill(credentials?.email ?? adminEmail);
+    await passwordInput.fill(credentials?.password ?? adminPassword);
+    await page.locator('button[type="submit"]').click();
+    await page.waitForURL(/\/app\//, { timeout: 20_000 });
+    await expect(page).toHaveURL(/\/app\//);
+    return;
+  }
 }
 
 export async function loginAsAdmin(page: Page) {

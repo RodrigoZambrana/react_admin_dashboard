@@ -16,6 +16,7 @@
       "customerDetails": "Detalles del cliente",
       "mail": "Correo",
       "messages": "Mensajes",
+      "messagesDebug": "Mensajes Debug",
       "conversationsLegacy": "Mensajes legacy"
     },
     "appsCalendar": {

@@ -15,6 +15,7 @@ const createPrisma = () => ({
     findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   },
   conversationMessage: {
     findFirst: vi.fn(),
@@ -244,82 +245,89 @@ describe('ConversationsService', () => {
   })
 
   it('lists persisted conversations with normalized summary fields', async () => {
-    prisma.conversation.findMany.mockResolvedValue([
-      {
-        id: 'conv_1',
-        tenantKey: 'urucortinas',
-        scope: 'CUSTOMER_PUBLIC',
-        channel: 'WEBCHAT',
-        status: 'OPEN',
-        controlMode: 'AI',
-        subject: 'Consulta de roller',
-        externalUserId: 'guest_1',
-        externalThreadId: 'webchat:guest_1',
-        externalChannelRef: '/shop',
-        lastMessageAt: new Date('2026-03-25T01:00:00.000Z'),
-        lastInboundAt: new Date('2026-03-25T01:00:00.000Z'),
-        lastOutboundAt: null,
-        createdAt: new Date('2026-03-25T00:00:00.000Z'),
-        updatedAt: new Date('2026-03-25T01:00:00.000Z'),
-        customer: {
-          id: 44,
-          name: 'Rodrigo',
-          email: 'rodrigo@example.com',
-          phoneNumber: '+59891234567',
+    prisma.conversation.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'conv_1',
+          channel: 'WEBCHAT',
+          metadata: null,
         },
-        assignedToUser: {
-          id: 5,
-          name: 'Operador',
-          email: 'ops@example.com',
-        },
-        inboxAccount: {
-          id: 'inbox_1',
-          displayName: 'Webchat',
-          address: null,
-          channel: 'WHATSAPP',
-        },
-        participants: [
-          {
-            id: 'part_1',
-            role: 'CUSTOMER',
-            displayName: 'Rodrigo',
-            externalUserId: 'guest_1',
-            customer: {
-              id: 44,
-              name: 'Rodrigo',
-              email: 'rodrigo@example.com',
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'conv_1',
+          tenantKey: 'urucortinas',
+          scope: 'CUSTOMER_PUBLIC',
+          channel: 'WEBCHAT',
+          status: 'OPEN',
+          controlMode: 'AI',
+          subject: 'Consulta de roller',
+          externalUserId: 'guest_1',
+          externalThreadId: 'webchat:guest_1',
+          externalChannelRef: '/shop',
+          lastMessageAt: new Date('2026-03-25T01:00:00.000Z'),
+          lastInboundAt: new Date('2026-03-25T01:00:00.000Z'),
+          lastOutboundAt: null,
+          createdAt: new Date('2026-03-25T00:00:00.000Z'),
+          updatedAt: new Date('2026-03-25T01:00:00.000Z'),
+          customer: {
+            id: 44,
+            name: 'Rodrigo',
+            email: 'rodrigo@example.com',
+            phoneNumber: '+59891234567',
+          },
+          assignedToUser: {
+            id: 5,
+            name: 'Operador',
+            email: 'ops@example.com',
+          },
+          inboxAccount: {
+            id: 'inbox_1',
+            displayName: 'Webchat',
+            address: null,
+            channel: 'WHATSAPP',
+          },
+          participants: [
+            {
+              id: 'part_1',
+              role: 'CUSTOMER',
+              displayName: 'Rodrigo',
+              externalUserId: 'guest_1',
+              customer: {
+                id: 44,
+                name: 'Rodrigo',
+                email: 'rodrigo@example.com',
+              },
+              user: null,
             },
-            user: null,
-          },
-        ],
-        messages: [
-          {
-            id: 'msg_1',
-            authorType: 'CUSTOMER',
-            kind: 'TEXT',
-            body: 'Hola, quiero cotizar',
-            normalizedText: 'Hola, quiero cotizar',
-            createdAt: new Date('2026-03-25T01:00:00.000Z'),
-          },
-        ],
-        toolCalls: [
-          {
-            toolName: 'search_products',
-            status: 'EXECUTED',
-            updatedAt: new Date('2026-03-25T01:05:00.000Z'),
-          },
-          {
-            toolName: 'update_quote_status',
-            status: 'EXECUTED',
-            updatedAt: new Date('2026-03-25T01:06:00.000Z'),
-          },
-        ],
-      },
-    ])
-    prisma.conversation.count.mockResolvedValue(1)
+          ],
+          messages: [
+            {
+              id: 'msg_1',
+              authorType: 'CUSTOMER',
+              kind: 'TEXT',
+              body: 'Hola, quiero cotizar',
+              normalizedText: 'Hola, quiero cotizar',
+              createdAt: new Date('2026-03-25T01:00:00.000Z'),
+            },
+          ],
+          toolCalls: [
+            {
+              toolName: 'search_products',
+              status: 'EXECUTED',
+              updatedAt: new Date('2026-03-25T01:05:00.000Z'),
+            },
+            {
+              toolName: 'update_quote_status',
+              status: 'EXECUTED',
+              updatedAt: new Date('2026-03-25T01:06:00.000Z'),
+            },
+          ],
+        },
+      ])
 
     const result = await service.listConversations({
-      page: 2,
+      page: 1,
       pageSize: 25,
       scope: 'customer_public',
       channel: 'webchat',
@@ -329,10 +337,9 @@ describe('ConversationsService', () => {
       search: 'roller',
     })
 
-    expect(prisma.conversation.findMany).toHaveBeenCalled()
-    expect(prisma.conversation.count).toHaveBeenCalled()
+    expect(prisma.conversation.findMany).toHaveBeenCalledTimes(2)
     expect(result.total).toBe(1)
-    expect(result.page).toBe(2)
+    expect(result.page).toBe(1)
     expect(result.pageSize).toBe(25)
     expect(result.items).toHaveLength(1)
     expect(result.items[0]).toMatchObject({
@@ -361,56 +368,456 @@ describe('ConversationsService', () => {
     })
   })
 
+  it('builds admin debug turns from persisted customer and ai-agent messages', async () => {
+    const createdAt = new Date('2026-03-30T12:00:00.000Z')
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_debug_1',
+      tenantKey: 'urucortinas',
+      scope: 'CUSTOMER_PUBLIC',
+      channel: 'WEBCHAT',
+      status: 'WAITING_CUSTOMER',
+      controlMode: 'AI',
+      subject: 'Consulta roller blackout',
+      externalUserId: 'guest_debug',
+      externalThreadId: 'webchat:guest_debug',
+      externalChannelRef: '/shop',
+      lastMessageAt: createdAt,
+      lastInboundAt: createdAt,
+      lastOutboundAt: createdAt,
+      createdAt,
+      updatedAt: createdAt,
+      metadata: {},
+      customer: null,
+      assignedToUser: null,
+      inboxAccount: null,
+      participants: [],
+      messages: [
+        {
+          id: 'msg_customer_debug',
+          authorType: 'CUSTOMER',
+          authorUser: null,
+          kind: 'TEXT',
+          body: 'necesito roller blackout',
+          normalizedText: 'necesito roller blackout',
+          payload: {},
+          metadata: { authorKind: 'customer_human' },
+          sentAt: createdAt,
+          receivedAt: createdAt,
+          createdAt,
+          inboxMessage: null,
+        },
+        {
+          id: 'msg_agent_debug',
+          authorType: 'AGENT',
+          authorUser: null,
+          kind: 'TEXT',
+          body: 'Sí, tenemos roller blackout. Para cotizarte, decime las medidas y la cantidad.',
+          normalizedText:
+            'Sí, tenemos roller blackout. Para cotizarte, decime las medidas y la cantidad.',
+          payload: {},
+          metadata: {
+            authorKind: 'agent_runtime',
+            aiResponse: {
+              finalUserText:
+                'Sí, tenemos roller blackout. Para cotizarte, decime las medidas y la cantidad.',
+              debugSummary: '[debug] stage=deterministic_decision',
+              auditPayload: {
+                input: 'necesito roller blackout',
+                intentKey: 'customer.quote',
+                intentConfidence: 0.88,
+                intentSource: 'rule',
+                decisionPath: ['lane:information_first', 'next:collect_quote_fields'],
+                blockedTools: ['create_quote'],
+                toolCalls: [
+                  {
+                    name: 'search_products',
+                    status: 'executed',
+                    target: 'roller blackout',
+                  },
+                  {
+                    name: 'create_quote',
+                    status: 'rejected',
+                    target: null,
+                  },
+                ],
+                aiExchange: {
+                  request: {
+                    mode: 'llm_conversational',
+                    contextBlock: 'Resumen operativo: cliente pide roller blackout.',
+                    taskSummary: 'Orientar y luego pedir medidas/cantidad.',
+                    systemPrompt: 'Prompt conversacional controlado.',
+                    promptInput:
+                      'Borrador aprobado por backend: Sí, tenemos roller blackout.',
+                    promptHistory: [
+                      {
+                        role: 'customer',
+                        text: 'necesito roller blackout',
+                      },
+                    ],
+                    currentTask: {
+                      intentKey: 'customer.quote',
+                      status: 'collecting_info',
+                    },
+                    approvedFacts: ['Sí, trabajamos con roller blackout.'],
+                  },
+                  response: {
+                    source: 'llm_conversational',
+                    text: 'Sí, tenemos roller blackout. Para cotizarte, decime las medidas y la cantidad.',
+                    toolCalls: [],
+                  },
+                },
+                turnInterpretation: {
+                  conversationContext: {
+                    quoteStage: 'information',
+                    waitForMore: false,
+                  },
+                },
+                rewriteExchange: {
+                  request: {
+                    mode: 'llm_rewrite',
+                    systemPrompt: 'Prompt final de reescritura.',
+                    promptInput:
+                      'Consulta original: necesito roller blackout\n\nBorrador aprobado: Sí, tenemos roller blackout.',
+                    promptHistory: [],
+                  },
+                  response: {
+                    source: 'llm_rewrite',
+                    text: 'Sí, tenemos roller blackout. Para cotizarte, decime las medidas y la cantidad.',
+                    toolCalls: [],
+                  },
+                },
+              },
+            },
+            ai: {
+              grounded: true,
+              fallbackReason: null,
+              sourceCount: 1,
+              sources: [
+                {
+                  id: 'doc_blackout',
+                  title: 'Dato web · Producto · blackout',
+                  scope: 'customer_public',
+                  sourceType: 'web_url',
+                  score: 12.4,
+                },
+              ],
+            },
+          },
+          sentAt: createdAt,
+          receivedAt: null,
+          createdAt,
+          inboxMessage: null,
+        },
+      ],
+      handoffEvents: [],
+      toolCalls: [],
+    })
+
+    const result = await service.getConversationDebug('conv_debug_1', 7)
+
+    expect(result).toMatchObject({
+      conversation: {
+        id: 'conv_debug_1',
+        channel: 'webchat',
+      },
+    })
+    expect(result?.turns).toHaveLength(1)
+    expect(result?.turns?.[0]).toMatchObject({
+      originalUserInput: 'necesito roller blackout',
+      processedInput: 'necesito roller blackout',
+      finalResponse:
+        'Sí, tenemos roller blackout. Para cotizarte, decime las medidas y la cantidad.',
+      intent: {
+        key: 'customer.quote',
+      },
+      actions: {
+        evaluated: ['lane:information_first', 'next:collect_quote_fields'],
+        discarded: ['create_quote'],
+      },
+      contextSent: {
+        mode: 'llm_conversational',
+      },
+      promptSent: {
+        mode: 'llm_rewrite',
+        systemPrompt: 'Prompt final de reescritura.',
+      },
+      rawAiResponse: {
+        source: 'llm_rewrite',
+      },
+      grounding: {
+        grounded: true,
+        sourceCount: 1,
+      },
+    })
+  })
+
+  it('runs debug simulations by creating a webchat session and dispatching the same webchat path used by real users', async () => {
+    vi.spyOn(service, 'createWebchatSession').mockResolvedValue({
+      conversationId: 'conv_debug_run',
+      sessionId: 'conv_debug_run',
+      tenantKey: 'urucortinas',
+      scope: 'customer_authenticated',
+      participant: {
+        guestId: 'guest_debug_run',
+        name: 'Cliente debug',
+        email: 'cliente@example.com',
+        locale: 'es-UY',
+        currency: 'UYU',
+      },
+      context: {
+        page: '/shop',
+      },
+      messages: [],
+    } as never)
+    const dispatchSpy = vi
+      .spyOn(service, 'dispatchWebchatMessage')
+      .mockResolvedValue({
+        status: 'queued',
+        queued: true,
+      } as never)
+    const getDebugSpy = vi
+      .spyOn(service, 'getConversationDebug')
+      .mockResolvedValue({
+        conversation: {
+          id: 'conv_debug_run',
+          channel: 'webchat',
+        },
+        turns: [
+          {
+            pending: false,
+            finalResponse: 'Perfecto, tomo la medida.',
+          },
+        ],
+      } as never)
+
+    const result = await service.runConversationDebug(
+      'new',
+      {
+        simulateAs: 'authenticated',
+        email: 'cliente@example.com',
+        page: '/shop',
+        waitTimeoutMs: 0,
+        messages: [
+          {
+            text: 'Necesito roller blackout',
+          },
+          {
+            text: 'de 2x2',
+            delayMs: 150,
+          },
+        ],
+      },
+      7,
+    )
+
+    expect(dispatchSpy).toHaveBeenCalledTimes(2)
+    expect(dispatchSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        conversationId: 'conv_debug_run',
+        guestId: 'guest_debug_run',
+        text: 'Necesito roller blackout',
+        metadata: expect.objectContaining({
+          debugSimulation: true,
+          authenticated: true,
+          debugOptions: expect.objectContaining({
+            knowledgeMode: 'full',
+            disableKnowledge: false,
+          }),
+        }),
+      }),
+    )
+    expect(result).toMatchObject({
+      conversation: {
+        id: 'conv_debug_run',
+      },
+      execution: {
+        created: true,
+        reset: false,
+        messagesDispatched: 2,
+        settled: true,
+        options: {
+          knowledgeMode: 'full',
+          disableKnowledge: false,
+        },
+      },
+    })
+    expect(getDebugSpy).toHaveBeenCalled()
+  })
+
+  it('resets an existing webchat debug session by recreating it with the same simulation seed', async () => {
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_existing_debug',
+      metadata: {
+        debugSession: true,
+      },
+    })
+    vi.spyOn(service, 'getWebchatSession').mockResolvedValue({
+      conversationId: 'conv_existing_debug',
+      sessionId: 'conv_existing_debug',
+      tenantKey: 'urucortinas',
+      scope: 'customer_public',
+      participant: {
+        guestId: 'guest_existing',
+        name: 'Invitado',
+        email: null,
+        locale: 'es-UY',
+        currency: 'UYU',
+      },
+      context: {
+        page: '/contacto',
+      },
+      messages: [],
+    } as never)
+    const deleteSpy = vi
+      .spyOn(service, 'deleteConversationDebug')
+      .mockResolvedValue({
+        ok: true,
+        deleted: true,
+        conversationId: 'conv_existing_debug',
+      } as never)
+    const createSessionSpy = vi
+      .spyOn(service, 'createWebchatSession')
+      .mockResolvedValue({
+        conversationId: 'conv_recreated_debug',
+        sessionId: 'conv_recreated_debug',
+        tenantKey: 'urucortinas',
+        scope: 'customer_public',
+        participant: {
+          guestId: 'guest_existing',
+          name: 'Invitado',
+          email: null,
+          locale: 'es-UY',
+          currency: 'UYU',
+        },
+        context: {
+          page: '/contacto',
+        },
+        messages: [],
+      } as never)
+    vi.spyOn(service, 'getConversationDebug').mockResolvedValue({
+      conversation: {
+        id: 'conv_recreated_debug',
+        channel: 'webchat',
+      },
+      turns: [],
+    } as never)
+
+    const result = await service.runConversationDebug(
+      'conv_existing_debug',
+      {
+        reset: true,
+      },
+      11,
+    )
+
+    expect(deleteSpy).toHaveBeenCalledWith('conv_existing_debug', 11)
+    expect(createSessionSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        guestId: 'guest_existing',
+        page: '/contacto',
+        authenticated: false,
+      }),
+    )
+    expect(result).toMatchObject({
+      conversation: {
+        id: 'conv_recreated_debug',
+      },
+      execution: {
+        created: true,
+        reset: true,
+        messagesDispatched: 0,
+      },
+    })
+  })
+
+  it('deletes debug conversations explicitly', async () => {
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_delete_debug',
+      channel: 'WEBCHAT',
+      metadata: {
+        debugSession: true,
+      },
+    })
+    prisma.conversation.delete.mockResolvedValue({
+      id: 'conv_delete_debug',
+    })
+
+    const result = await service.deleteConversationDebug('conv_delete_debug', 9)
+
+    expect(prisma.conversation.delete).toHaveBeenCalledWith({
+      where: { id: 'conv_delete_debug' },
+    })
+    expect(result).toEqual({
+      ok: true,
+      deleted: true,
+      conversationId: 'conv_delete_debug',
+      channel: 'webchat',
+    })
+  })
+
+  it('does not allow mutating existing non-debug conversations through the debug runner', async () => {
+    prisma.conversation.findUnique.mockResolvedValue({
+      id: 'conv_protected',
+      metadata: {
+        debugSession: false,
+      },
+    })
+
+    await expect(
+      service.runConversationDebug(
+        'conv_protected',
+        {
+          messages: [{ text: 'hola' }],
+        },
+        9,
+      ),
+    ).rejects.toThrow('conversation.debugReadonly')
+  })
+
   it('scopes internal assistant channel listings to the current operator and assistant contact', async () => {
-    prisma.conversation.findMany.mockResolvedValue([
-      {
-        id: 'conv_assistant_latest',
-        tenantKey: 'urucortinas',
-        scope: 'ADMIN_INTERNAL',
-        channel: 'ADMIN_CHAT',
-        status: 'OPEN',
-        controlMode: 'AI',
-        subject: 'Agente IA',
-        externalUserId: 'admin:42',
-        externalThreadId: null,
-        externalChannelRef: null,
-        lastMessageAt: new Date('2026-03-26T00:10:00.000Z'),
-        lastInboundAt: null,
-        lastOutboundAt: new Date('2026-03-26T00:10:00.000Z'),
-        createdAt: new Date('2026-03-26T00:00:00.000Z'),
-        updatedAt: new Date('2026-03-26T00:10:00.000Z'),
-        customer: null,
-        assignedToUser: null,
-        inboxAccount: null,
-        participants: [],
-        messages: [],
-        toolCalls: [],
-      },
-      {
-        id: 'conv_assistant_old',
-        tenantKey: 'urucortinas',
-        scope: 'ADMIN_INTERNAL',
-        channel: 'ADMIN_CHAT',
-        status: 'OPEN',
-        controlMode: 'AI',
-        subject: 'Agente IA',
-        externalUserId: 'admin:42',
-        externalThreadId: null,
-        externalChannelRef: null,
-        lastMessageAt: new Date('2026-03-25T23:10:00.000Z'),
-        lastInboundAt: null,
-        lastOutboundAt: new Date('2026-03-25T23:10:00.000Z'),
-        createdAt: new Date('2026-03-25T23:00:00.000Z'),
-        updatedAt: new Date('2026-03-25T23:10:00.000Z'),
-        customer: null,
-        assignedToUser: null,
-        inboxAccount: null,
-        participants: [],
-        messages: [],
-        toolCalls: [],
-      },
-    ])
-    prisma.conversation.count.mockResolvedValue(2)
+    prisma.conversation.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'conv_assistant_latest',
+          channel: 'ADMIN_CHAT',
+          metadata: {
+            contactKey: 'internal:assistant',
+          },
+        },
+        {
+          id: 'conv_assistant_old',
+          channel: 'ADMIN_CHAT',
+          metadata: {
+            contactKey: 'internal:assistant',
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'conv_assistant_latest',
+          tenantKey: 'urucortinas',
+          scope: 'ADMIN_INTERNAL',
+          channel: 'ADMIN_CHAT',
+          status: 'OPEN',
+          controlMode: 'AI',
+          subject: 'Agente IA',
+          externalUserId: 'admin:42',
+          externalThreadId: null,
+          externalChannelRef: null,
+          lastMessageAt: new Date('2026-03-26T00:10:00.000Z'),
+          lastInboundAt: null,
+          lastOutboundAt: new Date('2026-03-26T00:10:00.000Z'),
+          createdAt: new Date('2026-03-26T00:00:00.000Z'),
+          updatedAt: new Date('2026-03-26T00:10:00.000Z'),
+          customer: null,
+          assignedToUser: null,
+          inboxAccount: null,
+          participants: [],
+          messages: [],
+          toolCalls: [],
+        },
+      ])
 
     const result = await service.listConversations(
       {
@@ -421,7 +828,8 @@ describe('ConversationsService', () => {
       42,
     )
 
-    expect(prisma.conversation.findMany).toHaveBeenCalledWith(
+    expect(prisma.conversation.findMany).toHaveBeenNthCalledWith(
+      1,
       expect.objectContaining({
         where: expect.objectContaining({
           channel: 'ADMIN_CHAT',
@@ -444,12 +852,13 @@ describe('ConversationsService', () => {
         }),
       }),
     )
-    expect(prisma.conversation.count).toHaveBeenCalledWith(
+    expect(prisma.conversation.findMany).toHaveBeenNthCalledWith(
+      2,
       expect.objectContaining({
         where: expect.objectContaining({
-          channel: 'ADMIN_CHAT',
-          scope: 'ADMIN_INTERNAL',
-          externalUserId: 'admin:42',
+          id: {
+            in: ['conv_assistant_latest'],
+          },
         }),
       }),
     )
@@ -573,76 +982,83 @@ describe('ConversationsService', () => {
   })
 
   it('derives a consistent latestMessage preview for multimodal attachment-only messages', async () => {
-    prisma.conversation.findMany.mockResolvedValue([
-      {
-        id: 'conv_multimodal_preview',
-        tenantKey: 'urucortinas',
-        scope: 'CUSTOMER_PUBLIC',
-        channel: 'WEBCHAT',
-        status: 'WAITING_CUSTOMER',
-        controlMode: 'HYBRID',
-        subject: 'Seguimiento multimodal',
-        externalUserId: 'guest_preview',
-        externalThreadId: 'webchat:guest_preview',
-        externalChannelRef: '/shop',
-        pinnedAt: null,
-        lastMessageAt: new Date('2026-03-27T16:00:00.000Z'),
-        lastInboundAt: new Date('2026-03-27T15:58:00.000Z'),
-        lastOutboundAt: new Date('2026-03-27T16:00:00.000Z'),
-        createdAt: new Date('2026-03-27T15:00:00.000Z'),
-        updatedAt: new Date('2026-03-27T16:00:00.000Z'),
-        needsHuman: false,
-        metadata: null,
-        customer: {
-          id: 77,
-          name: 'Cliente preview',
-          email: 'preview@example.com',
-          phoneNumber: '+59890000077',
+    prisma.conversation.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'conv_multimodal_preview',
+          channel: 'WEBCHAT',
+          metadata: null,
         },
-        assignedToUser: {
-          id: 5,
-          name: 'Operador',
-          email: 'operador@example.com',
-        },
-        inboxAccount: null,
-        participants: [],
-        messages: [
-          {
-            id: 'msg_preview_latest',
-            authorType: 'OPERATOR',
-            authorUser: {
-              id: 5,
-              name: 'Operador',
-              email: 'operador@example.com',
-            },
-            kind: 'TEXT',
-            body: '[Adjunto: plano.txt] Plano con medidas finales.',
-            normalizedText: '[Adjunto: plano.txt] Plano con medidas finales.',
-            metadata: {
-              attachments: [
-                {
-                  assetType: 'text',
-                  fileName: 'plano.txt',
-                  contentType: 'text/plain',
-                  textContent: 'Plano con medidas finales.',
-                },
-                {
-                  assetType: 'audio',
-                  fileName: 'respuesta.webm',
-                  contentType: 'audio/webm',
-                },
-              ],
-            },
-            createdAt: new Date('2026-03-27T16:00:00.000Z'),
-            inboxMessage: {
-              queue: null,
-            },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'conv_multimodal_preview',
+          tenantKey: 'urucortinas',
+          scope: 'CUSTOMER_PUBLIC',
+          channel: 'WEBCHAT',
+          status: 'WAITING_CUSTOMER',
+          controlMode: 'HYBRID',
+          subject: 'Seguimiento multimodal',
+          externalUserId: 'guest_preview',
+          externalThreadId: 'webchat:guest_preview',
+          externalChannelRef: '/shop',
+          pinnedAt: null,
+          lastMessageAt: new Date('2026-03-27T16:00:00.000Z'),
+          lastInboundAt: new Date('2026-03-27T15:58:00.000Z'),
+          lastOutboundAt: new Date('2026-03-27T16:00:00.000Z'),
+          createdAt: new Date('2026-03-27T15:00:00.000Z'),
+          updatedAt: new Date('2026-03-27T16:00:00.000Z'),
+          needsHuman: false,
+          metadata: null,
+          customer: {
+            id: 77,
+            name: 'Cliente preview',
+            email: 'preview@example.com',
+            phoneNumber: '+59890000077',
           },
-        ],
-        toolCalls: [],
-      },
-    ])
-    prisma.conversation.count.mockResolvedValue(1)
+          assignedToUser: {
+            id: 5,
+            name: 'Operador',
+            email: 'operador@example.com',
+          },
+          inboxAccount: null,
+          participants: [],
+          messages: [
+            {
+              id: 'msg_preview_latest',
+              authorType: 'OPERATOR',
+              authorUser: {
+                id: 5,
+                name: 'Operador',
+                email: 'operador@example.com',
+              },
+              kind: 'TEXT',
+              body: '[Adjunto: plano.txt] Plano con medidas finales.',
+              normalizedText: '[Adjunto: plano.txt] Plano con medidas finales.',
+              metadata: {
+                attachments: [
+                  {
+                    assetType: 'text',
+                    fileName: 'plano.txt',
+                    contentType: 'text/plain',
+                    textContent: 'Plano con medidas finales.',
+                  },
+                  {
+                    assetType: 'audio',
+                    fileName: 'respuesta.webm',
+                    contentType: 'audio/webm',
+                  },
+                ],
+              },
+              createdAt: new Date('2026-03-27T16:00:00.000Z'),
+              inboxMessage: {
+                queue: null,
+              },
+            },
+          ],
+          toolCalls: [],
+        },
+      ])
 
     const result = await service.listConversations({ page: 1, pageSize: 20 })
 
@@ -654,6 +1070,70 @@ describe('ConversationsService', () => {
         previewKind: 'text',
       },
     })
+  })
+
+  it('filters deleted webchat conversations before pagination and totals', async () => {
+    prisma.conversation.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'conv_deleted',
+          channel: 'WEBCHAT',
+          metadata: {
+            webchatChatState: {
+              deleted: true,
+            },
+          },
+        },
+        {
+          id: 'conv_visible',
+          channel: 'WEBCHAT',
+          metadata: null,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'conv_visible',
+          tenantKey: 'urucortinas',
+          scope: 'CUSTOMER_PUBLIC',
+          channel: 'WEBCHAT',
+          status: 'OPEN',
+          controlMode: 'AI',
+          subject: '/shop',
+          externalUserId: 'guest_visible',
+          externalThreadId: 'webchat:guest_visible',
+          externalChannelRef: '/shop',
+          pinnedAt: null,
+          lastMessageAt: new Date('2026-03-27T16:05:00.000Z'),
+          lastInboundAt: new Date('2026-03-27T16:05:00.000Z'),
+          lastOutboundAt: null,
+          createdAt: new Date('2026-03-27T16:00:00.000Z'),
+          updatedAt: new Date('2026-03-27T16:05:00.000Z'),
+          needsHuman: false,
+          metadata: null,
+          customer: null,
+          assignedToUser: null,
+          inboxAccount: null,
+          participants: [],
+          messages: [],
+          toolCalls: [],
+        },
+      ])
+
+    const result = await service.listConversations({ page: 1, pageSize: 20 })
+
+    expect(result.total).toBe(1)
+    expect(result.items).toHaveLength(1)
+    expect(result.items[0]?.id).toBe('conv_visible')
+    expect(prisma.conversation.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: {
+          id: {
+            in: ['conv_visible'],
+          },
+        },
+      }),
+    )
   })
 
   it('includes approved reply suggestions in conversation detail when knowledge is available', async () => {
@@ -3035,6 +3515,113 @@ describe('ConversationsService', () => {
     })
   expect(result).toMatchObject({
       conversationId: 'conv_email',
+      channel: 'email',
+      queue: {
+        slug: 'support',
+      },
+    })
+  })
+
+  it('creates a logical inbox account for inbound email when no operational inbox is configured', async () => {
+    const createdAt = new Date('2026-03-25T04:05:00.000Z')
+    prisma.inboxAccount.findUnique.mockResolvedValue(null)
+    prisma.inboxAccount.upsert.mockResolvedValue({
+      id: 'acc_email_fallback',
+      displayName: 'ventas@test.local',
+      address: 'ventas@test.local',
+      channel: 'EMAIL',
+      active: true,
+      metadata: {
+        source: 'conversation-hub',
+        operational: false,
+      },
+    })
+    prisma.inboxQueue.upsert.mockResolvedValue({
+      id: 'queue_support',
+      slug: 'support',
+      name: 'Support',
+      assignmentMode: 'MANUAL',
+      maxAssignedConversations: null,
+      slaTargetMinutes: 30,
+      assignments: [],
+    })
+    prisma.customer.findFirst.mockResolvedValue(null)
+    prisma.conversation.findFirst.mockResolvedValue(null)
+    prisma.conversation.create.mockResolvedValue({
+      id: 'conv_email_fallback',
+      tenantKey: 'urucortinas',
+      scope: 'CUSTOMER_PUBLIC',
+      channel: 'EMAIL',
+      status: 'OPEN',
+      controlMode: 'AI',
+      subject: 'Consulta fallback',
+      customerId: null,
+      inboxAccountId: 'acc_email_fallback',
+      externalUserId: 'cliente@example.com',
+      externalThreadId: 'thread-fallback-1',
+      externalChannelRef: null,
+      metadata: {},
+    })
+    prisma.conversationParticipant.findFirst.mockResolvedValue(null)
+    prisma.conversationParticipant.create.mockResolvedValue({
+      id: 'part_email_fallback',
+    })
+    prisma.conversationMessage.findFirst.mockResolvedValue(null)
+    prisma.inboxMessage.create.mockResolvedValue({
+      id: 'inbox_msg_fallback_1',
+    })
+    prisma.conversationMessage.create.mockResolvedValue({
+      id: 'conv_msg_fallback_1',
+      createdAt,
+    })
+
+    const result = await service.ingestInboundMessage({
+      tenantKey: 'urucortinas',
+      channel: 'email',
+      userId: 'cliente@example.com',
+      inboxAddress: 'ventas@test.local',
+      subject: 'Consulta fallback',
+      threadId: 'thread-fallback-1',
+      externalMessageId: 'remote-fallback-1',
+      text: 'Necesito respuesta por correo',
+      metadata: { provider: 'imap-test' },
+    })
+
+    expect(prisma.inboxAccount.upsert).toHaveBeenCalledWith({
+      where: {
+        channel_address: {
+          channel: 'EMAIL',
+          address: 'ventas@test.local',
+        },
+      },
+      update: {
+        displayName: 'ventas@test.local',
+        active: true,
+        metadata: {
+          source: 'conversation-hub',
+          operational: false,
+        },
+      },
+      create: {
+        channel: 'EMAIL',
+        address: 'ventas@test.local',
+        displayName: 'ventas@test.local',
+        active: true,
+        metadata: {
+          source: 'conversation-hub',
+          operational: false,
+        },
+      },
+    })
+    expect(prisma.conversation.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          inboxAccountId: 'acc_email_fallback',
+        }),
+      }),
+    )
+    expect(result).toMatchObject({
+      conversationId: 'conv_email_fallback',
       channel: 'email',
       queue: {
         slug: 'support',

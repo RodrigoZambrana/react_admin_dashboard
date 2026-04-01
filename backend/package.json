@@ -16,6 +16,8 @@
     "sync:urucortinas:curation:apply": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/sync-urucortinas-curation.ts --confirm",
     "sync:urucortinas:installation": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/sync-urucortinas-installation-config.ts --dry-run",
     "sync:urucortinas:installation:apply": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/sync-urucortinas-installation-config.ts --confirm",
+    "knowledge:reindex:chunks": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reindex-knowledge-chunks.ts --dry-run",
+    "knowledge:reindex:chunks:apply": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reindex-knowledge-chunks.ts --confirm",
     "cms:import:legacy-html": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/import-legacy-html-site.ts",
     "baseline:export": "ts-node --project tsconfig.seed.json --transpile-only scripts/export-baseline-fixture.ts",
     "prisma:generate": "prisma generate",

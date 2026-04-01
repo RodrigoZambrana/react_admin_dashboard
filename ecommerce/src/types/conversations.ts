@@ -165,6 +165,10 @@ export type WebchatAiState = {
 export type WebchatSendMessageResult = {
   ok: boolean;
   status: string;
+  queued?: boolean;
+  acceptedAt?: string | null;
+  flushDelayMs?: number | null;
+  coalescedInboundCount?: number | null;
   normalized: {
     channel: string;
     scope: string;

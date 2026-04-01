@@ -57,6 +57,7 @@ export const ConversationsApi = {
     locale?: string;
     currency?: string;
     attachments?: WebchatMessageAttachment[];
+    authenticated?: boolean;
     metadata?: Record<string, unknown>;
   }): Promise<WebchatSendMessageResult> {
     const response = await fetch(`${conversationsBaseUrl}/conversations/webchat/dispatch`, {

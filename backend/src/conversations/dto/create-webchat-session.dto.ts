@@ -47,4 +47,9 @@ export class CreateWebchatSessionDto {
   @Transform(({ value }) => value === true || value === 'true')
   @IsBoolean()
   authenticated?: boolean
+
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  debugSession?: boolean
 }

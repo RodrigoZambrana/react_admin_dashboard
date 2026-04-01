@@ -22,6 +22,21 @@ export type AiKnowledgeOverview = {
         status: string
         count: number
     }>
+    chunkIndexing?: {
+        statuses: Array<{
+            status: string
+            scope: string
+            count: number
+        }>
+        runtime: {
+            running: boolean
+            trigger: string | null
+            startedAt: string | null
+            finishedAt: string | null
+            lastError: string | null
+            lastSummary: Record<string, unknown> | null
+        } | null
+    }
     feedback: {
         used: number
         edited: number
@@ -42,6 +57,16 @@ export type AiKnowledgeDocument = {
     originCategory: string
     contentType: string
     hasEmbedding: boolean
+    chunkIndex: {
+        status: string
+        version: number
+        chunkCount: number
+        attempts: number
+        indexedAt: string | null
+        requestedAt: string | null
+        startedAt: string | null
+        error: string | null
+    }
     sourceKey: string
     title: string
     summary: string | null
@@ -997,11 +1022,67 @@ const AiKnowledgeService = {
         return ApiService.fetchData<{
             tenantKey: string
             indexed: number
-            documentIds: string[]
+            chunksIndexed?: number
+            failed?: number
+            retries?: number
+            documentIds?: string[]
+            processedDocumentIds?: string[]
+            failedDocumentIds?: string[]
+            started?: boolean
+            background?: boolean
+            runtime?: Record<string, unknown>
         }>({
             url: '/ai/knowledge/index',
             method: 'post',
             data: {},
+        })
+    },
+
+    async runIndexBatch(data?: {
+        selection?: 'all' | 'pending' | 'failed'
+        background?: boolean
+        batchSize?: number
+        tenantKey?: string
+    }) {
+        return ApiService.fetchData<{
+            tenantKey: string
+            indexed?: number
+            chunksIndexed?: number
+            failed?: number
+            retries?: number
+            processedDocumentIds?: string[]
+            failedDocumentIds?: string[]
+            started?: boolean
+            background?: boolean
+            runtime?: Record<string, unknown>
+        }>({
+            url: '/ai/knowledge/index',
+            method: 'post',
+            data,
+        })
+    },
+
+    async getIndexStatus(tenantKey?: string) {
+        return ApiService.fetchData<{
+            tenantKey: string
+            runtime: {
+                running: boolean
+                trigger: string | null
+                startedAt: string | null
+                finishedAt: string | null
+                lastSummary: Record<string, unknown> | null
+                lastError: string | null
+            } | null
+            counts: Array<{
+                status: string
+                scope: string
+                count: number
+            }>
+            documentsWithoutChunks: number
+        }>({
+            url: '/ai/knowledge/index/status',
+            method: 'get',
+            params: tenantKey ? { tenantKey } : undefined,
         })
     },
 

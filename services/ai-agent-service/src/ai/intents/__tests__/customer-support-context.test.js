@@ -42,7 +42,7 @@ test('buildCustomerSupportContext reuses schedule capture when support pivots to
     currentScheduleContext: {
       address: 'ne fraga 2137',
       contactPhone: '091285304',
-      missingFields: ['day', 'time'],
+      missingFields: ['date', 'time'],
       date: null,
       time: null,
     },
@@ -51,6 +51,21 @@ test('buildCustomerSupportContext reuses schedule capture when support pivots to
   assert.equal(context.address, 'ne fraga 2137')
   assert.equal(context.contactPhone, '091285304')
   assert.equal(context.wantsVisit, true)
-  assert.deepEqual(context.missingFields, ['day', 'time'])
+  assert.deepEqual(context.missingFields, ['date', 'time'])
   assert.equal(context.stage, 'visit_intake')
+})
+
+test('buildCustomerSupportContext treats installed-product photo references as product identification inside support', () => {
+  const context = buildCustomerSupportContext({
+    currentTurnText: 'Esa es la foto de las cortinas que colocaron.',
+    currentTopic: {
+      label: 'cortinas',
+      type: 'product_family',
+    },
+  })
+
+  assert.equal(context.productType, 'cortinas')
+  assert.equal(context.issueSummary, null)
+  assert.deepEqual(context.missingFields, ['issue'])
+  assert.equal(context.stage, 'product_identified')
 })
