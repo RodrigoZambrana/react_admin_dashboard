@@ -2,10 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-COPY package-lock.json ./
+COPY ai-agent-service/package.json ./
+COPY ai-agent-service/package-lock.json ./
 RUN npm ci --omit=dev
-COPY src ./src
+COPY ai-agent-service/src ./src
+COPY shared /shared
 
 EXPOSE 4100
 
