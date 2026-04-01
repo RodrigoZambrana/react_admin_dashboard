@@ -8,6 +8,7 @@ import {
   normalizeSemanticText,
   tokenizeSemanticText,
 } from './customer-semantic-signals.js'
+import { getVocabulary } from '../tenant-policy/runtime-tenant-policy.js'
 
 const normalizeText = normalizeSemanticText
 
@@ -15,7 +16,7 @@ const tokenize = tokenizeSemanticText
 
 const PRICE_DIRECT_PATTERNS = [
   /\b(precio|precios|presupuesto|presupuestos|cotizacion|cotizacion(?:es)?|cotización|cotizaciones|cotizar|cotizame|cotízame|cotizan|cotizamos|importe|importes|monto|montos|tarifa|tarifas|arancel|aranceles)\b/u,
-  /\b(cu[aá]nto|que|qué)\s+(sale|cuesta|vale|valdria|valdría|saldria|saldría)\b/u,
+  /\b(cu[aá]nto|que|qué)\s+(sale|cuesta|vale|valdria|valdría|saldria|saldría|seria|sería)\b/u,
   /\b(costo|costos|costo aproximado|costo estimado|precio final|precio aproximado|precio estimado)\b/u,
   /\b(pasame|pasame el|me pasas|me podes pasar|me pod[eé]s pasar)\s+(precio|presupuesto|cotizacion|cotización|valor|costo)\b/u,
 ]
@@ -74,12 +75,12 @@ const INTEREST_VERB_PATTERNS = [
 ]
 
 const CONFIGURATION_SIGNAL_PATTERNS = [
-  /\b(color|medida|medidas|serie|linea|línea|modelo|tipo|version|versión|ancho|alto|material|terminacion|terminación|perfil|apertura|doble vidrio|dvh)\b/u,
+  /\b(color|medida|medidas|serie|linea|línea|modelo|tipo|version|versión|ancho|alto|material|terminacion|terminación|perfil|configuracion|configuración|atributo)\b/u,
 ]
 
 const QUOTE_SEED_DETAIL_PATTERNS = [
   /\b\d{1,4}(?:[.,]\d+)?\s*x\s*\d{1,4}(?:[.,]\d+)?\b/u,
-  /\b\d{1,4}\s+(?:unidades?|items?|item|piezas?|cortinas?|rollers?|persianas?|ventanas?|puertas?|aberturas?|esteras?)\b/u,
+  /\b\d{1,4}\s+(?:unidades?|items?|item|piezas?)\b/u,
   /\b(?:son|serian|serían|necesito|quiero|preciso)\s+\d{1,4}\b/u,
 ]
 
@@ -99,7 +100,24 @@ const LIGHT_FILTER_PREFERENCE_PATTERNS = [
 const INFORMATION_EXPANSION_PATTERNS = [
   /\b(mas info|más info|mas informacion|más información|mas detalles|más detalles|amplia|ampliame|ampliar|contame mas|contame más|explicame mejor|expl[ií]came mejor)\b/u,
   /\b(tenes|tienen|hay)\b.*\b(info|informacion|información|detalles)\b/u,
+  /\b(que|qué)\s+(tipos?|opciones?|variantes?)\s+(tenes|tienen|hay)\b/u,
 ]
+
+const DELIVERY_TIME_FAQ_PATTERNS = [
+  /\b(tiempo de entrega|plazo de entrega)\b/u,
+  /\b(cu[aá]nto|cuanto)\s+(demora|tarda)\b/u,
+  /\b(demora|tarda)\b/u,
+]
+
+const ORDER_STATUS_DIRECT_PATTERNS = [
+  /\b(estado del pedido|estado de mi pedido|seguimiento|tracking)\b/u,
+  /\b(mi pedido|mi orden|mi envio|mi envío)\b/u,
+  /\b(numero|número)\s+de\s+(pedido|orden)\b/u,
+]
+
+const ORDER_STATUS_ENTITY_PATTERN = /\b(pedido|orden|envio|envío|entrega)\b/u
+const ORDER_STATUS_TRACKING_CUE_PATTERN =
+  /\b(estado|seguimiento|tracking|numero|número|llega|llegan|sale|salio|salió|va|viene|confirmaron|confirmado)\b/u
 
 const COMMERCIAL_CONDITION_PATTERNS = [
   /\b(incluye|viene con|es con|trae)\b.*\b(instalacion|instalación|colocacion|colocación|envio|envío|garantia|garantía)\b/u,
@@ -115,6 +133,25 @@ const COMMERCIAL_CONDITION_PATTERNS = [
 
 const PAYMENT_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.payment
 const hasStem = (tokens, stem) => hasStemMatch(tokens, stem)
+
+const uniqueTerms = (values = []) =>
+  Array.from(
+    new Set(
+      (Array.isArray(values) ? values : [values])
+        .filter((value) => typeof value === 'string')
+        .map((value) => normalizeText(value))
+        .filter(Boolean),
+    ),
+  )
+
+const hasConfiguredTerm = (normalizedInput, terms = []) =>
+  uniqueTerms(terms).some((term) => normalizedInput.includes(term))
+
+const getConfiguredQuoteItemTerms = (tenantRuntimePolicy = null) =>
+  uniqueTerms(getVocabulary(tenantRuntimePolicy)?.quoteItemTerms ?? [])
+
+const getConfiguredProductContextTerms = (tenantRuntimePolicy = null) =>
+  uniqueTerms(getVocabulary(tenantRuntimePolicy)?.productContextTerms ?? [])
 
 export const looksLikeGenericPriceInquiry = (value) => {
   const normalized = normalizeText(value)
@@ -164,6 +201,32 @@ export const looksLikeQuoteRequirementsQuestion = (value) => {
   )
 }
 
+export const looksLikeCustomerOrderStatusQuestion = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const looksLikeDeliveryTimeFaq = DELIVERY_TIME_FAQ_PATTERNS.some((pattern) =>
+    pattern.test(normalized),
+  )
+  const hasExplicitOrderReference = /\b(pedido|orden|envio|envío)\b/u.test(normalized)
+
+  if (looksLikeDeliveryTimeFaq && !hasExplicitOrderReference) {
+    return false
+  }
+
+  if (ORDER_STATUS_DIRECT_PATTERNS.some((pattern) => pattern.test(normalized))) {
+    return true
+  }
+
+  return (
+    ORDER_STATUS_ENTITY_PATTERN.test(normalized) &&
+    ORDER_STATUS_TRACKING_CUE_PATTERN.test(normalized) &&
+    !looksLikeDeliveryTimeFaq
+  )
+}
+
 export const looksLikeQuoteWaitingFollowUp = (value) => {
   const normalized = normalizeText(value)
   if (!normalized) {
@@ -188,7 +251,7 @@ export const looksLikeQuoteClarificationRequest = (value) => {
     (/\b\d{1,4}(?:[.,]\d{1,3})?\s*[x×]\s*\d{1,4}(?:[.,]\d{1,3})?\b/u.test(
       normalized,
     ) ||
-      /\btotal\s*:?\s*\d+\s+(aberturas?|ventanas?|puertas?|cortinas?|persianas?|unidades?)\b/u.test(
+      /\btotal\s*:?\s*\d+\s+(items?|productos?|unidades?)\b/u.test(
         normalized,
       ))
 
@@ -228,7 +291,11 @@ export const looksLikeConfiguredProductInterest = (
   )
 }
 
-export const looksLikeStructuredQuoteSeed = (value, tenantTopicTaxonomy = []) => {
+export const looksLikeStructuredQuoteSeed = (
+  value,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
   const normalized = normalizeText(value)
   if (!normalized) {
     return false
@@ -241,9 +308,10 @@ export const looksLikeStructuredQuoteSeed = (value, tenantTopicTaxonomy = []) =>
   const hasInterestVerb = INTEREST_VERB_PATTERNS.some((pattern) =>
     pattern.test(normalized),
   )
-  const hasQuoteDetails = QUOTE_SEED_DETAIL_PATTERNS.some((pattern) =>
-    pattern.test(normalized),
-  )
+  const hasQuoteDetails =
+    QUOTE_SEED_DETAIL_PATTERNS.some((pattern) => pattern.test(normalized)) ||
+    (/\b\d{1,4}\b/u.test(normalized) &&
+      hasConfiguredTerm(normalized, getConfiguredQuoteItemTerms(tenantRuntimePolicy)))
 
   return hasQuoteDetails && (hasInterestVerb || looksLikeGenericPriceInquiry(normalized))
 }
@@ -284,7 +352,11 @@ export const looksLikeCommercialConditionQuestion = (value) => {
   return COMMERCIAL_CONDITION_PATTERNS.some((pattern) => pattern.test(normalized))
 }
 
-export const looksLikeInstalledReplacementAssessmentRequest = (value) => {
+export const looksLikeInstalledReplacementAssessmentRequest = (
+  value,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
   const normalized = normalizeText(value)
   if (!normalized) {
     return false
@@ -299,9 +371,8 @@ export const looksLikeInstalledReplacementAssessmentRequest = (value) => {
       normalized,
     )
   const hasRelevantProduct =
-    /\b(cortina|cortinas|persiana|persianas|ventana|ventanas|abertura|aberturas)\b/u.test(
-      normalized,
-    )
+    hasTenantTopicSignal(normalized, tenantTopicTaxonomy) ||
+    hasConfiguredTerm(normalized, getConfiguredProductContextTerms(tenantRuntimePolicy))
   const asksForBudgeting =
     /\b(presupuesto|presupuestar|cotizacion|cotización|cotizar|cu[aá]nto sale|precio)\b/u.test(
       normalized,
@@ -313,6 +384,7 @@ export const looksLikeInstalledReplacementAssessmentRequest = (value) => {
 export const looksLikeQuoteExpansionFollowUp = (
   value,
   tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
 ) => {
   const normalized = normalizeText(value)
   if (!normalized) {
@@ -321,15 +393,13 @@ export const looksLikeQuoteExpansionFollowUp = (
 
   const hasTenantTopic =
     hasTenantTopicSignal(normalized, tenantTopicTaxonomy) ||
-    /\b(roller|screen|blackout|venecianas?|persianas?|ventanas?|aberturas?|dvh)\b/u.test(
-      normalized,
-    )
+    hasConfiguredTerm(normalized, getConfiguredProductContextTerms(tenantRuntimePolicy))
 
   if (!hasTenantTopic) {
     return false
   }
 
-  return looksLikeQuoteExpansionSignal(normalized)
+  return looksLikeQuoteExpansionSignal(normalized, tenantRuntimePolicy)
 }
 
 export const looksLikePaymentProofFollowUpRequest = (value) => {

@@ -9,50 +9,41 @@ import {
   hasMultimodalPlaceholderSignal,
   hasQuantityOnlyFollowUpSignal,
   hasReengagementReferenceSignal,
-  normalizeSemanticText,
 } from './customer-semantic-signals.js'
 import {
   getBusinessRules,
   getVocabulary,
 } from '../tenant-policy/runtime-tenant-policy.js'
-
-export const extractCurrentCustomerTurnText = (value) =>
-  String(value || '')
-    .split(/\n+\s*Contexto conversacional reciente relevante:\s*/iu)[0]
-    .replace(/<se edit[oó]\s+este\s+mensaje\.?>/giu, ' ')
-    .replace(/<multimedia\s+omitido>/giu, ' ')
-    .replace(/<imagen\s+omitida>/giu, ' ')
-    .replace(/<audio\s+omitido>/giu, ' ')
-    .replace(/<video\s+omitido>/giu, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-
-export const extractSemanticCustomerTurnText = (value) => {
-  const current = extractCurrentCustomerTurnText(value)
-  if (!current) {
-    return ''
-  }
-
-  if (
-    hasMultimodalPlaceholderSignal(current) ||
-    detectStandaloneAttachmentArtifactKind(current)
-  ) {
-    return ''
-  }
-
-  return current
-}
-
-export const stripPlaceholderOnlyCustomerTurnText = (value) => {
-  return extractSemanticCustomerTurnText(value)
-}
+import { getStaticLanguagePolicy } from '../../../../shared/language-policy/index.js'
+import {
+  extractCurrentCustomerTurnText,
+  extractSemanticCustomerTurnText,
+  normalizeSemanticCustomerTurnText,
+} from '../ingress/customer-turn-normalization.js'
 
 const normalizeText = (value) =>
-  normalizeSemanticText(stripPlaceholderOnlyCustomerTurnText(value))
+  normalizeSemanticCustomerTurnText(value)
 
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
-const WEB_LEAD_INTRO_PREFIX_REGEX =
-  /^(?:hola|buen dia|buenos dias|buenas tardes|buenas noches)?\s*(?:te contacto|te escribo|me contacto)\s+desde\s+la\s+web(?:\s+de\s+)?/u
+const BASE_LANGUAGE_POLICY = getStaticLanguagePolicy('es-default')
+
+const compileRegex = (entry, fallbackFlags = 'u') => {
+  if (!entry || typeof entry !== 'object' || typeof entry.source !== 'string') {
+    return null
+  }
+
+  return new RegExp(entry.source, entry.flags || fallbackFlags)
+}
+
+const compileRegexList = (entries = [], fallbackFlags = 'u') =>
+  (Array.isArray(entries) ? entries : [])
+    .map((entry) => compileRegex(entry, fallbackFlags))
+    .filter(Boolean)
+
+const WEB_LEAD_INTRO_PREFIX_REGEX = compileRegex(
+  BASE_LANGUAGE_POLICY.webLeadIntroPattern,
+  'u',
+)
 
 const stripWebLeadIntro = (value = '') => {
   const normalized = normalizeText(value)
@@ -69,106 +60,37 @@ const stripWebLeadIntro = (value = '') => {
   return remainder || normalized
 }
 
-const CUSTOMER_TOPIC_PATTERNS = [
-  /\b(que es|duda sobre|consulta sobre|consulta por|consultar sobre|consultar por|como funciona|para que sirve|beneficios|ventajas|desventajas|diferencia entre|que diferencia hay|informacion sobre|info sobre|explicame|explicame sobre|contame sobre|quiero saber sobre|quiero consultar sobre|quiero consultar por|como se limpia|como limpian|mantenimiento de|como mantener)\b/,
-  /\b(tienen|manejan|ofrecen|trabajan con|cuentan con)\b/,
-]
+const CUSTOMER_TOPIC_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.customerTopicPatterns,
+  'u',
+)
 
-const BASE_BUSINESS_FAQ_DEFINITIONS = [
-  {
-    subtype: 'business_hours',
-    directPatterns: [
-      /\b(horario|horarios|horario de atencion|horario de atención|cuando abren|cuando cierran)\b/,
-      /\b(cual|cu[aá]l)\s+es\s+su\s+horario\b/,
-      /\bcomo\b.*\batienden\b/,
-    ],
-    conceptStems: ['horari', 'atiend', 'abren', 'cierran', 'atencion'],
-    queryStems: ['cual', 'cuando', 'como', 'hoy', 'manana'],
-    knowledgeFactTypes: ['business_hours'],
-    knowledgePageKinds: ['hours_page', 'contact_page', 'faq_page'],
-    knowledgeTagStems: ['horari', 'business_hour'],
-    knowledgeCueStems: ['horari', 'lunes', 'viernes', 'sabado', 'domingo'],
-  },
-  {
-    subtype: 'location',
-    directPatterns: [
-      /\b(donde estan|donde están|de donde son|donde quedan|ubicacion|ubicación|direccion|dirección|local comercial|sucursal|showroom|ciudad)\b/,
-      /\b(en\s+que\s+ciudad)\b/,
-    ],
-    conceptStems: [
-      'ubic',
-      'direccion',
-      'local',
-      'sucursal',
-      'showroom',
-      'ciudad',
-      'montevideo',
-      'donde',
-      'quedan',
-    ],
-    queryStems: ['estan', 'son', 'encuentran', 'queda', 'quedan'],
-    knowledgeFactTypes: ['location', 'local_commercial'],
-    knowledgePageKinds: ['contact_page', 'faq_page'],
-    knowledgeTagStems: ['location', 'local', 'contact'],
-    knowledgeCueStems: [
-      'nos encontramos',
-      'estamos en',
-      'montevideo',
-      'local comercial',
-      'visitas a domicilio',
-    ],
-  },
-  {
-    subtype: 'payment_methods',
-    directPatterns: [
-      /\b(medios de pago|medios de pagos|formas de pago|formas de pagos)\b/,
-      /\b(aceptan|manejan|trabajan con)\s+(tarjeta|tarjetas|transferencia|efectivo|cuotas)\b/,
-      /\b(como|cómo)\s+se\s+(paga|abona)\b/,
-      /\b(se puede pagar|puedo pagar)\b/,
-    ],
-    conceptStems: [
-      'pag',
-      'abon',
-      'tarjet',
-      'transfer',
-      'efectiv',
-      'cuot',
-      'financi',
-      'debit',
-      'credit',
-    ],
-    queryStems: ['acept', 'manej', 'trabaj', 'pued', 'medio', 'forma', 'como'],
-    knowledgeFactTypes: ['payment_methods'],
-    knowledgePageKinds: ['payments_page', 'faq_page'],
-    knowledgeTagStems: ['payment', 'pag', 'tarjet', 'transfer'],
-    knowledgeCueStems: ['efectivo', 'transferencia', 'tarjetas', 'cuotas', 'medios de pago'],
-  },
-  {
-    subtype: 'contact',
-    directPatterns: [
-      /\b(telefono|teléfono|celular|whatsapp|numero de contacto|número de contacto|correo|mail|email|datos? de contacto)\b/,
-      /\b(tienen|manejan)\s+(telefono|teléfono|whatsapp|mail|email)\b/,
-      /\b(hablar con alguien|comunicarme|comunicarse|llamar)\b/,
-    ],
-    conceptStems: [
-      'telefon',
-      'celular',
-      'whatsapp',
-      'contact',
-      'llamar',
-      'comunic',
-      'correo',
-      'mail',
-      'email',
-      'numero',
-    ],
-    queryStems: ['tienen', 'manejan', 'puedo', 'como', 'hablar'],
-    knowledgeFactTypes: ['contact_phone', 'contact_email'],
-    knowledgePageKinds: ['contact_page', 'faq_page'],
-    knowledgeTagStems: ['contact', 'phone', 'email', 'whatsapp'],
-    knowledgeCueStems: ['whatsapp', 'telefono', 'email', '@'],
-  },
-]
+const BASE_BUSINESS_FAQ_DEFINITIONS = (
+  Array.isArray(BASE_LANGUAGE_POLICY.businessFaqDefinitions)
+    ? BASE_LANGUAGE_POLICY.businessFaqDefinitions
+    : []
+).map((definition) => ({
+  subtype: typeof definition?.subtype === 'string' ? definition.subtype : null,
+  directPatterns: compileRegexList(definition?.directPatterns, 'u'),
+  conceptStems: Array.isArray(definition?.conceptStems)
+    ? definition.conceptStems
+    : [],
+  queryStems: Array.isArray(definition?.queryStems)
+    ? definition.queryStems
+    : [],
+  knowledgeFactTypes: Array.isArray(definition?.knowledgeFactTypes)
+    ? definition.knowledgeFactTypes
+    : [],
+  knowledgePageKinds: Array.isArray(definition?.knowledgePageKinds)
+    ? definition.knowledgePageKinds
+    : [],
+  knowledgeTagStems: Array.isArray(definition?.knowledgeTagStems)
+    ? definition.knowledgeTagStems
+    : [],
+  knowledgeCueStems: Array.isArray(definition?.knowledgeCueStems)
+    ? definition.knowledgeCueStems
+    : [],
+})).filter((definition) => definition.subtype)
 
 const getConfiguredFaqSignalTerms = (tenantRuntimePolicy = null, subtype = null) => {
   if (typeof subtype !== 'string' || !subtype.trim()) {
@@ -188,20 +110,16 @@ const getConfiguredFaqSignalTerms = (tenantRuntimePolicy = null, subtype = null)
     : []
 }
 
-const PAYMENT_METHOD_SHORT_FOLLOW_UP_PATTERNS = [
-  /^(?:y\s+)?con\s+(transferencia|transferencia bancaria|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\??$/iu,
-  /^(?:y\s+)?(transferencia|transferencia bancaria|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\??$/iu,
-  /^(?:aceptan|manejan|trabajan con)\s+(transferencia|efectivo|tarjeta|tarjetas|debito|d[eé]bito|credito|cr[eé]dito|cuotas?)\??$/iu,
-]
+const PAYMENT_METHOD_SHORT_FOLLOW_UP_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.paymentMethodShortFollowUpPatterns,
+  'iu',
+)
 
-const PAYMENT_METHOD_CONTEXT_INTENTS = new Set([
-  'customer.quote',
-  'customer.price_inquiry',
-  'customer.product_info',
-  'customer.topic_info',
-  'customer.schedule_request',
-  'customer.support_request',
-])
+const PAYMENT_METHOD_CONTEXT_INTENTS = new Set(
+  Array.isArray(BASE_LANGUAGE_POLICY.paymentMethodContextIntents)
+    ? BASE_LANGUAGE_POLICY.paymentMethodContextIntents
+    : [],
+)
 
 const looksLikeShortPaymentMethodFollowUp = (input, options = {}) => {
   const normalizedInput = normalizeText(input)
@@ -247,38 +165,16 @@ const looksLikeShortPaymentMethodFollowUp = (input, options = {}) => {
   return conceptMatches >= 1 && shortQuestionLike
 }
 
-const CUSTOMER_TRANSACTIONAL_PATTERNS = [
-  /\b(stock|disponibilidad|pedido|orden|envio|entrega|comprar|quiero una|quiero uno|medida|medidas)\b/,
-]
+const CUSTOMER_TRANSACTIONAL_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.customerTransactionalPatterns,
+  'u',
+)
 
-const BASE_COMMON_CUSTOMER_SIGNAL_TOKENS = new Set([
-  'hola',
-  'buenas',
-  'buenos',
-  'dias',
-  'tardes',
-  'noches',
-  'necesito',
-  'quiero',
-  'consulta',
-  'consultar',
-  'informacion',
-  'info',
-  'ayuda',
-  'horario',
-  'ubicacion',
-  'direccion',
-  'telefono',
-  'whatsapp',
-  'contacto',
-  'pago',
-  'pagos',
-  'envio',
-  'entrega',
-  'precio',
-  'cotizacion',
-  'presupuesto',
-])
+const BASE_COMMON_CUSTOMER_SIGNAL_TOKENS = new Set(
+  Array.isArray(BASE_LANGUAGE_POLICY.commonCustomerSignalTokens)
+    ? BASE_LANGUAGE_POLICY.commonCustomerSignalTokens
+    : [],
+)
 
 const buildCommonCustomerSignalTokens = (tenantRuntimePolicy = null) =>
   new Set([
@@ -294,12 +190,35 @@ const buildCommonCustomerSignalTokens = (tenantRuntimePolicy = null) =>
       .filter((entry) => entry.length >= 3)),
   ])
 
-const PRIVATE_ACCOUNT_FAQ_GUARD_PATTERNS = [
-  /\b(mi direccion|direccion de entrega|domicilio de entrega)\b/u,
-  /\b(mi factura|mis facturas|factura de mi pedido|facturas de mi cuenta)\b/u,
-  /\b(mi correo|mi email|mail del sistema|correo del sistema|email del sistema)\b/u,
-  /\b(mi cuenta|datos de cuenta|mis datos)\b/u,
-]
+const PRIVATE_ACCOUNT_FAQ_GUARD_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.privateAccountFaqGuardPatterns,
+  'u',
+)
+
+const CUSTOMER_AVAILABILITY_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.availabilityPatterns,
+  'i',
+)
+
+const CUSTOMER_VARIANT_QUESTION_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.variantQuestionPatterns,
+  'i',
+)
+
+const CUSTOMER_DEFINITION_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.definitionPatterns,
+  'i',
+)
+
+const CUSTOMER_BENEFITS_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.benefitsPatterns,
+  'i',
+)
+
+const CUSTOMER_MAINTENANCE_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.maintenancePatterns,
+  'i',
+)
 
 const looksLikePrivateAccountFaqGuard = (input) => {
   const normalizedInput = normalizeText(input)
@@ -490,14 +409,14 @@ export const looksLikeCustomerAvailabilityQuestion = (text) => {
     return false
   }
 
-  return /\b(tienen|manejan|ofrecen|trabajan con|cuentan con|tiempo de entrega|plazo de entrega|demora|tarda|stock|disponibilidad|hay stock)\b/i.test(
-    currentTurnText,
+  return CUSTOMER_AVAILABILITY_PATTERNS.some((pattern) =>
+    pattern.test(currentTurnText),
   )
 }
 
 export const looksLikeCustomerVariantQuestion = (text) =>
-  /\b((que|qué)\s+(tipos|opciones|variantes|lineas|líneas|modelos)\s+(tienen|hay|manejan)|cuales\s+(tienen|hay|manejan)|cu[aá]les\s+(tienen|hay|manejan)|((que|qué)\s+(versiones|formatos)\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\s+(las\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\b/i.test(
-    extractCurrentCustomerTurnText(text),
+  CUSTOMER_VARIANT_QUESTION_PATTERNS.some((pattern) =>
+    pattern.test(extractCurrentCustomerTurnText(text)),
   )
 
 export const looksLikeCustomerBusinessHoursQuestion = (text, options = {}) =>
@@ -513,18 +432,18 @@ export const looksLikeCustomerContactQuestion = (text, options = {}) =>
   detectBusinessFaqSubtype(text, options) === 'contact'
 
 export const looksLikeCustomerDefinitionQuestion = (text) =>
-  /\b(que es|duda sobre|como funciona|para que sirve|explicame|explicame sobre|contame sobre|quiero saber sobre)\b/i.test(
-    extractCurrentCustomerTurnText(text),
+  CUSTOMER_DEFINITION_PATTERNS.some((pattern) =>
+    pattern.test(extractCurrentCustomerTurnText(text)),
   )
 
 export const looksLikeCustomerBenefitsQuestion = (text) =>
-  /\b(beneficios|ventajas|desventajas|diferencia entre|que diferencia hay)\b/i.test(
-    extractCurrentCustomerTurnText(text),
+  CUSTOMER_BENEFITS_PATTERNS.some((pattern) =>
+    pattern.test(extractCurrentCustomerTurnText(text)),
   )
 
 export const looksLikeCustomerMaintenanceQuestion = (text) =>
-  /\b(como se limpia|como limpian|mantenimiento de|como mantener)\b/i.test(
-    extractCurrentCustomerTurnText(text),
+  CUSTOMER_MAINTENANCE_PATTERNS.some((pattern) =>
+    pattern.test(extractCurrentCustomerTurnText(text)),
   )
 
 export const looksLikeCustomerGenericInfoRequest = (text) => {

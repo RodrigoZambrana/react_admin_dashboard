@@ -26,6 +26,57 @@ const TENANT_TOPIC_TAXONOMY = [
   },
 ]
 
+const TENANT_RUNTIME_POLICY = {
+  vocabulary: {
+    supportComponentTerms: ['cinta', 'enrollador', 'lama', 'motor', 'guia', 'guía'],
+    productContextTerms: [
+      'cortina',
+      'cortinas',
+      'persiana',
+      'persianas',
+      'roller',
+      'pvc',
+      'ventana',
+      'ventanas',
+      'abertura',
+      'aberturas',
+    ],
+    catalogCarrierTerms: [
+      'ventana',
+      'ventanas',
+      'abertura',
+      'aberturas',
+      'marco',
+      'marcos',
+      'guia',
+      'guía',
+      'guias',
+      'guías',
+      'hoja',
+      'hojas',
+      'paño',
+      'pano',
+    ],
+    catalogStructuralTerms: [
+      'corrediza',
+      'corredizas',
+      'fija',
+      'fijas',
+      'pvc',
+      'hierro',
+      'vidrio',
+      'hoja',
+      'hojas',
+      'paño',
+      'pano',
+    ],
+    catalogStructuralPhrases: ['hojas corredizas', 'paño fijo', 'pano fijo'],
+  },
+  businessRules: {
+    installationTerms: ['instalacion', 'instalación', 'colocacion', 'colocación'],
+  },
+}
+
 test('classifyInboundMessage detects incomplete customer requests', () => {
   const result = classifyInboundMessage({
     role: 'customer_public',
@@ -101,10 +152,22 @@ test('classifyInboundMessage treats a bare web lead intro as a clarification see
   assert.equal(result.suggestedIntent, 'customer.clarify_request')
 })
 
+test('classifyInboundMessage does not treat a lead intro plus operational content as a bare clarification seed', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input:
+      'Hola, te contacto desde la web de urucortinas: Preciso vengan a mi domicilio para una cotización. Preciso cambiar o reparar la ventana del baño. ¿Cuándo podrían venir?',
+  })
+
+  assert.notEqual(result.category, 'generic_help_request')
+  assert.notEqual(result.suggestedIntent, 'customer.clarify_request')
+})
+
 test('classifyInboundMessage upgrades replacement budgeting requests to quote intent', () => {
   const result = classifyInboundMessage({
     role: 'customer_public',
     input: 'Quisiera cambiar las persianas de mi casa, que datos necesitan para presupuestar?',
+    tenantRuntimePolicy: TENANT_RUNTIME_POLICY,
   })
 
   assert.equal(result.category, 'price_inquiry')
@@ -147,6 +210,7 @@ test('classifyInboundMessage keeps short product identification turns inside a r
   const result = classifyInboundMessage({
     role: 'customer_public',
     input: 'es una persiana de pvc',
+    tenantRuntimePolicy: TENANT_RUNTIME_POLICY,
     recentTurns: [
       { role: 'customer', text: 'Hola reparan cortinas de enrollar?' },
       {
@@ -376,6 +440,7 @@ test('classifyInboundMessage switches to support when a quote thread pivots to c
   const result = classifyInboundMessage({
     role: 'customer_public',
     input: 'y solo cambio de enrollador/cinta cuanto saldria?',
+    tenantRuntimePolicy: TENANT_RUNTIME_POLICY,
     recentTurns: [
       { role: 'customer', text: 'Quiero presupuesto para persianas en un apto' },
       {
@@ -396,6 +461,7 @@ test('classifyInboundMessage detects scheduling availability requests tied to vi
     role: 'customer_public',
     input:
       'Buenas tardes. ¿Cuándo tendrán disponibilidad para hacer la instalación? Me sirve después de las 17.',
+    tenantRuntimePolicy: TENANT_RUNTIME_POLICY,
   })
 
   assert.equal(result.category, 'schedule_request')
@@ -438,11 +504,12 @@ test('classifyInboundMessage treats structural opening descriptions with measure
     role: 'customer_public',
     input:
       'Son 2,90 x 2,60 total. Las hojas corredizas son de 1,45 x 2,00 y las fijas de arriba 1,45 x 0,60 aprox.',
+    tenantRuntimePolicy: TENANT_RUNTIME_POLICY,
   })
 
   assert.equal(result.category, 'price_inquiry')
   assert.equal(result.suggestedIntent, 'customer.quote')
-  assert.ok(result.decisionPath.includes('classifier:opening_structure_quote'))
+  assert.ok(result.decisionPath.includes('classifier:catalog_structure_quote'))
 })
 
 test('classifyInboundMessage does not mistake good-afternoon greetings plus installation conditions for scheduling', () => {
@@ -461,13 +528,26 @@ test('classifyInboundMessage treats installation preparation on an opening as qu
     role: 'customer_public',
     input:
       'El motivo es porque queremos colocar una cortina exterior y necesitamos que quede lisa y uniforme la superficie del marco donde apoyan sus guías.',
+    tenantRuntimePolicy: TENANT_RUNTIME_POLICY,
   })
 
   assert.equal(result.category, 'price_inquiry')
   assert.equal(result.suggestedIntent, 'customer.quote')
   assert.ok(
-    result.decisionPath.includes('classifier:opening_installation_assessment_quote'),
+    result.decisionPath.includes('classifier:catalog_installation_assessment_quote'),
   )
+})
+
+test('classifyInboundMessage keeps installed-product photo references inside support instead of quote exploration', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Esa es la foto de las cortinas que colocaron.',
+    tenantRuntimePolicy: TENANT_RUNTIME_POLICY,
+  })
+
+  assert.equal(result.category, 'support_request')
+  assert.equal(result.suggestedIntent, 'customer.support_request')
+  assert.ok(result.decisionPath.includes('classifier:support_request'))
 })
 
 test('classifyInboundMessage keeps short administrative follow-ups inside an active schedule thread', () => {
@@ -486,6 +566,42 @@ test('classifyInboundMessage keeps short administrative follow-ups inside an act
   assert.equal(result.category, 'schedule_request')
   assert.equal(result.suggestedIntent, 'customer.schedule_request')
   assert.ok(result.decisionPath.includes('classifier:schedule_request_contextual_followup'))
+})
+
+test('classifyInboundMessage keeps status-check follow-ups inside an active schedule thread', () => {
+  const recentTurns = [
+    { role: 'customer', text: 'A las 18hs' },
+    {
+      role: 'agent',
+      text: 'Perfecto. Hablamos con los técnicos y te avisamos apenas confirmen la disponibilidad.',
+    },
+  ]
+
+  const noveltyFollowUp = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Tenés alguna novedad?',
+    recentTurns,
+  })
+  const dayConfirmationFollowUp = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Jueves?',
+    recentTurns,
+  })
+
+  assert.equal(noveltyFollowUp.category, 'schedule_request')
+  assert.equal(noveltyFollowUp.suggestedIntent, 'customer.schedule_request')
+  assert.ok(
+    noveltyFollowUp.decisionPath.includes(
+      'classifier:schedule_request_contextual_followup',
+    ),
+  )
+  assert.equal(dayConfirmationFollowUp.category, 'schedule_request')
+  assert.equal(dayConfirmationFollowUp.suggestedIntent, 'customer.schedule_request')
+  assert.ok(
+    dayConfirmationFollowUp.decisionPath.includes(
+      'classifier:schedule_request_contextual_followup',
+    ),
+  )
 })
 
 test('classifyInboundMessage recognizes payment method phrasings with pluralized pago wording', () => {
@@ -566,4 +682,15 @@ test('classifyInboundMessage only treats yes/no as confirmation or cancellation 
   assert.equal(cancellation.category, 'cancellation')
   assert.equal(cancellation.suggestedIntent, 'customer.cancellation')
   assert.notEqual(withoutPending.category, 'confirmation')
+})
+
+test('classifyInboundMessage detects schedule cancellation language without needing a pending confirmation state', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'No puede esperar el chico, les voy a cancelar la ida. Gracias igual.',
+  })
+
+  assert.equal(result.category, 'cancellation')
+  assert.equal(result.suggestedIntent, 'customer.cancellation')
+  assert.match(result.decisionPath.join(' '), /schedule_cancellation/i)
 })

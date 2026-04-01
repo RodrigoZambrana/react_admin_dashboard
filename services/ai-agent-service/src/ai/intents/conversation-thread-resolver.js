@@ -1,9 +1,11 @@
 import { extractCustomerQuotedMeasurements, extractCustomerQuoteLeadText } from './customer-quote-context.js'
 import {
+  findBestTenantTopicMatch,
   findTenantTopicMatches,
   isContextualTopicDescriptorMatch,
   normalizeCustomerTopicText,
 } from './customer-topic-taxonomy.js'
+import { isGenericQuoteTopicLabel } from './quote-semantics.js'
 
 const normalizeText = normalizeCustomerTopicText
 
@@ -104,6 +106,80 @@ const cloneThread = (thread = null) =>
           : [],
       }
     : null
+
+const buildFallbackThreadFromPreviousTaskState = (
+  previousTaskState = null,
+  tenantTopicTaxonomy = [],
+) => {
+  const previousQuoteContext =
+    previousTaskState?.quoteContext && typeof previousTaskState.quoteContext === 'object'
+      ? previousTaskState.quoteContext
+      : null
+  const previousCanonicalTopic =
+    previousTaskState?.canonicalTopic && typeof previousTaskState.canonicalTopic === 'object'
+      ? previousTaskState.canonicalTopic
+      : null
+  const previousLabel = compactText(
+    previousQuoteContext?.topicLabel || previousCanonicalTopic?.label || '',
+  )
+  if (!previousLabel || isGenericQuoteTopicLabel(previousLabel)) {
+    return null
+  }
+
+  const previousMatch = findBestTenantTopicMatch(previousLabel, tenantTopicTaxonomy, {
+    kinds: ['product_family', 'product_topic', 'product_variant'],
+  })
+  if (previousMatch) {
+    let thread = createThreadFromMatch(previousMatch)
+    if (previousMatch.kind === 'product_variant') {
+      thread = attachVariantToThread(thread, previousMatch)
+    }
+    const previousVariantLabel = compactText(previousQuoteContext?.variantLabel || '')
+    if (
+      thread &&
+      previousMatch.kind === 'product_topic' &&
+      previousVariantLabel &&
+      !normalizeText(thread.resolvedLabel || '').includes(normalizeText(previousVariantLabel))
+    ) {
+      const variantMatch = findBestTenantTopicMatch(previousVariantLabel, tenantTopicTaxonomy, {
+        kinds: ['product_variant'],
+      })
+      if (
+        variantMatch &&
+        Array.isArray(variantMatch.parentKeys) &&
+        variantMatch.parentKeys.includes(thread.baseKey)
+      ) {
+        thread = attachVariantToThread(thread, variantMatch)
+      }
+    }
+    return thread
+  }
+
+  const syntheticBaseLabel = previousLabel
+  const syntheticBaseKey = `synthetic:${normalizeText(syntheticBaseLabel).replace(/\s+/g, '-')}`
+  return {
+    key: buildThreadKey(syntheticBaseKey),
+    baseKey: syntheticBaseKey,
+    baseLabel: syntheticBaseLabel,
+    baseType:
+      typeof previousCanonicalTopic?.type === 'string'
+        ? previousCanonicalTopic.type
+        : 'product_topic',
+    familyLabel:
+      compactText(previousQuoteContext?.familyLabel || previousCanonicalTopic?.familyLabel || '') ||
+      null,
+    variantKeys: [],
+    variantLabels: [],
+    variantDisplayLabels: [],
+    resolvedLabel: syntheticBaseLabel,
+    displayLabel: syntheticBaseLabel,
+    confidence:
+      typeof previousCanonicalTopic?.confidence === 'number'
+        ? previousCanonicalTopic.confidence
+        : 0.62,
+    source: 'conversation_memory_fallback',
+  }
+}
 
 const buildPrioritizedBaseMatches = (leadText, taxonomy = [], measurementCarrierTerms = []) => {
   const matches = findTenantTopicMatches(leadText, taxonomy, {
@@ -236,9 +312,19 @@ export const resolveConversationThreads = ({
 }) => {
   const leadText = extractCustomerQuoteLeadText(currentTurnText)
   const normalizedInput = normalizeText(currentTurnText)
-  const previousThreads = Array.isArray(previousTaskState?.conversationThreads)
+  const previousThreadsFromState = Array.isArray(previousTaskState?.conversationThreads)
     ? previousTaskState.conversationThreads.map(cloneThread).filter(Boolean)
     : []
+  const previousThreads =
+    previousThreadsFromState.length > 0
+      ? previousThreadsFromState
+      : (() => {
+          const fallbackThread = buildFallbackThreadFromPreviousTaskState(
+            previousTaskState,
+            tenantTopicTaxonomy,
+          )
+          return fallbackThread ? [fallbackThread] : []
+        })()
   const previousThreadMap = new Map(
     previousThreads.map((entry) => [String(entry.key), cloneThread(entry)]),
   )
@@ -246,6 +332,9 @@ export const resolveConversationThreads = ({
     typeof previousTaskState?.activeThreadKey === 'string'
       ? previousThreadMap.get(previousTaskState.activeThreadKey) || null
       : null
+  const inferredPreviousActiveThread =
+    previousActiveThread ||
+    (previousThreads.length === 1 ? cloneThread(previousThreads[0]) : null)
 
   const matches = Array.from(
     new Map(
@@ -315,14 +404,14 @@ export const resolveConversationThreads = ({
       (preferredThreadKey && previousThreadMap.get(preferredThreadKey)) ||
       null
 
-    if (!targetThread && previousActiveThread) {
+    if (!targetThread && inferredPreviousActiveThread) {
       const parentKeySet = new Set(Array.isArray(match.parentKeys) ? match.parentKeys : [])
       if (
-        parentKeySet.has(previousActiveThread.baseKey) ||
-        normalizeText(previousActiveThread.familyLabel || '') ===
+        parentKeySet.has(inferredPreviousActiveThread.baseKey) ||
+        normalizeText(inferredPreviousActiveThread.familyLabel || '') ===
           normalizeText(match.familyLabel || '')
       ) {
-        targetThread = cloneThread(previousActiveThread)
+        targetThread = cloneThread(inferredPreviousActiveThread)
       }
     }
 
@@ -353,7 +442,7 @@ export const resolveConversationThreads = ({
     inferMeasurementOnlyTurn({ currentTurnText, nluAnalysis })
   const activeThreadFromExplicitMatches = selectActiveThreadFromExplicitMatches({
     currentBaseThreads: currentThreads,
-    previousActiveThread,
+    previousActiveThread: inferredPreviousActiveThread,
     normalizedInput,
   })
   const requiresDisambiguation =
@@ -368,14 +457,14 @@ export const resolveConversationThreads = ({
     activeThread = currentThreads[0]
   } else if (
     currentThreads.length === 0 &&
-    previousActiveThread &&
+    inferredPreviousActiveThread &&
     (measurementOnlyTurn ||
       /^(y|tambien|también|si|sí|con|sin|de|para)\b/.test(normalizedInput))
   ) {
-    activeThread = cloneThread(previousActiveThread)
-  } else if (previousActiveThread && currentThreads.length > 1) {
+    activeThread = cloneThread(inferredPreviousActiveThread)
+  } else if (inferredPreviousActiveThread && currentThreads.length > 1) {
     activeThread =
-      currentThreads.find((entry) => entry.key === previousActiveThread.key) || null
+      currentThreads.find((entry) => entry.key === inferredPreviousActiveThread.key) || null
   }
 
   if (activeThread && !currentThreadMap.has(activeThread.key)) {
@@ -396,8 +485,8 @@ export const resolveConversationThreads = ({
     : null
   const switchDetected =
     Boolean(activeThread?.key) &&
-    Boolean(previousActiveThread?.key) &&
-    activeThread.key !== previousActiveThread.key
+    Boolean(inferredPreviousActiveThread?.key) &&
+    activeThread.key !== inferredPreviousActiveThread.key
 
   return {
     threads: mergedThreads,

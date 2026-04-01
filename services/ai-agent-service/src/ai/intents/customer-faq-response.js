@@ -1,8 +1,8 @@
 import {
   detectCustomerFaqSubtype,
-  extractCurrentCustomerTurnText,
   extractRequestedTopicLabel,
 } from './customer-faq-heuristics.js'
+import { extractCurrentCustomerTurnText } from '../ingress/customer-turn-normalization.js'
 import {
   looksLikeConfiguredProductInterest,
   looksLikeGenericPriceInquiry,

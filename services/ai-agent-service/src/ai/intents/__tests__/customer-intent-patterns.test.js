@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   looksLikeCommercialConditionQuestion,
   looksLikeConfiguredProductInterest,
+  looksLikeCustomerOrderStatusQuestion,
   looksLikeGenericPriceInquiry,
   looksLikeLightFilterPreferenceRequest,
   looksLikePaymentOperationalUpdate,
@@ -173,6 +174,17 @@ test('looksLikeLightFilterPreferenceRequest detects light-filter needs without t
   )
   assert.equal(
     looksLikeLightFilterPreferenceRequest('cuando pueden pasar'),
+    false,
+  )
+})
+
+test('looksLikeCustomerOrderStatusQuestion separates order tracking from delivery-time FAQs', () => {
+  assert.equal(
+    looksLikeCustomerOrderStatusQuestion('¿Cómo viene mi pedido?'),
+    true,
+  )
+  assert.equal(
+    looksLikeCustomerOrderStatusQuestion('Hola, ok, qeu tiempo de entrega tiene?'),
     false,
   )
 })

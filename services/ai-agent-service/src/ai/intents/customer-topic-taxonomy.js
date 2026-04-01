@@ -21,6 +21,12 @@ const singularizeAlias = (value) => {
   return normalized
 }
 
+const tokenizeNormalizedValue = (value) =>
+  normalizeText(value)
+    .split(/\s+/u)
+    .map((token) => token.trim())
+    .filter(Boolean)
+
 const isProductTopicAliasTooBroad = (entry, alias, normalizationValue) => {
   if (entry?.kind !== 'product_topic') {
     return false
@@ -46,6 +52,62 @@ const isProductTopicAliasTooBroad = (entry, alias, normalizationValue) => {
     (singularFamily && normalizedAlias === singularFamily)
   ) {
     return true
+  }
+
+  return false
+}
+
+const isNumericVariantAlias = (entry, alias) =>
+  entry?.kind === 'product_variant' && /^\d{1,4}$/u.test(normalizeText(alias))
+
+const collectVariantContextTokens = (entry, variantContextTerms = []) =>
+  Array.from(
+    new Set(
+      [
+        ...(Array.isArray(variantContextTerms) ? variantContextTerms : []),
+        ...(Array.isArray(entry?.parentLabels) ? entry.parentLabels : []),
+        entry?.familyLabel,
+      ]
+        .flatMap((value) => tokenizeNormalizedValue(value))
+        .flatMap((token) => [token, singularizeAlias(token)])
+        .filter((token) => token && token.length >= 4 && !/^\d+$/u.test(token)),
+    ),
+  )
+
+const hasContextualNumericVariantMatch = (
+  normalizedInput,
+  entry,
+  alias,
+  variantContextTerms = [],
+) => {
+  const normalizedAlias = normalizeText(alias)
+  if (!isNumericVariantAlias(entry, normalizedAlias)) {
+    return true
+  }
+
+  const tokens = tokenizeNormalizedValue(normalizedInput)
+  const contextTokens = new Set(collectVariantContextTokens(entry, variantContextTerms))
+
+  for (let index = 0; index < tokens.length; index += 1) {
+    if (tokens[index] !== normalizedAlias) {
+      continue
+    }
+
+    const previousToken = tokens[index - 1] || ''
+    const nextToken = tokens[index + 1] || ''
+    if (/^\d+$/u.test(previousToken) || /^\d+$/u.test(nextToken)) {
+      continue
+    }
+
+    const windowTokens = [
+      tokens[index - 2] || '',
+      previousToken,
+      nextToken,
+    ].flatMap((token) => [token, singularizeAlias(token)])
+
+    if (windowTokens.some((token) => contextTokens.has(token))) {
+      return true
+    }
   }
 
   return false
@@ -173,6 +235,9 @@ export const findTenantTopicMatches = (value, taxonomy = [], options = {}) => {
   const allowedKinds = Array.isArray(options?.kinds)
     ? new Set(options.kinds)
     : null
+  const variantContextTerms = Array.isArray(options?.variantContextTerms)
+    ? options.variantContextTerms
+    : []
   const matches = []
 
   for (const entry of normalizeTenantTopicTaxonomy(taxonomy)) {
@@ -191,6 +256,17 @@ export const findTenantTopicMatches = (value, taxonomy = [], options = {}) => {
     }
 
     if (bestAlias) {
+      if (
+        !hasContextualNumericVariantMatch(
+          normalizedInput,
+          entry,
+          bestAlias,
+          variantContextTerms,
+        )
+      ) {
+        continue
+      }
+
       matches.push({
         ...entry,
         matchedAlias: bestAlias,

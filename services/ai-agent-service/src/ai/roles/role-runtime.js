@@ -1,3 +1,12 @@
+import {
+  STRUCTURED_CATALOG_INSERT_TOOL,
+  STRUCTURED_CATALOG_PARSE_INTENT,
+  STRUCTURED_CATALOG_PARSE_TOOL,
+  STRUCTURED_CATALOG_PREPARE_QUOTE_INTENT,
+  STRUCTURED_CATALOG_QUOTE_TOOL,
+  STRUCTURED_CATALOG_REGISTER_INTENT,
+} from '../structured-catalog-runtime.js'
+
 const DEFAULT_ROLE_CATALOG = [
   {
     key: 'customer_public',
@@ -12,7 +21,7 @@ const DEFAULT_ROLE_CATALOG = [
       'quotes.manage',
       'payments.manage',
       'catalog.manage',
-      'aberturas.register',
+      STRUCTURED_CATALOG_REGISTER_INTENT,
     ],
     requiresConfirmation: [],
     tone: 'helpful_public',
@@ -32,7 +41,7 @@ const DEFAULT_ROLE_CATALOG = [
       'quotes.manage',
       'payments.manage',
       'catalog.manage',
-      'aberturas.register',
+      STRUCTURED_CATALOG_REGISTER_INTENT,
     ],
     requiresConfirmation: [],
     tone: 'trusted_customer',
@@ -56,7 +65,7 @@ const DEFAULT_ROLE_CATALOG = [
       'delete_appointment',
       'update_customer',
     ],
-    forbiddenIntents: ['catalog.manage', 'aberturas.register'],
+    forbiddenIntents: ['catalog.manage', STRUCTURED_CATALOG_REGISTER_INTENT],
     requiresConfirmation: [],
     tone: 'supportive_operator',
     authRoles: ['ADMIN'],
@@ -81,8 +90,8 @@ const DEFAULT_ROLE_CATALOG = [
       'confirm_quote',
       'update_quote_comment',
       'update_quote_structure',
-      'prepare_aberturas_quote',
-      'parse_aberturas',
+      STRUCTURED_CATALOG_QUOTE_TOOL,
+      STRUCTURED_CATALOG_PARSE_TOOL,
     ],
     forbiddenIntents: ['payments.manage'],
     requiresConfirmation: [],
@@ -119,9 +128,9 @@ const DEFAULT_ROLE_CATALOG = [
       'update_order_structure',
       'update_payment_status',
       'update_payment',
-      'parse_aberturas',
-      'prepare_aberturas_quote',
-      'prepare_aberturas_insert',
+      STRUCTURED_CATALOG_PARSE_TOOL,
+      STRUCTURED_CATALOG_QUOTE_TOOL,
+      STRUCTURED_CATALOG_INSERT_TOOL,
     ],
     forbiddenIntents: [],
     requiresConfirmation: [],
@@ -208,7 +217,7 @@ const resolveCapabilityFamilies = (capabilityEnvelope = []) => {
   const families = new Set()
 
   if (
-    capabilityEnvelope.includes('aberturas.register') ||
+    capabilityEnvelope.includes(STRUCTURED_CATALOG_REGISTER_INTENT) ||
     capabilityEnvelope.includes('catalog.manage') ||
     capabilityEnvelope.includes('payments.manage')
   ) {
@@ -217,7 +226,8 @@ const resolveCapabilityFamilies = (capabilityEnvelope = []) => {
 
   if (
     capabilityEnvelope.includes('quotes.manage') ||
-    capabilityEnvelope.includes('aberturas.quote')
+    capabilityEnvelope.includes(STRUCTURED_CATALOG_PREPARE_QUOTE_INTENT) ||
+    capabilityEnvelope.includes(STRUCTURED_CATALOG_PARSE_INTENT)
   ) {
     families.add('admin_sales')
   }

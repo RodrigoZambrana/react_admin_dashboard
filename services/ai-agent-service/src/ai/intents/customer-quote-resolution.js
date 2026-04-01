@@ -85,6 +85,66 @@ const tokenize = (value) =>
     .map((entry) => entry.trim())
     .filter((entry) => entry && !STOP_TOKENS.has(entry))
 
+const isNumericLikeToken = (value) => /\d/.test(String(value || ''))
+
+const getQuoteConfigurationLabels = (quoteContext = null) => {
+  const capturedAttributes =
+    quoteContext?.capturedAttributes && typeof quoteContext.capturedAttributes === 'object'
+      ? quoteContext.capturedAttributes
+      : {}
+
+  return Object.entries(capturedAttributes)
+    .filter(([key, entry]) => key !== 'measurements' && key !== 'quantity' && entry)
+    .map(([, entry]) =>
+      compactText(
+        typeof entry?.label === 'string' && entry.label.trim()
+          ? entry.label
+          : typeof entry?.value === 'string' && entry.value.trim()
+            ? entry.value
+            : '',
+      ),
+    )
+    .filter(Boolean)
+}
+
+const collectDistinctiveLeadTokens = (
+  input = null,
+  quoteContext = null,
+  interpretation = null,
+) => {
+  const ignoredTokens = new Set(
+    tokenize(
+      [
+        quoteContext?.familyLabel,
+        ...getQuoteConfigurationLabels(quoteContext),
+      ]
+        .filter(Boolean)
+        .join(' '),
+    ),
+  )
+  const candidateText = [
+    extractCustomerQuoteLeadText(input),
+    resolveQuoteSubjectLabel(interpretation, quoteContext),
+    quoteContext?.topicLabel,
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  return tokenize(candidateText).filter(
+    (token) =>
+      token &&
+      !ignoredTokens.has(token) &&
+      !GENERIC_PRODUCT_DESCRIPTOR_TOKENS.has(token) &&
+      !isNumericLikeToken(token),
+  )
+}
+
+const hasDistinctiveLeadDescriptorInput = (
+  input = null,
+  quoteContext = null,
+  interpretation = null,
+) => collectDistinctiveLeadTokens(input, quoteContext, interpretation).length > 0
+
 const dedupeStrings = (values = []) => {
   const seen = new Set()
   const result = []
@@ -123,34 +183,67 @@ const formatMeasurementTokenFromMm = (widthMm, heightMm) => {
 }
 
 const resolveQuoteSubjectLabel = (interpretation = null, quoteContext = null) => {
+  const quoteTopicLabel = compactText(quoteContext?.topicLabel || '')
+  const quoteVariantLabel = compactText(quoteContext?.variantLabel || '')
+  const quoteContextSubjectLabel =
+    quoteTopicLabel && quoteVariantLabel
+      ? normalizeText(quoteTopicLabel).includes(normalizeText(quoteVariantLabel))
+        ? quoteTopicLabel
+        : compactText(`${quoteTopicLabel} ${quoteVariantLabel}`)
+      : quoteTopicLabel || quoteVariantLabel || ''
+  const activeThreadResolvedLabel = compactText(
+    interpretation?.threadResolution?.activeThread?.resolvedLabel || '',
+  )
+  const activeThreadBaseLabel = compactText(
+    interpretation?.threadResolution?.activeThread?.baseLabel || '',
+  )
+  const activeThreadLabel = activeThreadResolvedLabel || activeThreadBaseLabel || null
+  const normalizedActiveThreadLabel = normalizeText(activeThreadLabel || '')
+  const quoteTopicIsMoreSpecificThanActiveThread =
+    normalizeText(quoteContextSubjectLabel) &&
+    (!normalizedActiveThreadLabel ||
+      normalizeText(quoteContextSubjectLabel).includes(normalizedActiveThreadLabel) ||
+      quoteContextSubjectLabel.split(/\s+/u).length >
+        String(activeThreadLabel || '').split(/\s+/u).length)
+  if (!quoteTopicIsMoreSpecificThanActiveThread && activeThreadLabel) {
+    return activeThreadLabel
+  }
+
   const currentTopic =
     interpretation?.topic &&
     PRODUCT_TOPIC_TYPES.has(String(interpretation.topic.type || ''))
       ? compactText(interpretation.topic.label)
       : null
+  const currentTopicType = String(interpretation?.topic?.type || '')
   const currentContextTopic =
     interpretation?.contextTopic &&
     PRODUCT_TOPIC_TYPES.has(String(interpretation.contextTopic.type || ''))
       ? compactText(interpretation.contextTopic.label)
       : null
+  const currentContextTopicType = String(interpretation?.contextTopic?.type || '')
   const familyLabel = compactText(quoteContext?.familyLabel || '')
+  const baseTopicLabel =
+    quoteContextSubjectLabel ||
+    (currentTopicType === 'product_topic' ? currentTopic : null) ||
+    (currentContextTopicType === 'product_topic' ? currentContextTopic : null) ||
+    familyLabel ||
+    null
+  const variantLabel =
+    currentTopicType === 'product_variant'
+      ? currentTopic
+      : currentContextTopicType === 'product_variant'
+        ? currentContextTopic
+        : null
 
   if (
-    currentTopic &&
-    String(interpretation?.topic?.type || '') === 'product_variant' &&
-    familyLabel &&
-    !normalizeText(currentTopic).includes(normalizeText(familyLabel))
+    baseTopicLabel &&
+    variantLabel &&
+    !normalizeText(baseTopicLabel).includes(normalizeText(variantLabel))
   ) {
-    return compactText(`${familyLabel} ${currentTopic}`)
+    return compactText(`${baseTopicLabel} ${variantLabel}`)
   }
 
-  return (
-    currentTopic ||
-    compactText(quoteContext?.topicLabel || '') ||
-    familyLabel ||
-    currentContextTopic ||
-    null
-  )
+  return baseTopicLabel || currentTopic || currentContextTopic || null
 }
 
 const buildQuoteSearchQueries = (interpretation = null, quoteContext = null) => {
@@ -159,22 +252,49 @@ const buildQuoteSearchQueries = (interpretation = null, quoteContext = null) => 
     PRODUCT_TOPIC_TYPES.has(String(interpretation.topic.type || ''))
       ? compactText(interpretation.topic.label)
       : null
+  const currentTopicType = String(interpretation?.topic?.type || '')
   const contextTopic =
     interpretation?.contextTopic &&
     PRODUCT_TOPIC_TYPES.has(String(interpretation.contextTopic.type || ''))
       ? compactText(interpretation.contextTopic.label)
       : null
+  const contextTopicType = String(interpretation?.contextTopic?.type || '')
   const familyLabel = compactText(quoteContext?.familyLabel || '')
   const subjectLabel = resolveQuoteSubjectLabel(interpretation, quoteContext)
+  const baseTopicLabel =
+    compactText(quoteContext?.topicLabel || '') ||
+    (currentTopicType === 'product_topic' ? currentTopic : null) ||
+    (contextTopicType === 'product_topic' ? contextTopic : null) ||
+    null
+  const variantLabel =
+    currentTopicType === 'product_variant'
+      ? currentTopic
+      : contextTopicType === 'product_variant'
+        ? contextTopic
+        : null
 
   return dedupeStrings([
     subjectLabel,
-    currentTopic,
-    contextTopic,
-    familyLabel && currentTopic ? `${familyLabel} ${currentTopic}` : null,
-    familyLabel && contextTopic ? `${familyLabel} ${contextTopic}` : null,
-    familyLabel,
+    baseTopicLabel,
+    variantLabel,
+    currentTopicType === 'product_topic' ? currentTopic : null,
+    contextTopicType === 'product_topic' ? contextTopic : null,
+    !subjectLabel && !baseTopicLabel ? familyLabel : null,
   ])
+}
+
+const previewProductQuoteSafely = async (backendClient, payload) => {
+  try {
+    return {
+      preview: await backendClient.previewProductQuote(payload),
+      error: null,
+    }
+  } catch (error) {
+    return {
+      preview: null,
+      error: error instanceof Error ? error.message : 'preview_failed',
+    }
+  }
 }
 
 const buildPublishedCatalogExactQueries = ({
@@ -185,9 +305,7 @@ const buildPublishedCatalogExactQueries = ({
   const subjectLabel = resolveQuoteSubjectLabel(interpretation, quoteContext)
   const baseQueries = buildQuoteSearchQueries(interpretation, quoteContext)
   const leadText = extractCustomerQuoteLeadText(input)
-  const series = compactText(quoteContext?.series || '')
-  const glass = compactText(quoteContext?.glass || '')
-  const color = compactText(quoteContext?.color || '')
+  const configurationLabels = getQuoteConfigurationLabels(quoteContext)
   const measurementItems = buildEffectiveMeasurementItems(quoteContext)
   const measurementTokens = dedupeStrings(
     measurementItems
@@ -196,10 +314,8 @@ const buildPublishedCatalogExactQueries = ({
   )
 
   const attributeBlocks = dedupeStrings([
-    compactText([series, color, glass].filter(Boolean).join(' ')),
-    compactText([series, glass].filter(Boolean).join(' ')),
-    compactText([series, color].filter(Boolean).join(' ')),
-    compactText([color, glass].filter(Boolean).join(' ')),
+    compactText(configurationLabels.join(' ')),
+    ...configurationLabels,
   ])
 
   return dedupeStrings([
@@ -208,10 +324,7 @@ const buildPublishedCatalogExactQueries = ({
     ...measurementTokens,
     ...measurementTokens.flatMap((measurementToken) => [
       compactText([subjectLabel, ...attributeBlocks, measurementToken].filter(Boolean).join(' ')),
-      compactText([subjectLabel, series, color, glass, measurementToken].filter(Boolean).join(' ')),
-      compactText([series, color, glass, measurementToken].filter(Boolean).join(' ')),
-      compactText([series, measurementToken].filter(Boolean).join(' ')),
-      compactText([color, glass, measurementToken].filter(Boolean).join(' ')),
+      compactText([...attributeBlocks, measurementToken].filter(Boolean).join(' ')),
       measurementToken,
     ]),
   ])
@@ -223,9 +336,7 @@ const buildIgnoredExactCatalogTokens = (quoteContext = null) =>
       [
         quoteContext?.familyLabel,
         quoteContext?.topicLabel,
-        quoteContext?.series,
-        quoteContext?.glass,
-        quoteContext?.color,
+        ...getQuoteConfigurationLabels(quoteContext),
       ]
         .filter(Boolean)
         .join(' '),
@@ -283,19 +394,20 @@ const productHasDistinctiveDescriptorOverlap = (
   product = null,
   input = null,
   quoteContext = null,
+  interpretation = null,
 ) => {
-  const leadTokens = new Set(tokenize(extractCustomerQuoteLeadText(input)))
+  const leadTokens = new Set(
+    collectDistinctiveLeadTokens(input, quoteContext, interpretation),
+  )
   if (!leadTokens.size) {
     return false
   }
 
-  const ignoredTokens = buildIgnoredExactCatalogTokens(quoteContext)
   const productDescriptorTokens = tokenize(
     [product?.name, product?.productCode].filter(Boolean).join(' '),
   ).filter(
     (token) =>
       token &&
-      !ignoredTokens.has(token) &&
       !GENERIC_PRODUCT_DESCRIPTOR_TOKENS.has(token) &&
       !/\d/.test(token),
   )
@@ -560,16 +672,19 @@ const formatAmount = (currency, amount, locale = 'es-UY') =>
   })
 
 const buildParametricQuotePayloadText = (quoteContext = null, interpretation = null) => {
-  const subjectLabel = resolveQuoteSubjectLabel(interpretation, quoteContext) || 'aberturas'
-  const series = compactText(quoteContext?.series || '')
-  const glass = compactText(quoteContext?.glass || '')
-  const color = compactText(quoteContext?.color || '')
+  const subjectLabel =
+    resolveQuoteSubjectLabel(interpretation, quoteContext) ||
+    compactText(
+      quoteContext?.topicLabel ||
+        quoteContext?.familyLabel ||
+        interpretation?.topic?.label ||
+        'ítems',
+    )
+  const configurationSummary = compactText(getQuoteConfigurationLabels(quoteContext).join(' '))
   const items = buildEffectiveMeasurementItems(quoteContext)
 
   if (!items.length) {
-    return compactText(
-      `${subjectLabel} serie ${series} color ${color} con ${glass}`.replace(/\s+/g, ' '),
-    )
+    return compactText([subjectLabel, configurationSummary].filter(Boolean).join(' '))
   }
 
   return items
@@ -578,7 +693,9 @@ const buildParametricQuotePayloadText = (quoteContext = null, interpretation = n
         item.displayLabel || formatMeasurementFromMm(item.widthMm, item.heightMm) || ''
       const quantity = Number(item.quantity || 1)
       return compactText(
-        `${quantity} ${subjectLabel} serie ${series} color ${color} con ${glass} de ${measurementLabel}`,
+        [quantity, subjectLabel, configurationSummary, measurementLabel ? `de ${measurementLabel}` : null]
+          .filter(Boolean)
+          .join(' '),
       )
     })
     .join('\n')
@@ -682,18 +799,37 @@ const buildImmediateUnitResolutionFromPublishedCatalog = async ({
     queries,
     'immediate_unit_price',
   )
+  const requiresDistinctiveDescriptorMatch = hasDistinctiveLeadDescriptorInput(
+    input,
+    quoteContext,
+    interpretation,
+  )
   const requestedMeasurementTokens = buildRequestedMeasurementTokens(quoteContext)
   const measurementCompatibleMatches = requestedMeasurementTokens.length
     ? rankedCompatibleMatches.filter((entry) =>
         productMatchesRequestedMeasurements(entry.product, requestedMeasurementTokens),
       )
     : rankedCompatibleMatches
+  const descriptorCompatibleMatches = requiresDistinctiveDescriptorMatch
+    ? measurementCompatibleMatches.filter((entry) =>
+        productHasDistinctiveDescriptorOverlap(
+          entry.product,
+          input,
+          quoteContext,
+          interpretation,
+        ),
+      )
+    : measurementCompatibleMatches
   const effectiveRankedMatches =
-    measurementCompatibleMatches.length > 0
-      ? measurementCompatibleMatches
-      : requestedMeasurementTokens.length > 0
+    descriptorCompatibleMatches.length > 0
+      ? descriptorCompatibleMatches
+      : requiresDistinctiveDescriptorMatch
         ? []
-        : rankedCompatibleMatches
+        : measurementCompatibleMatches.length > 0
+          ? measurementCompatibleMatches
+          : requestedMeasurementTokens.length > 0
+            ? []
+            : rankedCompatibleMatches
 
   const strongestCompatibleMatch = effectiveRankedMatches[0] || null
   if (!strongestCompatibleMatch || strongestCompatibleMatch.score < 6) {
@@ -715,7 +851,15 @@ const buildImmediateUnitResolutionFromPublishedCatalog = async ({
   }
 
   const productMatch = strongestCompatibleMatch.product
-  if (!productHasDistinctiveDescriptorOverlap(productMatch, input, quoteContext)) {
+  if (
+    requiresDistinctiveDescriptorMatch &&
+    !productHasDistinctiveDescriptorOverlap(
+      productMatch,
+      input,
+      quoteContext,
+      interpretation,
+    )
+  ) {
     return null
   }
 
@@ -740,11 +884,22 @@ const buildImmediateUnitResolutionFromPublishedCatalog = async ({
 
   const quantity =
     Number(quoteContext?.quantity?.total || 0) > 0 ? Number(quoteContext.quantity.total) : 1
-  const preview = await backendClient.previewProductQuote({
+  const previewResult = await previewProductQuoteSafely(backendClient, {
     productId: Number(productMatch.id),
     quantity,
     ...(targetCurrency ? { targetCurrency } : {}),
   })
+  if (previewResult.error) {
+    return {
+      strategy: 'immediate_unit_price',
+      status: 'needs_handoff',
+      subjectLabel: productMatch.name || resolveQuoteSubjectLabel(interpretation, quoteContext),
+      productMatch,
+      detail: 'immediate_preview_failed',
+      errorMessage: previewResult.error,
+    }
+  }
+  const preview = previewResult.preview
 
   if (!preview?.available || !Number.isFinite(Number(preview.totalAmount))) {
     return {
@@ -780,6 +935,7 @@ export const resolveCustomerQuoteResolution = async ({
   role = null,
   locale = 'es-UY',
   targetCurrency = null,
+  knowledgeMode = 'full',
 }) => {
   const normalizedLocale = normalizeChatLocale(locale)
   const quoteContext =
@@ -825,7 +981,7 @@ export const resolveCustomerQuoteResolution = async ({
     }
 
     const payloadText = buildParametricQuotePayloadText(quoteContext, interpretation)
-    const preparedQuote = await backendClient.prepareAberturasQuote({
+    const preparedQuote = await backendClient.prepareStructuredCatalogQuote({
       text: payloadText || String(input || ''),
       source: 'customer_public_chat',
     })
@@ -848,12 +1004,26 @@ export const resolveCustomerQuoteResolution = async ({
     queries,
     pricingStrategy,
   )
-  const strongestCompatibleMatch = rankedCompatibleMatches[0] || null
+  const effectiveRankedCompatibleMatches = hasDistinctiveLeadDescriptorInput(
+    input,
+    quoteContext,
+    interpretation,
+  )
+    ? rankedCompatibleMatches.filter((entry) =>
+        productHasDistinctiveDescriptorOverlap(
+          entry.product,
+          input,
+          quoteContext,
+          interpretation,
+        ),
+      )
+    : rankedCompatibleMatches
+  const strongestCompatibleMatch = effectiveRankedCompatibleMatches[0] || null
   if (
     strongestCompatibleMatch &&
     strongestCompatibleMatch.score >= 6 &&
-    rankedCompatibleMatches.length > 1 &&
-    rankedCompatibleMatches[1].score >= strongestCompatibleMatch.score - 4
+    effectiveRankedCompatibleMatches.length > 1 &&
+    effectiveRankedCompatibleMatches[1].score >= strongestCompatibleMatch.score - 4
   ) {
     return {
       strategy: pricingStrategy,
@@ -861,7 +1031,9 @@ export const resolveCustomerQuoteResolution = async ({
       subjectLabel,
       queries,
       productNotFoundSubtype: 'catalog_match_ambiguous',
-      candidateProducts: rankedCompatibleMatches.slice(0, 3).map((entry) => entry.product),
+      candidateProducts: effectiveRankedCompatibleMatches
+        .slice(0, 3)
+        .map((entry) => entry.product),
     }
   }
 
@@ -873,7 +1045,21 @@ export const resolveCustomerQuoteResolution = async ({
     const rankedAnyMatches = rankProductMatches(candidateProducts, queries, pricingStrategy, {
       allowStrategyMismatch: true,
     })
-    const strongestAnyMatch = rankedAnyMatches[0] || null
+    const effectiveRankedAnyMatches = hasDistinctiveLeadDescriptorInput(
+      input,
+      quoteContext,
+      interpretation,
+    )
+      ? rankedAnyMatches.filter((entry) =>
+          productHasDistinctiveDescriptorOverlap(
+            entry.product,
+            input,
+            quoteContext,
+            interpretation,
+          ),
+        )
+      : rankedAnyMatches
+    const strongestAnyMatch = effectiveRankedAnyMatches[0] || null
     if (
       strongestAnyMatch &&
       strongestAnyMatch.score >= 6 &&
@@ -885,28 +1071,32 @@ export const resolveCustomerQuoteResolution = async ({
         subjectLabel,
         queries,
         productNotFoundSubtype: 'catalog_present_but_strategy_unavailable',
-        candidateProducts: rankedAnyMatches.slice(0, 3).map((entry) => entry.product),
+        candidateProducts: effectiveRankedAnyMatches
+          .slice(0, 3)
+          .map((entry) => entry.product),
       }
     }
 
     let knowledgeHits = []
-    for (const query of queries.slice(0, 2)) {
-      try {
-        const retrieval = await backendClient.searchKnowledge(
-          query,
-          'customer_public',
-          3,
-          tenantKey || undefined,
-        )
-        const items = Array.isArray(retrieval?.items)
-          ? retrieval.items.filter((entry) => entry && typeof entry === 'object')
-          : []
-        knowledgeHits.push(...items)
-      } catch {
-        // keep a safe fallback if retrieval is unavailable
-      }
-      if (knowledgeHits.length >= 3) {
-        break
+    if (knowledgeMode !== 'retrieval_disabled') {
+      for (const query of queries.slice(0, 2)) {
+        try {
+          const retrieval = await backendClient.searchKnowledge(
+            query,
+            'customer_public',
+            3,
+            tenantKey || undefined,
+          )
+          const items = Array.isArray(retrieval?.items)
+            ? retrieval.items.filter((entry) => entry && typeof entry === 'object')
+            : []
+          knowledgeHits.push(...items)
+        } catch {
+          // keep a safe fallback if retrieval is unavailable
+        }
+        if (knowledgeHits.length >= 3) {
+          break
+        }
       }
     }
 
@@ -992,7 +1182,18 @@ export const resolveCustomerQuoteResolution = async ({
     }
   }
 
-  const preview = await backendClient.previewProductQuote(previewPayload)
+  const previewResult = await previewProductQuoteSafely(backendClient, previewPayload)
+  if (previewResult.error) {
+    return {
+      strategy: pricingStrategy,
+      status: 'needs_handoff',
+      subjectLabel,
+      productMatch,
+      detail: 'immediate_preview_failed',
+      errorMessage: previewResult.error,
+    }
+  }
+  const preview = previewResult.preview
   if (!preview?.available || !Number.isFinite(Number(preview.totalAmount))) {
     return {
       strategy: pricingStrategy,

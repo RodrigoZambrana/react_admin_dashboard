@@ -1,3 +1,5 @@
+import { readInterpretationResolutionReadiness } from '../conversation/resolution-readiness.js'
+
 export const decideNextStep = ({
   role,
   conversationMode,
@@ -7,6 +9,8 @@ export const decideNextStep = ({
   assistantDecision = null,
   assistantMinConfidence = 0.8,
 }) => {
+  const readiness = readInterpretationResolutionReadiness(interpretation)
+
   const applyAssistantDecision = (baseDecision) => {
     if (
       !assistantDecision ||
@@ -19,10 +23,10 @@ export const decideNextStep = ({
 
     const assistantAction = String(assistantDecision.action).trim()
     const nextUsefulField =
-      typeof interpretation?.conversationContext?.nextUsefulField === 'string'
-        ? interpretation.conversationContext.nextUsefulField
+      typeof readiness?.nextUsefulField === 'string'
+        ? readiness.nextUsefulField
         : null
-    const waitForMore = interpretation?.conversationContext?.waitForMore === true
+    const waitForMore = readiness?.waitForMore === true
     const allowedActions = new Set([
       'execute_flow',
       'conversational_mode',
@@ -102,14 +106,14 @@ export const decideNextStep = ({
   }
 
   const responseStrategy =
-    typeof interpretation?.conversationContext?.responseStrategy === 'string'
-      ? interpretation.conversationContext.responseStrategy
+    typeof readiness?.answerMode === 'string'
+      ? readiness.answerMode
       : null
   const nextUsefulField =
-    typeof interpretation?.conversationContext?.nextUsefulField === 'string'
-      ? interpretation.conversationContext.nextUsefulField
+    typeof readiness?.nextUsefulField === 'string'
+      ? readiness.nextUsefulField
       : null
-  const waitForMore = interpretation?.conversationContext?.waitForMore === true
+  const waitForMore = readiness?.waitForMore === true
 
   if (waitForMore) {
     return applyAssistantDecision({
@@ -117,6 +121,59 @@ export const decideNextStep = ({
       shouldUseDeterministicDraft: Boolean(deterministicResponse),
       shouldGenerateLanguage: true,
       reason: 'wait_for_more_context',
+      nextUsefulField,
+      responseStrategy,
+    })
+  }
+
+  const readinessMappedDecision = (() => {
+    switch (responseStrategy) {
+      case 'light_turn':
+        return {
+          nextStep: 'small_talk',
+          shouldUseDeterministicDraft: Boolean(deterministicResponse),
+          shouldGenerateLanguage: false,
+          reason: 'readiness:light_turn',
+        }
+      case 'ask_clarification':
+        return {
+          nextStep: 'ask_clarification',
+          shouldUseDeterministicDraft: Boolean(deterministicResponse),
+          shouldGenerateLanguage: Boolean(deterministicResponse),
+          reason: 'readiness:ask_clarification',
+        }
+      case 'answer_side_question':
+      case 'guided_exploration':
+      case 'guide_quote_exploration':
+      case 'inform_then_guide_quote':
+        return {
+          nextStep: 'conversational_mode',
+          shouldUseDeterministicDraft: Boolean(deterministicResponse),
+          shouldGenerateLanguage: true,
+          reason: `readiness:${responseStrategy}`,
+        }
+      case 'ask_quote_field':
+      case 'quote_ready':
+      case 'ask_support_field':
+      case 'continue_support_resolution':
+      case 'ask_schedule_field':
+      case 'confirm_schedule':
+      case 'ask_next_useful_field':
+      case 'execute_flow':
+        return {
+          nextStep: 'execute_flow',
+          shouldUseDeterministicDraft: Boolean(deterministicResponse),
+          shouldGenerateLanguage: Boolean(deterministicResponse),
+          reason: `readiness:${responseStrategy}`,
+        }
+      default:
+        return null
+    }
+  })()
+
+  if (readinessMappedDecision) {
+    return applyAssistantDecision({
+      ...readinessMappedDecision,
       nextUsefulField,
       responseStrategy,
     })

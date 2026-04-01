@@ -2,6 +2,12 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { detectIntent } from '../detect-intent.js'
 
+const TENANT_RUNTIME_POLICY = {
+  businessRules: {
+    installationTerms: ['instalacion', 'instalación', 'colocacion', 'colocación'],
+  },
+}
+
 const normalizeText = (value) =>
   String(value || '')
     .toLowerCase()
@@ -34,7 +40,7 @@ const deriveIntentKey = (role, input, actionIntent) => {
 
 const inferActionIntentFromConversationContext = (currentInput, contextualInput, actionCatalog) => {
   if (/agregal[oa]/i.test(currentInput) && /probba|corrediza/i.test(contextualInput)) {
-    return actionCatalog.find((entry) => entry.key === 'aberturas.register') || null
+    return actionCatalog.find((entry) => entry.key === 'catalog.register_structured_items') || null
   }
   return null
 }
@@ -136,6 +142,23 @@ test('detectIntent treats broader payment concept queries as customer topic info
   const detection = detectIntent({
     role: 'customer_public',
     input: '¿Puedo abonar con débito o transferencia?',
+    actionCatalog: [],
+    legacy: {
+      deriveIntentKey,
+      findActionIntent,
+      inferActionIntentFromConversationContext,
+    },
+  })
+
+  assert.equal(detection.intent, 'customer.topic_info')
+  assert.equal(detection.source, 'rule')
+  assert.ok(detection.decisionPath.includes('classifier:faq_topic'))
+})
+
+test('detectIntent keeps delivery-time FAQs out of order-status tracking', () => {
+  const detection = detectIntent({
+    role: 'customer_public',
+    input: 'Hola, ok, qeu tiempo de entrega tiene?',
     actionCatalog: [],
     legacy: {
       deriveIntentKey,
@@ -289,6 +312,7 @@ test('detectIntent resolves installation availability questions without mixing t
     role: 'customer_public',
     input: '¿Cuándo tendrán disponibilidad para hacer la instalación?',
     actionCatalog: [],
+    tenantRuntimePolicy: TENANT_RUNTIME_POLICY,
     legacy: {
       deriveIntentKey,
       findActionIntent,
@@ -305,6 +329,21 @@ test('detectIntent does not misclassify dejar pasar luz as a schedule request', 
   const detection = detectIntent({
     role: 'customer_public',
     input: 'Busco de las que dejan pasar luz',
+    actionCatalog: [],
+    legacy: {
+      deriveIntentKey,
+      findActionIntent,
+      inferActionIntentFromConversationContext,
+    },
+  })
+
+  assert.notEqual(detection.intent, 'customer.schedule_request')
+})
+
+test('detectIntent does not misclassify product configuration follow-ups with venir as scheduling', () => {
+  const detection = detectIntent({
+    role: 'customer_authenticated',
+    input: '¿Ese mismo modelo puede venir en negro?',
     actionCatalog: [],
     legacy: {
       deriveIntentKey,
@@ -342,6 +381,22 @@ test('detectIntent resolves courtesy and acknowledgements as shared light custom
   assert.ok(thanks.decisionPath.includes('classifier:courtesy'))
   assert.equal(ack.intent, 'customer.light')
   assert.ok(ack.decisionPath.includes('classifier:courtesy'))
+})
+
+test('detectIntent keeps combined courtesy-only follow-ups in shared light handling', () => {
+  const detection = detectIntent({
+    role: 'customer_public',
+    input: 'Buen día. Muchas gracias. Saludos',
+    actionCatalog: [],
+    legacy: {
+      deriveIntentKey,
+      findActionIntent,
+      inferActionIntentFromConversationContext,
+    },
+  })
+
+  assert.equal(detection.intent, 'customer.light')
+  assert.ok(detection.decisionPath.includes('registry:shared_light'))
 })
 
 test('detectIntent treats punctuation-only customer input as unintelligible instead of empty fallback', () => {
@@ -646,8 +701,10 @@ test('detectIntent flags restricted customer attempts before legacy fallback', (
     },
   })
 
-  assert.equal(detection.intent, 'aberturas.register')
-  assert.ok(detection.decisionPath.includes('policy:customer_restricted_aberturas'))
+  assert.equal(detection.intent, 'catalog.register_structured_items')
+  assert.ok(
+    detection.decisionPath.includes('policy:customer_restricted_structured_catalog'),
+  )
 })
 
 test('detectIntent resolves generic price inquiries before the model path', () => {
@@ -704,7 +761,7 @@ test('detectIntent resolves rephrase requests without falling back to unknown', 
 test('detectIntent marks contextual resolution as hybrid when using references and message elements', () => {
   const actionCatalog = [
     {
-      key: 'aberturas.register',
+      key: 'catalog.register_structured_items',
       keywords: ['registrar abertura', 'agregar abertura'],
     },
   ]
@@ -731,12 +788,12 @@ test('detectIntent marks contextual resolution as hybrid when using references a
     },
   })
 
-  assert.equal(detection.intent, 'aberturas.register')
+  assert.equal(detection.intent, 'catalog.register_structured_items')
   assert.equal(detection.source, 'hybrid')
-  assert.equal(detection.actionIntent?.key, 'aberturas.register')
+  assert.equal(detection.actionIntent?.key, 'catalog.register_structured_items')
   assert.ok(detection.confidence >= 0.8)
   assert.ok(
-    detection.decisionPath.includes('registry:aberturas_register_contextual'),
+    detection.decisionPath.includes('registry:structured_catalog_register_contextual'),
   )
   assert.ok(detection.decisionPath.includes('context:referenced_messages'))
   assert.ok(detection.decisionPath.includes('context:message_elements'))

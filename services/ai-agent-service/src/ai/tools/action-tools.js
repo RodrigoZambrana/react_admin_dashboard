@@ -670,15 +670,15 @@ export function updatePaymentTool(backendClient) {
   )
 }
 
-export function parseAberturasTool(backendClient) {
+export function parseStructuredCatalogItemsTool(backendClient) {
   return tool(
     async ({ text, source, referenceDate }) => {
-      return backendClient.parseAberturas({ text, source, referenceDate })
+      return backendClient.parseStructuredCatalogItems({ text, source, referenceDate })
     },
     {
-      name: 'parse_aberturas',
+      name: 'parse_structured_catalog_items',
       description:
-        'Parsea texto libre de aberturas y devuelve items estructurados listos para alta o cotización.',
+        'Parsea texto libre de ítems estructurados de catálogo y devuelve elementos listos para alta o cotización.',
       schema: z.object({
         text: z.string().min(4).max(12000),
         source: z.string().max(120).optional(),
@@ -688,15 +688,15 @@ export function parseAberturasTool(backendClient) {
   )
 }
 
-export function prepareAberturasQuoteTool(backendClient) {
+export function prepareStructuredCatalogQuoteTool(backendClient) {
   return tool(
     async ({ text, source, referenceDate }) => {
-      return backendClient.prepareAberturasQuote({ text, source, referenceDate })
+      return backendClient.prepareStructuredCatalogQuote({ text, source, referenceDate })
     },
     {
-      name: 'prepare_aberturas_quote',
+      name: 'prepare_structured_catalog_quote',
       description:
-        'Parsea aberturas y arma un borrador estructurado listo para cotización o alta, usando el pricing paramétrico real cuando hay coincidencias.',
+        'Parsea ítems estructurados y arma un borrador listo para cotización o alta, usando pricing real cuando hay coincidencias.',
       schema: z.object({
         text: z.string().min(4).max(12000),
         source: z.string().max(120).optional(),
@@ -706,15 +706,15 @@ export function prepareAberturasQuoteTool(backendClient) {
   )
 }
 
-export function prepareAberturasInsertTool(backendClient) {
+export function prepareStructuredCatalogInsertTool(backendClient) {
   return tool(
     async ({ text, source, referenceDate }) => {
-      return backendClient.prepareAberturasInsert({ text, source, referenceDate })
+      return backendClient.prepareStructuredCatalogInsert({ text, source, referenceDate })
     },
     {
-      name: 'prepare_aberturas_insert',
+      name: 'prepare_structured_catalog_insert',
       description:
-        'Normaliza aberturas para alta al sistema y devuelve payloads listos para insert real, sin cotizar automáticamente.',
+        'Normaliza ítems estructurados para alta al sistema y devuelve payloads listos para inserción real, sin cotizar automáticamente.',
       schema: z.object({
         text: z.string().min(4).max(12000),
         source: z.string().max(120).optional(),
@@ -764,8 +764,8 @@ export function getToolsForScope(scope, backendClient) {
     createPaymentTool(backendClient),
     updatePaymentStatusTool(backendClient),
     updatePaymentTool(backendClient),
-    prepareAberturasInsertTool(backendClient),
-    prepareAberturasQuoteTool(backendClient),
-    parseAberturasTool(backendClient),
+    prepareStructuredCatalogInsertTool(backendClient),
+    prepareStructuredCatalogQuoteTool(backendClient),
+    parseStructuredCatalogItemsTool(backendClient),
   ]
 }

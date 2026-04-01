@@ -102,11 +102,11 @@ const RAW_WORDING_REGISTRY = {
       maxChars: 220,
     },
   ),
-  'customer.product.light_filter_guidance.roller': templateEntry(
+  'customer.product.light_filter_guidance': templateEntry(
     [
-      'Si buscás {topic} que deje pasar luz, normalmente se orienta a screen. Si querés, te cuento la diferencia con blackout y cuál conviene más según privacidad y ambiente.',
-      'Si la idea es que {topic} deje pasar luz, por lo general se mira screen. Si querés, te explico en qué cambia frente a blackout y qué suele rendir mejor según el espacio.',
-      'Para {topic} con paso de luz, lo habitual es ir por screen. Si querés, te comparo screen y blackout según luz, privacidad y uso.',
+      'Si buscás {topic} que deje pasar luz, normalmente se orienta a {translucentOption}. Si querés, te cuento la diferencia con {opaqueOption} y cuál conviene más según {comparisonSubject}.',
+      'Si la idea es que {topic} deje pasar luz, por lo general se mira {translucentOption}. Si querés, te explico en qué cambia frente a {opaqueOption} y qué suele rendir mejor según {comparisonSubject}.',
+      'Para {topic} con paso de luz, lo habitual es comparar {translucentOption} con {opaqueOption}. Si querés, te cuento cuál conviene más según {comparisonSubject}.',
     ],
     {
       goal: 'Explicar el paso de luz sin perder el hilo del producto consultado.',
@@ -371,6 +371,33 @@ const RAW_WORDING_REGISTRY = {
     'Gracias por la información enviada. Le enviamos la cotización a la brevedad. Si hace falta algún dato adicional, un asesor del equipo se comunica para continuar.',
     'Gracias por la información enviada. Ya quedó encaminada la solicitud y le enviamos la cotización a la brevedad. Si hace falta algún dato adicional, un asesor del equipo se comunica para continuar.',
   ],
+  'customer.quote.ambiguous_options': templateEntry(
+    [
+      'Para {subject} tengo más de una opción posible. {optionsClause} Si querés, te cuento la diferencia o me decís cuál querés cotizar.',
+      'Con {subject} me aparecen varias alternativas. {optionsClause} Si querés, te resumo cuál conviene más o elegimos una para cotizarla.',
+      'Dentro de {subject} hay más de una línea que puede encajar. {optionsClause} Si querés, te oriento por cuál seguir y avanzamos con la cotización.',
+    ],
+    {
+      goal:
+        'Pedir una clarificación de variante u opción sin degradar la cotización a handoff humano ni repetir un texto rígido.',
+      allowHybridRewrite: false,
+      mustAskQuestion: true,
+      maxChars: 300,
+      channelProfiles: {
+        email: {
+          messages: [
+            'Para {subject} tengo más de una opción posible. {optionsClause} Si te parece, te indico la diferencia entre ellas o me confirmás cuál querés cotizar.',
+            'Con {subject} aparecen varias alternativas publicadas. {optionsClause} Si te sirve, te detallo la diferencia entre ellas o avanzamos con la opción que prefieras cotizar.',
+          ],
+          goal:
+            'Mantener una aclaración más formal cuando la cotización requiere elegir entre varias opciones publicadas.',
+          allowHybridRewrite: false,
+          mustAskQuestion: true,
+          maxChars: 340,
+        },
+      },
+    },
+  ),
   'customer.quote.replacement_followup': templateEntry(
     [
       'Perfecto. Para orientarte mejor con {subjectClause}, pasame una foto y las medidas que tengas. Si querés, además decime la zona o dirección y lo dejamos encaminado.',
