@@ -531,7 +531,7 @@ const buildQuoteGuidanceText = ({
   return lines.join(' ')
 }
 
-const buildMissingQuoteGuidanceLabels = (quoteContext = null) => {
+export const buildMissingQuoteGuidanceLabels = (quoteContext = null) => {
   const missingAttributes = Array.isArray(quoteContext?.missingAttributes)
     ? quoteContext.missingAttributes
     : Array.isArray(quoteContext?.requiredAttributes)

@@ -1,3 +1,5 @@
+import { getStaticLanguagePolicy } from '../../../../shared/language-policy/index.js'
+
 const compactText = (value) => String(value || '').replace(/\s+/g, ' ').trim()
 
 const hashSeed = (value) => {
@@ -823,7 +825,7 @@ const normalizeWordingRegistry = (rawRegistry) => {
   )
 }
 
-const DEFAULT_WORDING_REGISTRY = normalizeWordingRegistry(RAW_WORDING_REGISTRY)
+const RAW_DEFAULT_WORDING_REGISTRY = normalizeWordingRegistry(RAW_WORDING_REGISTRY)
 
 const mergeTemplateEntries = (baseEntry = null, overrideEntry = null) => {
   if (!baseEntry && !overrideEntry) {
@@ -856,6 +858,27 @@ const mergeTemplateEntries = (baseEntry = null, overrideEntry = null) => {
     },
   }
 }
+
+const mergeWordingRegistries = (...registries) => {
+  const mergedRegistry = {}
+  for (const registry of registries) {
+    const normalizedRegistry = normalizeWordingRegistry(registry)
+    for (const [key, entry] of Object.entries(normalizedRegistry)) {
+      mergedRegistry[key] = mergeTemplateEntries(mergedRegistry[key] || null, entry)
+    }
+  }
+
+  return mergedRegistry
+}
+
+const POLICY_WORDING_REGISTRY = normalizeWordingRegistry(
+  getStaticLanguagePolicy('es-default')?.wordingTemplates || {},
+)
+
+const DEFAULT_WORDING_REGISTRY = mergeWordingRegistries(
+  RAW_DEFAULT_WORDING_REGISTRY,
+  POLICY_WORDING_REGISTRY,
+)
 
 const resolveScopedTemplateEntry = ({
   entry = null,

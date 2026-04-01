@@ -57,3 +57,19 @@ test('pickWordingVariant resolves channel-specific profiles when available', () 
   assert.match(text, /respondeme|direcci[oó]n|tel[eé]fono/i)
   assert.doesNotMatch(text, /pasame la direcci[oó]n/i)
 })
+
+test('pickWordingVariant loads closure and published-search wording from language policy', () => {
+  const closureText = pickWordingVariant({
+    key: 'customer.closure.continuation_open',
+  })
+  const fallbackText = pickWordingVariant({
+    key: 'customer.search_fallback.match_found',
+    variables: {
+      productName: 'Roller blackout',
+    },
+  })
+
+  assert.match(closureText, /retomarlo|seguimos por ac[aá]|este medio/i)
+  assert.match(fallbackText, /Roller blackout/i)
+  assert.match(fallbackText, /coincidencia publicada/i)
+})
