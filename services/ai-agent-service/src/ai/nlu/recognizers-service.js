@@ -5,7 +5,7 @@ import {
   recognizeNumber,
   recognizePhoneNumber,
 } from '@microsoft/recognizers-text-suite'
-import { extractCustomerQuotedMeasurements } from '../intents/customer-quote-context.js'
+import { extractCustomerQuotedMeasurements } from './customer-measurement-parser.js'
 
 const DEFAULT_CULTURE = 'es-uy'
 

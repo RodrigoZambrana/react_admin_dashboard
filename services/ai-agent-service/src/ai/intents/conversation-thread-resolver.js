@@ -1,4 +1,7 @@
-import { extractCustomerQuotedMeasurements, extractCustomerQuoteLeadText } from './customer-quote-context.js'
+import {
+  extractCustomerQuoteLeadText,
+  extractCustomerQuotedMeasurements,
+} from '../nlu/customer-measurement-parser.js'
 import {
   findBestTenantTopicMatch,
   findTenantTopicMatches,

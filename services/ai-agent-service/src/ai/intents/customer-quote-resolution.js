@@ -1,4 +1,4 @@
-import { extractCustomerQuoteLeadText } from './customer-quote-context.js'
+import { extractCustomerQuoteLeadText } from '../nlu/customer-measurement-parser.js'
 import {
   formatChatMoney,
   formatChatNumber,

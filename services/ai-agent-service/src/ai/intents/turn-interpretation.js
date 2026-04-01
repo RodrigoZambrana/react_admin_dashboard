@@ -32,9 +32,11 @@ import {
 import {
   buildCustomerQuoteContext,
   extractCustomerQuoteSeed,
+} from './customer-quote-context.js'
+import {
   extractCustomerQuoteLeadText,
   extractCustomerQuotedMeasurements,
-} from './customer-quote-context.js'
+} from '../nlu/customer-measurement-parser.js'
 import { buildCustomerScheduleContext } from './customer-schedule-context.js'
 import { buildCustomerSupportContext } from './customer-support-context.js'
 import { resolveConversationThreads } from './conversation-thread-resolver.js'
