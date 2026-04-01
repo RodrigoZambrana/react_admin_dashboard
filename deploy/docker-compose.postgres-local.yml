@@ -1,0 +1,30 @@
+name: ${POSTGRES_STACK_NAME:-postgres-local}
+
+services:
+  db:
+    container_name: ${POSTGRES_CONTAINER_NAME:-postgres-local}
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-react_admin_dashboard}
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - type: volume
+        source: postgres-local
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-react_admin_dashboard}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres-local:
+    name: ${POSTGRES_VOLUME_NAME:-postgres-local}
+
+networks:
+  default:
+    name: ${POSTGRES_NETWORK_NAME:-postgres-local}
