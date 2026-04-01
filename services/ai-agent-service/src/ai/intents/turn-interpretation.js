@@ -31,6 +31,7 @@ import {
 } from './customer-operational-heuristics.js'
 import {
   buildCustomerQuoteContext,
+  extractCustomerQuoteSeed,
   extractCustomerQuoteLeadText,
   extractCustomerQuotedMeasurements,
 } from './customer-quote-context.js'
@@ -828,15 +829,21 @@ export const buildTurnInterpretation = ({
     detectStandaloneAttachmentArtifactKind(rawInterpretationInput) ||
       detectStandaloneAttachmentArtifactKind(rawCurrentTurnText),
   )
+  const quoteSeed =
+    intentDetection?.intent === 'customer.quote' ||
+    intentDetection?.intent === 'customer.price_inquiry'
+      ? extractCustomerQuoteSeed(currentTurnText, { tenantTopicTaxonomy })
+      : null
+  const quoteSeedSubjectText = compactText(quoteSeed?.subjectText || '')
   const topicDetectionInput =
     intentDetection?.intent === 'customer.quote' ||
     intentDetection?.intent === 'customer.price_inquiry'
-      ? extractCustomerQuoteLeadText(currentTurnText)
+      ? quoteSeedSubjectText || extractCustomerQuoteLeadText(currentTurnText)
       : currentTurnText
   const normalizedTopicDetectionInput =
     intentDetection?.intent === 'customer.quote' ||
     intentDetection?.intent === 'customer.price_inquiry'
-      ? extractCustomerQuoteLeadText(normalizedCurrentTurnText)
+      ? quoteSeedSubjectText || extractCustomerQuoteLeadText(normalizedCurrentTurnText)
       : normalizedCurrentTurnText
   const normalizedCurrentTurn = normalizeText(normalizedCurrentTurnText)
   const measurementOnlyFollowUp = looksLikeMeasurementOnlyFollowUp(currentTurnText)

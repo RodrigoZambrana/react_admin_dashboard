@@ -271,6 +271,44 @@ test('extractCustomerQuotedMeasurements parses plain 1200x1200 as millimeters', 
   assert.equal(result?.displayLabel, '1200 x 1200 mm')
 })
 
+test('extractCustomerQuotedMeasurements converges x, × and por formats into the same structural dimensions', () => {
+  const [withAsciiX, withUnicodeX, withPor] = [
+    'roller blackout de 2x2',
+    'roller blackout de 2×2',
+    'roller blackout de 2 por 2',
+  ].map((value) => extractCustomerQuotedMeasurements(value))
+
+  assert.deepEqual(
+    {
+      widthMm: withAsciiX?.widthMm,
+      heightMm: withAsciiX?.heightMm,
+      displayUnit: withAsciiX?.displayUnit,
+      displayLabel: withAsciiX?.displayLabel,
+    },
+    {
+      widthMm: withUnicodeX?.widthMm,
+      heightMm: withUnicodeX?.heightMm,
+      displayUnit: withUnicodeX?.displayUnit,
+      displayLabel: withUnicodeX?.displayLabel,
+    },
+  )
+  assert.deepEqual(
+    {
+      widthMm: withAsciiX?.widthMm,
+      heightMm: withAsciiX?.heightMm,
+      displayUnit: withAsciiX?.displayUnit,
+      displayLabel: withAsciiX?.displayLabel,
+    },
+    {
+      widthMm: withPor?.widthMm,
+      heightMm: withPor?.heightMm,
+      displayUnit: withPor?.displayUnit,
+      displayLabel: withPor?.displayLabel,
+    },
+  )
+  assert.equal(withPor?.displayLabel, '2,00 x 2,00 m')
+})
+
 test('extractCustomerQuotedMeasurementItems parses quote line items with quantities', () => {
   const items = extractCustomerQuotedMeasurementItems(`
     - 1 ventana de 2.80 x 1.90
@@ -339,6 +377,64 @@ test('buildCustomerQuoteContext preserves measurement requirements from tenant t
   assert.equal(context?.familyLabel, 'cortinas')
   assert.equal(context?.measurements?.widthMm, 1200)
   assert.deepEqual(context?.requiredFields, ['measurements', 'quantity'])
+  assert.deepEqual(context?.missingFields, ['quantity'])
+})
+
+test('buildCustomerQuoteContext resolves a transactional quote seed into topic plus measurements without reopening product intake', () => {
+  const context = buildCustomerQuoteContext({
+    currentTurnText: 'pasame precio de roller blackout 2 x 2',
+    topic: {
+      label: 'cortinas blackout',
+      type: 'product_variant',
+      familyLabel: 'cortinas',
+    },
+    previousTopic: null,
+    previousQuoteContext: null,
+    tenantTopicTaxonomy: CUSTOMER_TOPIC_TAXONOMY,
+    tenantQuoteProfiles: CUSTOMER_QUOTE_PROFILES,
+  })
+
+  assert.equal(context?.topicRecognized, true)
+  assert.equal(context?.profileResolved, true)
+  assert.equal(context?.topicLabel, 'cortinas roller blackout')
+  assert.equal(context?.variantLabel, 'blackout')
+  assert.equal(context?.quoteSeed?.subjectText, 'roller blackout')
+  assert.equal(context?.quoteSeed?.themeLabel, 'cortinas roller')
+  assert.equal(context?.measurements?.displayLabel, '2,00 x 2,00 m')
+  assert.deepEqual(context?.missingFields, ['quantity'])
+  assert.doesNotMatch(JSON.stringify(context?.missingFields || []), /product/i)
+})
+
+test('buildCustomerQuoteContext keeps topic recognition true when the current turn has enough quote evidence despite a degraded prior topic stage', () => {
+  const context = buildCustomerQuoteContext({
+    currentTurnText: 'presupuesto para roller blackout de 2 por 2',
+    topic: {
+      label: 'para roller blackout de 2 por 2',
+      type: 'product_variant',
+      familyLabel: 'cortinas',
+    },
+    previousTopic: {
+      label: 'cortinas',
+      type: 'product_family',
+      familyLabel: 'cortinas',
+    },
+    previousQuoteContext: {
+      topicLabel: 'cortinas',
+      familyLabel: 'cortinas',
+      topicRecognized: false,
+      profileResolved: false,
+      missingFields: ['measurements', 'quantity'],
+      completionStatus: 'needs_info',
+    },
+    tenantTopicTaxonomy: CUSTOMER_TOPIC_TAXONOMY,
+    tenantQuoteProfiles: CUSTOMER_QUOTE_PROFILES,
+  })
+
+  assert.equal(context?.topicRecognized, true)
+  assert.equal(context?.profileResolved, true)
+  assert.equal(context?.topicLabel, 'cortinas roller blackout')
+  assert.equal(context?.quoteSeed?.topicLabel, 'cortinas roller blackout')
+  assert.equal(context?.measurements?.displayLabel, '2,00 x 2,00 m')
   assert.deepEqual(context?.missingFields, ['quantity'])
 })
 
