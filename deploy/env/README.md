@@ -1,5 +1,20 @@
-Place environment-specific files here. The deployment workflows will upload decrypted
-secrets into the following files before running Docker Compose:
+Place environment-specific files here. Local development now uses versioned baseline
+files for the dev stack, with `.local` files reserved for optional overrides:
+
+- `backend.dev.env`
+- `frontend.dev.env`
+- `storefront.dev.env`
+- `ai-agent.dev.env`
+- `channel-adapter.dev.env`
+
+Optional local overlays for Docker Compose:
+
+- `.env.backend.dev.local`
+- `.env.ai-agent.dev.local`
+- `.env.channel-adapter.dev.local`
+
+Deployment workflows still upload decrypted secrets into the following files before
+running Docker Compose:
 
 - `backend.dev.env` / `frontend.dev.env` / `storefront.dev.env` (desarrollo local)
 - `backend.testing.env` / `frontend.testing.env` / `storefront.testing.env`
@@ -7,21 +22,17 @@ secrets into the following files before running Docker Compose:
 - `ai-agent.dev.env` / `channel-adapter.dev.env` (stack AI opcional)
 - `ai-agent.prod.env` / `channel-adapter.prod.env`
 
-Every environment has a matching `.example` file with the full list of required keys.
-Bootstrap the real files by copying the examples and completing the values:
+Every environment keeps a matching `.example` file with the full list of expected keys.
+Use the examples as reference when you need to update the versioned baselines or create
+non-versioned production/testing material:
 
 ```bash
-cp deploy/env/backend.dev.env.example deploy/env/backend.dev.env
-cp deploy/env/frontend.dev.env.example deploy/env/frontend.dev.env
-cp deploy/env/storefront.dev.env.example deploy/env/storefront.dev.env
 cp deploy/env/backend.testing.env.example deploy/env/backend.testing.env
 cp deploy/env/frontend.testing.env.example deploy/env/frontend.testing.env
 cp deploy/env/storefront.testing.env.example deploy/env/storefront.testing.env
 cp deploy/env/backend.prod.env.example deploy/env/backend.prod.env
 cp deploy/env/frontend.prod.env.example deploy/env/frontend.prod.env
 cp deploy/env/storefront.prod.env.example deploy/env/storefront.prod.env
-cp deploy/env/ai-agent.dev.env.example deploy/env/ai-agent.dev.env
-cp deploy/env/channel-adapter.dev.env.example deploy/env/channel-adapter.dev.env
 cp deploy/env/ai-agent.prod.env.example deploy/env/ai-agent.prod.env
 cp deploy/env/channel-adapter.prod.env.example deploy/env/channel-adapter.prod.env
 ```
@@ -31,6 +42,17 @@ At a minimum the backend file must define `DATABASE_URL`, authentication secrets
 (`JWT_SECRET`, `COOKIE_SECRET`) and CORS settings via `ALLOWED_ORIGINS`.
 If any value contains spaces, wrap it in double quotes so the file can be safely
 loaded by shells and helper scripts.
+
+For the dev stack, do not depend on `ecommerce/.env` or other ad hoc files created in
+one worktree. The canonical command is expected to resolve from the versioned files
+above, with `.local` overlays used only when a developer needs an extra override.
+
+The versioned dev compose baseline expects PostgreSQL to remain external to this stack.
+By default the backend joins `${EXTERNAL_POSTGRES_NETWORK:-admin-dashboard-dev_default}`
+and resolves the database at `db:5432`, which matches the external PostgreSQL container
+alias used in the local setup. If a developer needs a different target, use
+`EXTERNAL_POSTGRES_NETWORK`, `DEV_DATABASE_URL` or `DEV_DB_*` via environment/local
+overlay instead of editing the compose file ad hoc.
 Para Docker Compose local, la variante del cliente queda centralizada en una sola
 variable: `CLIENT_SLUG`. El stack deriva desde ahí:
 

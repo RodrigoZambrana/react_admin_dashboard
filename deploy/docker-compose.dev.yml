@@ -1,5 +1,3 @@
-name: admin-dashboard-dev
-
 x-backend-common: &backend-common
   env_file:
     - path: ./env/backend.dev.env
@@ -18,7 +16,6 @@ x-frontend-common: &frontend-common
 
 x-storefront-common: &storefront-common
   env_file:
-    - ../ecommerce/.env
     - ./env/storefront.dev.env
   environment:
     CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
@@ -31,7 +28,6 @@ x-storefront-common: &storefront-common
 services:
   backend:
     <<: *backend-common
-    container_name: dashboard-backend-dev
     build:
       context: ../backend
       dockerfile: Dockerfile
@@ -44,6 +40,12 @@ services:
       CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
       PORT: ${BACKEND_PORT:-4000}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      DATABASE_URL: ${DEV_DATABASE_URL:-postgresql://postgres:postgres@db:5432/react_admin_dashboard?schema=public}
+      DB_HOST: ${DEV_DB_HOST:-db}
+      DB_PORT: ${DEV_DB_PORT:-5432}
+      DB_USER: ${DEV_DB_USER:-postgres}
+      DB_PASSWORD: ${DEV_DB_PASSWORD:-postgres}
+      DB_NAME: ${DEV_DB_NAME:-react_admin_dashboard}
       QA_RESULTS_DIR: /qa-results
       QA_MANIFEST_PATH: /qa-tools/manifest.json
     ports:
@@ -55,6 +57,9 @@ services:
       - ../docs:/docs:ro
       - ../backend/uploads:/app/uploads
     depends_on: []
+    networks:
+      - default
+      - external_postgres
 
   frontend:
     <<: *frontend-common
@@ -71,7 +76,6 @@ services:
         VITE_RECAPTCHA_SITE_KEY: ""
         VITE_PARAMETRIC_IMPORT_TIMEOUT_MS: "120000"
       target: runtime
-    container_name: dashboard-frontend-dev
     environment:
       SERVER_NAME: ${APP_DOMAIN_DEV:-localhost}
       BACKEND_HOST: backend
@@ -108,7 +112,6 @@ services:
         NEXT_PUBLIC_MP_SUCCESS_URL: /payment/success
         NEXT_PUBLIC_MP_FAILURE_URL: /payment/error
         SNAPSHOT_ACCESS_TOKEN: ""
-    container_name: dashboard-storefront-dev
     working_dir: /app
     command: >
       sh -c '
@@ -132,3 +135,8 @@ services:
 volumes:
   storefront-node-modules:
   storefront-next-cache:
+
+networks:
+  external_postgres:
+    external: true
+    name: ${EXTERNAL_POSTGRES_NETWORK:-admin-dashboard-dev_default}

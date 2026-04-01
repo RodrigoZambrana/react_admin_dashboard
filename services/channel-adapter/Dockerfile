@@ -2,10 +2,11 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json ./
-COPY package-lock.json ./
+COPY channel-adapter/package.json ./
+COPY channel-adapter/package-lock.json ./
 RUN npm ci --omit=dev
-COPY src ./src
+COPY channel-adapter/src ./src
+COPY shared /shared
 
 EXPOSE 4200
 
