@@ -16,12 +16,80 @@ const escapeRegex = (value) =>
 
 const dedupe = (values = []) => Array.from(new Set(values.filter(Boolean)))
 
+const mergeThreadLabels = (baseLabel, variantLabel) => {
+  const cleanBaseLabel = compactText(baseLabel)
+  const cleanVariantLabel = compactText(variantLabel)
+  if (!cleanBaseLabel) {
+    return cleanVariantLabel
+  }
+  if (!cleanVariantLabel) {
+    return cleanBaseLabel
+  }
+
+  const normalizedBaseLabel = normalizeText(cleanBaseLabel)
+  const normalizedVariantLabel = normalizeText(cleanVariantLabel)
+  if (normalizedVariantLabel.includes(normalizedBaseLabel)) {
+    return cleanVariantLabel
+  }
+  if (normalizedBaseLabel.includes(normalizedVariantLabel)) {
+    return cleanBaseLabel
+  }
+
+  const baseTokens = normalizedBaseLabel.split(/\s+/u).filter(Boolean)
+  const variantTokens = normalizedVariantLabel.split(/\s+/u).filter(Boolean)
+  const maxOverlap = Math.min(baseTokens.length, variantTokens.length)
+  let overlap = 0
+
+  for (let size = maxOverlap; size >= 1; size -= 1) {
+    const baseSuffix = baseTokens.slice(-size).join(' ')
+    const variantPrefix = variantTokens.slice(0, size).join(' ')
+    if (baseSuffix === variantPrefix) {
+      overlap = size
+      break
+    }
+  }
+
+  if (overlap > 0) {
+    return compactText(
+      [
+        cleanBaseLabel,
+        cleanVariantLabel
+          .split(/\s+/u)
+          .slice(overlap)
+          .join(' '),
+      ]
+        .filter(Boolean)
+        .join(' '),
+    )
+  }
+
+  return compactText([cleanBaseLabel, cleanVariantLabel].join(' '))
+}
+
 const normalizeCarrierTerms = (terms = []) =>
   Array.isArray(terms)
     ? dedupe(terms.map((entry) => normalizeText(entry)).filter(Boolean))
     : []
 
 const buildThreadKey = (baseKey) => `thread:${String(baseKey || '').trim()}`
+
+const resolveVariantBaseLabel = (match) => {
+  const parentKeys = Array.isArray(match?.parentKeys) ? match.parentKeys : []
+  const parentLabels = Array.isArray(match?.parentLabels) ? match.parentLabels : []
+  const topicParentIndex = parentKeys.findIndex((entry) =>
+    String(entry || '').startsWith('product_topic:'),
+  )
+
+  if (
+    topicParentIndex >= 0 &&
+    typeof parentLabels[topicParentIndex] === 'string' &&
+    parentLabels[topicParentIndex].trim()
+  ) {
+    return parentLabels[topicParentIndex].trim()
+  }
+
+  return parentLabels.find(Boolean) || match?.familyLabel || match?.label || null
+}
 
 const createThreadFromMatch = (match) => {
   if (!match?.key || !match?.label) {
@@ -31,7 +99,7 @@ const createThreadFromMatch = (match) => {
   const baseType = match.kind === 'product_variant' ? 'product_topic' : match.kind
   const baseLabel =
     match.kind === 'product_variant'
-      ? match.parentLabels.find(Boolean) || match.familyLabel || match.label
+      ? resolveVariantBaseLabel(match)
       : match.label
   const baseKey =
     match.kind === 'product_variant'
@@ -84,11 +152,10 @@ const attachVariantToThread = (thread, match) => {
 
   const variantPhrase = nextThread.variantDisplayLabels.join(' ')
   const canonicalVariantPhrase = nextThread.variantLabels.join(' ')
-  nextThread.displayLabel = compactText(
-    [nextThread.baseLabel, variantPhrase].filter(Boolean).join(' '),
-  )
-  nextThread.resolvedLabel = compactText(
-    [nextThread.baseLabel, canonicalVariantPhrase].filter(Boolean).join(' '),
+  nextThread.displayLabel = mergeThreadLabels(nextThread.baseLabel, variantPhrase)
+  nextThread.resolvedLabel = mergeThreadLabels(
+    nextThread.baseLabel,
+    canonicalVariantPhrase,
   )
   nextThread.confidence = Math.max(Number(thread.confidence || 0), 0.84)
   nextThread.source = 'thread_variant_merge'
