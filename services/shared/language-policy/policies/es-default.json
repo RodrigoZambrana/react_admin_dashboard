@@ -424,6 +424,32 @@
     {
       "source": "\\b((que|qué)\\s+(tipos|opciones|variantes|lineas|líneas|modelos)\\s+(tienen|hay|manejan)|cuales\\s+(tienen|hay|manejan)|cu[aá]les\\s+(tienen|hay|manejan)|((que|qué)\\s+(versiones|formatos)\\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\\s+(las\\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\\b",
       "flags": "i"
+    },
+    {
+      "source": "\\b((cuales|cu[aá]les|que|qué)\\s+son\\s+los?\\s+(tipos|opciones|variantes|modelos|versiones|formatos))\\b",
+      "flags": "i"
+    },
+    {
+      "source": "\\b((quiero|quisiera|me\\s+gustaria|me\\s+gustar[ií]a)\\s+saber\\s+(los\\s+|las\\s+)?(tipos|opciones|variantes|modelos|versiones|formatos))\\b",
+      "flags": "i"
+    }
+  ],
+  "variantComparisonPatterns": [
+    {
+      "source": "\\b(?:dime|decime|contame|explicame|expl[ií]came)\\s+(?:las\\s+)?diferencias?\\b",
+      "flags": "iu"
+    },
+    {
+      "source": "\\b(?:que|qué|cual|cu[aá]l)\\s+diferencia(?:s)?\\s+(?:hay|tiene|tienen|entre)\\b",
+      "flags": "iu"
+    },
+    {
+      "source": "\\b(?:comparaci[oó]n|comparar)\\b",
+      "flags": "iu"
+    },
+    {
+      "source": "\\b(?:quiero|quisiera|me\\s+gustaria|me\\s+gustar[ií]a)\\s+saber\\s+(?:las\\s+)?diferencias?\\b",
+      "flags": "iu"
     }
   ],
   "definitionPatterns": [

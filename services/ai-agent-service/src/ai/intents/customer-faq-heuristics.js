@@ -205,6 +205,11 @@ const CUSTOMER_VARIANT_QUESTION_PATTERNS = compileRegexList(
   'i',
 )
 
+const CUSTOMER_VARIANT_COMPARISON_PATTERNS = compileRegexList(
+  BASE_LANGUAGE_POLICY.variantComparisonPatterns,
+  'iu',
+)
+
 const CUSTOMER_DEFINITION_PATTERNS = compileRegexList(
   BASE_LANGUAGE_POLICY.definitionPatterns,
   'i',
@@ -414,10 +419,15 @@ export const looksLikeCustomerAvailabilityQuestion = (text) => {
   )
 }
 
+export const looksLikeCustomerVariantComparisonQuestion = (text) =>
+  CUSTOMER_VARIANT_COMPARISON_PATTERNS.some((pattern) =>
+    pattern.test(extractCurrentCustomerTurnText(text)),
+  )
+
 export const looksLikeCustomerVariantQuestion = (text) =>
   CUSTOMER_VARIANT_QUESTION_PATTERNS.some((pattern) =>
     pattern.test(extractCurrentCustomerTurnText(text)),
-  )
+  ) || looksLikeCustomerVariantComparisonQuestion(text)
 
 export const looksLikeCustomerBusinessHoursQuestion = (text, options = {}) =>
   detectBusinessFaqSubtype(text, options) === 'business_hours'
@@ -468,6 +478,19 @@ export const looksLikeCustomerGenericInfoRequest = (text) => {
 
   return !CUSTOMER_TRANSACTIONAL_PATTERNS.some((pattern) =>
     pattern.test(normalized),
+  )
+}
+
+export const looksLikeCustomerProductInfoOpening = (text, options = {}) => {
+  const normalized = normalizeText(text)
+  if (!looksLikeCustomerGenericInfoRequest(normalized)) {
+    return false
+  }
+
+  const currentTurnText = extractCurrentCustomerTurnText(text)
+  return (
+    Boolean(extractRequestedTopicLabel(normalized)) ||
+    hasTenantTopicSignal(currentTurnText, options?.tenantTopicTaxonomy)
   )
 }
 
@@ -550,7 +573,7 @@ export const detectCustomerFaqSubtype = (input, options = {}) => {
     return 'availability'
   }
   if (
-    /\b(instalaci[oó]n|colocaci[oó]n|instalar|colocar|incluye instalaci[oó]n|incluye colocaci[oó]n)\b/i.test(
+    /\b(instalaci[oó]n|colocaci[oó]n|instalar|instalan|colocar|colocan|incluye instalaci[oó]n|incluye colocaci[oó]n|hacen colocaci[oó]n|hacen instalaci[oó]n|realizan colocaci[oó]n|realizan instalaci[oó]n)\b/i.test(
       sanitizedInput,
     )
   ) {
@@ -576,10 +599,122 @@ const stripTrailingTransactionalQuery = (value) =>
     ),
   )
 
+const GENERIC_QUOTE_SUBJECT_PATTERNS = [
+  /\b(?:pasarte|sumar|agregar)\s+(?:(?:unos|unas|un|una|otro|otra)\b\s*)?([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,5})/iu,
+  /\b(?:cambiar|sustituir|reemplazar|poner|colocar|instalar)\s+(?:(?:unos|unas|un|una)\b\s*)?([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,5})/iu,
+  /\b(?:quiero|necesito|preciso|busco|quisiera)\s+(?:(?:unos|unas|un|una)\b\s*)?([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,5})/iu,
+  /\b(?:cotiz[a-záéíóúñ]*|presupuest[a-záéíóúñ]*)\s+(?:para|por)\s+([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,6})/iu,
+]
+
+const GENERIC_QUOTE_SUBJECT_STOPWORDS = new Set([
+  'a',
+  'al',
+  'con',
+  'cambiar',
+  'colocar',
+  'de',
+  'del',
+  'el',
+  'instalar',
+  'la',
+  'las',
+  'los',
+  'mas',
+  'para',
+  'pasar',
+  'pasarte',
+  'poner',
+  'por',
+  'que',
+  'reemplazar',
+  'si',
+  'sumar',
+  'sustituir',
+  'un',
+  'una',
+  'unos',
+  'unas',
+  'y',
+])
+
+const GENERIC_VARIANT_DESCRIPTOR_TOKENS = new Set([
+  'comparacion',
+  'comparar',
+  'contame',
+  'cual',
+  'decime',
+  'diferencia',
+  'dime',
+  'explicame',
+  'formato',
+  'gustaria',
+  'hay',
+  'modelo',
+  'mostrar',
+  'mostrame',
+  'opcion',
+  'pasame',
+  'querer',
+  'quiero',
+  'saber',
+  'son',
+  'tener',
+  'tienen',
+  'tipo',
+  'variante',
+  'version',
+])
+
+const GENERIC_VARIANT_DESCRIPTOR_IGNORED_TOKENS = new Set([
+  'de',
+  'del',
+  'el',
+  'la',
+  'las',
+  'los',
+  'me',
+  'mi',
+  'mis',
+  'por',
+  'que',
+  'si',
+  'sobre',
+  'un',
+  'una',
+  'unos',
+  'unas',
+  'y',
+])
+
+const isGenericVariantDescriptorLabel = (value) => {
+  const normalized = normalizeText(value)
+  if (!normalized) {
+    return false
+  }
+
+  const tokens = normalized
+    .split(/\s+/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .filter((entry) => !GENERIC_VARIANT_DESCRIPTOR_IGNORED_TOKENS.has(entry))
+
+  if (!tokens.length) {
+    return false
+  }
+
+  return tokens.every((token) => {
+    const singularToken = singularizeToken(token)
+    return (
+      GENERIC_VARIANT_DESCRIPTOR_TOKENS.has(token) ||
+      GENERIC_VARIANT_DESCRIPTOR_TOKENS.has(singularToken)
+    )
+  })
+}
+
 const isGenericRequestedTopicLabel = (value) =>
-  /\b(eso|esto|mi caso|tu caso|el caso|este caso|ese caso|aplica|aplique|sirve|sirva|funciona|funcione|mismo|misma|si|sí|gracias|muchas gracias|ok|dale|perfecto|listo)\b/iu.test(
+  /\b(eso|esto|mi caso|tu caso|el caso|este caso|ese caso|aplica|aplique|sirve|sirva|funciona|funcione|mismo|misma|si|sí|gracias|muchas gracias|ok|dale|perfecto|listo|info|informacion|información|consulta|detalles)\b/iu.test(
     compactText(value || ''),
-  )
+  ) || isGenericVariantDescriptorLabel(value)
 
 const normalizeRequestedTopicLabel = (value) =>
   compactText(
@@ -590,6 +725,10 @@ const normalizeRequestedTopicLabel = (value) =>
           '',
         )
         .replace(
+          /^(?:mas\s+info|más\s+info|informacion|información|info|consulta|detalles)\s+(?:de|sobre)\s+/iu,
+          '',
+        )
+        .replace(
           /^(?:precio|precios|presupuesto|presupuestos|cotizacion|cotización|cotizaciones|costo|costos|valor|valores|importe|importes|monto|montos)\s+/iu,
           '',
         )
@@ -597,11 +736,64 @@ const normalizeRequestedTopicLabel = (value) =>
           /^(?:tengo\s+que\s+(?:pasarte|mandarte|sumarte|agregarte)|te\s+(?:paso|mando|sumo|agrego)|(?:pasarte|mandarte|sumarte|agregarte))\s+(?:un|una|otro|otra)\s+/iu,
           '',
         )
+        .replace(
+          /^(?:(?:para\s+)?(?:poner|colocar|instalar|cambiar|sustituir|reemplazar)|(?:cotiz[a-záéíóúñ]*|presupuest[a-záéíóúñ]*)\s+para)\s+/iu,
+          '',
+        )
         .replace(/^(?:(?:si|sí|y|las|los|la|el)\s+){1,4}/iu, '')
         .replace(/^(de|del|la|las|el|los)\s+/iu, '')
         .replace(/\s+(?:mas|más)$/iu, ''),
     ),
   )
+
+const normalizeGenericQuoteSubjectLabel = (value) => {
+  const normalizedCandidate = normalizeRequestedTopicLabel(value)
+  if (!normalizedCandidate) {
+    return null
+  }
+
+  const tokens = normalizedCandidate
+    .split(/\s+/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+
+  while (tokens.length > 0 && GENERIC_QUOTE_SUBJECT_STOPWORDS.has(tokens[0].toLowerCase())) {
+    tokens.shift()
+  }
+  while (
+    tokens.length > 0 &&
+    GENERIC_QUOTE_SUBJECT_STOPWORDS.has(tokens[tokens.length - 1].toLowerCase())
+  ) {
+    tokens.pop()
+  }
+
+  const candidate = compactText(tokens.join(' '))
+  if (!candidate || isGenericRequestedTopicLabel(candidate)) {
+    return null
+  }
+
+  return candidate
+}
+
+const extractGenericQuoteSubjectLabel = (input) => {
+  const semanticInput = stripWebLeadIntro(extractSemanticCustomerTurnText(input))
+  if (!semanticInput) {
+    return null
+  }
+
+  for (const pattern of GENERIC_QUOTE_SUBJECT_PATTERNS) {
+    const match = semanticInput.match(pattern)
+    if (!match?.[1]) {
+      continue
+    }
+    const candidate = normalizeGenericQuoteSubjectLabel(match[1])
+    if (candidate) {
+      return candidate
+    }
+  }
+
+  return null
+}
 
 export const extractRequestedTopicLabel = (input) => {
   const currentInput = extractCurrentCustomerTurnText(input)
@@ -651,6 +843,11 @@ export const extractRequestedTopicLabel = (input) => {
     }
   }
 
+  const genericQuoteSubjectLabel = extractGenericQuoteSubjectLabel(semanticInput)
+  if (genericQuoteSubjectLabel) {
+    return genericQuoteSubjectLabel
+  }
+
   const shortFollowUpMatch = semanticInput.match(
     /^(?:y\s+)?([a-záéíóúñ0-9][a-záéíóúñ0-9\s-]{1,48})\??$/iu,
   )
@@ -659,7 +856,7 @@ export const extractRequestedTopicLabel = (input) => {
     if (
       candidate &&
       !isGenericRequestedTopicLabel(candidate) &&
-      !/\b(info|informacion|consulta|consultar|ayuda|algo|eso|esto|mismo|estoy|buscando|busco|necesito|quiero|me interesa|me interesan|que tipos tienen|qué tipos tienen|que opciones tienen|qué opciones tienen|que variantes tienen|qué variantes tienen|cuales tienen|cuáles tienen|que tipos hay|qué tipos hay|que opciones hay|qué opciones hay|que variantes hay|qué variantes hay|que datos necesitas para cotizar|qué datos necesitas para cotizar|que informacion necesitas para cotizar|qué información necesitas para cotizar|que medidas necesitas para cotizar|qué medidas necesitas para cotizar|(?:dime|decime|mostrame|mu[eé]strame|pasame)\s+(?:las\s+)?(?:opciones|variantes|tipos|modelos|versiones|formatos))\b/iu.test(
+      !/\b(info|informacion|consulta|consultar|ayuda|algo|eso|esto|mismo|estoy|buscando|busco|necesito|quiero|me interesa|me interesan|que datos necesitas para cotizar|qué datos necesitas para cotizar|que informacion necesitas para cotizar|qué información necesitas para cotizar|que medidas necesitas para cotizar|qué medidas necesitas para cotizar)\b/iu.test(
         candidate,
       )
     ) {

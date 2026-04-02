@@ -1,9 +1,11 @@
 import {
   detectCustomerFaqSubtype,
   extractRequestedTopicLabel,
+  looksLikeCustomerVariantQuestion,
 } from './customer-faq-heuristics.js'
 import {
   extractCurrentCustomerTurnText,
+  extractRawCurrentCustomerTurnText,
   extractSemanticCustomerTurnText,
 } from '../ingress/customer-turn-normalization.js'
 import {
@@ -153,9 +155,7 @@ const FAQ_TOPIC_LABELS = {
 }
 
 const looksLikeVariantFollowUp = (currentTurnText) =>
-  /\b((que|qué)\s+(tipos|opciones|variantes|lineas|líneas|modelos)\s+(tienen|hay|manejan)|cuales\s+(tienen|hay|manejan)|cu[aá]les\s+(tienen|hay|manejan)|((que|qué)\s+(versiones|formatos)\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\s+(las\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\b/i.test(
-    String(currentTurnText || ''),
-  )
+  looksLikeCustomerVariantQuestion(String(currentTurnText || ''))
 
 const SCHEDULE_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.schedule
 
@@ -822,7 +822,7 @@ export const buildTurnInterpretation = ({
 }) => {
   const rawInterpretationInput = originalInput || effectiveInput || normalizedInput || ''
   const normalizedInterpretationInput = normalizedInput || effectiveInput || originalInput || ''
-  const rawCurrentTurnText = extractCurrentCustomerTurnText(rawInterpretationInput)
+  const rawCurrentTurnText = extractRawCurrentCustomerTurnText(rawInterpretationInput)
   const currentTurnText = extractSemanticCustomerTurnText(rawInterpretationInput)
   const normalizedCurrentTurnText = extractSemanticCustomerTurnText(
     normalizedInterpretationInput,
@@ -1219,6 +1219,7 @@ export const buildTurnInterpretation = ({
   const conversationContext = buildConversationContext({
     role,
     currentTurnText,
+    rawCurrentTurnText,
     attachmentArtifactTurn,
     inboundClassification,
     intentDetection,
@@ -1231,6 +1232,7 @@ export const buildTurnInterpretation = ({
     quoteContext: effectiveQuoteContext,
     supportContext,
     scheduleContext,
+    tenantTopicTaxonomy,
     faqSubtype,
     followUp: {
       detected: Boolean(followUpDetected),
@@ -1251,6 +1253,7 @@ export const buildTurnInterpretation = ({
     effectiveInput: String(effectiveInput || ''),
     normalizedInput: String(normalizedInput || ''),
     currentTurnText,
+    rawCurrentTurnText,
     attachmentArtifactTurn,
     normalizedCurrentTurn,
     reasoningInput: String(reasoningInput || ''),
@@ -1303,5 +1306,7 @@ export const buildTurnInterpretation = ({
     operationalQuery: retrievalQuery,
     threadResolution,
     nlu: nluAnalysis,
+    canonicalIntermediateContract: conversationContext?.canonicalIntermediateContract || null,
+    canonicalResponseDirectives: conversationContext?.canonicalResponseDirectives || null,
   }
 }
