@@ -25,6 +25,30 @@ const MEASUREMENT_SECTION_INTRO_PATTERNS = [
   /^\s*(?:medidas?|dimensiones?)\s*:?$/iu,
 ]
 
+const GENERIC_MEASUREMENT_LEAD_TOKENS = new Set([
+  'aprox',
+  'aproximadas',
+  'aproximados',
+  'aproximadamente',
+  'despues',
+  'después',
+  'dimensiones',
+  'dimension',
+  'es',
+  'la',
+  'las',
+  'los',
+  'medida',
+  'medidas',
+  'son',
+  'total',
+  'un',
+  'una',
+  'van',
+  'va',
+  'y',
+])
+
 export const DEFAULT_MEASUREMENT_CARRIER_TERMS = []
 
 export const DEFAULT_LINE_ITEM_TERMS = [
@@ -481,6 +505,34 @@ const extractInlineMeasurementItems = (value, options = {}) => {
   return items
 }
 
+const extractMeasurementPairsFromText = (value) => {
+  const matcher = new RegExp(DIMENSION_PAIR_SOURCE, 'giu')
+  const items = []
+  const seen = new Set()
+
+  for (const match of String(value || '').matchAll(matcher)) {
+    const measurement = extractMeasurementPairFromMatchGroups({
+      rawWidth: String(match?.[1] || '').trim(),
+      rawHeight: String(match?.[3] || '').trim(),
+      explicitUnitLeft: match?.[2] || null,
+      explicitUnitRight: match?.[4] || null,
+      rawMatch: match?.[0] || null,
+    })
+    if (!measurement) {
+      continue
+    }
+
+    const fingerprint = `${measurement.widthMm}:${measurement.heightMm}:${measurement.rawMatch}`
+    if (seen.has(fingerprint)) {
+      continue
+    }
+    seen.add(fingerprint)
+    items.push(measurement)
+  }
+
+  return items
+}
+
 const splitMeasurementCandidateLines = (value) =>
   String(value || '')
     .split(/(?:\n+|;)/u)
@@ -503,6 +555,27 @@ const findFirstPatternIndex = (value, patterns = []) => {
   }
 
   return Number.isFinite(firstIndex) ? firstIndex : null
+}
+
+const sanitizeLeadTextBeforeMeasurements = (value) => {
+  const compactValue = compactText(value)
+  if (!compactValue) {
+    return ''
+  }
+
+  const normalizedTokens = normalizeMeasurementText(compactValue)
+    .split(/\s+/u)
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+
+  if (
+    normalizedTokens.length > 0 &&
+    normalizedTokens.every((token) => GENERIC_MEASUREMENT_LEAD_TOKENS.has(token))
+  ) {
+    return ''
+  }
+
+  return compactValue
 }
 
 export const extractLineItemQuantity = (
@@ -555,26 +628,44 @@ export const extractCustomerQuotedMeasurementItems = (value, options = {}) => {
   const seen = new Set()
 
   for (const [index, line] of splitMeasurementCandidateLines(value).entries()) {
-    const measurement = extractMeasurementPair(line)
-    if (!measurement) {
+    const lineMeasurements = extractMeasurementPairsFromText(line)
+    if (!lineMeasurements.length) {
       continue
     }
 
-    const fingerprint = `${measurement.widthMm}:${measurement.heightMm}:${measurement.rawMatch}`
-    if (seen.has(fingerprint)) {
+    if (lineMeasurements.length === 1) {
+      const [measurement] = lineMeasurements
+      const fingerprint = `${measurement.widthMm}:${measurement.heightMm}:${measurement.rawMatch}`
+      if (seen.has(fingerprint)) {
+        continue
+      }
+      seen.add(fingerprint)
+
+      items.push({
+        ...measurement,
+        quantity: extractLineItemQuantity(
+          line,
+          lineItemTerms,
+          measurement.rawMatch,
+        ),
+        lineNumber: index + 1,
+      })
       continue
     }
-    seen.add(fingerprint)
 
-    items.push({
-      ...measurement,
-      quantity: extractLineItemQuantity(
-        line,
-        lineItemTerms,
-        measurement.rawMatch,
-      ),
-      lineNumber: index + 1,
-    })
+    for (const measurement of lineMeasurements) {
+      const fingerprint = `${measurement.widthMm}:${measurement.heightMm}:${measurement.rawMatch}`
+      if (seen.has(fingerprint)) {
+        continue
+      }
+      seen.add(fingerprint)
+
+      items.push({
+        ...measurement,
+        quantity: null,
+        lineNumber: index + 1,
+      })
+    }
   }
 
   if (items.length > 0) {
@@ -627,7 +718,7 @@ export const extractCustomerQuoteLeadText = (value) => {
   }
 
   if (leadLines.length > 0 && leadLines.length < lines.length) {
-    return compactText(leadLines.join(' ')) || compactValue
+    return sanitizeLeadTextBeforeMeasurements(leadLines.join(' '))
   }
 
   const cutIndex = findFirstPatternIndex(compactValue, [
@@ -635,7 +726,8 @@ export const extractCustomerQuoteLeadText = (value) => {
     ...MEASUREMENT_SECTION_INTRO_PATTERNS,
   ])
   if (cutIndex != null && cutIndex > 0) {
-    return compactText(compactValue.slice(0, cutIndex)) || compactValue
+    const sanitizedLead = sanitizeLeadTextBeforeMeasurements(compactValue.slice(0, cutIndex))
+    return sanitizedLead
   }
 
   return compactValue

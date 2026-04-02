@@ -33,7 +33,7 @@ export {
 
 const BASE_EXPLICIT_TOTAL_QUANTITY_PATTERNS = [
   /\b(?:por\s+un\s+total\s+de|total\s+de)\s+(\d{1,4})\b/iu,
-  /\bson\s+(\d{1,4})\b/iu,
+  /\bson\s+(\d{1,4})(?![.,]\d)(?!\s+\d{1,3}\b\s*(?:x|por|×)\b)\b/iu,
   /\b(\d{1,4})\s+(?:unidades?|items?|item|piezas?)\b/iu,
 ]
 

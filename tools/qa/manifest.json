@@ -167,6 +167,36 @@
       "tags": ["ai", "conversation", "quality", "real-corpus", "whatsapp"]
     },
     {
+      "id": "real-webchat-corpus-replay",
+      "name": "Real Corpus Webchat Replay",
+      "description": "Reinyecta los textos reales de cliente por el webchat del sitio, captura la respuesta real del runtime del storefront y persiste trazas, transcripts y diagnóstico por turno.",
+      "kind": "quality",
+      "cwd": ".",
+      "command": ["node", "tools/qa/replay-real-corpus-webchat-run.mjs"],
+      "estimatedMinutes": 18,
+      "tags": ["ai", "conversation", "quality", "real-corpus", "webchat", "storefront"]
+    },
+    {
+      "id": "live-webchat-probe-loop",
+      "name": "Live Webchat Probe Loop",
+      "description": "Genera conversaciones de prueba on-the-fly contra el webchat real, usando taxonomy/quote profiles de la base de conocimiento y auditando participación efectiva del proveedor.",
+      "kind": "quality",
+      "cwd": ".",
+      "command": ["node", "tools/qa/run-live-webchat-probe-loop.mjs"],
+      "estimatedMinutes": 8,
+      "tags": ["ai", "conversation", "quality", "webchat", "probes", "knowledge"]
+    },
+    {
+      "id": "real-chat-remediation-loop",
+      "name": "Real Chat Structural Remediation Loop",
+      "description": "Ejecuta una iteración completa sobre el chat real: replay del corpus, análisis, probes live derivados del corpus, backlog estructural y rerun explícito.",
+      "kind": "quality",
+      "cwd": ".",
+      "command": ["node", "tools/qa/run-real-chat-remediation-loop.mjs"],
+      "estimatedMinutes": 24,
+      "tags": ["ai", "conversation", "quality", "webchat", "real-corpus", "loop", "remediation"]
+    },
+    {
       "id": "storefront-e2e-account-checkout",
       "name": "Storefront Account Checkout E2E",
       "description": "Checkout logueado, guardado de dirección, moneda histórica y gating de emails customer según verificación.",

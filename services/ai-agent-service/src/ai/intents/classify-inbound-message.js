@@ -2,8 +2,10 @@ import {
   extractRequestedTopicLabel,
   looksLikeCustomerAvailabilityQuestion,
   looksLikeCustomerContactQuestion,
+  looksLikeCustomerProductInfoOpening,
   looksLikeCustomerTopicQuestion,
   looksLikeCustomerUnintelligibleText,
+  looksLikeCustomerVariantQuestion,
 } from './customer-faq-heuristics.js'
 import {
   looksLikeGenericPriceInquiry,
@@ -115,6 +117,53 @@ const looksLikeCatalogInstallationAssessmentContext = (
     !commercialConditionQuestion &&
     !hasRepairSignal
   )
+}
+
+const looksLikeNarrativeQuoteProjectContext = (
+  normalizedInput,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
+  if (!normalizedInput) {
+    return false
+  }
+
+  const hasQuoteIntentSignal =
+    /\b(cotiz\w*|presupuest\w*|precio|precios|costo|costos|valor|importe)\b/u.test(
+      normalizedInput,
+    )
+  if (!hasQuoteIntentSignal) {
+    return false
+  }
+
+  const hasProjectActionSignal =
+    /\b(cambiar|sustituir|reemplazar|poner|colocar|instalar|hacer)\b/u.test(
+      normalizedInput,
+    )
+  const hasRepairSignal =
+    /\b(repar\w*|service|servicio|ajust\w*|arregl\w*|romp\w*|tranc\w*|fall\w*|mantenimiento)\b/u.test(
+      normalizedInput,
+    )
+  if (!hasProjectActionSignal || hasRepairSignal) {
+    return false
+  }
+
+  const extractedTopic = extractRequestedTopicLabel(normalizedInput)
+  const hasGenericProjectNoun =
+    /\b(cortina(?:s)?|roller|screen|blackout|persiana(?:s)?|abertura(?:s)?|ventana(?:s)?|puerta(?:\s+ventana)?|mosquitero(?:s)?|cerramiento(?:s)?|techo|parrillero|marco|vidrio|dvh|pvc|aluminio)\b/u.test(
+      normalizedInput,
+    )
+  const hasRelevantProduct =
+    Boolean(extractedTopic) ||
+    hasTenantTopicSignal(normalizedInput, tenantTopicTaxonomy) ||
+    looksLikeCatalogStructureSignal(normalizedInput, tenantRuntimePolicy) ||
+    hasConfiguredVocabularyTerm(normalizedInput, [
+      ...getConfiguredCatalogTerms(tenantRuntimePolicy).carrierTerms,
+      ...getConfiguredCatalogTerms(tenantRuntimePolicy).structuralTerms,
+    ]) ||
+    hasGenericProjectNoun
+
+  return hasRelevantProduct
 }
 
 const stripMultimodalPlaceholderPhrases = (value) =>
@@ -638,11 +687,34 @@ export const classifyInboundMessage = ({
   }
 
   if (looksLikeCommercialConditionQuestion(normalizedInput)) {
+    const quoteScopedCommercialCondition =
+      looksLikeInstallationQuoteContext(
+        normalizedInput,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      ) ||
+      looksLikeInstalledReplacementAssessmentRequest(
+        normalizedInput,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      ) ||
+      looksLikeNarrativeQuoteProjectContext(
+        normalizedInput,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      )
+
     return buildClassification({
-      category: 'faq_topic',
-      confidence: 0.9,
-      suggestedIntent: 'customer.topic_info',
-      decisionPath: ['classifier:commercial_condition_question'],
+      category: quoteScopedCommercialCondition ? 'price_inquiry' : 'faq_topic',
+      confidence: quoteScopedCommercialCondition ? 0.88 : 0.9,
+      suggestedIntent: quoteScopedCommercialCondition
+        ? 'customer.quote'
+        : 'customer.topic_info',
+      decisionPath: [
+        quoteScopedCommercialCondition
+          ? 'classifier:commercial_condition_quote_context'
+          : 'classifier:commercial_condition_question',
+      ],
     })
   }
 
@@ -674,6 +746,21 @@ export const classifyInboundMessage = ({
       confidence: 0.92,
       suggestedIntent: 'customer.support_request',
       decisionPath: ['classifier:support_request'],
+    })
+  }
+
+  if (
+    looksLikeNarrativeQuoteProjectContext(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+    )
+  ) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.86,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:narrative_quote_project_context'],
     })
   }
 
@@ -868,12 +955,34 @@ export const classifyInboundMessage = ({
     })
   }
 
+  if (looksLikeCustomerVariantQuestion(normalizedInput)) {
+    return buildClassification({
+      category: 'faq_topic',
+      confidence: 0.93,
+      suggestedIntent: 'customer.topic_info',
+      decisionPath: ['classifier:faq_topic_variant'],
+    })
+  }
+
   if (looksLikeCustomerTopicQuestion(normalizedInput, { tenantTopicTaxonomy })) {
     return buildClassification({
       category: 'faq_topic',
       confidence: 0.93,
       suggestedIntent: 'customer.topic_info',
       decisionPath: ['classifier:faq_topic'],
+    })
+  }
+
+  if (
+    looksLikeCustomerProductInfoOpening(normalizedInput, {
+      tenantTopicTaxonomy,
+    })
+  ) {
+    return buildClassification({
+      category: 'faq_topic',
+      confidence: 0.91,
+      suggestedIntent: 'customer.product_info',
+      decisionPath: ['classifier:product_info_opening'],
     })
   }
 

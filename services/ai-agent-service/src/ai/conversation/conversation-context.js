@@ -1,5 +1,9 @@
 import { buildResolutionReadiness } from './resolution-readiness.js'
 import { buildConversationState } from './conversation-state.js'
+import {
+  buildCanonicalIntermediateContract,
+  buildCanonicalResponseDirectives,
+} from './canonical-intermediate-contract.js'
 
 export const shouldWaitForMoreInput = (conversationState = {}) =>
   buildResolutionReadiness(conversationState).waitForMore
@@ -20,6 +24,20 @@ export const buildConversationContext = (input = {}) => {
     currentTurnText: input?.currentTurnText || '',
     previousAgentText: '',
   })
+  const canonicalIntermediateContract = buildCanonicalIntermediateContract({
+    currentTurnText: input?.rawCurrentTurnText || input?.currentTurnText || '',
+    previousConversationContext: input?.previousConversationContext || null,
+    resolutionReadiness: readiness,
+    conversationState,
+    quoteContext: input?.quoteContext || null,
+    supportContext: input?.supportContext || null,
+    scheduleContext: input?.scheduleContext || null,
+    tenantTopicTaxonomy: Array.isArray(input?.tenantTopicTaxonomy)
+      ? input.tenantTopicTaxonomy
+      : [],
+  })
+  const canonicalResponseDirectives =
+    buildCanonicalResponseDirectives(canonicalIntermediateContract)
 
   return {
     mode: readiness.mode,
@@ -44,5 +62,7 @@ export const buildConversationContext = (input = {}) => {
     nluSource: readiness.nluSource,
     resolutionReadiness: readiness,
     conversationState,
+    canonicalIntermediateContract,
+    canonicalResponseDirectives,
   }
 }
