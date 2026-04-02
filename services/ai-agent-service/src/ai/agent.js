@@ -38,6 +38,13 @@ import {
 import { resolveCustomerResponseContract } from './conversation/response-resolver.js'
 import { resolveTurnKnowledgeControl } from './conversation/turn-controller.js'
 import {
+  buildCanonicalIntermediateContract,
+  buildCanonicalResponseDirectives,
+  enrichCanonicalIntermediateContract,
+  sanitizeCanonicalIntermediateContractForAudit,
+  sanitizeCanonicalResponseDirectivesForAudit,
+} from './conversation/canonical-intermediate-contract.js'
+import {
   hasPaymentContinuationSignal,
   looksLikeAmountOnlyReply,
   looksLikeAwaitingProofResponse,
@@ -93,6 +100,7 @@ import { classifyCustomerProtectedDataRequest } from './intents/customer-protect
 import {
   detectCustomerFaqSubtype,
   extractRequestedTopicLabel,
+  looksLikeCustomerVariantComparisonQuestion,
 } from './intents/customer-faq-heuristics.js'
 import { buildTurnInterpretation } from './intents/turn-interpretation.js'
 import { resolveCustomerQuoteResolution } from './intents/customer-quote-resolution.js'
@@ -394,11 +402,22 @@ const hasTenantBrandSignal = (value, tenantRuntimePolicy = null) => {
   )
 }
 
-const hasTenantInstallationSignal = (value, tenantRuntimePolicy = null) =>
-  matchesBusinessRuleValue(
-    value,
-    getBusinessRules(tenantRuntimePolicy)?.installationTerms ?? [],
+const hasTenantInstallationSignal = (value, tenantRuntimePolicy = null) => {
+  const normalizedInput = normalizeText(value)
+  if (!normalizedInput) {
+    return false
+  }
+
+  return (
+    matchesBusinessRuleValue(
+      value,
+      getBusinessRules(tenantRuntimePolicy)?.installationTerms ?? [],
+    ) ||
+    /\b(instalacion|instalación|instalar|instalan|colocacion|colocación|colocar|colocan)\b/u.test(
+      normalizedInput,
+    )
   )
+}
 
 const subjectMatchesComparableFamily = (subject, tenantRuntimePolicy = null) => {
   const acceptedFamilies =
@@ -1291,6 +1310,7 @@ const buildRetrievalFaqGroundingContract = ({
   input = '',
   retrievalItems = [],
   interpretation = null,
+  intentKey = null,
   tenantRuntimePolicy = null,
   paymentMethods = [],
   text = '',
@@ -1315,6 +1335,10 @@ const buildRetrievalFaqGroundingContract = ({
     input: detectionInput,
     retrievalItems,
     faqSubtype,
+    intentKey:
+      intentKey ||
+      readInterpretationResolutionReadiness(interpretation)?.turnIntent ||
+      null,
     paymentMethods,
     tenantRuntimePolicy,
   })
@@ -2625,6 +2649,15 @@ const sanitizeConversationContextForAudit = (conversationContext = null) => {
               : null,
         }
       : null,
+    canonicalIntermediateContract: sanitizeCanonicalIntermediateContractForAudit(
+      conversationContext?.canonicalIntermediateContract || null,
+    ),
+    canonicalResponseDirectives: sanitizeCanonicalResponseDirectivesForAudit(
+      conversationContext?.canonicalResponseDirectives ||
+        buildCanonicalResponseDirectives(
+          conversationContext?.canonicalIntermediateContract || null,
+        ),
+    ),
     conversationState: sanitizeConversationStateForAudit(
       conversationContext?.conversationState || null,
     ),
@@ -3403,6 +3436,17 @@ const buildDecisionTraceForAudit = ({
           previousAuditPayload?.turnInterpretation?.conversationContext?.waitForMore,
       ),
       waitForMoreReasons,
+      canonicalResponseDirectives: sanitizeCanonicalResponseDirectivesForAudit(
+        context?.turnInterpretation?.conversationContext?.canonicalResponseDirectives ||
+          buildCanonicalResponseDirectives(
+            context?.turnInterpretation?.canonicalIntermediateContract ||
+              context?.turnInterpretation?.conversationContext
+                ?.canonicalIntermediateContract ||
+              null,
+          ) ||
+          previousAuditPayload?.decisionTrace?.conversation?.canonicalResponseDirectives ||
+          null,
+      ),
       decisionSource:
         typeof context?.decisionSource === 'string'
           ? context.decisionSource
@@ -7172,6 +7216,51 @@ export class AiAgentRuntime {
       requiredRetrievalResponseContracts: REQUIRED_RETRIEVAL_RESPONSE_CONTRACTS,
     })
     const knowledgeDecision = turnKnowledgeControl.knowledgeDecision
+    if (options?.turnInterpretation && typeof options.turnInterpretation === 'object') {
+      const baseCanonicalIntermediateContract =
+        options.turnInterpretation?.canonicalIntermediateContract ||
+        options.turnInterpretation?.conversationContext?.canonicalIntermediateContract ||
+        buildCanonicalIntermediateContract({
+          currentTurnText:
+            options.turnInterpretation?.rawCurrentTurnText ||
+            options.turnInterpretation?.currentTurnText ||
+            text,
+          conversationContext: options.turnInterpretation?.conversationContext || null,
+          resolutionReadiness: options.turnInterpretation?.resolutionReadiness || null,
+          conversationState: options.turnInterpretation?.conversationState || null,
+          turnInterpretation: options.turnInterpretation,
+          quoteContext: options.turnInterpretation?.quoteContext || null,
+          supportContext: options.turnInterpretation?.supportContext || null,
+          scheduleContext: options.turnInterpretation?.scheduleContext || null,
+          tenantTopicTaxonomy: Array.isArray(options?.tenantTopicTaxonomy)
+            ? options.tenantTopicTaxonomy
+            : [],
+        })
+      const enrichedCanonicalIntermediateContract = enrichCanonicalIntermediateContract(
+        baseCanonicalIntermediateContract,
+        {
+          responseContract: knowledgeDecision?.responseContract || null,
+          knowledgeDecision,
+        },
+      )
+      const canonicalResponseDirectives = buildCanonicalResponseDirectives(
+        enrichedCanonicalIntermediateContract,
+      )
+      options.turnInterpretation.canonicalIntermediateContract =
+        enrichedCanonicalIntermediateContract
+      options.turnInterpretation.canonicalResponseDirectives =
+        canonicalResponseDirectives
+      if (
+        options.turnInterpretation?.conversationContext &&
+        typeof options.turnInterpretation.conversationContext === 'object'
+      ) {
+        options.turnInterpretation.conversationContext = {
+          ...options.turnInterpretation.conversationContext,
+          canonicalIntermediateContract: enrichedCanonicalIntermediateContract,
+          canonicalResponseDirectives,
+        }
+      }
+    }
     const knowledgeMode = this.resolveEffectiveKnowledgeMode({
       unifiedMessage,
       role,
@@ -7479,13 +7568,92 @@ export class AiAgentRuntime {
       return null
     }
     const requestedField = resolveRequestedFieldFromResponse(responseText)
+    const canonicalIntermediateContract =
+      interpretation?.canonicalIntermediateContract ||
+      interpretation?.conversationContext?.canonicalIntermediateContract ||
+      null
+    const canonicalResponseDirectives =
+      interpretation?.canonicalResponseDirectives ||
+      interpretation?.conversationContext?.canonicalResponseDirectives ||
+      buildCanonicalResponseDirectives(canonicalIntermediateContract)
+    const normalizeCanonicalField = (value) => {
+      const normalized = normalizeIntentKeyValue(value)
+      if (['measurements', 'measurement_items', 'dimensions'].includes(String(normalized))) {
+        return 'measurements'
+      }
+      if (
+        ['contact', 'contact_phone', 'contact_email', 'phone', 'email'].includes(
+          String(normalized),
+        )
+      ) {
+        return 'contact'
+      }
+      if (['product', 'product_type', 'topic'].includes(String(normalized))) {
+        return 'product'
+      }
+      if (['issue', 'problem', 'issue_summary'].includes(String(normalized))) {
+        return 'issue'
+      }
+      return normalized
+    }
+    const canonicalLane =
+      normalizeIntentKeyValue(canonicalResponseDirectives?.lane) ||
+      normalizeIntentKeyValue(readiness?.lane)
+    const canonicalNextUsefulField = normalizeCanonicalField(
+      canonicalResponseDirectives?.nextUsefulField,
+    )
+    const canonicalThreadAction = normalizeIntentKeyValue(
+      canonicalResponseDirectives?.threadAction,
+    )
+    const canonicalHandoffAllowed =
+      canonicalResponseDirectives?.handoffAllowed === true
+    const canonicalStaleToInvalidate = Array.isArray(
+      canonicalResponseDirectives?.staleToInvalidate,
+    )
+      ? canonicalResponseDirectives.staleToInvalidate
+          .map((entry) => normalizeCanonicalField(entry))
+          .filter(Boolean)
+      : []
+    const responseAsksIssueField =
+      /\b(contame|contame)\b.*\b(problema|falla|revisar)\b/u.test(
+        normalizeText(responseText),
+      ) ||
+      /\b(que problema tiene|qué problema tiene|que falla|qué falla|habria que revisar|habría que revisar)\b/u.test(
+        normalizeText(responseText),
+      )
+    const responseAsksContactField =
+      /\b(tel[eé]fono|email|mail de contacto|contacto)\b/u.test(
+        normalizeText(responseText),
+      )
+    const normalizedRequestedField = normalizeCanonicalField(
+      requestedField || (responseAsksIssueField ? 'issue' : responseAsksContactField ? 'contact' : null),
+    )
+    const requestedFieldMatchesCanonical =
+      !canonicalNextUsefulField ||
+      !normalizedRequestedField ||
+      normalizedRequestedField === canonicalNextUsefulField
     const asksResolvedField =
       requestedField && isConversationFieldResolved(requestedField, conversationState)
     const quantity = Number(quoteContext?.quantity?.total || readiness?.knownFacts?.quantity || 0)
+    const measurementItems = Array.isArray(quoteContext?.measurementItems)
+      ? quoteContext.measurementItems.filter((entry) => entry && typeof entry === 'object')
+      : []
+    const measurementItemCount = measurementItems.length
+    const hasMultipleMeasurementItems = measurementItemCount > 1
     const measurementsLabel =
       quoteContext?.measurements?.displayLabel ||
       quoteContext?.measurements?.confirmationLabel ||
       null
+    const measurementStateNote = hasMultipleMeasurementItems
+      ? `me quedan ${measurementItemCount} medidas aproximadas`
+      : measurementsLabel
+        ? `me queda ${measurementsLabel}`
+        : null
+    const measurementAcknowledgementText = hasMultipleMeasurementItems
+      ? `Tomo ${measurementItemCount} medidas aproximadas`
+      : measurementsLabel
+        ? `Tomo una medida aproximada de ${measurementsLabel}`
+        : null
     const effectiveIntentKey = normalizeIntentKeyValue(
       interpretation?.intent?.key || readiness?.turnIntent || null,
     )
@@ -7546,7 +7714,8 @@ export class AiAgentRuntime {
       quoteContext?.topicLabel ||
         quoteContext?.familyLabel ||
         quantity > 0 ||
-        measurementsLabel,
+        measurementsLabel ||
+        measurementItemCount > 0,
     )
     const quoteLoopBreakEligible =
       (readiness?.lane === 'quote' || quoteContext) &&
@@ -7601,9 +7770,13 @@ export class AiAgentRuntime {
       looksLikeAmountOnlyReply(currentTurnText) &&
       looksLikeGenericContactResponse(responseText) &&
       hasPaymentContinuationSignal(previousAgentText)
-    const responseReintroducesKnownMeasurements =
-      Boolean(measurementsLabel) &&
-      normalizeText(responseText).includes(normalizeText(measurementsLabel))
+    const normalizedPreviousAgentText = normalizeText(previousAgentText)
+    const normalizedResponseText = normalizeText(responseText)
+    const responseReintroducesKnownMeasurements = hasMultipleMeasurementItems
+      ? /\b\d+\s+medidas?(?:\s+aproximadas?)?\b/u.test(normalizedResponseText) ||
+        /\bmedidas indicadas\b/u.test(normalizedResponseText)
+      : Boolean(measurementsLabel) &&
+        normalizedResponseText.includes(normalizeText(measurementsLabel))
     const quoteMeasurementCarryoverCandidate =
       hasActiveQuoteThread &&
       Boolean(previousAgentText) &&
@@ -7615,6 +7788,7 @@ export class AiAgentRuntime {
       Boolean(previousAgentText) &&
       (looksLikeQuoteDetailFollowUp(currentTurnText) ||
         Boolean(measurementsLabel) ||
+        measurementItemCount > 0 ||
         quantity > 0) &&
       stableQuoteSubject &&
       !normalizeText(responseText).includes(normalizeText(stableQuoteSubject)) &&
@@ -7646,6 +7820,66 @@ export class AiAgentRuntime {
       /\b(d[ií]a y horario|horario y d[ií]a|qu[eé] d[ií]a y horario)\b/i.test(responseText) &&
       effectiveMissingFields.length === 1 &&
       ['date', 'time'].includes(String(effectiveMissingFields[0] || ''))
+    const genericOperationalContractMismatch =
+      ['quote', 'support', 'schedule'].includes(String(canonicalLane || '')) &&
+      canonicalNextUsefulField &&
+      !canonicalHandoffAllowed &&
+      (
+        looksLikeGenericContactResponse(responseText) ||
+        looksLikeGenericConsultationClosureResponse(responseText) ||
+        looksLikeGenericQuoteHandoffResponse(responseText)
+      )
+    const quoteContractMismatchCandidate =
+      canonicalLane === 'quote' &&
+      (
+        responseAsksIssueField ||
+        (!canonicalHandoffAllowed &&
+          (
+            looksLikeGenericQuoteHandoffResponse(responseText) ||
+            looksLikeGenericContactResponse(responseText) ||
+            looksLikeGenericConsultationClosureResponse(responseText)
+          )) ||
+        (
+          ['address', 'date', 'time', 'contact'].includes(
+            String(normalizedRequestedField || ''),
+          ) &&
+          (
+            canonicalThreadAction === 'switch' ||
+            canonicalStaleToInvalidate.length > 0 ||
+            canonicalNextUsefulField === 'measurements' ||
+            canonicalNextUsefulField === 'product' ||
+            canonicalNextUsefulField === 'quantity'
+          )
+        ) ||
+        (
+          canonicalNextUsefulField &&
+          normalizedRequestedField &&
+          !requestedFieldMatchesCanonical
+        )
+      )
+    const supportContractMismatchCandidate =
+      canonicalLane === 'support' &&
+      (
+        looksLikeGenericQuoteIntakeResponse(responseText) ||
+        looksLikeGenericQuoteHandoffResponse(responseText) ||
+        (
+          canonicalNextUsefulField &&
+          normalizedRequestedField &&
+          !requestedFieldMatchesCanonical
+        )
+      )
+    const scheduleContractMismatchCandidate =
+      canonicalLane === 'schedule' &&
+      (
+        looksLikeGenericQuoteIntakeResponse(responseText) ||
+        looksLikeGenericQuoteHandoffResponse(responseText) ||
+        responseAsksIssueField ||
+        (
+          canonicalNextUsefulField &&
+          normalizedRequestedField &&
+          !requestedFieldMatchesCanonical
+        )
+      )
 
     if (
       groundedSideQuestionProtected &&
@@ -7665,7 +7899,11 @@ export class AiAgentRuntime {
       !asksResolvedField &&
       !fallbackContractCandidate &&
       !closureLoopCandidate &&
-      !partialScheduleLoopCandidate
+      !partialScheduleLoopCandidate &&
+      !genericOperationalContractMismatch &&
+      !quoteContractMismatchCandidate &&
+      !supportContractMismatchCandidate &&
+      !scheduleContractMismatchCandidate
     ) {
       return response
     }
@@ -7693,6 +7931,7 @@ export class AiAgentRuntime {
         input: detectionInput,
         retrievalItems,
         faqSubtype,
+        intentKey: readiness?.turnIntent || null,
         paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
         tenantRuntimePolicy,
       })
@@ -7742,8 +7981,8 @@ export class AiAgentRuntime {
       if (stableQuoteSubject) {
         stateNotes.push(`ya tomé ${stableQuoteSubject}`)
       }
-      if (measurementsLabel) {
-        stateNotes.push(`me queda ${measurementsLabel}`)
+      if (measurementStateNote) {
+        stateNotes.push(measurementStateNote)
       }
       if (quantity > 0) {
         stateNotes.push(quantity === 1 ? 'anoto 1 unidad' : `anoto ${quantity} unidades`)
@@ -7755,9 +7994,15 @@ export class AiAgentRuntime {
         )
       const previousAgentAlreadyMentionsMeasurements =
         Boolean(previousAgentText) &&
-        Boolean(measurementsLabel) &&
-        normalizeText(previousAgentText).includes(normalizeText(measurementsLabel))
-      const hasCapturedMeasurements = Boolean(measurementsLabel)
+        (
+          hasMultipleMeasurementItems
+            ? /\b\d+\s+medidas?(?:\s+aproximadas?)?\b/u.test(
+                normalizedPreviousAgentText,
+              ) || /\bmedidas indicadas\b/u.test(normalizedPreviousAgentText)
+            : Boolean(measurementsLabel) &&
+              normalizedPreviousAgentText.includes(normalizeText(measurementsLabel))
+        )
+      const hasCapturedMeasurements = Boolean(measurementsLabel) || measurementItemCount > 0
       const hasCapturedQuantity = quantity > 0
 
       const remainingConfigurationEntries = (
@@ -7830,6 +8075,14 @@ export class AiAgentRuntime {
         (String(field || '') === 'quantity' && !hasCapturedQuantity) ||
         String(field || '') === 'product',
       )
+      if (
+        ['measurements', 'quantity', 'product'].includes(
+          String(canonicalNextUsefulField || ''),
+        ) &&
+        !coreQuoteMissingFields.includes(canonicalNextUsefulField)
+      ) {
+        coreQuoteMissingFields.unshift(canonicalNextUsefulField)
+      }
       const onlyTenantConfigurationPending =
         quoteLoopBreakEligible &&
         coreQuoteMissingFields.length === 0 &&
@@ -7881,14 +8134,14 @@ export class AiAgentRuntime {
       }
       if (quoteSubjectSpecificityRegressionCandidate && stableQuoteSubject) {
         if (
-          measurementsLabel &&
+          measurementAcknowledgementText &&
           currentTurnAddsFreshMeasurement &&
           !previousAgentAlreadyMentionsMeasurements
         ) {
           return compactText(
             [
               'Perfecto.',
-              `Tomo una medida aproximada de ${measurementsLabel} para ${stableQuoteSubject}.`,
+              `${measurementAcknowledgementText} para ${stableQuoteSubject}.`,
               nextAsk || 'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
             ].join(' '),
           )
@@ -7946,18 +8199,22 @@ export class AiAgentRuntime {
         stateNotes.push('ya tengo la dirección')
       }
 
+      const preferredSupportField = ['issue', 'product', 'date', 'time', 'address', 'contact']
+        .includes(String(canonicalNextUsefulField || ''))
+        ? canonicalNextUsefulField
+        : null
       const nextAsk =
-        effectiveMissingFields.includes('issue')
+        preferredSupportField === 'issue' || effectiveMissingFields.includes('issue')
           ? 'Contame qué falla o qué habría que revisar.'
-          : effectiveMissingFields.includes('product')
+          : preferredSupportField === 'product' || effectiveMissingFields.includes('product')
             ? 'Decime qué producto es.'
-            : effectiveMissingFields.includes('date')
+            : preferredSupportField === 'date' || effectiveMissingFields.includes('date')
               ? 'Decime qué día te sirve.'
-              : effectiveMissingFields.includes('time')
+              : preferredSupportField === 'time' || effectiveMissingFields.includes('time')
                 ? 'Decime qué horario te queda mejor.'
-                : effectiveMissingFields.includes('address')
+                : preferredSupportField === 'address' || effectiveMissingFields.includes('address')
                   ? 'Pasame la zona o dirección.'
-                  : effectiveMissingFields.includes('contact')
+                  : preferredSupportField === 'contact' || effectiveMissingFields.includes('contact')
                     ? 'Pasame un teléfono o mail de contacto.'
                     : null
       if (!nextAsk) {
@@ -7998,14 +8255,19 @@ export class AiAgentRuntime {
         stateNotes.push(`y ${scheduleTimeLabel}`)
       }
 
+      const preferredScheduleField = ['date', 'time', 'address', 'contact'].includes(
+        String(canonicalNextUsefulField || ''),
+      )
+        ? canonicalNextUsefulField
+        : null
       const nextAsk =
-        effectiveMissingFields.includes('date')
+        preferredScheduleField === 'date' || effectiveMissingFields.includes('date')
           ? 'Decime qué día te sirve.'
-          : effectiveMissingFields.includes('time')
+          : preferredScheduleField === 'time' || effectiveMissingFields.includes('time')
             ? 'Decime qué horario te queda mejor.'
-            : effectiveMissingFields.includes('address')
+            : preferredScheduleField === 'address' || effectiveMissingFields.includes('address')
               ? 'Pasame la zona o dirección.'
-              : effectiveMissingFields.includes('contact')
+              : preferredScheduleField === 'contact' || effectiveMissingFields.includes('contact')
                 ? 'Pasame un teléfono o mail de contacto.'
                 : null
       if (!nextAsk) {
@@ -8182,15 +8444,34 @@ export class AiAgentRuntime {
       }
     }
 
-    if (!rewrittenText && quoteLoopBreakEligible) {
+    if (
+      !rewrittenText &&
+      (quoteLoopBreakEligible || quoteContractMismatchCandidate || canonicalLane === 'quote')
+    ) {
       rewrittenText = buildQuoteLoopBreak()
     }
 
-    if (!rewrittenText && (readiness?.lane === 'schedule' || scheduleContext)) {
+    if (
+      !rewrittenText &&
+      (
+        readiness?.lane === 'schedule' ||
+        scheduleContext ||
+        scheduleContractMismatchCandidate ||
+        canonicalLane === 'schedule'
+      )
+    ) {
       rewrittenText = buildScheduleLoopBreak()
     }
 
-    if (!rewrittenText && (readiness?.lane === 'support' || supportContext)) {
+    if (
+      !rewrittenText &&
+      (
+        readiness?.lane === 'support' ||
+        supportContext ||
+        supportContractMismatchCandidate ||
+        canonicalLane === 'support'
+      )
+    ) {
       rewrittenText = buildSupportLoopBreak()
     }
 
@@ -10681,7 +10962,7 @@ export class AiAgentRuntime {
       'customer.cancellation',
       'customer.confirmation',
     ].includes(String(intentKey || ''))
-    const mustHonorOperationalReadiness =
+    let mustHonorOperationalReadiness =
       !preserveExplicitDeterministicIntent &&
       ['quote', 'support', 'schedule'].includes(String(readinessLane || '')) &&
       [
@@ -10822,6 +11103,51 @@ export class AiAgentRuntime {
         (interpretation?.quoteContext?.capturedAttributes &&
           Object.keys(interpretation.quoteContext.capturedAttributes).length > 0),
     )
+    const normalizedSupportInput = normalizeText(input)
+    const hasSupportReviewCue =
+      /\b(repar\w*|revisi\w*|service|cambi\w*|ajust\w*|mover|acortar)\b/.test(
+        normalizedSupportInput,
+      )
+    const hasSupportVisitCue =
+      /\b(cuando|cu[aá]ndo|podr\w*|pued\w*|venir|pasar|domicilio|visita|coordinar|manana|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|a las|\d{1,2}:\d{2}|entre las|los espero|las espero|te espero)\b/.test(
+        normalizedSupportInput,
+      )
+    const canonicalResponseDirectives =
+      interpretation?.canonicalResponseDirectives ||
+      interpretation?.conversationContext?.canonicalResponseDirectives ||
+      buildCanonicalResponseDirectives(
+        interpretation?.canonicalIntermediateContract ||
+          interpretation?.conversationContext?.canonicalIntermediateContract ||
+          null,
+      )
+    const canonicalLane = normalizeIntentKeyValue(canonicalResponseDirectives?.lane)
+    const strongQuoteRecoverySignal =
+      canonicalLane === 'quote' ||
+      hasSpecificQuoteConfiguration ||
+      looksLikeGenericPriceInquiry(input) ||
+      looksLikeQuoteRequirementsQuestion(input) ||
+      hasCatalogVocabularySignal(input, tenantRuntimePolicy) ||
+      Boolean(
+        interpretation?.quoteContext?.topicLabel ||
+          interpretation?.quoteContext?.familyLabel,
+      )
+    const quoteRecoveryCandidate =
+      !['customer.quote', 'customer.price_inquiry'].includes(
+        String(effectiveIntentKey || ''),
+      ) &&
+      strongQuoteRecoverySignal &&
+      !looksLikeQuoteVisitCoordinationFollowUp(input) &&
+      !hasSupportReviewCue &&
+      !hasSupportVisitCue &&
+      !looksLikePaymentProofArtifact(input) &&
+      !looksLikePaymentProofFollowUpRequest(input) &&
+      !looksLikePaymentOperationalUpdate(input)
+
+    if (quoteRecoveryCandidate) {
+      effectiveIntentKey = 'customer.quote'
+      mustHonorOperationalReadiness = false
+    }
+
     const hasSupportContext =
       Boolean(interpretation?.supportContext) ||
       effectiveIntentKey === 'customer.support_request' ||
@@ -10902,15 +11228,6 @@ export class AiAgentRuntime {
           : null,
       tenantRuntimePolicy,
     })
-    const normalizedSupportInput = normalizeText(input)
-    const hasSupportReviewCue =
-      /\b(repar\w*|revisi\w*|service|cambi\w*|ajust\w*|mover|acortar)\b/.test(
-        normalizedSupportInput,
-      )
-    const hasSupportVisitCue =
-      /\b(cuando|cu[aá]ndo|podr\w*|pued\w*|venir|pasar|domicilio|visita|coordinar|manana|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|a las|\d{1,2}:\d{2}|entre las|los espero|las espero|te espero)\b/.test(
-        normalizedSupportInput,
-      )
 
     const canUseNeutralContinuityResponse =
       (standaloneAttachmentArtifactKind ||
@@ -11306,6 +11623,44 @@ export class AiAgentRuntime {
           wordingKey: 'customer.product.light_filter_guidance',
           detail:
             'Se priorizó guía contextual de variantes configuradas para paso de luz sin degradar la consulta a agenda ni a lookup de producto publicado.',
+        },
+      }
+    }
+
+    if (
+      (
+        ['customer.product_info', 'customer.topic_info'].includes(effectiveIntentKey) ||
+        quoteSideQuestionProductGuidanceTurn
+      ) &&
+      hasProductFollowUpContext &&
+      effectiveFaqSubtype === 'variants' &&
+      looksLikeCustomerVariantComparisonQuestion(input) &&
+      subjectMatchesComparableFamily(productFollowUpSubject, tenantRuntimePolicy)
+    ) {
+      const comparisonText = buildCustomerLightFilterGuidanceText({
+        subject: productFollowUpSubject,
+        guidance: getBusinessRules(tenantRuntimePolicy)?.lightFilterGuidance ?? null,
+        variationSeed,
+        wordingOverrides: this.getCustomerWordingOverrides(),
+        channel,
+        channelProfile,
+      })
+      return {
+        text: comparisonText,
+        wordingKey: 'customer.product.light_filter_guidance',
+        toolCalls: [],
+        needsHuman: false,
+        grounding: buildWorkflowGrounding(comparisonText, {
+          sourceType: 'tenant_policy',
+          scope: 'product_guidance',
+          sourceKey: `variant_comparison:${compactText(productFollowUpSubject) || 'topic'}`,
+          title: `Variant comparison · ${productFollowUpSubject}`,
+        }),
+        debug: {
+          actionKey: effectiveIntentKey,
+          wordingKey: 'customer.product.light_filter_guidance',
+          detail:
+            'Se respondió una comparación de variantes sobre una familia configurable usando la guía declarada del tenant, sin volver a una respuesta genérica de opciones.',
         },
       }
     }
@@ -14166,6 +14521,22 @@ export class AiAgentRuntime {
               scheduleContext: sanitizeScheduleContextForAudit(
                 context.turnInterpretation.scheduleContext,
               ),
+              canonicalIntermediateContract: sanitizeCanonicalIntermediateContractForAudit(
+                context.turnInterpretation.canonicalIntermediateContract ||
+                  context.turnInterpretation.conversationContext
+                    ?.canonicalIntermediateContract ||
+                  null,
+              ),
+              canonicalResponseDirectives: sanitizeCanonicalResponseDirectivesForAudit(
+                context.turnInterpretation.conversationContext
+                  ?.canonicalResponseDirectives ||
+                  buildCanonicalResponseDirectives(
+                    context.turnInterpretation.canonicalIntermediateContract ||
+                      context.turnInterpretation.conversationContext
+                        ?.canonicalIntermediateContract ||
+                      null,
+                  ),
+              ),
               conversationContext: sanitizeConversationContextForAudit(
                 context.turnInterpretation.conversationContext,
               ),
@@ -15187,6 +15558,7 @@ export class AiAgentRuntime {
     tenantRuntimePolicy = null,
   ) {
     const now = new Date().toISOString()
+    const tenantTopicTaxonomy = getProductCatalog(tenantRuntimePolicy)
     const previousTaskState = snapshot?.taskState ?? null
     const previousIntentKey = previousTaskState?.intentKey || null
     const previousTurnIntentKey =
@@ -15629,6 +16001,22 @@ export class AiAgentRuntime {
       ) || null
 
     if (currentConversationContext && typeof currentConversationContext === 'object') {
+      const canonicalIntermediateContract = buildCanonicalIntermediateContract({
+        currentTurnText,
+        previousConversationContext,
+        conversationContext: currentConversationContext,
+        resolutionReadiness: stabilizedReadiness,
+        conversationState: currentConversationState,
+        turnInterpretation,
+        quoteContext: currentQuoteContext,
+        supportContext: currentSupportContext,
+        scheduleContext: currentScheduleContext,
+        tenantTopicTaxonomy: Array.isArray(tenantTopicTaxonomy)
+          ? tenantTopicTaxonomy
+          : [],
+      })
+      const canonicalResponseDirectives =
+        buildCanonicalResponseDirectives(canonicalIntermediateContract)
       currentConversationContext = {
         ...currentConversationContext,
         activeLane: activeLane || currentConversationContext.activeLane || null,
@@ -15645,6 +16033,8 @@ export class AiAgentRuntime {
           null,
         resolutionReadiness: stabilizedReadiness,
         conversationState: currentConversationState,
+        canonicalIntermediateContract,
+        canonicalResponseDirectives,
       }
     }
 
@@ -15654,6 +16044,10 @@ export class AiAgentRuntime {
       turnInterpretation.scheduleContext = currentScheduleContext
       if (currentConversationContext && typeof currentConversationContext === 'object') {
         turnInterpretation.conversationContext = currentConversationContext
+        turnInterpretation.canonicalIntermediateContract =
+          currentConversationContext.canonicalIntermediateContract || null
+        turnInterpretation.canonicalResponseDirectives =
+          currentConversationContext.canonicalResponseDirectives || null
       }
       if (stabilizedReadiness && typeof stabilizedReadiness === 'object') {
         turnInterpretation.resolutionReadiness = stabilizedReadiness

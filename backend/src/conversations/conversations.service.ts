@@ -7041,6 +7041,8 @@ export class ConversationsService {
       role: typeof state.role === 'string' ? state.role : null,
       fallbackReason:
         typeof state.fallbackReason === 'string' ? state.fallbackReason : null,
+      provider: typeof state.provider === 'string' ? state.provider : null,
+      model: typeof state.model === 'string' ? state.model : null,
       sourceCount:
         typeof state.sourceCount === 'number' && Number.isFinite(state.sourceCount)
           ? state.sourceCount

@@ -1,6 +1,7 @@
 import {
   detectCustomerFaqSubtype,
   extractRequestedTopicLabel,
+  looksLikeCustomerProductInfoOpening,
 } from './customer-faq-heuristics.js'
 import { extractCurrentCustomerTurnText } from '../ingress/customer-turn-normalization.js'
 import { readInterpretationResolutionReadiness } from '../conversation/resolution-readiness.js'
@@ -19,6 +20,7 @@ import { pickWordingVariant } from '../outcomes/wording-registry.js'
 import { looksLikeQuoteExpansionSignal } from './customer-semantic-signals.js'
 import {
   getBusinessFacts,
+  getBusinessRules,
   getVocabulary,
   hasCatalogVocabularySignal,
 } from '../tenant-policy/runtime-tenant-policy.js'
@@ -198,6 +200,15 @@ const LOCATION_CITY_ONLY_REGEX =
 const LOCATION_COMMERCIAL_CONTEXT_REGEX =
   /\b(venta e instalacion|venta e instalación|instalacion|instalación|fabricacion|fabricación|presupuesto|solicita|producto|productos|servicio|servicios|configuracion|configuración|comercial)\b/i
 
+const BUSINESS_HOURS_SIGNAL_REGEX =
+  /\b(horario|lun(?:es)?|mar(?:tes)?|mie(?:rcoles)?|miércoles|jue(?:ves)?|vie(?:rnes)?|sab(?:ado|ados)?|sábado(?:s)?|dom(?:ingo|ingos)?)\b/i
+
+const CONTACT_SIGNAL_REGEX =
+  /\b(telefono|teléfono|whatsapp|contacto|llamar|comunicarse|comunicate|escribinos)\b/i
+
+const EMAIL_SIGNAL_REGEX =
+  /\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/i
+
 const splitKnowledgeTextIntoFragments = (source) => {
   const placeholders = [
     ['Av.', 'Av__ABBR__'],
@@ -248,6 +259,38 @@ const isLocationClarificationAnswer = (text) =>
   /\b(direccion|dirección|ubicacion|ubicación|ciudad|local|showroom|sucursal)\b/i.test(
     normalizeText(text || ''),
   )
+
+const looksLikeBusinessHoursEvidence = (text) => {
+  const raw = compactText(text || '')
+  const normalized = normalizeText(text || '')
+  return (
+    BUSINESS_HOURS_SIGNAL_REGEX.test(normalized) ||
+    /\b\d{1,2}[:.]\d{2}\b/.test(raw)
+  )
+}
+
+const looksLikeContactEvidence = (text) =>
+  CONTACT_SIGNAL_REGEX.test(normalizeText(text || '')) ||
+  EMAIL_SIGNAL_REGEX.test(compactText(text || ''))
+
+const isOperationalBusinessInfoEvidence = ({
+  text,
+  paymentMethods = [],
+  tenantRuntimePolicy = null,
+}) => {
+  const normalized = normalizeText(text || '')
+  if (!normalized) {
+    return false
+  }
+
+  return (
+    looksLikeBusinessHoursEvidence(text) ||
+    looksLikeContactEvidence(text) ||
+    isStrongLocationEvidence(text) ||
+    isWeakCommercialLocationEvidence(text, tenantRuntimePolicy) ||
+    hasExplicitPaymentTerms(text, paymentMethods)
+  )
+}
 
 const extractConfiguredPaymentTerms = (paymentMethods = []) =>
   Array.from(
@@ -840,6 +883,20 @@ const scoreCustomerFaqEvidence = ({
     score += 2
   }
 
+  if (
+    requestedTopicTokens.length > 0 &&
+    !['business_hours', 'location', 'payment_methods', 'contact'].includes(
+      faqSubtype,
+    ) &&
+    isOperationalBusinessInfoEvidence({
+      text: fragment,
+      paymentMethods,
+      tenantRuntimePolicy,
+    })
+  ) {
+    score -= 6
+  }
+
   const retrievalScore =
     typeof item?.score === 'number' && Number.isFinite(item.score) ? item.score : 0
   score += Math.min(retrievalScore, 1)
@@ -861,6 +918,7 @@ export const selectCustomerFaqEvidence = ({
   input,
   retrievalItems,
   faqSubtype,
+  intentKey = null,
   paymentMethods = [],
   tenantRuntimePolicy = null,
 }) => {
@@ -911,6 +969,35 @@ export const selectCustomerFaqEvidence = ({
       return left.order - right.order
     })
 
+  const shouldFilterOperationalEvidence =
+    ['customer.product_info', 'customer.topic_info'].includes(
+      String(intentKey || ''),
+    ) &&
+    !['business_hours', 'location', 'payment_methods', 'contact'].includes(
+      faqSubtype,
+    )
+
+  const effectiveOrdered = (() => {
+    const withoutOperationalLeakage = shouldFilterOperationalEvidence
+      ? (() => {
+          const filtered = ordered.filter(
+            (entry) =>
+              !isOperationalBusinessInfoEvidence({
+                text: entry.text,
+                paymentMethods,
+                tenantRuntimePolicy,
+              }),
+          )
+          return filtered.length ? filtered : ordered
+        })()
+      : ordered
+
+    const nonTitleEvidence = withoutOperationalLeakage.filter(
+      (entry) => entry.sourceKind !== 'title',
+    )
+    return nonTitleEvidence.length ? nonTitleEvidence : withoutOperationalLeakage
+  })()
+
   if (faqSubtype === 'location') {
     const strongLocationCandidates = ordered.filter((entry) =>
       isStrongLocationEvidence(entry.text),
@@ -945,14 +1032,14 @@ export const selectCustomerFaqEvidence = ({
   }
 
   if (faqSubtype === 'benefits') {
-    return ordered.slice(0, 2)
+    return effectiveOrdered.slice(0, 2)
   }
 
   if (faqSubtype === 'variants') {
-    return ordered.slice(0, 3)
+    return effectiveOrdered.slice(0, 3)
   }
 
-  return ordered.slice(0, 1)
+  return effectiveOrdered.slice(0, 1)
 }
 
 const toInlineBusinessAnswer = (statement) =>
@@ -1139,10 +1226,26 @@ const buildTopicSpecificKnowledgeFallbackText = (
     return null
   }
   const intentKey = typeof options?.intentKey === 'string' ? options.intentKey : null
-  const evidenceTexts = Array.isArray(options?.evidence)
-    ? options.evidence.map((entry) => entry?.text || '').filter(Boolean)
+  const evidenceEntries = Array.isArray(options?.evidence)
+    ? options.evidence.filter((entry) => entry && typeof entry === 'object')
     : []
+  const evidenceTexts = evidenceEntries.map((entry) => entry?.text || '').filter(Boolean)
   const evidenceSourceText = evidenceTexts.join(' ')
+  const primaryEvidenceEntry = evidenceEntries[0] || null
+  const primaryEvidenceRaw = compactText(primaryEvidenceEntry?.text || '')
+  const primaryEvidence =
+    primaryEvidenceRaw &&
+    primaryEvidenceEntry?.sourceKind !== 'title' &&
+    !isOperationalBusinessInfoEvidence({
+      text: primaryEvidenceRaw,
+      paymentMethods:
+        Array.isArray(getBusinessRules(options?.tenantRuntimePolicy || null)?.paymentMethods)
+          ? getBusinessRules(options?.tenantRuntimePolicy || null).paymentMethods
+          : [],
+      tenantRuntimePolicy: options?.tenantRuntimePolicy || null,
+    })
+      ? primaryEvidenceRaw
+      : ''
   const interpretation =
     options?.interpretation && typeof options.interpretation === 'object'
       ? options.interpretation
@@ -1222,8 +1325,13 @@ const buildTopicSpecificKnowledgeFallbackText = (
     interpretation?.quoteContext && typeof interpretation.quoteContext === 'object'
       ? interpretation.quoteContext
       : null
+  const productInfoOpening =
+    looksLikeCustomerProductInfoOpening(detectionInput, {
+      tenantTopicTaxonomy,
+    }) && !looksLikePriceOrQuoteTurn(detectionInput)
   const shouldAppendQuoteBridge =
     !quoteSideQuestionContract &&
+    !productInfoOpening &&
     (intentKey === 'customer.quote' || QUOTE_SEED_INTENT_REGEX.test(detectionInput))
   const quoteBridgeText =
     shouldAppendQuoteBridge
@@ -1465,7 +1573,6 @@ const buildTopicSpecificKnowledgeFallbackText = (
           fallback: `Perfecto, trabajamos con varios tipos de ${displayTopicLabel}. ¿Tenés alguno en mente o querés que te cuente opciones?`,
         })
       }
-      const primaryEvidence = compactText(evidenceTexts[0] || '')
       if (taxonomyTopicMatch?.kind === 'product_variant' && primaryEvidence) {
         const variantText = pickWordingVariant({
           key: 'customer.faq.product_variant_with_evidence',
@@ -1645,12 +1752,35 @@ export const buildCustomerFaqKnowledgeResponse = ({
     const normalized = compactText(value).toLowerCase()
     return Boolean(normalized) && normalized !== 'general' && normalized !== 'unknown'
   })
+  const directFaqSubtype = detectCustomerFaqSubtype(detectionInput, {
+    tenantRuntimePolicy,
+  })
+  const retrievalAwareFaqSubtype = detectCustomerFaqSubtype(detectionInput, {
+    retrievalItems,
+    tenantRuntimePolicy,
+  })
+  const hasProductInfoAnchor =
+    ['customer.product_info', 'customer.topic_info'].includes(
+      String(intentKey || ''),
+    ) &&
+    (
+      looksLikeCustomerProductInfoOpening(detectionInput, {
+        tenantTopicTaxonomy,
+      }) ||
+      Boolean(extractRequestedTopicLabel(detectionInput)) ||
+      Boolean(interpretation?.topic?.label) ||
+      Boolean(interpretation?.contextTopic?.label)
+    )
   const faqSubtype =
     interpretedFaqSubtype ||
-    detectCustomerFaqSubtype(detectionInput, {
-      retrievalItems,
-      tenantRuntimePolicy,
-    })
+    (
+      hasProductInfoAnchor &&
+      ['general', 'variants', 'benefits', 'definition', 'availability', 'installation', 'maintenance'].includes(
+        String(directFaqSubtype || ''),
+      )
+        ? directFaqSubtype
+        : retrievalAwareFaqSubtype
+    )
   const inheritedIntentKey =
     typeof interpretation?.followUp?.inheritedIntentKey === 'string'
       ? interpretation.followUp.inheritedIntentKey
@@ -1669,6 +1799,7 @@ export const buildCustomerFaqKnowledgeResponse = ({
     input: detectionInput,
     retrievalItems,
     faqSubtype,
+    intentKey,
     paymentMethods,
     tenantRuntimePolicy,
   })

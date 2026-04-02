@@ -15,13 +15,32 @@ export const resolveCustomerResponseContract = ({
   }
 
   const readiness = readInterpretationResolutionReadiness(turnInterpretation)
-  if (typeof readiness?.answerMode === 'string' && readiness.answerMode.trim()) {
-    const answerMode = readiness.answerMode.trim()
+  const canonicalIntermediateContract =
+    turnInterpretation?.canonicalIntermediateContract ||
+    turnInterpretation?.conversationContext?.canonicalIntermediateContract ||
+    null
+  const answerMode =
+    typeof canonicalIntermediateContract?.outcome?.answerMode === 'string' &&
+    canonicalIntermediateContract.outcome.answerMode.trim()
+      ? canonicalIntermediateContract.outcome.answerMode.trim()
+      : typeof readiness?.answerMode === 'string' && readiness.answerMode.trim()
+        ? readiness.answerMode.trim()
+        : null
+
+  if (answerMode) {
     const sideQuestionSubtype =
-      typeof readiness?.sideQuestionSubtype === 'string'
-        ? readiness.sideQuestionSubtype
-        : typeof turnInterpretation?.faqSubtype === 'string'
-          ? turnInterpretation.faqSubtype
+      typeof canonicalIntermediateContract?.turn?.sideQuestionSubtype === 'string'
+        ? canonicalIntermediateContract.turn.sideQuestionSubtype
+        : typeof readiness?.sideQuestionSubtype === 'string'
+          ? readiness.sideQuestionSubtype
+          : typeof turnInterpretation?.faqSubtype === 'string'
+            ? turnInterpretation.faqSubtype
+            : null
+    const lane =
+      typeof canonicalIntermediateContract?.turn?.lane === 'string'
+        ? canonicalIntermediateContract.turn.lane
+        : typeof readiness?.lane === 'string'
+          ? readiness.lane
           : null
     const topicType =
       typeof turnInterpretation?.topic?.type === 'string'
@@ -30,9 +49,16 @@ export const resolveCustomerResponseContract = ({
           ? turnInterpretation.contextTopic.type
           : null
     const currentTurnText =
-      typeof turnInterpretation?.currentTurnText === 'string'
-        ? turnInterpretation.currentTurnText
-        : ''
+      typeof canonicalIntermediateContract?.turn?.currentText === 'string'
+        ? canonicalIntermediateContract.turn.currentText
+        : typeof turnInterpretation?.currentTurnText === 'string'
+          ? turnInterpretation.currentTurnText
+          : ''
+    const structuralQuoteFragmentTurn = Boolean(
+      turnInterpretation?.followUp?.measurementOnly ||
+        turnInterpretation?.followUp?.quantityOnly ||
+        turnInterpretation?.followUp?.attributeOnly,
+    )
     const hasTopicAnchor = hasActiveKnowledgeTopicAnchor({
       turnInterpretation,
       currentTurnText,
@@ -49,14 +75,9 @@ export const resolveCustomerResponseContract = ({
       ['product_family', 'product_topic', 'product_variant'].includes(
         String(topicType || ''),
       )
-    const structuralQuoteFragmentTurn = Boolean(
-      turnInterpretation?.followUp?.measurementOnly ||
-        turnInterpretation?.followUp?.quantityOnly ||
-        turnInterpretation?.followUp?.attributeOnly,
-    )
     const quoteExplorationInformationTurn = Boolean(
       ['hold_for_more_context', 'guide_quote_exploration'].includes(answerMode) &&
-        readiness?.lane === 'quote' &&
+        lane === 'quote' &&
         ['customer.product_info', 'customer.topic_info'].includes(
           String(intentKey || ''),
         ) &&
@@ -65,7 +86,7 @@ export const resolveCustomerResponseContract = ({
     )
     const quoteSideFactualQuestion =
       answerMode === 'guide_quote_exploration' &&
-      readiness?.lane === 'quote' &&
+      lane === 'quote' &&
       ((factualFaqSubtypes.has(String(sideQuestionSubtype || '')) &&
         hasActiveFactualAnchor) ||
         productTopicAnchor)

@@ -4,7 +4,7 @@ import {
   normalizeSemanticText,
 } from '../intents/customer-semantic-signals.js'
 
-export const extractCurrentCustomerTurnText = (value) =>
+export const extractRawCurrentCustomerTurnText = (value) =>
   String(value || '')
     .split(/\n+\s*Contexto conversacional reciente relevante:\s*/iu)[0]
     .replace(/<se edit[oó]\s+este\s+mensaje\.?>/giu, ' ')
@@ -12,6 +12,16 @@ export const extractCurrentCustomerTurnText = (value) =>
     .replace(/<imagen\s+omitida>/giu, ' ')
     .replace(/<audio\s+omitido>/giu, ' ')
     .replace(/<video\s+omitido>/giu, ' ')
+    .replace(/\r\n?/gu, '\n')
+    .replace(/[^\S\n]+/gu, ' ')
+    .replace(/\n{3,}/gu, '\n\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .join('\n')
+    .trim()
+
+export const extractCurrentCustomerTurnText = (value) =>
+  extractRawCurrentCustomerTurnText(value)
     .replace(/\s+/g, ' ')
     .trim()
 

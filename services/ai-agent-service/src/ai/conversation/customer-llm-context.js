@@ -1,4 +1,5 @@
 import { readInterpretationResolutionReadiness } from './resolution-readiness.js'
+import { buildCanonicalResponseDirectives } from './canonical-intermediate-contract.js'
 
 const compactText = (value, maxChars = 180) => {
   const normalized = String(value || '').replace(/\s+/g, ' ').trim()
@@ -109,6 +110,12 @@ export const buildCustomerLlmContextBlock = ({
   maxCharsPerTurn = 180,
 } = {}) => {
   const readiness = readInterpretationResolutionReadiness(interpretation)
+  const canonicalIntermediateContract =
+    interpretation?.canonicalIntermediateContract ||
+    interpretation?.conversationContext?.canonicalIntermediateContract ||
+    null
+  const canonicalResponseDirectives =
+    buildCanonicalResponseDirectives(canonicalIntermediateContract)
   const activeThreadLabel =
     compactText(interpretation?.threadResolution?.activeThread?.resolvedLabel || '') ||
     compactText(interpretation?.threadResolution?.activeThread?.baseLabel || '') ||
@@ -132,10 +139,19 @@ export const buildCustomerLlmContextBlock = ({
     readiness?.mode ? `Modo conversacional: ${readiness.mode}.` : null,
     readiness?.lane ? `Lane activo: ${readiness.lane}.` : null,
     readiness?.turnIntent ? `Intent del turno: ${readiness.turnIntent}.` : null,
+    canonicalResponseDirectives?.threadAction
+      ? `Acción de hilo esperada: ${canonicalResponseDirectives.threadAction}.`
+      : null,
     activeThreadLabel ? `Hilo activo: ${activeThreadLabel}.` : null,
     readiness?.userGoal ? `Objetivo del usuario: ${compactText(readiness.userGoal, 220)}.` : null,
     readiness?.nextUsefulField ? `Próximo dato útil: ${readiness.nextUsefulField}.` : null,
     readiness?.answerMode ? `Modo de respuesta: ${readiness.answerMode}.` : null,
+    canonicalResponseDirectives?.replyAct
+      ? `Acto de respuesta esperado: ${canonicalResponseDirectives.replyAct}.`
+      : null,
+    canonicalResponseDirectives?.answerFirst
+      ? 'Si hay una pregunta concreta del cliente, respondela primero y recién después guiá el flujo.'
+      : null,
     readiness?.sideQuestionSubtype
       ? `Side question detectada: ${readiness.sideQuestionSubtype}.`
       : null,
@@ -144,6 +160,23 @@ export const buildCustomerLlmContextBlock = ({
       : null,
     readiness?.waitForMore
       ? 'El cliente parece seguir completando la idea: evitá forzar flujo o cierre prematuro.'
+      : null,
+    Array.isArray(canonicalResponseDirectives?.staleToInvalidate) &&
+    canonicalResponseDirectives.staleToInvalidate.length
+      ? `No reafirmes como vigentes estos datos previos sin revalidarlos: ${canonicalResponseDirectives.staleToInvalidate.join(', ')}.`
+      : null,
+    canonicalResponseDirectives?.handoffAllowed === false &&
+    ['quote', 'support', 'schedule'].includes(String(canonicalResponseDirectives?.lane || ''))
+      ? 'No cierres ni derives si todavía podés avanzar pidiendo un dato faltante concreto.'
+      : null,
+    canonicalResponseDirectives?.factsToMentionMode
+      ? `Modo de mención de hechos: ${canonicalResponseDirectives.factsToMentionMode}.`
+      : null,
+    canonicalResponseDirectives?.avoidRepeatingFacts
+      ? 'No repitas hechos ya capturados salvo que sea necesario para desambiguar o confirmar progreso.'
+      : null,
+    canonicalResponseDirectives?.avoidLiteralEcho
+      ? 'No hagas eco literal del texto del cliente; reformulá con naturalidad.'
       : null,
     quoteMissingFields ? `Datos faltantes de cotización: ${quoteMissingFields}.` : null,
     supportMissingFields ? `Datos faltantes de soporte: ${supportMissingFields}.` : null,

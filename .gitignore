@@ -32,6 +32,7 @@ ecommerce/test-results/
 ecommerce/.cache/
 .qa/
 .docker/
+backups/db/*.sql
 backups/db/*_legacy_postgres_local.sql
 
 # Prisma

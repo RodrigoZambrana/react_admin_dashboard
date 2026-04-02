@@ -192,10 +192,25 @@ export const preventCustomerResponseLoop = ({
   const asksResolvedField =
     requestedField && isConversationFieldResolved(requestedField, conversationState)
   const quantity = Number(quoteContext?.quantity?.total || readiness?.knownFacts?.quantity || 0)
+  const measurementItems = Array.isArray(quoteContext?.measurementItems)
+    ? quoteContext.measurementItems.filter((entry) => entry && typeof entry === 'object')
+    : []
+  const measurementItemCount = measurementItems.length
+  const hasMultipleMeasurementItems = measurementItemCount > 1
   const measurementsLabel =
     quoteContext?.measurements?.displayLabel ||
     quoteContext?.measurements?.confirmationLabel ||
     null
+  const measurementStateNote = hasMultipleMeasurementItems
+    ? `me quedan ${measurementItemCount} medidas aproximadas`
+    : measurementsLabel
+      ? `me queda ${measurementsLabel}`
+      : null
+  const measurementAcknowledgementText = hasMultipleMeasurementItems
+    ? `Tomo ${measurementItemCount} medidas aproximadas`
+    : measurementsLabel
+      ? `Tomo una medida aproximada de ${measurementsLabel}`
+      : null
   const effectiveIntentKey = normalizeIntentKeyValue(
     interpretation?.intent?.key || readiness?.turnIntent || null,
   )
@@ -220,10 +235,11 @@ export const preventCustomerResponseLoop = ({
     quoteContext?.topicLabel ||
       quoteContext?.familyLabel ||
       quantity > 0 ||
-      measurementsLabel,
+      measurementsLabel ||
+      measurementItemCount > 0,
   )
   const hasQuoteProgressContext = Boolean(
-    measurementsLabel || quantity > 0 || conversationState?.lastAskedSlot,
+    measurementsLabel || measurementItemCount > 0 || quantity > 0 || conversationState?.lastAskedSlot,
   )
   const quoteLoopBreakEligible =
     (readiness?.lane === 'quote' || quoteContext) &&
@@ -357,16 +373,22 @@ export const preventCustomerResponseLoop = ({
     if (stableQuoteSubject) {
       stateNotes.push(`ya tomé ${stableQuoteSubject}`)
     }
-    if (measurementsLabel) {
-      stateNotes.push(`me queda ${measurementsLabel}`)
+    if (measurementStateNote) {
+      stateNotes.push(measurementStateNote)
     }
     if (quantity > 0) {
       stateNotes.push(quantity === 1 ? 'anoto 1 unidad' : `anoto ${quantity} unidades`)
     }
     const previousAgentAlreadyMentionsMeasurements =
       Boolean(previousAgentText) &&
-      Boolean(measurementsLabel) &&
-      normalizeText(previousAgentText).includes(normalizeText(measurementsLabel))
+      (
+        hasMultipleMeasurementItems
+          ? /\b\d+\s+medidas?(?:\s+aproximadas?)?\b/u.test(
+              normalizeText(previousAgentText),
+            ) || /\bmedidas indicadas\b/u.test(normalizeText(previousAgentText))
+          : Boolean(measurementsLabel) &&
+            normalizeText(previousAgentText).includes(normalizeText(measurementsLabel))
+      )
 
     const remainingConfigurationEntries = (
       Array.isArray(quoteContext?.missingAttributes)
@@ -484,14 +506,14 @@ export const preventCustomerResponseLoop = ({
     }
     if (quoteSubjectSpecificityRegressionCandidate && stableQuoteSubject) {
       if (
-        measurementsLabel &&
+        measurementAcknowledgementText &&
         currentTurnAddsFreshMeasurement &&
         !previousAgentAlreadyMentionsMeasurements
       ) {
         return compactText(
           [
             'Perfecto.',
-            `Tomo una medida aproximada de ${measurementsLabel} para ${stableQuoteSubject}.`,
+            `${measurementAcknowledgementText} para ${stableQuoteSubject}.`,
             nextAsk || 'La dejamos encaminada y, si hace falta algo más, seguimos por acá.',
           ].join(' '),
         )

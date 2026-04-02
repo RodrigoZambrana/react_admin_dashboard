@@ -900,10 +900,96 @@ const buildDecoratedQuoteSubject = (subjectLabel = null, quoteContext = null) =>
   return compactText([cleanSubject, ...decorators].filter(Boolean).join(' '))
 }
 
+const normalizeQuoteFieldKey = (value) => {
+  const normalized = normalizeLightInput(value)
+  if (!normalized) {
+    return null
+  }
+
+  if (
+    [
+      'measurement',
+      'measurements',
+      'measurement_item',
+      'measurement_items',
+      'dimension',
+      'dimensions',
+      'size',
+      'sizes',
+    ].includes(normalized)
+  ) {
+    return 'measurements'
+  }
+
+  if (['quantity', 'qty', 'unit', 'units'].includes(normalized)) {
+    return 'quantity'
+  }
+
+  if (['product', 'subject', 'topic'].includes(normalized)) {
+    return 'product'
+  }
+
+  if (
+    ['configuration', 'configuracion', 'config', 'option', 'options', 'profile', 'variant'].includes(
+      normalized,
+    )
+  ) {
+    return 'configuration'
+  }
+
+  return normalized
+}
+
+const buildSubjectAwareQuotePrompt = ({
+  mode = 'quote',
+  subjectLabel = null,
+  nextUsefulField = null,
+} = {}) => {
+  const cleanSubject = compactText(subjectLabel)
+  const normalizedField = normalizeQuoteFieldKey(nextUsefulField)
+  const effectiveField =
+    cleanSubject && normalizedField === 'product'
+      ? 'measurements'
+      : normalizedField || (cleanSubject ? 'measurements' : 'product')
+
+  switch (effectiveField) {
+    case 'measurements':
+      return cleanSubject
+        ? mode === 'price'
+          ? `Claro. Para orientarte con el precio de ${cleanSubject}, pasame las medidas aproximadas.`
+          : `Claro. Para cotizar ${cleanSubject}, pasame las medidas aproximadas.`
+        : mode === 'price'
+          ? 'Claro. Para orientarte con el precio, pasame las medidas aproximadas.'
+          : 'Claro. Para prepararte un presupuesto, pasame las medidas aproximadas.'
+    case 'quantity':
+      return cleanSubject
+        ? mode === 'price'
+          ? `Claro. Para orientarte con el precio de ${cleanSubject}, decime cuántas unidades necesitás.`
+          : `Claro. Para cotizar ${cleanSubject}, decime cuántas unidades necesitás.`
+        : mode === 'price'
+          ? 'Claro. Para orientarte con el precio, decime cuántas unidades necesitás.'
+          : 'Claro. Para prepararte un presupuesto, decime cuántas unidades necesitás.'
+    case 'configuration':
+      return cleanSubject
+        ? mode === 'price'
+          ? `Claro. Para orientarte con el precio de ${cleanSubject}, decime qué opción o configuración buscás.`
+          : `Claro. Para cotizar ${cleanSubject}, decime qué opción o configuración buscás.`
+        : mode === 'price'
+          ? 'Claro. Para orientarte con el precio, decime qué opción o configuración buscás.'
+          : 'Claro. Para prepararte un presupuesto, decime qué opción o configuración buscás.'
+    case 'product':
+    default:
+      return mode === 'price'
+        ? 'Claro. ¿De qué producto o medida te gustaría saber el precio?'
+        : 'Claro. Para prepararte un presupuesto, decime qué producto o solución te interesa y, si aplica, las medidas aproximadas.'
+  }
+}
+
 const buildQuoteProgressText = ({
   mode = 'quote',
   currentTurnText = '',
   subjectLabel = null,
+  interpretation = null,
   quoteContext = null,
   conversationState = null,
   tenantTopicTaxonomy = [],
@@ -914,9 +1000,32 @@ const buildQuoteProgressText = ({
     quoteContext?.measurements?.confirmationLabel ||
     quoteContext?.measurements?.displayLabel ||
     null
+  const canonicalIntermediateContract =
+    interpretation?.canonicalIntermediateContract ||
+    interpretation?.conversationContext?.canonicalIntermediateContract ||
+    null
+  const canonicalResponseDirectives =
+    interpretation?.canonicalResponseDirectives ||
+    interpretation?.conversationContext?.canonicalResponseDirectives ||
+    null
+  const canonicalSubjectLabel = compactText(
+    canonicalResponseDirectives?.subjectLabel ||
+      canonicalIntermediateContract?.quoteSeed?.subjectLabel ||
+      '',
+  )
+  const canonicalNextUsefulField = compactText(
+    canonicalResponseDirectives?.nextUsefulField ||
+      canonicalIntermediateContract?.renderPlan?.nextUsefulField ||
+      canonicalIntermediateContract?.quoteSeed?.nextUsefulField ||
+      '',
+  )
+  const canonicalHandoffAllowed =
+    canonicalResponseDirectives?.handoffAllowed === true ||
+    canonicalIntermediateContract?.outcome?.handoffAllowed === true
   const rememberedSubject =
     sanitizeQuoteSubjectPhrase(conversationState?.slots?.product?.value || '') || ''
-  const requestedSubject = sanitizeQuoteSubjectPhrase(subjectLabel || '') || ''
+  const requestedSubject =
+    sanitizeQuoteSubjectPhrase(canonicalSubjectLabel || subjectLabel || '') || ''
   const cleanSubject =
     rememberedSubject &&
     (!requestedSubject ||
@@ -952,6 +1061,11 @@ const buildQuoteProgressText = ({
         .map((entry) => String(entry?.label || '').trim())
         .filter(Boolean)
     : []
+  const measurementItems = Array.isArray(quoteContext?.measurementItems)
+    ? quoteContext.measurementItems.filter((entry) => entry && typeof entry === 'object')
+    : []
+  const measurementItemCount = measurementItems.length
+  const hasMultipleMeasurementItems = measurementItemCount > 1
   const mixedPricingStrategies = Boolean(quoteContext?.mixedPricingStrategies)
 
   if (quoteContext?.multiTopic && mixedPricingStrategies && mentionedTopics.length > 1) {
@@ -1042,6 +1156,18 @@ const buildQuoteProgressText = ({
   }
 
   if (!topicRecognized) {
+    if (cleanSubject) {
+      return buildSubjectAwareQuotePrompt({
+        mode,
+        subjectLabel: buildDecoratedQuoteSubject(cleanSubject, quoteContext) || cleanSubject,
+        nextUsefulField: canonicalNextUsefulField,
+      })
+    }
+
+    if (measurementItems.length > 1) {
+      return `Perfecto. Tomo ${measurementItems.length} medidas aproximadas. Para avanzar con la cotización, decime también qué producto o solución buscás.`
+    }
+
     if (measurementLabel) {
       return `Perfecto. Tomo una medida aproximada de ${measurementLabel}. Para avanzar con la cotización, decime también qué producto o solución buscás.`
     }
@@ -1067,10 +1193,12 @@ const buildQuoteProgressText = ({
       })),
     )
 
-    if (measurementLabel && hasQuantity) {
-      return decoratedSubject
-        ? `Perfecto. Ya tengo una base para la cotización de ${decoratedSubject}. Si el caso requiere validación adicional, un asesor continúa con el siguiente paso.`
-        : 'Perfecto. Ya tengo una base para la cotización. Si el caso requiere validación adicional, un asesor continúa con el siguiente paso.'
+    if ((hasMultipleMeasurementItems || measurementLabel) && hasQuantity) {
+      if (canonicalHandoffAllowed) {
+        return decoratedSubject
+          ? `Perfecto. Ya tengo una base para la cotización de ${decoratedSubject}. Si el caso requiere validación adicional, un asesor continúa con el siguiente paso.`
+          : 'Perfecto. Ya tengo una base para la cotización. Si el caso requiere validación adicional, un asesor continúa con el siguiente paso.'
+      }
     }
 
     if (decoratedSubject && genericMissingLabel) {
@@ -1082,10 +1210,14 @@ const buildQuoteProgressText = ({
     }
   }
 
-  if (measurementLabel) {
-    const intro = decoratedSubject
-      ? `Perfecto. Tomo una medida aproximada de ${measurementLabel} para ${decoratedSubject}.`
-      : `Perfecto. Tomo una medida aproximada de ${measurementLabel}.`
+  if (hasMultipleMeasurementItems || measurementLabel) {
+    const intro = hasMultipleMeasurementItems
+      ? decoratedSubject
+        ? `Perfecto. Tomo ${measurementItemCount} medidas aproximadas para ${decoratedSubject}.`
+        : `Perfecto. Tomo ${measurementItemCount} medidas aproximadas.`
+      : decoratedSubject
+        ? `Perfecto. Tomo una medida aproximada de ${measurementLabel} para ${decoratedSubject}.`
+        : `Perfecto. Tomo una medida aproximada de ${measurementLabel}.`
     const followUp = missingLabel
       ? mode === 'price'
         ? decoratedSubject
@@ -1137,6 +1269,7 @@ export const buildCustomerPriceInquiryText = (input, options = {}) => {
     mode: 'price',
     currentTurnText: input,
     subjectLabel: resolveQuoteSubjectLabel(interpretation, tenantTopicTaxonomy),
+    interpretation,
     quoteContext,
     conversationState,
     tenantTopicTaxonomy,
@@ -1234,6 +1367,7 @@ export const buildCustomerQuoteRequestText = (input, options = {}) => {
     mode: 'quote',
     currentTurnText: input,
     subjectLabel: resolveQuoteSubjectLabel(interpretation, tenantTopicTaxonomy),
+    interpretation,
     quoteContext,
     conversationState,
     tenantTopicTaxonomy,
@@ -1249,6 +1383,12 @@ export const buildCustomerQuoteRequestText = (input, options = {}) => {
     quoteContext?.measurements?.confirmationLabel ||
     quoteContext?.measurements?.displayLabel ||
     null
+  const measurementItems = Array.isArray(quoteContext?.measurementItems)
+    ? quoteContext.measurementItems.filter((entry) => entry && typeof entry === 'object')
+    : []
+  if (measurementItems.length > 1) {
+    return `Perfecto. Tomo ${measurementItems.length} medidas aproximadas. Para avanzar con la cotización, decime también qué producto o solución buscás.`
+  }
   if (measurementLabel) {
     return `Perfecto. Tomo una medida aproximada de ${measurementLabel}. Para avanzar con la cotización, decime también qué producto o solución buscás.`
   }

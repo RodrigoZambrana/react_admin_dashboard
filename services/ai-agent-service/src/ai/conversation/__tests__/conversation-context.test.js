@@ -32,6 +32,8 @@ test('buildConversationContext keeps partial quote buildup in exploration before
   assert.equal(context.resolutionReadiness?.lane, 'quote')
   assert.equal(context.resolutionReadiness?.turnIntent, 'customer.product_info')
   assert.deepEqual(context.resolutionReadiness?.missingFields, ['measurements'])
+  assert.equal(context.canonicalIntermediateContract?.turn?.lane, 'quote')
+  assert.equal(context.canonicalIntermediateContract?.renderPlan?.nextUsefulField, 'measurements')
 })
 
 test('buildConversationContext marks quote-seeded product openings as information-first instead of immediate data collection', () => {
