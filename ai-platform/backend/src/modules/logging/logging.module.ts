@@ -1,7 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 
 import { PipelineLoggerService } from './pipeline-logger.service';
 
+@Global()
 @Module({
   providers: [PipelineLoggerService],
   exports: [PipelineLoggerService],

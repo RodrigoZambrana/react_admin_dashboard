@@ -4,15 +4,23 @@ describe('MockLanguageModelProvider', () => {
   it('returns strict JSON interpretation output', async () => {
     const provider = new MockLanguageModelProvider();
 
-    const payload = JSON.parse(
-      await provider.interpret({
+    const response = await provider.interpret(
+      {
         message: 'Necesito una cotización para 4 personas mañana con SKU A-19',
-      }),
+        systemPrompt: 'Return JSON only.',
+        previousMessages: [],
+      },
+      {
+        apiKey: '',
+        model: 'mock',
+        timeoutMs: 1000,
+      },
     );
+    const payload = JSON.parse(response.rawResponse);
 
     expect(payload).toEqual(
       expect.objectContaining({
-        intent: 'tenant.create_quote',
+        intent: 'CREATE_QUOTE',
         language: 'es',
       }),
     );

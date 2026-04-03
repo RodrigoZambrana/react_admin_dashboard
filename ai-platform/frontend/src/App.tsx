@@ -21,10 +21,13 @@ type ConversationMessage = {
 };
 
 type ChatResponse = {
-  conversationId: string;
-  traceId: string;
-  message: string;
-  debug: Record<string, unknown>;
+  response: string;
+  intent: string;
+  entities: Record<string, unknown>;
+  metadata: {
+    conversationId: string;
+    traceId: string;
+  };
 };
 
 type ChatLog = {
@@ -149,13 +152,13 @@ export function App() {
       });
 
       setLatestResponse(response);
-      setActiveConversationId(response.conversationId);
-      setSelectedTraceId(response.traceId);
+      setActiveConversationId(response.metadata.conversationId);
+      setSelectedTraceId(response.metadata.traceId);
       setDraft('');
 
       await refreshDashboard();
       const nextMessages = await apiRequest<ConversationMessage[]>(
-        `/conversations/${response.conversationId}/messages`,
+        `/conversations/${response.metadata.conversationId}/messages`,
       );
       setMessages(nextMessages);
     } catch (requestError) {
@@ -569,7 +572,7 @@ export function App() {
                   <h5 className="mb-0">Latest Debug</h5>
                   {latestResponse ? (
                     <span className="badge bg-dark">
-                      {latestResponse.traceId.slice(0, 8)}
+                      {latestResponse.metadata.traceId.slice(0, 8)}
                     </span>
                   ) : null}
                 </div>

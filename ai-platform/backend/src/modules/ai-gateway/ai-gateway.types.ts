@@ -1,7 +1,13 @@
+export type ConversationContextMessage = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
 export type InterpretationInput = {
   message: string;
   locale?: string;
   promptTemplate?: string;
+  previousMessages?: ConversationContextMessage[];
 };
 
 export type InterpretationOutput = {
@@ -9,6 +15,22 @@ export type InterpretationOutput = {
   entities: Record<string, unknown>;
   language: string;
   confidence: number;
+};
+
+export type AiGatewayInterpretationResult = {
+  ok: boolean;
+  rawResponse: string | null;
+  parsedResponse: InterpretationOutput | null;
+  error: string | null;
+  provider: string;
+  model: string | null;
+};
+
+export type LanguageModelInterpretationRequest = {
+  systemPrompt: string;
+  message: string;
+  locale?: string;
+  previousMessages: ConversationContextMessage[];
 };
 
 export type ResponseGenerationInput = {
@@ -22,6 +44,16 @@ export type ResponseGenerationInput = {
 };
 
 export interface LanguageModelProvider {
-  interpret(input: InterpretationInput): Promise<string>;
+  interpret(
+    input: LanguageModelInterpretationRequest,
+    providerInput: {
+      apiKey: string;
+      model: string;
+      timeoutMs: number;
+    },
+  ): Promise<{
+    rawResponse: string;
+    model?: string | null;
+  }>;
   generateResponse(input: ResponseGenerationInput): Promise<string>;
 }

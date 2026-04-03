@@ -182,3 +182,66 @@
 - If needed, build the public user chat surface on top of the vendored `dreamschat-chat` assets
 - Add live integration validation against PostgreSQL, Redis, and Qdrant containers
 - Refine asset pruning once the final UI surface is fixed
+
+## Iteration 8
+
+### Implemented
+- Real infrastructure connections for PostgreSQL, Redis, and Qdrant using the standalone environment configuration
+- Database validation with applied Prisma migration, verified tables, and tenant-aware persistence checks
+- Minimal working `POST /chat/message` endpoint with conversation creation/loading, message persistence, basic deterministic response generation, and persisted trace logging
+
+### Working
+- Database operations persist `Conversation`, `Message`, and `ChatLog` records with automatic tenant injection
+- `POST /chat/message` responds with the minimal contract and stores both user and assistant messages
+- Logging persists the full basic interaction flow in `ChatLog`, and the admin UI remains compatible with the current backend contract
+
+### Technical Debt
+- No AI integration yet
+- No parsing
+- No decision engine
+
+### Next Steps
+- Integrate AI interpretation layer
+
+## Iteration 9
+
+### Implemented
+- AI Gateway
+- Interpretation Service
+- integration into chat flow
+
+### Working
+- AI returns structured JSON
+- interpretation logged
+- endpoint stable
+
+### Technical Debt
+- prompt not versioned yet
+- no parsing normalization
+- no decision engine
+- no auth implemented
+
+### Next Steps
+- parsing layer
+- decision engine
+- prompt versioning
+
+## Iteration 10
+
+### Implemented
+- Deep audit of the abandoned legacy chat/runtime on `develop`
+- Permanent legacy audit document for reuse guidance: `ai-platform/docs/legacy-chat-audit.md`
+- Explicit reuse versus non-reuse rules for future standalone platform prompts
+
+### Working
+- The project now has a documented source of truth for which legacy assets are safe to reimplement
+- The audit identifies reusable parsing, tenant-policy, response-guardrail, and QA assets
+- The audit explicitly blocks direct reuse of the monolithic runtime, prompt-driven decisioning, and provider-owned tool execution
+
+### Technical Debt
+- No legacy assets have been reimplemented in `/ai-platform` yet
+- The useful legacy helpers are still only documented, not mapped into concrete standalone backend modules
+- Future prompts must still choose one safe increment at a time when mining legacy functionality
+
+### Next Steps
+- Use the audit during the next safe backend increment, starting with parsing-oriented legacy helpers only

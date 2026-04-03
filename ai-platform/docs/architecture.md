@@ -25,7 +25,7 @@
 
 - Module: `InterpretationModule`
 - Responsibility: convert user input into structured JSON
-- Input: raw user message plus prompt context
+- Input: raw user message plus optional previous messages
 - Output:
 
 ```json
@@ -38,6 +38,9 @@
 ```
 
 - Constraint: no tool execution and no business decisions
+- Runtime behavior:
+  - the interpretation service normalizes language codes and intent names
+  - if AI fails, it falls back to `GENERAL_CONVERSATION` with empty entities and zero confidence
 
 ### 2. Decision Layer
 
@@ -61,8 +64,13 @@
 ### 4. Response Generation Layer
 
 - Module: `AiGatewayModule`
-- Responsibility: generate final user-facing response
+- Responsibility:
+  - build prompts
+  - call the configured LLM provider
+  - validate structured model output
+  - log request and response diagnostics
 - Constraint: may not select tools or business actions
+- Rule: AI is called only from `AiGatewayModule`
 
 ## Core vs Tenant Domains
 
@@ -90,6 +98,8 @@
 - `PromptModule`: prompt storage, retrieval, and versioning
 - `PersistenceModule`: Prisma repositories and tenant enforcement
 - `ParsingModule`: normalization of dates, measurements, and entities
+- `RuntimeConfigModule`: abstraction over env-backed runtime configuration with future DB handoff points for AI keys, tenant configs, and prompts
+- `SecurityModule`: placeholder security planning for future Bearer auth and admin-only endpoint guards
 
 ## Request Flow
 
@@ -102,6 +112,17 @@
 7. AI gateway generates response text from approved context.
 8. Logging persists stage-by-stage trace.
 9. Knowledge service asynchronously extracts reusable knowledge from logs.
+
+## Initial Interpretation Prompt
+
+- The current interpretation prompt is code-backed through `RuntimeConfigModule`
+- It is intentionally isolated so it can move to DB-backed prompt versioning later
+- Current prompt rules enforce:
+  - JSON-only output
+  - allowed intents: `GENERAL_CONVERSATION`, `CLARIFICATION`, `GET_PRODUCT`, `CREATE_BOOKING`, `CREATE_QUOTE`
+  - no decisions
+  - no tool execution
+  - language normalization to short codes such as `es` and `en`
 
 ## Multi-Tenant Enforcement
 
@@ -125,6 +146,24 @@ Tracked stages for every interaction:
 - learning
 
 Each stage emits structured records with trace id, tenant id, duration, outcome, and payload summary.
+
+The `interpretation` stage persists:
+
+- raw AI response
+- parsed JSON
+- provider and model metadata
+- fallback/error details when AI is unavailable or invalid
+
+## Security Preparation
+
+- Current API mode remains open for this iteration
+- Future Bearer authentication is planned through `SecurityModule`
+- Planned admin-only endpoints:
+  - `/prompts`
+  - `/logs`
+  - `/conversations`
+- AI keys currently come from env-backed runtime config and are isolated behind `RuntimeConfigModule`
+- Future secure API key storage and tenant config retrieval will move behind repository-backed configuration services without changing controller or orchestrator layers
 
 ## Delivery Strategy
 

@@ -64,6 +64,23 @@ export class MemoryService implements OnModuleDestroy {
     return (this.fallbackStore.get(key) ?? []).slice(-limit);
   }
 
+  async ping() {
+    if (!this.redis) {
+      return {
+        status: 'error' as const,
+        detail: 'REDIS_URL is not configured',
+      };
+    }
+
+    await this.redis.connect().catch(() => undefined);
+    const result = await this.redis.ping();
+
+    return {
+      status: result === 'PONG' ? ('ok' as const) : ('error' as const),
+      detail: result,
+    };
+  }
+
   async onModuleDestroy() {
     if (this.redis) {
       await this.redis.quit().catch(() => undefined);

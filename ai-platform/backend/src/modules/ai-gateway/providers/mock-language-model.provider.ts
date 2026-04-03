@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 
 import {
-  InterpretationInput,
   InterpretationOutput,
+  LanguageModelInterpretationRequest,
   LanguageModelProvider,
   ResponseGenerationInput,
 } from '../ai-gateway.types';
@@ -11,6 +11,8 @@ const datePattern =
   /\b(today|tomorrow|tonight|next week|next monday|next tuesday|next wednesday|next thursday|next friday|next saturday|next sunday|hoy|mañana|pasado mañana|la próxima semana|el lunes|el martes|el miércoles|el jueves|el viernes|el sábado|el domingo|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b/gi;
 const measurementPattern =
   /\b\d+(?:[.,]\d+)?\s?(?:mm|cm|m|km|g|kg|lb|lbs|ml|l)\b/gi;
+const dimensionPattern =
+  /\b\d+(?:[.,]\d+)?\s?[x×]\s?\d+(?:[.,]\d+)?(?:\s?(?:mm|cm|m))?\b/gi;
 
 function detectLanguage(message: string) {
   const spanishSignals = [
@@ -18,6 +20,9 @@ function detectLanguage(message: string) {
     'quiero',
     'cotizacion',
     'cotización',
+    'barato',
+    'cocina',
+    'puertas',
     'reservar',
     'precio',
     'producto',
@@ -31,10 +36,12 @@ function detectLanguage(message: string) {
 function detectIntent(message: string) {
   const lower = message.toLowerCase();
 
-  if (
-    /(quote|cotiz|presupuesto|estimate|pricing proposal)/.test(lower)
-  ) {
-    return 'tenant.create_quote';
+  if (/^(hola|hello|hi|buenas)\b/.test(lower.trim())) {
+    return 'GENERAL_CONVERSATION';
+  }
+
+  if (/(quote|cotiz|presupuesto|estimate|pricing proposal)/.test(lower)) {
+    return 'CREATE_QUOTE';
   }
 
   if (
@@ -42,34 +49,60 @@ function detectIntent(message: string) {
       lower,
     )
   ) {
-    return 'tenant.create_booking';
+    return 'CREATE_BOOKING';
   }
 
-  if (/(product|sku|catalog|precio|producto|item|buy|comprar)/.test(lower)) {
-    return 'tenant.get_product';
+  if (
+    /(product|sku|catalog|precio|producto|item|buy|comprar|barato|barata|cheap|econ[oó]mico|puertas|door)/.test(
+      lower,
+    )
+  ) {
+    return 'GET_PRODUCT';
   }
 
   if (lower.trim().length < 8 || /(help|ayuda|not sure|no se)/.test(lower)) {
-    return 'core.clarification';
+    return 'CLARIFICATION';
   }
 
-  return 'core.general_conversation';
+  return 'GENERAL_CONVERSATION';
 }
 
-function extractEntities(input: InterpretationInput) {
+function extractEntities(input: LanguageModelInterpretationRequest) {
   const message = input.message;
   const measurements = message.match(measurementPattern) ?? [];
   const dates = message.match(datePattern) ?? [];
+  const dimensions = message.match(dimensionPattern) ?? [];
   const peopleMatch = message.match(/\b(?:for|para)\s+(\d+)\s+(?:people|personas?)\b/i);
   const skuMatch = message.match(/\bsku[:\s-]*([a-z0-9-]+)\b/i);
+  const lower = message.toLowerCase();
 
-  return {
+  const entities: Record<string, unknown> = {
     rawMessage: message,
     dateCandidates: dates,
     measurementCandidates: measurements,
-    attendees: peopleMatch ? Number(peopleMatch[1]) : undefined,
-    sku: skuMatch?.[1],
   };
+
+  if (dimensions.length > 0) {
+    entities.dimensionCandidates = dimensions;
+  }
+
+  if (/(barato|barata|cheap|econ[oó]mico)/.test(lower)) {
+    entities.price = 'low';
+  }
+
+  if (/(cocina|kitchen)/.test(lower)) {
+    entities.location = 'kitchen';
+  }
+
+  if (peopleMatch) {
+    entities.attendees = Number(peopleMatch[1]);
+  }
+
+  if (skuMatch?.[1]) {
+    entities.sku = skuMatch[1];
+  }
+
+  return entities;
 }
 
 function estimateConfidence(intent: string, entities: Record<string, unknown>) {
@@ -80,14 +113,22 @@ function estimateConfidence(intent: string, entities: Record<string, unknown>) {
       }
 
       return value !== undefined && value !== null && value !== '';
-    }).length + (intent.startsWith('tenant.') ? 1 : 0);
+    }).length +
+    (intent !== 'GENERAL_CONVERSATION' ? 1 : 0);
 
   return Math.min(0.55 + signals * 0.08, 0.96);
 }
 
 @Injectable()
 export class MockLanguageModelProvider implements LanguageModelProvider {
-  async interpret(input: InterpretationInput): Promise<string> {
+  async interpret(
+    input: LanguageModelInterpretationRequest,
+    _providerInput: {
+      apiKey: string;
+      model: string;
+      timeoutMs: number;
+    },
+  ): Promise<{ rawResponse: string; model: string }> {
     const intent = detectIntent(input.message);
     const entities = extractEntities(input);
     const payload: InterpretationOutput = {
@@ -97,7 +138,10 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
       confidence: estimateConfidence(intent, entities),
     };
 
-    return JSON.stringify(payload);
+    return {
+      rawResponse: JSON.stringify(payload),
+      model: 'mock-rule-engine',
+    };
   }
 
   async generateResponse(input: ResponseGenerationInput): Promise<string> {

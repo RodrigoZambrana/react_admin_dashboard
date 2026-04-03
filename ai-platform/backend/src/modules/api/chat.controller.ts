@@ -14,14 +14,6 @@ export class ChatController {
     private readonly promptService: PromptService,
   ) {}
 
-  @Get('health')
-  health() {
-    return {
-      service: 'ai-conversational-platform',
-      status: 'ok',
-    };
-  }
-
   @Post('chat/message')
   sendMessage(@Body() body: ChatMessageDto) {
     return this.chatOrchestratorService.handleMessage(body);

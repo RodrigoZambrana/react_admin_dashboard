@@ -5,6 +5,6 @@ import { QdrantStoreService } from './qdrant-store.service';
 
 @Module({
   providers: [KnowledgeService, QdrantStoreService],
-  exports: [KnowledgeService],
+  exports: [KnowledgeService, QdrantStoreService],
 })
 export class KnowledgeModule {}

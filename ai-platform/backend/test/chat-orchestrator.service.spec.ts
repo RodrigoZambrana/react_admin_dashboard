@@ -1,13 +1,35 @@
 import { ChatOrchestratorService } from '../src/modules/api/chat-orchestrator.service';
 
 describe('ChatOrchestratorService', () => {
-  it('runs the full flow and returns debug data', async () => {
+  it('stores a basic interaction, logs interpretation, and returns the minimal response payload', async () => {
     const traceLogService = {
-      recordStage: jest.fn(async ({ stage, payload }) => ({
-        id: `${stage}-log`,
-        stage,
-        payload,
+      recordStage: jest.fn(async () => undefined),
+    };
+    const interpretationService = {
+      interpret: jest.fn(async () => ({
+        interpretation: {
+          intent: 'GENERAL_CONVERSATION',
+          entities: {},
+          language: 'es',
+          confidence: 0.94,
+        },
+        rawAiResponse:
+          '{"intent":"GENERAL_CONVERSATION","entities":{},"language":"es","confidence":0.94}',
+        parsedJson: {
+          intent: 'GENERAL_CONVERSATION',
+          entities: {},
+          language: 'es',
+          confidence: 0.94,
+        },
+        error: null,
+        provider: 'mock',
+        model: 'mock-rule-engine',
+        usedFallback: false,
       })),
+    };
+    const memoryService = {
+      getRecent: jest.fn(async () => []),
+      append: jest.fn(async () => undefined),
     };
 
     const service = new ChatOrchestratorService(
@@ -17,96 +39,34 @@ describe('ChatOrchestratorService', () => {
       {
         findById: jest.fn(async () => null),
         createConversation: jest.fn(async () => ({ id: 'conv-1' })),
-        appendMessage: jest.fn(async () => undefined),
+        appendMessage: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'msg-user-1' })
+          .mockResolvedValueOnce({ id: 'msg-assistant-1' }),
         listRecent: jest.fn(async () => []),
       } as any,
       {
         listByConversation: jest.fn(async () => []),
       } as any,
-      {
-        getActivePrompt: jest.fn(async (key: string) => ({
-          key,
-          version: 1,
-          template: `${key}-template`,
-        })),
-      } as any,
-      {
-        interpret: jest.fn(async () => ({
-          intent: 'tenant.create_booking',
-          language: 'es',
-          confidence: 0.92,
-          entities: {
-            rawMessage: 'Reservar mañana',
-          },
-        })),
-      } as any,
-      {
-        normalize: jest.fn(() => ({
-          intent: 'tenant.create_booking',
-          language: 'es',
-          confidence: 0.92,
-          entities: {
-            rawMessage: 'Reservar mañana',
-          },
-          normalizedEntities: {
-            dates: [
-              {
-                source: 'mañana',
-                iso: '2026-04-04T12:00:00.000Z',
-                precision: 'date',
-              },
-            ],
-            measurements: [],
-          },
-        })),
-      } as any,
-      {
-        decide: jest.fn(() => ({
-          domain: 'tenant',
-          action: 'invoke_tool',
-          toolName: 'create_booking',
-          reasonCode: 'booking_requested',
-          missingFields: [],
-          responseTemplateKey: 'tenant.booking.confirmation',
-        })),
-      } as any,
-      {
-        execute: jest.fn(async () => ({
-          toolName: 'create_booking',
-          payload: {
-            bookingId: 'bk_1',
-            status: 'confirmed',
-          },
-        })),
-      } as any,
-      {
-        generateResponse: jest.fn(async () => 'Reserva confirmada'),
-      } as any,
-      {
-        append: jest.fn(async () => undefined),
-        getRecent: jest.fn(async () => []),
-      } as any,
+      interpretationService as any,
+      memoryService as any,
       traceLogService as any,
-      {
-        enqueueExtraction: jest.fn(),
-      } as any,
     );
 
     const result = await service.handleMessage({
-      message: 'Reservar mañana',
+      message: 'hola',
     });
 
-    expect(result).toEqual(
-      expect.objectContaining({
+    expect(result).toEqual({
+      response: 'Hello, how can I help you?',
+      intent: 'GENERAL_CONVERSATION',
+      entities: {},
+      metadata: {
         conversationId: 'conv-1',
         traceId: 'trace-1',
-        message: 'Reserva confirmada',
-      }),
-    );
-    expect(traceLogService.recordStage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stage: 'response',
-      }),
-    );
+      },
+    });
+    expect(traceLogService.recordStage).toHaveBeenCalledTimes(4);
+    expect(interpretationService.interpret).toHaveBeenCalledWith('hola', undefined, []);
   });
 });

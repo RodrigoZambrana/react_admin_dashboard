@@ -1,19 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { MessageRole, Prisma } from '@prisma/client';
 
-import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
-import { DecisionService } from '../decision/decision.service';
 import { InterpretationService } from '../interpretation/interpretation.service';
-import { KnowledgeService } from '../knowledge/knowledge.service';
 import { MemoryService } from '../memory/memory.service';
 import { ConversationRepository } from '../persistence/repositories/conversation.repository';
 import { MessageRepository } from '../persistence/repositories/message.repository';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
-import { PromptService } from '../prompt/prompt.service';
-import { ParsingService } from '../parsing/parsing.service';
-import { ToolEngineService } from '../tools/tool-engine.service';
 import { TraceLogService } from './trace-log.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
+
+const BASIC_RESPONSE = 'Hello, how can I help you?';
+const BASIC_INTENT = 'GENERAL_CONVERSATION';
 
 @Injectable()
 export class ChatOrchestratorService {
@@ -21,27 +18,19 @@ export class ChatOrchestratorService {
     private readonly tenantContext: TenantContextService,
     private readonly conversationRepository: ConversationRepository,
     private readonly messageRepository: MessageRepository,
-    private readonly promptService: PromptService,
     private readonly interpretationService: InterpretationService,
-    private readonly parsingService: ParsingService,
-    private readonly decisionService: DecisionService,
-    private readonly toolEngineService: ToolEngineService,
-    private readonly aiGatewayService: AiGatewayService,
     private readonly memoryService: MemoryService,
     private readonly traceLogService: TraceLogService,
-    private readonly knowledgeService: KnowledgeService,
   ) {}
 
   async handleMessage(input: ChatMessageDto) {
     const conversation = await this.resolveConversation(input);
     const conversationId = conversation.id;
-
-    await this.conversationRepository.appendMessage(
+    const previousMessages = await this.memoryService.getRecent(conversationId, 10);
+    const metadata = {
       conversationId,
-      MessageRole.USER,
-      input.message,
-    );
-    await this.memoryService.append(conversationId, 'user', input.message);
+      traceId: this.tenantContext.getTraceId(),
+    };
 
     await this.traceLogService.recordStage({
       conversationId,
@@ -49,174 +38,83 @@ export class ChatOrchestratorService {
       status: 'received',
       payload: {
         message: input.message,
-        locale: input.locale ?? null,
       },
     });
 
-    const memoryEntries = await this.memoryService.getRecent(conversationId);
-    await this.traceLogService.recordStage({
+    const incomingMessage = await this.conversationRepository.appendMessage(
       conversationId,
-      stage: 'memory',
-      status: 'resolved',
-      payload: {
-        entries: memoryEntries,
-      } as Prisma.InputJsonValue,
-    });
+      MessageRole.USER,
+      input.message,
+    );
+    await this.memoryService.append(conversationId, 'user', input.message);
 
-    const interpretationPrompt =
-      await this.promptService.getActivePrompt('interpretation');
-    const interpretationStartedAt = Date.now();
     const interpretation = await this.interpretationService.interpret(
       input.message,
       input.locale,
-      interpretationPrompt?.template,
+      previousMessages,
     );
+
     await this.traceLogService.recordStage({
       conversationId,
       stage: 'interpretation',
-      status: 'completed',
-      latencyMs: Date.now() - interpretationStartedAt,
+      status: interpretation.usedFallback ? 'fallback' : 'completed',
       payload: {
-        promptVersion: interpretationPrompt?.version ?? null,
-        output: interpretation,
+        rawAiResponse: interpretation.rawAiResponse,
+        parsedJson: interpretation.parsedJson,
+        error: interpretation.error,
+        provider: interpretation.provider,
+        model: interpretation.model,
+        usedFallback: interpretation.usedFallback,
       } as Prisma.InputJsonValue,
     });
 
-    const parsed = this.parsingService.normalize(interpretation);
+    const response = this.buildBasicResponse(
+      input.message,
+      interpretation.interpretation.language,
+    );
+
     await this.traceLogService.recordStage({
-      conversationId,
-      stage: 'parsing',
-      status: 'completed',
-      payload: {
-        normalizedEntities: parsed.normalizedEntities,
-      } as Prisma.InputJsonValue,
-    });
-
-    const decision = this.decisionService.decide(parsed);
-    await this.traceLogService.recordStage({
-      conversationId,
-      stage: 'decision',
-      status: 'completed',
-      payload: {
-        output: decision,
-      } as Prisma.InputJsonValue,
-    });
-
-    let toolResult: Record<string, unknown> | null = null;
-
-    if (decision.action === 'invoke_tool' && decision.toolName) {
-      const executionResult = await this.toolEngineService.execute(
-        decision.toolName,
-        {
-          interpretation: parsed,
-        },
-      );
-      toolResult = executionResult.payload;
-
-      const executionLog = await this.traceLogService.recordStage({
-        conversationId,
-        stage: 'execution',
-        status: 'completed',
-        payload: {
-          toolName: executionResult.toolName,
-          output: executionResult.payload,
-        } as Prisma.InputJsonValue,
-      });
-
-      this.knowledgeService.enqueueExtraction({
-        stage: executionLog.stage,
-        payload: executionLog.payload as Record<string, unknown>,
-        sourceLogId: executionLog.id,
-      });
-      await this.traceLogService.recordStage({
-        conversationId,
-        stage: 'learning',
-        status: 'queued',
-        payload: {
-          sourceLogId: executionLog.id,
-          sourceStage: executionLog.stage,
-        },
-      });
-    } else {
-      await this.traceLogService.recordStage({
-        conversationId,
-        stage: 'execution',
-        status: 'skipped',
-        payload: {
-          reason: decision.action,
-        },
-      });
-    }
-
-    const responsePrompt = await this.promptService.getActivePrompt('response');
-    const responseStartedAt = Date.now();
-    const responseMessage = await this.aiGatewayService.generateResponse({
-      message: input.message,
-      intent: parsed.intent,
-      language: parsed.language,
-      toolResult,
-      promptTemplate: responsePrompt?.template,
-      responseTemplateKey: decision.responseTemplateKey,
-      missingFields: decision.missingFields,
-    });
-
-    const responseLog = await this.traceLogService.recordStage({
       conversationId,
       stage: 'response',
       status: 'completed',
-      latencyMs: Date.now() - responseStartedAt,
       payload: {
-        promptVersion: responsePrompt?.version ?? null,
-        message: responseMessage,
-      },
+        response,
+        intent: interpretation.interpretation.intent,
+        entities: interpretation.interpretation.entities,
+        language: interpretation.interpretation.language,
+        confidence: interpretation.interpretation.confidence,
+      } as Prisma.InputJsonValue,
     });
 
-    this.knowledgeService.enqueueExtraction({
-      stage: responseLog.stage,
-      payload: responseLog.payload as Record<string, unknown>,
-      sourceLogId: responseLog.id,
-    });
-    await this.traceLogService.recordStage({
-      conversationId,
-      stage: 'learning',
-      status: 'queued',
-      payload: {
-        sourceLogId: responseLog.id,
-        sourceStage: responseLog.stage,
-      },
-    });
-
-    await this.conversationRepository.appendMessage(
+    const outgoingMessage = await this.conversationRepository.appendMessage(
       conversationId,
       MessageRole.ASSISTANT,
-      responseMessage,
+      response,
       {
-        decision,
-        toolResult,
+        intent: interpretation.interpretation.intent,
+        entities: interpretation.interpretation.entities,
+        language: interpretation.interpretation.language,
+        confidence: interpretation.interpretation.confidence,
       } as Prisma.InputJsonValue,
     );
-    await this.memoryService.append(conversationId, 'assistant', responseMessage);
+    await this.memoryService.append(conversationId, 'assistant', response);
 
     await this.traceLogService.recordStage({
       conversationId,
       stage: 'logging',
       status: 'completed',
       payload: {
-        conversationId,
+        incomingMessageId: incomingMessage.id,
+        outgoingMessageId: outgoingMessage.id,
+        metadata,
       },
     });
 
     return {
-      conversationId,
-      traceId: this.tenantContext.getTraceId(),
-      message: responseMessage,
-      debug: {
-        interpretation,
-        normalizedEntities: parsed.normalizedEntities,
-        decision,
-        toolResult,
-        memoryEntries,
-      },
+      response,
+      intent: interpretation.interpretation.intent,
+      entities: interpretation.interpretation.entities,
+      metadata,
     };
   }
 
@@ -240,5 +138,19 @@ export class ChatOrchestratorService {
     }
 
     return this.conversationRepository.createConversation(input.locale);
+  }
+
+  private buildBasicResponse(message: string, locale?: string) {
+    const normalized = `${locale ?? ''} ${message}`.toLowerCase();
+
+    if (normalized.includes('hola')) {
+      return 'Hello, how can I help you?';
+    }
+
+    if (normalized.includes('hello')) {
+      return 'Hello, how can I help you?';
+    }
+
+    return BASIC_RESPONSE;
   }
 }

@@ -17,7 +17,25 @@ export class QdrantStoreService {
 
   constructor(private readonly configService: ConfigService) {
     const url = this.configService.get<string>('QDRANT_URL');
-    this.client = url ? new QdrantClient({ url }) : null;
+    this.client = url
+      ? new QdrantClient({ url, checkCompatibility: false })
+      : null;
+  }
+
+  async healthCheck() {
+    if (!this.client) {
+      return {
+        status: 'error' as const,
+        detail: 'QDRANT_URL is not configured',
+      };
+    }
+
+    const collections = await this.client.getCollections();
+
+    return {
+      status: 'ok' as const,
+      collections: collections.collections.length,
+    };
   }
 
   async ensureCollection() {

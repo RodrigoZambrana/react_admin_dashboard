@@ -1,7 +1,9 @@
 import { Global, Module } from '@nestjs/common';
 
+import { LoggingModule } from '../logging/logging.module';
 import { ChatLogRepository } from './repositories/chat-log.repository';
 import { ConversationRepository } from './repositories/conversation.repository';
+import { InfrastructureRepository } from './repositories/infrastructure.repository';
 import { KnowledgeRepository } from './repositories/knowledge.repository';
 import { MessageRepository } from './repositories/message.repository';
 import { PromptVersionRepository } from './repositories/prompt-version.repository';
@@ -11,10 +13,12 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
 
 @Global()
 @Module({
+  imports: [LoggingModule],
   providers: [
     TenantContextService,
     TenantMiddleware,
     PrismaService,
+    InfrastructureRepository,
     ConversationRepository,
     MessageRepository,
     ChatLogRepository,
@@ -24,6 +28,7 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
   exports: [
     TenantContextService,
     PrismaService,
+    InfrastructureRepository,
     ConversationRepository,
     MessageRepository,
     ChatLogRepository,
