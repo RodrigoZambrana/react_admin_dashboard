@@ -6,7 +6,7 @@ import {
   extractCustomerQuoteLeadText,
   extractCustomerQuoteSeed,
 } from '../intents/customer-quote-context.js'
-import { extractRequestedTopicLabel } from '../intents/customer-faq-heuristics.js'
+import { extractExplicitSemanticSubject } from '../intents/semantic-turn-subject.js'
 
 export const CANONICAL_INTERMEDIATE_CONTRACT_VERSION = '1'
 
@@ -275,7 +275,10 @@ const resolveCanonicalQuoteSubjectLabel = ({
 
   const quoteLeadText = toStringOrNull(extractCustomerQuoteLeadText(effectiveTurnText))
   const extractedRequestedTopic = toStringOrNull(
-    extractRequestedTopicLabel(quoteLeadText || effectiveTurnText),
+    extractExplicitSemanticSubject({
+      input: quoteLeadText || effectiveTurnText,
+      tenantTopicTaxonomy,
+    }).explicitSubject?.label,
   )
   if (!extractedRequestedTopic) {
     return null

@@ -99,7 +99,6 @@ import { classifyInboundMessage } from './intents/classify-inbound-message.js'
 import { classifyCustomerProtectedDataRequest } from './intents/customer-protected-data.js'
 import {
   detectCustomerFaqSubtype,
-  extractRequestedTopicLabel,
   looksLikeCustomerVariantComparisonQuestion,
 } from './intents/customer-faq-heuristics.js'
 import { buildTurnInterpretation } from './intents/turn-interpretation.js'
@@ -1341,6 +1340,7 @@ const buildRetrievalFaqGroundingContract = ({
       null,
     paymentMethods,
     tenantRuntimePolicy,
+    interpretation,
   })
   const evidenceFacts = evidence.map((entry) => entry?.text).filter(Boolean)
   const fallbackFacts = extractKnowledgeFallbackStatements(retrievalItems, {
@@ -7934,6 +7934,7 @@ export class AiAgentRuntime {
         intentKey: readiness?.turnIntent || null,
         paymentMethods: getBusinessRules(tenantRuntimePolicy)?.paymentMethods ?? [],
         tenantRuntimePolicy,
+        interpretation,
       })
         .map((entry) => entry?.text)
         .filter(Boolean)
@@ -13339,6 +13340,22 @@ export class AiAgentRuntime {
   }
 
   resolveTopicGuardFallback({ input, interpretation = null }) {
+    const semanticSubjectLabel =
+      typeof interpretation?.semanticInfoIntent?.subject?.label === 'string' &&
+      interpretation.semanticInfoIntent.subject.label.trim()
+        ? interpretation.semanticInfoIntent.subject.label.trim()
+        : null
+    if (semanticSubjectLabel) {
+      return {
+        label: semanticSubjectLabel,
+        type:
+          typeof interpretation?.semanticInfoIntent?.subject?.type === 'string' &&
+          interpretation.semanticInfoIntent.subject.type.trim()
+            ? interpretation.semanticInfoIntent.subject.type.trim()
+            : 'product_topic',
+      }
+    }
+
     const interpretedTopicLabel =
       typeof interpretation?.topic?.label === 'string' && interpretation.topic.label.trim()
         ? interpretation.topic.label.trim()
@@ -13369,15 +13386,7 @@ export class AiAgentRuntime {
       }
     }
 
-    const requestedTopicLabel = extractRequestedTopicLabel(input)
-    if (!requestedTopicLabel) {
-      return null
-    }
-
-    return {
-      label: requestedTopicLabel,
-      type: 'product_topic',
-    }
+    return null
   }
 
   getLastAgentAuditPayload(snapshot) {

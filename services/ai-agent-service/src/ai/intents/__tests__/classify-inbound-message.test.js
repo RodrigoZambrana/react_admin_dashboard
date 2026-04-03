@@ -322,6 +322,77 @@ test('classifyInboundMessage recognizes typoed aberturas topic inquiries as faq_
   assert.equal(result.suggestedIntent, 'customer.topic_info')
 })
 
+test('classifyInboundMessage exposes semantic info intent on explicit variant discovery', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Me gustaria saber los tipos de cortinas roller que tienen',
+    tenantTopicTaxonomy: TENANT_TOPIC_TAXONOMY,
+  })
+
+  assert.equal(result.category, 'faq_topic')
+  assert.equal(result.suggestedIntent, 'customer.topic_info')
+  assert.equal(result.semanticInfoIntent?.shape, 'variant_discovery')
+  assert.equal(result.semanticInfoIntent?.subjectMode, 'explicit')
+  assert.equal(result.semanticInfoIntent?.subjectResolution, 'resolved_subject')
+  assert.equal(result.semanticInfoIntent?.subject?.label, 'cortinas roller')
+})
+
+test('classifyInboundMessage starts product info openings from semantic general info plus explicit subject', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'necesito informacion de cortinas roller',
+    tenantTopicTaxonomy: TENANT_TOPIC_TAXONOMY,
+  })
+
+  assert.equal(result.category, 'faq_topic')
+  assert.equal(result.suggestedIntent, 'customer.product_info')
+  assert.ok(result.decisionPath.includes('classifier:semantic_product_info_opening'))
+  assert.equal(result.semanticInfoIntent?.shape, 'general_info')
+  assert.equal(result.semanticInfoIntent?.subjectMode, 'explicit')
+  assert.equal(result.semanticInfoIntent?.subjectResolution, 'resolved_subject')
+  assert.equal(result.semanticInfoIntent?.subject?.label, 'cortinas roller')
+})
+
+test('classifyInboundMessage keeps generic info openings without subject out of semantic topic routing', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'Buenos días, mi nombre es Rodrigo y necesito información',
+    tenantTopicTaxonomy: TENANT_TOPIC_TAXONOMY,
+  })
+
+  assert.equal(result.category, 'generic_help_request')
+  assert.equal(result.suggestedIntent, 'customer.clarify_request')
+  assert.ok(result.decisionPath.includes('classifier:generic_help_request'))
+  assert.equal(result.semanticInfoIntent, null)
+})
+
+test('classifyInboundMessage inherits semantic subject from recent context on implicit variant follow-ups', () => {
+  const result = classifyInboundMessage({
+    role: 'customer_public',
+    input: 'cuales son los tipos',
+    tenantTopicTaxonomy: TENANT_TOPIC_TAXONOMY,
+    recentTurns: [
+      { role: 'customer', text: 'necesito informacion de cortinas roller' },
+      {
+        role: 'agent',
+        text: 'Sí, trabajamos con cortinas roller. Si quieres, te cuento opciones y usos.',
+      },
+    ],
+  })
+
+  assert.equal(result.category, 'faq_topic')
+  assert.equal(result.suggestedIntent, 'customer.topic_info')
+  assert.ok(
+    result.decisionPath.includes('classifier:semantic_info_variant_discovery'),
+  )
+  assert.equal(result.semanticInfoIntent?.shape, 'variant_discovery')
+  assert.equal(result.semanticInfoIntent?.subjectMode, 'implicit_from_context')
+  assert.equal(result.semanticInfoIntent?.subjectResolution, 'inherit_subject')
+  assert.equal(result.semanticInfoIntent?.subject?.label, 'cortinas roller')
+  assert.equal(result.semanticInfoIntent?.needsSubjectFromContext, true)
+  assert.equal(result.semanticInfoIntent?.shouldSuppressRequestedTopicLabel, true)
+})
+
 test('classifyInboundMessage treats punctuation-only customer input as noise before the provider path', () => {
   const result = classifyInboundMessage({
     role: 'customer_public',

@@ -5,6 +5,11 @@ import {
 import { getStaticLanguagePolicy } from '../../../../shared/language-policy/index.js'
 
 const BASE_LANGUAGE_POLICY = getStaticLanguagePolicy('es-default')
+const BASE_CUSTOMER_SEMANTIC_SIGNALS_POLICY =
+  BASE_LANGUAGE_POLICY.customerSemanticSignals &&
+  typeof BASE_LANGUAGE_POLICY.customerSemanticSignals === 'object'
+    ? BASE_LANGUAGE_POLICY.customerSemanticSignals
+    : {}
 
 export const normalizeSemanticText = (value) =>
   String(value || '')
@@ -276,7 +281,9 @@ const hasConfiguredTerm = (normalizedValue, terms = []) =>
 const ATTACHMENT_REFERENCE_TERMS = uniqueTerms(
   BASE_LANGUAGE_POLICY.attachmentReferenceTerms,
 )
-const GENERIC_HELP_TERMS = uniqueTerms(BASE_LANGUAGE_POLICY.genericHelpTerms)
+const GENERIC_HELP_TERMS = uniqueTerms(
+  BASE_CUSTOMER_SEMANTIC_SIGNALS_POLICY.genericHelpTerms,
+)
 const INCOMPLETE_INPUTS = new Set(uniqueTerms(BASE_LANGUAGE_POLICY.incompleteInputs))
 const SERVICE_CAPABILITY_SIGNAL_TERMS = {
   verbTerms: uniqueTerms(BASE_LANGUAGE_POLICY.serviceCapabilitySignals?.verbTerms),

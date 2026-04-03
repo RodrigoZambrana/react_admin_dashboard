@@ -1,10 +1,10 @@
 import {
   detectCustomerFaqSubtype,
-  extractRequestedTopicLabel,
   looksLikeCustomerProductInfoOpening,
 } from './customer-faq-heuristics.js'
 import { extractCurrentCustomerTurnText } from '../ingress/customer-turn-normalization.js'
 import { readInterpretationResolutionReadiness } from '../conversation/resolution-readiness.js'
+import { extractExplicitSemanticSubject } from './semantic-turn-subject.js'
 import {
   looksLikeConfiguredProductInterest,
   looksLikeGenericPriceInquiry,
@@ -117,6 +117,80 @@ const extractTopicTokens = (text) =>
     .split(/\s+/u)
     .map((entry) => entry.trim())
     .filter((entry) => entry.length >= 3 && !STOP_TOKENS.has(entry))
+
+const readSemanticInfoIntent = (interpretation = null) =>
+  interpretation?.semanticInfoIntent &&
+  typeof interpretation.semanticInfoIntent === 'object'
+    ? interpretation.semanticInfoIntent
+    : null
+
+const resolveFaqTopicSignals = ({
+  input,
+  interpretation = null,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+} = {}) => {
+  const semanticInfoIntent = readSemanticInfoIntent(interpretation)
+  const semanticSubjectResolution =
+    typeof semanticInfoIntent?.subjectResolution === 'string'
+      ? semanticInfoIntent.subjectResolution
+      : 'unresolved'
+  const semanticSubjectLabel =
+    typeof semanticInfoIntent?.subject?.label === 'string' &&
+    semanticInfoIntent.subject.label.trim()
+      ? semanticInfoIntent.subject.label.trim()
+      : null
+  const hasResolvedSemanticSubject =
+    Boolean(semanticSubjectLabel) && semanticSubjectResolution !== 'unresolved'
+  const suppressRequestedTopicLabel =
+    semanticInfoIntent?.shouldSuppressRequestedTopicLabel === true
+  const extractedRequestedTopicLabel = suppressRequestedTopicLabel
+    ? null
+    : extractExplicitSemanticSubject({
+        input,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      }).explicitSubject?.label || null
+  const quoteContextTopicLabel =
+    typeof interpretation?.quoteContext?.topicLabel === 'string' &&
+    interpretation.quoteContext.topicLabel.trim()
+      ? interpretation.quoteContext.topicLabel.trim()
+      : null
+  const interpretationTopicLabel =
+    typeof interpretation?.topic?.label === 'string' && interpretation.topic.label.trim()
+      ? interpretation.topic.label.trim()
+      : null
+  const shouldPreferQuoteContextTopic =
+    !hasResolvedSemanticSubject &&
+    looksLikeQuoteExpansionSignal(input, tenantRuntimePolicy) &&
+    quoteContextTopicLabel &&
+    (!extractedRequestedTopicLabel ||
+      normalizeText(quoteContextTopicLabel).includes(
+        normalizeText(extractedRequestedTopicLabel),
+      ))
+
+  const requestedTopicLabel = hasResolvedSemanticSubject
+    ? semanticSubjectLabel
+    : shouldPreferQuoteContextTopic
+      ? quoteContextTopicLabel
+      : extractedRequestedTopicLabel &&
+          String(interpretation?.topic?.type || '') === 'product_family'
+        ? extractedRequestedTopicLabel
+        : interpretationTopicLabel || extractedRequestedTopicLabel
+
+  return {
+    semanticInfoIntent,
+    semanticSubjectResolution,
+    semanticSubjectLabel,
+    hasResolvedSemanticSubject,
+    suppressRequestedTopicLabel,
+    extractedRequestedTopicLabel,
+    quoteContextTopicLabel,
+    interpretationTopicLabel,
+    shouldPreferQuoteContextTopic,
+    requestedTopicLabel,
+  }
+}
 
 const calculateTopicOverlap = (left = [], right = []) => {
   if (!left.length || !right.length) {
@@ -920,10 +994,17 @@ export const selectCustomerFaqEvidence = ({
   faqSubtype,
   intentKey = null,
   paymentMethods = [],
+  tenantTopicTaxonomy = [],
   tenantRuntimePolicy = null,
+  interpretation = null,
 }) => {
   const inputTokens = extractTopicTokens(input)
-  const requestedTopicLabel = extractRequestedTopicLabel(input)
+  const { requestedTopicLabel } = resolveFaqTopicSignals({
+    input,
+    interpretation,
+    tenantTopicTaxonomy,
+    tenantRuntimePolicy,
+  })
   const requestedTopicTokens = extractTopicTokens(requestedTopicLabel || '')
   const candidates = []
   const seen = new Set()
@@ -1257,30 +1338,16 @@ const buildTopicSpecificKnowledgeFallbackText = (
   const tenantTopicTaxonomy = Array.isArray(options?.tenantTopicTaxonomy)
     ? options.tenantTopicTaxonomy
     : []
-  const extractedRequestedTopicLabel = extractRequestedTopicLabel(detectionInput)
-  const quoteContextTopicLabel =
-    typeof interpretation?.quoteContext?.topicLabel === 'string' &&
-    interpretation.quoteContext.topicLabel.trim()
-      ? interpretation.quoteContext.topicLabel.trim()
-      : null
-  const interpretationTopicLabel =
-    typeof interpretation?.topic?.label === 'string' && interpretation.topic.label.trim()
-      ? interpretation.topic.label.trim()
-      : null
-  const shouldPreferQuoteContextTopic =
-    looksLikeQuoteExpansionSignal(detectionInput, options?.tenantRuntimePolicy || null) &&
-    quoteContextTopicLabel &&
-    (!extractedRequestedTopicLabel ||
-      normalizeText(quoteContextTopicLabel).includes(
-        normalizeText(extractedRequestedTopicLabel),
-      ))
-  const requestedTopicLabel =
-    shouldPreferQuoteContextTopic
-      ? quoteContextTopicLabel
-      : extractedRequestedTopicLabel &&
-          String(interpretation?.topic?.type || '') === 'product_family'
-        ? extractedRequestedTopicLabel
-        : interpretationTopicLabel || extractedRequestedTopicLabel
+  const {
+    semanticInfoIntent,
+    requestedTopicLabel,
+    hasResolvedSemanticSubject,
+  } = resolveFaqTopicSignals({
+    input: detectionInput,
+    interpretation,
+    tenantTopicTaxonomy,
+    tenantRuntimePolicy: options?.tenantRuntimePolicy || null,
+  })
   const requestedTopicMatch = findBestTenantTopicMatch(
     requestedTopicLabel || interpretation?.topic?.label || '',
     tenantTopicTaxonomy,
@@ -1326,9 +1393,18 @@ const buildTopicSpecificKnowledgeFallbackText = (
       ? interpretation.quoteContext
       : null
   const productInfoOpening =
-    looksLikeCustomerProductInfoOpening(detectionInput, {
-      tenantTopicTaxonomy,
-    }) && !looksLikePriceOrQuoteTurn(detectionInput)
+    (
+      (
+        semanticInfoIntent?.shape === 'general_info' &&
+        semanticInfoIntent?.subjectMode === 'explicit' &&
+        semanticInfoIntent?.subjectResolution === 'resolved_subject'
+      ) ||
+      (!semanticInfoIntent &&
+        looksLikeCustomerProductInfoOpening(detectionInput, {
+          tenantTopicTaxonomy,
+        }))
+    ) &&
+    !looksLikePriceOrQuoteTurn(detectionInput)
   const shouldAppendQuoteBridge =
     !quoteSideQuestionContract &&
     !productInfoOpening &&
@@ -1759,15 +1835,35 @@ export const buildCustomerFaqKnowledgeResponse = ({
     retrievalItems,
     tenantRuntimePolicy,
   })
+  const semanticInfoIntent = readSemanticInfoIntent(interpretation)
+  const {
+    requestedTopicLabel,
+    hasResolvedSemanticSubject,
+  } = resolveFaqTopicSignals({
+    input: detectionInput,
+    interpretation,
+    tenantTopicTaxonomy,
+    tenantRuntimePolicy,
+  })
+  const semanticProductInfoOpening =
+    semanticInfoIntent?.shape === 'general_info' &&
+    semanticInfoIntent?.subjectMode === 'explicit' &&
+    semanticInfoIntent?.subjectResolution === 'resolved_subject'
   const hasProductInfoAnchor =
     ['customer.product_info', 'customer.topic_info'].includes(
       String(intentKey || ''),
     ) &&
     (
-      looksLikeCustomerProductInfoOpening(detectionInput, {
-        tenantTopicTaxonomy,
-      }) ||
-      Boolean(extractRequestedTopicLabel(detectionInput)) ||
+      semanticInfoIntent?.shape === 'general_info' ||
+      semanticInfoIntent?.shape === 'variant_discovery' ||
+      semanticInfoIntent?.shape === 'comparison' ||
+      hasResolvedSemanticSubject ||
+      (!semanticInfoIntent &&
+        looksLikeCustomerProductInfoOpening(detectionInput, {
+          tenantTopicTaxonomy,
+        })) ||
+      semanticProductInfoOpening ||
+      Boolean(requestedTopicLabel) ||
       Boolean(interpretation?.topic?.label) ||
       Boolean(interpretation?.contextTopic?.label)
     )
@@ -1801,7 +1897,9 @@ export const buildCustomerFaqKnowledgeResponse = ({
     faqSubtype,
     intentKey,
     paymentMethods,
+    tenantTopicTaxonomy,
     tenantRuntimePolicy,
+    interpretation,
   })
   if (!evidence.length) {
     if (faqSubtype === 'location') {

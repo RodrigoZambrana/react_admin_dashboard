@@ -1,5 +1,4 @@
 import {
-  extractRequestedTopicLabel,
   looksLikeCustomerAvailabilityQuestion,
   looksLikeCustomerContactQuestion,
   looksLikeCustomerProductInfoOpening,
@@ -7,6 +6,11 @@ import {
   looksLikeCustomerUnintelligibleText,
   looksLikeCustomerVariantQuestion,
 } from './customer-faq-heuristics.js'
+import {
+  buildSemanticInfoIntent,
+  detectInfoRequestShape,
+} from './semantic-info-intent.js'
+import { extractExplicitSemanticSubject } from './semantic-turn-subject.js'
 import {
   looksLikeGenericPriceInquiry,
   looksLikeInstalledReplacementAssessmentRequest,
@@ -69,6 +73,183 @@ const getConfiguredCatalogTerms = (tenantRuntimePolicy = null) => ({
   ),
 })
 
+const buildSemanticTopicDescriptor = (topicMatch = null, source = 'recent_turn_context') =>
+  topicMatch?.label
+    ? {
+        label: topicMatch.label,
+        type: typeof topicMatch.kind === 'string' ? topicMatch.kind : 'product_topic',
+        confidence: 0.72,
+        source,
+      }
+    : null
+
+const resolveRecentSemanticContextTopic = (
+  recentTurns = [],
+  tenantTopicTaxonomy = [],
+) => {
+  if (!Array.isArray(recentTurns) || recentTurns.length === 0) {
+    return null
+  }
+
+  for (let index = recentTurns.length - 1; index >= 0; index -= 1) {
+    const turn = recentTurns[index]
+    if (!turn || typeof turn.text !== 'string' || !turn.text.trim()) {
+      continue
+    }
+
+    const topicMatch = findBestTenantTopicMatch(turn.text, tenantTopicTaxonomy, {
+      kinds: ['product_topic', 'product_variant', 'product_family'],
+    })
+    if (topicMatch?.label) {
+      return buildSemanticTopicDescriptor(topicMatch)
+    }
+  }
+
+  return null
+}
+
+const looksLikeSemanticFollowUpCandidate = ({
+  normalizedInput,
+  recentContextTopic = null,
+  semanticShape = 'unknown',
+  tenantTopicTaxonomy = [],
+}) => {
+  if (!recentContextTopic?.label) {
+    return false
+  }
+
+  const hasExplicitTenantTopicSignal = hasTenantTopicSignal(
+    normalizedInput,
+    tenantTopicTaxonomy,
+  )
+  if (semanticShape !== 'unknown' && !hasExplicitTenantTopicSignal) {
+    return true
+  }
+
+  const tokens = normalizeText(normalizedInput).split(/\s+/u).filter(Boolean)
+  return !hasExplicitTenantTopicSignal && tokens.length > 0 && tokens.length <= 6
+}
+
+const hasSemanticInfoSubject = (semanticInfoIntent = null) =>
+  Boolean(semanticInfoIntent?.subject?.label)
+
+const buildInboundSemanticInfoIntent = ({
+  input,
+  normalizedInput,
+  recentTurns = [],
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+}) => {
+  const contextTopic = resolveRecentSemanticContextTopic(
+    recentTurns,
+    tenantTopicTaxonomy,
+  )
+  const semanticShape = detectInfoRequestShape(input)
+  const followUpDetected = looksLikeSemanticFollowUpCandidate({
+    normalizedInput,
+    recentContextTopic: contextTopic,
+    semanticShape,
+    tenantTopicTaxonomy,
+  })
+
+  return buildSemanticInfoIntent({
+    input,
+    tenantTopicTaxonomy,
+    tenantRuntimePolicy,
+    contextTopic,
+    followUpDetected,
+  })
+}
+
+const buildSemanticInfoClassification = ({
+  normalizedInput,
+  semanticInfoIntent = null,
+}) => {
+  if (!semanticInfoIntent || typeof semanticInfoIntent !== 'object') {
+    return null
+  }
+
+  if (
+    looksLikeGenericPriceInquiry(normalizedInput) ||
+    looksLikeQuoteRequirementsQuestion(normalizedInput)
+  ) {
+    return null
+  }
+
+  if (
+    semanticInfoIntent.shape === 'general_info' &&
+    !hasSemanticInfoSubject(semanticInfoIntent)
+  ) {
+    return null
+  }
+
+  if (
+    semanticInfoIntent.shape === 'general_info' &&
+    semanticInfoIntent.subjectMode === 'explicit'
+  ) {
+    const suggestedIntent =
+      semanticInfoIntent.subject?.type === 'product_family' ||
+      semanticInfoIntent.subject?.type === 'product_family_candidate' ||
+      semanticInfoIntent.subject?.intentBias === 'topic_info'
+        ? 'customer.topic_info'
+        : 'customer.product_info'
+    return {
+      category: 'faq_topic',
+      confidence: 0.91,
+      suggestedIntent,
+      decisionPath: [
+        suggestedIntent === 'customer.product_info'
+          ? 'classifier:semantic_product_info_opening'
+          : 'classifier:semantic_info_general_info',
+      ],
+    }
+  }
+
+  if (semanticInfoIntent.shape && semanticInfoIntent.shape !== 'unknown') {
+    return {
+      category: 'faq_topic',
+      confidence:
+        semanticInfoIntent.subjectMode === 'implicit_from_context' ? 0.94 : 0.92,
+      suggestedIntent: 'customer.topic_info',
+      decisionPath: [`classifier:semantic_info_${semanticInfoIntent.shape}`],
+    }
+  }
+
+  if (
+    semanticInfoIntent.shouldStayInActiveThread &&
+    semanticInfoIntent.subjectMode === 'implicit_from_context'
+  ) {
+    return {
+      category: 'faq_topic',
+      confidence: 0.9,
+      suggestedIntent: 'customer.topic_info',
+      decisionPath: ['classifier:semantic_info_context_followup'],
+    }
+  }
+
+  if (
+    hasSemanticInfoSubject(semanticInfoIntent) &&
+    normalizeText(normalizedInput).split(/\s+/u).filter(Boolean).length <= 4
+  ) {
+    const suggestedIntent =
+      semanticInfoIntent.subject?.intentBias === 'product_info'
+        ? 'customer.product_info'
+        : 'customer.topic_info'
+    return {
+      category: 'faq_topic',
+      confidence: 0.86,
+      suggestedIntent,
+      decisionPath: [
+        suggestedIntent === 'customer.product_info'
+          ? 'classifier:semantic_product_subject_reference'
+          : 'classifier:semantic_topic_subject_reference',
+      ],
+    }
+  }
+
+  return null
+}
+
 const looksLikeInstallationQuoteContext = (
   normalizedInput,
   tenantTopicTaxonomy = [],
@@ -90,13 +271,14 @@ const looksLikeCatalogInstallationAssessmentContext = (
   normalizedInput,
   tenantTopicTaxonomy = [],
   tenantRuntimePolicy = null,
+  semanticInfoIntent = null,
 ) => {
   const catalogTerms = getConfiguredCatalogTerms(tenantRuntimePolicy)
   const commercialConditionQuestion =
     looksLikeCommercialConditionQuestion(normalizedInput)
   const hasRelevantProduct =
     hasTenantTopicSignal(normalizedInput, tenantTopicTaxonomy) ||
-    Boolean(extractRequestedTopicLabel(normalizedInput)) ||
+    hasSemanticInfoSubject(semanticInfoIntent) ||
     looksLikeCatalogStructureSignal(normalizedInput, tenantRuntimePolicy)
   const hasCatalogContext =
     looksLikeCatalogStructureSignal(normalizedInput, tenantRuntimePolicy) ||
@@ -123,6 +305,7 @@ const looksLikeNarrativeQuoteProjectContext = (
   normalizedInput,
   tenantTopicTaxonomy = [],
   tenantRuntimePolicy = null,
+  semanticInfoIntent = null,
 ) => {
   if (!normalizedInput) {
     return false
@@ -148,13 +331,12 @@ const looksLikeNarrativeQuoteProjectContext = (
     return false
   }
 
-  const extractedTopic = extractRequestedTopicLabel(normalizedInput)
   const hasGenericProjectNoun =
     /\b(cortina(?:s)?|roller|screen|blackout|persiana(?:s)?|abertura(?:s)?|ventana(?:s)?|puerta(?:\s+ventana)?|mosquitero(?:s)?|cerramiento(?:s)?|techo|parrillero|marco|vidrio|dvh|pvc|aluminio)\b/u.test(
       normalizedInput,
     )
   const hasRelevantProduct =
-    Boolean(extractedTopic) ||
+    hasSemanticInfoSubject(semanticInfoIntent) ||
     hasTenantTopicSignal(normalizedInput, tenantTopicTaxonomy) ||
     looksLikeCatalogStructureSignal(normalizedInput, tenantRuntimePolicy) ||
     hasConfiguredVocabularyTerm(normalizedInput, [
@@ -319,6 +501,7 @@ const buildClassification = ({
   identifier = null,
   requestType = null,
   semanticHints = null,
+  semanticInfoIntent = null,
 }) => ({
   category: INBOUND_MESSAGE_CATEGORIES.includes(category) ? category : 'other',
   confidence:
@@ -348,6 +531,42 @@ const buildClassification = ({
             semanticHints.installationCapabilityHint === true,
           customWorkCapabilityHint:
             semanticHints.customWorkCapabilityHint === true,
+        }
+      : null,
+  semanticInfoIntent:
+    semanticInfoIntent && typeof semanticInfoIntent === 'object'
+      ? {
+          shape:
+            typeof semanticInfoIntent.shape === 'string'
+              ? semanticInfoIntent.shape
+              : 'unknown',
+          subjectMode:
+            typeof semanticInfoIntent.subjectMode === 'string'
+              ? semanticInfoIntent.subjectMode
+              : 'none',
+          subjectResolution:
+            typeof semanticInfoIntent.subjectResolution === 'string'
+              ? semanticInfoIntent.subjectResolution
+              : 'unresolved',
+          subject:
+            semanticInfoIntent.subject &&
+            typeof semanticInfoIntent.subject === 'object' &&
+            typeof semanticInfoIntent.subject.label === 'string'
+              ? {
+                  label: semanticInfoIntent.subject.label,
+                  type:
+                    typeof semanticInfoIntent.subject.type === 'string'
+                      ? semanticInfoIntent.subject.type
+                      : 'product_topic',
+                }
+              : null,
+          comparisonRequested: semanticInfoIntent.comparisonRequested === true,
+          needsSubjectFromContext:
+            semanticInfoIntent.needsSubjectFromContext === true,
+          shouldSuppressRequestedTopicLabel:
+            semanticInfoIntent.shouldSuppressRequestedTopicLabel === true,
+          shouldStayInActiveThread:
+            semanticInfoIntent.shouldStayInActiveThread === true,
         }
       : null,
 })
@@ -452,14 +671,25 @@ const looksLikeScheduleAdministrativeFollowUp = (
   })
 }
 
-const hasSpecificPriceContext = (normalizedInput, tenantTopicTaxonomy = []) =>
+const hasSpecificPriceContext = (
+  normalizedInput,
+  tenantTopicTaxonomy = [],
+  semanticInfoIntent = null,
+) =>
   Boolean(
     (() => {
       if (looksLikeQuoteRequirementsQuestion(normalizedInput)) {
         return false
       }
 
-      const extractedTopic = extractRequestedTopicLabel(normalizedInput)
+      const extractedTopic =
+        semanticInfoIntent?.subjectMode === 'explicit'
+          ? semanticInfoIntent.subject?.label || null
+          : extractExplicitSemanticSubject({
+              input: normalizedInput,
+              tenantTopicTaxonomy,
+              tenantRuntimePolicy: null,
+            }).explicitSubject?.label || null
       const extractedTopicMatch =
         extractedTopic && !looksLikeGenericPriceInquiry(extractedTopic)
           ? findBestTenantTopicMatch(extractedTopic, tenantTopicTaxonomy)
@@ -593,6 +823,18 @@ export const classifyInboundMessage = ({
     return buildClassification(protectedDataClassification)
   }
 
+  const recentSemanticContextTopic = resolveRecentSemanticContextTopic(
+    recentTurns,
+    tenantTopicTaxonomy,
+  )
+  const semanticInfoIntent = buildInboundSemanticInfoIntent({
+    input,
+    normalizedInput,
+    recentTurns,
+    tenantTopicTaxonomy,
+    tenantRuntimePolicy,
+  })
+
   const hasPendingConfirmation =
     typeof pendingState?.state === 'string' &&
     pendingState.state.toUpperCase() === 'WAITING_CONFIRMATION'
@@ -702,7 +944,12 @@ export const classifyInboundMessage = ({
         normalizedInput,
         tenantTopicTaxonomy,
         tenantRuntimePolicy,
+        semanticInfoIntent,
       )
+    const serviceCapabilityQuestion =
+      !quoteScopedCommercialCondition &&
+      hasGenericHelpSignal(normalizedInput) &&
+      serviceCapabilityHints.serviceCapabilityHint
 
     return buildClassification({
       category: quoteScopedCommercialCondition ? 'price_inquiry' : 'faq_topic',
@@ -713,8 +960,12 @@ export const classifyInboundMessage = ({
       decisionPath: [
         quoteScopedCommercialCondition
           ? 'classifier:commercial_condition_quote_context'
-          : 'classifier:commercial_condition_question',
+          : serviceCapabilityQuestion
+            ? 'classifier:service_capability_question'
+            : 'classifier:commercial_condition_question',
       ],
+      semanticHints: serviceCapabilityQuestion ? serviceCapabilityHints : null,
+      semanticInfoIntent,
     })
   }
 
@@ -723,6 +974,7 @@ export const classifyInboundMessage = ({
       normalizedInput,
       tenantTopicTaxonomy,
       tenantRuntimePolicy,
+      semanticInfoIntent,
     ) &&
     !looksLikeGenericPriceInquiry(normalizedInput)
   ) {
@@ -746,21 +998,6 @@ export const classifyInboundMessage = ({
       confidence: 0.92,
       suggestedIntent: 'customer.support_request',
       decisionPath: ['classifier:support_request'],
-    })
-  }
-
-  if (
-    looksLikeNarrativeQuoteProjectContext(
-      normalizedInput,
-      tenantTopicTaxonomy,
-      tenantRuntimePolicy,
-    )
-  ) {
-    return buildClassification({
-      category: 'price_inquiry',
-      confidence: 0.86,
-      suggestedIntent: 'customer.quote',
-      decisionPath: ['classifier:narrative_quote_project_context'],
     })
   }
 
@@ -818,6 +1055,22 @@ export const classifyInboundMessage = ({
       confidence: 0.9,
       suggestedIntent: 'customer.quote',
       decisionPath: ['classifier:replacement_quote_request'],
+    })
+  }
+
+  if (
+    looksLikeNarrativeQuoteProjectContext(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+      semanticInfoIntent,
+    )
+  ) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.86,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:narrative_quote_project_context'],
     })
   }
 
@@ -936,7 +1189,11 @@ export const classifyInboundMessage = ({
   if (
     looksLikeGenericPriceInquiry(normalizedInput) &&
     !/\b(agendar|agenda|visita|cita|pedido|orden)\b/.test(normalizedInput) &&
-    !hasSpecificPriceContext(normalizedInput, tenantTopicTaxonomy)
+    !hasSpecificPriceContext(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      semanticInfoIntent,
+    )
   ) {
     return buildClassification({
       category: 'price_inquiry',
@@ -946,12 +1203,40 @@ export const classifyInboundMessage = ({
     })
   }
 
+  if (
+    looksLikeGenericPriceInquiry(normalizedInput) &&
+    hasSpecificPriceContext(
+      normalizedInput,
+      tenantTopicTaxonomy,
+      semanticInfoIntent,
+    )
+  ) {
+    return buildClassification({
+      category: 'price_inquiry',
+      confidence: 0.91,
+      suggestedIntent: 'customer.quote',
+      decisionPath: ['classifier:price_inquiry_specific_context'],
+    })
+  }
+
   if (looksLikeCustomerAvailabilityQuestion(normalizedInput)) {
     return buildClassification({
       category: 'faq_topic',
       confidence: 0.92,
       suggestedIntent: 'customer.topic_info',
       decisionPath: ['classifier:faq_topic'],
+      semanticInfoIntent,
+    })
+  }
+
+  const semanticInfoClassification = buildSemanticInfoClassification({
+    normalizedInput,
+    semanticInfoIntent,
+  })
+  if (semanticInfoClassification) {
+    return buildClassification({
+      ...semanticInfoClassification,
+      semanticInfoIntent,
     })
   }
 
@@ -961,21 +1246,35 @@ export const classifyInboundMessage = ({
       confidence: 0.93,
       suggestedIntent: 'customer.topic_info',
       decisionPath: ['classifier:faq_topic_variant'],
+      semanticInfoIntent,
     })
   }
 
-  if (looksLikeCustomerTopicQuestion(normalizedInput, { tenantTopicTaxonomy })) {
+  if (
+    looksLikeCustomerTopicQuestion(normalizedInput, {
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+      contextTopic: recentSemanticContextTopic,
+      followUpDetected:
+        semanticInfoIntent?.subjectMode === 'implicit_from_context',
+    })
+  ) {
     return buildClassification({
       category: 'faq_topic',
       confidence: 0.93,
       suggestedIntent: 'customer.topic_info',
       decisionPath: ['classifier:faq_topic'],
+      semanticInfoIntent,
     })
   }
 
   if (
     looksLikeCustomerProductInfoOpening(normalizedInput, {
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+      contextTopic: recentSemanticContextTopic,
+      followUpDetected:
+        semanticInfoIntent?.subjectMode === 'implicit_from_context',
     })
   ) {
     return buildClassification({
@@ -983,6 +1282,7 @@ export const classifyInboundMessage = ({
       confidence: 0.91,
       suggestedIntent: 'customer.product_info',
       decisionPath: ['classifier:product_info_opening'],
+      semanticInfoIntent,
     })
   }
 

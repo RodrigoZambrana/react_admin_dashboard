@@ -1,9 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  detectCustomerFaqSubtype,
-  extractRequestedTopicLabel,
-} from '../customer-faq-heuristics.js'
+import { detectCustomerFaqSubtype } from '../customer-faq-heuristics.js'
 import { buildTenantRuntimePolicy } from '../../tenant-policy/runtime-tenant-policy.js'
 
 test('detectCustomerFaqSubtype resolves payment methods from broader payment wording', () => {
@@ -102,37 +99,4 @@ test('detectCustomerFaqSubtype does not treat private-account changes as public 
     ),
     null,
   )
-})
-
-test('extractRequestedTopicLabel does not turn pure variant follow-ups into a fake topic label', () => {
-  assert.equal(extractRequestedTopicLabel('dime las opciones'), null)
-  assert.equal(extractRequestedTopicLabel('pasame las variantes'), null)
-})
-
-test('extractRequestedTopicLabel ignores standalone attachment artifacts and explicit reengagement markers', () => {
-  assert.equal(
-    extractRequestedTopicLabel('IMG-20260318-WA0007.jpg (archivo adjunto)'),
-    null,
-  )
-  assert.equal(extractRequestedTopicLabel('Perdón, me quedó para atrás el mensaje'), null)
-  assert.equal(extractRequestedTopicLabel('Hola, retomo esto.'), null)
-})
-
-test('extractRequestedTopicLabel ignores message placeholders and schedule availability payloads', () => {
-  assert.equal(extractRequestedTopicLabel('Esperando este mensaje'), null)
-  assert.equal(
-    extractRequestedTopicLabel('Este viernes en la mañana pueden ir a mi domicilio?'),
-    null,
-  )
-  assert.equal(extractRequestedTopicLabel('Pueden sobre las 9 am?'), null)
-})
-
-test('extractRequestedTopicLabel keeps the product subject clean on transfer-style follow-ups', () => {
-  assert.equal(extractRequestedTopicLabel('Tengo que pasarte un roller más'), 'roller')
-})
-
-test('extractRequestedTopicLabel does not convert quantity-only follow-ups into fake topics', () => {
-  assert.equal(extractRequestedTopicLabel('2'), null)
-  assert.equal(extractRequestedTopicLabel('2 unidades'), null)
-  assert.equal(extractRequestedTopicLabel('necesito 2'), null)
 })
