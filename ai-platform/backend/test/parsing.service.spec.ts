@@ -3,12 +3,12 @@ import { DimensionParser } from '../src/modules/parsing/dimension.parser';
 import { ParsingService } from '../src/modules/parsing/parsing.service';
 import { DateParser } from '../src/modules/parsing/date.parser';
 import { MeasurementParser } from '../src/modules/parsing/measurement.parser';
-import { FileSystemTemporalLocaleProvider } from '../src/modules/temporal/filesystem-temporal-locale.provider';
 import { TemporalExpressionService } from '../src/modules/temporal/temporal-expression.service';
+import { buildManagedTemporalLocaleProviderStub } from './support/managed-temporal-provider.stub';
 
 describe('ParsingService', () => {
-  it('normalizes measurement, date, and dimension candidates extracted by AI', () => {
-    const temporalRegistry = new FileSystemTemporalLocaleProvider();
+  it('normalizes measurement, date, and dimension candidates extracted by AI', async () => {
+    const temporalRegistry = buildManagedTemporalLocaleProviderStub().provider;
     const temporalExpressionService = new TemporalExpressionService(
       temporalRegistry,
     );
@@ -19,7 +19,7 @@ describe('ParsingService', () => {
       new PipelineLoggerService(),
     );
 
-    const normalized = service.normalize(
+    const normalized = await service.normalize(
       {
         intent: 'CREATE_BOOKING',
         language: 'es',

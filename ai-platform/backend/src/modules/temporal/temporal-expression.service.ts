@@ -16,14 +16,19 @@ export class TemporalExpressionService {
     private readonly temporalLocaleProvider: TemporalLocaleProvider,
   ) {}
 
-  extractExpressions(input: string, locale?: string | null): string[] {
+  async extractExpressions(
+    input: string,
+    locale?: string | null,
+  ): Promise<string[]> {
     if (!input.trim()) {
       return [];
     }
 
     const expressions = new Set<string>();
 
-    for (const resource of this.temporalLocaleProvider.resolveResources(locale)) {
+    for (const resource of await this.temporalLocaleProvider.resolveResources(
+      locale,
+    )) {
       const lexicalPattern = this.buildLexicalPattern(resource);
 
       for (const match of input.matchAll(lexicalPattern)) {
@@ -40,13 +45,14 @@ export class TemporalExpressionService {
     return Array.from(expressions);
   }
 
-  findMatchingLocales(input: string): string[] {
+  async findMatchingLocales(input: string): Promise<string[]> {
     if (!input.trim()) {
       return [];
     }
 
-    return this.temporalLocaleProvider
-      .listResources()
+    const resources = await this.temporalLocaleProvider.listResources();
+
+    return resources
       .filter((resource) => this.buildLexicalPattern(resource).test(input))
       .map((resource) => resource.locale);
   }

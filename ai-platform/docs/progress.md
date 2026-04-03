@@ -384,7 +384,7 @@
 - Resume roadmap work on `Live Decision Activation` without changing temporal parser dependencies again
 - Introduce governance/versioning for temporal locale resources when config/prompt storage is revisited
 
-## Iteration 16
+## Roadmap Alignment Note
 
 ### Implemented
 - Re-aligned roadmap guidance so the legacy chat audit becomes a mandatory planning reference for future iterations, not just an implementation-time consultation
@@ -413,18 +413,24 @@
 - Unified managed-resource lifecycle semantics around `DRAFT`, `ACTIVE`, and `ARCHIVED`
 - Extended Prisma persistence with a dedicated `TemporalLocaleVersion` model for versioned temporal catalogs
 - Updated tenant-scoped persistence wiring so managed temporal locale versions follow the same automatic isolation policy as other tenant-owned data
+- Replaced the live temporal runtime dependency with a managed persisted provider backed by `TemporalLocaleVersion`
+- Reduced filesystem temporal resources to idempotent bootstrap seed inputs only
+- Refactored temporal parsing, the mock AI provider, and the live parsing chain to consume async provider-backed temporal resources
 
 ### Working
 - The codebase now has a reusable backend contract for versioned runtime-managed resources instead of ad hoc per-subsystem lifecycle definitions
 - Prompt versions and temporal locale versions now share explicit managed-resource lifecycle semantics
 - Prisma client generation succeeds against the new managed-resource schema foundation
+- Temporal runtime resolution no longer reads filesystem catalogs directly in the active parsing path
+- Temporal bootstrap is idempotent per tenant: when no managed temporal versions exist, the seed source hydrates persisted active versions once
+- Backend and frontend builds pass after the temporal runtime refactor, and the full backend test suite passes with async temporal parsing active
 
 ### Technical Debt
-- Live temporal resolution still uses the filesystem-backed provider as its active runtime source
 - Live prompt retrieval still falls back to code-backed defaults in the AI gateway path
 - No backend management surface exists yet for future admin ABMs over runtime-managed resources
+- Prompt seeds are not yet aligned to the same bootstrap pattern as temporal catalogs
 
 ### Next Steps
-- Move temporal runtime reads to a managed persisted provider and reduce filesystem to bootstrap/import only
 - Reconnect live prompt retrieval to managed prompt storage with filesystem/bootstrap seeding instead of code defaults
 - Add minimal backend management endpoints/services so future admin ABMs can operate on the shared managed-resource model
+- Keep this managed-resource base as the prerequisite for the next roadmap steps: live tool execution, AI response on approved context, critical config runtime management, and admin ABMs over governed resources

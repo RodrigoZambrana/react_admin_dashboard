@@ -36,6 +36,10 @@ export class TemporalLocaleVersionRepository {
     });
   }
 
+  hasAnyVersions() {
+    return this.prisma.temporalLocaleVersion.count().then((count) => count > 0);
+  }
+
   async listActive() {
     return this.prisma.temporalLocaleVersion.findMany({
       where: { status: ManagedResourceStatus.ACTIVE },

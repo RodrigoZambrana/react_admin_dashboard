@@ -15,13 +15,13 @@ export class DateParser {
     private readonly temporalExpressionService: TemporalExpressionService,
   ) {}
 
-  parseCandidates(
+  async parseCandidates(
     text: string,
     candidates: string[],
     referenceDate = new Date(),
     locale?: string | null,
-  ): NormalizedDate[] {
-    const inputs = this.collectSafeDateInputs(text, candidates, locale);
+  ): Promise<NormalizedDate[]> {
+    const inputs = await this.collectSafeDateInputs(text, candidates, locale);
     const parsers = [chrono.parse, chrono.es.parse, chrono.en.parse];
 
     return Array.from(inputs)
@@ -40,12 +40,12 @@ export class DateParser {
         (item, index, items) =>
           items.findIndex(
             (candidate) =>
-            candidate.source === item.source && candidate.iso === item.iso,
+              candidate.source === item.source && candidate.iso === item.iso,
           ) === index,
       );
   }
 
-  private collectSafeDateInputs(
+  private async collectSafeDateInputs(
     text: string,
     candidates: string[],
     locale?: string | null,
@@ -53,7 +53,7 @@ export class DateParser {
     const extracted = new Set<string>();
 
     for (const candidate of candidates) {
-      for (const expression of this.temporalExpressionService.extractExpressions(
+      for (const expression of await this.temporalExpressionService.extractExpressions(
         candidate,
         locale,
       )) {
@@ -61,7 +61,7 @@ export class DateParser {
       }
     }
 
-    for (const expression of this.temporalExpressionService.extractExpressions(
+    for (const expression of await this.temporalExpressionService.extractExpressions(
       text,
       locale,
     )) {

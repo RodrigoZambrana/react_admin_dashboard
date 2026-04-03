@@ -1,15 +1,17 @@
 import { Module } from '@nestjs/common';
 
 import { TemporalExpressionService } from './temporal-expression.service';
-import { FileSystemTemporalLocaleProvider } from './filesystem-temporal-locale.provider';
+import { ManagedTemporalLocaleProvider } from './managed-temporal-locale.provider';
+import { FileSystemTemporalLocaleSeedSource } from './filesystem-temporal-locale.seed-source';
 import { TemporalLocaleProvider } from './temporal-locale.provider';
 
 @Module({
   providers: [
-    FileSystemTemporalLocaleProvider,
+    FileSystemTemporalLocaleSeedSource,
+    ManagedTemporalLocaleProvider,
     {
       provide: TemporalLocaleProvider,
-      useExisting: FileSystemTemporalLocaleProvider,
+      useExisting: ManagedTemporalLocaleProvider,
     },
     TemporalExpressionService,
   ],

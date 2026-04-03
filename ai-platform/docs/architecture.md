@@ -118,6 +118,8 @@
 - Current Wave 1 applications of this pattern:
   - prompts
   - temporal locale catalogs
+- Temporal locale catalogs now resolve through a managed runtime provider backed by persisted versions
+- Filesystem locale files remain only as bootstrap seed inputs when a tenant has no managed temporal versions yet
 - Future families expected to align to the same pattern:
   - critical configs
   - governed knowledge metadata

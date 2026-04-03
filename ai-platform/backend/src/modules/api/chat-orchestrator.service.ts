@@ -57,7 +57,7 @@ export class ChatOrchestratorService {
       input.locale,
       previousMessages,
     );
-    const parsedInterpretation = this.parsingService.normalize(
+    const parsedInterpretation = await this.parsingService.normalize(
       interpretation.interpretation,
     );
     const decision = this.decisionService.decide(parsedInterpretation);

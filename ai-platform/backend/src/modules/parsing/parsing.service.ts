@@ -23,10 +23,10 @@ export class ParsingService {
     private readonly logger: PipelineLoggerService,
   ) {}
 
-  normalize(
+  async normalize(
     interpretation: CanonicalInterpretation,
     referenceDate = new Date(),
-  ): ParsedInterpretation {
+  ): Promise<ParsedInterpretation> {
     const message =
       typeof interpretation.entities.rawMessage === 'string'
         ? interpretation.entities.rawMessage
@@ -43,7 +43,9 @@ export class ParsingService {
           (candidate): candidate is string => typeof candidate === 'string',
         )
       : [];
-    const dimensionCandidates = Array.isArray(interpretation.entities.dimensionCandidates)
+    const dimensionCandidates = Array.isArray(
+      interpretation.entities.dimensionCandidates,
+    )
       ? interpretation.entities.dimensionCandidates.filter(
           (candidate): candidate is string => typeof candidate === 'string',
         )
@@ -52,7 +54,7 @@ export class ParsingService {
     const normalized: ParsedInterpretation = {
       ...interpretation,
       normalizedEntities: {
-        dates: this.dateParser.parseCandidates(
+        dates: await this.dateParser.parseCandidates(
           message,
           dateCandidates,
           referenceDate,

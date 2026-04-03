@@ -1,13 +1,15 @@
 import { TemporalLocaleProvider } from '../src/modules/temporal/temporal-locale.provider';
 import { TemporalLocaleResource } from '../src/modules/temporal/temporal-locale.types';
-import { FileSystemTemporalLocaleProvider } from '../src/modules/temporal/filesystem-temporal-locale.provider';
 import { MockLanguageModelProvider } from '../src/modules/ai-gateway/providers/mock-language-model.provider';
 import { TemporalExpressionService } from '../src/modules/temporal/temporal-expression.service';
+import { buildManagedTemporalLocaleProviderStub } from './support/managed-temporal-provider.stub';
 
 describe('MockLanguageModelProvider', () => {
   it('returns strict JSON interpretation output', async () => {
     const provider = new MockLanguageModelProvider(
-      new TemporalExpressionService(new FileSystemTemporalLocaleProvider()),
+      new TemporalExpressionService(
+        buildManagedTemporalLocaleProviderStub().provider,
+      ),
     );
 
     const response = await provider.interpret(
@@ -83,15 +85,47 @@ class FakeTemporalLocaleProvider extends TemporalLocaleProvider {
     super();
   }
 
-  listResources(): TemporalLocaleResource[] {
+  async getActive(key: string) {
+    const resource = await this.resolveResource(key);
+
+    return resource
+      ? {
+          id: `fake-${key}`,
+          key,
+          value: resource,
+          version: 1,
+          status: 'ACTIVE' as const,
+          metadata: null,
+          createdAt: new Date(),
+          createdBy: 'test',
+        }
+      : null;
+  }
+
+  async listActive() {
+    return this.resources.map((resource) => ({
+      id: `fake-${resource.locale}`,
+      key: resource.locale,
+      value: resource,
+      version: 1,
+      status: 'ACTIVE' as const,
+      metadata: null,
+      createdAt: new Date(),
+      createdBy: 'test',
+    }));
+  }
+
+  async listResources(): Promise<TemporalLocaleResource[]> {
     return this.resources;
   }
 
-  getSupportedLocales(): string[] {
+  async getSupportedLocales(): Promise<string[]> {
     return this.resources.map((resource) => resource.locale);
   }
 
-  resolveResource(locale?: string | null): TemporalLocaleResource | undefined {
+  async resolveResource(
+    locale?: string | null,
+  ): Promise<TemporalLocaleResource | undefined> {
     const normalizedLocale = locale?.trim().toLowerCase();
 
     if (!normalizedLocale) {
@@ -101,7 +135,7 @@ class FakeTemporalLocaleProvider extends TemporalLocaleProvider {
     return this.resources.find((resource) => resource.locale === normalizedLocale);
   }
 
-  resolveResources(locale?: string | null): TemporalLocaleResource[] {
+  async resolveResources(locale?: string | null): Promise<TemporalLocaleResource[]> {
     const normalizedLocale = locale?.trim().toLowerCase();
 
     if (!normalizedLocale) {

@@ -3,7 +3,7 @@ import { TemporalLocaleProvider } from '../src/modules/temporal/temporal-locale.
 import { TemporalLocaleResource } from '../src/modules/temporal/temporal-locale.types';
 
 describe('TemporalExpressionService', () => {
-  it('extracts lexical temporal expressions from injected locale resources without code changes', () => {
+  it('extracts lexical temporal expressions from injected locale resources without code changes', async () => {
     const service = buildService([
       {
         locale: 'custom',
@@ -12,12 +12,12 @@ describe('TemporalExpressionService', () => {
       },
     ]);
 
-    expect(service.extractExpressions('Need shiftday slot 4', 'custom')).toEqual([
-      'shiftday slot 4',
-    ]);
+    await expect(
+      service.extractExpressions('Need shiftday slot 4', 'custom'),
+    ).resolves.toEqual(['shiftday slot 4']);
   });
 
-  it('changes lexical support by changing only locale resources', () => {
+  it('changes lexical support by changing only locale resources', async () => {
     const service = buildService([
       {
         locale: 'custom',
@@ -26,10 +26,12 @@ describe('TemporalExpressionService', () => {
       },
     ]);
 
-    expect(service.extractExpressions('Need shiftday slot 4', 'custom')).toEqual([]);
+    await expect(
+      service.extractExpressions('Need shiftday slot 4', 'custom'),
+    ).resolves.toEqual([]);
   });
 
-  it('keeps deterministic structural date extraction independent of locale lexicon', () => {
+  it('keeps deterministic structural date extraction independent of locale lexicon', async () => {
     const service = buildService([
       {
         locale: 'custom',
@@ -38,9 +40,9 @@ describe('TemporalExpressionService', () => {
       },
     ]);
 
-    expect(service.extractExpressions('Window 2026-04-03', 'custom')).toEqual([
-      '2026-04-03',
-    ]);
+    await expect(
+      service.extractExpressions('Window 2026-04-03', 'custom'),
+    ).resolves.toEqual(['2026-04-03']);
   });
 });
 
@@ -53,15 +55,47 @@ class FakeTemporalLocaleProvider extends TemporalLocaleProvider {
     super();
   }
 
-  listResources(): TemporalLocaleResource[] {
+  async getActive(key: string) {
+    const resource = await this.resolveResource(key);
+
+    return resource
+      ? {
+          id: `fake-${key}`,
+          key,
+          value: resource,
+          version: 1,
+          status: 'ACTIVE' as const,
+          metadata: null,
+          createdAt: new Date(),
+          createdBy: 'test',
+        }
+      : null;
+  }
+
+  async listActive() {
+    return this.resources.map((resource) => ({
+      id: `fake-${resource.locale}`,
+      key: resource.locale,
+      value: resource,
+      version: 1,
+      status: 'ACTIVE' as const,
+      metadata: null,
+      createdAt: new Date(),
+      createdBy: 'test',
+    }));
+  }
+
+  async listResources(): Promise<TemporalLocaleResource[]> {
     return this.resources;
   }
 
-  getSupportedLocales(): string[] {
+  async getSupportedLocales(): Promise<string[]> {
     return this.resources.map((resource) => resource.locale);
   }
 
-  resolveResource(locale?: string | null): TemporalLocaleResource | undefined {
+  async resolveResource(
+    locale?: string | null,
+  ): Promise<TemporalLocaleResource | undefined> {
     const normalizedLocale = locale?.trim().toLowerCase();
 
     if (!normalizedLocale) {
@@ -71,7 +105,7 @@ class FakeTemporalLocaleProvider extends TemporalLocaleProvider {
     return this.resources.find((resource) => resource.locale === normalizedLocale);
   }
 
-  resolveResources(locale?: string | null): TemporalLocaleResource[] {
+  async resolveResources(locale?: string | null): Promise<TemporalLocaleResource[]> {
     const normalizedLocale = locale?.trim().toLowerCase();
 
     if (!normalizedLocale) {

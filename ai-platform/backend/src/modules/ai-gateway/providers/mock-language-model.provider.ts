@@ -61,9 +61,9 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
       timeoutMs: number;
     },
   ): Promise<{ rawResponse: string; model: string }> {
-    const language = this.detectLanguage(input.message);
+    const language = await this.detectLanguage(input.message);
     const intent = detectIntent(input.message);
-    const entities = this.extractEntities(input, language);
+    const entities = await this.extractEntities(input, language);
     const payload: InterpretationOutput = {
       intent,
       entities,
@@ -95,7 +95,7 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
       : 'Understood. I am preparing a response based on the backend-approved policy.';
   }
 
-  private detectLanguage(message: string) {
+  private async detectLanguage(message: string) {
     const spanishSignals = [
       'hola',
       'quiero',
@@ -115,49 +115,51 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
       return 'es';
     }
 
-    return this.temporalExpressionService.findMatchingLocales(message)[0] ?? 'en';
+    return (await this.temporalExpressionService.findMatchingLocales(message))[0] ?? 'en';
   }
 
-  private extractEntities(
+  private async extractEntities(
     input: LanguageModelInterpretationRequest,
     language: string,
   ) {
-  const message = input.message;
-  const measurements = message.match(measurementPattern) ?? [];
-    const dates = this.temporalExpressionService.extractExpressions(
+    const message = input.message;
+    const measurements = message.match(measurementPattern) ?? [];
+    const dates = await this.temporalExpressionService.extractExpressions(
       message,
       language,
     );
-  const dimensions = message.match(dimensionPattern) ?? [];
-  const peopleMatch = message.match(/\b(?:for|para)\s+(\d+)\s+(?:people|personas?)\b/i);
-  const skuMatch = message.match(/\bsku[:\s-]*([a-z0-9-]+)\b/i);
-  const lower = message.toLowerCase();
+    const dimensions = message.match(dimensionPattern) ?? [];
+    const peopleMatch = message.match(
+      /\b(?:for|para)\s+(\d+)\s+(?:people|personas?)\b/i,
+    );
+    const skuMatch = message.match(/\bsku[:\s-]*([a-z0-9-]+)\b/i);
+    const lower = message.toLowerCase();
 
-  const entities: Record<string, unknown> = {
-    rawMessage: message,
-    dateCandidates: dates,
-    measurementCandidates: measurements,
-  };
+    const entities: Record<string, unknown> = {
+      rawMessage: message,
+      dateCandidates: dates,
+      measurementCandidates: measurements,
+    };
 
-  if (dimensions.length > 0) {
-    entities.dimensionCandidates = dimensions;
-  }
+    if (dimensions.length > 0) {
+      entities.dimensionCandidates = dimensions;
+    }
 
-  if (/(barato|barata|cheap|econ[oó]mico)/.test(lower)) {
-    entities.price = 'low';
-  }
+    if (/(barato|barata|cheap|econ[oó]mico)/.test(lower)) {
+      entities.price = 'low';
+    }
 
-  if (/(cocina|kitchen)/.test(lower)) {
-    entities.location = 'kitchen';
-  }
+    if (/(cocina|kitchen)/.test(lower)) {
+      entities.location = 'kitchen';
+    }
 
-  if (peopleMatch) {
-    entities.attendees = Number(peopleMatch[1]);
-  }
+    if (peopleMatch) {
+      entities.attendees = Number(peopleMatch[1]);
+    }
 
-  if (skuMatch?.[1]) {
-    entities.sku = skuMatch[1];
-  }
+    if (skuMatch?.[1]) {
+      entities.sku = skuMatch[1];
+    }
 
     return entities;
   }
