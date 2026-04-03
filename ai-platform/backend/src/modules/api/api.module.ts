@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { DecisionModule } from '../decision/decision.module';
 import { InterpretationModule } from '../interpretation/interpretation.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { MemoryModule } from '../memory/memory.module';
@@ -16,6 +17,7 @@ import { TraceLogService } from './trace-log.service';
     PromptModule,
     InterpretationModule,
     ParsingModule,
+    DecisionModule,
   ],
   controllers: [ChatController],
   providers: [TraceLogService, ChatOrchestratorService],

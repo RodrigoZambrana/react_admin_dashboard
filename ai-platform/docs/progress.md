@@ -299,18 +299,22 @@
 - Hardened temporal parsing so `DateParser` only normalizes bounded temporal expressions from AI candidates or safe message-level extraction
 - Added tests for valid bounded expressions in Spanish and English, plus rejection of noisy fragments from dimensions and arbitrary candidate noise
 - Tightened parsing assertions so live normalized booking date evidence stays deterministic
+- Wired `DecisionService` into the live orchestration immediately after parsing
+- Persisted a dedicated `decision` trace stage with deterministic backend routing output while keeping tools inactive
 
 ### Working
 - Valid expressions such as `mañana`, `mañana a las 3`, and `tomorrow` still normalize correctly
 - Noisy fragments from dimension or measurement text no longer become normalized date evidence
 - Backend temporal normalization is now safer to use as input for deterministic booking decisions
+- Live flow is now `input -> interpretation -> parsing -> decision -> response -> logging`
+- Decision outputs are persisted for inspection with `domain`, `action`, `toolName`, `reasonCode`, and `missingFields`
 
 ### Technical Debt
-- `DecisionService` is still not wired into the live `/chat/message` path
 - Tool execution remains inactive in runtime
-- Response behavior is still pre-decision and does not yet distinguish clarify versus invoke-tool outcomes
+- Response behavior is still generic and does not yet distinguish clarify versus invoke-tool outcomes
+- AI response generation remains inactive in the live path
 
 ### Next Steps
-- Wire `DecisionService` into the live orchestration after parsing
-- Persist a `decision` stage in `ChatLog`
 - Update deterministic response behavior to reflect decision outcomes without activating tools
+- Re-run full backend and frontend validation on the end-to-end decision-aware flow
+- Close the iteration with a final milestone commit once response behavior is aligned to decisions

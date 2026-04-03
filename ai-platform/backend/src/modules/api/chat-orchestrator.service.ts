@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MessageRole, Prisma } from '@prisma/client';
 
+import { DecisionService } from '../decision/decision.service';
 import { InterpretationService } from '../interpretation/interpretation.service';
 import { MemoryService } from '../memory/memory.service';
 import { ParsingService } from '../parsing/parsing.service';
@@ -21,6 +22,7 @@ export class ChatOrchestratorService {
     private readonly messageRepository: MessageRepository,
     private readonly interpretationService: InterpretationService,
     private readonly parsingService: ParsingService,
+    private readonly decisionService: DecisionService,
     private readonly memoryService: MemoryService,
     private readonly traceLogService: TraceLogService,
   ) {}
@@ -58,6 +60,7 @@ export class ChatOrchestratorService {
     const parsedInterpretation = this.parsingService.normalize(
       interpretation.interpretation,
     );
+    const decision = this.decisionService.decide(parsedInterpretation);
 
     await this.traceLogService.recordStage({
       conversationId,
@@ -85,6 +88,19 @@ export class ChatOrchestratorService {
       } as Prisma.InputJsonValue,
     });
 
+    await this.traceLogService.recordStage({
+      conversationId,
+      stage: 'decision',
+      status: 'completed',
+      payload: {
+        domain: decision.domain,
+        action: decision.action,
+        toolName: decision.toolName ?? null,
+        reasonCode: decision.reasonCode,
+        missingFields: decision.missingFields,
+      } as Prisma.InputJsonValue,
+    });
+
     const response = this.buildBasicResponse(
       input.message,
       parsedInterpretation.language,
@@ -101,6 +117,7 @@ export class ChatOrchestratorService {
         normalizedEntities: parsedInterpretation.normalizedEntities,
         language: parsedInterpretation.language,
         confidence: parsedInterpretation.confidence,
+        decision,
       } as Prisma.InputJsonValue,
     });
 
@@ -114,6 +131,7 @@ export class ChatOrchestratorService {
         normalizedEntities: parsedInterpretation.normalizedEntities,
         language: parsedInterpretation.language,
         confidence: parsedInterpretation.confidence,
+        decision,
       } as Prisma.InputJsonValue,
     );
     await this.memoryService.append(conversationId, 'assistant', response);
