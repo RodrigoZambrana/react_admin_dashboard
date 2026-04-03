@@ -322,3 +322,25 @@
 - Re-run full backend and frontend validation on the end-to-end decision-aware flow
 - Activate tool execution only after deterministic decision routing is fully stable
 - Add AI response generation later as a wording layer on top of backend-approved decisions
+
+## Iteration 14
+
+### Implemented
+- Added backend-owned temporal locale resources under `backend/src/resources/temporal/locales`
+- Added a reusable `TemporalLocaleRegistryService` to load locale catalogs dynamically from resource files
+- Added backend build-time resource copying so runtime resource catalogs are available from `dist`
+
+### Working
+- Temporal locale support now has a standalone resource structure that can be extended per locale without changing parser mechanics
+- The backend has a single registry entry point for resolving supported temporal locales
+- Runtime packaging now includes temporal resource catalogs instead of depending on source-only files
+
+### Technical Debt
+- `DateParser` still consumes hardcoded temporal lexical regexes
+- The mock AI provider still contains hardcoded temporal vocabulary
+- Existing tests still validate temporal behavior through embedded examples rather than through the new registry architecture
+
+### Next Steps
+- Refactor `DateParser` to consume locale resources via the registry
+- Refactor the mock AI provider to extract temporal evidence through the same backend-managed resources
+- Add architecture-oriented tests proving lexical support is resource-driven

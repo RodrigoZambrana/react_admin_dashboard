@@ -1,0 +1,19 @@
+{
+  "locale": "en",
+  "datePhrases": [
+    "today",
+    "tomorrow",
+    "tonight",
+    "next week",
+    "next monday",
+    "next tuesday",
+    "next wednesday",
+    "next thursday",
+    "next friday",
+    "next saturday",
+    "next sunday"
+  ],
+  "timeJoiners": [
+    "at"
+  ]
+}

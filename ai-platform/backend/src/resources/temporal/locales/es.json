@@ -1,0 +1,22 @@
+{
+  "locale": "es",
+  "datePhrases": [
+    "hoy",
+    "ma\u00f1ana",
+    "pasado ma\u00f1ana",
+    "la pr\u00f3xima semana",
+    "la proxima semana",
+    "el lunes",
+    "el martes",
+    "el mi\u00e9rcoles",
+    "el miercoles",
+    "el jueves",
+    "el viernes",
+    "el s\u00e1bado",
+    "el sabado",
+    "el domingo"
+  ],
+  "timeJoiners": [
+    "a las"
+  ]
+}
