@@ -37,8 +37,10 @@ export class GetProductTool implements ToolDefinition<typeof productInputSchema>
           ? context.interpretation.entities.sku
           : undefined,
       query:
-        typeof context.interpretation.entities.rawMessage === 'string'
-          ? context.interpretation.entities.rawMessage
+        typeof context.interpretation.entities.productQuery === 'string'
+          ? context.interpretation.entities.productQuery
+          : typeof context.interpretation.entities.rawMessage === 'string'
+            ? context.interpretation.entities.rawMessage
           : 'Product lookup requested',
     };
   }

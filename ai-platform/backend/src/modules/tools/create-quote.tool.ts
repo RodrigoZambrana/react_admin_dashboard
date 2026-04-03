@@ -27,8 +27,10 @@ export class CreateQuoteTool implements ToolDefinition<typeof quoteInputSchema> 
   buildInput(context: ToolExecutionContext) {
     return {
       requestSummary:
-        typeof context.interpretation.entities.rawMessage === 'string'
-          ? context.interpretation.entities.rawMessage
+        typeof context.interpretation.entities.requestSummary === 'string'
+          ? context.interpretation.entities.requestSummary
+          : typeof context.interpretation.entities.rawMessage === 'string'
+            ? context.interpretation.entities.rawMessage
           : 'Quote requested',
       attendees:
         typeof context.interpretation.entities.attendees === 'number'

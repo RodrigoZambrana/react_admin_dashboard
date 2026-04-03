@@ -515,22 +515,28 @@
 - Implemented deterministic stale-fact invalidation when a new turn explicitly changes lane
 - Added continuity service tests covering optional state, carry-forward facts, lane invalidation, clarification persistence, and general-turn state clearing
 - Materialized the Prisma migration `20260403234740_add_conversation_state` and regenerated Prisma Client
+- Wired continuity preparation and persistence into the live `/chat/message` flow before decision and after execution
+- Made deterministic decisioning continuity-aware so low-confidence follow-up turns can continue approved booking/product/quote lanes without handing control to the model
+- Reused continuity-enriched backend facts for live execution input assembly by feeding effective interpretations into tool execution
+- Added live orchestration tests proving continuity-prepared follow-up execution while preserving the existing HTTP contract
 
 ### Working
 - The branch now has a persisted backend continuity foundation that is tenant-safe and compact
 - Continuity logic can already carry forward booking/product/quote facts deterministically without involving the model in state transitions
 - General conversation turns remain able to proceed with no required task state
-- Backend build and backend tests pass with the new continuity foundation in place
+- The live `/chat/message` flow now reuses approved continuity state across turns without adding a new public contract or changing the canonical stage order
+- Booking follow-up turns can continue from approved state by carrying forward missing date evidence and other lane facts into backend decision/execution
+- Backend build and backend tests pass with continuity active in the live path
 
 ### Technical Debt
-- The continuity foundation is not wired into the live `/chat/message` decision flow yet at this milestone
 - The current response policy still contains pre-existing deterministic wording and locale branching debt outside the new continuity path
 - Future-compatible continuity support for `retrieve_core_knowledge`, `handoff`, and `close_turn` is modeled but not yet active in runtime decisions
+- Product and quote continuity currently rely on deterministic fact carry-over rather than richer backend follow-up semantics, which remains acceptable until Wave 4 and later governance work
 
 ### Next Steps
-- Feed continuity context into deterministic decisioning and live execution input assembly without expanding orchestrator responsibilities
-- Persist state transitions from live clarification and execution turns so follow-up continuity becomes active on the real chat path
-- Close the wave with follow-up behavior tests, a hardcode/locale audit of the touched backend path, and Wave 4 enablement notes
+- Close the wave with broader follow-up coverage for quote/product paths, a targeted hardcode/locale audit of the touched continuity path, and final end-to-end validation
+- Keep the response-policy boundary minimal so Wave 4 can consume continuity-approved backend context without inheriting deterministic wording debt
+- Use the now-persisted state plus execution truth as the approved backend context base for Wave 4, `AI Response On Approved Context`
 
 ## Iteration 19
 

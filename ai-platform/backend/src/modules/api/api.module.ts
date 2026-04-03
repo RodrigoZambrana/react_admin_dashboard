@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ContinuityModule } from '../continuity/continuity.module';
 import { DecisionModule } from '../decision/decision.module';
 import { InterpretationModule } from '../interpretation/interpretation.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
@@ -21,6 +22,7 @@ import { TraceLogService } from './trace-log.service';
     PromptModule,
     InterpretationModule,
     ParsingModule,
+    ContinuityModule,
     TemporalModule,
     DecisionModule,
     ToolsModule,

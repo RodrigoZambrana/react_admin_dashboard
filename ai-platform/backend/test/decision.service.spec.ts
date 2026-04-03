@@ -57,4 +57,48 @@ describe('DecisionService', () => {
       }),
     );
   });
+
+  it('continues continuity-prepared booking follow-ups without falling back to low-confidence clarification', () => {
+    const service = new DecisionService(new PipelineLoggerService());
+
+    const decision = service.decide({
+      intent: 'CREATE_BOOKING',
+      language: 'es',
+      confidence: 0.41,
+      entities: {
+        rawMessage: 'para 3 personas',
+        attendees: 3,
+      },
+      normalizedEntities: {
+        dates: [
+          {
+            source: 'continuity',
+            iso: '2026-04-04T12:00:00.000Z',
+            precision: 'date',
+          },
+        ],
+        measurements: [],
+        dimensions: [],
+      },
+      continuity: {
+        applied: true,
+        activeLane: 'booking',
+        carriedFactKeys: ['requestedDate'],
+        invalidatedFactKeys: [],
+        missingFields: [],
+        previousStateSummary: {
+          lane: 'booking',
+          missingFields: [],
+          lastApprovedAction: 'invoke_tool',
+        },
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'invoke_tool',
+        toolName: 'create_booking',
+      }),
+    );
+  });
 });

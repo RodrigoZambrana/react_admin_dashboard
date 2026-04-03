@@ -49,6 +49,32 @@ describe('ChatOrchestratorService', () => {
         responseTemplateKey: 'core.general_response',
       })),
     };
+    const continuityService = {
+      prepareTurn: jest.fn(async ({ interpretation }: any) => ({
+        previousState: null,
+        activeState: null,
+        effectiveInterpretation: {
+          ...interpretation,
+          continuity: {
+            applied: false,
+            activeLane: null,
+            carriedFactKeys: [],
+            invalidatedFactKeys: [],
+            missingFields: [],
+            previousStateSummary: null,
+          },
+        },
+        continuity: {
+          applied: false,
+          activeLane: null,
+          carriedFactKeys: [],
+          invalidatedFactKeys: [],
+          missingFields: [],
+          previousStateSummary: null,
+        },
+      })),
+      persistTurnState: jest.fn(async () => null),
+    };
     const toolExecutionService = {
       executeApprovedAction: jest.fn(async () => null),
     };
@@ -78,6 +104,7 @@ describe('ChatOrchestratorService', () => {
       } as any,
       interpretationService as any,
       parsingService as any,
+      continuityService as any,
       decisionService as any,
       toolExecutionService as any,
       responsePolicyService as any,
@@ -103,6 +130,12 @@ describe('ChatOrchestratorService', () => {
       decision: expect.objectContaining({
         action: 'respond',
       }),
+      interpretation: expect.objectContaining({
+        intent: 'GENERAL_CONVERSATION',
+      }),
+    });
+    expect(continuityService.prepareTurn).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
       interpretation: expect.objectContaining({
         intent: 'GENERAL_CONVERSATION',
       }),
@@ -167,6 +200,36 @@ describe('ChatOrchestratorService', () => {
         responseTemplateKey: 'core.clarification',
       })),
     };
+    const continuityService = {
+      prepareTurn: jest.fn(async ({ interpretation }: any) => ({
+        previousState: null,
+        activeState: null,
+        effectiveInterpretation: {
+          ...interpretation,
+          continuity: {
+            applied: false,
+            activeLane: 'booking',
+            carriedFactKeys: [],
+            invalidatedFactKeys: [],
+            missingFields: [],
+            previousStateSummary: null,
+          },
+        },
+        continuity: {
+          applied: false,
+          activeLane: 'booking',
+          carriedFactKeys: [],
+          invalidatedFactKeys: [],
+          missingFields: [],
+          previousStateSummary: null,
+        },
+      })),
+      persistTurnState: jest.fn(async () => ({
+        lane: 'booking',
+        missingFields: ['requested_date'],
+        nextUsefulField: 'requested_date',
+      })),
+    };
     const toolExecutionService = {
       executeApprovedAction: jest.fn(async () => null),
     };
@@ -196,6 +259,7 @@ describe('ChatOrchestratorService', () => {
       } as any,
       interpretationService as any,
       parsingService as any,
+      continuityService as any,
       decisionService as any,
       toolExecutionService as any,
       responsePolicyService as any,
@@ -272,6 +336,38 @@ describe('ChatOrchestratorService', () => {
         responseTemplateKey: 'tenant.ecommerce.product_result',
       })),
     };
+    const continuityService = {
+      prepareTurn: jest.fn(async ({ interpretation }: any) => ({
+        previousState: null,
+        activeState: null,
+        effectiveInterpretation: {
+          ...interpretation,
+          continuity: {
+            applied: false,
+            activeLane: 'product_lookup',
+            carriedFactKeys: [],
+            invalidatedFactKeys: [],
+            missingFields: [],
+            previousStateSummary: null,
+          },
+        },
+        continuity: {
+          applied: false,
+          activeLane: 'product_lookup',
+          carriedFactKeys: [],
+          invalidatedFactKeys: [],
+          missingFields: [],
+          previousStateSummary: null,
+        },
+      })),
+      persistTurnState: jest.fn(async () => ({
+        lane: 'product_lookup',
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedAction: 'invoke_tool',
+        lastApprovedToolName: 'get_product',
+      })),
+    };
     const execution = {
       ok: true,
       toolName: 'get_product',
@@ -312,6 +408,7 @@ describe('ChatOrchestratorService', () => {
       } as any,
       interpretationService as any,
       parsingService as any,
+      continuityService as any,
       decisionService as any,
       toolExecutionService as any,
       responsePolicyService as any,
@@ -352,6 +449,205 @@ describe('ChatOrchestratorService', () => {
         }),
       }),
     );
+  });
+
+  it('uses continuity-prepared interpretation for follow-up execution without changing the HTTP contract', async () => {
+    const traceLogService = {
+      recordStage: jest.fn(async () => undefined),
+    };
+    const interpretationService = {
+      interpret: jest.fn(async () => ({
+        interpretation: {
+          intent: 'CLARIFICATION',
+          entities: {
+            rawMessage: 'para 3 personas',
+            attendees: 3,
+          },
+          language: 'es',
+          confidence: 0.41,
+        },
+        rawAiResponse: '{}',
+        parsedJson: null,
+        error: null,
+        provider: 'mock',
+        model: 'mock-rule-engine',
+        usedFallback: false,
+      })),
+    };
+    const parsingService = {
+      normalize: jest.fn(async () => ({
+        intent: 'CLARIFICATION',
+        entities: {
+          rawMessage: 'para 3 personas',
+          attendees: 3,
+        },
+        language: 'es',
+        confidence: 0.41,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      })),
+    };
+    const continuityInterpretation = {
+      intent: 'CREATE_BOOKING',
+      entities: {
+        rawMessage: 'para 3 personas',
+        attendees: 3,
+      },
+      language: 'es',
+      confidence: 0.41,
+      normalizedEntities: {
+        dates: [
+          {
+            source: 'execution',
+            iso: '2026-04-04T12:00:00.000Z',
+            precision: 'date',
+          },
+        ],
+        measurements: [],
+        dimensions: [],
+      },
+      continuity: {
+        applied: true,
+        activeLane: 'booking',
+        carriedFactKeys: ['requestedDate'],
+        invalidatedFactKeys: [],
+        missingFields: [],
+        previousStateSummary: {
+          lane: 'booking',
+          missingFields: [],
+          lastApprovedAction: 'invoke_tool',
+        },
+      },
+    };
+    const continuityService = {
+      prepareTurn: jest.fn(async () => ({
+        previousState: {
+          conversationId: 'conv-5',
+          lane: 'booking',
+          missingFields: [],
+        },
+        activeState: {
+          conversationId: 'conv-5',
+          lane: 'booking',
+          missingFields: [],
+        },
+        effectiveInterpretation: continuityInterpretation,
+        continuity: continuityInterpretation.continuity,
+      })),
+      persistTurnState: jest.fn(async () => ({
+        conversationId: 'conv-5',
+        lane: 'booking',
+        missingFields: [],
+        lastApprovedAction: 'invoke_tool',
+        lastApprovedToolName: 'create_booking',
+      })),
+    };
+    const decisionService = {
+      decide: jest.fn(() => ({
+        domain: 'tenant',
+        action: 'invoke_tool',
+        toolName: 'create_booking',
+        reasonCode: 'booking_requested',
+        missingFields: [],
+        responseTemplateKey: 'tenant.booking.confirmation',
+      })),
+    };
+    const execution = {
+      ok: true as const,
+      toolName: 'create_booking',
+      validatedInput: {
+        requestedDateIso: '2026-04-04T12:00:00.000Z',
+        attendees: 3,
+      },
+      payload: {
+        bookingId: 'bk_55',
+        scheduledFor: '2026-04-04T12:00:00.000Z',
+        attendees: 3,
+        status: 'confirmed',
+      },
+      durationMs: 3,
+    };
+    const toolExecutionService = {
+      executeApprovedAction: jest.fn(async () => execution),
+    };
+    const responsePolicyService = {
+      resolve: jest.fn(() => 'La reserva fue confirmada para 2026-04-04T12:00:00.000Z.'),
+    };
+    const memoryService = {
+      getRecent: jest.fn(async () => []),
+      append: jest.fn(async () => undefined),
+    };
+
+    const service = new ChatOrchestratorService(
+      {
+        getTraceId: () => 'trace-booking-follow-up',
+      } as any,
+      {
+        findById: jest.fn(async () => null),
+        createConversation: jest.fn(async () => ({ id: 'conv-5' })),
+        appendMessage: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'msg-user-5' })
+          .mockResolvedValueOnce({ id: 'msg-assistant-5' }),
+        listRecent: jest.fn(async () => []),
+      } as any,
+      {
+        listByConversation: jest.fn(async () => []),
+      } as any,
+      interpretationService as any,
+      parsingService as any,
+      continuityService as any,
+      decisionService as any,
+      toolExecutionService as any,
+      responsePolicyService as any,
+      memoryService as any,
+      traceLogService as any,
+    );
+
+    const result = await service.handleMessage({
+      message: 'para 3 personas',
+      locale: 'es',
+    });
+
+    expect(result).toEqual({
+      response: 'La reserva fue confirmada para 2026-04-04T12:00:00.000Z.',
+      intent: 'CREATE_BOOKING',
+      entities: {
+        rawMessage: 'para 3 personas',
+        attendees: 3,
+      },
+      metadata: {
+        conversationId: 'conv-5',
+        traceId: 'trace-booking-follow-up',
+      },
+    });
+    expect(decisionService.decide).toHaveBeenCalledWith(
+      expect.objectContaining({
+        intent: 'CREATE_BOOKING',
+        continuity: expect.objectContaining({
+          applied: true,
+          activeLane: 'booking',
+        }),
+      }),
+    );
+    expect(toolExecutionService.executeApprovedAction).toHaveBeenCalledWith({
+      decision: expect.objectContaining({
+        toolName: 'create_booking',
+      }),
+      interpretation: expect.objectContaining({
+        intent: 'CREATE_BOOKING',
+        normalizedEntities: expect.objectContaining({
+          dates: [
+            expect.objectContaining({
+              iso: '2026-04-04T12:00:00.000Z',
+            }),
+          ],
+        }),
+      }),
+    });
   });
 
   it('logs failed execution traces and still returns the current response contract', async () => {
@@ -399,6 +695,36 @@ describe('ChatOrchestratorService', () => {
         reasonCode: 'quote_requested',
         missingFields: [],
         responseTemplateKey: 'tenant.quote.confirmation',
+      })),
+    };
+    const continuityService = {
+      prepareTurn: jest.fn(async ({ interpretation }: any) => ({
+        previousState: null,
+        activeState: null,
+        effectiveInterpretation: {
+          ...interpretation,
+          continuity: {
+            applied: false,
+            activeLane: 'quote',
+            carriedFactKeys: [],
+            invalidatedFactKeys: [],
+            missingFields: [],
+            previousStateSummary: null,
+          },
+        },
+        continuity: {
+          applied: false,
+          activeLane: 'quote',
+          carriedFactKeys: [],
+          invalidatedFactKeys: [],
+          missingFields: [],
+          previousStateSummary: null,
+        },
+      })),
+      persistTurnState: jest.fn(async () => ({
+        lane: 'quote',
+        missingFields: [],
+        nextUsefulField: undefined,
       })),
     };
     const execution = {
@@ -449,6 +775,7 @@ describe('ChatOrchestratorService', () => {
       } as any,
       interpretationService as any,
       parsingService as any,
+      continuityService as any,
       decisionService as any,
       toolExecutionService as any,
       responsePolicyService as any,

@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
+import { ContinuityAwareInterpretation } from '../continuity/continuity.types';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
-import { ParsedInterpretation } from '../parsing/parsing.service';
 import { DecisionResult } from './decision.types';
 
 @Injectable()
 export class DecisionService {
   constructor(private readonly logger: PipelineLoggerService) {}
 
-  decide(input: ParsedInterpretation): DecisionResult {
+  decide(input: ContinuityAwareInterpretation): DecisionResult {
     const decision = this.resolveDecision(input);
 
     this.logger.log(
@@ -21,8 +21,13 @@ export class DecisionService {
     return decision;
   }
 
-  private resolveDecision(input: ParsedInterpretation): DecisionResult {
-    if (input.confidence < 0.6 || input.intent === 'CLARIFICATION') {
+  private resolveDecision(input: ContinuityAwareInterpretation): DecisionResult {
+    const continuityApplied = input.continuity?.applied === true;
+
+    if (
+      !continuityApplied &&
+      (input.confidence < 0.6 || input.intent === 'CLARIFICATION')
+    ) {
       return {
         domain: 'core',
         action: 'clarify',

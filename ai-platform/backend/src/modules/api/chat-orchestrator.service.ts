@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { MessageRole, Prisma } from '@prisma/client';
 
+import { ConversationContinuityService } from '../continuity/conversation-continuity.service';
+import { ConversationStateSnapshot } from '../continuity/continuity.types';
 import { DecisionService } from '../decision/decision.service';
 import { InterpretationService } from '../interpretation/interpretation.service';
 import { MemoryService } from '../memory/memory.service';
@@ -22,6 +24,7 @@ export class ChatOrchestratorService {
     private readonly messageRepository: MessageRepository,
     private readonly interpretationService: InterpretationService,
     private readonly parsingService: ParsingService,
+    private readonly continuityService: ConversationContinuityService,
     private readonly decisionService: DecisionService,
     private readonly toolExecutionService: ToolExecutionService,
     private readonly responsePolicyService: ChatResponsePolicyService,
@@ -62,10 +65,22 @@ export class ChatOrchestratorService {
     const parsedInterpretation = await this.parsingService.normalize(
       interpretation.interpretation,
     );
-    const decision = this.decisionService.decide(parsedInterpretation);
+    const preparedTurn = await this.continuityService.prepareTurn({
+      conversationId,
+      interpretation: parsedInterpretation,
+    });
+    const decision = this.decisionService.decide(
+      preparedTurn.effectiveInterpretation,
+    );
     const execution = await this.toolExecutionService.executeApprovedAction({
       decision,
-      interpretation: parsedInterpretation,
+      interpretation: preparedTurn.effectiveInterpretation,
+    });
+    const conversationState = await this.continuityService.persistTurnState({
+      conversationId,
+      preparedTurn,
+      decision,
+      execution,
     });
 
     await this.traceLogService.recordStage({
@@ -87,10 +102,10 @@ export class ChatOrchestratorService {
       stage: 'parsing',
       status: 'completed',
       payload: {
-        intent: parsedInterpretation.intent,
-        language: parsedInterpretation.language,
-        confidence: parsedInterpretation.confidence,
-        normalizedEntities: parsedInterpretation.normalizedEntities,
+        intent: preparedTurn.effectiveInterpretation.intent,
+        language: preparedTurn.effectiveInterpretation.language,
+        confidence: preparedTurn.effectiveInterpretation.confidence,
+        normalizedEntities: preparedTurn.effectiveInterpretation.normalizedEntities,
       } as Prisma.InputJsonValue,
     });
 
@@ -104,6 +119,7 @@ export class ChatOrchestratorService {
         toolName: decision.toolName ?? null,
         reasonCode: decision.reasonCode,
         missingFields: decision.missingFields,
+        continuity: preparedTurn.continuity,
       } as Prisma.InputJsonValue,
     });
 
@@ -120,7 +136,7 @@ export class ChatOrchestratorService {
       decision,
       execution,
       message: input.message,
-      locale: parsedInterpretation.language,
+      locale: preparedTurn.effectiveInterpretation.language,
     });
 
     await this.traceLogService.recordStage({
@@ -129,13 +145,16 @@ export class ChatOrchestratorService {
       status: 'completed',
       payload: {
         response,
-        intent: parsedInterpretation.intent,
-        entities: parsedInterpretation.entities,
-        normalizedEntities: parsedInterpretation.normalizedEntities,
-        language: parsedInterpretation.language,
-        confidence: parsedInterpretation.confidence,
+        intent: preparedTurn.effectiveInterpretation.intent,
+        entities: preparedTurn.effectiveInterpretation.entities,
+        normalizedEntities:
+          preparedTurn.effectiveInterpretation.normalizedEntities,
+        language: preparedTurn.effectiveInterpretation.language,
+        confidence: preparedTurn.effectiveInterpretation.confidence,
         decision,
         execution,
+        continuity: preparedTurn.continuity,
+        conversationState: this.buildConversationStateSummary(conversationState),
       } as Prisma.InputJsonValue,
     });
 
@@ -144,13 +163,16 @@ export class ChatOrchestratorService {
       MessageRole.ASSISTANT,
       response,
       {
-        intent: parsedInterpretation.intent,
-        entities: parsedInterpretation.entities,
-        normalizedEntities: parsedInterpretation.normalizedEntities,
-        language: parsedInterpretation.language,
-        confidence: parsedInterpretation.confidence,
+        intent: preparedTurn.effectiveInterpretation.intent,
+        entities: preparedTurn.effectiveInterpretation.entities,
+        normalizedEntities:
+          preparedTurn.effectiveInterpretation.normalizedEntities,
+        language: preparedTurn.effectiveInterpretation.language,
+        confidence: preparedTurn.effectiveInterpretation.confidence,
         decision,
         execution,
+        continuity: preparedTurn.continuity,
+        conversationState: this.buildConversationStateSummary(conversationState),
       } as Prisma.InputJsonValue,
     );
     await this.memoryService.append(conversationId, 'assistant', response);
@@ -163,13 +185,14 @@ export class ChatOrchestratorService {
         incomingMessageId: incomingMessage.id,
         outgoingMessageId: outgoingMessage.id,
         metadata,
+        conversationState: this.buildConversationStateSummary(conversationState),
       },
     });
 
     return {
       response,
-      intent: parsedInterpretation.intent,
-      entities: parsedInterpretation.entities,
+      intent: preparedTurn.effectiveInterpretation.intent,
+      entities: preparedTurn.effectiveInterpretation.entities,
       metadata,
     };
   }
@@ -216,5 +239,21 @@ export class ChatOrchestratorService {
         details: execution.errorDetails ?? null,
       },
     } as Prisma.InputJsonValue;
+  }
+
+  private buildConversationStateSummary(
+    state: ConversationStateSnapshot | null,
+  ) {
+    if (!state) {
+      return null;
+    }
+
+    return {
+      lane: state.lane,
+      missingFields: state.missingFields,
+      nextUsefulField: state.nextUsefulField ?? null,
+      lastApprovedAction: state.lastApprovedAction ?? null,
+      lastApprovedToolName: state.lastApprovedToolName ?? null,
+    };
   }
 }

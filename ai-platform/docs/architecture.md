@@ -137,6 +137,8 @@
   - tenant-safe conversation/message/log persistence
   - AI interpretation with managed prompt retrieval
   - backend parsing with managed date-time locale resources
+  - persisted backend conversation continuity/state for active lanes
+  - continuity-aware deterministic decisioning and execution input reuse across turns
   - deterministic backend decisioning
   - deterministic backend tool execution for approved tenant actions
   - execution-stage trace persistence with validated input and outcome summaries
@@ -145,7 +147,6 @@
   - managed runtime resources for prompts and date-time locale resources
   - minimal admin-ready backend resource surfaces
 - Not active in the live path yet:
-  - continuity-driven decision reuse across turns
   - AI response generation from backend-approved context
   - asynchronous learning from stored logs
 
