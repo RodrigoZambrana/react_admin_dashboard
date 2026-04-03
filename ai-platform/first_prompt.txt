@@ -1,0 +1,326 @@
+ACTUÁ COMO ARQUITECTO SENIOR EN SISTEMAS CONVERSACIONALES Y EJECUTÁ ESTE PLAN. ITERAR HASTA QUE TODOS LOS CRITERIOS SE CUMPLAN.
+
+You are building a production-grade conversational AI platform inside an existing repository.
+
+IMPORTANT:
+
+- Work in a new isolated folder: /ai-platform
+- DO NOT depend on existing code
+- Use existing project ONLY as reference
+- System must run standalone
+
+BRANCH:
+
+feature/ai-conversational-platform-standalone
+
+NEW REQUIREMENT: DOCUMENTATION PER ITERATION
+
+After EACH iteration, you MUST update:
+
+/ai-platform/docs/progress.md
+
+Each iteration MUST include:
+
+1. WHAT WAS IMPLEMENTED
+2. WHAT WORKS
+3. TECHNICAL DEBT
+4. NEXT STEPS
+
+FORMAT:
+
+## Iteration X
+
+### Implemented
+- ...
+
+### Working
+- ...
+
+### Technical Debt
+- ...
+
+### Next Steps
+- ...
+
+DO NOT SKIP DOCUMENTATION
+
+CORE SYSTEM RULES:
+
+1. STRICT LAYER SEPARATION:
+
+- Interpretation (AI)
+- Decision (Backend)
+- Execution (Tools / RAG)
+- Response Generation (AI)
+
+2. CORE vs TENANT:
+
+CORE:
+- general conversation
+- clarification
+
+TENANT:
+- quotes
+- bookings
+- ecommerce
+
+3. LLM ROLE:
+
+LLM CAN:
+- interpret
+- assist
+- generate responses
+
+LLM CANNOT:
+- execute tools
+- decide actions
+
+4. DATA:
+
+- PostgreSQL (Prisma)
+- Redis (memory)
+- Qdrant (semantic)
+
+5. MULTI-TENANT:
+
+- automatic injection
+- enforced globally
+
+6. OBSERVABILITY:
+
+input → interpretation → decision → execution → response
+
+7. LEARNING:
+
+logs → extraction → storage
+
+EXECUTION RULE:
+
+Implement one stage at a time.
+Validate.
+Document.
+Continue.
+
+TASK: INITIAL SETUP + ARCHITECTURE
+
+Create folder:
+
+/ai-platform
+
+Initialize:
+	•	backend (NestJS)
+	•	frontend (React)
+
+Define modules:
+	•	API
+	•	Interpretation
+	•	Decision
+	•	Tools
+	•	AI Gateway
+	•	Memory
+	•	Knowledge
+	•	Logging
+
+Create:
+
+/ai-platform/docs/architecture.md
+
+Do not integrate existing code.
+
+MANDATORY:
+
+Update progress.md
+
+TASK: DATABASE + MULTI-TENANT
+
+TASK: AI + INTERPRETATION
+
+Implement:
+	•	AI Gateway
+	•	Interpretation Service
+
+Output:
+
+{
+intent,
+entities,
+language,
+confidence
+}
+
+Rules:
+	•	JSON only
+	•	log outputs
+
+MANDATORY:
+
+Update progress.md
+
+TASK: PARSING
+
+Implement:
+	•	measurements parser
+	•	date parser
+	•	normalization
+
+Rule:
+
+AI extracts → backend normalizes
+
+MANDATORY:
+
+Update progress.md
+
+Setup Prisma.
+
+Models:
+	•	Conversation
+	•	Message
+	•	ChatLog
+	•	PromptVersion
+	•	Knowledge
+
+Implement:
+	•	repositories
+	•	tenant middleware
+	•	prisma middleware
+
+Rules:
+	•	no direct prisma usage
+	•	tenant always automatic
+
+MANDATORY:
+
+Update progress.md
+
+
+TASK: DECISION ENGINE
+
+Implement:
+	•	rule-based decisions
+	•	tool routing
+
+Rules:
+	•	deterministic
+	•	no AI decisions
+
+MANDATORY:
+
+Update progress.md
+
+TASK: TOOL ENGINE
+
+Implement:
+	•	Tool interface
+	•	Tool engine
+
+Tools:
+	•	create_booking
+	•	get_product
+	•	create_quote
+
+Rules:
+	•	validate input
+	•	log execution
+
+MANDATORY:
+
+Update progress.md
+
+TASK: KNOWLEDGE SERVICE
+
+Implement:
+	•	extract knowledge from logs
+	•	classify
+	•	store
+
+Rules:
+	•	async only
+	•	no raw storage
+
+MANDATORY:
+
+Update progress.md
+
+TASK: PROMPT SYSTEM
+
+Implement:
+	•	prompt storage
+	•	versioning
+	•	retrieval
+
+MANDATORY:
+
+Update progress.md
+
+
+TASK: FINAL ENDPOINT
+
+Implement:
+
+/chat/message
+
+Flow:
+
+input → interpretation → parsing → decision → tool → response → logging → learning
+
+MANDATORY:
+
+Update progress.mdTASK: ADMIN UI
+
+Implement:
+	•	chat UI
+	•	debug viewer
+	•	logs viewer
+	•	prompt editor
+
+Rule:
+
+no business logic
+
+MANDATORY:
+
+Update progress.md
+
+Progress Log
+
+Iteration 1
+
+Implemented
+	•	Project initialized
+	•	Base structure created
+
+Working
+	•	Backend runs
+	•	Frontend runs
+
+Technical Debt
+	•	No AI integration
+	•	No DB connection
+
+Next Steps
+	•	Setup database
+
+Iteration X
+
+Implemented
+	•	…
+
+Working
+	•	…
+
+Technical Debt
+	•	…
+
+Next Steps
+	•	…
+
+
+ENGINEERING RULES
+	1.	Always document each iteration
+	2.	Never mix layers
+	3.	Always validate before continuing
+	4.	Always log system flow
+	5.	Never allow AI to make decisions
+	6.	Keep system modular
+	7.	Enforce tenant isolation
