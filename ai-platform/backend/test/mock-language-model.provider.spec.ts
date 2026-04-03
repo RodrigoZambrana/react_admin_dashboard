@@ -1,11 +1,11 @@
+import { FileSystemTemporalLocaleProvider } from '../src/modules/temporal/filesystem-temporal-locale.provider';
 import { MockLanguageModelProvider } from '../src/modules/ai-gateway/providers/mock-language-model.provider';
 import { TemporalExpressionService } from '../src/modules/temporal/temporal-expression.service';
-import { TemporalLocaleRegistryService } from '../src/modules/temporal/temporal-locale-registry.service';
 
 describe('MockLanguageModelProvider', () => {
   it('returns strict JSON interpretation output', async () => {
     const provider = new MockLanguageModelProvider(
-      new TemporalExpressionService(new TemporalLocaleRegistryService()),
+      new TemporalExpressionService(new FileSystemTemporalLocaleProvider()),
     );
 
     const response = await provider.interpret(

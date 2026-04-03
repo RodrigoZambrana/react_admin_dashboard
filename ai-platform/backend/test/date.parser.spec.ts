@@ -1,6 +1,6 @@
 import { DateParser } from '../src/modules/parsing/date.parser';
 import { TemporalExpressionService } from '../src/modules/temporal/temporal-expression.service';
-import { TemporalLocaleRegistryService } from '../src/modules/temporal/temporal-locale-registry.service';
+import { FileSystemTemporalLocaleProvider } from '../src/modules/temporal/filesystem-temporal-locale.provider';
 
 describe('DateParser', () => {
   it('keeps valid bounded temporal expressions from the message text', () => {
@@ -85,8 +85,8 @@ describe('DateParser', () => {
 });
 
 function buildDateParser() {
-  const registry = new TemporalLocaleRegistryService();
-  const expressionService = new TemporalExpressionService(registry);
+  const provider = new FileSystemTemporalLocaleProvider();
+  const expressionService = new TemporalExpressionService(provider);
 
   return new DateParser(expressionService);
 }

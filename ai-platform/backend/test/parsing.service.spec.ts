@@ -3,12 +3,12 @@ import { DimensionParser } from '../src/modules/parsing/dimension.parser';
 import { ParsingService } from '../src/modules/parsing/parsing.service';
 import { DateParser } from '../src/modules/parsing/date.parser';
 import { MeasurementParser } from '../src/modules/parsing/measurement.parser';
+import { FileSystemTemporalLocaleProvider } from '../src/modules/temporal/filesystem-temporal-locale.provider';
 import { TemporalExpressionService } from '../src/modules/temporal/temporal-expression.service';
-import { TemporalLocaleRegistryService } from '../src/modules/temporal/temporal-locale-registry.service';
 
 describe('ParsingService', () => {
   it('normalizes measurement, date, and dimension candidates extracted by AI', () => {
-    const temporalRegistry = new TemporalLocaleRegistryService();
+    const temporalRegistry = new FileSystemTemporalLocaleProvider();
     const temporalExpressionService = new TemporalExpressionService(
       temporalRegistry,
     );

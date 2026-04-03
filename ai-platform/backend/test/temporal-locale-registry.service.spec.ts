@@ -1,8 +1,8 @@
-import { TemporalLocaleRegistryService } from '../src/modules/temporal/temporal-locale-registry.service';
+import { FileSystemTemporalLocaleProvider } from '../src/modules/temporal/filesystem-temporal-locale.provider';
 
-describe('TemporalLocaleRegistryService', () => {
+describe('FileSystemTemporalLocaleProvider', () => {
   it('loads supported temporal locale catalogs from backend-managed resources', () => {
-    const registry = new TemporalLocaleRegistryService();
+    const registry = new FileSystemTemporalLocaleProvider();
 
     expect(registry.getSupportedLocales()).toEqual(
       expect.arrayContaining(['en', 'es']),

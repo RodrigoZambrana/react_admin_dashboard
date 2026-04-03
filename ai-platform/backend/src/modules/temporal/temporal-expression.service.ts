@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { TemporalLocaleResource } from './temporal-locale.types';
-import { TemporalLocaleRegistryService } from './temporal-locale-registry.service';
+import { TemporalLocaleProvider } from './temporal-locale.provider';
 
 const structuralDatePatterns = [
   /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi,
@@ -12,7 +12,8 @@ const timeValuePattern = '\\d{1,2}(?::\\d{2})?';
 @Injectable()
 export class TemporalExpressionService {
   constructor(
-    private readonly temporalLocaleRegistry: TemporalLocaleRegistryService,
+    @Inject(TemporalLocaleProvider)
+    private readonly temporalLocaleProvider: TemporalLocaleProvider,
   ) {}
 
   extractExpressions(input: string, locale?: string | null): string[] {
@@ -22,7 +23,7 @@ export class TemporalExpressionService {
 
     const expressions = new Set<string>();
 
-    for (const resource of this.temporalLocaleRegistry.resolveResources(locale)) {
+    for (const resource of this.temporalLocaleProvider.resolveResources(locale)) {
       const lexicalPattern = this.buildLexicalPattern(resource);
 
       for (const match of input.matchAll(lexicalPattern)) {
@@ -44,7 +45,7 @@ export class TemporalExpressionService {
       return [];
     }
 
-    return this.temporalLocaleRegistry
+    return this.temporalLocaleProvider
       .listResources()
       .filter((resource) => this.buildLexicalPattern(resource).test(input))
       .map((resource) => resource.locale);

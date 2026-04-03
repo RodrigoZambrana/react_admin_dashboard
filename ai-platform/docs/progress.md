@@ -362,18 +362,22 @@
 - Added a backend-owned `TemporalLocaleProvider` abstraction for temporal locale access
 - Promoted the temporal locale resource schema into the shared temporal contract layer
 - Prepared the temporal subsystem to decouple parser logic from any concrete storage implementation
+- Added a filesystem-backed `TemporalLocaleProvider` implementation as the current concrete adapter
+- Refactored temporal extraction mechanics to depend on `TemporalLocaleProvider` instead of a concrete registry service
+- Moved temporal-module wiring to export the provider abstraction while keeping filesystem loading behind the provider boundary
 
 ### Working
 - The temporal subsystem now has an explicit provider boundary for locale resources
 - Resource schema validation is now part of the shared temporal contract instead of being buried in a concrete loader
+- Temporal parsing services no longer know about filesystem-backed loading details
 - Existing runtime behavior remains unchanged at this milestone
 
 ### Technical Debt
-- The active temporal subsystem still uses the existing concrete registry implementation underneath the new abstraction
-- Temporal parsing components still depend on the current concrete registry instead of the new provider boundary
 - The mock AI provider still reaches temporal support through the current concrete dependency chain
+- Some tests still instantiate the filesystem-backed provider directly instead of using abstraction-level test doubles
+- The architecture tests still need one focused pass to prove locale extensibility without filesystem involvement
 
 ### Next Steps
-- Add a filesystem-backed implementation of `TemporalLocaleProvider`
-- Refactor temporal parsing services to depend only on the provider abstraction
 - Update the mock AI provider path and tests so the concrete storage mechanism stays fully behind the provider boundary
+- Add architecture-oriented tests proving new locales can be introduced without parser changes
+- Re-run full backend and frontend validation and finalize the roadmap documentation for this abstraction step

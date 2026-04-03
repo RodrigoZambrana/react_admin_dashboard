@@ -1,18 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { z } from 'zod';
 
-import { TemporalLocaleResource } from './temporal-locale.types';
-
-const temporalLocaleResourceSchema = z.object({
-  locale: z.string().min(2),
-  datePhrases: z.array(z.string().min(1)).min(1),
-  timeJoiners: z.array(z.string().min(1)),
-});
+import {
+  TemporalLocaleResource,
+  temporalLocaleResourceSchema,
+} from './temporal-locale.types';
+import { TemporalLocaleProvider } from './temporal-locale.provider';
 
 @Injectable()
-export class TemporalLocaleRegistryService {
+export class FileSystemTemporalLocaleProvider extends TemporalLocaleProvider {
   private readonly resources = this.loadResources();
 
   listResources(): TemporalLocaleResource[] {
@@ -49,9 +46,7 @@ export class TemporalLocaleRegistryService {
     return new Map(
       entries.map((entry) => {
         const raw = readFileSync(resolve(directory, entry), 'utf8');
-        const resource = temporalLocaleResourceSchema.parse(
-          JSON.parse(raw),
-        ) as TemporalLocaleResource;
+        const resource = temporalLocaleResourceSchema.parse(JSON.parse(raw));
 
         return [resource.locale.toLowerCase(), resource];
       }),

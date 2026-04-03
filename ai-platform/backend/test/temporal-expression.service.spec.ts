@@ -1,4 +1,5 @@
 import { TemporalExpressionService } from '../src/modules/temporal/temporal-expression.service';
+import { TemporalLocaleProvider } from '../src/modules/temporal/temporal-locale.provider';
 import { TemporalLocaleResource } from '../src/modules/temporal/temporal-locale.types';
 
 describe('TemporalExpressionService', () => {
@@ -46,6 +47,16 @@ describe('TemporalExpressionService', () => {
 function buildService(resources: TemporalLocaleResource[]) {
   return new TemporalExpressionService({
     listResources: () => resources,
+    getSupportedLocales: () => resources.map((resource) => resource.locale),
+    resolveResource: (locale?: string | null) => {
+      const normalizedLocale = locale?.trim().toLowerCase();
+
+      if (!normalizedLocale) {
+        return undefined;
+      }
+
+      return resources.find((resource) => resource.locale === normalizedLocale);
+    },
     resolveResources: (locale?: string | null) => {
       const normalizedLocale = locale?.trim().toLowerCase();
 
@@ -57,5 +68,5 @@ function buildService(resources: TemporalLocaleResource[]) {
         (resource) => resource.locale === normalizedLocale,
       );
     },
-  } as any);
+  } as TemporalLocaleProvider);
 }
