@@ -3,6 +3,7 @@ import { Global, Module } from '@nestjs/common';
 import { LoggingModule } from '../logging/logging.module';
 import { ChatLogRepository } from './repositories/chat-log.repository';
 import { ConversationRepository } from './repositories/conversation.repository';
+import { ConversationStateRepository } from './repositories/conversation-state.repository';
 import { InfrastructureRepository } from './repositories/infrastructure.repository';
 import { KnowledgeRepository } from './repositories/knowledge.repository';
 import { MessageRepository } from './repositories/message.repository';
@@ -21,6 +22,7 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     PrismaService,
     InfrastructureRepository,
     ConversationRepository,
+    ConversationStateRepository,
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,
@@ -32,6 +34,7 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     PrismaService,
     InfrastructureRepository,
     ConversationRepository,
+    ConversationStateRepository,
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,

@@ -19,6 +19,7 @@ type PrismaParams = {
 
 const TENANT_MODELS = new Set([
   'Conversation',
+  'ConversationState',
   'Message',
   'ChatLog',
   'PromptVersion',

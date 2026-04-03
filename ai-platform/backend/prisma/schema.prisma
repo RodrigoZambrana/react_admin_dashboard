@@ -37,6 +37,7 @@ model Conversation {
   updatedAt   DateTime  @updatedAt
   messages    Message[]
   logs        ChatLog[]
+  state       ConversationState?
 
   @@index([tenantId, createdAt])
 }
@@ -67,6 +68,27 @@ model ChatLog {
   conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
 
   @@index([tenantId, traceId, createdAt])
+}
+
+model ConversationState {
+  id                String       @id @default(cuid())
+  tenantId          String
+  conversationId    String       @unique
+  lane              String
+  lastIntent        String?
+  lastApprovedAction String?
+  lastApprovedToolName String?
+  approvedFacts     Json?
+  pendingFacts      Json?
+  missingFields     String[]     @default([])
+  nextUsefulField   String?
+  lastApprovedResult Json?
+  metadata          Json?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, lane, updatedAt])
 }
 
 model PromptVersion {

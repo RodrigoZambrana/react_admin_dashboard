@@ -145,8 +145,30 @@
   - managed runtime resources for prompts and date-time locale resources
   - minimal admin-ready backend resource surfaces
 - Not active in the live path yet:
+  - continuity-driven decision reuse across turns
   - AI response generation from backend-approved context
   - asynchronous learning from stored logs
+
+## Deterministic Conversation State
+
+- Wave 3 introduces a dedicated `ConversationState` persistence model instead of hiding continuity in Redis memory or message metadata
+- Continuity state is tenant-scoped automatically and exists only when a conversation has actionable continuity context
+- The model is intentionally compact and lane-aware:
+  - current lane when relevant
+  - approved facts when relevant
+  - pending facts when relevant
+  - missing fields when relevant
+  - next useful field when relevant
+  - last approved backend action/result when relevant
+- General conversation turns must be able to proceed without any persisted task state
+- The continuity contract is future-compatible with backend-owned actions such as:
+  - `respond`
+  - `clarify`
+  - `retrieve_core_knowledge`
+  - `handoff`
+  - `close_turn`
+- Stale-fact invalidation happens in backend continuity logic before decisioning when a turn explicitly changes lane
+- Continuity may enrich deterministic backend context for decision and execution, but it may not let the model own routing or state transitions
 
 ## Target Live Pipeline
 
@@ -166,12 +188,14 @@
 - Filesystem prompt files exist only as bootstrap seeds when a tenant has no managed prompt versions yet
 - Prompt retrieval is already wired into the live AI gateway path for interpretation and prepared for future response generation activation
 
-## Roadmap: Waves 2 To 5
+## Roadmap: Waves 2 To 9
 
 ### Roadmap Framing
 
 - Waves 2 through 4 complete the core conversational backend runtime
-- Wave 5 focuses on operability, QA, learning, and productization readiness rather than UI implementation itself
+- Wave 5 completes governance, QA, learning, and backend/product-platform readiness needed before major UI delivery
+- Waves 6 through 8 deliver the admin and public product surfaces on top of the stabilized runtime and governance contracts
+- Wave 9 closes security, role separation, end-to-end regression, and production hardening
 - Every wave must mine the legacy audit only for reusable concepts, validation assets, and operator workflows that fit the new architecture
 - No wave may introduce:
   - model-driven decisions
@@ -231,6 +255,58 @@
 9. Completion criteria: learning is live and observable; critical configs and governed knowledge metadata follow the runtime-managed resource pattern; admin-ready backend endpoints cover resource governance and QA/test workflows; regression suites cover multitenancy, grounding, closure, and follow-up continuity.
 10. Explicit next-wave enablement: enables later product tracks such as admin UI ABMs, public chat UX delivery, security hardening, and tenant onboarding workflows without changing core runtime architecture.
 
+### Wave 6: Admin Operations UI
+
+1. Wave name: Admin Operations UI And Managed Resource ABMs
+2. Strategic objective: convert the admin-ready backend governance surfaces into real operator-facing admin workflows for prompts, date-time-locale-resources, critical configs, and trace-driven runtime operations.
+3. Why it happens now: once Waves 1 through 5 have stabilized the runtime and its governed resource contracts, operators need a first-class admin UI instead of relying on direct endpoint usage.
+4. Dependency on previous waves: depends on Waves 1 through 5, especially the runtime-managed resource pattern, admin-ready backend surfaces, and QA/governance contracts delivered in Wave 5.
+5. Main implementation scope: build modular admin sections for managed resource CRUD/versioning/publishing; expose trace/resource inspection workflows; connect the frontend to `/admin/runtime-resources/*` and related governance endpoints; begin retiring compatibility-only admin paths once equivalent flows are live.
+6. Architecture constraints: the UI must remain a thin client over backend-governed contracts; no browser-owned decision logic; no direct datastore access; no new legacy runtime coupling; naming should converge toward `date-time-locale-resources` when backend compatibility allows it.
+7. Legacy contributions that should be mined: legacy operator workflow concepts, admin dashboard patterns already audited in the legacy review, QA panel ideas from `tools/qa`, and trace inspection flows that improve operator efficiency without copying legacy runtime behavior.
+8. Expected user/platform value: operators can manage prompts, date-time-locale-resources, and critical configs safely through productized UI flows instead of manual backend calls or filesystem/bootstrap procedures.
+9. Completion criteria: admin UI can manage managed prompts, date-time-locale-resources, and critical configs through backend-governed lifecycles; trace/resource inspection supports routine operator workflows; compatibility-only admin paths have a defined retirement path.
+10. Explicit next-wave enablement: provides the operator shell needed for governed knowledge workflows and an admin chat test center in Wave 7.
+
+### Wave 7: Knowledge And Chat Test Center UI
+
+1. Wave name: Knowledge And Chat Test Center UI
+2. Strategic objective: give operators governed knowledge-management tooling and a dedicated admin chat test center for replay, trace review, corpora-driven evaluation, and prompt/resource inspection.
+3. Why it happens now: after the admin operations shell exists, the next product gap is safe operator testing and knowledge stewardship before exposing the experience broadly to end users.
+4. Dependency on previous waves: depends on Waves 1 through 6, especially Wave 5 QA/backend readiness and Wave 6 admin UI foundations.
+5. Main implementation scope: add governed knowledge metadata ABMs; expose chat replay/test-center workflows; support trace comparison, corpora execution, and resource/prompt inspection from the admin UI; connect these surfaces to the backend QA and governance endpoints instead of ad hoc runtime hooks.
+6. Architecture constraints: knowledge remains governed and backend-owned; test-center actions must use explicit QA/admin contracts; no direct mutation of runtime state outside managed workflows; UI must not reintroduce monolithic runtime assumptions.
+7. Legacy contributions that should be mined: legacy QA corpora, multitenant smoke scenarios, admin/operator test flows, and later legacy Playwright-ready journeys once the frontend surfaces are stable enough to use them as meaningful references.
+8. Expected user/platform value: operators can validate behavior before rollout, manage governed knowledge safely, and inspect failures using productized workflows instead of manual log digging.
+9. Completion criteria: governed knowledge metadata can be managed from the admin UI; operators can run chat tests, inspect traces, compare outcomes, and execute QA flows through the test center; backend QA surfaces are exercised through real admin workflows.
+10. Explicit next-wave enablement: de-risks the public chat experience in Wave 8 and supplies concrete regression journeys for the security/E2E hardening work in Wave 9.
+
+### Wave 8: User Chat Product UI
+
+1. Wave name: User Chat Product UI
+2. Strategic objective: deliver the end-user conversational product surface on top of the stabilized backend runtime, governed resources, and operator tooling built in earlier waves.
+3. Why it happens now: once runtime correctness, governance, and operator validation flows are in place, the platform can expose a productized chat surface without using the frontend as a substitute for backend control.
+4. Dependency on previous waves: depends on Waves 1 through 7, especially the approved-context response path, QA/test-center feedback loops, and admin-managed resources.
+5. Main implementation scope: build the public/user chat shell; integrate transcript, turn status, and recovery states with the live backend pipeline; expose safe multilingual/user-facing presentation surfaces; prepare tenant-facing rollout flows without duplicating backend logic in the client.
+6. Architecture constraints: the UI must remain presentation-only; no client-side decisioning, tool routing, or tenant-scoping shortcuts; user-facing wording still comes from backend-approved response flows; any locale presentation logic must avoid new hardcoded linguistic assumptions in the browser.
+7. Legacy contributions that should be mined: user-facing chat experience concepts from `webchat.adapter.js`, legacy conversation UX lessons documented in the audit, and later Playwright/E2E journeys as regression references once the user shell stabilizes.
+8. Expected user/platform value: the platform gains an actual end-user product surface instead of only internal/operator tooling, enabling real conversational product rollout.
+9. Completion criteria: end users can interact with the live pipeline through a productized chat UI; core and tenant-backed flows are visible in a stable user shell; operator/admin workflows remain separate from public UX concerns.
+10. Explicit next-wave enablement: gives Wave 9 stable admin and user surfaces on which to enforce roles, auth, and end-to-end production hardening.
+
+### Wave 9: Security, Roles, E2E, And Production Hardening
+
+1. Wave name: Security, Roles, E2E, And Production Hardening
+2. Strategic objective: finalize authentication, role separation, guarded admin access, end-to-end regression coverage, and rollout hardening across the now-complete backend and UI surfaces.
+3. Why it happens now: security, roles, and E2E hardening are most effective after both admin and user product surfaces are real and stable enough to validate end-to-end behavior instead of placeholders.
+4. Dependency on previous waves: depends on Waves 1 through 8, including stable runtime, admin tooling, knowledge/test-center UI, and user-facing chat product flows.
+5. Main implementation scope: implement auth and role boundaries; guard admin routes and managed-resource mutations; add Playwright/E2E regression for admin and user flows; finalize multitenant smoke coverage; harden rollout, observability, and tenant onboarding/operational readiness.
+6. Architecture constraints: security remains backend-enforced; automatic tenant isolation cannot be weakened by client context; E2E suites must assert canonical backend truth rather than UI-only heuristics; hardening must not collapse stage separation or reintroduce manual routing shortcuts.
+7. Legacy contributions that should be mined: legacy Playwright/E2E journeys, multitenant smoke tests, operator QA flows, and other rollout-oriented assets identified in the legacy audit, always rewritten against the new platform contracts rather than copied as-is.
+8. Expected user/platform value: the platform becomes ready for controlled rollout with authenticated admin operations, tenant-safe user access, and regression suites that protect the full product surface.
+9. Completion criteria: auth and role separation are active; admin surfaces are guarded; Playwright/E2E suites cover critical admin and user journeys; multitenant regression and operational hardening are in place for production rollout.
+10. Explicit next-wave enablement: enables controlled tenant onboarding, rollout scaling, and ongoing delivery without revisiting the core platform architecture.
+
 ## Multi-Tenant Enforcement
 
 - Tenant id enters through HTTP middleware
@@ -252,7 +328,7 @@ Canonical stage model for the final pipeline:
 - logging
 - learning
 
-Current live interactions persist the active subset of stages, and future waves will activate `execution` and `learning` in the same canonical shape.
+Current live interactions already persist `input`, `interpretation`, `parsing`, `decision`, `execution`, `response`, and `logging` in the canonical shape, and future waves will activate `learning` in the same canonical shape.
 
 Each active stage emits structured records with trace id, tenant id, duration, outcome, and payload summary.
 

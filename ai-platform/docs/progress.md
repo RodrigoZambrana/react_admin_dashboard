@@ -505,3 +505,58 @@
 - Start Wave 3, `Deterministic Conversation Continuity And State`, on top of the authoritative execution outputs now produced by Wave 2
 - Reuse the new execution truth and failure traces as the backend source for pending facts, missing fields, and follow-up continuity
 - Preserve the isolated response-policy boundary so Wave 4 can replace deterministic wording with AI-generated text over approved context without changing execution governance
+
+## Iteration 19
+
+### Implemented
+- Added a dedicated tenant-scoped `ConversationState` persistence model for Wave 3 instead of hiding continuity in Redis memory or message metadata
+- Introduced a backend-owned continuity contract with optional lane-aware fields for approved facts, pending facts, missing fields, next useful field, and last approved backend result
+- Added `ConversationStateRepository` and `ConversationContinuityService` to prepare deterministic continuity context and persist compact state snapshots
+- Implemented deterministic stale-fact invalidation when a new turn explicitly changes lane
+- Added continuity service tests covering optional state, carry-forward facts, lane invalidation, clarification persistence, and general-turn state clearing
+- Materialized the Prisma migration `20260403234740_add_conversation_state` and regenerated Prisma Client
+
+### Working
+- The branch now has a persisted backend continuity foundation that is tenant-safe and compact
+- Continuity logic can already carry forward booking/product/quote facts deterministically without involving the model in state transitions
+- General conversation turns remain able to proceed with no required task state
+- Backend build and backend tests pass with the new continuity foundation in place
+
+### Technical Debt
+- The continuity foundation is not wired into the live `/chat/message` decision flow yet at this milestone
+- The current response policy still contains pre-existing deterministic wording and locale branching debt outside the new continuity path
+- Future-compatible continuity support for `retrieve_core_knowledge`, `handoff`, and `close_turn` is modeled but not yet active in runtime decisions
+
+### Next Steps
+- Feed continuity context into deterministic decisioning and live execution input assembly without expanding orchestrator responsibilities
+- Persist state transitions from live clarification and execution turns so follow-up continuity becomes active on the real chat path
+- Close the wave with follow-up behavior tests, a hardcode/locale audit of the touched backend path, and Wave 4 enablement notes
+
+## Iteration 19
+
+### Implemented
+- Expanded the documented executive roadmap from Waves 2 through 5 to Waves 2 through 9 so the plan now covers backend runtime completion, admin productization, user productization, and final hardening
+- Reframed Wave 5 as backend/platform governance, QA, learning, and productization readiness rather than the end of the full platform roadmap
+- Added explicit later waves for:
+  - Wave 6: Admin Operations UI And Managed Resource ABMs
+  - Wave 7: Knowledge And Chat Test Center UI
+  - Wave 8: User Chat Product UI
+  - Wave 9: Security, Roles, E2E, And Production Hardening
+- Added legacy-planning guidance for the new UI and hardening waves, including when to mine legacy operator flows, QA assets, and Playwright/E2E journeys once the corresponding frontend surfaces are stable
+- Corrected the architecture narrative so it reflects that `execution` is already active in the live canonical stage model and only `learning` remains inactive from the target pipeline
+
+### Working
+- The roadmap now reflects full platform scope instead of stopping at backend/runtime readiness
+- Future iterations can place admin UI, knowledge/test-center UI, user chat UI, and security/E2E work into explicit waves instead of overloading Wave 5
+- The planning context now makes it clear when legacy assets should inform backend runtime work versus later admin/user productization and Playwright-based regression
+
+### Technical Debt
+- This iteration updates documentation only; no runtime behavior changed
+- Current backend naming still uses `temporal-locales` in code and endpoints even though roadmap/product terminology now prefers `date-time-locale-resources`
+- The new UI/product waves are documented, but the corresponding frontend/admin implementations are still future work
+- There are unrelated local code changes in progress for continuity work and an unrelated local change in `docs/legacy-chat-audit.md`; this documentation update does not alter them
+
+### Next Steps
+- Start Wave 3, `Deterministic Conversation Continuity And State`, as the next execution wave on top of completed Waves 1 and 2
+- Keep future planning aligned with the expanded Waves 6 through 9 so backend decisions are evaluated against later admin and user product needs
+- Mine legacy Playwright/E2E assets only once the relevant frontend surfaces are stable enough to support meaningful regression coverage
