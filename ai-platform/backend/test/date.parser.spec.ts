@@ -64,6 +64,24 @@ describe('DateParser', () => {
       }),
     ]);
   });
+
+  it('resolves regional locale codes through backend locale resources', () => {
+    const parser = buildDateParser();
+
+    const result = parser.parseCandidates(
+      'Necesito reservar mañana',
+      [],
+      new Date('2026-04-03T12:00:00.000Z'),
+      'es-UY',
+    );
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        source: 'mañana',
+        precision: 'date',
+      }),
+    ]);
+  });
 });
 
 function buildDateParser() {

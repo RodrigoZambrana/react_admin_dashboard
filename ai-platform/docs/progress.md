@@ -332,6 +332,8 @@
 - Added a shared `TemporalExpressionService` so temporal extraction mechanics are centralized and locale-resource driven
 - Refactored `DateParser` to consume locale resources instead of embedded temporal lexicons
 - Refactored the mock AI provider to extract temporal candidates and locale hints through the shared backend-managed temporal resources
+- Added architecture-oriented tests for the locale registry and temporal expression service
+- Added locale-resolution coverage showing regional locale codes resolve through backend-managed temporal resources
 
 ### Working
 - Temporal locale support now has a standalone resource structure that can be extended per locale without changing parser mechanics
@@ -339,13 +341,17 @@
 - Runtime packaging now includes temporal resource catalogs instead of depending on source-only files
 - Date normalization now depends on locale resources plus deterministic parsing mechanics, not embedded human-language word lists
 - The mock interpretation provider still produces date candidates for supported locales without owning temporal vocabulary in runtime code
+- Supported locales still normalize expected expressions correctly through data-driven resources
+- Lexical support can be changed by editing resource catalogs without changing extraction logic
+- Backend and frontend builds pass after the temporal-resource refactor
+- Backend test coverage now includes registry/resource architecture validation in addition to behavior checks
 
 ### Technical Debt
-- Existing tests still validate temporal behavior through embedded examples rather than through the new registry architecture
-- Temporal locale resources are file-backed but not yet covered by dedicated architecture tests for extension/removal scenarios
 - The live pipeline behavior remains coupled to previously activated decision routing outside this roadmap step
+- Locale resources are file-based today; prompt/version governance for resource evolution is still pending
+- The final live pipeline still needs a future cleanup pass to align the roadmap narrative with the branch's already-active decision layer
 
 ### Next Steps
-- Add architecture-oriented tests proving lexical support is resource-driven
-- Run full backend and frontend validation for the refactored temporal-resource foundation
-- Close the iteration with a final commit focused on tests and documentation quality
+- Use this temporal-resource foundation as the prerequisite for any future temporal parsing expansion or locale additions
+- When the roadmap resumes decision work, keep decision behavior unchanged and rely on the new resource-driven temporal normalization
+- Introduce governance/versioning for backend locale resources when prompt/config versioning is revisited
