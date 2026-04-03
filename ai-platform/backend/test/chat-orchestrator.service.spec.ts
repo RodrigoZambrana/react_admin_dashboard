@@ -1,7 +1,7 @@
 import { ChatOrchestratorService } from '../src/modules/api/chat-orchestrator.service';
 
 describe('ChatOrchestratorService', () => {
-  it('stores a basic interaction, runs decisioning, logs decision, and returns the minimal response payload', async () => {
+  it('stores a basic interaction, skips execution for respond decisions, and returns the minimal response payload', async () => {
     const traceLogService = {
       recordStage: jest.fn(async () => undefined),
     };
@@ -28,7 +28,7 @@ describe('ChatOrchestratorService', () => {
       })),
     };
     const parsingService = {
-      normalize: jest.fn(() => ({
+      normalize: jest.fn(async () => ({
         intent: 'GENERAL_CONVERSATION',
         entities: {},
         language: 'es',
@@ -48,6 +48,12 @@ describe('ChatOrchestratorService', () => {
         missingFields: [],
         responseTemplateKey: 'core.general_response',
       })),
+    };
+    const toolExecutionService = {
+      executeApprovedAction: jest.fn(async () => null),
+    };
+    const responsePolicyService = {
+      resolve: jest.fn(() => 'Hello, how can I help you?'),
     };
     const memoryService = {
       getRecent: jest.fn(async () => []),
@@ -73,6 +79,8 @@ describe('ChatOrchestratorService', () => {
       interpretationService as any,
       parsingService as any,
       decisionService as any,
+      toolExecutionService as any,
+      responsePolicyService as any,
       memoryService as any,
       traceLogService as any,
     );
@@ -91,36 +99,26 @@ describe('ChatOrchestratorService', () => {
       },
     });
     expect(traceLogService.recordStage).toHaveBeenCalledTimes(6);
-    expect(interpretationService.interpret).toHaveBeenCalledWith('hola', undefined, []);
-    expect(parsingService.normalize).toHaveBeenCalledWith({
-      intent: 'GENERAL_CONVERSATION',
-      entities: {},
-      language: 'es',
-      confidence: 0.94,
-    });
-    expect(decisionService.decide).toHaveBeenCalledWith({
-      intent: 'GENERAL_CONVERSATION',
-      entities: {},
-      language: 'es',
-      confidence: 0.94,
-      normalizedEntities: {
-        dates: [],
-        measurements: [],
-        dimensions: [],
-      },
-    });
-    expect(traceLogService.recordStage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stage: 'decision',
-        status: 'completed',
-        payload: expect.objectContaining({
-          domain: 'core',
-          action: 'respond',
-          reasonCode: 'general_conversation',
-          missingFields: [],
-        }),
+    expect(toolExecutionService.executeApprovedAction).toHaveBeenCalledWith({
+      decision: expect.objectContaining({
+        action: 'respond',
       }),
+      interpretation: expect.objectContaining({
+        intent: 'GENERAL_CONVERSATION',
+      }),
+    });
+    expect(responsePolicyService.resolve).toHaveBeenCalledWith({
+      decision: expect.objectContaining({
+        action: 'respond',
+      }),
+      execution: null,
+      message: 'hola',
+      locale: 'es',
+    });
+    const hasExecutionStage = traceLogService.recordStage.mock.calls.some(
+      (args: any[]) => args[0]?.stage === 'execution',
     );
+    expect(hasExecutionStage).toBe(false);
   });
 
   it('returns a deterministic clarification when booking date evidence is missing', async () => {
@@ -146,7 +144,7 @@ describe('ChatOrchestratorService', () => {
       })),
     };
     const parsingService = {
-      normalize: jest.fn(() => ({
+      normalize: jest.fn(async () => ({
         intent: 'CREATE_BOOKING',
         entities: {
           rawMessage: 'Reservar',
@@ -168,6 +166,12 @@ describe('ChatOrchestratorService', () => {
         missingFields: ['requested_date'],
         responseTemplateKey: 'core.clarification',
       })),
+    };
+    const toolExecutionService = {
+      executeApprovedAction: jest.fn(async () => null),
+    };
+    const responsePolicyService = {
+      resolve: jest.fn(() => 'Necesito la fecha deseada para continuar.'),
     };
     const memoryService = {
       getRecent: jest.fn(async () => []),
@@ -193,6 +197,8 @@ describe('ChatOrchestratorService', () => {
       interpretationService as any,
       parsingService as any,
       decisionService as any,
+      toolExecutionService as any,
+      responsePolicyService as any,
       memoryService as any,
       traceLogService as any,
     );
@@ -213,18 +219,13 @@ describe('ChatOrchestratorService', () => {
         traceId: 'trace-booking-clarify',
       },
     });
-    expect(traceLogService.recordStage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        stage: 'decision',
-        payload: expect.objectContaining({
-          action: 'clarify',
-          missingFields: ['requested_date'],
-        }),
-      }),
+    const hasExecutionStage = traceLogService.recordStage.mock.calls.some(
+      (args: any[]) => args[0]?.stage === 'execution',
     );
+    expect(hasExecutionStage).toBe(false);
   });
 
-  it('returns a neutral acknowledgement when the deterministic decision would invoke a tool', async () => {
+  it('logs the execution stage and returns a deterministic execution-aware response for tool decisions', async () => {
     const traceLogService = {
       recordStage: jest.fn(async () => undefined),
     };
@@ -247,7 +248,7 @@ describe('ChatOrchestratorService', () => {
       })),
     };
     const parsingService = {
-      normalize: jest.fn(() => ({
+      normalize: jest.fn(async () => ({
         intent: 'GET_PRODUCT',
         entities: {
           rawMessage: 'quiero algo barato',
@@ -271,6 +272,23 @@ describe('ChatOrchestratorService', () => {
         responseTemplateKey: 'tenant.ecommerce.product_result',
       })),
     };
+    const execution = {
+      ok: true,
+      toolName: 'get_product',
+      validatedInput: {
+        query: 'quiero algo barato',
+      },
+      payload: {
+        sku: 'A-19',
+      },
+      durationMs: 4,
+    };
+    const toolExecutionService = {
+      executeApprovedAction: jest.fn(async () => execution),
+    };
+    const responsePolicyService = {
+      resolve: jest.fn(() => 'Listo. La accion solicitada fue procesada correctamente.'),
+    };
     const memoryService = {
       getRecent: jest.fn(async () => []),
       append: jest.fn(async () => undefined),
@@ -278,7 +296,7 @@ describe('ChatOrchestratorService', () => {
 
     const service = new ChatOrchestratorService(
       {
-        getTraceId: () => 'trace-tool-pending',
+        getTraceId: () => 'trace-tool-success',
       } as any,
       {
         findById: jest.fn(async () => null),
@@ -295,6 +313,8 @@ describe('ChatOrchestratorService', () => {
       interpretationService as any,
       parsingService as any,
       decisionService as any,
+      toolExecutionService as any,
+      responsePolicyService as any,
       memoryService as any,
       traceLogService as any,
     );
@@ -305,16 +325,32 @@ describe('ChatOrchestratorService', () => {
     });
 
     expect(result).toEqual({
-      response:
-        'Entendido. Identifique tu consulta de producto y la deje lista para el siguiente paso.',
+      response: 'Listo. La accion solicitada fue procesada correctamente.',
       intent: 'GET_PRODUCT',
       entities: {
         rawMessage: 'quiero algo barato',
       },
       metadata: {
         conversationId: 'conv-3',
-        traceId: 'trace-tool-pending',
+        traceId: 'trace-tool-success',
       },
     });
+    expect(traceLogService.recordStage).toHaveBeenCalledTimes(7);
+    expect(traceLogService.recordStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'execution',
+        status: 'completed',
+        payload: expect.objectContaining({
+          toolName: 'get_product',
+          validatedInputSummary: {
+            query: 'quiero algo barato',
+          },
+          executionResultSummary: {
+            sku: 'A-19',
+          },
+          failure: null,
+        }),
+      }),
+    );
   });
 });

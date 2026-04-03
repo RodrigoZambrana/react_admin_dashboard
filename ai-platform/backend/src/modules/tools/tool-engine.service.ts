@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { CreateBookingTool } from './create-booking.tool';
@@ -6,8 +6,9 @@ import { CreateQuoteTool } from './create-quote.tool';
 import { GetProductTool } from './get-product.tool';
 import {
   ToolDefinition,
+  ToolExecutionAttempt,
   ToolExecutionContext,
-  ToolExecutionResult,
+  ToolExecutionFailureCode,
 } from './tool.types';
 
 @Injectable()
@@ -29,30 +30,99 @@ export class ToolEngineService {
   async execute(
     toolName: string,
     context: ToolExecutionContext,
-  ): Promise<ToolExecutionResult> {
+  ): Promise<ToolExecutionAttempt> {
     const tool = this.tools.get(toolName);
 
     if (!tool) {
-      throw new BadRequestException(`Unknown tool "${toolName}"`);
+      return this.buildFailure(
+        toolName,
+        'unknown_tool',
+        `Unknown tool "${toolName}"`,
+      );
     }
 
-    const validatedInput = tool.schema.parse(tool.buildInput(context));
-    const startedAt = Date.now();
-    const payload = await tool.execute(validatedInput);
+    const validation = tool.schema.safeParse(tool.buildInput(context));
 
-    this.logger.log(
+    if (!validation.success) {
+      return this.buildFailure(
+        toolName,
+        'validation_failed',
+        'Tool input validation failed.',
+        {
+          issues: validation.error.flatten(),
+        },
+      );
+    }
+
+    const validatedInput = validation.data;
+    const startedAt = Date.now();
+
+    try {
+      const payload = await tool.execute(validatedInput);
+      const result = {
+        ok: true as const,
+        toolName,
+        validatedInput,
+        payload,
+        durationMs: Date.now() - startedAt,
+      };
+
+      this.logger.log(
+        JSON.stringify({
+          stage: 'execution',
+          status: 'completed',
+          toolName,
+          tenantId: context.tenantId,
+          traceId: context.traceId,
+          durationMs: result.durationMs,
+          input: validatedInput,
+          output: payload,
+        }),
+      );
+
+      return result;
+    } catch (error) {
+      return this.buildFailure(
+        toolName,
+        'execution_failed',
+        error instanceof Error ? error.message : String(error),
+        undefined,
+        Date.now() - startedAt,
+        validatedInput,
+      );
+    }
+  }
+
+  private buildFailure(
+    toolName: string,
+    errorCode: ToolExecutionFailureCode,
+    errorMessage: string,
+    errorDetails?: Record<string, unknown>,
+    durationMs: number | null = null,
+    validatedInput: Record<string, unknown> | null = null,
+  ): ToolExecutionAttempt {
+    const failure = {
+      ok: false as const,
+      toolName,
+      validatedInput,
+      errorCode,
+      errorMessage,
+      errorDetails,
+      durationMs,
+    };
+
+    this.logger.error(
       JSON.stringify({
         stage: 'execution',
+        status: 'failed',
         toolName,
-        durationMs: Date.now() - startedAt,
-        input: validatedInput,
-        output: payload,
+        errorCode,
+        errorMessage,
+        errorDetails,
+        durationMs,
       }),
     );
 
-    return {
-      toolName,
-      payload,
-    };
+    return failure;
   }
 }

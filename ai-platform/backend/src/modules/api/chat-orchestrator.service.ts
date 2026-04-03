@@ -2,17 +2,17 @@ import { Injectable } from '@nestjs/common';
 import { MessageRole, Prisma } from '@prisma/client';
 
 import { DecisionService } from '../decision/decision.service';
-import { DecisionResult } from '../decision/decision.types';
 import { InterpretationService } from '../interpretation/interpretation.service';
 import { MemoryService } from '../memory/memory.service';
 import { ParsingService } from '../parsing/parsing.service';
 import { ConversationRepository } from '../persistence/repositories/conversation.repository';
 import { MessageRepository } from '../persistence/repositories/message.repository';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
+import { ToolExecutionService } from '../tools/tool-execution.service';
+import { ToolExecutionAttempt } from '../tools/tool.types';
+import { ChatResponsePolicyService } from './chat-response-policy.service';
 import { TraceLogService } from './trace-log.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
-
-const BASIC_RESPONSE = 'Hello, how can I help you?';
 
 @Injectable()
 export class ChatOrchestratorService {
@@ -23,6 +23,8 @@ export class ChatOrchestratorService {
     private readonly interpretationService: InterpretationService,
     private readonly parsingService: ParsingService,
     private readonly decisionService: DecisionService,
+    private readonly toolExecutionService: ToolExecutionService,
+    private readonly responsePolicyService: ChatResponsePolicyService,
     private readonly memoryService: MemoryService,
     private readonly traceLogService: TraceLogService,
   ) {}
@@ -61,6 +63,10 @@ export class ChatOrchestratorService {
       interpretation.interpretation,
     );
     const decision = this.decisionService.decide(parsedInterpretation);
+    const execution = await this.toolExecutionService.executeApprovedAction({
+      decision,
+      interpretation: parsedInterpretation,
+    });
 
     await this.traceLogService.recordStage({
       conversationId,
@@ -101,11 +107,21 @@ export class ChatOrchestratorService {
       } as Prisma.InputJsonValue,
     });
 
-    const response = this.buildResponse(
+    if (execution) {
+      await this.traceLogService.recordStage({
+        conversationId,
+        stage: 'execution',
+        status: execution.ok ? 'completed' : 'failed',
+        payload: this.buildExecutionTracePayload(execution),
+      });
+    }
+
+    const response = this.responsePolicyService.resolve({
       decision,
-      input.message,
-      parsedInterpretation.language,
-    );
+      execution,
+      message: input.message,
+      locale: parsedInterpretation.language,
+    });
 
     await this.traceLogService.recordStage({
       conversationId,
@@ -119,6 +135,7 @@ export class ChatOrchestratorService {
         language: parsedInterpretation.language,
         confidence: parsedInterpretation.confidence,
         decision,
+        execution,
       } as Prisma.InputJsonValue,
     });
 
@@ -133,6 +150,7 @@ export class ChatOrchestratorService {
         language: parsedInterpretation.language,
         confidence: parsedInterpretation.confidence,
         decision,
+        execution,
       } as Prisma.InputJsonValue,
     );
     await this.memoryService.append(conversationId, 'assistant', response);
@@ -178,80 +196,25 @@ export class ChatOrchestratorService {
     return this.conversationRepository.createConversation(input.locale);
   }
 
-  private buildResponse(
-    decision: DecisionResult,
-    message: string,
-    locale?: string,
-  ) {
-    if (decision.action === 'clarify') {
-      return this.buildClarificationResponse(decision.missingFields, locale);
+  private buildExecutionTracePayload(execution: ToolExecutionAttempt) {
+    if (execution.ok) {
+      return {
+        toolName: execution.toolName,
+        validatedInputSummary: execution.validatedInput,
+        executionResultSummary: execution.payload,
+        failure: null,
+      } as Prisma.InputJsonValue;
     }
 
-    if (decision.action === 'invoke_tool') {
-      return this.buildPendingExecutionResponse(decision.toolName, locale);
-    }
-
-    return this.buildBasicResponse(message, locale);
-  }
-
-  private buildBasicResponse(message: string, locale?: string) {
-    const normalized = `${locale ?? ''} ${message}`.toLowerCase();
-
-    if (normalized.includes('hola')) {
-      return 'Hello, how can I help you?';
-    }
-
-    if (normalized.includes('hello')) {
-      return 'Hello, how can I help you?';
-    }
-
-    return BASIC_RESPONSE;
-  }
-
-  private buildClarificationResponse(missingFields: string[], locale?: string) {
-    const isSpanish = this.isSpanish(locale);
-
-    if (missingFields.includes('requested_date')) {
-      return isSpanish
-        ? 'Necesito la fecha deseada para continuar.'
-        : 'I need the requested date to continue.';
-    }
-
-    return isSpanish
-      ? 'Necesito un poco más de contexto para continuar.'
-      : 'I need a bit more context to continue.';
-  }
-
-  private buildPendingExecutionResponse(
-    toolName: DecisionResult['toolName'],
-    locale?: string,
-  ) {
-    const isSpanish = this.isSpanish(locale);
-
-    if (toolName === 'create_booking') {
-      return isSpanish
-        ? 'Entendido. Identifique tu solicitud de reserva y la deje lista para el siguiente paso.'
-        : 'Understood. I identified your booking request and left it ready for the next step.';
-    }
-
-    if (toolName === 'create_quote') {
-      return isSpanish
-        ? 'Entendido. Identifique tu solicitud de cotizacion y la deje lista para el siguiente paso.'
-        : 'Understood. I identified your quote request and left it ready for the next step.';
-    }
-
-    if (toolName === 'get_product') {
-      return isSpanish
-        ? 'Entendido. Identifique tu consulta de producto y la deje lista para el siguiente paso.'
-        : 'Understood. I identified your product request and left it ready for the next step.';
-    }
-
-    return isSpanish
-      ? 'Entendido. Identifique tu solicitud y la deje lista para el siguiente paso.'
-      : 'Understood. I identified your request and left it ready for the next step.';
-  }
-
-  private isSpanish(locale?: string) {
-    return (locale ?? '').toLowerCase().startsWith('es');
+    return {
+      toolName: execution.toolName,
+      validatedInputSummary: execution.validatedInput,
+      executionResultSummary: null,
+      failure: {
+        code: execution.errorCode,
+        message: execution.errorMessage,
+        details: execution.errorDetails ?? null,
+      },
+    } as Prisma.InputJsonValue;
   }
 }

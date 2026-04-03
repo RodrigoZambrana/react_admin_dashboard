@@ -444,3 +444,58 @@
 - Add `AI Response on Approved Context` on top of the managed response prompt path now that prompt retrieval is runtime-governed
 - Extend the same runtime-managed pattern to critical config storage and governed knowledge metadata
 - Migrate the admin UI to `/admin/runtime-resources/*` and add auth/admin guards when the security wave starts
+
+## Iteration 17
+
+### Implemented
+- Audited the current branch state against the architecture docs before defining the next delivery sequence
+- Corrected documentation mismatches so the docs now reflect the real live flow: `input -> interpretation -> parsing -> decision -> response -> logging`
+- Corrected prompt/runtime documentation so managed prompt retrieval and managed date-time locale resources are described as already landed platform capabilities
+- Added an executive roadmap for Waves 2 through 5 covering:
+  - Live Tool Execution
+  - Deterministic Conversation Continuity
+  - AI Response On Approved Context
+  - Governance, QA, Learning, And Productization Readiness
+- Embedded legacy-audit guidance per wave so each future wave starts from reusable legacy strengths without importing invalid runtime patterns
+
+### Working
+- The roadmap is now aligned with the actual branch state instead of outdated pre-Wave-1 assumptions
+- Waves 2 to 4 are now clearly framed as core backend runtime completion
+- Wave 5 is now clearly framed as governance, QA, learning, and productization readiness rather than premature UI implementation
+- Each roadmap wave now includes dependencies, architecture constraints, legacy contributions to mine, completion criteria, and explicit next-wave enablement
+
+### Technical Debt
+- This iteration updates planning and documentation only; no runtime behavior changed
+- The live pipeline still stops before `execution` and `learning`
+- Admin UI ABMs, public user chat productization, and auth/admin guards remain future work outside this roadmap update
+
+### Next Steps
+- Start Wave 2 with deterministic live tool execution and execution-stage trace activation
+- Preserve the current sequencing: execution before conversation continuity, continuity before AI response generation, and governance/QA expansion after the full runtime path is live
+- Keep using `docs/legacy-chat-audit.md` as a mandatory planning input before opening each new wave
+
+## Iteration 18
+
+### Implemented
+- Activated the live backend execution path after deterministic decisioning through `ToolExecutionService` and `ToolEngineService`
+- Added structured execution outcomes for successful, validation-failed, unknown-tool, and runtime-failed executions
+- Persisted the `execution` stage in trace logs with validated input summaries, execution result summaries, and failure details
+- Introduced a minimal backend `ChatResponsePolicyService` boundary so execution-aware deterministic responses no longer expand wording debt inside `ChatOrchestratorService`
+- Kept tenant context injection automatic during execution by resolving `tenantId` and `traceId` inside the execution service instead of caller-managed routing
+
+### Working
+- The live `/chat/message` flow now runs `input -> interpretation -> parsing -> decision -> execution -> response -> logging`
+- Approved `invoke_tool` decisions now execute real backend tools for bookings, quotes, and product requests
+- Unknown tools, validation failures, and execution failures now fail safely without breaking the endpoint contract
+- Execution traces are now observable per conversation with backend-truth payloads instead of placeholder pending-execution behavior
+- Backend build, backend tests, and frontend build all pass with the execution layer active
+
+### Technical Debt
+- Response wording is still deterministic backend copy and remains intentionally minimal until Wave 4 activates AI response generation on approved context
+- Tool execution currently returns synchronous mock/business-placeholder payloads rather than real tenant integrations
+- Execution governance is active, but deterministic conversation continuity and follow-up state are still missing for multi-turn execution flows
+
+### Next Steps
+- Refine the execution-aware response policy without moving wording logic back into the orchestrator
+- Expand test coverage around execution-aware chat outcomes and tenant-safe execution traces as Wave 2 closes
+- Use the new authoritative execution outputs to start Wave 3, `Deterministic Conversation Continuity And State`, without reintroducing model-owned routing

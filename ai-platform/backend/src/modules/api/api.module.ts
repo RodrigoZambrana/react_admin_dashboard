@@ -7,6 +7,8 @@ import { MemoryModule } from '../memory/memory.module';
 import { ParsingModule } from '../parsing/parsing.module';
 import { PromptModule } from '../prompt/prompt.module';
 import { TemporalModule } from '../temporal/temporal.module';
+import { ToolsModule } from '../tools/tools.module';
+import { ChatResponsePolicyService } from './chat-response-policy.service';
 import { ChatOrchestratorService } from './chat-orchestrator.service';
 import { ChatController } from './chat.controller';
 import { RuntimeResourcesAdminController } from './runtime-resources-admin.controller';
@@ -21,8 +23,9 @@ import { TraceLogService } from './trace-log.service';
     ParsingModule,
     TemporalModule,
     DecisionModule,
+    ToolsModule,
   ],
   controllers: [ChatController, RuntimeResourcesAdminController],
-  providers: [TraceLogService, ChatOrchestratorService],
+  providers: [TraceLogService, ChatResponsePolicyService, ChatOrchestratorService],
 })
 export class ApiModule {}

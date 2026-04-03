@@ -1,3 +1,5 @@
+import { z } from 'zod';
+
 import { PipelineLoggerService } from '../src/modules/logging/pipeline-logger.service';
 import { CreateBookingTool } from '../src/modules/tools/create-booking.tool';
 import { CreateQuoteTool } from '../src/modules/tools/create-quote.tool';
@@ -34,13 +36,138 @@ describe('ToolEngineService', () => {
           dimensions: [],
         },
       },
+      tenantId: 'tenant-alpha',
+      traceId: 'trace-1',
     });
 
-    expect(result.toolName).toBe('create_booking');
-    expect(result.payload).toEqual(
+    expect(result).toEqual(
       expect.objectContaining({
-        status: 'confirmed',
-        attendees: 2,
+        ok: true,
+        toolName: 'create_booking',
+        payload: expect.objectContaining({
+          status: 'confirmed',
+          attendees: 2,
+        }),
+      }),
+    );
+  });
+
+  it('fails safely when a tool name is unknown', async () => {
+    const service = new ToolEngineService(
+      new PipelineLoggerService(),
+      new CreateBookingTool(),
+      new GetProductTool(),
+      new CreateQuoteTool(),
+    );
+
+    await expect(
+      service.execute('missing_tool', {
+        interpretation: {
+          intent: 'GET_PRODUCT',
+          language: 'es',
+          confidence: 0.9,
+          entities: {
+            rawMessage: 'consulta',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        tenantId: 'tenant-alpha',
+        traceId: 'trace-unknown',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        toolName: 'missing_tool',
+        errorCode: 'unknown_tool',
+      }),
+    );
+  });
+
+  it('fails safely when tool input validation fails', async () => {
+    const service = new ToolEngineService(
+      new PipelineLoggerService(),
+      new CreateBookingTool(),
+      new GetProductTool(),
+      new CreateQuoteTool(),
+    );
+
+    await expect(
+      service.execute('create_booking', {
+        interpretation: {
+          intent: 'CREATE_BOOKING',
+          language: 'es',
+          confidence: 0.93,
+          entities: {
+            rawMessage: 'Reservar',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        tenantId: 'tenant-alpha',
+        traceId: 'trace-validation',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        toolName: 'create_booking',
+        errorCode: 'validation_failed',
+      }),
+    );
+  });
+
+  it('fails safely when the tool implementation throws', async () => {
+    const service = new ToolEngineService(
+      new PipelineLoggerService(),
+      new CreateBookingTool(),
+      new GetProductTool(),
+      new CreateQuoteTool(),
+    );
+    (service as any).tools.set('explode_tool', {
+      name: 'explode_tool',
+      schema: z.object({
+        note: z.string().min(1),
+      }),
+      buildInput: () => ({
+        note: 'explode',
+      }),
+      execute: async () => {
+        throw new Error('Exploded');
+      },
+    });
+
+    await expect(
+      service.execute('explode_tool', {
+        interpretation: {
+          intent: 'GENERAL_CONVERSATION',
+          language: 'en',
+          confidence: 0.8,
+          entities: {
+            rawMessage: 'explode',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        tenantId: 'tenant-alpha',
+        traceId: 'trace-execution-failure',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        toolName: 'explode_tool',
+        errorCode: 'execution_failed',
+        validatedInput: {
+          note: 'explode',
+        },
       }),
     );
   });
