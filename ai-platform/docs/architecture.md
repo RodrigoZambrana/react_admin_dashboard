@@ -140,6 +140,7 @@
   - deterministic backend decisioning
   - deterministic backend tool execution for approved tenant actions
   - execution-stage trace persistence with validated input and outcome summaries
+  - deterministic backend responses grounded in approved decision and execution truth
   - a minimal backend response-policy boundary that keeps execution-aware wording outside the orchestrator until Wave 4
   - managed runtime resources for prompts and date-time locale resources
   - minimal admin-ready backend resource surfaces

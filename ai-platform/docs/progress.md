@@ -494,6 +494,7 @@
 - Successful execution now returns deterministic backend-approved confirmations grounded in actual booking, quote, and product results
 - Failed execution now returns deterministic backend-approved failure responses that stay aligned with trace truth
 - Backend build, backend tests, and frontend build all pass with the execution layer active
+- Wave 2, `Live Tool Execution And Execution Governance`, is now complete on this branch
 
 ### Technical Debt
 - Response wording is still deterministic backend copy and remains intentionally minimal until Wave 4 activates AI response generation on approved context
@@ -501,6 +502,6 @@
 - Execution governance is active, but deterministic conversation continuity and follow-up state are still missing for multi-turn execution flows
 
 ### Next Steps
-- Close the wave with final cross-layer validation and documentation that ties execution outputs to the next continuity/state milestone
-- Preserve the isolated response-policy boundary so Wave 4 can replace deterministic wording with AI-generated text over approved context
-- Use the new authoritative execution outputs to start Wave 3, `Deterministic Conversation Continuity And State`, without reintroducing model-owned routing
+- Start Wave 3, `Deterministic Conversation Continuity And State`, on top of the authoritative execution outputs now produced by Wave 2
+- Reuse the new execution truth and failure traces as the backend source for pending facts, missing fields, and follow-up continuity
+- Preserve the isolated response-policy boundary so Wave 4 can replace deterministic wording with AI-generated text over approved context without changing execution governance
