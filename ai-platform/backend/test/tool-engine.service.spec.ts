@@ -52,6 +52,92 @@ describe('ToolEngineService', () => {
     );
   });
 
+  it('validates and executes the quote tool', async () => {
+    const service = new ToolEngineService(
+      new PipelineLoggerService(),
+      new CreateBookingTool(),
+      new GetProductTool(),
+      new CreateQuoteTool(),
+    );
+
+    const result = await service.execute('create_quote', {
+      interpretation: {
+        intent: 'CREATE_QUOTE',
+        language: 'es',
+        confidence: 0.91,
+        entities: {
+          rawMessage: 'Necesito una cotizacion para 3 puertas',
+          attendees: 2,
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [
+            {
+              source: '2 m',
+              value: 2,
+              unit: 'm',
+              normalizedValue: 2,
+              normalizedUnit: 'm',
+              kind: 'length',
+            },
+          ],
+          dimensions: [],
+        },
+      },
+      tenantId: 'tenant-alpha',
+      traceId: 'trace-quote',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        toolName: 'create_quote',
+        payload: expect.objectContaining({
+          status: 'drafted',
+          currency: 'USD',
+        }),
+      }),
+    );
+  });
+
+  it('validates and executes the product tool', async () => {
+    const service = new ToolEngineService(
+      new PipelineLoggerService(),
+      new CreateBookingTool(),
+      new GetProductTool(),
+      new CreateQuoteTool(),
+    );
+
+    const result = await service.execute('get_product', {
+      interpretation: {
+        intent: 'GET_PRODUCT',
+        language: 'en',
+        confidence: 0.88,
+        entities: {
+          rawMessage: 'I need a Beacon Desk Lamp',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      tenantId: 'tenant-alpha',
+      traceId: 'trace-product',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        toolName: 'get_product',
+        payload: expect.objectContaining({
+          sku: 'B-77',
+          name: 'Beacon Desk Lamp',
+        }),
+      }),
+    );
+  });
+
   it('fails safely when a tool name is unknown', async () => {
     const service = new ToolEngineService(
       new PipelineLoggerService(),

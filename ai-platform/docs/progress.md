@@ -482,12 +482,17 @@
 - Persisted the `execution` stage in trace logs with validated input summaries, execution result summaries, and failure details
 - Introduced a minimal backend `ChatResponsePolicyService` boundary so execution-aware deterministic responses no longer expand wording debt inside `ChatOrchestratorService`
 - Kept tenant context injection automatic during execution by resolving `tenantId` and `traceId` inside the execution service instead of caller-managed routing
+- Grounded deterministic execution responses in backend truth for booking, quote, and product outcomes without moving response wording back into the orchestrator
+- Added explicit failure messaging rules for unknown tools, validation failures, and execution errors so the endpoint never implies success when execution fails
+- Expanded execution-focused test coverage across response policy behavior, orchestration failure traces, product execution, and quote execution
 
 ### Working
 - The live `/chat/message` flow now runs `input -> interpretation -> parsing -> decision -> execution -> response -> logging`
 - Approved `invoke_tool` decisions now execute real backend tools for bookings, quotes, and product requests
 - Unknown tools, validation failures, and execution failures now fail safely without breaking the endpoint contract
 - Execution traces are now observable per conversation with backend-truth payloads instead of placeholder pending-execution behavior
+- Successful execution now returns deterministic backend-approved confirmations grounded in actual booking, quote, and product results
+- Failed execution now returns deterministic backend-approved failure responses that stay aligned with trace truth
 - Backend build, backend tests, and frontend build all pass with the execution layer active
 
 ### Technical Debt
@@ -496,6 +501,6 @@
 - Execution governance is active, but deterministic conversation continuity and follow-up state are still missing for multi-turn execution flows
 
 ### Next Steps
-- Refine the execution-aware response policy without moving wording logic back into the orchestrator
-- Expand test coverage around execution-aware chat outcomes and tenant-safe execution traces as Wave 2 closes
+- Close the wave with final cross-layer validation and documentation that ties execution outputs to the next continuity/state milestone
+- Preserve the isolated response-policy boundary so Wave 4 can replace deterministic wording with AI-generated text over approved context
 - Use the new authoritative execution outputs to start Wave 3, `Deterministic Conversation Continuity And State`, without reintroducing model-owned routing

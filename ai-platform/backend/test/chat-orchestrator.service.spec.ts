@@ -353,4 +353,142 @@ describe('ChatOrchestratorService', () => {
       }),
     );
   });
+
+  it('logs failed execution traces and still returns the current response contract', async () => {
+    const traceLogService = {
+      recordStage: jest.fn(async () => undefined),
+    };
+    const interpretationService = {
+      interpret: jest.fn(async () => ({
+        interpretation: {
+          intent: 'CREATE_QUOTE',
+          entities: {
+            rawMessage: 'Necesito una cotizacion',
+          },
+          language: 'es',
+          confidence: 0.87,
+        },
+        rawAiResponse: '{}',
+        parsedJson: null,
+        error: null,
+        provider: 'mock',
+        model: 'mock-rule-engine',
+        usedFallback: false,
+      })),
+    };
+    const parsingService = {
+      normalize: jest.fn(async () => ({
+        intent: 'CREATE_QUOTE',
+        entities: {
+          rawMessage: 'Necesito una cotizacion',
+        },
+        language: 'es',
+        confidence: 0.87,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      })),
+    };
+    const decisionService = {
+      decide: jest.fn(() => ({
+        domain: 'tenant',
+        action: 'invoke_tool',
+        toolName: 'create_quote',
+        reasonCode: 'quote_requested',
+        missingFields: [],
+        responseTemplateKey: 'tenant.quote.confirmation',
+      })),
+    };
+    const execution = {
+      ok: false as const,
+      toolName: 'create_quote',
+      validatedInput: {
+        requestSummary: 'Necesito una cotizacion',
+      },
+      errorCode: 'validation_failed' as const,
+      errorMessage: 'Tool input validation failed.',
+      durationMs: null,
+      errorDetails: {
+        issues: {
+          fieldErrors: {
+            requestSummary: ['invalid'],
+          },
+        },
+      },
+    };
+    const toolExecutionService = {
+      executeApprovedAction: jest.fn(async () => execution),
+    };
+    const responsePolicyService = {
+      resolve: jest.fn(
+        () => 'No pude completar la cotizacion solicitada con la informacion disponible.',
+      ),
+    };
+    const memoryService = {
+      getRecent: jest.fn(async () => []),
+      append: jest.fn(async () => undefined),
+    };
+
+    const service = new ChatOrchestratorService(
+      {
+        getTraceId: () => 'trace-tool-failure',
+      } as any,
+      {
+        findById: jest.fn(async () => null),
+        createConversation: jest.fn(async () => ({ id: 'conv-4' })),
+        appendMessage: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'msg-user-4' })
+          .mockResolvedValueOnce({ id: 'msg-assistant-4' }),
+        listRecent: jest.fn(async () => []),
+      } as any,
+      {
+        listByConversation: jest.fn(async () => []),
+      } as any,
+      interpretationService as any,
+      parsingService as any,
+      decisionService as any,
+      toolExecutionService as any,
+      responsePolicyService as any,
+      memoryService as any,
+      traceLogService as any,
+    );
+
+    const result = await service.handleMessage({
+      message: 'Necesito una cotizacion',
+      locale: 'es',
+    });
+
+    expect(result).toEqual({
+      response:
+        'No pude completar la cotizacion solicitada con la informacion disponible.',
+      intent: 'CREATE_QUOTE',
+      entities: {
+        rawMessage: 'Necesito una cotizacion',
+      },
+      metadata: {
+        conversationId: 'conv-4',
+        traceId: 'trace-tool-failure',
+      },
+    });
+    expect(traceLogService.recordStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'execution',
+        status: 'failed',
+        payload: expect.objectContaining({
+          toolName: 'create_quote',
+          validatedInputSummary: {
+            requestSummary: 'Necesito una cotizacion',
+          },
+          executionResultSummary: null,
+          failure: expect.objectContaining({
+            code: 'validation_failed',
+            message: 'Tool input validation failed.',
+          }),
+        }),
+      }),
+    );
+  });
 });
