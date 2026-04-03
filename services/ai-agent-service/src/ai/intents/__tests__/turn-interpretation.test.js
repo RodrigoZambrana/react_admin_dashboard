@@ -3,6 +3,25 @@ import assert from 'node:assert/strict'
 
 import { buildTurnInterpretation } from '../turn-interpretation.js'
 
+const PRODUCT_INFO_TAXONOMY = [
+  {
+    key: 'product_family:cortina',
+    label: 'cortinas',
+    kind: 'product_family',
+    aliases: ['cortinas', 'cortina'],
+    familyLabel: 'cortinas',
+  },
+  {
+    key: 'product_topic:cortinas-roller',
+    label: 'cortinas roller',
+    kind: 'product_topic',
+    aliases: ['cortinas roller', 'roller'],
+    parentKeys: ['product_family:cortina'],
+    parentLabels: ['cortinas'],
+    familyLabel: 'cortinas',
+  },
+]
+
 test('buildTurnInterpretation marks non-core quote attribute follow-ups and keeps quote readiness waiting', () => {
   const interpretation = buildTurnInterpretation({
     role: 'customer_public',
@@ -90,7 +109,7 @@ test('buildTurnInterpretation keeps multi-intent openings out of the contact lan
     },
   })
 
-  assert.equal(interpretation.faqSubtype, 'contact')
+  assert.equal(interpretation.faqSubtype, 'general')
   assert.equal(interpretation.resolutionReadiness?.turnIntent, 'customer.multi_intent')
   assert.equal(interpretation.resolutionReadiness?.lane, 'general')
   assert.equal(interpretation.resolutionReadiness?.sideQuestionSubtype, null)
@@ -279,4 +298,74 @@ test('buildTurnInterpretation does not canonize generic quote verbs into synthet
   assert.equal(followUp.quoteContext?.topicLabel, null)
   assert.equal(followUp.quoteContext?.topicRecognized, false)
   assert.equal(followUp.quoteContext?.measurements?.displayLabel, '120 x 120 cm')
+})
+
+test('buildTurnInterpretation keeps implicit variant follow-ups on the active product thread', () => {
+  const interpretation = buildTurnInterpretation({
+    role: 'customer_public',
+    originalInput: 'cuales son los tipos',
+    effectiveInput: 'cuales son los tipos',
+    normalizedInput: 'cuales son los tipos',
+    reasoningInput: 'cuales son los tipos',
+    inboundClassification: {
+      category: 'faq_topic',
+    },
+    intentDetection: {
+      intent: 'customer.product_info',
+      confidence: 0.84,
+      source: 'rule',
+    },
+    previousTaskState: {
+      intentKey: 'customer.product_info',
+      canonicalTopic: {
+        label: 'cortinas roller',
+        type: 'product_topic',
+        confidence: 0.93,
+        source: 'conversation_memory',
+      },
+      conversationContext: {
+        activeDomain: 'product_info',
+      },
+    },
+    tenantTopicTaxonomy: PRODUCT_INFO_TAXONOMY,
+  })
+
+  assert.equal(interpretation.faqSubtype, 'variants')
+  assert.equal(
+    interpretation.semanticInfoIntent?.shape,
+    'variant_discovery',
+  )
+  assert.equal(
+    interpretation.semanticInfoIntent?.subjectMode,
+    'implicit_from_context',
+  )
+  assert.equal(interpretation.topic?.label, 'cortinas roller')
+  assert.equal(interpretation.topic?.source, 'semantic_context_inheritance')
+  assert.equal(interpretation.retrievalQuery, 'variantes de cortinas roller')
+})
+
+test('buildTurnInterpretation resolves product info openings from semantic subject resolution before raw topic extraction', () => {
+  const interpretation = buildTurnInterpretation({
+    role: 'customer_public',
+    originalInput: 'necesito informacion de cortinas roller',
+    effectiveInput: 'necesito informacion de cortinas roller',
+    normalizedInput: 'necesito informacion de cortinas roller',
+    reasoningInput: 'necesito informacion de cortinas roller',
+    inboundClassification: {
+      category: 'faq_topic',
+      suggestedIntent: 'customer.product_info',
+    },
+    intentDetection: {
+      intent: 'customer.product_info',
+      confidence: 0.9,
+      source: 'rule',
+    },
+    tenantTopicTaxonomy: PRODUCT_INFO_TAXONOMY,
+  })
+
+  assert.equal(interpretation.semanticInfoIntent?.shape, 'general_info')
+  assert.equal(interpretation.semanticInfoIntent?.subjectMode, 'explicit')
+  assert.equal(interpretation.semanticInfoIntent?.subjectResolution, 'resolved_subject')
+  assert.equal(interpretation.topic?.label, 'cortinas roller')
+  assert.equal(interpretation.topic?.source, 'semantic_subject_resolution')
 })

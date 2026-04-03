@@ -7,9 +7,12 @@ import { hasTenantTopicSignal } from './customer-topic-taxonomy.js'
 import {
   detectStandaloneAttachmentArtifactKind,
   hasMultimodalPlaceholderSignal,
-  hasQuantityOnlyFollowUpSignal,
-  hasReengagementReferenceSignal,
 } from './customer-semantic-signals.js'
+import {
+  buildSemanticInfoIntent,
+  detectInfoRequestShape,
+  semanticInfoShapeToFaqSubtype,
+} from './semantic-info-intent.js'
 import {
   getBusinessRules,
   getVocabulary,
@@ -17,7 +20,6 @@ import {
 import { getStaticLanguagePolicy } from '../../../../shared/language-policy/index.js'
 import {
   extractCurrentCustomerTurnText,
-  extractSemanticCustomerTurnText,
   normalizeSemanticCustomerTurnText,
 } from '../ingress/customer-turn-normalization.js'
 
@@ -59,11 +61,6 @@ const stripWebLeadIntro = (value = '') => {
   const remainder = normalized.slice(prefixMatch[0].length).trim()
   return remainder || normalized
 }
-
-const CUSTOMER_TOPIC_PATTERNS = compileRegexList(
-  BASE_LANGUAGE_POLICY.customerTopicPatterns,
-  'u',
-)
 
 const BASE_BUSINESS_FAQ_DEFINITIONS = (
   Array.isArray(BASE_LANGUAGE_POLICY.businessFaqDefinitions)
@@ -197,26 +194,6 @@ const PRIVATE_ACCOUNT_FAQ_GUARD_PATTERNS = compileRegexList(
 
 const CUSTOMER_AVAILABILITY_PATTERNS = compileRegexList(
   BASE_LANGUAGE_POLICY.availabilityPatterns,
-  'i',
-)
-
-const CUSTOMER_VARIANT_QUESTION_PATTERNS = compileRegexList(
-  BASE_LANGUAGE_POLICY.variantQuestionPatterns,
-  'i',
-)
-
-const CUSTOMER_VARIANT_COMPARISON_PATTERNS = compileRegexList(
-  BASE_LANGUAGE_POLICY.variantComparisonPatterns,
-  'iu',
-)
-
-const CUSTOMER_DEFINITION_PATTERNS = compileRegexList(
-  BASE_LANGUAGE_POLICY.definitionPatterns,
-  'i',
-)
-
-const CUSTOMER_BENEFITS_PATTERNS = compileRegexList(
-  BASE_LANGUAGE_POLICY.benefitsPatterns,
   'i',
 )
 
@@ -393,18 +370,44 @@ const detectBusinessFaqSubtype = (input, options = {}) => {
 
 export const looksLikeCustomerTopicQuestion = (text, options = {}) => {
   const normalized = normalizeText(text)
-  const requestedTopic = extractRequestedTopicLabel(normalized)
+  const semanticInfoIntent = buildSemanticInfoIntent({
+    input: text,
+    tenantTopicTaxonomy: Array.isArray(options?.tenantTopicTaxonomy)
+      ? options.tenantTopicTaxonomy
+      : [],
+    tenantRuntimePolicy:
+      options?.tenantRuntimePolicy && typeof options.tenantRuntimePolicy === 'object'
+        ? options.tenantRuntimePolicy
+        : null,
+    contextTopic:
+      options?.contextTopic && typeof options.contextTopic === 'object'
+        ? options.contextTopic
+        : null,
+    previousQuoteContext:
+      options?.previousQuoteContext &&
+      typeof options.previousQuoteContext === 'object'
+        ? options.previousQuoteContext
+        : null,
+    followUpDetected: options?.followUpDetected === true,
+  })
+  const requestedTopic = semanticInfoIntent?.subject?.label || null
   const hasTopicSignals =
     Boolean(requestedTopic) || hasTenantTopicSignal(normalized, options?.tenantTopicTaxonomy)
   const hasAvailabilitySignals = looksLikeCustomerAvailabilityQuestion(normalized)
+  const businessFaqSubtype = detectBusinessFaqSubtype(normalized, options)
+  const hasSemanticTopicFlowSignal =
+    semanticInfoIntent.shape !== 'unknown' &&
+    (hasTopicSignals ||
+      semanticInfoIntent.subjectMode === 'implicit_from_context' ||
+      semanticInfoIntent.shape !== 'general_info')
+
   return (
-    (((hasTopicSignals || hasAvailabilitySignals) &&
-      CUSTOMER_TOPIC_PATTERNS.some((pattern) => pattern.test(normalized))) ||
+    ((hasSemanticTopicFlowSignal ||
       hasAvailabilitySignals ||
-      Boolean(detectBusinessFaqSubtype(normalized, options))) &&
-    !CUSTOMER_TRANSACTIONAL_PATTERNS.some((pattern) => pattern.test(normalized)) &&
-    !looksLikeQuoteRequirementsQuestion(normalized) &&
-    !looksLikeGenericPriceInquiry(normalized)
+      Boolean(businessFaqSubtype)) &&
+      !CUSTOMER_TRANSACTIONAL_PATTERNS.some((pattern) => pattern.test(normalized)) &&
+      !looksLikeQuoteRequirementsQuestion(normalized) &&
+      !looksLikeGenericPriceInquiry(normalized))
   )
 }
 
@@ -420,14 +423,10 @@ export const looksLikeCustomerAvailabilityQuestion = (text) => {
 }
 
 export const looksLikeCustomerVariantComparisonQuestion = (text) =>
-  CUSTOMER_VARIANT_COMPARISON_PATTERNS.some((pattern) =>
-    pattern.test(extractCurrentCustomerTurnText(text)),
-  )
+  detectInfoRequestShape(text) === 'comparison'
 
 export const looksLikeCustomerVariantQuestion = (text) =>
-  CUSTOMER_VARIANT_QUESTION_PATTERNS.some((pattern) =>
-    pattern.test(extractCurrentCustomerTurnText(text)),
-  ) || looksLikeCustomerVariantComparisonQuestion(text)
+  ['variant_discovery', 'comparison'].includes(detectInfoRequestShape(text))
 
 export const looksLikeCustomerBusinessHoursQuestion = (text, options = {}) =>
   detectBusinessFaqSubtype(text, options) === 'business_hours'
@@ -442,14 +441,10 @@ export const looksLikeCustomerContactQuestion = (text, options = {}) =>
   detectBusinessFaqSubtype(text, options) === 'contact'
 
 export const looksLikeCustomerDefinitionQuestion = (text) =>
-  CUSTOMER_DEFINITION_PATTERNS.some((pattern) =>
-    pattern.test(extractCurrentCustomerTurnText(text)),
-  )
+  detectInfoRequestShape(text) === 'definition'
 
 export const looksLikeCustomerBenefitsQuestion = (text) =>
-  CUSTOMER_BENEFITS_PATTERNS.some((pattern) =>
-    pattern.test(extractCurrentCustomerTurnText(text)),
-  )
+  detectInfoRequestShape(text) === 'benefits'
 
 export const looksLikeCustomerMaintenanceQuestion = (text) =>
   CUSTOMER_MAINTENANCE_PATTERNS.some((pattern) =>
@@ -460,6 +455,10 @@ export const looksLikeCustomerGenericInfoRequest = (text) => {
   const normalized = normalizeText(text)
   if (!normalized) {
     return false
+  }
+
+  if (detectInfoRequestShape(normalized) === 'general_info') {
+    return true
   }
 
   const hasGenericAsk =
@@ -482,15 +481,30 @@ export const looksLikeCustomerGenericInfoRequest = (text) => {
 }
 
 export const looksLikeCustomerProductInfoOpening = (text, options = {}) => {
-  const normalized = normalizeText(text)
-  if (!looksLikeCustomerGenericInfoRequest(normalized)) {
-    return false
-  }
+  const semanticInfoIntent = buildSemanticInfoIntent({
+    input: text,
+    tenantTopicTaxonomy: Array.isArray(options?.tenantTopicTaxonomy)
+      ? options.tenantTopicTaxonomy
+      : [],
+    tenantRuntimePolicy:
+      options?.tenantRuntimePolicy && typeof options.tenantRuntimePolicy === 'object'
+        ? options.tenantRuntimePolicy
+        : null,
+    contextTopic:
+      options?.contextTopic && typeof options.contextTopic === 'object'
+        ? options.contextTopic
+        : null,
+    previousQuoteContext:
+      options?.previousQuoteContext &&
+      typeof options.previousQuoteContext === 'object'
+        ? options.previousQuoteContext
+        : null,
+    followUpDetected: options?.followUpDetected === true,
+  })
 
-  const currentTurnText = extractCurrentCustomerTurnText(text)
   return (
-    Boolean(extractRequestedTopicLabel(normalized)) ||
-    hasTenantTopicSignal(currentTurnText, options?.tenantTopicTaxonomy)
+    semanticInfoIntent.shape === 'general_info' &&
+    semanticInfoIntent.subjectMode === 'explicit'
   )
 }
 
@@ -566,8 +580,11 @@ export const detectCustomerFaqSubtype = (input, options = {}) => {
   if (businessSubtype) {
     return businessSubtype
   }
-  if (looksLikeCustomerVariantQuestion(sanitizedInput)) {
-    return 'variants'
+  const semanticFaqSubtype = semanticInfoShapeToFaqSubtype(
+    detectInfoRequestShape(sanitizedInput),
+  )
+  if (semanticFaqSubtype && semanticFaqSubtype !== 'general') {
+    return semanticFaqSubtype
   }
   if (looksLikeCustomerAvailabilityQuestion(sanitizedInput)) {
     return 'availability'
@@ -582,287 +599,5 @@ export const detectCustomerFaqSubtype = (input, options = {}) => {
   if (looksLikeCustomerMaintenanceQuestion(sanitizedInput)) {
     return 'maintenance'
   }
-  if (looksLikeCustomerBenefitsQuestion(sanitizedInput)) {
-    return 'benefits'
-  }
-  if (looksLikeCustomerDefinitionQuestion(sanitizedInput)) {
-    return 'definition'
-  }
   return 'general'
-}
-
-const stripTrailingTransactionalQuery = (value) =>
-  compactText(
-    String(value || '').replace(
-      /\b(?:que|qué)\s+(?:costo|costos|precio|precios|valor|valores)\s+(?:tiene|tienen)\b.*$/iu,
-      '',
-    ),
-  )
-
-const GENERIC_QUOTE_SUBJECT_PATTERNS = [
-  /\b(?:pasarte|sumar|agregar)\s+(?:(?:unos|unas|un|una|otro|otra)\b\s*)?([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,5})/iu,
-  /\b(?:cambiar|sustituir|reemplazar|poner|colocar|instalar)\s+(?:(?:unos|unas|un|una)\b\s*)?([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,5})/iu,
-  /\b(?:quiero|necesito|preciso|busco|quisiera)\s+(?:(?:unos|unas|un|una)\b\s*)?([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,5})/iu,
-  /\b(?:cotiz[a-záéíóúñ]*|presupuest[a-záéíóúñ]*)\s+(?:para|por)\s+([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+){0,6})/iu,
-]
-
-const GENERIC_QUOTE_SUBJECT_STOPWORDS = new Set([
-  'a',
-  'al',
-  'con',
-  'cambiar',
-  'colocar',
-  'de',
-  'del',
-  'el',
-  'instalar',
-  'la',
-  'las',
-  'los',
-  'mas',
-  'para',
-  'pasar',
-  'pasarte',
-  'poner',
-  'por',
-  'que',
-  'reemplazar',
-  'si',
-  'sumar',
-  'sustituir',
-  'un',
-  'una',
-  'unos',
-  'unas',
-  'y',
-])
-
-const GENERIC_VARIANT_DESCRIPTOR_TOKENS = new Set([
-  'comparacion',
-  'comparar',
-  'contame',
-  'cual',
-  'decime',
-  'diferencia',
-  'dime',
-  'explicame',
-  'formato',
-  'gustaria',
-  'hay',
-  'modelo',
-  'mostrar',
-  'mostrame',
-  'opcion',
-  'pasame',
-  'querer',
-  'quiero',
-  'saber',
-  'son',
-  'tener',
-  'tienen',
-  'tipo',
-  'variante',
-  'version',
-])
-
-const GENERIC_VARIANT_DESCRIPTOR_IGNORED_TOKENS = new Set([
-  'de',
-  'del',
-  'el',
-  'la',
-  'las',
-  'los',
-  'me',
-  'mi',
-  'mis',
-  'por',
-  'que',
-  'si',
-  'sobre',
-  'un',
-  'una',
-  'unos',
-  'unas',
-  'y',
-])
-
-const isGenericVariantDescriptorLabel = (value) => {
-  const normalized = normalizeText(value)
-  if (!normalized) {
-    return false
-  }
-
-  const tokens = normalized
-    .split(/\s+/u)
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .filter((entry) => !GENERIC_VARIANT_DESCRIPTOR_IGNORED_TOKENS.has(entry))
-
-  if (!tokens.length) {
-    return false
-  }
-
-  return tokens.every((token) => {
-    const singularToken = singularizeToken(token)
-    return (
-      GENERIC_VARIANT_DESCRIPTOR_TOKENS.has(token) ||
-      GENERIC_VARIANT_DESCRIPTOR_TOKENS.has(singularToken)
-    )
-  })
-}
-
-const isGenericRequestedTopicLabel = (value) =>
-  /\b(eso|esto|mi caso|tu caso|el caso|este caso|ese caso|aplica|aplique|sirve|sirva|funciona|funcione|mismo|misma|si|sí|gracias|muchas gracias|ok|dale|perfecto|listo|info|informacion|información|consulta|detalles)\b/iu.test(
-    compactText(value || ''),
-  ) || isGenericVariantDescriptorLabel(value)
-
-const normalizeRequestedTopicLabel = (value) =>
-  compactText(
-    stripTrailingTransactionalQuery(
-      String(value || '')
-        .replace(
-          /^(?:quiero\s+saber\s+si\s+tienen|quisiera\s+saber\s+si\s+tienen|saber\s+si\s+tienen|si\s+tienen|quiero\s+consultar\s+por|quiero\s+consultar\s+sobre|consultar\s+por|consultar\s+sobre|consulta\s+por|consulta\s+sobre|quiero\s+saber\s+sobre|quiero\s+saber\s+de|necesito\s+saber\s+sobre|me\s+gustaria\s+saber\s+sobre|me\s+gustaría\s+saber\s+sobre)\s+/iu,
-          '',
-        )
-        .replace(
-          /^(?:mas\s+info|más\s+info|informacion|información|info|consulta|detalles)\s+(?:de|sobre)\s+/iu,
-          '',
-        )
-        .replace(
-          /^(?:precio|precios|presupuesto|presupuestos|cotizacion|cotización|cotizaciones|costo|costos|valor|valores|importe|importes|monto|montos)\s+/iu,
-          '',
-        )
-        .replace(
-          /^(?:tengo\s+que\s+(?:pasarte|mandarte|sumarte|agregarte)|te\s+(?:paso|mando|sumo|agrego)|(?:pasarte|mandarte|sumarte|agregarte))\s+(?:un|una|otro|otra)\s+/iu,
-          '',
-        )
-        .replace(
-          /^(?:(?:para\s+)?(?:poner|colocar|instalar|cambiar|sustituir|reemplazar)|(?:cotiz[a-záéíóúñ]*|presupuest[a-záéíóúñ]*)\s+para)\s+/iu,
-          '',
-        )
-        .replace(/^(?:(?:si|sí|y|las|los|la|el)\s+){1,4}/iu, '')
-        .replace(/^(de|del|la|las|el|los)\s+/iu, '')
-        .replace(/\s+(?:mas|más)$/iu, ''),
-    ),
-  )
-
-const normalizeGenericQuoteSubjectLabel = (value) => {
-  const normalizedCandidate = normalizeRequestedTopicLabel(value)
-  if (!normalizedCandidate) {
-    return null
-  }
-
-  const tokens = normalizedCandidate
-    .split(/\s+/u)
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-
-  while (tokens.length > 0 && GENERIC_QUOTE_SUBJECT_STOPWORDS.has(tokens[0].toLowerCase())) {
-    tokens.shift()
-  }
-  while (
-    tokens.length > 0 &&
-    GENERIC_QUOTE_SUBJECT_STOPWORDS.has(tokens[tokens.length - 1].toLowerCase())
-  ) {
-    tokens.pop()
-  }
-
-  const candidate = compactText(tokens.join(' '))
-  if (!candidate || isGenericRequestedTopicLabel(candidate)) {
-    return null
-  }
-
-  return candidate
-}
-
-const extractGenericQuoteSubjectLabel = (input) => {
-  const semanticInput = stripWebLeadIntro(extractSemanticCustomerTurnText(input))
-  if (!semanticInput) {
-    return null
-  }
-
-  for (const pattern of GENERIC_QUOTE_SUBJECT_PATTERNS) {
-    const match = semanticInput.match(pattern)
-    if (!match?.[1]) {
-      continue
-    }
-    const candidate = normalizeGenericQuoteSubjectLabel(match[1])
-    if (candidate) {
-      return candidate
-    }
-  }
-
-  return null
-}
-
-export const extractRequestedTopicLabel = (input) => {
-  const currentInput = extractCurrentCustomerTurnText(input)
-  const semanticInput = stripWebLeadIntro(extractSemanticCustomerTurnText(input))
-  const looksLikeMessagePlaceholder =
-    /\b(?:esperando|aguardando)\s+(?:este|ese|el)\s+mensaje\b/iu.test(
-      semanticInput,
-    )
-  const looksLikeScheduleAvailabilityPayload =
-    /\b(?:pueden|puedo|podrian|podrían|pasan|pasar|ir|venir|domicilio|visita)\b/iu.test(
-      semanticInput,
-    ) &&
-    /\b(?:hoy|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|a\s+las|\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b/iu.test(
-      semanticInput,
-    )
-  if (
-    !semanticInput ||
-    looksLikeMessagePlaceholder ||
-    looksLikeScheduleAvailabilityPayload ||
-    hasQuantityOnlyFollowUpSignal(semanticInput) ||
-    hasReengagementReferenceSignal(currentInput) ||
-    looksLikeQuoteRequirementsQuestion(semanticInput) ||
-    looksLikePaymentOperationalUpdate(semanticInput)
-  ) {
-    return null
-  }
-
-  const patterns = [
-    /\b(?:que|qué)\s+(medios de pago|medios de pagos|formas de pago|formas de pagos)\s+aceptan\b/iu,
-    /\b(?:que|qué)\s+(telefono|teléfono|whatsapp|numero de contacto|número de contacto)\s+(tienen|manejan)\b/iu,
-    /\b(?:quiero saber si tienen|quisiera saber si tienen)\s+(.+?)(?=$|\?|,|\.| pero | y )/iu,
-    /\b(?:quiero consultar por|quiero consultar sobre|consultar por|consultar sobre|consulta por|consulta sobre)\s+(.+?)(?=$|\?|,|\.| pero | y )/iu,
-    /\b(?:estoy buscando|ando buscando|busco)\s+(.+?)(?=$|\?|,|\.| pero | y )/iu,
-    /\b(?:quiero saber sobre|quiero saber de|necesito saber sobre|me gustaria saber sobre|me gustaría saber sobre)\s+(.+?)(?=$|\?|,|\.| pero | y )/iu,
-    /\b(?:quiero|necesito)\s+(.+?)(?=$|\?|,|\.| pero | y )/iu,
-    /\b(?:quiero ver|quiero conocer|me interesa|me interesan|me interesan las|me interesan los)\s+(.+?)(?=$|\?|,|\.| pero | y )/iu,
-    /\b(?:tienen|manejan|ofrecen|trabajan con|cuentan con)\s+(.+?)(?=$|\?|,|\.| pero | y )/iu,
-  ]
-
-  for (const pattern of patterns) {
-    const match = semanticInput.match(pattern)
-    if (match?.[1]) {
-      const candidate = normalizeRequestedTopicLabel(match[1])
-      if (candidate && !isGenericRequestedTopicLabel(candidate)) {
-        return candidate
-      }
-    }
-  }
-
-  const genericQuoteSubjectLabel = extractGenericQuoteSubjectLabel(semanticInput)
-  if (genericQuoteSubjectLabel) {
-    return genericQuoteSubjectLabel
-  }
-
-  const shortFollowUpMatch = semanticInput.match(
-    /^(?:y\s+)?([a-záéíóúñ0-9][a-záéíóúñ0-9\s-]{1,48})\??$/iu,
-  )
-  if (shortFollowUpMatch?.[1]) {
-    const candidate = normalizeRequestedTopicLabel(shortFollowUpMatch[1])
-    if (
-      candidate &&
-      !isGenericRequestedTopicLabel(candidate) &&
-      !/\b(info|informacion|consulta|consultar|ayuda|algo|eso|esto|mismo|estoy|buscando|busco|necesito|quiero|me interesa|me interesan|que datos necesitas para cotizar|qué datos necesitas para cotizar|que informacion necesitas para cotizar|qué información necesitas para cotizar|que medidas necesitas para cotizar|qué medidas necesitas para cotizar)\b/iu.test(
-        candidate,
-      )
-    ) {
-      return candidate
-    }
-  }
-
-  return null
 }

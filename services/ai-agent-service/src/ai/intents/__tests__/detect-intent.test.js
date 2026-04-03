@@ -118,7 +118,7 @@ test('detectIntent separates conceptual customer topic questions from exact prod
 
   assert.equal(detection.intent, 'customer.topic_info')
   assert.equal(detection.source, 'rule')
-  assert.ok(detection.decisionPath.includes('classifier:faq_topic'))
+  assert.ok(detection.decisionPath.includes('classifier:semantic_info_definition'))
 })
 
 test('detectIntent treats business FAQ queries as customer topic info', () => {
@@ -203,7 +203,7 @@ test('detectIntent treats consultar por topic questions as customer topic info',
 
   assert.equal(detection.intent, 'customer.topic_info')
   assert.equal(detection.source, 'rule')
-  assert.ok(detection.decisionPath.includes('classifier:faq_topic'))
+  assert.ok(detection.decisionPath.includes('classifier:semantic_info_general_info'))
 })
 
 test('detectIntent resolves generic customer info openings without falling back to provider-led other', () => {
@@ -563,7 +563,7 @@ test('detectIntent resolves customer quote fallback from the central intent engi
   })
 
   assert.equal(detection.intent, 'customer.quote')
-  assert.ok(detection.decisionPath.includes('registry:customer_quote_fallback'))
+  assert.ok(detection.decisionPath.includes('classifier:price_inquiry_specific_context'))
 })
 
 test('detectIntent resolves costo phrasing with specific product context as customer.quote', () => {
@@ -579,7 +579,7 @@ test('detectIntent resolves costo phrasing with specific product context as cust
   })
 
   assert.equal(detection.intent, 'customer.quote')
-  assert.ok(detection.decisionPath.includes('registry:customer_quote_fallback'))
+  assert.ok(detection.decisionPath.includes('classifier:price_inquiry_specific_context'))
 })
 
 test('detectIntent resolves broad product family inquiries without relying on legacy customer fallback', () => {
@@ -595,7 +595,7 @@ test('detectIntent resolves broad product family inquiries without relying on le
   })
 
   assert.equal(detection.intent, 'customer.product_info')
-  assert.ok(detection.decisionPath.includes('registry:customer_product_info_fallback'))
+  assert.ok(detection.decisionPath.includes('classifier:semantic_product_subject_reference'))
 })
 
 test('detectIntent does not turn standalone attachment artifacts into product_info fallback topics', () => {
