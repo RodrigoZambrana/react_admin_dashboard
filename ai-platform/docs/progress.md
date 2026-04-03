@@ -1,0 +1,184 @@
+# Progress Log
+
+## Iteration 1
+
+### Implemented
+- Standalone workspace scaffold under `/ai-platform`
+- Independent NestJS backend skeleton with required module boundaries
+- Independent React admin frontend skeleton
+- Architecture document and infrastructure baseline (`docker-compose.yml`)
+
+### Working
+- Workspace structure exists independently from the existing repo apps
+- Backend build completes successfully
+- Frontend build completes successfully
+- Module boundaries are documented before implementation coupling begins
+
+### Technical Debt
+- Runtime modules are placeholders without domain logic
+- No persistence or AI integration yet
+
+### Next Steps
+- Install dependencies
+- Validate base builds
+- Implement Prisma, tenant context, and repository layer
+
+## Iteration 2
+
+### Implemented
+- Prisma schema with `Conversation`, `Message`, `ChatLog`, `PromptVersion`, and `Knowledge`
+- Global tenant middleware using `x-tenant-id` or `DEFAULT_TENANT_ID`
+- Async tenant context propagation with trace id support
+- Prisma tenant policy and middleware for automatic tenant scoping
+- Repository layer for conversations, messages, logs, prompts, and knowledge
+- Local environment examples for the standalone backend
+
+### Working
+- Prisma client generation succeeds
+- Prisma schema validation succeeds when `DATABASE_URL` is provided
+- Backend build succeeds with repository-only persistence access
+- Tenant scoping policy tests pass
+
+### Technical Debt
+- No migration files yet; schema is defined but not applied to a live PostgreSQL instance
+- Query policy covers current repository usage patterns, but nested Prisma writes are not handled yet
+- Logging service is still console-oriented and not yet wired to persistent chat logs
+
+### Next Steps
+- Implement AI gateway and interpretation output contract
+- Add backend parsing for dates, measurements, and normalization
+- Persist interpretation-stage logs through the repository layer
+
+## Iteration 3
+
+### Implemented
+- AI gateway with provider abstraction and default mock LLM provider
+- Strict interpretation contract returning JSON only
+- Interpretation service with schema validation and structured logging
+- Date parser using `chrono-node` with English and Spanish parsing paths
+- Measurement parser with normalization to canonical units
+- Parsing service that converts AI-extracted entities into normalized backend data
+- Unit tests for JSON interpretation and backend normalization
+
+### Working
+- Backend build succeeds with interpretation and parsing modules wired
+- Interpretation provider returns `{ intent, entities, language, confidence }`
+- Parsing normalizes Spanish relative dates and measurements
+- All backend tests currently pass
+
+### Technical Debt
+- Only the mock AI provider is active; external LLM adapters are not implemented yet
+- Parsing covers common date and measurement formats but not complex ranges or dimensions
+- Interpretation logs are emitted to logger but not yet persisted into `ChatLog`
+
+### Next Steps
+- Implement deterministic decision engine and tenant/core routing
+- Build tool interface plus `create_booking`, `get_product`, and `create_quote`
+- Add prompt version management and connect logging to repositories
+
+## Iteration 4
+
+### Implemented
+- Deterministic decision engine with core versus tenant routing
+- Explicit decision outputs for `respond`, `clarify`, and `invoke_tool`
+- Tool interface with schema-based validation
+- Tool engine with logging and dispatch map
+- Tenant tools: `create_booking`, `get_product`, and `create_quote`
+- Unit tests for decision routing and tool execution
+
+### Working
+- Backend build succeeds with decision and tool modules wired
+- Booking requests without normalized dates are forced into clarification
+- Valid booking requests route deterministically into `create_booking`
+- Tool execution validates inputs before running and emits execution logs
+- All backend tests currently pass
+
+### Technical Debt
+- Tools use static/deterministic stub data instead of live tenant integrations
+- Decision rules are deterministic but still compact; tenant-specific rule packs are not externalized yet
+- Execution logs are still logger-only and not yet persisted into `ChatLog`
+
+### Next Steps
+- Implement prompt storage, versioning, and retrieval
+- Implement asynchronous knowledge extraction and storage from logs
+- Build the final `/chat/message` orchestration endpoint with persistent stage logging
+
+## Iteration 5
+
+### Implemented
+- Prompt system with default templates, storage, versioning, and retrieval
+- Asynchronous knowledge extraction queue
+- Knowledge classifier that transforms logs into curated knowledge candidates
+- Knowledge persistence service backed by repository storage
+- Qdrant store service with deterministic vector placeholder for standalone indexing
+- Unit tests for knowledge extraction classification
+
+### Working
+- Backend build succeeds with prompt and knowledge modules wired
+- Prompt service can seed and retrieve active prompt versions
+- Knowledge extraction remains asynchronous via in-memory queueing
+- Supported execution logs can be classified into booking, quote, product, or general knowledge
+- All backend tests currently pass
+
+### Technical Debt
+- Prompt service has no admin-facing endpoints yet
+- Knowledge queue is in-process only; there is no external worker or retry strategy
+- Qdrant vectors use deterministic placeholder embeddings until a real embedding provider is connected
+
+### Next Steps
+- Implement Redis-backed conversation memory
+- Build `/chat/message` with full input → interpretation → parsing → decision → tool → response → logging → learning flow
+- Persist stage logs so knowledge extraction can be triggered from stored traces
+
+## Iteration 6
+
+### Implemented
+- Redis-backed memory service with in-process fallback
+- Persistent trace logging service backed by `ChatLog`
+- Final `/chat/message` orchestration service
+- Admin-support endpoints for conversations, logs, trace inspection, and prompts
+- End-to-end backend flow: input → interpretation → parsing → decision → execution → response → logging → learning
+- Unit test for orchestration flow
+
+### Working
+- Backend build succeeds with the full chat pipeline wired
+- `/chat/message` orchestration is implemented with deterministic decisions and optional tool execution
+- Memory is written per tenant and conversation, with Redis fallback if unavailable
+- Stage traces can be persisted and queried by trace id
+- Learning is queued asynchronously from stored execution/response logs
+- All backend tests currently pass
+
+### Technical Debt
+- End-to-end HTTP integration was validated at unit/build level, not against a live PostgreSQL/Redis/Qdrant stack
+- AI response generation still uses the mock provider
+- Chat orchestration currently uses a single controller; API slicing can be refined later if the surface grows
+
+### Next Steps
+- Implement the standalone admin UI against the new backend endpoints
+- Add debug viewer, logs viewer, chat interface, and prompt editor without business logic
+- Run final full-stack build validation
+
+## Iteration 7
+
+### Implemented
+- Standalone React admin UI wired to the new backend endpoints
+- Chat UI, debug viewer, logs viewer, prompt editor, and conversation selector
+- Native DreamsChat admin dashboard theme ported into the project from `html/template/admin`
+- Native DreamsChat public chat asset family vendored from `html/template` for future user-facing chat work
+- Frontend asset packs copied into `frontend/public` so the theme now lives inside this project
+
+### Working
+- Frontend build succeeds with DreamsChat assets served locally from the standalone app
+- Backend build still succeeds after the UI/theme port
+- Backend test suite still passes
+- The project now contains both admin and public chat visual families natively
+
+### Technical Debt
+- The public chat family is vendored and available, but the end-user chat shell itself is not implemented yet
+- Theme JS behaviors from the original package were not fully ported; the current integration focuses on native React rendering plus original CSS/assets
+- Large vendored asset packs increase frontend repository weight
+
+### Next Steps
+- If needed, build the public user chat surface on top of the vendored `dreamschat-chat` assets
+- Add live integration validation against PostgreSQL, Redis, and Qdrant containers
+- Refine asset pruning once the final UI surface is fixed

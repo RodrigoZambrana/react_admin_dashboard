@@ -1,0 +1,230 @@
+@use "../utils/mixins";
+@use "../utils/variables";
+
+.add-icon {
+    height: 24px;
+    width: 24px;
+    border-radius: 50%;
+}
+.chats-dropdown {
+    position: absolute;
+    right: 20px;
+    top: 37px;
+}
+.status-list{
+    margin-bottom: 20px;
+    &:last-child {
+        margin-bottom: 12px;
+    }
+}
+.welcome-info {
+    .rounded-border {
+        width: 50px;
+        height: 50px;
+        position: relative;
+        margin: auto;
+        &::after {
+            content: "";
+            background: variables.$primary;
+            position: absolute;
+            height: 16px;
+            width: 16px;
+            bottom: -4px;
+            transform: rotate(45deg);
+        }
+    }
+}
+.drag-and-drop-block {
+    min-height: 212px;
+    border-radius: 5px;
+    background: variables.$light;
+    border-color: transparent;
+    &.status-view {
+        min-height: auto;
+    }
+    .status-preview {
+        border-radius: 8px;
+        max-height: 400px;
+        width: 100%;
+    }
+}
+.dz-clickable {
+    .dz-message {
+        display: none;
+    }
+}
+.modal {
+    .footer-form {
+        position: relative !important;
+        border: 1px solid variables.$dark-transparent;
+        border-radius: 8px;
+    }
+}
+.user-stories-box {
+	border: 0;
+	background-color: transparent;
+	height: 100%;
+	flex-direction: inherit;
+	-webkit-flex-direction: inherit;
+	align-items: center;
+	-webkit-align-items: center;
+	flex-wrap: wrap;
+	-webkit-flex-wrap: wrap;
+}
+.user-stories-box .inner-popup {
+	margin: 0 auto;
+	width: 100%;
+}
+.user-stories-box .inner-popup .carousel-indicators {
+	top: 25px;
+	margin-left: 20px;
+	margin-right: 20px;
+}
+.user-stories-box .inner-popup .carousel-indicators li {
+	border: 0;
+	background-color: #C2C2C2;
+	width: 100%;
+	height: 5px;
+	border-radius: 50px;
+	opacity: 1;
+    margin-right: 16px;
+}
+.user-stories-box .inner-popup .carousel-indicators li.active {
+	position: relative;
+}
+.user-stories-box .inner-popup .carousel-indicators li.active::after {
+	position: absolute;
+	content: "";
+	background-color: #fff;
+	animation: animate 5s linear;
+	width: 100%;
+	height: 5px;
+	left: 0;
+	top: 0;
+	border-radius: 50px;
+}
+.user-stories-box .inner-popup .carousel-inner {
+	height: calc(100vh - 110px);
+	border-radius: 10px;
+}
+.carousel-item {
+    height: 100%;
+}
+.user-stories-box .inner-popup .carousel-inner .carousel-item img {
+	width: 100%;
+	border-radius: 8px;
+    height: 100%;
+}
+.user-stories-box .inner-popup .status-user-blk {
+	display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+	-webkit-box-align: center;
+	-ms-flex-align: center;
+	align-items: center;
+	justify-content: space-between;
+	-webkit-justify-content: space-between;
+	-ms-flex-pack: space-between;
+	position: absolute;
+	z-index: 9;
+	left: 20px;
+	right: 20px;
+	top: 50px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+.user-stories-box .inner-popup .status-user-blk .user-details {
+	display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+	-webkit-box-align: center;
+	-ms-flex-align: center;
+	align-items: center;
+	justify-content: center;
+	-webkit-justify-content: center;
+	-ms-flex-pack: center;
+}
+.user-stories-box .inner-popup .status-user-blk .user-details .avatar {
+	width: 46px;
+	height: 46px;
+	border-radius: 50px;
+	margin-right: 10px;
+}
+.user-stories-box .inner-popup .status-user-blk .user-details .user-online h5 {
+	font-size: 15px;
+	font-weight: 500;
+	color: #fff;
+	margin-bottom: 5px;
+}
+.user-stories-box .inner-popup .status-user-blk .user-details .user-online span {
+	font-size: 14px;
+	font-weight: 400;
+	color: #EDEDED;
+}
+.user-stories-box .inner-popup .status-user-blk .chat-user-time .chats-dot a {
+	color: #fff;
+}
+
+.carousel-indicators [data-bs-target] {
+	border: 0;
+	background-color: red;
+	width: 145px;
+	height: 5px;
+	border-radius: 50px;
+}
+@keyframes animate {
+    from {
+        width: 0;
+    }
+    to{
+        width: 100%;
+    }
+}
+.user-status-group {
+    padding: 55px 40px;
+    background-image: url(../../assets/img/bg/bg-01.png);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: cover;
+
+    @include mixins.respond-below(xl) {
+        width: 100%;
+        padding: 24px;
+    }
+}
+.user-stories-box .inner-popup .carousel-indicators li {
+	list-style: none;
+}
+.carousel {
+    .chat-footer {
+        position: unset;
+        .footer-form {
+            z-index: 9;
+            bottom: 16px;
+            right: 16px;
+            left: 16px;
+            border-radius: 8px;
+        }
+    }
+    
+}
+.status-voice-group {
+    display: flex;
+    align-items: center;
+    .status-pause {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: variables.$white;
+    }
+}
+.view-status-list {
+    background: variables.$white;
+    bottom: 16px;
+    left: 50%;
+    z-index: 2;
+    @include mixins.transform(translateX(-50%));
+}

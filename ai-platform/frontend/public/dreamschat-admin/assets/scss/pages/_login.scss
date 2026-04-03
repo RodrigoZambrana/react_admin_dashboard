@@ -1,0 +1,329 @@
+@use "../utils/variables";
+
+.login-form {
+	padding-left: 0;
+	background: #F8F6FA;
+	&::before {
+		content: "";
+		background-image: url(../../assets/img/login-bg.png);
+		background-repeat: no-repeat, no-repeat;
+		position: absolute;
+		width: 100%;
+		height: 462px;
+		bottom: 0;
+		z-index: -1;
+		background-size: cover;
+	}
+	.main-wrapper {
+		height: 100vh;
+		display: flex;
+		display: -webkit-flex;
+		overflow: hidden;
+		visibility: visible;
+	}
+}
+.main-wrapper {
+	&.register-surv {
+		overflow: auto;
+	}
+}
+.login-wrapper {
+	padding: 70px 0;
+	width: 100%;
+	margin: 0 auto;
+	padding: 30px 0;
+	display: flex;
+	display: -webkit-flex;
+	flex-wrap: wrap;
+	-webkit-flex-wrap: wrap;
+	height: 100%;
+	.logo-header {
+		width: 100%;
+		margin: 0 0 40px 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		a {
+			&.logo-brand {
+				.logo-dark {
+					margin: 0px 12px 0 0;
+				}
+				h5 {
+					margin: 0;
+					color: variables.$primary;
+					text-transform: capitalize;
+				}
+			}
+		}
+	}
+	.login-inbox {
+		margin: 0 auto;
+		max-width: 542px;
+		&.admin-login {
+			margin: 0 auto;
+			min-width: 498px;
+		}
+		.log-auth {
+			border-radius: 20px;
+			background: #ffffff;
+			box-shadow: 0px 6px 12px 0px rgba(0, 0, 0, 0.03);
+			padding: 40px;
+			margin-bottom: 30px;
+			.login-auth-wrap {
+				margin: 0 0 30px 0;
+				-webkit-box-pack: space-between;
+				-ms-flex-pack: space-between;
+				justify-content: space-between;
+				.login-content-head {
+					h3 {
+						margin: 0 0 12px 0;
+						text-align: center;
+					}
+					p {
+						color: #424242;
+						font-size: 16px;
+						font-weight: 400;
+						margin: 0;
+					}
+				}
+			}
+			.phone-login {
+				span {
+					color: #1F2937;
+					font-size: 16px;
+					font-weight: 400;
+					margin: 0;
+					a {
+						margin: 0 0 0 5px;
+						color: variables.$primary;
+						&:hover {
+							color: #650681;
+						}
+					}
+				}
+			}
+			form {
+				.form-group {
+					margin: 0 0 18px 0;
+					label {
+						margin: 0 0 8px 0;
+						color: #0A0A0A;
+						font-size: 14px;
+						font-weight: 500;
+						span {
+							color: #DE3E44;
+						}
+					}
+					.pass-group {
+						position: relative;
+						.toggle-password {
+							position: absolute;
+							top: 12px;
+							right: 12px;
+							cursor: pointer;
+							font-weight: 500;
+						}
+						.toggle-passwords {
+							position: absolute;
+							cursor: pointer;
+							font-weight: 500;
+						}
+					}
+					.form-control {
+						min-height: 40px;
+						font-size: 14px;
+						border: 1px solid #E0E0E0;
+						border-radius: 5px;
+						&:focus {
+							box-shadow: none;
+							outline: 0 none;
+							border-color: #E0E0E0;
+						}
+					}
+					.form-check {
+						.custom-check {
+							margin: 20px 0 0;
+							padding: 0 0 0 28px;
+							color: #8A909A;
+							display: inline-block;
+							position: relative;
+							font-size: 14px;
+							cursor: pointer;
+							font-weight: 400;
+							user-select: none;
+							input {
+								position: absolute;
+								opacity: 0;
+								cursor: pointer;
+								&:checked {
+									& ~ .checkmark {
+										background-color: variables.$primary;
+										&::after {
+											display: block;
+										}
+									}
+								}
+							}
+							.remember-me {
+								color: #0A0A0A;
+								font-size: 16px;
+								font-weight: 400;
+							}
+							.checkmark {
+								position: absolute;
+								top: 3px;
+								left: 0;
+								font-size: 10px;
+								width: 18px;
+								height: 18px;
+								border: 1px solid #E3E3E3;
+								background-color: #FFF;
+								border-radius: 2px;
+								transition: all 0.3s ease-in-out;
+								&::after {
+									content: "\f00c";
+									font-family: "Font Awesome 5 Free";
+									font-weight: 900;
+									position: absolute;
+									top: -1px;
+									left: 3px;
+									display: none;
+									color: #FFF;
+									font-size: 12px;
+								}
+							}
+						}
+					}
+					.forget-pass {
+						a {
+							color: variables.$primary;
+							&:hover {
+								color: variables.$primary;
+							}
+						}
+					}
+					&:nth-child(2) {
+						margin-bottom: 14px;
+					}
+					&:nth-child(3) {
+						margin-bottom: 30px;
+					}
+				}
+			}
+		}
+		.login-or {
+			margin: 20px 0;
+			text-align: center;
+			position: relative;
+			z-index: 1;
+			.span-or-log {
+				color: #424242;
+				font-size: 15px;
+				font-weight: 400;
+				background-color: #ffffff;
+				padding: 0 18px;
+				&::after {
+					content: "";
+					border-top: 1px solid #E0E0E0;
+					position: absolute;
+					width: 100%;
+					height: 1px;
+					left: 0;
+					right: 0;
+					top: 11px;
+					z-index: -1;
+				}
+			}
+		}
+		.social-login {
+			margin-bottom: 50px;
+			li {
+				border-radius: 6px;
+				border: 2px solid #E0E0E0;
+				padding: 14px 16px;
+				width: 100%;
+				& + li {
+					margin-left: 12px;
+				}
+				a {
+					img {
+						margin-right: 10px;
+					}
+				}
+			}
+		}
+		.bottom-text {
+			p {
+				color: #0A0A0A;
+				font-size: 16px;
+				font-weight: 500;
+				margin-bottom: 0px;
+				margin-right: 5px;
+				a {
+					color: #650681;
+					font-weight: 500;
+					text-decoration: underline;
+					&:hover {
+						color: variables.$primary;
+					}
+				}
+			}
+		}
+	}
+	&.lock-screen {
+		.login-inbox {
+			.log-auth {
+				background: transparent;
+				box-shadow: none;
+				padding: 0;
+			}
+		}
+	}
+}
+.login-group-left {
+	height: 100vh;
+	overflow-y: auto;
+	width: 100%;
+	padding-bottom: 20px;
+}
+.lock-screen-user {
+	h6 {
+		color: #0A0A0A;
+		font-size: 16px;
+		font-weight: 500;
+	}
+	span {
+		color: #424242;
+		font-size: 16px;
+		font-weight: 500;
+	}
+}
+.css-equal-heights, .css-equal-content {
+	display: flex;
+	display: -webkit-flex;
+	flex-wrap: wrap;
+	-webkit-flex-wrap: wrap;
+}
+.css-equal-content {
+	color: red;
+	float: left;
+}
+.login-wrapper .logo-header a.logo-brand, .align-center {
+	display: flex;
+	display: -webkit-flex;
+	align-items: center;
+	-webkit-align-items: center;
+	justify-content: center;
+	-webkit-justify-content: center;
+}
+.login-wrapper .login-inbox .log-auth .login-auth-wrap {
+	display: -webkit-box;
+	display: -ms-flexbox;
+	display: flex;
+	align-items: center;
+	-webkit-box-align: center;
+	-ms-flex-align: center;
+}
+.login-content-info {
+	width: 100%;
+}

@@ -1,0 +1,194 @@
+@use "../utils/variables";
+
+.setting-header {
+    a {
+        border-bottom: 1px solid transparent;
+        padding: 8px;
+        
+        &:hover,
+        &.active {
+            border-color: variables.$primary;
+            color: variables.$primary;
+        }
+    }
+}
+.setting-content {
+    .change-password {
+        margin-top: 15px;
+        .form-label {
+            font-size: 16px;
+            font-weight: 500;
+        }
+    }
+    .user-pic {
+        width: 84px;
+        height: 84px;
+    }
+    .notification-table{
+        .card-body{
+            padding: 15px;
+        }
+    }
+}
+.drag-upload-btn {
+    font-weight: 600;
+    background: variables.$primary;
+    border: 1px solid variables.$primary;
+    border-radius: 5px;
+    margin: 0 12px 10px 0;
+    padding:8px 16px 8px 16px;
+    position: relative;
+    transition: all 0.5s;
+    color: variables.$white;
+    input {
+        opacity: 0;
+        width: 100%;
+        height: 100%;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+    &:hover {
+        background: variables.$primary-hover;
+        color: variables.$white;
+    }
+}
+.setting-sidebar {
+    a {
+        padding: 8px 16px;
+        color: variables.$gray-500;
+        &:hover ,&.active{
+            background: variables.$primary-transparent;
+            color: variables.$primary;
+        }
+    }
+
+}
+
+//Appearance Settings
+.theme-colors{
+    ul li{
+        margin-right: 10px;
+    }
+    ul li span{
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        display: flex;
+        background-color: variables.$white;
+        border: 1px solid variables.$dark-transparent;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        position: relative;
+        .primecolor{
+            content: "";
+            display: flex;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            opacity: 1;
+            position: relative;
+            .colorcheck{
+                visibility: hidden;
+                width: 12px;
+                height: 12px;
+                background:transparent;
+                border: none;
+
+            }
+            &:hover.colorcheck{
+                visibility: visible;
+            }
+
+        }
+        &.active .colorcheck{
+            visibility: visible;
+        }
+    }
+}
+.search-input {
+    input {
+        padding-left: 30px;
+    }
+    .search-addon {
+        position: absolute;
+        left: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+}
+
+.circle-progress {
+    width: 21px;
+    height: 21px !important;
+    float: left; 
+    line-height: 21px;
+    background: none;
+    box-shadow: none;
+    position: relative;
+    &::after {
+        content: "";
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
+        border: 4px solid  variables.$light-900;
+        position: absolute;
+        top: 0;
+        left: 0;
+    }
+    .progress-left {
+        left: 0;
+        .progress-bar {
+            left: 100%;
+            border-top-right-radius: 80px;
+            border-bottom-right-radius: 80px;
+            border-left: 0;
+            -webkit-transform-origin: center left;
+            transform-origin: center left;
+        }
+    }
+    .progress-right {
+        right: 0;
+        .progress-bar {
+            left: -100%;
+            border-top-left-radius: 80px;
+            border-bottom-left-radius: 80px;
+            border-right: 0;
+            -webkit-transform-origin: center right;
+            transform-origin: center right;
+            animation: loading-1 1.8s linear forwards;
+          }
+    }
+    .progress-bar {
+        width: 100%;
+        height: 100%;
+        background: none;
+        border-width: 4px;
+        border-style: solid;
+        position: absolute;
+        top: 0;
+    }
+}
+.circle-progress>span {
+    width: 50%;
+    height: 100%;
+    overflow: hidden;
+    position: absolute;
+    top: 0;
+    z-index: 1;
+  }
+  @keyframes loading-2 {
+    0% {
+      -webkit-transform: rotate(0deg);
+      transform: rotate(0deg);
+    }
+    100% {
+      -webkit-transform: rotate(144deg);
+      transform: rotate(144deg);
+    }
+}
+.wh-20 {
+    width: 20px;
+    height: 20px;
+}

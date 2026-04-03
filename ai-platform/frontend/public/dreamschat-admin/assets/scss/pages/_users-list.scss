@@ -1,0 +1,53 @@
+@use "../utils/variables";
+
+//Users-list
+.card {
+    .card-header {
+        h6 {
+            display: flex;
+            align-items: center;
+
+            span {
+                padding: 6px;
+                background-color: variables.$pink;
+                color: variables.$white;
+                font-size: 10px;
+                border-radius: 5px;
+                margin-left: 10px;
+            }
+        }
+    }
+
+    .card-body {
+        .table-responsive {
+            table {
+                tbody {
+                    tr {
+                        td {
+                            .profile-name {
+                                p {
+                                    a {
+                                        font-size: 14px;
+                                        font-weight: 500;
+                                    }
+                                }
+                            }
+
+                            .file-icon {
+                                background-color: variables.$light-900;
+                                border: 1px solid variables.$dark-transparent;
+                                padding: 5px;
+                                border-radius: 5px;
+                                color: variables.$gray-500;
+                                &:hover{
+                                    background: variables.$dark-transparent;
+                                    color: variables.$primary;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

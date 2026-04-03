@@ -1,0 +1,169 @@
+@use "../utils/mixins";
+@use "../utils/variables";
+
+.user-shield {
+    position: relative;
+    .point{
+        position: absolute;
+        color: variables.$danger;
+        top: 5px;
+        right: 0;
+        
+    }
+    &:hover .point{
+        color: variables.$white;
+    }
+}
+.set-pro{
+    position: relative;
+    border:2px dashed variables.$primary;
+    .add{
+        position: absolute;
+        bottom: 0;
+        right:0;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: variables.$white;
+        i{
+            background: variables.$primary;
+            color: variables.$white;
+            width: 14px;
+            height: 14px;
+            
+        }
+    }
+}
+.img-overlay-1{
+    position: relative;
+    border:2px dashed variables.$primary;
+    .check-icon{
+        position: absolute;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: variables.$primary;
+        i{
+            background: variables.$primary;
+            color: variables.$white;
+            width: 14px;
+            height: 14px;
+            
+        }
+    }
+}
+.device-option{
+    .device-icon{
+        width: 40px;
+        height: 40px;
+        flex-shrink: 0;
+    }
+    .form-check {
+        margin: 0 4px 0 0;
+        min-height: 1.5rem !important;
+    }
+}
+
+.user-icon {
+    width: 50px;
+    height: 50px;
+    @include mixins.rounded(50%);
+    display: flex;
+    display: -webkit-flex;
+    align-items: center;
+    -webkit-align-items: center;
+    justify-content: center;
+    -webkit-justify-content: center;
+    font-size: variables.$font-size-24
+}
+
+.chat-img{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+
+    .img-wrap{
+        position: relative;
+        border-radius: 10px;
+        overflow: hidden;
+        flex: 1 1 120px;
+        height: 120px;
+        img{
+            width: 100%;
+            object-fit: cover;
+            border-radius: 10px;
+
+        }
+        .img-overlay-1{
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(variables.$black, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(1.2);
+            @include mixins.transition(all .5s ease);
+            a {
+                font-size: variables.$font-size-14;
+                color: variables.$white;
+            }
+        }
+        &:hover ,&:focus,&:active,.active{
+            .img-overlay-1{
+                opacity: 1;
+                visibility: visible;
+                @include mixins.transform(scale(1)); 
+                border-radius: 10px;
+                border: 2px solid variables.$primary !important;
+            }
+        }
+        .active{
+            .img-overlay-1{
+                opacity: 1;
+                visibility: visible;
+                @include mixins.transform(scale(1));
+                
+            }
+        }
+    }
+}
+.file-item{
+    .input-icon{
+        .icon-addon{
+            right:8px;
+            left: auto;
+        }
+        .toggle-password,.toggle-passwords,.conform-toggle-password{
+            right: 12px;
+            left: auto;
+            font-size: 18px;
+        }
+    }
+    .input-icon .form-control:not(:last-child){
+        padding-left: 0.75rem;
+        padding-right: 3rem;
+    }
+}
+.profile {
+    h6 {
+        margin-bottom: 4px;
+    }
+}
+.sidebar-body {
+    &.chat-body {
+        h6 {
+            margin-bottom: 4px;
+        }
+    }
+}
+.contact-user {
+    h6 {
+        margin-bottom: 4px; 
+    }
+}

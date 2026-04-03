@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum PromptStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum KnowledgeCategory {
+  GENERAL
+  FAQ
+  PRODUCT
+  BOOKING
+  QUOTE
+  POLICY
+}
+
+model Conversation {
+  id          String    @id @default(cuid())
+  tenantId    String
+  language    String?
+  channel     String    @default("web")
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  messages    Message[]
+  logs        ChatLog[]
+
+  @@index([tenantId, createdAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  tenantId       String
+  conversationId String
+  role           MessageRole
+  content        String
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, conversationId, createdAt])
+}
+
+model ChatLog {
+  id             String        @id @default(cuid())
+  tenantId       String
+  conversationId String?
+  traceId        String
+  stage          String
+  status         String
+  payload        Json
+  latencyMs      Int?
+  createdAt      DateTime      @default(now())
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, traceId, createdAt])
+}
+
+model PromptVersion {
+  id          String       @id @default(cuid())
+  tenantId    String
+  key         String
+  version     Int
+  status      PromptStatus @default(DRAFT)
+  template    String
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+  createdBy   String?
+
+  @@unique([tenantId, key, version])
+  @@index([tenantId, key, status])
+}
+
+model Knowledge {
+  id          String            @id @default(cuid())
+  tenantId    String
+  sourceLogId String?
+  category    KnowledgeCategory
+  title       String
+  body        String
+  summary     String
+  tags        String[]
+  confidence  Float
+  embeddingId String?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+
+  @@index([tenantId, category, createdAt])
+}

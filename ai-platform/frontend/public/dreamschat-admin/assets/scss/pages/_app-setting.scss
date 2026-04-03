@@ -1,0 +1,176 @@
+@use "../utils/variables";
+
+.basic-info {
+    padding-bottom: 15px;
+    border-bottom: 1px solid variables.$dark-transparent;
+}
+
+.company-img {
+    padding-top: 15px;
+    border-bottom: 1px solid variables.$dark-transparent;
+
+    .company-img-title {
+        margin-bottom: 16px;
+
+        h6 {
+            font-size: 14px;
+        }
+
+        p {
+            font-size: 14px;
+            color: variables.$gray-500;
+        }
+    }
+
+    .company-img-content {
+        padding: 29px 23px 27px 27px;
+        border: 2px dashed variables.$dark-transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 5px;
+        position: relative;
+
+        img {
+            width: 129px;
+        }
+
+        span {
+            background-color: variables.$light-900;
+            padding: 5px;
+            border-radius: 5px;
+            border: 1px solid variables.$dark-transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: absolute;
+            top: -13px;
+            right: -10px;
+            color: variables.$gray-500;
+            &:hover {
+                background: variables.$danger;
+                border-color: variables.$danger;
+                color: variables.$white;
+            }
+        }
+
+        &.img-dark {
+            background-color: variables.$dark;
+
+            img {
+                color: variables.$white;
+            }
+        }
+
+        &.mini-icon {
+            width: 80px;
+            height: 80px;
+        }
+
+        &.dark-mini-icon {
+            width: 80px;
+            height: 80px;
+            background-color: variables.$dark;
+        }
+
+        &.favicon-logo {
+            width: 80px;
+            height: 80px;
+        }
+    }
+
+    .social-auth {
+        .card-body {
+            .header-section {
+                padding-bottom: 16px;
+                border-bottom: 1px solid variables.$dark-transparent;
+
+                .company-img-title {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 8px;
+
+                    .social-icons {
+                        display: flex;
+                        align-items: center;
+
+                        h6 {
+                            font-weight: 500;
+                        }
+
+                        span {
+                            width: 48px;
+                            height: 48px;
+                            border-radius: 5px;
+                            background-color: variables.$light;
+                            padding: 8px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            margin-right: 8px;
+                        }
+                    }
+
+                    .badge {
+                        padding: 6px;
+                        border-radius: 5px;
+                    }
+
+                    p {
+                        font-size: 14px;
+                        font-weight: 400;
+                        color: variables.$gray-500;
+                    }
+                }
+            }
+
+            .body-footer {
+                padding-top: 16px;
+                .footer-content{
+                   .btn-white{
+                    border: 1px solid variables.$dark;
+                    &:hover{
+                        background-color: variables.$dark;
+                        color: variables.$white;
+                    }
+                   }
+                }
+            }
+        }
+    }
+}
+
+.address-info {
+    padding-top: 15px;
+
+}
+
+.chat-settings-lists {
+    .chat-setting-icons {
+        width: 24px;
+        height: 24px;
+        background-color: variables.$light-900;
+        border: 1px solid variables.$dark-transparent;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 5px;
+        color: variables.$gray-500;
+    }
+}
+
+.setting-content{
+    .card{
+        .card-body{
+            .body-header{
+                padding-bottom: 10px;
+                border-bottom: 1px solid variables.$dark-transparent;
+            }
+            .body-content{
+                margin-top: 10px;
+            }
+        }
+    }
+}

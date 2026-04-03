@@ -1,0 +1,145 @@
+@use "../utils/mixins";
+@use "../utils/variables";
+
+.sidebar-menu {
+    position: fixed;
+	left: 0;
+	top: 0;
+	width: 72px;
+	background-color: variables.$white;
+	z-index: 999;
+	padding: 20px 10px;
+    border-right: 1px solid variables.$border-color;
+    box-shadow: variables.$box-shadow-xs;
+    overflow-y: auto;
+    @include mixins.respond-below(lg) {
+        width: 57px;
+    }
+    @include mixins.respond-below(md) {
+        width: 100%;
+        top: auto;
+        bottom: 0;
+        padding: 10px;
+        display: flex;
+        display: -webkit-flex;
+        flex-wrap: wrap;
+    }
+    .logo {
+        margin-bottom: 24px;
+        text-align: center;
+        @include mixins.respond-below(md) {
+            display: none;
+        }
+    }
+    .menu-wrap {
+        display: flex;
+        display: -webkit-flex;
+        flex-wrap: wrap;
+        -webkit-flex-wrap: wrap;
+        height: calc(100vh - 105px);
+        @include mixins.respond-below(md) {
+            flex-wrap: nowrap;
+            -webkit-flex-wrap: nowrap;
+            height: auto;
+            align-items: center;
+        }
+    }
+    .main-menu {
+        ul {
+            @include mixins.respond-below(md) {
+                flex-wrap: nowrap;
+            }
+            li {
+                margin-bottom: 8px;
+                @include mixins.respond-below(md) {
+                    margin-bottom: 0px;
+                }
+                a {
+                    width: 50px;
+                    height: 50px;
+                    display: flex;
+                    display: -webkit-flex;
+                    align-items: center;
+                    -webkit-align-items: center;
+                    justify-content: center;
+                    -webkit-justify-content: center;
+                    @include mixins.rounded(8px);
+                    color: variables.$gray-900;
+                    font-size: variables.$font-size-22;
+                    &.active, &:hover {
+                        background-color: variables.$primary;
+                        color: variables.$white;
+                    }
+                    @include mixins.respond-below(lg) {
+                        width: 35px;
+                        height: 35px;
+                        font-size: variables.$font-size-18;
+                    }
+                }
+            }
+        }
+    }
+    .profile-menu {
+        width: 100%;
+        display: flex;
+        display: -webkit-flex;
+        align-self: flex-end;
+        -webkit-align-self: flex-end;
+        justify-content: center;
+        -webkit-justify-content: center;
+        text-align: center;
+        @include mixins.respond-below(md) {
+            justify-content: end;
+            -webkit-justify-content: end;
+        }
+        ul {
+            @include mixins.respond-below(md) {
+                display: flex;
+                align-items: center;
+            }
+            li {
+                margin-bottom: 16px;
+                @include mixins.respond-below(md) {
+                    margin-bottom: 0px;
+                }
+                a {
+                    &.dark-mode-toggle {
+                        width: 50px;
+                        height: 50px;
+                        display: flex;
+                        display: -webkit-flex;
+                        align-items: center;
+                        -webkit-align-items: center;
+                        justify-content: center;
+                        -webkit-justify-content: center;
+                        @include mixins.rounded(8px);
+                        color: variables.$gray-900;
+                        font-size: variables.$font-size-22;
+                        display: none;
+                        @include mixins.respond-below(md) {
+                            height: 30px;
+                        }
+                        &:hover {
+                            background-color: variables.$primary;
+                            color: variables.$white;
+                        }
+                        &.active {
+                            display: flex;
+                            display: -webkit-flex;
+                        }
+                    }
+                }
+                &:last-child {
+                    margin-bottom: 0;
+                }
+            }
+        }
+        .dropdown-menu {
+            position: fixed;
+            z-index: 1050;
+            &.show {
+                position: fixed !important;
+            }
+        }
+    }
+}

@@ -1,0 +1,212 @@
+@use "../utils/mixins";
+@use "../utils/variables";
+
+.chat-search-header{
+    .call-icon{
+        width: 24px;
+        height: 24px;
+    }
+}
+.model-icon{
+    width: 32px;
+    height: 32px;
+}
+.voice-icon{
+    width: 52px;
+    height: 52px;
+}
+.user-add{
+    width: 22px;
+    height: 22px;
+}
+.mini-video-view {
+    border: 2px solid transparent;
+    bottom: 20px;
+    right: 20px;
+    height: 150px;
+    width: 150px;
+    @include mixins.respond-below(sm) {
+        bottom: 10px;
+        right: 10px;
+        height: 80px;
+        width: 80px;
+    }
+    .default-profile  {
+        display: none;
+        width: 80px;
+        height: 80px;
+    }
+    &.active {
+        border: 2px solid variables.$primary;
+    }
+    &.no-video {
+        background: variables.$primary-transparent;
+        display: flex;
+        align-items: center;
+        .default-profile  {
+            display: flex;
+        }
+        img {
+            display: none;
+        }
+    }
+
+}
+.video-call-view {
+    > img {
+        max-height: 330px;
+        width: 100%;
+        object-fit: cover;
+    }
+    &.default-mode {
+        background: variables.$primary-transparent;
+        
+        .default-profile {
+            width: 100px;
+            height: 100px;
+        }   
+    }
+}
+.call-controll-block {
+    border: 1px solid variables.$dark-transparent;
+    padding: 15px 20px;
+    background: variables.$light-900;
+    gap: 16px;
+    flex-wrap: wrap;
+    .call-controll {
+        border: 1px solid variables.$dark-transparent;
+        background: variables.$white;
+        color: variables.$gray-500;
+        font-size: 24px;
+        width: 40px;
+        height: 40px;
+        border-radius: 100%;
+        box-shadow: 0px 2px 5px 0px #0000001A;
+        &:hover {
+            background: variables.$primary;
+            color: variables.$white;            
+        }
+        &.call-decline {
+            width: 56px;
+            height: 56px;
+            background: variables.$danger;
+            color: variables.$white;
+            &:hover {
+                background: variables.$danger;
+                color: variables.$white;
+            }
+            @include mixins.respond-below(sm) {
+                width: 46px;
+                height: 46px;
+            }
+        }
+        @include mixins.respond-below(sm) {
+            font-size: 18px;
+            width: 30px;
+            height: 30px;
+        }
+    }
+    .mute-bt.stop,.mute-video.stop {
+        background: variables.$primary;
+        color: variables.$white;
+        border-color: variables.$primary;
+    }
+}
+.call-span{
+    width: 120px;
+    height: 120px;
+}
+.audio-crd{
+    position: relative;
+    overflow:hidden;
+        .modal-bg1{
+            position: absolute;
+            bottom:-90px;
+            left:0;
+        }
+        .modal-bg2{
+            position: absolute;
+            top: 0;
+            right: 0;
+        }
+        .single-img{
+            padding-top:70px ;
+            span{
+                width: 220px;
+                height: 220px;
+            }
+        }
+}
+.layout-tab{
+    .nav-link{
+        &:hover{
+            color: variables.$primary !important;
+        }
+        &.active{
+            color: variables.$primary !important;
+            i {
+                font-weight: 900;
+            }
+        }
+    }
+}
+.modal-header {
+    .badge {
+        &.badge-sm {
+            padding: 6px;
+        }
+    }
+}
+.avatar-group{
+    a {
+        width: 96px;
+        height: 96px;
+        display: inline-flex;
+        & + a {
+            margin-left: -57px;
+        }
+    }
+}
+.messages{
+    .incoming{
+        .overlay{
+            display: none;
+            visibility: hidden;
+            transform: translateX(-20px); 
+        }
+        &:hover .overlay{
+            display: flex !important;
+            transform: translateX(0); 
+            visibility: visible;
+        }
+        &:hover .incoming-phone{
+            background: variables.$white !important;
+            color: variables.$gray-500 !important;
+            border: none !important;
+            transition:0.5s ease-in-out;
+        }
+    }
+}
+.call-details-popup {
+    border-color: variables.$dark-transparent;
+    bottom: 0;
+    right: 16px;
+    display: none;
+    &.show {
+        display: block;
+    }
+    .card-header {
+    border-color: variables.$dark-transparent;
+    }
+    .avatar {
+        &.avatar-lg {
+            width: 36px;
+            height: 36px;
+        }
+    }
+    .call-controll-block {
+        border: none;
+        padding: 0;
+        background: transparent;
+    }
+}

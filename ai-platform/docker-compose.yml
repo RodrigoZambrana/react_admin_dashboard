@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ai_platform
+      POSTGRES_USER: ai_platform
+      POSTGRES_PASSWORD: ai_platform
+    ports:
+      - "5434:5432"
+    volumes:
+      - ai-platform-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - ai-platform-redis:/data
+
+  qdrant:
+    image: qdrant/qdrant:v1.9.1
+    ports:
+      - "6335:6333"
+    volumes:
+      - ai-platform-qdrant:/qdrant/storage
+
+volumes:
+  ai-platform-postgres:
+  ai-platform-redis:
+  ai-platform-qdrant:
