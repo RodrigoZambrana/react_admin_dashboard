@@ -170,6 +170,9 @@
   - `close_turn`
 - Stale-fact invalidation happens in backend continuity logic before decisioning when a turn explicitly changes lane
 - Continuity may enrich deterministic backend context for decision and execution, but it may not let the model own routing or state transitions
+- Wave 3 hardcode/locale audit result:
+  - existing user-facing locale branching debt remains isolated in `ChatResponsePolicyService`
+  - no new locale-specific branching was introduced in the touched continuity, decision, orchestration, or execution-carryover path
 
 ## Target Live Pipeline
 
@@ -197,6 +200,7 @@
 - Wave 5 completes governance, QA, learning, and backend/product-platform readiness needed before major UI delivery
 - Waves 6 through 8 deliver the admin and public product surfaces on top of the stabilized runtime and governance contracts
 - Wave 9 closes security, role separation, end-to-end regression, and production hardening
+- A wave is not considered complete only because implementation and tests pass; every reported wave completion must also pass a dedicated code-review gate that verifies functional requirements and architectural alignment across all touched layers
 - Every wave must mine the legacy audit only for reusable concepts, validation assets, and operator workflows that fit the new architecture
 - No wave may introduce:
   - model-driven decisions
@@ -357,6 +361,16 @@ The `interpretation` stage persists:
 
 - Iterate by stage
 - Validate each stage with build and tests
+- Before accepting a stage or wave as complete, perform a dedicated code review that checks:
+  - functional requirement coverage
+  - alignment with the target architecture and roadmap intent
+  - layer responsibility boundaries
+  - multi-tenant enforcement and tenant-safe data access
+  - language-hardcoding and locale-limited logic debt in touched paths
+  - observability coverage for the affected pipeline stages
+- Treat deviations found in that review as explicit findings:
+  - blockers when they violate non-negotiable architecture or break the next wave
+  - technical debt when they are acceptable to defer without compromising the roadmap
 - Update `docs/progress.md` after every iteration
 
 ## Frontend Theme Strategy

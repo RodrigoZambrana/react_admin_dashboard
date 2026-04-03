@@ -131,6 +131,55 @@ describe('tenant prisma policy', () => {
       });
     });
 
+    it('scopes conversation state reads and overwrites caller tenantId on create', () => {
+      expect(
+        applyTenantScope(
+          {
+            action: 'findFirst',
+            model: 'ConversationState',
+            args: {
+              where: {
+                conversationId: 'conv-1',
+                tenantId: 'tenant-b',
+              },
+            },
+          },
+          'tenant-a',
+        ),
+      ).toMatchObject({
+        args: {
+          where: {
+            AND: [{ conversationId: 'conv-1' }, { tenantId: 'tenant-a' }],
+          },
+        },
+      });
+
+      expect(
+        applyTenantScope(
+          {
+            action: 'create',
+            model: 'ConversationState',
+            args: {
+              data: {
+                tenantId: 'tenant-b',
+                conversationId: 'conv-1',
+                lane: 'booking',
+              },
+            },
+          },
+          'tenant-a',
+        ),
+      ).toMatchObject({
+        args: {
+          data: {
+            tenantId: 'tenant-a',
+            conversationId: 'conv-1',
+            lane: 'booking',
+          },
+        },
+      });
+    });
+
     it('overwrites caller tenantId in update data while forcing tenant scope in where', () => {
       expect(
         applyTenantScope(

@@ -519,6 +519,9 @@
 - Made deterministic decisioning continuity-aware so low-confidence follow-up turns can continue approved booking/product/quote lanes without handing control to the model
 - Reused continuity-enriched backend facts for live execution input assembly by feeding effective interpretations into tool execution
 - Added live orchestration tests proving continuity-prepared follow-up execution while preserving the existing HTTP contract
+- Expanded continuity coverage for quote follow-ups, product follow-ups, clarification follow-ups, lane invalidation, and general turns with optional state
+- Added tenant-policy coverage for the new `ConversationState` model and an architecture guard test proving no new hardcoded locale branching was introduced in the touched continuity path
+- Ran a targeted hardcode/locale audit on the touched backend path and confirmed the pre-existing locale branching debt remains isolated in `ChatResponsePolicyService`
 
 ### Working
 - The branch now has a persisted backend continuity foundation that is tenant-safe and compact
@@ -526,7 +529,9 @@
 - General conversation turns remain able to proceed with no required task state
 - The live `/chat/message` flow now reuses approved continuity state across turns without adding a new public contract or changing the canonical stage order
 - Booking follow-up turns can continue from approved state by carrying forward missing date evidence and other lane facts into backend decision/execution
-- Backend build and backend tests pass with continuity active in the live path
+- Quote and product follow-up turns can now continue deterministically from approved backend state when the new turn stays on the same lane
+- Backend build, backend tests, and frontend build pass with continuity active in the live path
+- Wave 3, `Deterministic Conversation Continuity And State`, is now complete on this branch
 
 ### Technical Debt
 - The current response policy still contains pre-existing deterministic wording and locale branching debt outside the new continuity path
@@ -534,9 +539,9 @@
 - Product and quote continuity currently rely on deterministic fact carry-over rather than richer backend follow-up semantics, which remains acceptable until Wave 4 and later governance work
 
 ### Next Steps
-- Close the wave with broader follow-up coverage for quote/product paths, a targeted hardcode/locale audit of the touched continuity path, and final end-to-end validation
-- Keep the response-policy boundary minimal so Wave 4 can consume continuity-approved backend context without inheriting deterministic wording debt
-- Use the now-persisted state plus execution truth as the approved backend context base for Wave 4, `AI Response On Approved Context`
+- Start Wave 4, `AI Response On Approved Context`, on top of the continuity-approved backend context now available from interpretation, parsing, decision, execution, and persisted state
+- Keep the response-policy boundary minimal so Wave 4 can replace deterministic backend wording with AI wording over approved context without changing execution or continuity governance
+- Reuse continuity state, execution truth, and the new audit trail as the grounding contract for approved-draft response generation and response guardrails
 
 ## Iteration 19
 
@@ -566,3 +571,33 @@
 - Start Wave 3, `Deterministic Conversation Continuity And State`, as the next execution wave on top of completed Waves 1 and 2
 - Keep future planning aligned with the expanded Waves 6 through 9 so backend decisions are evaluated against later admin and user product needs
 - Mine legacy Playwright/E2E assets only once the relevant frontend surfaces are stable enough to support meaningful regression coverage
+
+## Iteration 20
+
+### Implemented
+- Added a permanent stage-completion control to the architecture guidance so a wave is not considered finished only because code was implemented and tests passed
+- Defined a mandatory completion-time code-review gate that must validate both:
+  - functional requirement alignment
+  - architectural alignment across all touched layers
+- Explicitly documented the review dimensions that must be checked at wave closeout:
+  - layer responsibility boundaries
+  - multi-tenant enforcement
+  - language hardcoding and locale-limited logic
+  - observability coverage
+  - roadmap intent and next-wave safety
+- Recorded that review findings must be classified either as blockers or explicit technical debt instead of being left implicit
+
+### Working
+- The roadmap now includes a formal review checkpoint before accepting any wave/stage completion
+- Future closeout reports can use a consistent control to confirm whether a delivered stage is actually complete, only partially aligned, or architecturally invalid
+- The planning context now makes functional verification and architecture verification equally mandatory at wave closeout
+
+### Technical Debt
+- This iteration updates documentation only; no runtime behavior changed
+- The new review gate still depends on disciplined use in future completion reports and does not itself automate code review
+- Existing open code changes for continuity work and the unrelated local change in `docs/legacy-chat-audit.md` remain outside this documentation update
+
+### Next Steps
+- Apply this completion review gate starting with the next reported wave closeout
+- Use the gate to review Wave 3 completion against both continuity requirements and cross-layer architectural rules
+- Keep documenting hardcoded-language and locale-limited findings explicitly when they appear in touched paths
