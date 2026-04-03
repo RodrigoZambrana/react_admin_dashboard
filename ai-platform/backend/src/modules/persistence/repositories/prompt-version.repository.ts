@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PromptStatus, Prisma } from '@prisma/client';
+import { ManagedResourceStatus, Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { TenantContextService } from '../tenant/tenant-context.service';
@@ -23,7 +23,7 @@ export class PromptVersionRepository {
     return this.prisma.promptVersion.findFirst({
       where: {
         key,
-        status: PromptStatus.ACTIVE,
+        status: ManagedResourceStatus.ACTIVE,
       },
       orderBy: { version: 'desc' },
     });
@@ -47,10 +47,10 @@ export class PromptVersionRepository {
       await this.prisma.promptVersion.updateMany({
         where: {
           key: input.key,
-          status: PromptStatus.ACTIVE,
+          status: ManagedResourceStatus.ACTIVE,
         },
         data: {
-          status: PromptStatus.ARCHIVED,
+          status: ManagedResourceStatus.ARCHIVED,
         },
       });
     }
@@ -63,7 +63,9 @@ export class PromptVersionRepository {
         metadata: input.metadata,
         createdBy: input.createdBy,
         version: (latest?.version ?? 0) + 1,
-        status: input.activate ? PromptStatus.ACTIVE : PromptStatus.DRAFT,
+        status: input.activate
+          ? ManagedResourceStatus.ACTIVE
+          : ManagedResourceStatus.DRAFT,
       },
     });
   }

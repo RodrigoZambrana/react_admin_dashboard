@@ -100,6 +100,27 @@
 - `ParsingModule`: normalization of dates, measurements, and entities
 - `RuntimeConfigModule`: abstraction over env-backed runtime configuration with future DB handoff points for AI keys, tenant configs, and prompts
 - `SecurityModule`: placeholder security planning for future Bearer auth and admin-only endpoint guards
+- `RuntimeResources`: shared contracts for versioned runtime-managed resources with swappable providers and bootstrap seed sources
+
+## Runtime Managed Resources
+
+- Critical runtime resources must resolve through backend-owned provider boundaries, never directly from files or hardcoded runtime templates
+- Each resource family keeps explicit persistence models when that preserves type clarity, but shares the same lifecycle semantics:
+  - `DRAFT`
+  - `ACTIVE`
+  - `ARCHIVED`
+- Runtime-managed resources must support:
+  - automatic tenant scoping
+  - versioned history
+  - audit metadata (`createdBy`, `createdAt`, provenance metadata)
+  - bootstrap seeding from repository-owned resource files when no managed version exists yet
+  - future admin mutation without changing parser, orchestration, or AI gateway logic
+- Current Wave 1 applications of this pattern:
+  - prompts
+  - temporal locale catalogs
+- Future families expected to align to the same pattern:
+  - critical configs
+  - governed knowledge metadata
 
 ## Request Flow
 

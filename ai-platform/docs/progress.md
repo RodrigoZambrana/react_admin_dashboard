@@ -383,3 +383,48 @@
 - Use this abstraction as the fixed dependency boundary before any future temporal parsing expansion or locale additions
 - Resume roadmap work on `Live Decision Activation` without changing temporal parser dependencies again
 - Introduce governance/versioning for temporal locale resources when config/prompt storage is revisited
+
+## Iteration 16
+
+### Implemented
+- Re-aligned roadmap guidance so the legacy chat audit becomes a mandatory planning reference for future iterations, not just an implementation-time consultation
+- Established `Runtime Managed Resources` as a transversal roadmap line for temporal resources, prompts, critical configs, and later knowledge metadata when applicable
+- Documented that future roadmap waves must consider recommended legacy solutions for backend, admin operations, QA/test tooling, and user-facing chat concepts only when they fit the new architecture
+
+### Working
+- Future iteration planning now has an explicit rule: mine the legacy audit before defining the next roadmap wave
+- Legacy assets are now recognized as inputs for sequencing and scope design, not only for code-level reuse
+- The project keeps the legacy branch as a reference library while preserving the standalone platform as the only valid runtime architecture target
+
+### Technical Debt
+- `Runtime Managed Resources` is still only a roadmap line and not yet implemented as a common platform capability
+- Admin ABMs for critical resources, knowledge, and chat testing remain pending
+- The roadmap still needs concrete execution waves that connect backend runtime completion with admin and user-facing product surfaces
+
+### Next Steps
+- Use the legacy audit explicitly when defining the next roadmap wave around `Runtime Managed Resources`
+- Keep future roadmap proposals aligned with reusable legacy strengths such as response guardrails, deterministic conversation-state concepts, admin test workflows, and QA assets
+- Continue rejecting legacy patterns that violate backend-owned decisioning, backend-owned execution, automatic tenant isolation, or modular layer separation
+
+## Iteration 16
+
+### Implemented
+- Introduced shared `Runtime Managed Resources` contracts for lifecycle status, runtime providers, and bootstrap seed sources
+- Unified managed-resource lifecycle semantics around `DRAFT`, `ACTIVE`, and `ARCHIVED`
+- Extended Prisma persistence with a dedicated `TemporalLocaleVersion` model for versioned temporal catalogs
+- Updated tenant-scoped persistence wiring so managed temporal locale versions follow the same automatic isolation policy as other tenant-owned data
+
+### Working
+- The codebase now has a reusable backend contract for versioned runtime-managed resources instead of ad hoc per-subsystem lifecycle definitions
+- Prompt versions and temporal locale versions now share explicit managed-resource lifecycle semantics
+- Prisma client generation succeeds against the new managed-resource schema foundation
+
+### Technical Debt
+- Live temporal resolution still uses the filesystem-backed provider as its active runtime source
+- Live prompt retrieval still falls back to code-backed defaults in the AI gateway path
+- No backend management surface exists yet for future admin ABMs over runtime-managed resources
+
+### Next Steps
+- Move temporal runtime reads to a managed persisted provider and reduce filesystem to bootstrap/import only
+- Reconnect live prompt retrieval to managed prompt storage with filesystem/bootstrap seeding instead of code defaults
+- Add minimal backend management endpoints/services so future admin ABMs can operate on the shared managed-resource model

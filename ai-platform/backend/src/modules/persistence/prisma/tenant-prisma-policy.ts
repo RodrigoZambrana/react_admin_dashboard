@@ -22,6 +22,7 @@ const TENANT_MODELS = new Set([
   'Message',
   'ChatLog',
   'PromptVersion',
+  'TemporalLocaleVersion',
   'Knowledge',
 ]);
 

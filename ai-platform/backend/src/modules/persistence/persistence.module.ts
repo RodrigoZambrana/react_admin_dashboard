@@ -7,6 +7,7 @@ import { InfrastructureRepository } from './repositories/infrastructure.reposito
 import { KnowledgeRepository } from './repositories/knowledge.repository';
 import { MessageRepository } from './repositories/message.repository';
 import { PromptVersionRepository } from './repositories/prompt-version.repository';
+import { TemporalLocaleVersionRepository } from './repositories/temporal-locale-version.repository';
 import { PrismaService } from './prisma/prisma.service';
 import { TenantContextService } from './tenant/tenant-context.service';
 import { TenantMiddleware } from './tenant/tenant.middleware';
@@ -23,6 +24,7 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,
+    TemporalLocaleVersionRepository,
     KnowledgeRepository,
   ],
   exports: [
@@ -33,6 +35,7 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,
+    TemporalLocaleVersionRepository,
     KnowledgeRepository,
   ],
 })

@@ -13,7 +13,7 @@ enum MessageRole {
   SYSTEM
 }
 
-enum PromptStatus {
+enum ManagedResourceStatus {
   DRAFT
   ACTIVE
   ARCHIVED
@@ -74,7 +74,7 @@ model PromptVersion {
   tenantId    String
   key         String
   version     Int
-  status      PromptStatus @default(DRAFT)
+  status      ManagedResourceStatus @default(DRAFT)
   template    String
   metadata    Json?
   createdAt   DateTime     @default(now())
@@ -82,6 +82,21 @@ model PromptVersion {
 
   @@unique([tenantId, key, version])
   @@index([tenantId, key, status])
+}
+
+model TemporalLocaleVersion {
+  id        String                @id @default(cuid())
+  tenantId  String
+  locale    String
+  version   Int
+  status    ManagedResourceStatus @default(DRAFT)
+  resource  Json
+  metadata  Json?
+  createdAt DateTime              @default(now())
+  createdBy String?
+
+  @@unique([tenantId, locale, version])
+  @@index([tenantId, locale, status])
 }
 
 model Knowledge {
