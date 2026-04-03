@@ -355,3 +355,25 @@
 - Use this temporal-resource foundation as the prerequisite for any future temporal parsing expansion or locale additions
 - When the roadmap resumes decision work, keep decision behavior unchanged and rely on the new resource-driven temporal normalization
 - Introduce governance/versioning for backend locale resources when prompt/config versioning is revisited
+
+## Iteration 15
+
+### Implemented
+- Added a backend-owned `TemporalLocaleProvider` abstraction for temporal locale access
+- Promoted the temporal locale resource schema into the shared temporal contract layer
+- Prepared the temporal subsystem to decouple parser logic from any concrete storage implementation
+
+### Working
+- The temporal subsystem now has an explicit provider boundary for locale resources
+- Resource schema validation is now part of the shared temporal contract instead of being buried in a concrete loader
+- Existing runtime behavior remains unchanged at this milestone
+
+### Technical Debt
+- The active temporal subsystem still uses the existing concrete registry implementation underneath the new abstraction
+- Temporal parsing components still depend on the current concrete registry instead of the new provider boundary
+- The mock AI provider still reaches temporal support through the current concrete dependency chain
+
+### Next Steps
+- Add a filesystem-backed implementation of `TemporalLocaleProvider`
+- Refactor temporal parsing services to depend only on the provider abstraction
+- Update the mock AI provider path and tests so the concrete storage mechanism stays fully behind the provider boundary
