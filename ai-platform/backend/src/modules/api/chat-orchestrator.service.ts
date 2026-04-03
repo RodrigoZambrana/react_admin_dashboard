@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { MessageRole, Prisma } from '@prisma/client';
 
 import { DecisionService } from '../decision/decision.service';
+import { DecisionResult } from '../decision/decision.types';
 import { InterpretationService } from '../interpretation/interpretation.service';
 import { MemoryService } from '../memory/memory.service';
 import { ParsingService } from '../parsing/parsing.service';
@@ -12,7 +13,6 @@ import { TraceLogService } from './trace-log.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
 
 const BASIC_RESPONSE = 'Hello, how can I help you?';
-const BASIC_INTENT = 'GENERAL_CONVERSATION';
 
 @Injectable()
 export class ChatOrchestratorService {
@@ -101,7 +101,8 @@ export class ChatOrchestratorService {
       } as Prisma.InputJsonValue,
     });
 
-    const response = this.buildBasicResponse(
+    const response = this.buildResponse(
+      decision,
       input.message,
       parsedInterpretation.language,
     );
@@ -177,6 +178,22 @@ export class ChatOrchestratorService {
     return this.conversationRepository.createConversation(input.locale);
   }
 
+  private buildResponse(
+    decision: DecisionResult,
+    message: string,
+    locale?: string,
+  ) {
+    if (decision.action === 'clarify') {
+      return this.buildClarificationResponse(decision.missingFields, locale);
+    }
+
+    if (decision.action === 'invoke_tool') {
+      return this.buildPendingExecutionResponse(decision.toolName, locale);
+    }
+
+    return this.buildBasicResponse(message, locale);
+  }
+
   private buildBasicResponse(message: string, locale?: string) {
     const normalized = `${locale ?? ''} ${message}`.toLowerCase();
 
@@ -189,5 +206,52 @@ export class ChatOrchestratorService {
     }
 
     return BASIC_RESPONSE;
+  }
+
+  private buildClarificationResponse(missingFields: string[], locale?: string) {
+    const isSpanish = this.isSpanish(locale);
+
+    if (missingFields.includes('requested_date')) {
+      return isSpanish
+        ? 'Necesito la fecha deseada para continuar.'
+        : 'I need the requested date to continue.';
+    }
+
+    return isSpanish
+      ? 'Necesito un poco más de contexto para continuar.'
+      : 'I need a bit more context to continue.';
+  }
+
+  private buildPendingExecutionResponse(
+    toolName: DecisionResult['toolName'],
+    locale?: string,
+  ) {
+    const isSpanish = this.isSpanish(locale);
+
+    if (toolName === 'create_booking') {
+      return isSpanish
+        ? 'Entendido. Identifique tu solicitud de reserva y la deje lista para el siguiente paso.'
+        : 'Understood. I identified your booking request and left it ready for the next step.';
+    }
+
+    if (toolName === 'create_quote') {
+      return isSpanish
+        ? 'Entendido. Identifique tu solicitud de cotizacion y la deje lista para el siguiente paso.'
+        : 'Understood. I identified your quote request and left it ready for the next step.';
+    }
+
+    if (toolName === 'get_product') {
+      return isSpanish
+        ? 'Entendido. Identifique tu consulta de producto y la deje lista para el siguiente paso.'
+        : 'Understood. I identified your product request and left it ready for the next step.';
+    }
+
+    return isSpanish
+      ? 'Entendido. Identifique tu solicitud y la deje lista para el siguiente paso.'
+      : 'Understood. I identified your request and left it ready for the next step.';
+  }
+
+  private isSpanish(locale?: string) {
+    return (locale ?? '').toLowerCase().startsWith('es');
   }
 }

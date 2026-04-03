@@ -301,6 +301,7 @@
 - Tightened parsing assertions so live normalized booking date evidence stays deterministic
 - Wired `DecisionService` into the live orchestration immediately after parsing
 - Persisted a dedicated `decision` trace stage with deterministic backend routing output while keeping tools inactive
+- Added deterministic response handling aligned to decision outcomes without activating tools
 
 ### Working
 - Valid expressions such as `mañana`, `mañana a las 3`, and `tomorrow` still normalize correctly
@@ -308,13 +309,16 @@
 - Backend temporal normalization is now safer to use as input for deterministic booking decisions
 - Live flow is now `input -> interpretation -> parsing -> decision -> response -> logging`
 - Decision outputs are persisted for inspection with `domain`, `action`, `toolName`, `reasonCode`, and `missingFields`
+- Clarification decisions now ask for missing information deterministically
+- `invoke_tool` decisions now return neutral acknowledgements and do not imply successful execution
 
 ### Technical Debt
 - Tool execution remains inactive in runtime
-- Response behavior is still generic and does not yet distinguish clarify versus invoke-tool outcomes
 - AI response generation remains inactive in the live path
+- Prompt version storage is still not connected to decision-aware response generation
+- Temporal normalization still covers only bounded basic expressions, not a broader scheduling grammar
 
 ### Next Steps
-- Update deterministic response behavior to reflect decision outcomes without activating tools
 - Re-run full backend and frontend validation on the end-to-end decision-aware flow
-- Close the iteration with a final milestone commit once response behavior is aligned to decisions
+- Activate tool execution only after deterministic decision routing is fully stable
+- Add AI response generation later as a wording layer on top of backend-approved decisions
