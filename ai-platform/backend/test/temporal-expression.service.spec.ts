@@ -45,28 +45,41 @@ describe('TemporalExpressionService', () => {
 });
 
 function buildService(resources: TemporalLocaleResource[]) {
-  return new TemporalExpressionService({
-    listResources: () => resources,
-    getSupportedLocales: () => resources.map((resource) => resource.locale),
-    resolveResource: (locale?: string | null) => {
-      const normalizedLocale = locale?.trim().toLowerCase();
+  return new TemporalExpressionService(new FakeTemporalLocaleProvider(resources));
+}
 
-      if (!normalizedLocale) {
-        return undefined;
-      }
+class FakeTemporalLocaleProvider extends TemporalLocaleProvider {
+  constructor(private readonly resources: TemporalLocaleResource[]) {
+    super();
+  }
 
-      return resources.find((resource) => resource.locale === normalizedLocale);
-    },
-    resolveResources: (locale?: string | null) => {
-      const normalizedLocale = locale?.trim().toLowerCase();
+  listResources(): TemporalLocaleResource[] {
+    return this.resources;
+  }
 
-      if (!normalizedLocale) {
-        return resources;
-      }
+  getSupportedLocales(): string[] {
+    return this.resources.map((resource) => resource.locale);
+  }
 
-      return resources.filter(
-        (resource) => resource.locale === normalizedLocale,
-      );
-    },
-  } as TemporalLocaleProvider);
+  resolveResource(locale?: string | null): TemporalLocaleResource | undefined {
+    const normalizedLocale = locale?.trim().toLowerCase();
+
+    if (!normalizedLocale) {
+      return undefined;
+    }
+
+    return this.resources.find((resource) => resource.locale === normalizedLocale);
+  }
+
+  resolveResources(locale?: string | null): TemporalLocaleResource[] {
+    const normalizedLocale = locale?.trim().toLowerCase();
+
+    if (!normalizedLocale) {
+      return this.resources;
+    }
+
+    return this.resources.filter(
+      (resource) => resource.locale === normalizedLocale,
+    );
+  }
 }

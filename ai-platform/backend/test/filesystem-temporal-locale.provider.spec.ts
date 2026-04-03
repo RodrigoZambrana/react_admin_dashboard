@@ -2,12 +2,12 @@ import { FileSystemTemporalLocaleProvider } from '../src/modules/temporal/filesy
 
 describe('FileSystemTemporalLocaleProvider', () => {
   it('loads supported temporal locale catalogs from backend-managed resources', () => {
-    const registry = new FileSystemTemporalLocaleProvider();
+    const provider = new FileSystemTemporalLocaleProvider();
 
-    expect(registry.getSupportedLocales()).toEqual(
+    expect(provider.getSupportedLocales()).toEqual(
       expect.arrayContaining(['en', 'es']),
     );
-    expect(registry.resolveResource('es-UY')).toEqual(
+    expect(provider.resolveResource('es-UY')).toEqual(
       expect.objectContaining({
         locale: 'es',
         datePhrases: expect.arrayContaining(['mañana']),

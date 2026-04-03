@@ -371,13 +371,15 @@
 - Resource schema validation is now part of the shared temporal contract instead of being buried in a concrete loader
 - Temporal parsing services no longer know about filesystem-backed loading details
 - Existing runtime behavior remains unchanged at this milestone
+- Parser and mock-provider tests now prove the runtime can consume non-filesystem temporal locale providers
+- This abstraction is now the intended prerequisite for the next roadmap step, `Live Decision Activation`
 
 ### Technical Debt
-- The mock AI provider still reaches temporal support through the current concrete dependency chain
-- Some tests still instantiate the filesystem-backed provider directly instead of using abstraction-level test doubles
-- The architecture tests still need one focused pass to prove locale extensibility without filesystem involvement
+- Some integration-oriented tests still instantiate the filesystem-backed provider directly for repository-backed locale coverage
+- Locale resources are still repository-versioned files and are not yet governed by prompt/config versioning
+- The live pipeline behavior remains coupled to the branch's already-active decision layer, which is outside the scope of this abstraction step
 
 ### Next Steps
-- Update the mock AI provider path and tests so the concrete storage mechanism stays fully behind the provider boundary
-- Add architecture-oriented tests proving new locales can be introduced without parser changes
-- Re-run full backend and frontend validation and finalize the roadmap documentation for this abstraction step
+- Use this abstraction as the fixed dependency boundary before any future temporal parsing expansion or locale additions
+- Resume roadmap work on `Live Decision Activation` without changing temporal parser dependencies again
+- Introduce governance/versioning for temporal locale resources when config/prompt storage is revisited
