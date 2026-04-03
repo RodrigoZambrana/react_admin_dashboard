@@ -6,7 +6,7 @@ describe('DecisionService', () => {
     const service = new DecisionService(new PipelineLoggerService());
 
     const decision = service.decide({
-      intent: 'tenant.create_booking',
+      intent: 'CREATE_BOOKING',
       language: 'es',
       confidence: 0.9,
       entities: {
@@ -21,6 +21,7 @@ describe('DecisionService', () => {
           },
         ],
         measurements: [],
+        dimensions: [],
       },
     });
 
@@ -36,7 +37,7 @@ describe('DecisionService', () => {
     const service = new DecisionService(new PipelineLoggerService());
 
     const decision = service.decide({
-      intent: 'tenant.create_booking',
+      intent: 'CREATE_BOOKING',
       language: 'en',
       confidence: 0.9,
       entities: {
@@ -45,6 +46,7 @@ describe('DecisionService', () => {
       normalizedEntities: {
         dates: [],
         measurements: [],
+        dimensions: [],
       },
     });
 

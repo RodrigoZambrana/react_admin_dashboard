@@ -3,6 +3,7 @@ import { MessageRole, Prisma } from '@prisma/client';
 
 import { InterpretationService } from '../interpretation/interpretation.service';
 import { MemoryService } from '../memory/memory.service';
+import { ParsingService } from '../parsing/parsing.service';
 import { ConversationRepository } from '../persistence/repositories/conversation.repository';
 import { MessageRepository } from '../persistence/repositories/message.repository';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
@@ -19,6 +20,7 @@ export class ChatOrchestratorService {
     private readonly conversationRepository: ConversationRepository,
     private readonly messageRepository: MessageRepository,
     private readonly interpretationService: InterpretationService,
+    private readonly parsingService: ParsingService,
     private readonly memoryService: MemoryService,
     private readonly traceLogService: TraceLogService,
   ) {}
@@ -53,6 +55,9 @@ export class ChatOrchestratorService {
       input.locale,
       previousMessages,
     );
+    const parsedInterpretation = this.parsingService.normalize(
+      interpretation.interpretation,
+    );
 
     await this.traceLogService.recordStage({
       conversationId,
@@ -68,9 +73,21 @@ export class ChatOrchestratorService {
       } as Prisma.InputJsonValue,
     });
 
+    await this.traceLogService.recordStage({
+      conversationId,
+      stage: 'parsing',
+      status: 'completed',
+      payload: {
+        intent: parsedInterpretation.intent,
+        language: parsedInterpretation.language,
+        confidence: parsedInterpretation.confidence,
+        normalizedEntities: parsedInterpretation.normalizedEntities,
+      } as Prisma.InputJsonValue,
+    });
+
     const response = this.buildBasicResponse(
       input.message,
-      interpretation.interpretation.language,
+      parsedInterpretation.language,
     );
 
     await this.traceLogService.recordStage({
@@ -79,10 +96,11 @@ export class ChatOrchestratorService {
       status: 'completed',
       payload: {
         response,
-        intent: interpretation.interpretation.intent,
-        entities: interpretation.interpretation.entities,
-        language: interpretation.interpretation.language,
-        confidence: interpretation.interpretation.confidence,
+        intent: parsedInterpretation.intent,
+        entities: parsedInterpretation.entities,
+        normalizedEntities: parsedInterpretation.normalizedEntities,
+        language: parsedInterpretation.language,
+        confidence: parsedInterpretation.confidence,
       } as Prisma.InputJsonValue,
     });
 
@@ -91,10 +109,11 @@ export class ChatOrchestratorService {
       MessageRole.ASSISTANT,
       response,
       {
-        intent: interpretation.interpretation.intent,
-        entities: interpretation.interpretation.entities,
-        language: interpretation.interpretation.language,
-        confidence: interpretation.interpretation.confidence,
+        intent: parsedInterpretation.intent,
+        entities: parsedInterpretation.entities,
+        normalizedEntities: parsedInterpretation.normalizedEntities,
+        language: parsedInterpretation.language,
+        confidence: parsedInterpretation.confidence,
       } as Prisma.InputJsonValue,
     );
     await this.memoryService.append(conversationId, 'assistant', response);
@@ -112,8 +131,8 @@ export class ChatOrchestratorService {
 
     return {
       response,
-      intent: interpretation.interpretation.intent,
-      entities: interpretation.interpretation.entities,
+      intent: parsedInterpretation.intent,
+      entities: parsedInterpretation.entities,
       metadata,
     };
   }

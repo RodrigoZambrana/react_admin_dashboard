@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { AiGatewayService } from '../ai-gateway/ai-gateway.service';
 import {
+  CanonicalInterpretation,
   InterpretationAttempt,
   InterpretationResult,
   interpretationAttemptSchema,
@@ -58,7 +59,7 @@ export class InterpretationService {
   private normalizeInterpretation(
     input: InterpretationResult,
     locale?: string,
-  ): InterpretationResult {
+  ): CanonicalInterpretation {
     return {
       intent: this.normalizeIntent(input.intent),
       entities: input.entities ?? {},
@@ -67,7 +68,7 @@ export class InterpretationService {
     };
   }
 
-  private buildFallback(locale?: string): InterpretationResult {
+  private buildFallback(locale?: string): CanonicalInterpretation {
     return {
       intent: 'GENERAL_CONVERSATION',
       entities: {},
@@ -76,9 +77,9 @@ export class InterpretationService {
     };
   }
 
-  private normalizeIntent(intent: string) {
+  private normalizeIntent(intent: string): CanonicalInterpretation['intent'] {
     const normalized = intent.trim().toUpperCase().replace(/[.\s-]+/g, '_');
-    const aliases: Record<string, string> = {
+    const aliases: Record<string, CanonicalInterpretation['intent']> = {
       CORE_GENERAL_CONVERSATION: 'GENERAL_CONVERSATION',
       GENERAL: 'GENERAL_CONVERSATION',
       GENERAL_CONVERSATION: 'GENERAL_CONVERSATION',

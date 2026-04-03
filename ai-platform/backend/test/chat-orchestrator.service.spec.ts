@@ -1,7 +1,7 @@
 import { ChatOrchestratorService } from '../src/modules/api/chat-orchestrator.service';
 
 describe('ChatOrchestratorService', () => {
-  it('stores a basic interaction, logs interpretation, and returns the minimal response payload', async () => {
+  it('stores a basic interaction, runs parsing, logs parsing, and returns the minimal response payload', async () => {
     const traceLogService = {
       recordStage: jest.fn(async () => undefined),
     };
@@ -27,6 +27,19 @@ describe('ChatOrchestratorService', () => {
         usedFallback: false,
       })),
     };
+    const parsingService = {
+      normalize: jest.fn(() => ({
+        intent: 'GENERAL_CONVERSATION',
+        entities: {},
+        language: 'es',
+        confidence: 0.94,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      })),
+    };
     const memoryService = {
       getRecent: jest.fn(async () => []),
       append: jest.fn(async () => undefined),
@@ -49,6 +62,7 @@ describe('ChatOrchestratorService', () => {
         listByConversation: jest.fn(async () => []),
       } as any,
       interpretationService as any,
+      parsingService as any,
       memoryService as any,
       traceLogService as any,
     );
@@ -66,7 +80,13 @@ describe('ChatOrchestratorService', () => {
         traceId: 'trace-1',
       },
     });
-    expect(traceLogService.recordStage).toHaveBeenCalledTimes(4);
+    expect(traceLogService.recordStage).toHaveBeenCalledTimes(5);
     expect(interpretationService.interpret).toHaveBeenCalledWith('hola', undefined, []);
+    expect(parsingService.normalize).toHaveBeenCalledWith({
+      intent: 'GENERAL_CONVERSATION',
+      entities: {},
+      language: 'es',
+      confidence: 0.94,
+    });
   });
 });

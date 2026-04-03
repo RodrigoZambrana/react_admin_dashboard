@@ -1,14 +1,16 @@
 import { Injectable } from '@nestjs/common';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
-import { InterpretationResult } from '../interpretation/interpretation.schemas';
+import { CanonicalInterpretation } from '../interpretation/interpretation.schemas';
 import { DateParser, NormalizedDate } from './date.parser';
+import { DimensionParser, NormalizedDimension } from './dimension.parser';
 import { MeasurementParser, NormalizedMeasurement } from './measurement.parser';
 
-export type NormalizedInterpretation = InterpretationResult & {
+export type ParsedInterpretation = CanonicalInterpretation & {
   normalizedEntities: {
     dates: NormalizedDate[];
     measurements: NormalizedMeasurement[];
+    dimensions: NormalizedDimension[];
   };
 };
 
@@ -17,13 +19,14 @@ export class ParsingService {
   constructor(
     private readonly dateParser: DateParser,
     private readonly measurementParser: MeasurementParser,
+    private readonly dimensionParser: DimensionParser,
     private readonly logger: PipelineLoggerService,
   ) {}
 
   normalize(
-    interpretation: InterpretationResult,
+    interpretation: CanonicalInterpretation,
     referenceDate = new Date(),
-  ): NormalizedInterpretation {
+  ): ParsedInterpretation {
     const message =
       typeof interpretation.entities.rawMessage === 'string'
         ? interpretation.entities.rawMessage
@@ -40,8 +43,13 @@ export class ParsingService {
           (candidate): candidate is string => typeof candidate === 'string',
         )
       : [];
+    const dimensionCandidates = Array.isArray(interpretation.entities.dimensionCandidates)
+      ? interpretation.entities.dimensionCandidates.filter(
+          (candidate): candidate is string => typeof candidate === 'string',
+        )
+      : [];
 
-    const normalized: NormalizedInterpretation = {
+    const normalized: ParsedInterpretation = {
       ...interpretation,
       normalizedEntities: {
         dates: this.dateParser.parseCandidates(
@@ -52,6 +60,10 @@ export class ParsingService {
         measurements: this.measurementParser.parseCandidates(
           message,
           measurementCandidates,
+        ),
+        dimensions: this.dimensionParser.parseCandidates(
+          message,
+          dimensionCandidates,
         ),
       },
     };

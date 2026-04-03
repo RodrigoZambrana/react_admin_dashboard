@@ -15,7 +15,7 @@ describe('ToolEngineService', () => {
 
     const result = await service.execute('create_booking', {
       interpretation: {
-        intent: 'tenant.create_booking',
+        intent: 'CREATE_BOOKING',
         language: 'es',
         confidence: 0.93,
         entities: {
@@ -31,6 +31,7 @@ describe('ToolEngineService', () => {
             },
           ],
           measurements: [],
+          dimensions: [],
         },
       },
     });

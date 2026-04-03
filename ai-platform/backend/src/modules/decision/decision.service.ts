@@ -1,14 +1,14 @@
 import { Injectable } from '@nestjs/common';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
-import { NormalizedInterpretation } from '../parsing/parsing.service';
+import { ParsedInterpretation } from '../parsing/parsing.service';
 import { DecisionResult } from './decision.types';
 
 @Injectable()
 export class DecisionService {
   constructor(private readonly logger: PipelineLoggerService) {}
 
-  decide(input: NormalizedInterpretation): DecisionResult {
+  decide(input: ParsedInterpretation): DecisionResult {
     const decision = this.resolveDecision(input);
 
     this.logger.log(
@@ -21,8 +21,8 @@ export class DecisionService {
     return decision;
   }
 
-  private resolveDecision(input: NormalizedInterpretation): DecisionResult {
-    if (input.confidence < 0.6 || input.intent === 'core.clarification') {
+  private resolveDecision(input: ParsedInterpretation): DecisionResult {
+    if (input.confidence < 0.6 || input.intent === 'CLARIFICATION') {
       return {
         domain: 'core',
         action: 'clarify',
@@ -32,7 +32,7 @@ export class DecisionService {
       };
     }
 
-    if (input.intent === 'tenant.create_booking') {
+    if (input.intent === 'CREATE_BOOKING') {
       const missingFields = input.normalizedEntities.dates.length
         ? []
         : ['requested_date'];
@@ -57,7 +57,7 @@ export class DecisionService {
       };
     }
 
-    if (input.intent === 'tenant.get_product') {
+    if (input.intent === 'GET_PRODUCT') {
       return {
         domain: 'tenant',
         action: 'invoke_tool',
@@ -68,7 +68,7 @@ export class DecisionService {
       };
     }
 
-    if (input.intent === 'tenant.create_quote') {
+    if (input.intent === 'CREATE_QUOTE') {
       return {
         domain: 'tenant',
         action: 'invoke_tool',

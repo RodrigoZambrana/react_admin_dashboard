@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
-import { NormalizedInterpretation } from '../parsing/parsing.service';
+import { ParsedInterpretation } from '../parsing/parsing.service';
 
 export type ToolExecutionContext = {
-  interpretation: NormalizedInterpretation;
+  interpretation: ParsedInterpretation;
 };
 
 export type ToolExecutionResult = {

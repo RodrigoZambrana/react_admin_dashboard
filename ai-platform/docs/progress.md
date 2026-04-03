@@ -245,3 +245,28 @@
 
 ### Next Steps
 - Use the audit during the next safe backend increment, starting with parsing-oriented legacy helpers only
+
+## Iteration 11
+
+### Implemented
+- Live `ParsingService` activation in `/chat/message` immediately after interpretation
+- New persisted `parsing` stage in the trace log flow
+- Canonical parsed contract with flat stable intents and backend-owned normalized entities
+- Dimension normalization support for `x`/`por` style pairs in addition to dates and generic measurements
+
+### Working
+- Live flow is now `input -> interpretation -> parsing -> response -> logging`
+- `/chat/message` keeps the current response contract while parsing runs internally
+- Parsing output is persisted to `ChatLog` and ready for future deterministic decisioning
+- Backend normalization now covers date, measurement, and dimension signals from the active interpretation layer
+
+### Technical Debt
+- Decision routing is still inactive in the live path
+- Tool execution is still inactive in the live path
+- Response generation still ignores parsed context beyond stable logging and metadata
+- Prompt storage is still not reconnected to the active interpretation/parsing chain
+
+### Next Steps
+- Activate deterministic `DecisionService` on top of the canonical parsed contract
+- Wire tools only after decision routing is live and validated
+- Refine dimension heuristics and add broader parsing coverage for ranges and multi-item measurement lists
