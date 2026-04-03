@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ZodError, z } from 'zod';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
+import { PromptService } from '../prompt/prompt.service';
 import { RuntimeConfigService } from '../runtime-config/runtime-config.service';
 import {
   AiGatewayInterpretationResult,
@@ -23,6 +24,7 @@ const interpretationOutputSchema = z.object({
 export class AiGatewayService {
   constructor(
     private readonly runtimeConfig: RuntimeConfigService,
+    private readonly promptService: PromptService,
     private readonly logger: PipelineLoggerService,
     private readonly mockProvider: MockLanguageModelProvider,
     private readonly openAiProvider: OpenAiLanguageModelProvider,
@@ -34,7 +36,8 @@ export class AiGatewayService {
     const startedAt = Date.now();
     const promptTemplate =
       input.promptTemplate ??
-      this.runtimeConfig.getPromptTemplate('interpretation').template;
+      (await this.promptService.getActivePrompt('interpretation'))?.value ??
+      '';
     const request = {
       systemPrompt: this.buildInterpretationPrompt(promptTemplate, input.locale),
       message: input.message,
@@ -127,7 +130,15 @@ export class AiGatewayService {
   }
 
   async generateResponse(input: ResponseGenerationInput) {
-    return this.mockProvider.generateResponse(input);
+    const promptTemplate =
+      input.promptTemplate ??
+      (await this.promptService.getActivePrompt('response'))?.value ??
+      '';
+
+    return this.mockProvider.generateResponse({
+      ...input,
+      promptTemplate,
+    });
   }
 
   private resolveInterpretationProvider(providerName: 'mock' | 'openai') {

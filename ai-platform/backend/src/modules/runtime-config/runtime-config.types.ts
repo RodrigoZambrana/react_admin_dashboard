@@ -8,12 +8,6 @@ export type AiGatewayConfig = {
   source: 'env';
 };
 
-export type PromptTemplateConfig = {
-  key: 'interpretation' | 'response';
-  template: string;
-  source: 'code';
-};
-
 export type TenantRuntimeConfig = {
   tenantId: string | null;
   source: 'env';

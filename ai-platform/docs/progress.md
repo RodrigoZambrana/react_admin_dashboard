@@ -416,6 +416,9 @@
 - Replaced the live temporal runtime dependency with a managed persisted provider backed by `TemporalLocaleVersion`
 - Reduced filesystem temporal resources to idempotent bootstrap seed inputs only
 - Refactored temporal parsing, the mock AI provider, and the live parsing chain to consume async provider-backed temporal resources
+- Added managed prompt template seed/bootstrap sources under backend-owned resources
+- Reconnected live AI prompt retrieval to persisted prompt versions through a managed runtime provider, removing code-backed prompt defaults from the active path
+- Updated the AI gateway to consume managed interpretation and response prompts without changing the live `/chat/message` contract
 
 ### Working
 - The codebase now has a reusable backend contract for versioned runtime-managed resources instead of ad hoc per-subsystem lifecycle definitions
@@ -424,13 +427,15 @@
 - Temporal runtime resolution no longer reads filesystem catalogs directly in the active parsing path
 - Temporal bootstrap is idempotent per tenant: when no managed temporal versions exist, the seed source hydrates persisted active versions once
 - Backend and frontend builds pass after the temporal runtime refactor, and the full backend test suite passes with async temporal parsing active
+- Prompt bootstrap is also idempotent per tenant, and AI gateway tests now verify managed prompt retrieval instead of code-backed templates
+- Code search confirms the old code-backed prompt template path is gone from runtime code
 
 ### Technical Debt
-- Live prompt retrieval still falls back to code-backed defaults in the AI gateway path
 - No backend management surface exists yet for future admin ABMs over runtime-managed resources
-- Prompt seeds are not yet aligned to the same bootstrap pattern as temporal catalogs
+- Temporal locale management still lacks explicit admin-facing list/create endpoints
+- Prompt management still rides on legacy `/prompts` endpoints and is not yet grouped under a shared runtime-resource boundary
 
 ### Next Steps
-- Reconnect live prompt retrieval to managed prompt storage with filesystem/bootstrap seeding instead of code defaults
 - Add minimal backend management endpoints/services so future admin ABMs can operate on the shared managed-resource model
+- Add a unified admin-facing backend boundary for prompts and temporal locale resources without coupling controllers to persistence details
 - Keep this managed-resource base as the prerequisite for the next roadmap steps: live tool execution, AI response on approved context, critical config runtime management, and admin ABMs over governed resources

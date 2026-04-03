@@ -1,34 +1,21 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { PromptVersionRepository } from '../persistence/repositories/prompt-version.repository';
-import { defaultPromptTemplates } from './prompt.constants';
+import { PromptTemplateProvider } from './prompt-template.provider';
+import { PromptTemplateKey } from './prompt.types';
 
 @Injectable()
 export class PromptService {
   constructor(
+    @Inject(PromptTemplateProvider)
+    private readonly promptTemplateProvider: PromptTemplateProvider,
     private readonly promptVersionRepository: PromptVersionRepository,
     private readonly logger: PipelineLoggerService,
   ) {}
 
-  async ensureDefaults() {
-    for (const [key, template] of Object.entries(defaultPromptTemplates)) {
-      const existing = await this.promptVersionRepository.getActiveByKey(key);
-
-      if (!existing) {
-        await this.promptVersionRepository.createVersion({
-          key,
-          template,
-          activate: true,
-          createdBy: 'system',
-        });
-      }
-    }
-  }
-
-  async getActivePrompt(key: string) {
-    await this.ensureDefaults();
-    const prompt = await this.promptVersionRepository.getActiveByKey(key);
+  async getActivePrompt(key: PromptTemplateKey) {
+    const prompt = await this.promptTemplateProvider.getActive(key);
 
     this.logger.debug(
       JSON.stringify({
@@ -42,7 +29,7 @@ export class PromptService {
   }
 
   async listPrompts() {
-    await this.ensureDefaults();
+    await this.promptTemplateProvider.listActive();
     return this.promptVersionRepository.list();
   }
 

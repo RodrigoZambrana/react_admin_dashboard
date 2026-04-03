@@ -36,6 +36,17 @@ export class PromptVersionRepository {
     });
   }
 
+  hasAnyVersions() {
+    return this.prisma.promptVersion.count().then((count) => count > 0);
+  }
+
+  listActive() {
+    return this.prisma.promptVersion.findMany({
+      where: { status: ManagedResourceStatus.ACTIVE },
+      orderBy: [{ key: 'asc' }, { version: 'desc' }],
+    });
+  }
+
   async createVersion(input: CreatePromptVersionInput) {
     const tenantId = this.tenantContext.getTenantId();
     const latest = await this.prisma.promptVersion.findFirst({
