@@ -28,6 +28,8 @@ describe('ParsingService', () => {
       new Date('2026-04-03T12:00:00.000Z'),
     );
 
+    expect(normalized.normalizedEntities.dates).toHaveLength(1);
+    expect(normalized.normalizedEntities.dates[0]?.source).toBe('mañana');
     expect(normalized.normalizedEntities.dates[0]?.iso).toContain('2026-04-04');
     expect(normalized.normalizedEntities.measurements[0]).toEqual(
       expect.objectContaining({

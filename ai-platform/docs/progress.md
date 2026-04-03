@@ -292,3 +292,25 @@
 - Activate deterministic `DecisionService` on top of the already isolated interpretation/parsing flow
 - Evaluate whether database-level tenant protections should complement middleware enforcement
 - Keep closing each validated iteration with a descriptive commit for traceable delivery context
+
+## Iteration 13
+
+### Implemented
+- Hardened temporal parsing so `DateParser` only normalizes bounded temporal expressions from AI candidates or safe message-level extraction
+- Added tests for valid bounded expressions in Spanish and English, plus rejection of noisy fragments from dimensions and arbitrary candidate noise
+- Tightened parsing assertions so live normalized booking date evidence stays deterministic
+
+### Working
+- Valid expressions such as `mañana`, `mañana a las 3`, and `tomorrow` still normalize correctly
+- Noisy fragments from dimension or measurement text no longer become normalized date evidence
+- Backend temporal normalization is now safer to use as input for deterministic booking decisions
+
+### Technical Debt
+- `DecisionService` is still not wired into the live `/chat/message` path
+- Tool execution remains inactive in runtime
+- Response behavior is still pre-decision and does not yet distinguish clarify versus invoke-tool outcomes
+
+### Next Steps
+- Wire `DecisionService` into the live orchestration after parsing
+- Persist a `decision` stage in `ChatLog`
+- Update deterministic response behavior to reflect decision outcomes without activating tools
