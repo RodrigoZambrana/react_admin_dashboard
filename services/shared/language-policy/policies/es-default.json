@@ -21,16 +21,6 @@
       "flags": "u"
     }
   ],
-  "customerTopicPatterns": [
-    {
-      "source": "\\b(que es|duda sobre|consulta sobre|consulta por|consultar sobre|consultar por|como funciona|para que sirve|beneficios|ventajas|desventajas|diferencia entre|que diferencia hay|informacion sobre|info sobre|explicame|explicame sobre|contame sobre|quiero saber sobre|quiero consultar sobre|quiero consultar por|como se limpia|como limpian|mantenimiento de|como mantener)\\b",
-      "flags": "u"
-    },
-    {
-      "source": "\\b(tienen|manejan|ofrecen|trabajan con|cuentan con)\\b",
-      "flags": "u"
-    }
-  ],
   "businessFaqDefinitions": [
     {
       "subtype": "business_hours",
@@ -152,19 +142,6 @@
       "source": "\\b(stock|disponibilidad|pedido|orden|envio|entrega|comprar|quiero una|quiero uno|medida|medidas)\\b",
       "flags": "u"
     }
-  ],
-  "genericHelpTerms": [
-    "info",
-    "informacion",
-    "consulta",
-    "consultar",
-    "quiero saber",
-    "quisiera saber",
-    "necesito saber",
-    "me ayudas",
-    "me ayuda",
-    "ayuda",
-    "necesito ayuda"
   ],
   "incompleteInputs": [
     "quiero",
@@ -420,56 +397,323 @@
       "flags": "i"
     }
   ],
-  "variantQuestionPatterns": [
-    {
-      "source": "\\b((que|qué)\\s+(tipos|opciones|variantes|lineas|líneas|modelos)\\s+(tienen|hay|manejan)|cuales\\s+(tienen|hay|manejan)|cu[aá]les\\s+(tienen|hay|manejan)|((que|qué)\\s+(versiones|formatos)\\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\\s+(las\\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\\b",
-      "flags": "i"
-    },
-    {
-      "source": "\\b((cuales|cu[aá]les|que|qué)\\s+son\\s+los?\\s+(tipos|opciones|variantes|modelos|versiones|formatos))\\b",
-      "flags": "i"
-    },
-    {
-      "source": "\\b((quiero|quisiera|me\\s+gustaria|me\\s+gustar[ií]a)\\s+saber\\s+(los\\s+|las\\s+)?(tipos|opciones|variantes|modelos|versiones|formatos))\\b",
-      "flags": "i"
-    }
-  ],
-  "variantComparisonPatterns": [
-    {
-      "source": "\\b(?:dime|decime|contame|explicame|expl[ií]came)\\s+(?:las\\s+)?diferencias?\\b",
-      "flags": "iu"
-    },
-    {
-      "source": "\\b(?:que|qué|cual|cu[aá]l)\\s+diferencia(?:s)?\\s+(?:hay|tiene|tienen|entre)\\b",
-      "flags": "iu"
-    },
-    {
-      "source": "\\b(?:comparaci[oó]n|comparar)\\b",
-      "flags": "iu"
-    },
-    {
-      "source": "\\b(?:quiero|quisiera|me\\s+gustaria|me\\s+gustar[ií]a)\\s+saber\\s+(?:las\\s+)?diferencias?\\b",
-      "flags": "iu"
-    }
-  ],
-  "definitionPatterns": [
-    {
-      "source": "\\b(que es|duda sobre|como funciona|para que sirve|explicame|explicame sobre|contame sobre|quiero saber sobre)\\b",
-      "flags": "i"
-    }
-  ],
-  "benefitsPatterns": [
-    {
-      "source": "\\b(beneficios|ventajas|desventajas|diferencia entre|que diferencia hay)\\b",
-      "flags": "i"
-    }
-  ],
   "maintenancePatterns": [
     {
       "source": "\\b(como se limpia|como limpian|mantenimiento de|como mantener)\\b",
       "flags": "i"
     }
   ],
+  "customerSemanticSignals": {
+    "genericHelpTerms": [
+      "info",
+      "informacion",
+      "información",
+      "consulta",
+      "consultar",
+      "quiero saber",
+      "quisiera saber",
+      "necesito saber",
+      "me ayudas",
+      "me ayuda",
+      "ayuda",
+      "necesito ayuda"
+    ]
+  },
+  "semanticInfoIntent": {
+    "shapes": {
+      "variant_discovery": {
+        "patterns": [
+          {
+            "source": "\\b((que|qué)\\s+(tipos|opciones|variantes|lineas|líneas|modelos)\\s+(tienen|hay|manejan)|cuales\\s+(tienen|hay|manejan)|cu[aá]les\\s+(tienen|hay|manejan)|((que|qué)\\s+(versiones|formatos)\\s+(tienen|hay))|(dime|decime|mostrame|mu[eé]strame|pasame)\\s+(las\\s+)?(opciones|variantes|tipos|modelos|versiones|formatos))\\b",
+            "flags": "i"
+          },
+          {
+            "source": "\\b((cuales|cu[aá]les|que|qué)\\s+son\\s+los?\\s+(tipos|opciones|variantes|modelos|versiones|formatos))\\b",
+            "flags": "i"
+          },
+          {
+            "source": "\\b((quiero|quisiera|me\\s+gustaria|me\\s+gustar[ií]a)\\s+saber\\s+(los\\s+|las\\s+)?(tipos|opciones|variantes|modelos|versiones|formatos))\\b",
+            "flags": "i"
+          }
+        ]
+      },
+      "comparison": {
+        "patterns": [
+          {
+            "source": "\\b(?:dime|decime|contame|explicame|expl[ií]came)\\s+(?:las\\s+)?diferencias?\\b",
+            "flags": "iu"
+          },
+          {
+            "source": "\\b(?:que|qué|cual|cu[aá]l)\\s+diferencia(?:s)?\\s+(?:hay|tiene|tienen|entre)\\b",
+            "flags": "iu"
+          },
+          {
+            "source": "\\b(?:comparaci[oó]n|comparar)\\b",
+            "flags": "iu"
+          },
+          {
+            "source": "\\b(?:quiero|quisiera|me\\s+gustaria|me\\s+gustar[ií]a)\\s+saber\\s+(?:las\\s+)?diferencias?\\b",
+            "flags": "iu"
+          }
+        ]
+      },
+      "definition": {
+        "patterns": [
+          {
+            "source": "\\b(que es|duda sobre|como funciona|para que sirve|explicame|explicame sobre|contame sobre|quiero saber sobre)\\b",
+            "flags": "i"
+          }
+        ]
+      },
+      "benefits": {
+        "patterns": [
+          {
+            "source": "\\b(beneficios|ventajas|desventajas|diferencia entre|que diferencia hay)\\b",
+            "flags": "i"
+          }
+        ]
+      },
+      "general_info": {
+        "patterns": [
+          {
+            "source": "\\b(que es|duda sobre|consulta sobre|consulta por|consultar sobre|consultar por|como funciona|para que sirve|informacion sobre|información sobre|info sobre|explicame|expl[ií]came|explicame sobre|expl[ií]came sobre|contame sobre|quiero saber sobre|quiero consultar sobre|quiero consultar por|como se limpia|como limpian|mantenimiento de|como mantener)\\b",
+            "flags": "iu"
+          },
+          {
+            "source": "\\b(tienen|manejan|ofrecen|trabajan con|cuentan con)\\b",
+            "flags": "iu"
+          }
+        ],
+        "terms": [
+          "info",
+          "informacion",
+          "información",
+          "consulta",
+          "consultar",
+          "quiero saber",
+          "quisiera saber",
+          "necesito saber",
+          "me ayudas",
+          "me ayuda",
+          "ayuda",
+          "necesito ayuda"
+        ]
+      }
+    },
+    "subjectReference": {
+      "genericDescriptorTokens": [
+        "comparacion",
+        "comparar",
+        "contame",
+        "cual",
+        "decime",
+        "diferencia",
+        "dime",
+        "explicame",
+        "formato",
+        "gustaria",
+        "hay",
+        "modelo",
+        "mostrame",
+        "opcion",
+        "pasame",
+        "quiero",
+        "saber",
+        "son",
+        "tipo",
+        "variante",
+        "version"
+      ],
+      "genericDescriptorIgnoredTokens": [
+        "de",
+        "del",
+        "el",
+        "la",
+        "las",
+        "los",
+        "me",
+        "mi",
+        "mis",
+        "por",
+        "que",
+        "si",
+        "sobre",
+        "un",
+        "una",
+        "unos",
+        "unas",
+        "y"
+      ],
+      "contextCarryShapes": [
+        "variant_discovery",
+        "comparison",
+        "definition",
+        "benefits",
+        "general_info"
+      ]
+    }
+  },
+  "semanticTurnSubject": {
+    "capturePatterns": [
+      {
+        "source": "\\b(?:quiero\\s+saber\\s+si\\s+tienen|quisiera\\s+saber\\s+si\\s+tienen)\\s+(.+?)(?=$|\\?|,|\\.| pero | y )",
+        "flags": "iu",
+        "intentBias": "product_info"
+      },
+      {
+        "source": "\\b(?:quiero\\s+consultar\\s+por|quiero\\s+consultar\\s+sobre|consultar\\s+por|consultar\\s+sobre|consulta\\s+por|consulta\\s+sobre)\\s+(.+?)(?=$|\\?|,|\\.| pero | y )",
+        "flags": "iu",
+        "intentBias": "topic_info"
+      },
+      {
+        "source": "\\b(?:estoy\\s+buscando|ando\\s+buscando|busco)\\s+(.+?)(?=$|\\?|,|\\.| pero | y )",
+        "flags": "iu",
+        "intentBias": "product_info"
+      },
+      {
+        "source": "\\b(?:quiero\\s+saber\\s+sobre|quiero\\s+saber\\s+de|necesito\\s+saber\\s+sobre|me\\s+gustaria\\s+saber\\s+sobre|me\\s+gustar[ií]a\\s+saber\\s+sobre)\\s+(.+?)(?=$|\\?|,|\\.| pero | y )",
+        "flags": "iu",
+        "intentBias": "topic_info"
+      },
+      {
+        "source": "\\b(?:quiero|necesito)\\s+(.+?)(?=$|\\?|,|\\.| pero | y )",
+        "flags": "iu",
+        "intentBias": "product_info"
+      },
+      {
+        "source": "\\b(?:quiero\\s+ver|quiero\\s+conocer|me\\s+interesa|me\\s+interesan|me\\s+interesan\\s+las|me\\s+interesan\\s+los)\\s+(.+?)(?=$|\\?|,|\\.| pero | y )",
+        "flags": "iu",
+        "intentBias": "product_info"
+      },
+      {
+        "source": "\\b(?:tienen|manejan|ofrecen|trabajan\\s+con|cuentan\\s+con)\\s+(.+?)(?=$|\\?|,|\\.| pero | y )",
+        "flags": "iu",
+        "intentBias": "product_info"
+      }
+    ],
+    "quoteExpansionPatterns": [
+      {
+        "source": "\\b(?:pasarte|sumar|agregar)\\s+(?:(?:unos|unas|un|una|otro|otra)\\b\\s*)?([a-záéíóúñ]+(?:\\s+[a-záéíóúñ]+){0,5})",
+        "flags": "iu"
+      },
+      {
+        "source": "\\b(?:cambiar|sustituir|reemplazar|poner|colocar|instalar)\\s+(?:(?:unos|unas|un|una)\\b\\s*)?([a-záéíóúñ]+(?:\\s+[a-záéíóúñ]+){0,5})",
+        "flags": "iu"
+      },
+      {
+        "source": "\\b(?:quiero|necesito|preciso|busco|quisiera)\\s+(?:(?:unos|unas|un|una)\\b\\s*)?([a-záéíóúñ]+(?:\\s+[a-záéíóúñ]+){0,5})",
+        "flags": "iu"
+      },
+      {
+        "source": "\\b(?:cotiz[a-záéíóúñ]*|presupuest[a-záéíóúñ]*)\\s+(?:para|por)\\s+([a-záéíóúñ]+(?:\\s+[a-záéíóúñ]+){0,6})",
+        "flags": "iu"
+      }
+    ],
+    "leadingStripPatterns": [
+      {
+        "source": "^(?:quiero\\s+saber\\s+si\\s+tienen|quisiera\\s+saber\\s+si\\s+tienen|saber\\s+si\\s+tienen|si\\s+tienen|quiero\\s+consultar\\s+por|quiero\\s+consultar\\s+sobre|consultar\\s+por|consultar\\s+sobre|consulta\\s+por|consulta\\s+sobre|quiero\\s+saber\\s+sobre|quiero\\s+saber\\s+de|necesito\\s+saber\\s+sobre|me\\s+gustaria\\s+saber\\s+sobre|me\\s+gustar[ií]a\\s+saber\\s+sobre)\\s+",
+        "flags": "iu"
+      },
+      {
+        "source": "^(?:mas\\s+info|más\\s+info|informacion|información|info|consulta|detalles)\\s+(?:de|sobre)\\s+",
+        "flags": "iu"
+      },
+      {
+        "source": "^(?:precio|precios|presupuesto|presupuestos|cotizacion|cotización|cotizaciones|costo|costos|valor|valores|importe|importes|monto|montos)\\s+",
+        "flags": "iu"
+      },
+      {
+        "source": "^(?:tengo\\s+que\\s+(?:pasarte|mandarte|sumarte|agregarte)|te\\s+(?:paso|mando|sumo|agrego)|(?:pasarte|mandarte|sumarte|agregarte))\\s+(?:un|una|otro|otra)\\s+",
+        "flags": "iu"
+      },
+      {
+        "source": "^(?:(?:para\\s+)?(?:poner|colocar|instalar|cambiar|sustituir|reemplazar)|(?:cotiz[a-záéíóúñ]*|presupuest[a-záéíóúñ]*)\\s+para)\\s+",
+        "flags": "iu"
+      },
+      {
+        "source": "^(?:(?:si|sí|y|las|los|la|el)\\s+){1,4}",
+        "flags": "iu"
+      },
+      {
+        "source": "^(?:de|del|la|las|el|los)\\s+",
+        "flags": "iu"
+      }
+    ],
+    "trailingStripPatterns": [
+      {
+        "source": "\\b(?:que|qué)\\s+(?:costo|costos|precio|precios|valor|valores)\\s+(?:tiene|tienen)\\b.*$",
+        "flags": "iu"
+      },
+      {
+        "source": "\\s+(?:mas|más)$",
+        "flags": "iu"
+      }
+    ],
+    "genericSubjectPatterns": [
+      {
+        "source": "\\b(?:eso|esto|mi caso|tu caso|el caso|este caso|ese caso|aplica|aplique|sirve|sirva|funciona|funcione|mismo|misma|si|sí|gracias|muchas gracias|ok|dale|perfecto|listo|info|informacion|información|consulta|detalles)\\b",
+        "flags": "iu"
+      }
+    ],
+    "messagePlaceholderPatterns": [
+      {
+        "source": "\\b(?:esperando|aguardando)\\s+(?:este|ese|el)\\s+mensaje\\b",
+        "flags": "iu"
+      }
+    ],
+    "scheduleAvailabilityActionPatterns": [
+      {
+        "source": "\\b(?:pueden|puedo|podrian|podrían|pasan|pasar|ir|venir|domicilio|visita)\\b",
+        "flags": "iu"
+      }
+    ],
+    "scheduleAvailabilityTimePatterns": [
+      {
+        "source": "\\b(?:hoy|mañana|lunes|martes|miercoles|miércoles|jueves|viernes|sabado|sábado|domingo|a\\s+las|\\d{1,2}(?::\\d{2})?\\s*(?:am|pm)?)\\b",
+        "flags": "iu"
+      }
+    ],
+    "shortFollowUpPattern": {
+      "source": "^(?:y\\s+)?([a-záéíóúñ0-9][a-záéíóúñ0-9\\s-]{1,48})\\??$",
+      "flags": "iu"
+    },
+    "shortFollowUpBlockedPatterns": [
+      {
+        "source": "\\b(?:info|informacion|consulta|consultar|ayuda|algo|eso|esto|mismo|estoy|buscando|busco|necesito|quiero|me\\s+interesa|me\\s+interesan|que\\s+datos\\s+necesitas\\s+para\\s+cotizar|qué\\s+datos\\s+necesitas\\s+para\\s+cotizar|que\\s+informacion\\s+necesitas\\s+para\\s+cotizar|qué\\s+información\\s+necesitas\\s+para\\s+cotizar|que\\s+medidas\\s+necesitas\\s+para\\s+cotizar|qué\\s+medidas\\s+necesitas\\s+para\\s+cotizar)\\b",
+        "flags": "iu"
+      }
+    ],
+    "edgeStopwords": [
+      "a",
+      "al",
+      "con",
+      "cambiar",
+      "colocar",
+      "de",
+      "del",
+      "el",
+      "instalar",
+      "la",
+      "las",
+      "los",
+      "mas",
+      "para",
+      "pasar",
+      "pasarte",
+      "poner",
+      "por",
+      "que",
+      "reemplazar",
+      "si",
+      "sumar",
+      "sustituir",
+      "un",
+      "una",
+      "unos",
+      "unas",
+      "y"
+    ]
+  },
   "responseSignalPatterns": {
     "genericClarification": [
       {

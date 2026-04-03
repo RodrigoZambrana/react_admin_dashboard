@@ -1,8 +1,12 @@
 import {
   detectCustomerFaqSubtype,
-  extractRequestedTopicLabel,
-  looksLikeCustomerVariantQuestion,
 } from './customer-faq-heuristics.js'
+import {
+  buildSemanticInfoIntent,
+  detectInfoRequestShape,
+  semanticInfoShapeToFaqSubtype,
+} from './semantic-info-intent.js'
+import { extractExplicitSemanticSubject } from './semantic-turn-subject.js'
 import {
   extractCurrentCustomerTurnText,
   extractRawCurrentCustomerTurnText,
@@ -155,7 +159,9 @@ const FAQ_TOPIC_LABELS = {
 }
 
 const looksLikeVariantFollowUp = (currentTurnText) =>
-  looksLikeCustomerVariantQuestion(String(currentTurnText || ''))
+  ['variant_discovery', 'comparison'].includes(
+    detectInfoRequestShape(String(currentTurnText || '')),
+  )
 
 const SCHEDULE_SIGNAL_SETS = BASE_CONVERSATIONAL_ES_SIGNALS.schedule
 
@@ -232,7 +238,11 @@ const shouldCarrySupportContext = ({
   )
 }
 
-const looksLikeShortTopicOnlyFollowUp = (currentTurnText) => {
+const looksLikeShortTopicOnlyFollowUp = (
+  currentTurnText,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
   const normalized = normalizeText(currentTurnText)
   if (!normalized) {
     return false
@@ -243,7 +253,13 @@ const looksLikeShortTopicOnlyFollowUp = (currentTurnText) => {
     return false
   }
 
-  return Boolean(extractRequestedTopicLabel(currentTurnText))
+  return Boolean(
+    extractExplicitSemanticSubject({
+      input: currentTurnText,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+    }).explicitSubject?.label,
+  )
 }
 
 const looksLikeMeasurementOnlyFollowUp = (currentTurnText) =>
@@ -408,7 +424,11 @@ const isCustomerRole = (role) =>
   String(role || '') === 'customer_public' ||
   String(role || '') === 'customer_authenticated'
 
-const looksLikeEllipticFollowUp = (currentTurnText) => {
+const looksLikeEllipticFollowUp = (
+  currentTurnText,
+  tenantTopicTaxonomy = [],
+  tenantRuntimePolicy = null,
+) => {
   const normalized = normalizeText(currentTurnText)
   if (!normalized) {
     return false
@@ -425,7 +445,11 @@ const looksLikeEllipticFollowUp = (currentTurnText) => {
     hasMultimodalReferenceSignal(currentTurnText) ||
     hasReengagementReferenceSignal(currentTurnText) ||
     looksLikeVariantFollowUp(currentTurnText) ||
-    looksLikeShortTopicOnlyFollowUp(currentTurnText)
+    looksLikeShortTopicOnlyFollowUp(
+      currentTurnText,
+      tenantTopicTaxonomy,
+      tenantRuntimePolicy,
+    )
 }
 
 const looksLikeReferentialFollowUp = (currentTurnText) =>
@@ -906,9 +930,13 @@ export const buildTurnInterpretation = ({
   })
   const followUpDetected =
     isCustomerRole(role) &&
-    Boolean(previousIntentKey) &&
-    (attachmentArtifactTurn ||
-      looksLikeEllipticFollowUp(normalizedCurrentTurnText) ||
+      Boolean(previousIntentKey) &&
+      (attachmentArtifactTurn ||
+      looksLikeEllipticFollowUp(
+        normalizedCurrentTurnText,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      ) ||
       looksLikeReferentialFollowUp(normalizedCurrentTurnText) ||
       confirmationOnlyFollowUp ||
       quoteConfirmationFollowUp ||
@@ -921,7 +949,18 @@ export const buildTurnInterpretation = ({
     Boolean(previousIntentKey) &&
     intentDetection?.intent === previousIntentKey
 
-  const faqSubtype = detectCustomerFaqSubtype(normalizedCurrentTurnText, {
+  const semanticInfoIntent = buildSemanticInfoIntent({
+    input: currentTurnText,
+    tenantTopicTaxonomy,
+    tenantRuntimePolicy,
+    contextTopic: previousTopic,
+    previousQuoteContext,
+    followUpDetected,
+  })
+  const semanticFaqSubtype = semanticInfoShapeToFaqSubtype(
+    semanticInfoIntent?.shape,
+  )
+  const faqSubtype = semanticFaqSubtype || detectCustomerFaqSubtype(normalizedCurrentTurnText, {
     previousIntentKey,
     tenantRuntimePolicy,
   })
@@ -932,11 +971,16 @@ export const buildTurnInterpretation = ({
     measurementCarrierTerms: previousQuoteContext?.measurementCarrierTerms || [],
     nluAnalysis,
   })
+  const semanticSubjectLabel =
+    typeof semanticInfoIntent?.subject?.label === 'string' &&
+    semanticInfoIntent.subject.label.trim()
+      ? semanticInfoIntent.subject.label.trim()
+      : null
   const requestedTopicLabel = measurementOnlyFollowUp
     || quantityOnlyFollowUp
     || quoteWaitingFollowUp
     ? null
-    : extractRequestedTopicLabel(normalizedTopicDetectionInput)
+    : semanticSubjectLabel
   const requestedTopicMatch =
     requestedTopicLabel && !measurementOnlyFollowUp
       ? findBestTenantTopicMatch(requestedTopicLabel, tenantTopicTaxonomy, {
@@ -961,6 +1005,30 @@ export const buildTurnInterpretation = ({
     previousQuoteContext,
     activeThread: threadResolution?.activeThread || null,
   })
+  const semanticSubjectTopic =
+    semanticSubjectLabel && !FAQ_TOPIC_LABELS[faqSubtype]
+      ? buildCanonicalTopic({
+          label: semanticSubjectLabel,
+          type:
+            typeof semanticInfoIntent?.subject?.type === 'string'
+              ? semanticInfoIntent.subject.type
+              : inferTopicType(
+                  semanticSubjectLabel,
+                  faqSubtype,
+                  tenantTopicTaxonomy,
+                ),
+          confidence:
+            typeof semanticInfoIntent?.subject?.confidence === 'number'
+              ? semanticInfoIntent.subject.confidence
+              : semanticInfoIntent?.subjectMode === 'explicit'
+                ? 0.9
+                : 0.74,
+          source:
+            semanticInfoIntent?.subjectResolution === 'inherit_subject'
+              ? 'semantic_context_inheritance'
+              : 'semantic_subject_resolution',
+        })
+      : null
 
   let canonicalTopic = null
   if (FAQ_TOPIC_LABELS[faqSubtype]) {
@@ -970,6 +1038,8 @@ export const buildTurnInterpretation = ({
       confidence: 0.82,
       source: 'faq_subtype',
     })
+  } else if (semanticSubjectTopic?.label) {
+    canonicalTopic = semanticSubjectTopic
   } else if (threadResolution?.activeThread && !preferStandaloneVariantTopic) {
     canonicalTopic = buildCanonicalTopicFromThread(threadResolution.activeThread)
   } else if (resolvedTopicLabel) {
@@ -1296,6 +1366,7 @@ export const buildTurnInterpretation = ({
             : extractTopicTokens(previousTopic.label || ''),
         }
       : null,
+    semanticInfoIntent,
     conversationContext,
     resolutionReadiness: conversationContext?.resolutionReadiness || null,
     quoteContext: effectiveQuoteContext,

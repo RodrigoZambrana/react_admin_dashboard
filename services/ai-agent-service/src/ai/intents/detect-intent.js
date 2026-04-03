@@ -1,6 +1,7 @@
 import { buildIntentDetection } from './intent-types.js'
 import { classifyInboundMessage } from './classify-inbound-message.js'
-import { extractRequestedTopicLabel } from './customer-faq-heuristics.js'
+import { buildSemanticInfoIntent } from './semantic-info-intent.js'
+import { extractExplicitSemanticSubject } from './semantic-turn-subject.js'
 import {
   looksLikeCommercialConditionQuestion,
   looksLikeCustomerOrderStatusQuestion,
@@ -97,7 +98,9 @@ const CUSTOMER_INTENT_FALLBACK_RULES = [
       normalizedInput,
       rawInput,
       rawReasoningInput,
+      inboundClassification,
       tenantTopicTaxonomy,
+      tenantRuntimePolicy,
     }) => {
       const semanticSource = String(rawInput || rawReasoningInput || normalizedInput || '')
       if (
@@ -107,12 +110,26 @@ const CUSTOMER_INTENT_FALLBACK_RULES = [
         return false
       }
 
+      const semanticInfoIntent =
+        inboundClassification?.semanticInfoIntent &&
+        typeof inboundClassification.semanticInfoIntent === 'object'
+          ? inboundClassification.semanticInfoIntent
+          : buildSemanticInfoIntent({
+              input: semanticSource,
+              tenantTopicTaxonomy,
+              tenantRuntimePolicy,
+              followUpDetected: false,
+            })
+      const explicitSemanticSubject = extractExplicitSemanticSubject({
+        input: semanticSource,
+        tenantTopicTaxonomy,
+        tenantRuntimePolicy,
+      }).explicitSubject
+
       return (
-        /\b(producto|productos|servicio|servicios|modelo|modelos|linea|línea|lineas|líneas|variante|variantes|version|versión|versiones)\b/.test(
-          normalizedInput,
-        ) ||
         hasTenantTopicSignal(normalizedInput, tenantTopicTaxonomy) ||
-        Boolean(extractRequestedTopicLabel(semanticSource)) ||
+        Boolean(semanticInfoIntent?.subject?.label) ||
+        Boolean(explicitSemanticSubject?.label) ||
         looksLikeMaterialFollowUpRequest(semanticSource)
       )
     },
@@ -539,7 +556,9 @@ const matchCustomerFallbackIntent = ({
         rawReasoningInput,
         normalizedInput,
         normalizedReasoningInput,
+        inboundClassification,
         tenantTopicTaxonomy,
+        tenantRuntimePolicy,
       })
     ) {
       return rule
