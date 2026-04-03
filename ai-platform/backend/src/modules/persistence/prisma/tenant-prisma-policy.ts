@@ -33,17 +33,25 @@ export function mergeTenantWhere(
   where: Record<string, unknown> | undefined,
   tenantId: string,
 ) {
-  if (!where || Object.keys(where).length === 0) {
+  const sanitizedWhere = removeTenantIdFilter(where);
+
+  if (!sanitizedWhere) {
     return { tenantId };
   }
 
-  if ('tenantId' in where) {
-    return where;
+  return {
+    AND: [sanitizedWhere, { tenantId }],
+  };
+}
+
+function removeTenantIdFilter(where: Record<string, unknown> | undefined) {
+  if (!where || Object.keys(where).length === 0) {
+    return undefined;
   }
 
-  return {
-    AND: [where, { tenantId }],
-  };
+  const { tenantId: _ignoredTenantId, ...rest } = where;
+
+  return Object.keys(rest).length > 0 ? rest : undefined;
 }
 
 function injectTenantIntoData(
@@ -56,14 +64,14 @@ function injectTenantIntoData(
 
   if (Array.isArray(data)) {
     return data.map((item) => ({
-      tenantId,
       ...item,
+      tenantId,
     }));
   }
 
   return {
-    tenantId,
     ...data,
+    tenantId,
   };
 }
 
@@ -90,6 +98,12 @@ export function applyTenantScope<T extends PrismaParams>(
         nextArgs.where as Record<string, unknown> | undefined,
         tenantId,
       );
+      if (params.action === 'update' || params.action === 'updateMany') {
+        nextArgs.data = injectTenantIntoData(
+          nextArgs.data as Record<string, unknown> | undefined,
+          tenantId,
+        );
+      }
       break;
     case 'create':
       nextArgs.data = injectTenantIntoData(

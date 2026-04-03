@@ -270,3 +270,25 @@
 - Activate deterministic `DecisionService` on top of the canonical parsed contract
 - Wire tools only after decision routing is live and validated
 - Refine dimension heuristics and add broader parsing coverage for ranges and multi-item measurement lists
+
+## Iteration 12
+
+### Implemented
+- Hardened Prisma tenant policy so context tenant scope always overrides caller-supplied `tenantId` filters
+- Hardened tenant data injection so caller-supplied `tenantId` values are overwritten on create, createMany, update, updateMany, and upsert payloads
+- Expanded tenant policy tests to cover empty where clauses, normal filters, matching/mismatching tenant filters, and caller-supplied tenant data in write operations
+
+### Working
+- Automatic tenant isolation at the Prisma policy boundary is now non-bypassable for the covered query and mutation actions
+- Existing `/chat/message` orchestration tests continue to pass unchanged
+- Backend and frontend builds continue to pass after tenant policy hardening
+
+### Technical Debt
+- Tenant enforcement still lives at the Prisma middleware layer and is not additionally protected by database-level constraints or RLS
+- `DecisionService` remains inactive in the live chat path
+- Auth and admin authorization are still not implemented
+
+### Next Steps
+- Activate deterministic `DecisionService` on top of the already isolated interpretation/parsing flow
+- Evaluate whether database-level tenant protections should complement middleware enforcement
+- Keep closing each validated iteration with a descriptive commit for traceable delivery context
