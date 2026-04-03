@@ -40,8 +40,8 @@ export class ChatController {
   }
 
   @Get('prompts')
-  listPrompts() {
-    return this.promptService.listPrompts();
+  listPrompts(@Query('key') key?: string) {
+    return this.promptService.listPrompts(key);
   }
 
   @Post('prompts')

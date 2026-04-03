@@ -28,9 +28,24 @@ export class PromptService {
     return prompt;
   }
 
-  async listPrompts() {
+  async listPrompts(key?: string) {
     await this.promptTemplateProvider.listActive();
-    return this.promptVersionRepository.list();
+    return this.promptVersionRepository.list(key);
+  }
+
+  async listActivePrompts() {
+    const prompts = await this.promptTemplateProvider.listActive();
+
+    return prompts.map((prompt) => ({
+      id: prompt.id,
+      key: prompt.key,
+      template: prompt.value,
+      version: prompt.version,
+      status: prompt.status,
+      metadata: prompt.metadata,
+      createdAt: prompt.createdAt,
+      createdBy: prompt.createdBy,
+    }));
   }
 
   async createPromptVersion(input: {

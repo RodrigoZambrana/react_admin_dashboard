@@ -419,6 +419,8 @@
 - Added managed prompt template seed/bootstrap sources under backend-owned resources
 - Reconnected live AI prompt retrieval to persisted prompt versions through a managed runtime provider, removing code-backed prompt defaults from the active path
 - Updated the AI gateway to consume managed interpretation and response prompts without changing the live `/chat/message` contract
+- Added a unified backend admin boundary for runtime-managed resources with prompt and temporal locale endpoints under `/admin/runtime-resources/*`
+- Added service-layer admin surfaces for temporal locale versioning and active prompt/locale inspection without coupling controllers to repositories
 
 ### Working
 - The codebase now has a reusable backend contract for versioned runtime-managed resources instead of ad hoc per-subsystem lifecycle definitions
@@ -429,13 +431,16 @@
 - Backend and frontend builds pass after the temporal runtime refactor, and the full backend test suite passes with async temporal parsing active
 - Prompt bootstrap is also idempotent per tenant, and AI gateway tests now verify managed prompt retrieval instead of code-backed templates
 - Code search confirms the old code-backed prompt template path is gone from runtime code
+- Code search confirms filesystem access for temporal and prompt resources is limited to bootstrap seed loaders, not active runtime consumers
+- The backend now exposes future-admin resource endpoints without breaking the existing `/chat/message` or legacy `/prompts` contracts
 
 ### Technical Debt
-- No backend management surface exists yet for future admin ABMs over runtime-managed resources
-- Temporal locale management still lacks explicit admin-facing list/create endpoints
-- Prompt management still rides on legacy `/prompts` endpoints and is not yet grouped under a shared runtime-resource boundary
+- The new admin resource endpoints are still open because auth/admin guards remain out of scope for this wave
+- Prompt and temporal resource management are now aligned, but critical configs and governed knowledge metadata still need migration onto the same pattern
+- The legacy `/prompts` endpoints are still present for compatibility and can be retired once the admin UI migrates to the new runtime-resource boundary
 
 ### Next Steps
-- Add minimal backend management endpoints/services so future admin ABMs can operate on the shared managed-resource model
-- Add a unified admin-facing backend boundary for prompts and temporal locale resources without coupling controllers to persistence details
-- Keep this managed-resource base as the prerequisite for the next roadmap steps: live tool execution, AI response on approved context, critical config runtime management, and admin ABMs over governed resources
+- Use this governed resource base to enable `Live Tool Execution` without leaking configuration or prompt ownership into runtime orchestration
+- Add `AI Response on Approved Context` on top of the managed response prompt path now that prompt retrieval is runtime-governed
+- Extend the same runtime-managed pattern to critical config storage and governed knowledge metadata
+- Migrate the admin UI to `/admin/runtime-resources/*` and add auth/admin guards when the security wave starts

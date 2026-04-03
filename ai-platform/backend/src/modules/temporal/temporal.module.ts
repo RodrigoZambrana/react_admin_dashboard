@@ -4,6 +4,7 @@ import { TemporalExpressionService } from './temporal-expression.service';
 import { ManagedTemporalLocaleProvider } from './managed-temporal-locale.provider';
 import { FileSystemTemporalLocaleSeedSource } from './filesystem-temporal-locale.seed-source';
 import { TemporalLocaleProvider } from './temporal-locale.provider';
+import { TemporalLocaleService } from './temporal-locale.service';
 
 @Module({
   providers: [
@@ -14,7 +15,8 @@ import { TemporalLocaleProvider } from './temporal-locale.provider';
       useExisting: ManagedTemporalLocaleProvider,
     },
     TemporalExpressionService,
+    TemporalLocaleService,
   ],
-  exports: [TemporalLocaleProvider, TemporalExpressionService],
+  exports: [TemporalLocaleProvider, TemporalExpressionService, TemporalLocaleService],
 })
 export class TemporalModule {}

@@ -121,6 +121,9 @@
 - Temporal locale catalogs now resolve through a managed runtime provider backed by persisted versions
 - Filesystem locale files remain only as bootstrap seed inputs when a tenant has no managed temporal versions yet
 - Prompt templates now follow the same pattern: filesystem bootstrap seeds, persisted versioned runtime source of truth, and provider-backed retrieval from the AI gateway
+- Minimal future-admin backend surfaces now live under:
+  - `/admin/runtime-resources/prompts`
+  - `/admin/runtime-resources/temporal-locales`
 - Future families expected to align to the same pattern:
   - critical configs
   - governed knowledge metadata

@@ -38,7 +38,13 @@ export class RuntimeConfigService {
       apiAuthMode: 'open',
       futureApiAuthMode: 'bearer',
       futureAdminGuard: 'AdminOnlyGuard',
-      adminOnlyEndpoints: ['/prompts', '/logs', '/conversations'],
+      adminOnlyEndpoints: [
+        '/prompts',
+        '/logs',
+        '/conversations',
+        '/admin/runtime-resources/prompts',
+        '/admin/runtime-resources/temporal-locales',
+      ],
       apiKeyStorage: {
         current: 'env',
         future: 'database',
