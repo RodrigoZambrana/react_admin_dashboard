@@ -1,8 +1,12 @@
 import { MockLanguageModelProvider } from '../src/modules/ai-gateway/providers/mock-language-model.provider';
+import { TemporalExpressionService } from '../src/modules/temporal/temporal-expression.service';
+import { TemporalLocaleRegistryService } from '../src/modules/temporal/temporal-locale-registry.service';
 
 describe('MockLanguageModelProvider', () => {
   it('returns strict JSON interpretation output', async () => {
-    const provider = new MockLanguageModelProvider();
+    const provider = new MockLanguageModelProvider(
+      new TemporalExpressionService(new TemporalLocaleRegistryService()),
+    );
 
     const response = await provider.interpret(
       {

@@ -329,18 +329,23 @@
 - Added backend-owned temporal locale resources under `backend/src/resources/temporal/locales`
 - Added a reusable `TemporalLocaleRegistryService` to load locale catalogs dynamically from resource files
 - Added backend build-time resource copying so runtime resource catalogs are available from `dist`
+- Added a shared `TemporalExpressionService` so temporal extraction mechanics are centralized and locale-resource driven
+- Refactored `DateParser` to consume locale resources instead of embedded temporal lexicons
+- Refactored the mock AI provider to extract temporal candidates and locale hints through the shared backend-managed temporal resources
 
 ### Working
 - Temporal locale support now has a standalone resource structure that can be extended per locale without changing parser mechanics
 - The backend has a single registry entry point for resolving supported temporal locales
 - Runtime packaging now includes temporal resource catalogs instead of depending on source-only files
+- Date normalization now depends on locale resources plus deterministic parsing mechanics, not embedded human-language word lists
+- The mock interpretation provider still produces date candidates for supported locales without owning temporal vocabulary in runtime code
 
 ### Technical Debt
-- `DateParser` still consumes hardcoded temporal lexical regexes
-- The mock AI provider still contains hardcoded temporal vocabulary
 - Existing tests still validate temporal behavior through embedded examples rather than through the new registry architecture
+- Temporal locale resources are file-backed but not yet covered by dedicated architecture tests for extension/removal scenarios
+- The live pipeline behavior remains coupled to previously activated decision routing outside this roadmap step
 
 ### Next Steps
-- Refactor `DateParser` to consume locale resources via the registry
-- Refactor the mock AI provider to extract temporal evidence through the same backend-managed resources
 - Add architecture-oriented tests proving lexical support is resource-driven
+- Run full backend and frontend validation for the refactored temporal-resource foundation
+- Close the iteration with a final commit focused on tests and documentation quality

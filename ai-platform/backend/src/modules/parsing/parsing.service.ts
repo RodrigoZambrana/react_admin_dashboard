@@ -56,6 +56,7 @@ export class ParsingService {
           message,
           dateCandidates,
           referenceDate,
+          interpretation.language,
         ),
         measurements: this.measurementParser.parseCandidates(
           message,

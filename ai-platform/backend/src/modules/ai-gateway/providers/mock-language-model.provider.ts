@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { TemporalExpressionService } from '../../temporal/temporal-expression.service';
 import {
   InterpretationOutput,
   LanguageModelInterpretationRequest,
@@ -7,31 +8,10 @@ import {
   ResponseGenerationInput,
 } from '../ai-gateway.types';
 
-const datePattern =
-  /\b(today|tomorrow|tonight|next week|next monday|next tuesday|next wednesday|next thursday|next friday|next saturday|next sunday|hoy|mañana|pasado mañana|la próxima semana|el lunes|el martes|el miércoles|el jueves|el viernes|el sábado|el domingo|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?)\b/gi;
 const measurementPattern =
   /\b\d+(?:[.,]\d+)?\s?(?:mm|cm|m|km|g|kg|lb|lbs|ml|l)\b/gi;
 const dimensionPattern =
   /\b\d+(?:[.,]\d+)?\s?[x×]\s?\d+(?:[.,]\d+)?(?:\s?(?:mm|cm|m))?\b/gi;
-
-function detectLanguage(message: string) {
-  const spanishSignals = [
-    'hola',
-    'quiero',
-    'cotizacion',
-    'cotización',
-    'barato',
-    'cocina',
-    'puertas',
-    'reservar',
-    'precio',
-    'producto',
-    'mañana',
-    'necesito',
-  ];
-  const lower = message.toLowerCase();
-  return spanishSignals.some((signal) => lower.includes(signal)) ? 'es' : 'en';
-}
 
 function detectIntent(message: string) {
   const lower = message.toLowerCase();
@@ -67,10 +47,87 @@ function detectIntent(message: string) {
   return 'GENERAL_CONVERSATION';
 }
 
-function extractEntities(input: LanguageModelInterpretationRequest) {
+@Injectable()
+export class MockLanguageModelProvider implements LanguageModelProvider {
+  constructor(
+    private readonly temporalExpressionService: TemporalExpressionService,
+  ) {}
+
+  async interpret(
+    input: LanguageModelInterpretationRequest,
+    _providerInput: {
+      apiKey: string;
+      model: string;
+      timeoutMs: number;
+    },
+  ): Promise<{ rawResponse: string; model: string }> {
+    const language = this.detectLanguage(input.message);
+    const intent = detectIntent(input.message);
+    const entities = this.extractEntities(input, language);
+    const payload: InterpretationOutput = {
+      intent,
+      entities,
+      language,
+      confidence: estimateConfidence(intent, entities),
+    };
+
+    return {
+      rawResponse: JSON.stringify(payload),
+      model: 'mock-rule-engine',
+    };
+  }
+
+  async generateResponse(input: ResponseGenerationInput): Promise<string> {
+    if (input.missingFields?.length) {
+      return input.language === 'es'
+        ? `Necesito un poco más de información para continuar: ${input.missingFields.join(', ')}.`
+        : `I need a bit more information to continue: ${input.missingFields.join(', ')}.`;
+    }
+
+    if (input.toolResult) {
+      return input.language === 'es'
+        ? `Resultado procesado para ${input.intent}: ${JSON.stringify(input.toolResult)}`
+        : `Processed result for ${input.intent}: ${JSON.stringify(input.toolResult)}`;
+    }
+
+    return input.language === 'es'
+      ? 'Entendido. Estoy preparando una respuesta basada en la política aprobada del backend.'
+      : 'Understood. I am preparing a response based on the backend-approved policy.';
+  }
+
+  private detectLanguage(message: string) {
+    const spanishSignals = [
+      'hola',
+      'quiero',
+      'cotizacion',
+      'cotización',
+      'barato',
+      'cocina',
+      'puertas',
+      'reservar',
+      'precio',
+      'producto',
+      'necesito',
+    ];
+    const lower = message.toLowerCase();
+
+    if (spanishSignals.some((signal) => lower.includes(signal))) {
+      return 'es';
+    }
+
+    return this.temporalExpressionService.findMatchingLocales(message)[0] ?? 'en';
+  }
+
+  private extractEntities(
+    input: LanguageModelInterpretationRequest,
+    language: string,
+  ) {
   const message = input.message;
   const measurements = message.match(measurementPattern) ?? [];
-  const dates = message.match(datePattern) ?? [];
+    const dates = this.temporalExpressionService.extractExpressions(
+      message,
+      language,
+    );
   const dimensions = message.match(dimensionPattern) ?? [];
   const peopleMatch = message.match(/\b(?:for|para)\s+(\d+)\s+(?:people|personas?)\b/i);
   const skuMatch = message.match(/\bsku[:\s-]*([a-z0-9-]+)\b/i);
@@ -102,7 +159,8 @@ function extractEntities(input: LanguageModelInterpretationRequest) {
     entities.sku = skuMatch[1];
   }
 
-  return entities;
+    return entities;
+  }
 }
 
 function estimateConfidence(intent: string, entities: Record<string, unknown>) {
@@ -117,48 +175,4 @@ function estimateConfidence(intent: string, entities: Record<string, unknown>) {
     (intent !== 'GENERAL_CONVERSATION' ? 1 : 0);
 
   return Math.min(0.55 + signals * 0.08, 0.96);
-}
-
-@Injectable()
-export class MockLanguageModelProvider implements LanguageModelProvider {
-  async interpret(
-    input: LanguageModelInterpretationRequest,
-    _providerInput: {
-      apiKey: string;
-      model: string;
-      timeoutMs: number;
-    },
-  ): Promise<{ rawResponse: string; model: string }> {
-    const intent = detectIntent(input.message);
-    const entities = extractEntities(input);
-    const payload: InterpretationOutput = {
-      intent,
-      entities,
-      language: detectLanguage(input.message),
-      confidence: estimateConfidence(intent, entities),
-    };
-
-    return {
-      rawResponse: JSON.stringify(payload),
-      model: 'mock-rule-engine',
-    };
-  }
-
-  async generateResponse(input: ResponseGenerationInput): Promise<string> {
-    if (input.missingFields?.length) {
-      return input.language === 'es'
-        ? `Necesito un poco más de información para continuar: ${input.missingFields.join(', ')}.`
-        : `I need a bit more information to continue: ${input.missingFields.join(', ')}.`;
-    }
-
-    if (input.toolResult) {
-      return input.language === 'es'
-        ? `Resultado procesado para ${input.intent}: ${JSON.stringify(input.toolResult)}`
-        : `Processed result for ${input.intent}: ${JSON.stringify(input.toolResult)}`;
-    }
-
-    return input.language === 'es'
-      ? 'Entendido. Estoy preparando una respuesta basada en la política aprobada del backend.'
-      : 'Understood. I am preparing a response based on the backend-approved policy.';
-  }
 }

@@ -1,23 +1,27 @@
 import { Injectable } from '@nestjs/common';
 import * as chrono from 'chrono-node';
 
+import { TemporalExpressionService } from '../temporal/temporal-expression.service';
+
 export type NormalizedDate = {
   source: string;
   iso: string;
   precision: 'date' | 'datetime';
 };
 
-const boundedDateExpressionPattern =
-  /\b(?:today|tomorrow|tonight|next week|next monday|next tuesday|next wednesday|next thursday|next friday|next saturday|next sunday|hoy|mañana|pasado mañana|la próxima semana|la proxima semana|el lunes|el martes|el miércoles|el miercoles|el jueves|el viernes|el sábado|el sabado|el domingo|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d{4}-\d{2}-\d{2})(?:\s+(?:at\s+\d{1,2}(?::\d{2})?|a\s+las\s+\d{1,2}(?::\d{2})?))?\b/gi;
-
 @Injectable()
 export class DateParser {
+  constructor(
+    private readonly temporalExpressionService: TemporalExpressionService,
+  ) {}
+
   parseCandidates(
     text: string,
     candidates: string[],
     referenceDate = new Date(),
+    locale?: string | null,
   ): NormalizedDate[] {
-    const inputs = this.collectSafeDateInputs(text, candidates);
+    const inputs = this.collectSafeDateInputs(text, candidates, locale);
     const parsers = [chrono.parse, chrono.es.parse, chrono.en.parse];
 
     return Array.from(inputs)
@@ -41,29 +45,29 @@ export class DateParser {
       );
   }
 
-  private collectSafeDateInputs(text: string, candidates: string[]) {
+  private collectSafeDateInputs(
+    text: string,
+    candidates: string[],
+    locale?: string | null,
+  ) {
     const extracted = new Set<string>();
 
     for (const candidate of candidates) {
-      for (const expression of this.extractBoundedExpressions(candidate)) {
+      for (const expression of this.temporalExpressionService.extractExpressions(
+        candidate,
+        locale,
+      )) {
         extracted.add(expression);
       }
     }
 
-    for (const expression of this.extractBoundedExpressions(text)) {
+    for (const expression of this.temporalExpressionService.extractExpressions(
+      text,
+      locale,
+    )) {
       extracted.add(expression);
     }
 
     return extracted;
-  }
-
-  private extractBoundedExpressions(input: string) {
-    if (!input.trim()) {
-      return [];
-    }
-
-    return Array.from(input.matchAll(boundedDateExpressionPattern)).map(
-      (match) => match[0].trim(),
-    );
   }
 }
