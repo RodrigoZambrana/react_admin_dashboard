@@ -885,3 +885,65 @@
 - Begin Wave 6, `Admin Operations UI And Managed Resource ABMs`, on top of the now-safe governed backend write surfaces
 - Keep the carried AI gateway hardcoding debt explicit while prioritizing admin UI/productization work that does not require a broad gateway refactor
 - Preserve the validated managed-resource contracts so later Wave 9 hardening can add auth, roles, centralized QA, and E2E over stable backend governance surfaces
+
+## Iteration 30
+
+### Implemented
+- Added a permanent UI-template directive to the roadmap and architecture guidance for both admin and public chat surfaces
+- Recorded `/Users/rodrigo/Personal/Proyectos/react projects/dreamschat-v2.8.4` as the source-of-truth template for future UI work
+- Updated Wave 6 guidance so the admin operations UI must replicate the DreamsChat layout exactly rather than merely taking inspiration from it
+- Updated Wave 8 guidance so the user chat product UI must also replicate the DreamsChat chat layout exactly while wiring it to the new platform runtime and capabilities
+
+### Working
+- Future UI waves now have an explicit visual/layout constraint instead of an implicit design preference
+- Wave 6 and Wave 8 can be executed with a shared source-of-truth template while still replacing the legacy behavior with the new platform contracts
+- The roadmap now makes it clear that the visual system is fixed and the implementation effort should focus on capability replacement, not redesign
+
+### Technical Debt
+- This iteration updates documentation only; no runtime behavior changed
+- The current admin frontend remains the temporary operational console and does not yet match the required DreamsChat template layout
+- The future async turn-intake / cancellation / typing capability is still required before or within the final user chat product wave, even though the visual layout source is now fixed
+
+### Next Steps
+- Start Wave 6 using the exact DreamsChat template layout from `/Users/rodrigo/Personal/Proyectos/react projects/dreamschat-v2.8.4` as the visual source of truth for the admin shell
+- Keep Wave 8 planned around the same exact template-replication rule for the public chat experience
+- Continue treating layout replication and runtime behavior replacement as separate concerns: exact UI fidelity, new backend/platform capabilities
+
+## Iteration 31
+
+### Implemented
+- Rebuilt the standalone frontend shell around the exact DreamsChat admin dashboard structure instead of the previous single-screen operational console
+- Vendored the native DreamsChat admin asset pack inside `frontend/public/dreamschat-admin/assets` so Wave 6 uses the template as a first-class project dependency rather than as a loose visual reference
+- Split the frontend into explicit operator domains:
+  - dashboard
+  - prompts
+  - date-time-locale-resources
+  - critical configs
+  - response fallback catalogs
+  - knowledge metadata
+- Replaced the monolithic `App.tsx` with a page-oriented structure and real backend data loading for:
+  - overview metrics
+  - recent conversations and live logs
+  - managed-resource version history and active-state inspection across all required resource families
+
+### Working
+- The admin frontend now renders with the DreamsChat admin shell as the native layout contract inside `/ai-platform/frontend`
+- The new navigation already uses real backend surfaces instead of local mock state for:
+  - conversations
+  - logs
+  - prompts
+  - temporal locale resources
+  - critical configs
+  - response fallback catalogs
+  - knowledge metadata
+- `npm run build --workspace frontend` passes after the shell/domain refactor
+
+### Technical Debt
+- This milestone productizes the shell and read-side operator inspection first; create/activate ABM flows still need to be layered onto the managed-resource pages
+- `AiGatewayService` still carries non-blocking provider-registry and inline prompt-scaffolding debt; it remains explicitly carried and untouched in Wave 6
+- The future async turn-intake / cancellation / typing behavior from legacy remains a required dependency before or within Wave 8, but it is intentionally out of scope for this admin wave
+
+### Next Steps
+- Implement operator-safe create and activate flows for prompts and date-time-locale-resources on top of the governed backend contracts
+- Add the remaining ABMs for critical configs, response fallback catalogs, and knowledge metadata without moving lifecycle logic into the frontend
+- Close Wave 6 with activation/version UX, validation, documentation, and a formal closeout review

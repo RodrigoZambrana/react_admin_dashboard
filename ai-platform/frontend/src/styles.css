@@ -2,68 +2,67 @@
   min-height: 100vh;
 }
 
-.section-anchor {
-  scroll-margin-top: 120px;
-}
-
 .custom-react-alert {
   margin-bottom: 24px;
 }
 
-.react-chat-stream {
-  display: grid;
-  gap: 16px;
-  max-height: 520px;
-  overflow: auto;
-  padding-right: 8px;
-}
-
-.react-chat-message {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-}
-
-.react-chat-message.user {
-  flex-direction: row-reverse;
-}
-
-.react-chat-bubble {
-  max-width: calc(100% - 72px);
-  background: #f8f9fa;
-  border-radius: 18px;
-  padding: 14px 16px;
-}
-
-.react-chat-message.user .react-chat-bubble {
-  background: #e8edff;
-}
-
-.react-chat-role {
-  display: inline-block;
+.badge-soft-success,
+.badge-soft-warning,
+.badge-soft-secondary,
+.badge-soft-info,
+.badge-soft-dark {
+  padding: 6px 10px;
+  border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #5f6480;
-  margin-bottom: 6px;
+  letter-spacing: 0.04em;
 }
 
-.react-chat-bubble p {
-  margin: 0;
-  white-space: pre-wrap;
+.badge-soft-success {
+  background: rgba(34, 197, 94, 0.14);
+  color: #15803d;
 }
 
-.react-large-textarea {
-  min-height: 160px;
+.badge-soft-warning {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
 }
 
-.react-code-view {
+.badge-soft-secondary {
+  background: rgba(100, 116, 139, 0.14);
+  color: #475569;
+}
+
+.badge-soft-info {
+  background: rgba(59, 130, 246, 0.14);
+  color: #1d4ed8;
+}
+
+.badge-soft-dark {
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+
+.react-row-button {
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+}
+
+.react-row-button:hover {
+  color: inherit;
+}
+
+.react-row-selected td {
+  background: #f8f9ff;
+}
+
+.react-json-block {
   margin: 0;
   min-height: 320px;
-  max-height: 520px;
+  max-height: 540px;
   overflow: auto;
-  padding: 16px;
+  padding: 18px;
   border-radius: 16px;
   background: #0f172a;
   color: #e2e8f0;
@@ -71,43 +70,124 @@
   line-height: 1.6;
 }
 
-.trace-view {
-  min-height: 420px;
-}
-
-.react-template-cell {
-  min-width: 360px;
-  white-space: pre-wrap;
-}
-
-.react-theme-pack {
-  border: 1px dashed #d4d7e3;
+.react-resource-summary,
+.react-roadmap-note,
+.react-ops-domain-card {
+  border: 1px solid #e5e7eb;
   border-radius: 18px;
   padding: 20px;
+  background: #fff;
+}
+
+.react-roadmap-note ul {
+  padding-left: 18px;
+}
+
+.react-roadmap-note li + li {
+  margin-top: 8px;
+}
+
+.react-ops-domain-card {
+  margin-bottom: 20px;
   background: #fafbff;
 }
 
-.react-theme-logo {
-  height: 34px;
-  margin-bottom: 16px;
+.react-ops-domain-card h6 {
+  margin-bottom: 8px;
 }
 
-.react-theme-pack p {
+.react-ops-domain-card p {
+  color: #5f6480;
+  margin-bottom: 0;
+}
+
+.react-ops-domain-icon,
+.react-empty-state-icon {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(29, 78, 216, 0.08);
+  color: #1d4ed8;
+  margin-bottom: 14px;
+}
+
+.react-empty-state {
+  border: 1px dashed #d4d7e3;
+  border-radius: 18px;
+  padding: 36px 20px;
+  text-align: center;
+  background: #fafbff;
+}
+
+.react-empty-state h6 {
+  margin-bottom: 8px;
+}
+
+.react-empty-state p,
+.react-empty-inline {
   margin-bottom: 0;
   color: #5f6480;
 }
 
-.empty-conversation-state {
-  padding: 32px;
-  text-align: center;
-  border: 1px dashed #d4d7e3;
-  border-radius: 18px;
-  color: #5f6480;
-  background: #fafbff;
+.react-meta-list {
+  display: grid;
+  gap: 14px;
+}
+
+.react-meta-list strong {
+  display: block;
+}
+
+.react-meta-label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.react-rich-preview {
+  white-space: pre-wrap;
+  padding: 18px;
+  border-radius: 16px;
+  background: #f8fafc;
+  color: #334155;
+  min-height: 140px;
+}
+
+.react-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.react-conversation-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.react-conversation-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px;
+  background: #fff;
+}
+
+.react-resource-table td,
+.react-resource-table th {
+  vertical-align: middle;
+}
+
+.app-route-marker {
+  display: none;
 }
 
 @media (max-width: 991px) {
-  .react-chat-bubble {
-    max-width: 100%;
+  .react-json-block {
+    min-height: 240px;
   }
 }
