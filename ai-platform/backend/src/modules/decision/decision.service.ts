@@ -4,6 +4,7 @@ import { ContinuityAwareInterpretation } from '../continuity/continuity.types';
 import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
 import { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
+import { TenantCapabilityRegistryService } from '../tenant-capabilities/tenant-capability-registry.service';
 import { ProductCatalogService } from '../tools/product-catalog.service';
 import { DecisionInput, DecisionResult } from './decision.types';
 
@@ -13,6 +14,7 @@ export class DecisionService {
     private readonly logger: PipelineLoggerService,
     private readonly productCatalogService: ProductCatalogService,
     private readonly conversationSignalResolver: ConversationSignalResolverService,
+    private readonly tenantCapabilityRegistry: TenantCapabilityRegistryService,
   ) {}
 
   decide(
@@ -37,8 +39,13 @@ export class DecisionService {
     const continuityMissingFields = this.resolveContinuityMissingFields(input);
     const signals = this.resolveSignals(input);
     const productCatalogMatch = this.resolveProductCatalogMatch(input);
+    const capabilities = this.tenantCapabilityRegistry.resolveForCurrentTenant();
 
     if (interpretation.intent === 'CREATE_BOOKING') {
+      if (!capabilities.capabilities.booking.enabled) {
+        return this.buildRespondDecision('booking_capability_disabled');
+      }
+
       const missingFields = interpretation.normalizedEntities.dates.length
         ? []
         : ['requested_date'];
@@ -64,6 +71,10 @@ export class DecisionService {
     }
 
     if (interpretation.intent === 'CREATE_QUOTE') {
+      if (!capabilities.capabilities.quote.enabled) {
+        return this.buildRespondDecision('quote_capability_disabled');
+      }
+
       return {
         domain: 'tenant',
         action: 'invoke_tool',
@@ -108,6 +119,17 @@ export class DecisionService {
     }
 
     if (
+      this.shouldPreferContextualResponse(
+        input,
+        signals,
+        continuityMissingFields,
+        productCatalogMatch.matched,
+      )
+    ) {
+      return this.buildRespondDecision('contextual_follow_up');
+    }
+
+    if (
       !continuityApplied &&
       (interpretation.confidence < 0.6 || interpretation.intent === 'CLARIFICATION')
     ) {
@@ -126,6 +148,10 @@ export class DecisionService {
     }
 
     if (interpretation.intent === 'GET_PRODUCT') {
+      if (!capabilities.capabilities.product_catalog_lookup.enabled) {
+        return this.buildRespondDecision('product_lookup_capability_disabled');
+      }
+
       if (productCatalogMatch.matched) {
         return {
           domain: 'tenant',
@@ -242,6 +268,64 @@ export class DecisionService {
     }
 
     return signals.advisory.supported;
+  }
+
+  private shouldPreferContextualResponse(
+    input: DecisionInput,
+    signals: ConversationRoutingSignals,
+    continuityMissingFields: string[],
+    hasGroundedProductMatch: boolean,
+  ) {
+    const activeLane = this.resolveActiveLane(input);
+    const lastApprovedAction =
+      input.conversationState?.lastApprovedAction ??
+      input.interpretation.continuity?.previousStateSummary?.lastApprovedAction;
+
+    if (!activeLane) {
+      return false;
+    }
+
+    if (
+      signals.threading.switchSuggested ||
+      signals.noise.channelInterference ||
+      continuityMissingFields.length > 0 ||
+      input.documentRetrieval?.result ||
+      signals.document.continuationEligible
+    ) {
+      return false;
+    }
+
+    if (
+      input.interpretation.intent === 'CREATE_BOOKING' ||
+      input.interpretation.intent === 'CREATE_QUOTE'
+    ) {
+      return false;
+    }
+
+    if (
+      activeLane === 'advisory_exploration' ||
+      activeLane === 'document_exploration'
+    ) {
+      return false;
+    }
+
+    if (hasGroundedProductMatch && activeLane !== 'product_lookup') {
+      return false;
+    }
+
+    if (
+      lastApprovedAction !== 'respond' &&
+      lastApprovedAction !== 'invoke_tool' &&
+      lastApprovedAction !== 'close_turn'
+    ) {
+      return false;
+    }
+
+    return (
+      signals.threading.activeContinuation ||
+      signals.threading.resume ||
+      signals.threading.shortFollowUp
+    );
   }
 
   private resolveContinuityMissingFields(input: DecisionInput) {

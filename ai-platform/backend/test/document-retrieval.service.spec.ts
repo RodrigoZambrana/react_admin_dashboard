@@ -286,4 +286,55 @@ describe('DocumentRetrievalService', () => {
       },
     });
   });
+
+  it('does not treat channel/system interference as a document retrieval request', async () => {
+    const repository = {
+      listActiveReadyChunks: jest.fn(async () => []),
+    };
+    const service = new DocumentRetrievalService(
+      repository as any,
+      new ConversationSignalResolverService(),
+    );
+
+    const result = await service.retrieveForConversation({
+      message: 'Mensaje automático: gracias por comunicarte.',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'Mensaje automático: gracias por comunicarte.',
+        },
+        language: 'es',
+        confidence: 0.74,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-doc',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          activeDocumentIds: ['doc-9'],
+          topicSummary: 'tela screen para cortinas roller',
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+    });
+
+    expect(result).toEqual({
+      attempted: false,
+      reason: 'not_requested',
+      result: null,
+    });
+    expect(repository.listActiveReadyChunks).not.toHaveBeenCalled();
+  });
 });

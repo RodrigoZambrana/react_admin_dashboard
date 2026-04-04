@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
+import { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import { DecisionResult } from '../decision/decision.types';
 import { DocumentRetrievalAttempt } from '../documents/document.types';
 import { CanonicalIntent } from '../interpretation/interpretation.schemas';
@@ -44,35 +45,37 @@ export class ConversationContinuityService {
     interpretation: ParsedInterpretation;
   }): Promise<PreparedContinuityTurn> {
     const previousState = await this.getState(input.conversationId);
+    const signals = this.resolveSignals(input.interpretation, previousState);
     const explicitLane = this.resolveExplicitLane(input.interpretation.intent);
     const suppressExplicitInvalidation = Boolean(
       previousState &&
         explicitLane &&
         previousState.lane !== explicitLane &&
-        this.shouldPreserveExplorationLane(previousState, explicitLane),
+        this.shouldPreserveExplorationLane(previousState, explicitLane, signals),
     );
     const invalidatedFactKeys =
-      previousState &&
-      explicitLane &&
-      previousState.lane !== explicitLane &&
-      !suppressExplicitInvalidation
+      previousState && this.shouldInvalidatePreviousState(previousState, explicitLane, suppressExplicitInvalidation, signals)
         ? this.collectStateFactKeys(previousState)
         : [];
     const activeState =
       invalidatedFactKeys.length > 0 ? null : previousState ?? null;
-    const carryLane = this.resolveCarryLane(activeState, input.interpretation);
-    const currentFacts = carryLane
-      ? this.extractLaneFacts(carryLane, input.interpretation)
+    const effectiveCarryLane = this.resolveCarryLane(
+      activeState,
+      input.interpretation,
+      signals,
+    );
+    const currentFacts = effectiveCarryLane
+      ? this.extractLaneFacts(effectiveCarryLane, input.interpretation)
       : null;
-    const carryableFacts = carryLane
-      ? this.getCarryableFacts(activeState, carryLane)
+    const carryableFacts = effectiveCarryLane
+      ? this.getCarryableFacts(activeState, effectiveCarryLane)
       : null;
     const mergedFacts =
-      carryLane && carryableFacts
-        ? this.mergeLaneFacts(carryLane, carryableFacts, currentFacts ?? {})
+      effectiveCarryLane && carryableFacts
+        ? this.mergeLaneFacts(effectiveCarryLane, carryableFacts, currentFacts ?? {})
         : null;
     const carriedFactKeys =
-      carryLane && carryableFacts && mergedFacts
+      effectiveCarryLane && carryableFacts && mergedFacts
         ? Object.keys(carryableFacts).filter(
             (key) =>
               !this.hasMeaningfulValue((currentFacts ?? {})[key]) &&
@@ -80,12 +83,12 @@ export class ConversationContinuityService {
           )
         : [];
     const shouldPromoteLane =
-      Boolean(carryLane) &&
+      Boolean(effectiveCarryLane) &&
       !explicitLane &&
-      this.isImplicitContinuationCandidate(input.interpretation) &&
+      this.isImplicitContinuationCandidate(input.interpretation, signals) &&
       carriedFactKeys.length + Object.keys(currentFacts ?? {}).length > 0;
     const effectiveInterpretation = mergedFacts
-      ? this.applyLaneFacts(input.interpretation, carryLane!, mergedFacts, {
+      ? this.applyLaneFacts(input.interpretation, effectiveCarryLane!, mergedFacts, {
           promoteLane: shouldPromoteLane,
           invalidatedFactKeys,
           activeState,
@@ -283,6 +286,7 @@ export class ConversationContinuityService {
   private resolveCarryLane(
     state: ConversationStateSnapshot | null,
     interpretation: ParsedInterpretation,
+    signals: ConversationRoutingSignals,
   ): ConversationLane | null {
     if (!state) {
       return this.resolveExplicitLane(interpretation.intent) ?? null;
@@ -294,11 +298,18 @@ export class ConversationContinuityService {
       return state.lane;
     }
 
-    if (this.shouldContinueExplorationLane(state, interpretation)) {
+    if (
+      signals.threading.switchSuggested ||
+      signals.noise.channelInterference
+    ) {
+      return explicitLane ?? null;
+    }
+
+    if (this.shouldContinueExplorationLane(state, interpretation, signals)) {
       return state.lane;
     }
 
-    if (!this.isImplicitContinuationCandidate(interpretation)) {
+    if (!this.isImplicitContinuationCandidate(interpretation, signals)) {
       return explicitLane ?? null;
     }
 
@@ -309,6 +320,14 @@ export class ConversationContinuityService {
     }
 
     if (state.missingFields.length > 0 || state.nextUsefulField) {
+      return state.lane;
+    }
+
+    if (
+      signals.threading.activeContinuation ||
+      signals.threading.resume ||
+      signals.threading.shortFollowUp
+    ) {
       return state.lane;
     }
 
@@ -412,22 +431,6 @@ export class ConversationContinuityService {
       ) {
         entities.productQuery = facts.query;
       }
-
-      if (
-        typeof facts.price === 'string' &&
-        facts.price.trim().length > 0 &&
-        typeof entities.price !== 'string'
-      ) {
-        entities.price = facts.price;
-      }
-
-      if (
-        typeof facts.location === 'string' &&
-        facts.location.trim().length > 0 &&
-        typeof entities.location !== 'string'
-      ) {
-        entities.location = facts.location;
-      }
     }
 
     if (
@@ -502,17 +505,20 @@ export class ConversationContinuityService {
   private shouldPreserveExplorationLane(
     previousState: ConversationStateSnapshot,
     explicitLane: ConversationLane,
+    signals: ConversationRoutingSignals,
   ) {
     return (
       (previousState.lane === 'document_exploration' ||
         previousState.lane === 'advisory_exploration') &&
-      explicitLane === 'product_lookup'
+      explicitLane === 'product_lookup' &&
+      !signals.threading.switchSuggested
     );
   }
 
   private shouldContinueExplorationLane(
     state: ConversationStateSnapshot,
     interpretation: ParsedInterpretation,
+    signals: ConversationRoutingSignals,
   ) {
     if (
       state.lane !== 'document_exploration' &&
@@ -524,7 +530,8 @@ export class ConversationContinuityService {
     return (
       interpretation.intent === 'GENERAL_CONVERSATION' ||
       interpretation.intent === 'CLARIFICATION' ||
-      interpretation.intent === 'GET_PRODUCT'
+      interpretation.intent === 'GET_PRODUCT' ||
+      signals.threading.activeContinuation
     );
   }
 
@@ -549,11 +556,19 @@ export class ConversationContinuityService {
 
   private isImplicitContinuationCandidate(
     interpretation: ParsedInterpretation,
+    signals?: ConversationRoutingSignals | null,
   ): boolean {
+    if (signals?.threading.switchSuggested || signals?.noise.channelInterference) {
+      return false;
+    }
+
     return (
       interpretation.intent === 'GENERAL_CONVERSATION' ||
       interpretation.intent === 'CLARIFICATION' ||
-      interpretation.confidence < 0.6
+      interpretation.confidence < 0.6 ||
+      signals?.threading.activeContinuation === true ||
+      signals?.threading.resume === true ||
+      signals?.threading.shortFollowUp === true
     );
   }
 
@@ -628,14 +643,6 @@ export class ConversationContinuityService {
           typeof interpretation.entities.sku === 'string'
             ? interpretation.entities.sku
             : undefined,
-        price:
-          typeof interpretation.entities.price === 'string'
-            ? interpretation.entities.price
-            : undefined,
-        location:
-          typeof interpretation.entities.location === 'string'
-            ? interpretation.entities.location
-            : undefined,
       }) ?? {};
     }
 
@@ -686,11 +693,10 @@ export class ConversationContinuityService {
       const current = currentFacts as QuoteFacts;
 
       return this.cleanFacts({
-        requestSummary:
-          typeof current.requestSummary === 'string' &&
-          current.requestSummary.trim().length > 0
-            ? current.requestSummary
-            : base.requestSummary,
+        requestSummary: this.preferMoreSpecificSummary(
+          base.requestSummary,
+          current.requestSummary,
+        ),
         attendees:
           typeof current.attendees === 'number'
             ? current.attendees
@@ -719,15 +725,6 @@ export class ConversationContinuityService {
           typeof current.sku === 'string' && current.sku.trim().length > 0
             ? current.sku
             : base.sku,
-        price:
-          typeof current.price === 'string' && current.price.trim().length > 0
-            ? current.price
-            : base.price,
-        location:
-          typeof current.location === 'string' &&
-          current.location.trim().length > 0
-            ? current.location
-            : base.location,
       }) ?? {};
     }
 
@@ -1102,5 +1099,33 @@ export class ConversationContinuityService {
     return typeof interpretation.entities.rawMessage === 'string'
       ? interpretation.entities.rawMessage
       : '';
+  }
+
+  private resolveSignals(
+    interpretation: ParsedInterpretation,
+    state: ConversationStateSnapshot | null,
+  ) {
+    return this.conversationSignalResolver.resolve({
+      message: this.resolveFallbackMessage(interpretation),
+      interpretation,
+      conversationState: state,
+    });
+  }
+
+  private shouldInvalidatePreviousState(
+    previousState: ConversationStateSnapshot,
+    explicitLane: ConversationLane | undefined,
+    suppressExplicitInvalidation: boolean,
+    signals: ConversationRoutingSignals,
+  ) {
+    if (
+      explicitLane &&
+      previousState.lane !== explicitLane &&
+      !suppressExplicitInvalidation
+    ) {
+      return true;
+    }
+
+    return signals.threading.switchSuggested;
   }
 }

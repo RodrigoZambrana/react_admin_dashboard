@@ -82,8 +82,6 @@ export type QuoteFacts = {
 export type ProductFacts = {
   query?: string;
   sku?: string;
-  price?: string;
-  location?: string;
 };
 
 export type DocumentExplorationFacts = {

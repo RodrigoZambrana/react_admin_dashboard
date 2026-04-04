@@ -17,6 +17,12 @@ export type ConversationSignalCatalog = {
   document: ConversationSignalNamespaceCatalog;
   advisory: ConversationSignalNamespaceCatalog;
   closure: ConversationSignalNamespaceCatalog;
+  threading: ConversationSignalNamespaceCatalog;
+  noise: ConversationSignalNamespaceCatalog;
+  textSupport: {
+    informativeStopWords: string[];
+    retrievalStopWords: string[];
+  };
 };
 
 export type ConversationSignalInput = {
@@ -55,5 +61,14 @@ export type ConversationRoutingSignals = {
     decline: boolean;
     farewell: boolean;
     supported: boolean;
+  };
+  threading: ConversationSignalNamespaceMatch & {
+    shortFollowUp: boolean;
+    resume: boolean;
+    switchSuggested: boolean;
+    activeContinuation: boolean;
+  };
+  noise: ConversationSignalNamespaceMatch & {
+    channelInterference: boolean;
   };
 };

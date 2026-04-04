@@ -108,4 +108,65 @@ describe('ConversationSignalResolverService', () => {
     expect(signals.closure.gratitude).toBe(true);
     expect(signals.closure.decline).toBe(true);
   });
+
+  it('detects contextual resume and short follow-up signals without encoding them in decisive services', () => {
+    const signals = service.resolve({
+      message: 'Si me interesa',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        entities: {
+          rawMessage: 'Si me interesa',
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-follow-up',
+        lane: 'quote',
+        updatedAt: '2026-04-04T10:00:00.000Z',
+        missingFields: [],
+      } as any,
+    });
+
+    expect(signals.threading.shortFollowUp).toBe(true);
+    expect(signals.threading.resume).toBe(true);
+    expect(signals.threading.activeContinuation).toBe(true);
+  });
+
+  it('detects explicit thread switching without forcing one tenant-specific topic taxonomy', () => {
+    const signals = service.resolve({
+      message: 'Retomo por acá, pero ahora te consulto por otra abertura.',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        entities: {
+          rawMessage: 'Retomo por acá, pero ahora te consulto por otra abertura.',
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-switch',
+        lane: 'quote',
+        updatedAt: '2026-04-04T10:00:00.000Z',
+        missingFields: [],
+      } as any,
+    });
+
+    expect(signals.threading.resume).toBe(true);
+    expect(signals.threading.switchSuggested).toBe(true);
+  });
+
+  it('flags channel/system interference separately from the active user topic', () => {
+    const signals = service.resolve({
+      message: 'Mensaje automático: gracias por comunicarte.',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        entities: {
+          rawMessage: 'Mensaje automático: gracias por comunicarte.',
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(signals.noise.channelInterference).toBe(true);
+  });
 });

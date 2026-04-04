@@ -171,6 +171,91 @@ describe('ConversationContinuityService', () => {
     expect(prepared.effectiveInterpretation.intent).toBe('GET_PRODUCT');
   });
 
+  it('keeps an active tenant lane on short re-engagement follow-ups without reopening from scratch', async () => {
+    const { service } = createService({
+      conversationId: 'conv-reengage',
+      lane: 'quote',
+      lastIntent: 'CREATE_QUOTE',
+      lastApprovedAction: 'respond',
+      lastApprovedToolName: 'create_quote',
+      approvedFacts: {
+        requestSummary: 'Presupuesto para sustituir una ventana por una de aluminio',
+      },
+      pendingFacts: null,
+      missingFields: [],
+      nextUsefulField: null,
+      lastApprovedResult: {
+        quoteId: 'qt_321',
+      },
+      metadata: null,
+      updatedAt: new Date('2026-04-03T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-reengage',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.81,
+        entities: {
+          rawMessage: 'Si me interesa',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    expect(prepared.continuity.activeLane).toBe('quote');
+    expect(prepared.continuity.applied).toBe(true);
+    expect(prepared.effectiveInterpretation.intent).toBe('CREATE_QUOTE');
+    expect(prepared.effectiveInterpretation.entities.requestSummary).toBe(
+      'Presupuesto para sustituir una ventana por una de aluminio',
+    );
+  });
+
+  it('invalidates the previous lane on explicit thread switches even without a new explicit business intent', async () => {
+    const { service } = createService({
+      conversationId: 'conv-switch',
+      lane: 'quote',
+      lastIntent: 'CREATE_QUOTE',
+      lastApprovedAction: 'respond',
+      lastApprovedToolName: 'create_quote',
+      approvedFacts: {
+        requestSummary: 'Presupuesto para aberturas de aluminio',
+      },
+      pendingFacts: null,
+      missingFields: [],
+      nextUsefulField: null,
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-03T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-switch',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.88,
+        entities: {
+          rawMessage: 'Retomo por acá, pero ahora te consulto por otra abertura.',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    expect(prepared.activeState).toBeNull();
+    expect(prepared.continuity.invalidatedFactKeys).toContain('requestSummary');
+    expect(prepared.continuity.activeLane).toBeNull();
+  });
+
   it('carries quote facts forward after successful quote execution', async () => {
     const { service } = createService({
       conversationId: 'conv-quote',
@@ -221,7 +306,8 @@ describe('ConversationContinuityService', () => {
     expect(prepared.effectiveInterpretation.entities).toEqual(
       expect.objectContaining({
         attendees: 4,
-        requestSummary: 'ahora para 4 unidades',
+        rawMessage: 'ahora para 4 unidades',
+        requestSummary: 'Necesito una cotizacion para puertas corredizas',
       }),
     );
     expect(prepared.effectiveInterpretation.normalizedEntities.measurements).toEqual([

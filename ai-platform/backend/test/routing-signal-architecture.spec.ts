@@ -21,5 +21,7 @@ describe('Routing signal architecture', () => {
     expect(decisionSource).not.toContain('advisoryCuePatterns');
     expect(retrievalSource).not.toContain('documentCuePatterns');
     expect(continuitySource).not.toContain('hasAdvisorySignals');
+    expect(retrievalSource).not.toContain('const stopWords = new Set');
+    expect(decisionSource).not.toContain('const stopWords = new Set');
   });
 });

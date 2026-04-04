@@ -1,14 +1,68 @@
 import { PipelineLoggerService } from '../src/modules/logging/pipeline-logger.service';
 import { ConversationSignalResolverService } from '../src/modules/conversation-signals/conversation-signal-resolver.service';
 import { DecisionService } from '../src/modules/decision/decision.service';
+import { TenantCapabilityRegistryService } from '../src/modules/tenant-capabilities/tenant-capability-registry.service';
 import { ProductCatalogService } from '../src/modules/tools/product-catalog.service';
 
 describe('DecisionService', () => {
-  function createService() {
+  function createService(input?: {
+    capabilities?: {
+      booking?: boolean;
+      quote?: boolean;
+      product_catalog_lookup?: boolean;
+      support_post_sale?: boolean;
+    };
+  }) {
+    const capabilities = {
+      booking: true,
+      quote: true,
+      product_catalog_lookup: true,
+      support_post_sale: true,
+      ...(input?.capabilities ?? {}),
+    };
+
     return new DecisionService(
       new PipelineLoggerService(),
       new ProductCatalogService(),
       new ConversationSignalResolverService(),
+      {
+        resolveForCurrentTenant: () => ({
+          tenantId: 'tenant-alpha',
+          capabilities: {
+            booking: {
+              key: 'booking',
+              enabled: capabilities.booking,
+              description: '',
+              intents: ['CREATE_BOOKING'],
+              tools: ['create_booking'],
+            },
+            quote: {
+              key: 'quote',
+              enabled: capabilities.quote,
+              description: '',
+              intents: ['CREATE_QUOTE'],
+              tools: ['create_quote'],
+            },
+            product_catalog_lookup: {
+              key: 'product_catalog_lookup',
+              enabled: capabilities.product_catalog_lookup,
+              description: '',
+              intents: ['GET_PRODUCT'],
+              tools: ['get_product'],
+            },
+            support_post_sale: {
+              key: 'support_post_sale',
+              enabled: capabilities.support_post_sale,
+              description: '',
+              intents: ['GENERAL_CONVERSATION', 'CLARIFICATION'],
+              tools: [],
+            },
+          },
+          enabledKeys: Object.entries(capabilities)
+            .filter(([, enabled]) => enabled)
+            .map(([key]) => key),
+        }),
+      } as unknown as TenantCapabilityRegistryService,
     );
   }
 
@@ -148,6 +202,62 @@ describe('DecisionService', () => {
         action: 'clarify',
         reasonCode: 'continuity_missing_fields',
         missingFields: ['requested_date'],
+      }),
+    );
+  });
+
+  it('keeps a contextual follow-up in the active lane instead of resetting into generic clarification', () => {
+    const service = createService();
+
+    const decision = service.decide({
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.52,
+        entities: {
+          rawMessage: 'Si me interesa',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+        continuity: {
+          applied: true,
+          activeLane: 'quote',
+          carriedFactKeys: ['requestSummary'],
+          invalidatedFactKeys: [],
+          missingFields: [],
+          previousStateSummary: {
+            lane: 'quote',
+            missingFields: [],
+            lastApprovedAction: 'respond',
+          },
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-follow-up',
+        lane: 'quote',
+        lastIntent: 'CREATE_QUOTE',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          requestSummary: 'Presupuesto para sustituir una ventana',
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+      documentRetrieval: null,
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'respond',
+        reasonCode: 'contextual_follow_up',
       }),
     );
   });
@@ -298,6 +408,40 @@ describe('DecisionService', () => {
       expect.objectContaining({
         action: 'invoke_tool',
         toolName: 'get_product',
+      }),
+    );
+  });
+
+  it('does not route to a disabled tenant capability even when the intent matches', () => {
+    const service = createService({
+      capabilities: {
+        product_catalog_lookup: false,
+      },
+    });
+
+    const decision = service.decide({
+      interpretation: {
+        intent: 'GET_PRODUCT',
+        language: 'en',
+        confidence: 0.84,
+        entities: {
+          rawMessage: 'I need the Beacon Desk Lamp',
+          productQuery: 'Beacon Desk Lamp',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+      documentRetrieval: null,
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'respond',
+        reasonCode: 'product_lookup_capability_disabled',
       }),
     );
   });

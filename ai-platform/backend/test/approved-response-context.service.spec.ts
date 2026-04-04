@@ -74,6 +74,8 @@ describe('ApprovedResponseContextService', () => {
 
     expect(context.documentContext).toEqual(
       expect.objectContaining({
+        groundedSummary:
+          'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
         responseMode: 'combined_execution',
         grounding: expect.objectContaining({
           supportLevel: 'partial',

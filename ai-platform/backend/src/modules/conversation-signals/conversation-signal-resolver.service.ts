@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import type { CanonicalIntent } from '../interpretation/interpretation.schemas';
-import { resolveConversationSignalCatalog } from './conversation-signal.catalogs';
+import {
+  normalizeConversationSignalText,
+  resolveConversationSignalCatalog,
+  tokenizeConversationSignalText,
+} from './conversation-signal.catalogs';
 import type {
   ConversationRoutingSignals,
   ConversationSignalInput,
@@ -16,17 +20,43 @@ export class ConversationSignalResolverService {
     const topicText = this.resolveTopicText(input);
     const candidateTexts = this.resolveCandidateTexts(input);
     const catalog = resolveConversationSignalCatalog(locale);
-    const normalizedTexts = candidateTexts.map((value) => normalizeText(value));
+    const normalizedTexts = candidateTexts.map((value) =>
+      normalizeConversationSignalText(value),
+    );
     const document = this.matchNamespace(catalog.document, normalizedTexts);
     const advisory = this.matchNamespace(catalog.advisory, normalizedTexts);
     const closure = this.matchNamespace(catalog.closure, normalizedTexts);
+    const threading = this.matchNamespace(catalog.threading, normalizedTexts);
+    const noise = this.matchNamespace(catalog.noise, normalizedTexts);
     const documentFocusText =
       document.lexicalScore > 0
-        ? this.resolveFocusText(catalog.document, candidateTexts)
+        ? this.resolveFocusText(catalog.document, candidateTexts, locale)
         : null;
     const primaryText = topicText || candidateTexts[0] || '';
+    const primaryTokens = tokenizeConversationSignalText(primaryText, {
+      locale,
+      minimumTokenLength: 2,
+      stopWordSet: null,
+    });
     const questionLike = /[?¿]/u.test(primaryText);
-    const descriptive = tokenize(primaryText).length >= 6 || primaryText.length >= 28;
+    const descriptive = primaryTokens.length >= 6 || primaryText.length >= 28;
+    const shortFollowUp =
+      threading.matchedCategories.includes('short_follow_up') ||
+      (primaryTokens.length > 0 &&
+        primaryTokens.length <= 4 &&
+        primaryText.length <= 40 &&
+        !questionLike);
+    const resume = threading.matchedCategories.includes('resume');
+    const switchSuggested =
+      threading.matchedCategories.includes('switch') &&
+      (primaryTokens.length >= 3 || primaryText.length >= 24);
+    const channelInterference = noise.matchedCategories.includes('auto_reply');
+    const activeContinuation =
+      Boolean(input.conversationState) &&
+      this.isExplorationFollowUpIntent(input.interpretation.intent) &&
+      !switchSuggested &&
+      !channelInterference &&
+      (shortFollowUp || resume);
 
     return {
       locale,
@@ -38,7 +68,9 @@ export class ConversationSignalResolverService {
         explicitRequest: document.lexicalScore > 0,
         continuationEligible:
           input.conversationState?.lane === 'document_exploration' &&
-          this.isExplorationFollowUpIntent(input.interpretation.intent),
+          this.isExplorationFollowUpIntent(input.interpretation.intent) &&
+          !switchSuggested &&
+          !channelInterference,
       },
       advisory: {
         ...advisory,
@@ -47,7 +79,9 @@ export class ConversationSignalResolverService {
         supported: advisory.lexicalScore > 0 || (questionLike && descriptive),
         continuationEligible:
           input.conversationState?.lane === 'advisory_exploration' &&
-          this.isExplorationFollowUpIntent(input.interpretation.intent),
+          this.isExplorationFollowUpIntent(input.interpretation.intent) &&
+          !switchSuggested &&
+          !channelInterference,
       },
       closure: {
         ...closure,
@@ -55,6 +89,17 @@ export class ConversationSignalResolverService {
         decline: closure.matchedCategories.includes('decline'),
         farewell: closure.matchedCategories.includes('farewell'),
         supported: closure.lexicalScore > 0,
+      },
+      threading: {
+        ...threading,
+        shortFollowUp,
+        resume,
+        switchSuggested,
+        activeContinuation,
+      },
+      noise: {
+        ...noise,
+        channelInterference,
       },
     };
   }
@@ -100,15 +145,18 @@ export class ConversationSignalResolverService {
   private resolveFocusText(
     namespace: ConversationSignalNamespaceCatalog,
     candidateTexts: string[],
+    locale: string,
   ) {
     const segmentCandidates = buildSegmentCandidates(candidateTexts);
     let best: { segment: string; focusScore: number } | null = null;
 
     for (const segment of segmentCandidates) {
-      const match = this.matchNamespace(namespace, [normalizeText(segment)]);
+      const match = this.matchNamespace(namespace, [
+        normalizeConversationSignalText(segment),
+      ]);
       const focusScore =
         match.lexicalScore +
-        countInformativeTokens(segment, match.matchedTerms) * 2;
+        countInformativeTokens(segment, match.matchedTerms, locale) * 2;
 
       if (focusScore <= 0) {
         continue;
@@ -140,14 +188,21 @@ export class ConversationSignalResolverService {
     let lexicalScore = 0;
 
     for (const [category, lexicon] of Object.entries(namespace)) {
-      const normalizedTerms = (lexicon.terms ?? []).map((value) => normalizeText(value));
+      const normalizedTerms = (lexicon.terms ?? []).map((value) =>
+        normalizeConversationSignalText(value),
+      );
       const normalizedPhrases = (lexicon.phrases ?? []).map((value) =>
-        normalizeText(value),
+        normalizeConversationSignalText(value),
       );
       let categoryScore = 0;
 
       for (const text of normalizedTexts) {
-        const tokenSet = new Set(tokenize(text));
+        const tokenSet = new Set(
+          tokenizeConversationSignalText(text, {
+            minimumTokenLength: 2,
+            stopWordSet: null,
+          }),
+        );
 
         for (const term of normalizedTerms) {
           if (!term || matchedTerms.has(term)) {
@@ -200,23 +255,6 @@ export class ConversationSignalResolverService {
   }
 }
 
-function normalizeText(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function tokenize(value: string) {
-  return normalizeText(value)
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 1);
-}
-
 function dedupe(values: string[]) {
   return Array.from(
     new Set(
@@ -238,30 +276,18 @@ function buildSegmentCandidates(values: string[]) {
   );
 }
 
-function countInformativeTokens(value: string, matchedTerms: string[]) {
-  const matched = new Set(matchedTerms.map((term) => normalizeText(term)));
+function countInformativeTokens(
+  value: string,
+  matchedTerms: string[],
+  locale: string,
+) {
+  const matched = new Set(
+    matchedTerms.map((term) => normalizeConversationSignalText(term)),
+  );
 
-  return tokenize(value).filter(
-    (token) => token.length > 2 && !signalStopWords.has(token) && !matched.has(token),
-  ).length;
+  return tokenizeConversationSignalText(value, {
+    locale,
+    minimumTokenLength: 3,
+    stopWordSet: 'informative',
+  }).filter((token) => !matched.has(token)).length;
 }
-
-const signalStopWords = new Set([
-  'a',
-  'al',
-  'de',
-  'del',
-  'el',
-  'en',
-  'la',
-  'las',
-  'los',
-  'para',
-  'por',
-  'que',
-  'segun',
-  'si',
-  'the',
-  'what',
-  'y',
-]);

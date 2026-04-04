@@ -2214,6 +2214,48 @@
 - Apply only reusable core conversational improvements from that distillation
 - Introduce the tenant-capability and tenant-resource boundaries in runtime code without mixing tenant logic back into the core prompt base
 
+## Iteration 67
+
+### Implemented
+- Applied only core conversational improvements derived from the distilled corpus patterns:
+  - short re-engagement follow-ups now preserve active lane context instead of reopening generic intake
+  - explicit thread-switch signals can invalidate stale lane facts without relying on tenant-specific business taxonomies
+  - document retrieval now uses structured locale-aware text support from the conversation-signal boundary instead of keeping its own inline stopword bucket
+  - quote continuity now preserves the more informative thread summary while still keeping the latest short follow-up as raw user input
+- Added a modular tenant capability boundary:
+  - introduced `TenantCapabilityRegistryService`
+  - introduced a static single-tenant resolver as the current compatibility adapter
+  - wired decisioning to capability activation instead of assuming those business workflows directly inside core runtime code
+- Added an explicit tenant resource boundary type layer so tenant-scoped business truth stays clearly outside the conversational core runtime
+- Extended regression coverage for:
+  - contextual follow-up continuity
+  - thread switching
+  - channel/system interference filtering
+  - tenant capability boundary ownership
+  - concise combined document/execution approved context
+
+### Working
+- The branch now keeps previously completed Stage 1 and Stage 2 behavior intact while extending the runtime safely:
+  - document/advisory quality remains intact
+  - contextual close-turn remains preserved
+  - booking/document/product behavior remains non-regressed in targeted backend regression
+- Decisioning no longer needs to own tenant workflow activation directly; it now resolves those capabilities through a dedicated backend boundary
+- No new inline regex/vocabulary debt was added in decisive runtime services; lexical support growth stayed bounded to the conversation-signal boundary
+
+### Technical Debt
+- The current tenant capability resolver is still a static compatibility adapter; future per-tenant capability enablement remains a later step
+- The explicit tenant resource boundary is defined architecturally and in types, but not every possible resource family has a concrete runtime adapter yet
+- The frontend workspace still lacks a supported automated test harness
+- `get_product` remains a temporary demo-catalog boundary until a real catalog source exists
+
+### Next Steps
+- Run the full backend suite after this runtime modularization block, not only the targeted regressions
+- Keep Wave 9 out of scope in this thread
+- Carry forward only bounded non-core debt:
+  - per-tenant capability configuration
+  - fuller tenant-resource adapters
+  - frontend harness work
+
 ## Iteration 66
 
 ### Implemented

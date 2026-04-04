@@ -154,6 +154,47 @@ function buildBookingPipeline(
     new PipelineLoggerService(),
     new ProductCatalogService(),
     new ConversationSignalResolverService(),
+    {
+      resolveForCurrentTenant: () => ({
+        tenantId: 'tenant-alpha',
+        capabilities: {
+          booking: {
+            key: 'booking',
+            enabled: true,
+            description: '',
+            intents: ['CREATE_BOOKING'],
+            tools: ['create_booking'],
+          },
+          quote: {
+            key: 'quote',
+            enabled: true,
+            description: '',
+            intents: ['CREATE_QUOTE'],
+            tools: ['create_quote'],
+          },
+          product_catalog_lookup: {
+            key: 'product_catalog_lookup',
+            enabled: true,
+            description: '',
+            intents: ['GET_PRODUCT'],
+            tools: ['get_product'],
+          },
+          support_post_sale: {
+            key: 'support_post_sale',
+            enabled: true,
+            description: '',
+            intents: ['GENERAL_CONVERSATION', 'CLARIFICATION'],
+            tools: [],
+          },
+        },
+        enabledKeys: [
+          'booking',
+          'quote',
+          'product_catalog_lookup',
+          'support_post_sale',
+        ],
+      }),
+    } as any,
   );
   const toolExecutionService = new ToolExecutionService(
     {

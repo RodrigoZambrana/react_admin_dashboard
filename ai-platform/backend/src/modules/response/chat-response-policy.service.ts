@@ -311,7 +311,10 @@ export class ChatResponsePolicyService {
     context: ApprovedResponseContext,
     summary: string,
   ) {
-    const normalizedSummary = summary.trim();
+    const normalizedSummary =
+      context.documentContext?.grounding.supportLevel === 'partial'
+        ? this.buildConciseDocumentSummary(summary)
+        : summary.trim();
     const groundingClause =
       this.responseGroundingService.buildUnspecifiedDetailClause({
         locale: context.locale,

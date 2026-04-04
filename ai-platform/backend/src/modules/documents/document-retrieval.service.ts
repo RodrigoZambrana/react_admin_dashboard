@@ -4,6 +4,10 @@ import type {
   ContinuityAwareInterpretation,
   ConversationStateSnapshot,
 } from '../continuity/continuity.types';
+import {
+  normalizeConversationSignalText,
+  tokenizeConversationSignalText,
+} from '../conversation-signals/conversation-signal.catalogs';
 import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
 import type { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import type { DecisionResult } from '../decision/decision.types';
@@ -12,37 +16,6 @@ import {
   DocumentRetrievalAttempt,
   DocumentRetrievalResult,
 } from './document.types';
-
-const stopWords = new Set([
-  'a',
-  'al',
-  'and',
-  'con',
-  'cortina',
-  'cortinas',
-  'de',
-  'del',
-  'documento',
-  'el',
-  'en',
-  'for',
-  'if',
-  'la',
-  'las',
-  'los',
-  'me',
-  'para',
-  'por',
-  'producto',
-  'productos',
-  'que',
-  'si',
-  'the',
-  'una',
-  'un',
-  'y',
-  'yo',
-]);
 
 @Injectable()
 export class DocumentRetrievalService {
@@ -75,7 +48,7 @@ export class DocumentRetrievalService {
     }
 
     const query = this.resolveQuery(input, reason, signals);
-    const queryTokens = tokenize(query);
+    const queryTokens = tokenizeQuery(query, input.interpretation.language);
 
     if (queryTokens.length === 0) {
       return {
@@ -155,11 +128,18 @@ export class DocumentRetrievalService {
   }
 
   private resolveReason(signals: ConversationRoutingSignals) {
+    if (signals.noise.channelInterference) {
+      return 'not_requested' as const;
+    }
+
     if (signals.document.explicitRequest) {
       return 'document_query' as const;
     }
 
-    if (signals.document.continuationEligible) {
+    if (
+      signals.document.continuationEligible &&
+      !signals.threading.switchSuggested
+    ) {
       return 'active_document_continuation' as const;
     }
 
@@ -184,7 +164,17 @@ export class DocumentRetrievalService {
       typeof signals.document.focusText === 'string' &&
       signals.document.focusText.trim().length > 0
     ) {
-      return signals.document.focusText.trim();
+      const focusedQuery = signals.document.focusText.trim();
+
+      if (
+        previousTopic &&
+        signals.threading.activeContinuation &&
+        focusedQuery !== previousTopic
+      ) {
+        return `${previousTopic}. ${focusedQuery}`.trim();
+      }
+
+      return focusedQuery;
     }
 
     if (reason === 'active_document_continuation' && previousTopic) {
@@ -250,17 +240,6 @@ export class DocumentRetrievalService {
   }
 }
 
-function tokenize(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .map((token) => token.trim())
-    .filter((token) => token.length > 2 && !stopWords.has(token));
-}
-
 function scoreChunk(query: string, queryTokens: string[], searchText: string) {
   const tokenSet = new Set(searchText.split(/\s+/));
   let score = 0;
@@ -271,13 +250,7 @@ function scoreChunk(query: string, queryTokens: string[], searchText: string) {
     }
   }
 
-  const normalizedQuery = query
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const normalizedQuery = normalizeConversationSignalText(query);
 
   if (normalizedQuery.length > 0 && searchText.includes(normalizedQuery)) {
     score += 4;
@@ -346,13 +319,7 @@ function resolveMinimumScore(queryTokenCount: number) {
 }
 
 function scoreExcerptSentence(sentence: string, queryTokens: string[]) {
-  const normalized = sentence
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  const normalized = normalizeConversationSignalText(sentence);
 
   let score = 0;
 
@@ -369,4 +336,12 @@ function scoreExcerptSentence(sentence: string, queryTokens: string[]) {
   }
 
   return score;
+}
+
+function tokenizeQuery(value: string, locale?: string | null) {
+  return tokenizeConversationSignalText(value, {
+    locale,
+    minimumTokenLength: 3,
+    stopWordSet: 'retrieval',
+  });
 }

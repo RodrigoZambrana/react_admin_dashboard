@@ -172,7 +172,10 @@ export class ApprovedResponseContextService {
     return {
       source: input.documentContext.source,
       query: input.documentContext.query,
-      groundedSummary: input.documentContext.groundedSummary,
+      groundedSummary: this.buildResponseSafeGroundedSummary(
+        input.documentContext.groundedSummary,
+        responseMode,
+      ),
       responseMode: responseMode as 'document_exploration' | 'combined_execution',
       grounding,
       matches: input.documentContext.matches.map((match) =>
@@ -198,5 +201,25 @@ export class ApprovedResponseContextService {
     }
 
     return `${normalized.slice(0, 217).trimEnd()}...`;
+  }
+
+  private buildResponseSafeGroundedSummary(
+    value: string,
+    responseMode: 'document_exploration' | 'combined_execution',
+  ) {
+    const normalized = value.trim().replace(/\s+/g, ' ');
+
+    if (!normalized) {
+      return '';
+    }
+
+    if (responseMode === 'combined_execution') {
+      const firstSentence = normalized.match(/^.*?[.!?](?:\s|$)/u)?.[0]?.trim();
+      if (firstSentence && firstSentence.length <= 220) {
+        return firstSentence;
+      }
+    }
+
+    return this.truncateExcerpt(normalized);
   }
 }

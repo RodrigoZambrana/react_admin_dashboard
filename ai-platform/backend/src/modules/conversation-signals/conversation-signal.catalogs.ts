@@ -1,4 +1,48 @@
-import type { ConversationSignalCatalog } from './conversation-signal.types';
+import type {
+  ConversationSignalCatalog,
+  ConversationSignalNamespaceCatalog,
+} from './conversation-signal.types';
+
+type ConversationTextSupportCatalog = ConversationSignalCatalog['textSupport'];
+
+const sharedInformativeStopWords = [
+  'a',
+  'al',
+  'and',
+  'con',
+  'de',
+  'del',
+  'el',
+  'en',
+  'for',
+  'if',
+  'la',
+  'las',
+  'los',
+  'me',
+  'para',
+  'por',
+  'que',
+  'si',
+  'the',
+  'un',
+  'una',
+  'what',
+  'y',
+];
+
+const sharedRetrievalStopWords = [
+  ...sharedInformativeStopWords,
+  'catalogo',
+  'catalog',
+  'cortina',
+  'cortinas',
+  'documento',
+  'document',
+  'manual',
+  'producto',
+  'productos',
+];
 
 const defaultCatalog: ConversationSignalCatalog = {
   document: {
@@ -32,6 +76,30 @@ const defaultCatalog: ConversationSignalCatalog = {
     farewell: {
       terms: ['bye', 'goodbye'],
     },
+  },
+  threading: {
+    resume: {
+      terms: ['resume', 'resuming', 'continue', 'continuing'],
+      phrases: ['following up', 'back to this', 'still interested'],
+    },
+    short_follow_up: {
+      terms: ['ok', 'okay', 'yes', 'yep', 'sure'],
+      phrases: ['sounds good', 'i am interested'],
+    },
+    switch: {
+      terms: ['another', 'different', 'also', 'instead'],
+      phrases: ['another question', 'different topic', 'something else', 'now i need'],
+    },
+  },
+  noise: {
+    auto_reply: {
+      terms: ['automatic', 'automated', 'noreply'],
+      phrases: ['automatic message', 'auto reply'],
+    },
+  },
+  textSupport: {
+    informativeStopWords: sharedInformativeStopWords,
+    retrievalStopWords: sharedRetrievalStopWords,
   },
 };
 
@@ -85,6 +153,42 @@ const spanishCatalog: ConversationSignalCatalog = {
       terms: ['chau', 'adios', 'adiós', 'hasta luego'],
     },
   },
+  threading: {
+    resume: {
+      terms: ['retomo', 'retomando', 'seguimos', 'continuamos'],
+      phrases: [
+        'sigo con esto',
+        'retomo esto',
+        'si me interesa',
+        'me interesa',
+        'sobre lo anterior',
+      ],
+    },
+    short_follow_up: {
+      terms: ['si', 'sí', 'dale', 'ok', 'genial', 'perfecto'],
+      phrases: ['me sirve', 'esta bien', 'está bien'],
+    },
+    switch: {
+      terms: ['otra', 'otro', 'ademas', 'además', 'tambien', 'también'],
+      phrases: [
+        'otro tema',
+        'otra consulta',
+        'otra abertura',
+        'ahora te consulto',
+        'aparte necesito',
+      ],
+    },
+  },
+  noise: {
+    auto_reply: {
+      terms: ['automatico', 'automático'],
+      phrases: ['mensaje automatico', 'mensaje automático', 'respuesta automatica', 'respuesta automática'],
+    },
+  },
+  textSupport: {
+    informativeStopWords: sharedInformativeStopWords,
+    retrievalStopWords: sharedRetrievalStopWords,
+  },
 };
 
 const englishCatalog: ConversationSignalCatalog = {
@@ -120,6 +224,30 @@ const englishCatalog: ConversationSignalCatalog = {
       terms: ['bye', 'goodbye', 'see you'],
     },
   },
+  threading: {
+    resume: {
+      terms: ['resume', 'continue', 'still'],
+      phrases: ['following up', 'back to this', 'still interested'],
+    },
+    short_follow_up: {
+      terms: ['yes', 'sure', 'okay', 'ok', 'great'],
+      phrases: ['sounds good', 'i am interested', 'that works'],
+    },
+    switch: {
+      terms: ['another', 'different', 'also', 'instead'],
+      phrases: ['another question', 'different topic', 'something else', 'now i need'],
+    },
+  },
+  noise: {
+    auto_reply: {
+      terms: ['automatic', 'automated', 'noreply'],
+      phrases: ['automatic message', 'auto reply'],
+    },
+  },
+  textSupport: {
+    informativeStopWords: sharedInformativeStopWords,
+    retrievalStopWords: sharedRetrievalStopWords,
+  },
 };
 
 export function resolveConversationSignalCatalog(locale?: string | null) {
@@ -136,6 +264,55 @@ export function resolveConversationSignalCatalog(locale?: string | null) {
   return defaultCatalog;
 }
 
+export function resolveConversationTextSupportCatalog(locale?: string | null) {
+  return resolveConversationSignalCatalog(locale).textSupport;
+}
+
+export function normalizeConversationSignalText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function tokenizeConversationSignalText(
+  value: string,
+  input?: {
+    locale?: string | null;
+    minimumTokenLength?: number;
+    stopWordSet?: 'informative' | 'retrieval' | null;
+  },
+) {
+  const minimumTokenLength = input?.minimumTokenLength ?? 2;
+  const supportCatalog = resolveConversationTextSupportCatalog(input?.locale);
+  const stopWords =
+    input?.stopWordSet === 'informative'
+      ? new Set(
+          supportCatalog.informativeStopWords.map((entry) =>
+            normalizeConversationSignalText(entry),
+          ),
+        )
+      : input?.stopWordSet === 'retrieval'
+        ? new Set(
+            supportCatalog.retrievalStopWords.map((entry) =>
+              normalizeConversationSignalText(entry),
+            ),
+          )
+        : null;
+
+  return normalizeConversationSignalText(value)
+    .split(/\s+/u)
+    .map((token) => token.trim())
+    .filter(
+      (token) =>
+        token.length >= minimumTokenLength &&
+        !(stopWords?.has(token) ?? false),
+    );
+}
+
 function mergeCatalogs(
   base: ConversationSignalCatalog,
   override: ConversationSignalCatalog,
@@ -144,12 +321,15 @@ function mergeCatalogs(
     document: mergeNamespace(base.document, override.document),
     advisory: mergeNamespace(base.advisory, override.advisory),
     closure: mergeNamespace(base.closure, override.closure),
+    threading: mergeNamespace(base.threading, override.threading),
+    noise: mergeNamespace(base.noise, override.noise),
+    textSupport: mergeTextSupport(base.textSupport, override.textSupport),
   };
 }
 
 function mergeNamespace(
-  base: ConversationSignalCatalog['document'],
-  override: ConversationSignalCatalog['document'],
+  base: ConversationSignalNamespaceCatalog,
+  override: ConversationSignalNamespaceCatalog,
 ) {
   const keys = new Set([...Object.keys(base), ...Object.keys(override)]);
 
@@ -165,6 +345,22 @@ function mergeNamespace(
       },
     ]),
   );
+}
+
+function mergeTextSupport(
+  base: ConversationTextSupportCatalog,
+  override: ConversationTextSupportCatalog,
+): ConversationTextSupportCatalog {
+  return {
+    informativeStopWords: dedupe([
+      ...base.informativeStopWords,
+      ...override.informativeStopWords,
+    ]),
+    retrievalStopWords: dedupe([
+      ...base.retrievalStopWords,
+      ...override.retrievalStopWords,
+    ]),
+  };
 }
 
 function dedupe(values: string[]) {

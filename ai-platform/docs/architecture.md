@@ -626,6 +626,13 @@ These artifacts exist to keep the boundary executable:
 - tenant capability behavior patterns remain outside the shared runtime even when frequent in one tenant corpus
 - the real corpus stays as regression input, never active runtime knowledge
 
+The current runtime improvements derived from those artifacts are intentionally core-only:
+
+- contextual close-turn remains backend-owned and state-aware
+- short follow-ups and re-engagement now reuse prior conversational state instead of reopening generic intake
+- explicit thread switching invalidates stale thread facts without depending on tenant-specific business taxonomies
+- document retrieval and routing now consume structured signal support from the dedicated conversation-signal boundary instead of growing inline token lists in decisive services
+
 ## Multi-Tenant Enforcement
 
 - Tenant id enters through HTTP middleware
@@ -698,6 +705,43 @@ The `learning` stage persists:
 - governed policy/config versions used for extraction
 - completed, skipped, or failed async learning outcomes
 - stored knowledge identifiers and embedding references when extraction succeeds
+
+## Tenant Capability Runtime Boundary
+
+The runtime now exposes a dedicated tenant capability boundary under:
+
+- `/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/tenant-capabilities`
+
+Current shape:
+
+- `TenantCapabilityRegistryService` is the runtime entrypoint used by decisioning
+- a static resolver currently enables the existing single-tenant capabilities by default
+- decisioning now asks capability boundaries whether business workflows are enabled instead of hardcoding those assumptions directly into the core service
+
+This keeps the current branch compatible with the existing single-tenant runtime while moving toward a SaaS-compatible shape where:
+
+- core runtime remains tenant-neutral
+- business workflows stay modular
+- future per-tenant capability enablement can evolve without rewriting the conversational substrate
+
+## Tenant Resource Boundary
+
+The runtime now exposes an explicit tenant resource boundary under:
+
+- `/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/tenant-resources/tenant-resource.types.ts`
+
+This boundary makes explicit that:
+
+- documents
+- catalogs
+- pricing
+- payment terms
+- hours
+- references
+- policies
+- other business metadata
+
+remain approved tenant-scoped resources rather than core logic. The chat may consume them only through approved backend-governed boundaries.
 
 ## Security Preparation
 
