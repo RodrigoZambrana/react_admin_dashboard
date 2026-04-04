@@ -37,14 +37,18 @@ export class ResponseFallbackService {
     locale?: string | null;
     templateKey: ResponseFallbackTemplateKey;
     variables?: Record<string, string | number | null | undefined>;
+    variationSeed?: string | null;
   }) {
     const catalog = await this.resolveCatalog(input.locale);
-    const template = catalog.templates[input.templateKey];
+    const template = this.resolveTemplate(catalog, input.templateKey, input.variationSeed);
 
-    return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g, (_, key: string) => {
-      const value = input.variables?.[key];
-      return value === undefined || value === null ? '' : String(value);
-    });
+    return template.value.replace(
+      /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g,
+      (_, key: string) => {
+        const value = input.variables?.[key];
+        return value === undefined || value === null ? '' : String(value);
+      },
+    );
   }
 
   async getActionLabel(locale: string | undefined, toolName: string | null | undefined) {
@@ -160,5 +164,63 @@ export class ResponseFallbackService {
     );
 
     return created;
+  }
+
+  private resolveTemplate(
+    catalog: ResponseFallbackCatalogResource,
+    templateKey: ResponseFallbackTemplateKey,
+    variationSeed?: string | null,
+  ) {
+    const configuredVariants = catalog.templateVariants?.[templateKey] ?? [];
+    const normalizedSeed = variationSeed?.trim();
+
+    if (configuredVariants.length === 0 || !normalizedSeed) {
+      this.logger.debug(
+        JSON.stringify({
+          stage: 'response_fallback.render',
+          locale: catalog.locale,
+          templateKey,
+          variantCount: configuredVariants.length,
+          selectedVariantIndex: null,
+        }),
+      );
+
+      return {
+        value: catalog.templates[templateKey],
+        selectedVariantIndex: null as number | null,
+      };
+    }
+
+    const selectedVariantIndex =
+      this.computeDeterministicIndex(
+        `${catalog.locale}:${templateKey}:${normalizedSeed}`,
+        configuredVariants.length,
+      );
+
+    this.logger.debug(
+      JSON.stringify({
+        stage: 'response_fallback.render',
+        locale: catalog.locale,
+        templateKey,
+        variantCount: configuredVariants.length,
+        selectedVariantIndex,
+      }),
+    );
+
+    return {
+      value: configuredVariants[selectedVariantIndex] ?? catalog.templates[templateKey],
+      selectedVariantIndex,
+    };
+  }
+
+  private computeDeterministicIndex(seed: string, length: number) {
+    let hash = 0;
+
+    for (const character of seed) {
+      hash = Math.imul(hash, 31) + character.charCodeAt(0);
+      hash |= 0;
+    }
+
+    return Math.abs(hash) % length;
   }
 }

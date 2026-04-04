@@ -1,21 +1,43 @@
 {
   "locale": "es",
   "templates": {
-    "basic_response": "Entiendo. Como puedo ayudarte?",
-    "clarification_requested_date": "Necesito la fecha deseada para continuar.",
-    "clarification_user_goal": "Necesito entender mejor lo que necesitas para continuar.",
-    "clarification_generic": "Necesito un poco mas de contexto para continuar.",
+    "basic_response": "Hola, ¿en qué puedo ayudarte?",
+    "clarification_requested_date": "Para coordinar la visita, necesito la fecha y la hora que te sirven.",
+    "clarification_user_goal": "Contame brevemente qué necesitás y sigo con eso.",
+    "clarification_generic": "Necesito un poco más de contexto para seguir.",
     "execution_success_booking": "La reserva fue confirmada para {{scheduledFor}}.",
-    "execution_success_quote": "La cotizacion preliminar fue creada por {{currency}} {{estimatedTotal}}.",
-    "execution_success_product": "Encontre {{name}} por {{currency}} {{price}}.",
-    "execution_success_generic": "La accion solicitada fue ejecutada correctamente.",
-    "execution_failure_unknown_tool": "No pude completar {{actionLabel}} porque la capacidad aprobada no esta disponible.",
-    "execution_failure_validation": "No pude completar {{actionLabel}} con la informacion disponible.",
-    "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecucion."
+    "execution_success_quote": "La cotización preliminar fue creada por {{currency}} {{estimatedTotal}}.",
+    "execution_success_product": "Encontré {{name}} por {{currency}} {{price}}.",
+    "execution_success_generic": "La acción solicitada se ejecutó correctamente.",
+    "execution_failure_unknown_tool": "No pude completar {{actionLabel}} porque la capacidad aprobada no está disponible.",
+    "execution_failure_validation": "No pude completar {{actionLabel}} con la información disponible.",
+    "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución."
+  },
+  "templateVariants": {
+    "basic_response": [
+      "Hola, ¿en qué puedo ayudarte?",
+      "Decime qué necesitás y te doy una mano.",
+      "Contame qué querés resolver y lo vemos."
+    ],
+    "clarification_requested_date": [
+      "Para coordinar la visita, necesito la fecha y la hora que te sirven.",
+      "Decime qué día y horario querés para poder agendar la visita.",
+      "Indicame cuándo te queda bien la visita y sigo con eso."
+    ],
+    "clarification_user_goal": [
+      "Contame brevemente qué necesitás y sigo con eso.",
+      "Decime qué querés resolver y continúo desde ahí.",
+      "Necesito que me cuentes un poco más qué necesitás para avanzar."
+    ],
+    "clarification_generic": [
+      "Necesito un poco más de contexto para seguir.",
+      "Dame un poco más de detalle y continúo.",
+      "Contame un poco más para poder avanzar."
+    ]
   },
   "actionLabels": {
     "create_booking": "la reserva solicitada",
-    "create_quote": "la cotizacion solicitada",
+    "create_quote": "la cotización solicitada",
     "get_product": "la consulta de producto solicitada",
     "default": "la solicitud aprobada"
   },

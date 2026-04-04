@@ -11,10 +11,7 @@ export class ChatResponsePolicyService {
 
   async resolve(context: ApprovedResponseContext) {
     if (context.outcome === 'clarify') {
-      return this.buildClarificationResponse(
-        context.missingFields ?? [],
-        context.locale,
-      );
+      return this.buildClarificationResponse(context);
     }
 
     if (context.outcome === 'execution_succeeded') {
@@ -25,37 +22,43 @@ export class ChatResponsePolicyService {
       return this.buildExecutionFailureResponse(context);
     }
 
-    return this.buildBasicResponse(context.locale);
+    return this.buildBasicResponse(context);
   }
 
-  private async buildBasicResponse(locale?: string) {
+  private async buildBasicResponse(context: ApprovedResponseContext) {
     return this.responseFallbackService.render({
-      locale,
+      locale: context.locale,
       templateKey: 'basic_response',
+      variationSeed: this.buildVariationSeed(context, 'basic_response'),
     });
   }
 
-  private async buildClarificationResponse(
-    missingFields: string[],
-    locale?: string,
-  ) {
+  private async buildClarificationResponse(context: ApprovedResponseContext) {
+    const missingFields = context.missingFields ?? [];
+
     if (missingFields.includes('requested_date')) {
       return this.responseFallbackService.render({
-        locale,
+        locale: context.locale,
         templateKey: 'clarification_requested_date',
+        variationSeed: this.buildVariationSeed(
+          context,
+          'clarification_requested_date',
+        ),
       });
     }
 
     if (missingFields.includes('user_goal')) {
       return this.responseFallbackService.render({
-        locale,
+        locale: context.locale,
         templateKey: 'clarification_user_goal',
+        variationSeed: this.buildVariationSeed(context, 'clarification_user_goal'),
       });
     }
 
     return this.responseFallbackService.render({
-      locale,
+      locale: context.locale,
       templateKey: 'clarification_generic',
+      variationSeed: this.buildVariationSeed(context, 'clarification_generic'),
     });
   }
 
@@ -164,5 +167,22 @@ export class ChatResponsePolicyService {
         actionLabel,
       },
     });
+  }
+
+  private buildVariationSeed(
+    context: ApprovedResponseContext,
+    templateKey: string,
+  ) {
+    return [
+      context.locale,
+      templateKey,
+      context.intent,
+      context.decision.reasonCode,
+      ...(context.missingFields ?? []),
+      context.userMessage,
+    ]
+      .filter((value) => typeof value === 'string' && value.trim().length > 0)
+      .join('|')
+      .toLowerCase();
   }
 }

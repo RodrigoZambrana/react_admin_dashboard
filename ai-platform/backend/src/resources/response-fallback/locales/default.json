@@ -1,9 +1,9 @@
 {
   "locale": "default",
   "templates": {
-    "basic_response": "Hello, how can I help you?",
-    "clarification_requested_date": "I need the requested date to continue.",
-    "clarification_user_goal": "I need to better understand what you need to continue.",
+    "basic_response": "Hi, how can I help you?",
+    "clarification_requested_date": "To schedule the visit, I need the requested date and time.",
+    "clarification_user_goal": "Tell me briefly what you need so I can keep going.",
     "clarification_generic": "I need a bit more context to continue.",
     "execution_success_booking": "The booking was confirmed for {{scheduledFor}}.",
     "execution_success_quote": "The preliminary quote was created for {{currency}} {{estimatedTotal}}.",
@@ -12,6 +12,28 @@
     "execution_failure_unknown_tool": "I could not complete {{actionLabel}} because the approved capability is not available.",
     "execution_failure_validation": "I could not complete {{actionLabel}} with the available information.",
     "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error."
+  },
+  "templateVariants": {
+    "basic_response": [
+      "Hi, how can I help you?",
+      "Tell me what you need and I'll take it from there.",
+      "Let me know what you'd like to sort out."
+    ],
+    "clarification_requested_date": [
+      "To schedule the visit, I need the requested date and time.",
+      "Tell me the day and time that work for you so I can schedule the visit.",
+      "Let me know when you'd like the visit and I'll keep going."
+    ],
+    "clarification_user_goal": [
+      "Tell me briefly what you need so I can keep going.",
+      "Let me know what you want to solve and I'll continue from there.",
+      "I need a bit more detail about what you need so I can move forward."
+    ],
+    "clarification_generic": [
+      "I need a bit more context to continue.",
+      "Share a little more detail and I'll keep going.",
+      "Tell me a bit more so I can move forward."
+    ]
   },
   "actionLabels": {
     "create_booking": "the requested booking",

@@ -171,7 +171,7 @@ describe('ChatResponsePolicyService', () => {
         approvedFactKeys: [],
         approvedResultKeys: ['sku', 'name', 'price', 'currency'],
       }),
-    ).resolves.toBe('Encontre Beacon Desk Lamp por USD 89.00.');
+    ).resolves.toBe('Encontré Beacon Desk Lamp por USD 89.00.');
   });
 
   it('returns a deterministic validation failure response without claiming success', async () => {
@@ -214,7 +214,7 @@ describe('ChatResponsePolicyService', () => {
         approvedResultKeys: [],
       }),
     ).resolves.toBe(
-      'No pude completar la reserva solicitada con la informacion disponible.',
+      'No pude completar la reserva solicitada con la información disponible.',
     );
   });
 
@@ -261,35 +261,135 @@ describe('ChatResponsePolicyService', () => {
       'I could not complete the requested product lookup because the approved capability is not available.',
     );
   });
+
+  it('asks only for the requested booking date when that is the only backend missing field', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'Quiero agendar una visita',
+        intent: 'CREATE_BOOKING',
+        outcome: 'clarify',
+        decision: {
+          domain: 'core',
+          action: 'clarify',
+          reasonCode: 'booking_missing_fields',
+          missingFields: ['requested_date'],
+          responseTemplateKey: 'core.clarification',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.92,
+          entities: {
+            rawMessage: 'Quiero agendar una visita',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        missingFields: ['requested_date'],
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+      }),
+    ).resolves.toMatch(/fecha|hora|visita/i);
+
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'Quiero agendar una visita',
+        intent: 'CREATE_BOOKING',
+        outcome: 'clarify',
+        decision: {
+          domain: 'core',
+          action: 'clarify',
+          reasonCode: 'booking_missing_fields',
+          missingFields: ['requested_date'],
+          responseTemplateKey: 'core.clarification',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.92,
+          entities: {
+            rawMessage: 'Quiero agendar una visita',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        missingFields: ['requested_date'],
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+      }),
+    ).resolves.not.toMatch(/objetivo|tipo de cita/i);
+  });
 });
 
 function buildCatalog(locale?: string) {
   if ((locale ?? '').toLowerCase().startsWith('es')) {
     return {
       templates: {
-        basic_response: 'Entiendo. Como puedo ayudarte?',
+        basic_response: 'Hola, ¿en qué puedo ayudarte?',
         clarification_requested_date:
-          'Necesito la fecha deseada para continuar.',
+          'Para coordinar la visita, necesito la fecha y la hora que te sirven.',
         clarification_user_goal:
-          'Necesito entender mejor lo que necesitas para continuar.',
-        clarification_generic: 'Necesito un poco mas de contexto para continuar.',
+          'Contame brevemente qué necesitás y sigo con eso.',
+        clarification_generic: 'Necesito un poco más de contexto para seguir.',
         execution_success_booking:
           'La reserva fue confirmada para {{scheduledFor}}.',
         execution_success_quote:
-          'La cotizacion preliminar fue creada por {{currency}} {{estimatedTotal}}.',
-        execution_success_product: 'Encontre {{name}} por {{currency}} {{price}}.',
+          'La cotización preliminar fue creada por {{currency}} {{estimatedTotal}}.',
+        execution_success_product: 'Encontré {{name}} por {{currency}} {{price}}.',
         execution_success_generic:
-          'La accion solicitada fue ejecutada correctamente.',
+          'La acción solicitada se ejecutó correctamente.',
         execution_failure_unknown_tool:
-          'No pude completar {{actionLabel}} porque la capacidad aprobada no esta disponible.',
+          'No pude completar {{actionLabel}} porque la capacidad aprobada no está disponible.',
         execution_failure_validation:
-          'No pude completar {{actionLabel}} con la informacion disponible.',
+          'No pude completar {{actionLabel}} con la información disponible.',
         execution_failure_generic:
-          'No pude completar {{actionLabel}} por un error durante la ejecucion.',
+          'No pude completar {{actionLabel}} por un error durante la ejecución.',
+      },
+      templateVariants: {
+        basic_response: [
+          'Hola, ¿en qué puedo ayudarte?',
+          'Decime qué necesitás y te doy una mano.',
+          'Contame qué querés resolver y lo vemos.',
+        ],
+        clarification_requested_date: [
+          'Para coordinar la visita, necesito la fecha y la hora que te sirven.',
+          'Decime qué día y horario querés para poder agendar la visita.',
+          'Indicame cuándo te queda bien la visita y sigo con eso.',
+        ],
+        clarification_user_goal: [
+          'Contame brevemente qué necesitás y sigo con eso.',
+          'Decime qué querés resolver y continúo desde ahí.',
+          'Necesito que me cuentes un poco más qué necesitás para avanzar.',
+        ],
+        clarification_generic: [
+          'Necesito un poco más de contexto para seguir.',
+          'Dame un poco más de detalle y continúo.',
+          'Contame un poco más para poder avanzar.',
+        ],
       },
       actionLabels: {
         create_booking: 'la reserva solicitada',
-        create_quote: 'la cotizacion solicitada',
+        create_quote: 'la cotización solicitada',
         get_product: 'la consulta de producto solicitada',
         default: 'la solicitud aprobada',
       },
@@ -304,10 +404,10 @@ function buildCatalog(locale?: string) {
 
   return {
     templates: {
-      basic_response: 'Hello, how can I help you?',
-      clarification_requested_date: 'I need the requested date to continue.',
+      basic_response: 'Hi, how can I help you?',
+      clarification_requested_date: 'To schedule the visit, I need the requested date and time.',
       clarification_user_goal:
-        'I need to better understand what you need to continue.',
+        'Tell me briefly what you need so I can keep going.',
       clarification_generic: 'I need a bit more context to continue.',
       execution_success_booking:
         'The booking was confirmed for {{scheduledFor}}.',
@@ -322,6 +422,28 @@ function buildCatalog(locale?: string) {
         'I could not complete {{actionLabel}} with the available information.',
       execution_failure_generic:
         'I could not complete {{actionLabel}} because of an execution error.',
+    },
+    templateVariants: {
+      basic_response: [
+        'Hi, how can I help you?',
+        "Tell me what you need and I'll take it from there.",
+        "Let me know what you'd like to sort out.",
+      ],
+      clarification_requested_date: [
+        'To schedule the visit, I need the requested date and time.',
+        "Tell me the day and time that work for you so I can schedule the visit.",
+        "Let me know when you'd like the visit and I'll keep going.",
+      ],
+      clarification_user_goal: [
+        'Tell me briefly what you need so I can keep going.',
+        "Let me know what you want to solve and I'll continue from there.",
+        'I need a bit more detail about what you need so I can move forward.',
+      ],
+      clarification_generic: [
+        'I need a bit more context to continue.',
+        "Share a little more detail and I'll keep going.",
+        'Tell me a bit more so I can move forward.',
+      ],
     },
     actionLabels: {
       create_booking: 'the requested booking',

@@ -1756,3 +1756,34 @@
 - Tighten grounded clarification behavior so booking only asks for real backend missing fields and never unsupported concepts such as `tipo de cita` or `objetivo principal`
 - Introduce governed fallback/basic clarification variation through the managed response-fallback boundary and improve touched Spanish wording
 - Run full validation, execute a real public async booking smoke on the live OpenAI runtime, and close the phase documentation
+
+## Iteration 54
+
+### Implemented
+- Completed the grounded-clarification hardening for the touched booking/basic response paths:
+  - booking clarification tests now assert that the backend asks only for real missing fields such as `requested_date`
+  - touched response guidance now explicitly rejects unsupported booking asks like generic appointment type or visit objective when those are not present in approved backend context
+- Introduced governed fallback/basic clarification variation behind the managed response-fallback boundary:
+  - response-fallback catalogs now support optional locale-aware `templateVariants`
+  - variant selection is deterministic from a backend-supplied seed instead of inline random phrase arrays in services
+  - response-fallback rendering now logs which governed variant index was selected
+- Improved touched fallback wording quality:
+  - Spanish base copy now uses natural punctuation and less robotic phrasing
+  - English copy remains correct and aligned with the same governed variant structure
+
+### Working
+- Booking clarification in the touched path now stays grounded in backend truth and no longer regresses to unsupported asks in the covered cases
+- Basic/clarification response drafts can now vary through governed locale resources instead of repeating the same exact sentence every time
+- Deterministic variant selection is covered by backend tests and does not depend on inline service strings
+- Targeted validation for the conversational-naturalness slice passes:
+  - `npm test --workspace backend -- --runInBand backend/test/response-fallback.service.spec.ts backend/test/chat-response-policy.service.spec.ts`
+
+### Technical Debt
+- Existing active managed response-fallback catalogs in local persistence may still need operator activation to pick up the new governed variant resources if they were created from older seed content
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+- Broader conversational style/policy governance remains intentionally out of scope; this pass only touched the booking/basic clarification paths that materially affect exploratory booking usability
+
+### Next Steps
+- Run full branch validation for backend/frontend
+- Execute a real public async booking smoke on the live OpenAI runtime, including fragmented follow-up behavior
+- Update architecture/progress docs with the final closeout state and classify any remaining non-blocking conversational debt before Wave 9

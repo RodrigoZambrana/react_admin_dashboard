@@ -33,6 +33,21 @@ export const responseFallbackCatalogResourceSchema = z.object({
     execution_failure_validation: z.string().min(1),
     execution_failure_generic: z.string().min(1),
   }),
+  templateVariants: z
+    .object({
+      basic_response: z.array(z.string().min(1)).min(1).optional(),
+      clarification_requested_date: z.array(z.string().min(1)).min(1).optional(),
+      clarification_user_goal: z.array(z.string().min(1)).min(1).optional(),
+      clarification_generic: z.array(z.string().min(1)).min(1).optional(),
+      execution_success_booking: z.array(z.string().min(1)).min(1).optional(),
+      execution_success_quote: z.array(z.string().min(1)).min(1).optional(),
+      execution_success_product: z.array(z.string().min(1)).min(1).optional(),
+      execution_success_generic: z.array(z.string().min(1)).min(1).optional(),
+      execution_failure_unknown_tool: z.array(z.string().min(1)).min(1).optional(),
+      execution_failure_validation: z.array(z.string().min(1)).min(1).optional(),
+      execution_failure_generic: z.array(z.string().min(1)).min(1).optional(),
+    })
+    .optional(),
   actionLabels: z.object({
     create_booking: z.string().min(1),
     create_quote: z.string().min(1),
