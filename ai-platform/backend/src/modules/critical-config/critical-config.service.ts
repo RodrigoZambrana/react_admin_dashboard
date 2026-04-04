@@ -3,10 +3,12 @@ import { Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { CriticalConfigVersionRepository } from '../persistence/repositories/critical-config-version.repository';
+import { RuntimeManagedResourceVersion } from '../runtime-resources/runtime-managed-resource.types';
 import { CriticalConfigProvider } from './critical-config.provider';
 import {
   AiRuntimeResource,
   CriticalConfigKey,
+  CriticalConfigResourceMap,
   CriticalConfigValue,
   LearningRuntimeResource,
 } from './critical-config.types';
@@ -20,7 +22,11 @@ export class CriticalConfigService {
     private readonly logger: PipelineLoggerService,
   ) {}
 
-  async getActiveConfig(key: CriticalConfigKey) {
+  async getActiveConfig<TKey extends CriticalConfigKey>(
+    key: TKey,
+  ): Promise<
+    RuntimeManagedResourceVersion<TKey, CriticalConfigResourceMap[TKey]> | null
+  > {
     const config = await this.criticalConfigProvider.getActive(key);
 
     this.logger.debug(
@@ -31,7 +37,10 @@ export class CriticalConfigService {
       }),
     );
 
-    return config;
+    return config as RuntimeManagedResourceVersion<
+      TKey,
+      CriticalConfigResourceMap[TKey]
+    > | null;
   }
 
   async getAiRuntimeConfig(): Promise<AiRuntimeResource | null> {

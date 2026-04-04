@@ -41,6 +41,15 @@ export class KnowledgeRepository {
     });
   }
 
+  updateEmbeddingId(id: string, embeddingId: string | null) {
+    return this.prisma.knowledge.update({
+      where: { id },
+      data: {
+        embeddingId,
+      },
+    });
+  }
+
   listRecent(limit = 100) {
     return this.prisma.knowledge.findMany({
       orderBy: { createdAt: 'desc' },

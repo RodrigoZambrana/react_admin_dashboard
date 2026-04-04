@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
+import { LearningService } from '../knowledge/learning.service';
 import { ChatLogRepository } from '../persistence/repositories/chat-log.repository';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
 
@@ -10,6 +11,7 @@ export class TraceLogService {
   constructor(
     private readonly tenantContext: TenantContextService,
     private readonly chatLogRepository: ChatLogRepository,
+    private readonly learningService: LearningService,
     private readonly logger: PipelineLoggerService,
   ) {}
 
@@ -36,6 +38,14 @@ export class TraceLogService {
         status: log.status,
       }),
     );
+
+    if (log.stage !== 'learning') {
+      this.learningService.enqueueLog({
+        logId: log.id,
+        tenantId: this.tenantContext.getTenantId(),
+        traceId: log.traceId,
+      });
+    }
 
     return log;
   }

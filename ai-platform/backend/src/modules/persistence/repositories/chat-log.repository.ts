@@ -36,6 +36,12 @@ export class ChatLogRepository {
     });
   }
 
+  findById(id: string) {
+    return this.prisma.chatLog.findFirst({
+      where: { id },
+    });
+  }
+
   listRecent(limit = 100) {
     return this.prisma.chatLog.findMany({
       orderBy: { createdAt: 'desc' },

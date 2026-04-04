@@ -724,3 +724,32 @@
 - Activate asynchronous learning from persisted `ChatLog` entries using the new governed knowledge-metadata and critical-config boundaries
 - Rewire AI runtime configuration so the live gateway resolves provider/model/credentials through governed provider-agnostic config instead of OpenAI-shaped assumptions
 - Introduce the governed fallback response-copy boundary and migrate the current fallback set through it without changing `/chat/message`
+
+## Iteration 25
+
+### Implemented
+- Activated backend-owned asynchronous learning from persisted `ChatLog` entries instead of ad hoc runtime hooks
+- Added `LearningService` as a governed async worker that re-enters tenant context, reads stored traces, applies governed critical-config and knowledge-metadata policies, and emits explicit `learning` stage logs
+- Extended persistence boundaries so learning can load source logs by id and store governed knowledge records plus embedding ids through repositories only
+- Wired trace logging to enqueue learning only after a non-learning log is durably stored, preserving the canonical flow `input -> interpretation -> parsing -> decision -> execution -> response -> logging` while enabling async `learning`
+- Added focused tests for governed learning activation and the trace-log enqueue boundary
+
+### Working
+- Learning is now active, observable, and driven only from persisted logs
+- Learning remains tenant-scoped because queued jobs rehydrate the existing tenant context before reading logs or storing knowledge
+- Governed knowledge extraction now respects:
+  - enabled/disabled learning config
+  - observed stages
+  - stage-level knowledge metadata policies
+  - metadata allow-list and confidence thresholds
+- Backend build, backend tests, and frontend build all pass with async learning enabled
+
+### Technical Debt
+- AI runtime configuration is still resolved through the older OpenAI-shaped runtime boundary instead of a provider-agnostic governed contract
+- Deterministic fallback response copy is still isolated in the fallback service and has not yet moved behind a governed resource/policy boundary
+- Learning currently runs in-process from an async queue; operational scaling and worker separation remain future concerns once governance contracts are fully closed
+
+### Next Steps
+- Standardize AI runtime configuration behind a provider-agnostic governed backend contract and remove OpenAI-shaped assumptions from the configuration boundary
+- Introduce the governed fallback response-copy boundary and migrate the current fallback set through it without changing `/chat/message`
+- Extend backend governance surfaces so future admin ABMs can operate on the new critical-config, learning, and fallback-governance families safely

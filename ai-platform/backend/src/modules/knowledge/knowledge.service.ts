@@ -3,100 +3,64 @@ import { Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { KnowledgeRepository } from '../persistence/repositories/knowledge.repository';
-import { TenantContextService } from '../persistence/tenant/tenant-context.service';
-import { extractKnowledgeCandidate } from './knowledge.extractor';
 import { QdrantStoreService } from './qdrant-store.service';
-
-type KnowledgeExtractionJob = {
-  tenantId: string;
-  traceId: string;
-  stage: string;
-  payload: Record<string, unknown>;
-  sourceLogId?: string;
-};
 
 @Injectable()
 export class KnowledgeService {
-  private readonly queue: KnowledgeExtractionJob[] = [];
-  private isProcessing = false;
-
   constructor(
-    private readonly tenantContext: TenantContextService,
     private readonly knowledgeRepository: KnowledgeRepository,
     private readonly qdrantStore: QdrantStoreService,
     private readonly logger: PipelineLoggerService,
   ) {}
 
-  enqueueExtraction(input: {
-    stage: string;
-    payload: Record<string, unknown>;
+  async storeCandidate(input: {
     sourceLogId?: string;
+    tenantId: string;
+    category: string;
+    title: string;
+    body: string;
+    summary: string;
+    tags: string[];
+    confidence: number;
+    metadata?: Record<string, unknown>;
+    persistEmbedding?: boolean;
   }) {
-    this.queue.push({
-      tenantId: this.tenantContext.getTenantId(),
-      traceId: this.tenantContext.getTraceId(),
-      stage: input.stage,
-      payload: input.payload,
+    const stored = await this.knowledgeRepository.createKnowledge({
       sourceLogId: input.sourceLogId,
+      category: input.category as any,
+      title: input.title,
+      body: input.body,
+      summary: input.summary,
+      tags: input.tags,
+      confidence: input.confidence,
+      metadata: input.metadata as Prisma.InputJsonValue | undefined,
     });
 
-    if (!this.isProcessing) {
-      this.isProcessing = true;
-      setImmediate(() => {
-        void this.drainQueue();
-      });
-    }
-  }
+    const embeddingId = input.persistEmbedding
+      ? await this.qdrantStore.upsert({
+          id: stored.id,
+          tenantId: input.tenantId,
+          summary: input.summary,
+          category: input.category,
+        })
+      : null;
 
-  private async drainQueue() {
-    while (this.queue.length > 0) {
-      const job = this.queue.shift();
-
-      if (!job) {
-        continue;
-      }
-
-      await this.tenantContext.run(
-        { tenantId: job.tenantId, traceId: job.traceId },
-        async () => {
-          const candidate = extractKnowledgeCandidate({
-            stage: job.stage,
-            payload: job.payload,
-          });
-
-          if (!candidate) {
-            return;
-          }
-
-          const stored = await this.knowledgeRepository.createKnowledge({
-            sourceLogId: job.sourceLogId,
-            category: candidate.category,
-            title: candidate.title,
-            body: candidate.body,
-            summary: candidate.summary,
-            tags: candidate.tags,
-            confidence: candidate.confidence,
-            metadata: candidate.metadata as Prisma.InputJsonValue | undefined,
-          });
-
-          await this.qdrantStore.upsert({
-            id: stored.id,
-            tenantId: job.tenantId,
-            summary: candidate.summary,
-            category: candidate.category,
-          });
-
-          this.logger.log(
-            JSON.stringify({
-              stage: 'learning',
-              knowledgeId: stored.id,
-              category: candidate.category,
-            }),
-          );
-        },
-      );
+    if (embeddingId) {
+      await this.knowledgeRepository.updateEmbeddingId(stored.id, embeddingId);
     }
 
-    this.isProcessing = false;
+    this.logger.log(
+      JSON.stringify({
+        stage: 'learning',
+        knowledgeId: stored.id,
+        category: input.category,
+        persistedEmbedding: Boolean(embeddingId),
+      }),
+    );
+
+    return {
+      ...stored,
+      embeddingId,
+    };
   }
 }

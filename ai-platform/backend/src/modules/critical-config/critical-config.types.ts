@@ -29,4 +29,10 @@ export type AiRuntimeResource = z.infer<typeof aiRuntimeResourceSchema>;
 export type LearningRuntimeResource = z.infer<
   typeof learningRuntimeResourceSchema
 >;
+
+export type CriticalConfigResourceMap = {
+  ai_runtime: AiRuntimeResource;
+  learning: LearningRuntimeResource;
+};
+
 export type CriticalConfigValue = AiRuntimeResource | LearningRuntimeResource;

@@ -197,9 +197,9 @@
 ### Roadmap Framing
 
 - Waves 2 through 4 complete the core conversational backend runtime
-- Wave 5 completes governance, QA, learning, and backend/product-platform readiness needed before major UI delivery
+- Wave 5 completes governance, learning, provider/runtime configuration hardening, and backend/product-platform readiness needed before major UI delivery
 - Waves 6 through 8 deliver the admin and public product surfaces on top of the stabilized runtime and governance contracts
-- Wave 9 closes security, role separation, end-to-end regression, and production hardening
+- Wave 9 closes security, centralized QA/E2E, role separation, and production hardening
 - A wave is not considered complete only because implementation and tests pass; every reported wave completion must also pass a dedicated code-review gate that verifies functional requirements and architectural alignment across all touched layers
 - Completion review findings must feed the next implementation prompt and planning context by default; only blocker findings are allowed to stop progression into the next wave
 - Every wave must mine the legacy audit only for reusable concepts, validation assets, and operator workflows that fit the new architecture
@@ -246,30 +246,30 @@
 7. Legacy contributions that should be mined: approved-draft rewrite concepts from `generate-response.js`; response guardrails from `validate-response.js`; provider-call tracing from `provider-call-trace.js`; grounding audit and closure checks from `grounding-audit.js` and related QA assets.
 8. Expected user/platform value: user-facing replies become clearer, more natural, and multilingual while staying grounded in backend-approved outcomes.
 9. Completion criteria: live flow reaches `response` through AI wording over approved context; outputs never imply unexecuted actions; fallback responses stay deterministic; trace logs capture response audit metadata; endpoint contract remains non-breaking.
-10. Explicit next-wave enablement: provides grounded transcripts, response audits, and managed prompt usage data needed for Wave 5 governance, QA, and learning activation.
+10. Explicit next-wave enablement: provides grounded transcripts, response audits, and managed prompt usage data needed for Wave 5 governance, provider/runtime hardening, and learning activation.
 
-### Wave 5: Governance, QA, Learning, And Productization Readiness
+### Wave 5: Governance, Learning, Provider Configuration, And Productization Readiness
 
-1. Wave name: Governance, QA, Learning, And Productization Readiness
-2. Strategic objective: make the completed backend pipeline operable through governed critical resources, learning activation, admin-ready QA surfaces, and backend contracts that support later admin UI and public chat productization.
-3. Why it happens now: once execution and AI response are live, the primary risk shifts from missing runtime stages to rollout safety, evaluation, and operator control.
-4. Dependency on previous waves: depends on Waves 1 through 4 so governance and QA can operate on the real end-to-end pipeline rather than placeholders.
-5. Main implementation scope: activate asynchronous learning from stored logs under governed extraction policies; migrate critical configs and governed knowledge metadata onto the runtime-managed resource pattern; expand backend surfaces for test runs, corpora evaluation, trace review, and runtime-resource administration; finalize backend contracts required by future admin UI and user UI delivery.
-6. Architecture constraints: learning remains async and backend-owned; no raw knowledge dumping; admin surfaces stay separate from runtime orchestration; QA tooling must validate stage-specific contracts instead of reintroducing monolithic runtime coupling.
-7. Legacy contributions that should be mined: QA/regression assets and corpora from legacy tests and `tools/qa`; multitenant smoke cases; structured tenant/domain concepts from `runtime-tenant-policy.js` and legacy knowledge services; user-facing chat experience concepts from `webchat.adapter.js` only as product/API guidance, not as runtime architecture.
-8. Expected user/platform value: safer rollout, tenant-operable governance, measurable quality, and backend readiness for future admin ABMs and public chat product surfaces.
-9. Completion criteria: learning is live and observable; critical configs and governed knowledge metadata follow the runtime-managed resource pattern; admin-ready backend endpoints cover resource governance and QA/test workflows; regression suites cover multitenancy, grounding, closure, and follow-up continuity.
-10. Explicit next-wave enablement: enables later product tracks such as admin UI ABMs, public chat UX delivery, security hardening, and tenant onboarding workflows without changing core runtime architecture.
+1. Wave name: Governance, Learning, Provider Configuration, And Productization Readiness
+2. Strategic objective: make the completed backend pipeline operable through governed critical resources, learning activation, provider/runtime configuration hardening, and backend contracts that support later admin UI and public chat productization.
+3. Why it happens now: once execution and AI response are live, the primary risk shifts from missing runtime stages to governed rollout, configuration portability, learning control, and operator readiness.
+4. Dependency on previous waves: depends on Waves 1 through 4 so governance and learning can operate on the real end-to-end pipeline rather than placeholders.
+5. Main implementation scope: activate asynchronous learning from stored logs under governed extraction policies; migrate critical configs and governed knowledge metadata onto the runtime-managed resource pattern; standardize AI gateway/runtime provider configuration so the active client configuration is not implicitly tied to one provider family; expand backend governance surfaces needed by later admin UI and user UI delivery.
+6. Architecture constraints: learning remains async and backend-owned; no raw knowledge dumping; provider/runtime configuration must remain backend-governed and provider-agnostic at the configuration boundary; admin surfaces stay separate from runtime orchestration; this wave must not become the centralized QA wave.
+7. Legacy contributions that should be mined: structured tenant/domain concepts from `runtime-tenant-policy.js`; legacy knowledge-service concepts that fit the new governance model; user-facing chat experience concepts from `webchat.adapter.js` only as product/API guidance, not as runtime architecture.
+8. Expected user/platform value: safer governed rollout, portable provider/runtime configuration, live learning readiness, and backend readiness for future admin ABMs and public chat product surfaces.
+9. Completion criteria: learning is live and observable; critical configs and governed knowledge metadata follow the runtime-managed resource pattern; AI provider/runtime configuration is standardized behind a provider-agnostic contract instead of provider-specific environment assumptions; admin-ready backend endpoints cover resource governance and runtime operations needed by later UI waves.
+10. Explicit next-wave enablement: enables later product tracks such as admin UI ABMs, public chat UX delivery, centralized QA/test delivery, security hardening, and tenant onboarding workflows without changing core runtime architecture.
 
 ### Wave 6: Admin Operations UI
 
 1. Wave name: Admin Operations UI And Managed Resource ABMs
 2. Strategic objective: convert the admin-ready backend governance surfaces into real operator-facing admin workflows for prompts, date-time-locale-resources, critical configs, and trace-driven runtime operations.
 3. Why it happens now: once Waves 1 through 5 have stabilized the runtime and its governed resource contracts, operators need a first-class admin UI instead of relying on direct endpoint usage.
-4. Dependency on previous waves: depends on Waves 1 through 5, especially the runtime-managed resource pattern, admin-ready backend surfaces, and QA/governance contracts delivered in Wave 5.
+4. Dependency on previous waves: depends on Waves 1 through 5, especially the runtime-managed resource pattern, admin-ready backend surfaces, and governance/runtime contracts delivered in Wave 5.
 5. Main implementation scope: build modular admin sections for managed resource CRUD/versioning/publishing; expose trace/resource inspection workflows; connect the frontend to `/admin/runtime-resources/*` and related governance endpoints; begin retiring compatibility-only admin paths once equivalent flows are live.
 6. Architecture constraints: the UI must remain a thin client over backend-governed contracts; no browser-owned decision logic; no direct datastore access; no new legacy runtime coupling; naming should converge toward `date-time-locale-resources` when backend compatibility allows it.
-7. Legacy contributions that should be mined: legacy operator workflow concepts, admin dashboard patterns already audited in the legacy review, QA panel ideas from `tools/qa`, and trace inspection flows that improve operator efficiency without copying legacy runtime behavior.
+7. Legacy contributions that should be mined: legacy operator workflow concepts, admin dashboard patterns already audited in the legacy review, and trace inspection flows that improve operator efficiency without copying legacy runtime behavior.
 8. Expected user/platform value: operators can manage prompts, date-time-locale-resources, and critical configs safely through productized UI flows instead of manual backend calls or filesystem/bootstrap procedures.
 9. Completion criteria: admin UI can manage managed prompts, date-time-locale-resources, and critical configs through backend-governed lifecycles; trace/resource inspection supports routine operator workflows; compatibility-only admin paths have a defined retirement path.
 10. Explicit next-wave enablement: provides the operator shell needed for governed knowledge workflows and an admin chat test center in Wave 7.
@@ -279,20 +279,20 @@
 1. Wave name: Knowledge And Chat Test Center UI
 2. Strategic objective: give operators governed knowledge-management tooling and a dedicated admin chat test center for replay, trace review, corpora-driven evaluation, and prompt/resource inspection.
 3. Why it happens now: after the admin operations shell exists, the next product gap is safe operator testing and knowledge stewardship before exposing the experience broadly to end users.
-4. Dependency on previous waves: depends on Waves 1 through 6, especially Wave 5 QA/backend readiness and Wave 6 admin UI foundations.
-5. Main implementation scope: add governed knowledge metadata ABMs; expose chat replay/test-center workflows; support trace comparison, corpora execution, and resource/prompt inspection from the admin UI; connect these surfaces to the backend QA and governance endpoints instead of ad hoc runtime hooks.
-6. Architecture constraints: knowledge remains governed and backend-owned; test-center actions must use explicit QA/admin contracts; no direct mutation of runtime state outside managed workflows; UI must not reintroduce monolithic runtime assumptions.
-7. Legacy contributions that should be mined: legacy QA corpora, multitenant smoke scenarios, admin/operator test flows, and later legacy Playwright-ready journeys once the frontend surfaces are stable enough to use them as meaningful references.
+4. Dependency on previous waves: depends on Waves 1 through 6, especially Wave 5 governance/backend readiness and Wave 6 admin UI foundations.
+5. Main implementation scope: add governed knowledge metadata ABMs; expose chat replay/test-center workflows; support trace comparison, corpora execution, and resource/prompt inspection from the admin UI; connect these surfaces to governed backend admin endpoints instead of ad hoc runtime hooks.
+6. Architecture constraints: knowledge remains governed and backend-owned; test-center actions must use explicit admin contracts; no direct mutation of runtime state outside managed workflows; UI must not reintroduce monolithic runtime assumptions.
+7. Legacy contributions that should be mined: legacy operator test flows, multitenant smoke scenarios, and later legacy Playwright-ready journeys once the frontend surfaces are stable enough to use them as meaningful references.
 8. Expected user/platform value: operators can validate behavior before rollout, manage governed knowledge safely, and inspect failures using productized workflows instead of manual log digging.
 9. Completion criteria: governed knowledge metadata can be managed from the admin UI; operators can run chat tests, inspect traces, compare outcomes, and execute QA flows through the test center; backend QA surfaces are exercised through real admin workflows.
-10. Explicit next-wave enablement: de-risks the public chat experience in Wave 8 and supplies concrete regression journeys for the security/E2E hardening work in Wave 9.
+10. Explicit next-wave enablement: de-risks the public chat experience in Wave 8 and supplies concrete regression journeys for the centralized QA and security/E2E hardening work in Wave 9.
 
 ### Wave 8: User Chat Product UI
 
 1. Wave name: User Chat Product UI
 2. Strategic objective: deliver the end-user conversational product surface on top of the stabilized backend runtime, governed resources, and operator tooling built in earlier waves.
 3. Why it happens now: once runtime correctness, governance, and operator validation flows are in place, the platform can expose a productized chat surface without using the frontend as a substitute for backend control.
-4. Dependency on previous waves: depends on Waves 1 through 7, especially the approved-context response path, QA/test-center feedback loops, and admin-managed resources.
+4. Dependency on previous waves: depends on Waves 1 through 7, especially the approved-context response path, operator test-center feedback loops, and admin-managed resources.
 5. Main implementation scope: build the public/user chat shell; integrate transcript, turn status, and recovery states with the live backend pipeline; expose safe multilingual/user-facing presentation surfaces; prepare tenant-facing rollout flows without duplicating backend logic in the client.
 6. Architecture constraints: the UI must remain presentation-only; no client-side decisioning, tool routing, or tenant-scoping shortcuts; user-facing wording still comes from backend-approved response flows; any locale presentation logic must avoid new hardcoded linguistic assumptions in the browser.
 7. Legacy contributions that should be mined: user-facing chat experience concepts from `webchat.adapter.js`, legacy conversation UX lessons documented in the audit, and later Playwright/E2E journeys as regression references once the user shell stabilizes.
@@ -300,17 +300,17 @@
 9. Completion criteria: end users can interact with the live pipeline through a productized chat UI; core and tenant-backed flows are visible in a stable user shell; operator/admin workflows remain separate from public UX concerns.
 10. Explicit next-wave enablement: gives Wave 9 stable admin and user surfaces on which to enforce roles, auth, and end-to-end production hardening.
 
-### Wave 9: Security, Roles, E2E, And Production Hardening
+### Wave 9: Centralized QA, Security, Roles, E2E, And Production Hardening
 
-1. Wave name: Security, Roles, E2E, And Production Hardening
-2. Strategic objective: finalize authentication, role separation, guarded admin access, end-to-end regression coverage, and rollout hardening across the now-complete backend and UI surfaces.
-3. Why it happens now: security, roles, and E2E hardening are most effective after both admin and user product surfaces are real and stable enough to validate end-to-end behavior instead of placeholders.
+1. Wave name: Centralized QA, Security, Roles, E2E, And Production Hardening
+2. Strategic objective: centralize regression and QA strategy, finalize authentication and role separation, guard admin access, and harden rollout across the now-complete backend and UI surfaces.
+3. Why it happens now: centralized QA, security, roles, and E2E hardening are most effective after both admin and user product surfaces are real and stable enough to validate end-to-end behavior instead of placeholders.
 4. Dependency on previous waves: depends on Waves 1 through 8, including stable runtime, admin tooling, knowledge/test-center UI, and user-facing chat product flows.
-5. Main implementation scope: implement auth and role boundaries; guard admin routes and managed-resource mutations; add Playwright/E2E regression for admin and user flows; finalize multitenant smoke coverage; harden rollout, observability, and tenant onboarding/operational readiness.
-6. Architecture constraints: security remains backend-enforced; automatic tenant isolation cannot be weakened by client context; E2E suites must assert canonical backend truth rather than UI-only heuristics; hardening must not collapse stage separation or reintroduce manual routing shortcuts.
+5. Main implementation scope: centralize QA strategy and regression execution; implement auth and role boundaries; guard admin routes and managed-resource mutations; add Playwright/E2E regression for admin and user flows; finalize multitenant smoke coverage; harden rollout, observability, and tenant onboarding/operational readiness.
+6. Architecture constraints: security remains backend-enforced; automatic tenant isolation cannot be weakened by client context; centralized QA suites must assert canonical backend truth rather than UI-only heuristics; hardening must not collapse stage separation or reintroduce manual routing shortcuts.
 7. Legacy contributions that should be mined: legacy Playwright/E2E journeys, multitenant smoke tests, operator QA flows, and other rollout-oriented assets identified in the legacy audit, always rewritten against the new platform contracts rather than copied as-is.
-8. Expected user/platform value: the platform becomes ready for controlled rollout with authenticated admin operations, tenant-safe user access, and regression suites that protect the full product surface.
-9. Completion criteria: auth and role separation are active; admin surfaces are guarded; Playwright/E2E suites cover critical admin and user journeys; multitenant regression and operational hardening are in place for production rollout.
+8. Expected user/platform value: the platform becomes ready for controlled rollout with authenticated admin operations, tenant-safe user access, and centralized regression suites that protect the full product surface.
+9. Completion criteria: centralized QA strategy is active; auth and role separation are active; admin surfaces are guarded; Playwright/E2E suites cover critical admin and user journeys; multitenant regression and operational hardening are in place for production rollout.
 10. Explicit next-wave enablement: enables controlled tenant onboarding, rollout scaling, and ongoing delivery without revisiting the core platform architecture.
 
 ## Multi-Tenant Enforcement
@@ -334,7 +334,7 @@ Canonical stage model for the final pipeline:
 - logging
 - learning
 
-Current live interactions already persist `input`, `interpretation`, `parsing`, `decision`, `execution`, `response`, and `logging` in the canonical shape, and future waves will activate `learning` in the same canonical shape.
+Current live interactions already persist `input`, `interpretation`, `parsing`, `decision`, `execution`, `response`, and `logging` in the synchronous request path. `learning` is now active as an asynchronous backend-owned stage triggered only from persisted `logging` records, so knowledge extraction never depends on transient orchestration state or model-owned callbacks.
 
 Each active stage emits structured records with trace id, tenant id, duration, outcome, and payload summary.
 
@@ -352,6 +352,13 @@ The `response` stage persists:
 - provider and model metadata for response generation
 - parsed AI response JSON
 - guardrail outcomes and deterministic fallback reason when fallback was required
+
+The `learning` stage persists:
+
+- source log id and source stage
+- governed policy/config versions used for extraction
+- completed, skipped, or failed async learning outcomes
+- stored knowledge identifiers and embedding references when extraction succeeds
 
 ## Security Preparation
 
