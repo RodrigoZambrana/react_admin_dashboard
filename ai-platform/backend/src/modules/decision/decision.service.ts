@@ -1,23 +1,18 @@
 import { Injectable } from '@nestjs/common';
 
 import { ContinuityAwareInterpretation } from '../continuity/continuity.types';
+import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
+import { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { ProductCatalogService } from '../tools/product-catalog.service';
 import { DecisionInput, DecisionResult } from './decision.types';
-
-const advisoryCuePatterns = [
-  /\b(recom(?:enda|iendas|endar|endas?)|recommend|recommended)\b/i,
-  /\b(conviene|mejor|better|best|ideal|suitable|suit)\b/i,
-  /\b(compare|compar|difference|diferencia|versus|vs)\b/i,
-  /\b(option|opcion|opciones|alternativa|alternativas)\b/i,
-  /\b(choose|elegir|elegirias|prefer|prefiero|prefieres)\b/i,
-] as const;
 
 @Injectable()
 export class DecisionService {
   constructor(
     private readonly logger: PipelineLoggerService,
     private readonly productCatalogService: ProductCatalogService,
+    private readonly conversationSignalResolver: ConversationSignalResolverService,
   ) {}
 
   decide(
@@ -40,6 +35,8 @@ export class DecisionService {
     const interpretation = input.interpretation;
     const continuityApplied = interpretation.continuity?.applied === true;
     const continuityMissingFields = this.resolveContinuityMissingFields(input);
+    const signals = this.resolveSignals(input);
+    const productCatalogMatch = this.resolveProductCatalogMatch(input);
 
     if (interpretation.intent === 'CREATE_BOOKING') {
       const missingFields = interpretation.normalizedEntities.dates.length
@@ -81,7 +78,13 @@ export class DecisionService {
       return this.buildRespondDecision('document_grounded_exploration');
     }
 
-    if (this.shouldStayInAdvisoryExploration(input)) {
+    if (
+      this.shouldStayInAdvisoryExploration(
+        input,
+        signals,
+        productCatalogMatch.matched,
+      )
+    ) {
       return this.buildRespondDecision('advisory_exploration');
     }
 
@@ -104,7 +107,7 @@ export class DecisionService {
     }
 
     if (interpretation.intent === 'GET_PRODUCT') {
-      if (this.canInvokeProductLookup(input)) {
+      if (productCatalogMatch.matched) {
         return {
           domain: 'tenant',
           action: 'invoke_tool',
@@ -129,13 +132,17 @@ export class DecisionService {
     return input.interpretation.intent !== 'CREATE_QUOTE';
   }
 
-  private shouldStayInAdvisoryExploration(input: DecisionInput) {
+  private shouldStayInAdvisoryExploration(
+    input: DecisionInput,
+    signals: ConversationRoutingSignals,
+    hasGroundedProductMatch: boolean,
+  ) {
     const activeLane = this.resolveActiveLane(input);
 
     if (
       activeLane === 'advisory_exploration' &&
       input.interpretation.intent !== 'CREATE_QUOTE' &&
-      !this.canInvokeProductLookup(input)
+      !hasGroundedProductMatch
     ) {
       return true;
     }
@@ -152,49 +159,15 @@ export class DecisionService {
       return false;
     }
 
-    if (this.canInvokeProductLookup(input)) {
+    if (hasGroundedProductMatch) {
       return false;
     }
 
-    return this.hasAdvisorySignals(input.interpretation);
-  }
-
-  private hasAdvisorySignals(interpretation: ContinuityAwareInterpretation) {
-    const rawMessage = this.resolvePrimaryMessage(interpretation);
-
-    if (rawMessage.length === 0) {
-      return false;
+    if (input.interpretation.intent === 'GET_PRODUCT') {
+      return signals.advisory.lexicalScore > 0;
     }
 
-    if (advisoryCuePatterns.some((pattern) => pattern.test(rawMessage))) {
-      return true;
-    }
-
-    if (interpretation.intent === 'GET_PRODUCT') {
-      return rawMessage.length >= 12;
-    }
-
-    return rawMessage.includes('?') || rawMessage.length >= 24;
-  }
-
-  private canInvokeProductLookup(input: DecisionInput) {
-    if (input.interpretation.intent !== 'GET_PRODUCT') {
-      return false;
-    }
-
-    const sku =
-      typeof input.interpretation.entities.sku === 'string'
-        ? input.interpretation.entities.sku
-        : undefined;
-    const query =
-      typeof input.interpretation.entities.productQuery === 'string'
-        ? input.interpretation.entities.productQuery
-        : this.resolvePrimaryMessage(input.interpretation);
-
-    return this.productCatalogService.findMatch({
-      sku,
-      query,
-    }).matched;
+    return signals.advisory.supported;
   }
 
   private resolveContinuityMissingFields(input: DecisionInput) {
@@ -251,6 +224,43 @@ export class DecisionService {
       input.conversationState?.lane ??
       null
     );
+  }
+
+  private resolveSignals(input: DecisionInput) {
+    if (input.signals) {
+      return input.signals;
+    }
+
+    return this.conversationSignalResolver.resolve({
+      message: this.resolvePrimaryMessage(input.interpretation),
+      interpretation: input.interpretation,
+      conversationState: input.conversationState,
+    });
+  }
+
+  private resolveProductCatalogMatch(input: DecisionInput) {
+    if (input.interpretation.intent !== 'GET_PRODUCT') {
+      return {
+        matched: false as const,
+        matchedBy: null,
+        product: null,
+        score: 0,
+      };
+    }
+
+    const sku =
+      typeof input.interpretation.entities.sku === 'string'
+        ? input.interpretation.entities.sku
+        : undefined;
+    const query =
+      typeof input.interpretation.entities.productQuery === 'string'
+        ? input.interpretation.entities.productQuery
+        : this.resolvePrimaryMessage(input.interpretation);
+
+    return this.productCatalogService.findMatch({
+      sku,
+      query,
+    });
   }
 
   private buildRespondDecision(reasonCode: string): DecisionResult {

@@ -494,6 +494,36 @@ After the document + booking product phase, the branch absorbed one narrow struc
 
 This leaves the platform structurally safer for multi-turn document and advisory exploration while still keeping Wave 9 as the next broader QA/security/E2E hardening step.
 
+## Post-Continuity Lexical Heuristic Cleanup
+
+After the document/advisory continuity fix, the branch absorbed one narrow structural cleanup aimed at a specific debt class: inline lexical heuristics embedded directly in decisive backend services.
+
+- A dedicated backend-owned signal boundary now owns lexical and routing-support signals:
+  - `conversation-signals` centralizes locale-aware document and advisory signal catalogs
+  - a resolver turns those catalogs into structured support signals rather than leaving raw regex arrays inside `decision`, `document retrieval`, or `continuity`
+  - lexical cues remain allowed, but only as maintainable inputs with clear ownership, tests, and locale scope
+- Core routing services no longer own inline cue arrays:
+  - `DecisionService` consumes structured advisory/document support signals plus continuity state, approved retrieval presence, and product-match grounding
+  - `DocumentRetrievalService` uses the same signal boundary to decide whether document retrieval is explicitly requested or is continuing an active document exploration turn
+  - `ConversationContinuityService` uses the shared signal boundary when deciding whether advisory exploration should remain active
+- Routing remains backend-owned and explicit:
+  - document-grounded exploration
+  - advisory exploration
+  - transactional product lookup
+  - booking
+  - combined document + booking
+  still remain distinct modes, but the supporting lexical layer is now structured instead of ad hoc
+- This cleanup preserves future product-catalog evolution:
+  - the current `get_product` path remains a bounded demo-catalog adapter
+  - the new signal boundary does not deepen assumptions about that demo catalog
+  - future real catalog integration can plug in behind its own backend source-of-truth boundary without reopening document/advisory routing ownership
+- Combined document + booking response shaping is now tighter:
+  - approved response context exposes a response-safe document view with a `combined_execution` mode
+  - combined flows pass summarized document grounding instead of excerpt-heavy raw context to the AI response layer
+  - fallback and AI guidance both bias toward concise grounded synthesis plus execution truth rather than literal document dumping
+
+This leaves the platform with clearer multilingual maintainability and less brittle routing growth while still preserving the current high-quality document-grounded conversational behavior.
+
 ## Multi-Tenant Enforcement
 
 - Tenant id enters through HTTP middleware

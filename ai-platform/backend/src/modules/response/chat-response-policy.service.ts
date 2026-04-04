@@ -40,28 +40,33 @@ export class ChatResponsePolicyService {
       });
     }
 
+    const responseSummary =
+      context.documentContext?.responseMode === 'combined_execution'
+        ? this.buildConciseDocumentSummary(groundedSummary)
+        : groundedSummary;
+
     if (context.outcome === 'clarify') {
       return this.composeWithDocumentSummary(
-        groundedSummary,
+        responseSummary,
         await this.buildClarificationResponse(context),
       );
     }
 
     if (context.outcome === 'execution_succeeded') {
       return this.composeWithDocumentSummary(
-        groundedSummary,
+        responseSummary,
         await this.buildExecutionSuccessResponse(context),
       );
     }
 
     if (context.outcome === 'execution_failed') {
       return this.composeWithDocumentSummary(
-        groundedSummary,
+        responseSummary,
         await this.buildExecutionFailureResponse(context),
       );
     }
 
-    return groundedSummary;
+    return responseSummary;
   }
 
   private async buildBasicResponse(context: ApprovedResponseContext) {
@@ -241,5 +246,20 @@ export class ChatResponsePolicyService {
     }
 
     return `${summary} ${trailing}`.trim();
+  }
+
+  private buildConciseDocumentSummary(summary: string) {
+    const normalized = summary.trim().replace(/\s+/g, ' ');
+    const firstSentence = normalized.match(/^.*?[.!?](?:\s|$)/u)?.[0]?.trim();
+
+    if (firstSentence && firstSentence.length <= 220) {
+      return firstSentence;
+    }
+
+    if (normalized.length <= 220) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, 217).trimEnd()}...`;
   }
 }

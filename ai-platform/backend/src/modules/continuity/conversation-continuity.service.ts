@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
 import { DecisionResult } from '../decision/decision.types';
 import { DocumentRetrievalAttempt } from '../documents/document.types';
 import { CanonicalIntent } from '../interpretation/interpretation.schemas';
@@ -35,6 +36,7 @@ export class ConversationContinuityService {
   constructor(
     private readonly stateRepository: ConversationStateRepository,
     private readonly logger: PipelineLoggerService,
+    private readonly conversationSignalResolver: ConversationSignalResolverService,
   ) {}
 
   async prepareTurn(input: {
@@ -532,7 +534,11 @@ export class ConversationContinuityService {
       return true;
     }
 
-    return this.hasAdvisorySignals(input.preparedTurn.effectiveInterpretation);
+    return this.conversationSignalResolver.resolve({
+      message: this.resolveFallbackMessage(input.preparedTurn.effectiveInterpretation),
+      interpretation: input.preparedTurn.effectiveInterpretation,
+      conversationState: input.preparedTurn.activeState,
+    }).advisory.supported;
   }
 
   private isImplicitContinuationCandidate(
@@ -543,21 +549,6 @@ export class ConversationContinuityService {
       interpretation.intent === 'CLARIFICATION' ||
       interpretation.confidence < 0.6
     );
-  }
-
-  private hasAdvisorySignals(
-    interpretation: ParsedInterpretation,
-  ) {
-    const topicSummary =
-      typeof interpretation.entities.requestSummary === 'string'
-        ? interpretation.entities.requestSummary
-        : typeof interpretation.entities.productQuery === 'string'
-          ? interpretation.entities.productQuery
-          : typeof interpretation.entities.rawMessage === 'string'
-            ? interpretation.entities.rawMessage
-            : '';
-
-    return topicSummary.trim().length >= 12;
   }
 
   private getCarryableFacts(
@@ -644,26 +635,12 @@ export class ConversationContinuityService {
 
     if (lane === 'document_exploration') {
       return this.cleanFacts({
-        topicSummary:
-          typeof interpretation.entities.requestSummary === 'string'
-            ? interpretation.entities.requestSummary
-            : typeof interpretation.entities.productQuery === 'string'
-              ? interpretation.entities.productQuery
-              : typeof interpretation.entities.rawMessage === 'string'
-                ? interpretation.entities.rawMessage
-                : undefined,
+        topicSummary: this.resolveTopicSummary(interpretation),
       }) ?? {};
     }
 
     if (lane === 'advisory_exploration') {
-      const topicSummary =
-        typeof interpretation.entities.requestSummary === 'string'
-          ? interpretation.entities.requestSummary
-          : typeof interpretation.entities.productQuery === 'string'
-            ? interpretation.entities.productQuery
-            : typeof interpretation.entities.rawMessage === 'string'
-              ? interpretation.entities.rawMessage
-              : undefined;
+      const topicSummary = this.resolveTopicSummary(interpretation);
 
       return this.cleanFacts({
         topicSummary,
@@ -1104,5 +1081,20 @@ export class ConversationContinuityService {
       value === 'core_knowledge' ||
       value === 'handoff'
     );
+  }
+
+  private resolveTopicSummary(interpretation: ParsedInterpretation) {
+    const topic = this.conversationSignalResolver.resolveTopicText({
+      message: this.resolveFallbackMessage(interpretation),
+      interpretation,
+    });
+
+    return topic.length > 0 ? topic : undefined;
+  }
+
+  private resolveFallbackMessage(interpretation: ParsedInterpretation) {
+    return typeof interpretation.entities.rawMessage === 'string'
+      ? interpretation.entities.rawMessage
+      : '';
   }
 }

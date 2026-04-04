@@ -4,25 +4,14 @@ import type {
   ContinuityAwareInterpretation,
   ConversationStateSnapshot,
 } from '../continuity/continuity.types';
+import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
+import type { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import type { DecisionResult } from '../decision/decision.types';
 import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
 import {
   DocumentRetrievalAttempt,
   DocumentRetrievalResult,
 } from './document.types';
-
-const documentCuePatterns = [
-  /\bdocumento\b/i,
-  /\bdocument\b/i,
-  /\bcat[aá]logo\b/i,
-  /\bcatalog\b/i,
-  /\bseg[uú]n\b/i,
-  /\bmanual\b/i,
-  /\bcubre[n]?\b/i,
-  /\bcobertura\b/i,
-  /\bpolicy\b/i,
-  /\bcovered\b/i,
-] as const;
 
 const stopWords = new Set([
   'a',
@@ -54,14 +43,23 @@ const stopWords = new Set([
 export class DocumentRetrievalService {
   constructor(
     private readonly documentChunkRepository: DocumentChunkRepository,
+    private readonly conversationSignalResolver: ConversationSignalResolverService,
   ) {}
 
   async retrieveForConversation(input: {
     message: string;
     interpretation: ContinuityAwareInterpretation;
     conversationState?: ConversationStateSnapshot | null;
+    signals?: ConversationRoutingSignals | null;
   }): Promise<DocumentRetrievalAttempt> {
-    const reason = this.resolveReason(input);
+    const signals =
+      input.signals ??
+      this.conversationSignalResolver.resolve({
+        message: input.message,
+        interpretation: input.interpretation,
+        conversationState: input.conversationState,
+      });
+    const reason = this.resolveReason(signals);
 
     if (reason === 'not_requested') {
       return {
@@ -71,7 +69,7 @@ export class DocumentRetrievalService {
       };
     }
 
-    const query = this.resolveQuery(input, reason);
+    const query = this.resolveQuery(input, reason, signals);
     const queryTokens = tokenize(query);
 
     if (queryTokens.length === 0) {
@@ -145,59 +143,16 @@ export class DocumentRetrievalService {
     };
   }
 
-  private resolveReason(input: {
-    message: string;
-    interpretation: ContinuityAwareInterpretation;
-    conversationState?: ConversationStateSnapshot | null;
-  }) {
-    const rawMessage =
-      typeof input.interpretation.entities.rawMessage === 'string'
-        ? input.interpretation.entities.rawMessage
-        : input.message;
-
-    if (this.hasDocumentCue(rawMessage, input.interpretation)) {
+  private resolveReason(signals: ConversationRoutingSignals) {
+    if (signals.document.explicitRequest) {
       return 'document_query' as const;
     }
 
-    if (this.isActiveDocumentContinuation(input.conversationState, input.interpretation)) {
+    if (signals.document.continuationEligible) {
       return 'active_document_continuation' as const;
     }
 
     return 'not_requested' as const;
-  }
-
-  private hasDocumentCue(
-    rawMessage: string,
-    interpretation: ContinuityAwareInterpretation,
-  ) {
-    const candidates = [
-      rawMessage,
-      typeof interpretation.entities.requestSummary === 'string'
-        ? interpretation.entities.requestSummary
-        : '',
-      typeof interpretation.entities.productQuery === 'string'
-        ? interpretation.entities.productQuery
-        : '',
-    ];
-
-    return candidates.some((value) =>
-      documentCuePatterns.some((pattern) => pattern.test(value)),
-    );
-  }
-
-  private isActiveDocumentContinuation(
-    state: ConversationStateSnapshot | null | undefined,
-    interpretation: ContinuityAwareInterpretation,
-  ) {
-    if (state?.lane !== 'document_exploration') {
-      return false;
-    }
-
-    return (
-      interpretation.intent === 'GENERAL_CONVERSATION' ||
-      interpretation.intent === 'CLARIFICATION' ||
-      interpretation.intent === 'GET_PRODUCT'
-    );
   }
 
   private resolveQuery(
@@ -207,11 +162,19 @@ export class DocumentRetrievalService {
       conversationState?: ConversationStateSnapshot | null;
     },
     reason: DocumentRetrievalAttempt['reason'],
+    signals: ConversationRoutingSignals,
   ) {
-    const currentTopic =
-      this.resolvePrimaryTopic(input.interpretation) ?? input.message.trim();
+    const currentTopic = signals.topicText || input.message.trim();
     const previousTopic =
       this.resolveConversationTopic(input.conversationState) ?? null;
+
+    if (
+      reason === 'document_query' &&
+      typeof signals.document.focusText === 'string' &&
+      signals.document.focusText.trim().length > 0
+    ) {
+      return signals.document.focusText.trim();
+    }
 
     if (reason === 'active_document_continuation' && previousTopic) {
       if (!currentTopic || currentTopic === previousTopic) {
@@ -222,31 +185,6 @@ export class DocumentRetrievalService {
     }
 
     return currentTopic || previousTopic || input.message.trim();
-  }
-
-  private resolvePrimaryTopic(interpretation: ContinuityAwareInterpretation) {
-    if (
-      typeof interpretation.entities.requestSummary === 'string' &&
-      interpretation.entities.requestSummary.trim().length > 0
-    ) {
-      return interpretation.entities.requestSummary.trim();
-    }
-
-    if (
-      typeof interpretation.entities.productQuery === 'string' &&
-      interpretation.entities.productQuery.trim().length > 0
-    ) {
-      return interpretation.entities.productQuery.trim();
-    }
-
-    if (
-      typeof interpretation.entities.rawMessage === 'string' &&
-      interpretation.entities.rawMessage.trim().length > 0
-    ) {
-      return interpretation.entities.rawMessage.trim();
-    }
-
-    return null;
   }
 
   private resolveConversationTopic(state: ConversationStateSnapshot | null | undefined) {

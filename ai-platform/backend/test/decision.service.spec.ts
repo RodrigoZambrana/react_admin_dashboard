@@ -1,4 +1,5 @@
 import { PipelineLoggerService } from '../src/modules/logging/pipeline-logger.service';
+import { ConversationSignalResolverService } from '../src/modules/conversation-signals/conversation-signal-resolver.service';
 import { DecisionService } from '../src/modules/decision/decision.service';
 import { ProductCatalogService } from '../src/modules/tools/product-catalog.service';
 
@@ -7,6 +8,7 @@ describe('DecisionService', () => {
     return new DecisionService(
       new PipelineLoggerService(),
       new ProductCatalogService(),
+      new ConversationSignalResolverService(),
     );
   }
 

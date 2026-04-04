@@ -92,9 +92,7 @@ export class ApprovedResponseContextService {
         input.conversationState?.nextUsefulField ?? input.continuity.nextUsefulField,
       approvedFactKeys: Object.keys(approvedFacts ?? {}),
       approvedResultKeys: Object.keys(lastApprovedResult ?? {}),
-      documentContext: input.documentContext
-        ? this.cloneJson(input.documentContext)
-        : undefined,
+      documentContext: this.buildApprovedDocumentContext(input),
       approvedDocumentIds: input.documentContext?.matches.map(
         (match) => match.documentId,
       ) ?? [],
@@ -145,5 +143,45 @@ export class ApprovedResponseContextService {
     return Object.fromEntries(
       Object.entries(value).filter(([, current]) => current !== undefined),
     ) as T;
+  }
+
+  private buildApprovedDocumentContext(input: ApprovedResponseContextInput) {
+    if (!input.documentContext) {
+      return undefined;
+    }
+
+    const responseMode =
+      input.decision.action === 'invoke_tool'
+        ? 'combined_execution'
+        : 'document_exploration';
+
+    return {
+      source: input.documentContext.source,
+      query: input.documentContext.query,
+      groundedSummary: input.documentContext.groundedSummary,
+      responseMode: responseMode as 'document_exploration' | 'combined_execution',
+      matches: input.documentContext.matches.map((match) =>
+        this.pruneUndefined({
+          documentId: match.documentId,
+          title: match.title,
+          sequence: match.sequence,
+          score: match.score,
+          excerpt:
+            responseMode === 'combined_execution'
+              ? undefined
+              : this.truncateExcerpt(match.excerpt),
+        }),
+      ),
+    };
+  }
+
+  private truncateExcerpt(value: string) {
+    const normalized = value.trim().replace(/\s+/g, ' ');
+
+    if (normalized.length <= 220) {
+      return normalized;
+    }
+
+    return `${normalized.slice(0, 217).trimEnd()}...`;
   }
 }

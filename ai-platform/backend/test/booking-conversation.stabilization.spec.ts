@@ -1,4 +1,5 @@
 import { AiGatewayInterpretationResult } from '../src/modules/ai-gateway/ai-gateway.types';
+import { ConversationSignalResolverService } from '../src/modules/conversation-signals/conversation-signal-resolver.service';
 import { ConversationContinuityService } from '../src/modules/continuity/conversation-continuity.service';
 import { DecisionService } from '../src/modules/decision/decision.service';
 import { InterpretationService } from '../src/modules/interpretation/interpretation.service';
@@ -147,10 +148,12 @@ function buildBookingPipeline(
   const continuityService = new ConversationContinuityService(
     stateRepository as any,
     logger as any,
+    new ConversationSignalResolverService(),
   );
   const decisionService = new DecisionService(
     new PipelineLoggerService(),
     new ProductCatalogService(),
+    new ConversationSignalResolverService(),
   );
   const toolExecutionService = new ToolExecutionService(
     {

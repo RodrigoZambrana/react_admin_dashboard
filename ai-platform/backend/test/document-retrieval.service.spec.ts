@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 
+import { ConversationSignalResolverService } from '../src/modules/conversation-signals/conversation-signal-resolver.service';
 import { DocumentRetrievalService } from '../src/modules/documents/document-retrieval.service';
 
 describe('DocumentRetrievalService', () => {
@@ -22,7 +23,7 @@ describe('DocumentRetrievalService', () => {
           },
         },
       ]),
-    } as any);
+    } as any, new ConversationSignalResolverService());
 
     const result = await service.retrieveForConversation({
       message: '¿Qué dice el documento sobre el cambio de cadena de una roller?',
@@ -76,7 +77,7 @@ describe('DocumentRetrievalService', () => {
           },
         },
       ]),
-    } as any);
+    } as any, new ConversationSignalResolverService());
 
     const preview = await service.retrieveForConversation({
       message:
@@ -141,7 +142,7 @@ describe('DocumentRetrievalService', () => {
           },
         },
       ]),
-    } as any);
+    } as any, new ConversationSignalResolverService());
 
     const result = await service.retrieveForConversation({
       message: '¿y en colores más claros?',

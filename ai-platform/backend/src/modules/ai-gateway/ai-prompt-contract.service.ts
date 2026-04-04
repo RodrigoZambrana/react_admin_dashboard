@@ -27,6 +27,7 @@ export class AiPromptContractService {
       '- You will receive approved backend context as JSON.',
       '- You will receive an approved deterministic fallback draft.',
       '- When approved document context is present, use only that document-origin context for document-grounded claims.',
+      '- When approved document context has responseMode combined_execution, synthesize the document answer concisely and then state the execution outcome without quoting long excerpts.',
       '- Do not treat runtime-learned knowledge or generic memory as the source of truth for document answers.',
       '- Do not invent tool executions, business facts, missing fields, or continuity state.',
       '- Only ask for missing fields that appear in approved backend context.',

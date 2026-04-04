@@ -1,0 +1,93 @@
+import { ConversationSignalResolverService } from '../src/modules/conversation-signals/conversation-signal-resolver.service';
+
+describe('ConversationSignalResolverService', () => {
+  const service = new ConversationSignalResolverService();
+
+  it('resolves locale-aware document signals for Spanish document-grounded questions', () => {
+    const signals = service.resolve({
+      message: '¿Qué dice el catálogo sobre la tela screen?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        entities: {
+          rawMessage: '¿Qué dice el catálogo sobre la tela screen?',
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(signals.document.explicitRequest).toBe(true);
+    expect(signals.document.lexicalScore).toBeGreaterThan(0);
+    expect(signals.document.focusText).toBe(
+      '¿Qué dice el catálogo sobre la tela screen',
+    );
+    expect(signals.document.matchedCategories).toEqual(
+      expect.arrayContaining(['source_reference', 'grounding_inquiry']),
+    );
+  });
+
+  it('isolates the document-focused segment when a turn combines document inquiry with booking', () => {
+    const signals = service.resolve({
+      message:
+        'Según el documento, ¿cubren cambio de cadena de una roller? Si sí, agendame una visita para mañana a las 11.',
+      interpretation: {
+        intent: 'CREATE_BOOKING',
+        language: 'es',
+        entities: {
+          rawMessage:
+            'Según el documento, ¿cubren cambio de cadena de una roller? Si sí, agendame una visita para mañana a las 11.',
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(signals.document.explicitRequest).toBe(true);
+    expect(signals.document.focusText).toBe(
+      '¿cubren cambio de cadena de una roller',
+    );
+  });
+
+  it('supports advisory exploration signals without depending on one exact phrase or one language', () => {
+    const signals = service.resolve({
+      message:
+        'Which option would be better if I want more privacy without making the room too dark?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'en',
+        entities: {
+          rawMessage:
+            'Which option would be better if I want more privacy without making the room too dark?',
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(signals.advisory.supported).toBe(true);
+    expect(signals.advisory.lexicalScore).toBeGreaterThan(0);
+    expect(signals.advisory.matchedCategories).toEqual(
+      expect.arrayContaining(['recommendation', 'preference']),
+    );
+  });
+
+  it('supports active document continuation even when the follow-up omits explicit document cue words', () => {
+    const signals = service.resolve({
+      message: '¿y en colores más claros cuál conviene más?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        entities: {
+          rawMessage: '¿y en colores más claros cuál conviene más?',
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-doc',
+        lane: 'document_exploration',
+        updatedAt: '2026-04-04T10:00:00.000Z',
+        missingFields: [],
+      } as any,
+    });
+
+    expect(signals.document.explicitRequest).toBe(false);
+    expect(signals.document.continuationEligible).toBe(true);
+  });
+});

@@ -1,3 +1,4 @@
+import { ConversationSignalResolverService } from '../src/modules/conversation-signals/conversation-signal-resolver.service';
 import { PipelineLoggerService } from '../src/modules/logging/pipeline-logger.service';
 import { ConversationContinuityService } from '../src/modules/continuity/conversation-continuity.service';
 
@@ -23,6 +24,7 @@ describe('ConversationContinuityService', () => {
       service: new ConversationContinuityService(
         repository as any,
         new PipelineLoggerService(),
+        new ConversationSignalResolverService(),
       ),
     };
   }

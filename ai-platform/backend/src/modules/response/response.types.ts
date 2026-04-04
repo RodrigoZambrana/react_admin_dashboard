@@ -96,7 +96,19 @@ export type ApprovedResponseContext = {
   nextUsefulField?: string;
   approvedFactKeys: string[];
   approvedResultKeys: string[];
-  documentContext?: DocumentRetrievalResult;
+  documentContext?: {
+    source: 'document_origin';
+    query: string;
+    groundedSummary: string;
+    responseMode: 'document_exploration' | 'combined_execution';
+    matches: Array<{
+      documentId: string;
+      title: string;
+      sequence: number;
+      score: number;
+      excerpt?: string;
+    }>;
+  };
   approvedDocumentIds: string[];
 };
 

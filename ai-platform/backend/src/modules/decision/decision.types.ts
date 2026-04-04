@@ -2,6 +2,7 @@ import type {
   ContinuityAwareInterpretation,
   ConversationStateSnapshot,
 } from '../continuity/continuity.types';
+import type { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import type { DocumentRetrievalAttempt } from '../documents/document.types';
 
 export type DecisionAction = 'respond' | 'clarify' | 'invoke_tool';
@@ -21,4 +22,5 @@ export type DecisionInput = {
   interpretation: ContinuityAwareInterpretation;
   conversationState?: ConversationStateSnapshot | null;
   documentRetrieval?: DocumentRetrievalAttempt | null;
+  signals?: ConversationRoutingSignals | null;
 };

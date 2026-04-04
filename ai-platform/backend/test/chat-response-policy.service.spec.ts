@@ -398,6 +398,7 @@ describe('ChatResponsePolicyService', () => {
           query: 'cambio de cadena de cortina roller',
           groundedSummary:
             'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
+          responseMode: 'combined_execution',
           matches: [
             {
               documentId: 'doc-1',
@@ -455,10 +456,79 @@ describe('ChatResponsePolicyService', () => {
           source: 'document_origin',
           query: 'chain replacement coverage',
           groundedSummary: '',
+          responseMode: 'document_exploration',
           matches: [],
         },
       }),
     ).resolves.toMatch(/document/i);
+  });
+
+  it('keeps combined document plus execution fallback concise when the grounded summary is long', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage:
+          'Según el documento, ¿cubren cambio de cadena? Si sí, agendame una visita.',
+        intent: 'CREATE_BOOKING',
+        outcome: 'execution_succeeded',
+        decision: {
+          domain: 'tenant',
+          action: 'invoke_tool',
+          toolName: 'create_booking',
+          reasonCode: 'booking_requested',
+          missingFields: [],
+          responseTemplateKey: 'tenant.booking.confirmation',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.94,
+          entities: {
+            rawMessage:
+              'Según el documento, ¿cubren cambio de cadena? Si sí, agendame una visita.',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'succeeded',
+          toolName: 'create_booking',
+          validatedInputSummary: {
+            requestedDateIso: '2026-04-05T11:00:00.000Z',
+          },
+          resultSummary: {
+            bookingId: 'bk_999',
+            scheduledFor: '2026-04-05T11:00:00.000Z',
+            status: 'confirmed',
+          },
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: ['bookingId', 'scheduledFor', 'status'],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'cambio de cadena roller',
+          groundedSummary:
+            'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. También describe características generales del producto y recomendaciones de mantenimiento complementarias para distintos ambientes.',
+          responseMode: 'combined_execution',
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Cobertura Roller',
+              excerpt:
+                'El cambio de cadena está cubierto dentro del servicio estándar. También describe características generales.',
+              sequence: 0,
+              score: 4.4,
+            },
+          ],
+        },
+      }),
+    ).resolves.toBe(
+      'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+    );
   });
 });
 

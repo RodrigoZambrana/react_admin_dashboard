@@ -1983,3 +1983,44 @@
 - Carry the remaining non-blocking conversational quality debt into a later hardening pass only if exploratory evidence shows it affects rollout safety:
   - cleaner synthesis for combined document + booking responses
   - eventual replacement of the demo product catalog with a real backend-owned catalog source
+
+## Iteration 60
+
+### Implemented
+- Closed a focused structural-cleanup phase for multilingual routing support and lexical heuristic debt:
+  - introduced a dedicated backend-owned `conversation-signals` boundary with locale-aware signal catalogs and a resolver that produces structured document/advisory support signals
+  - removed inline lexical cue ownership from decisive backend services so `decision`, `document retrieval`, and `continuity` now consume structured signals instead of defining raw regex arrays inline
+  - kept lexical support as one maintainable input among others such as continuity, approved retrieval state, and product-catalog match strength rather than as the sole routing truth
+- Tightened combined document + booking response shaping:
+  - approved response context now exposes a response-safe document view with explicit `responseMode`
+  - combined execution flows now pass summarized document grounding instead of full excerpt-heavy context to the AI response layer
+  - deterministic document-aware fallback drafting now keeps combined answers concise instead of concatenating overly literal document context
+
+### Working
+- Full validation passes for the branch state:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+- Real OpenAI-backed exploratory smokes confirm the intended cleanup behavior on the live async public path:
+  - document-grounded multi-turn exploration still answers fluidly without requiring literal repeated cue phrases
+  - advisory multi-turn exploration still holds context and no longer depends on inline core-service cue lists
+  - specific product lookup still routes correctly when grounded
+  - combined document + booking remains grounded and now responds with tighter synthesis instead of dumping raw document context
+- Existing admin document operations and public async chat remain non-breaking
+
+### Technical Debt
+- Lexical support is now structured and locale-aware, but it is still code-owned rather than governed/admin-editable, which is acceptable for this phase because the goal was ownership cleanup, not operator configurability
+- The current `get_product` path remains an honest demo-catalog boundary and not a real product-catalog integration
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage and manual smoke checks
+
+### Next Steps
+- Treat this structural multilingual heuristic cleanup as complete without opening Wave 9 in the same thread
+- Keep Wave 9 as the next step:
+  - centralized QA
+  - security / roles
+  - E2E
+  - broader production hardening
+- Carry only bounded non-core debt forward:
+  - future governed evolution of conversation signal catalogs if operational editing ever becomes necessary
+  - replacement of the demo product catalog with a real backend-owned catalog source
+  - frontend harness work as part of later broader hardening, not this phase
