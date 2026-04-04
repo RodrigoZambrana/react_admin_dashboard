@@ -636,6 +636,9 @@
 - Wired the live orchestrator to consume the new response service and persist approved response context plus response-generation metadata in the `response` trace stage
 - Moved `ChatResponsePolicyService` into the response layer as a deterministic fallback boundary instead of the primary live wording path
 - Updated backend tests so the live orchestrator and AI gateway cover the new response-layer wiring without changing the `/chat/message` HTTP contract
+- Added a dedicated backend `ResponseGuardrailService` so AI wording is now checked against backend-approved outcome, execution status, missing-field context, approved facts, and approved result keys
+- Extended response traces and message metadata with explicit guardrail outcomes and deterministic fallback reasons instead of silently swallowing response-generation failures
+- Added focused response-layer tests covering generation failure fallback and guardrail rejection fallback without moving business routing into the response path
 
 ### Working
 - Backend-approved response context now exists as a first-class contract for the live flow
@@ -643,13 +646,15 @@
 - Response prompt retrieval stays under managed runtime governance instead of ad hoc code templates
 - Response-stage traces now persist approved draft/context metadata and provider/model generation metadata needed for the next guardrail milestone
 - Backend build, backend tests, and frontend build all pass after the first Wave 4 response-layer refactor
+- Response generation now fails closed: provider errors and guardrail rejections both return the approved deterministic fallback instead of ungrounded AI wording
+- Guardrail results are now observable in the live response trace, which keeps Wave 4 grounded in backend truth and prepares Wave 5 governance/QA work
 
 ### Technical Debt
-- Guardrail enforcement is not active yet; the AI path still falls back only on provider/generation failure, not on semantic grounding checks
 - `ChatResponsePolicyService` still contains the existing hardcoded wording and locale branching debt, although it is now isolated to fallback/draft generation instead of the primary live response path
 - The carried-forward Wave 3 low-confidence continuity finding is not fixed yet in this milestone and remains explicit debt for the next Wave 4 milestone
+- Response guardrails currently validate structured grounding metadata rather than the full free-text surface, so stronger semantic/closure checks are still needed before calling Wave 4 complete
 
 ### Next Steps
-- Add response guardrails, provider-call trace auditing, and deterministic fallback reasons before treating AI wording as production-safe
 - Reduce live dependence on hardcoded fallback wording and absorb the safe continuity clarification fix if it can be done without moving business logic into the response layer
 - Keep Wave 4 aligned with Wave 5 by preserving approved context, traceability, and backend truth as the basis for governance, QA, and later learning activation
+- Add final response-path tests for successful grounded AI wording, no-expansion locale audit coverage, and the carried-forward continuity clarification edge case before closing Wave 4

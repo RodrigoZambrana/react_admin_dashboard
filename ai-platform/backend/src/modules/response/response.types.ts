@@ -36,6 +36,18 @@ export type ApprovedExecutionStatus = z.infer<
 >;
 export type AiGeneratedResponse = z.infer<typeof aiGeneratedResponseSchema>;
 
+export type ResponseGuardrailCode =
+  | 'outcome_mismatch'
+  | 'execution_status_mismatch'
+  | 'unsupported_missing_fields'
+  | 'unsupported_fact_keys'
+  | 'unsupported_result_keys';
+
+export type ResponseGuardrailResult = {
+  accepted: boolean;
+  reasons: ResponseGuardrailCode[];
+};
+
 export type ApprovedResponseContext = {
   locale: string;
   userMessage: string;
@@ -97,6 +109,7 @@ export type GeneratedChatResponse = {
   approvedContext: ApprovedResponseContext;
   approvedDraft: string;
   usedFallback: boolean;
+  fallbackReason: 'generation_failed' | 'guardrail_rejected' | null;
   generation: {
     provider: string;
     model: string | null;
@@ -105,5 +118,6 @@ export type GeneratedChatResponse = {
     rawAiResponse: string | null;
     parsedJson: AiGeneratedResponse | null;
     error: string | null;
+    guardrails: ResponseGuardrailResult;
   };
 };

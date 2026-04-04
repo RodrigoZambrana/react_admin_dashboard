@@ -11,6 +11,7 @@ import { ToolExecutionAttempt } from '../tools/tool.types';
 import { ApprovedResponseContextService } from './approved-response-context.service';
 import { ChatResponsePolicyService } from './chat-response-policy.service';
 import { GeneratedChatResponse } from './response.types';
+import { ResponseGuardrailService } from './response-guardrail.service';
 
 @Injectable()
 export class ChatResponseService {
@@ -18,6 +19,7 @@ export class ChatResponseService {
     private readonly approvedResponseContextService: ApprovedResponseContextService,
     private readonly policyService: ChatResponsePolicyService,
     private readonly aiGatewayService: AiGatewayService,
+    private readonly responseGuardrailService: ResponseGuardrailService,
   ) {}
 
   async generate(input: {
@@ -48,13 +50,24 @@ export class ChatResponseService {
       approvedContext,
       approvedDraft,
     });
+    const guardrails =
+      generation.ok && generation.parsedResponse
+        ? this.responseGuardrailService.evaluate({
+            approvedContext,
+            generatedResponse: generation.parsedResponse,
+          })
+        : {
+            accepted: false,
+            reasons: [],
+          };
 
-    if (generation.ok && generation.parsedResponse) {
+    if (generation.ok && generation.parsedResponse && guardrails.accepted) {
       return {
         response: generation.parsedResponse.message,
         approvedContext,
         approvedDraft,
         usedFallback: false,
+        fallbackReason: null,
         generation: {
           provider: generation.provider,
           model: generation.model,
@@ -63,6 +76,7 @@ export class ChatResponseService {
           rawAiResponse: generation.rawResponse,
           parsedJson: generation.parsedResponse,
           error: generation.error,
+          guardrails,
         },
       };
     }
@@ -72,6 +86,10 @@ export class ChatResponseService {
       approvedContext,
       approvedDraft,
       usedFallback: true,
+      fallbackReason:
+        generation.ok && generation.parsedResponse
+          ? 'guardrail_rejected'
+          : 'generation_failed',
       generation: {
         provider: generation.provider,
         model: generation.model,
@@ -80,6 +98,7 @@ export class ChatResponseService {
         rawAiResponse: generation.rawResponse,
         parsedJson: generation.parsedResponse,
         error: generation.error,
+        guardrails,
       },
     };
   }

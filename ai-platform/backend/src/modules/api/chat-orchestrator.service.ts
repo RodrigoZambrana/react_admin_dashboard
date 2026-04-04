@@ -161,6 +161,7 @@ export class ChatOrchestratorService {
         approvedResponseContext: resolvedResponse.approvedContext,
         approvedResponseDraft: resolvedResponse.approvedDraft,
         responseGeneration: resolvedResponse.generation,
+        responseFallbackReason: resolvedResponse.fallbackReason,
       } as Prisma.InputJsonValue,
     });
 
@@ -180,6 +181,7 @@ export class ChatOrchestratorService {
         continuity: preparedTurn.continuity,
         conversationState: this.buildConversationStateSummary(conversationState),
         responseGeneration: resolvedResponse.generation,
+        responseFallbackReason: resolvedResponse.fallbackReason,
       } as Prisma.InputJsonValue,
     );
     await this.memoryService.append(conversationId, 'assistant', response);
