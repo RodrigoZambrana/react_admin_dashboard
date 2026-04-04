@@ -1,10 +1,18 @@
 import type {
   ChatLog,
+  ConversationMessage,
   ConversationSummary,
   CriticalConfigVersion,
+  KnowledgeEntry,
   KnowledgeMetadataVersion,
   PromptVersion,
+  ReplayResponse,
   ResponseFallbackVersion,
+  TestCenterRunDetail,
+  TestCenterRunSummary,
+  TraceComparison,
+  TraceDetail,
+  TraceSummary,
   TemporalLocaleVersion,
 } from './types';
 
@@ -54,6 +62,12 @@ export async function listConversations(limit = 8) {
 
 export async function listLogs(limit = 30) {
   return apiRequest<ChatLog[]>(`/logs?limit=${limit}`);
+}
+
+export async function listMessages(conversationId: string) {
+  return apiRequest<ConversationMessage[]>(
+    `/conversations/${conversationId}/messages`,
+  );
 }
 
 export async function listPromptVersions() {
@@ -254,4 +268,58 @@ export async function activateKnowledgeMetadataVersion(
       },
     },
   );
+}
+
+export async function listKnowledge(limit = 40, category?: string) {
+  const search = new URLSearchParams();
+  search.set('limit', String(limit));
+  if (category) {
+    search.set('category', category);
+  }
+
+  return apiRequest<KnowledgeEntry[]>(`/admin/knowledge?${search.toString()}`);
+}
+
+export async function getKnowledge(knowledgeId: string) {
+  return apiRequest<KnowledgeEntry>(`/admin/knowledge/${knowledgeId}`);
+}
+
+export async function listTestCenterRuns(limit = 20) {
+  return apiRequest<TestCenterRunSummary[]>(
+    `/admin/test-center/conversations?limit=${limit}`,
+  );
+}
+
+export async function getTestCenterRun(conversationId: string) {
+  return apiRequest<TestCenterRunDetail>(
+    `/admin/test-center/conversations/${conversationId}`,
+  );
+}
+
+export async function listRecentTraceSummaries(limit = 20) {
+  return apiRequest<TraceSummary[]>(`/admin/test-center/traces?limit=${limit}`);
+}
+
+export async function getTraceDetail(traceId: string) {
+  return apiRequest<TraceDetail>(`/admin/test-center/traces/${traceId}`);
+}
+
+export async function compareTraces(leftTraceId: string, rightTraceId: string) {
+  return apiRequest<TraceComparison>('/admin/test-center/traces/compare', {
+    method: 'POST',
+    body: {
+      leftTraceId,
+      rightTraceId,
+    },
+  });
+}
+
+export async function replayConversation(input: {
+  locale?: string;
+  turns: Array<{ message: string; locale?: string }>;
+}) {
+  return apiRequest<ReplayResponse>('/admin/test-center/replays', {
+    method: 'POST',
+    body: input,
+  });
 }

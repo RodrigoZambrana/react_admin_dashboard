@@ -191,6 +191,12 @@ export function AdminShell({
               <a className="dropdown-item" href="#dashboard">
                 Dashboard
               </a>
+              <a className="dropdown-item" href="#chat-test-center">
+                Chat Test Center
+              </a>
+              <a className="dropdown-item" href="#knowledge-center">
+                Knowledge Center
+              </a>
               <a className="dropdown-item" href="#prompts">
                 Prompts
               </a>
@@ -225,13 +231,19 @@ export function AdminShell({
                   </a>
                 </li>
                 <li>
-                  <a href="#dashboard">
-                    <i className="ti ti-layout-kanban"></i>
-                    <span>Wave 6 admin ops</span>
+                  <a href="#chat-test-center">
+                    <i className="ti ti-flask-2"></i>
+                    <span>Wave 7 test center</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#knowledge-metadata">
+                  <a href="#knowledge-center">
+                    <i className="ti ti-brain"></i>
+                    <span>Knowledge workflows</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="#knowledge-center">
                     <i className="ti ti-clock-bolt"></i>
                     <span>Wave 8 dependency noted</span>
                   </a>

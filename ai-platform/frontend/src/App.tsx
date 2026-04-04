@@ -2,14 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { AdminShell, type AdminNavigationItem } from './components/layout/AdminShell';
 import { DashboardPage } from './pages/DashboardPage';
+import { ChatTestCenterPage } from './pages/ChatTestCenterPage';
 import { CriticalConfigsPage } from './pages/CriticalConfigsPage';
 import { DateTimeLocaleResourcesPage } from './pages/DateTimeLocaleResourcesPage';
+import { KnowledgeCenterPage } from './pages/KnowledgeCenterPage';
 import { KnowledgeMetadataPage } from './pages/KnowledgeMetadataPage';
 import { PromptsPage } from './pages/PromptsPage';
 import { ResponseFallbackCatalogsPage } from './pages/ResponseFallbackCatalogsPage';
 
 type RouteKey =
   | 'dashboard'
+  | 'chat-test-center'
+  | 'knowledge-center'
   | 'prompts'
   | 'date-time-locale-resources'
   | 'critical-configs'
@@ -18,6 +22,8 @@ type RouteKey =
 
 const routeLabels: Record<RouteKey, string> = {
   dashboard: 'Operations Dashboard',
+  'chat-test-center': 'Chat Test Center',
+  'knowledge-center': 'Knowledge Center',
   prompts: 'Prompts',
   'date-time-locale-resources': 'Date-time locale resources',
   'critical-configs': 'Critical configs',
@@ -31,6 +37,18 @@ const navigationItems: AdminNavigationItem[] = [
     label: 'Dashboard',
     icon: 'ti ti-layout-dashboard',
     href: '#dashboard',
+  },
+  {
+    key: 'chat-test-center',
+    label: 'Chat Test Center',
+    icon: 'ti ti-flask-2',
+    href: '#chat-test-center',
+  },
+  {
+    key: 'knowledge-center',
+    label: 'Knowledge Center',
+    icon: 'ti ti-brain',
+    href: '#knowledge-center',
   },
   {
     key: 'prompts',
@@ -103,6 +121,8 @@ export function App() {
       currentLabel={routeLabels[route]}
     >
       {route === 'dashboard' ? <DashboardPage /> : null}
+      {route === 'chat-test-center' ? <ChatTestCenterPage /> : null}
+      {route === 'knowledge-center' ? <KnowledgeCenterPage /> : null}
       {route === 'prompts' ? <PromptsPage /> : null}
       {route === 'date-time-locale-resources' ? (
         <DateTimeLocaleResourcesPage />

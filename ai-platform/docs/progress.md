@@ -1087,3 +1087,32 @@
 - Extend the exact DreamsChat admin shell with Knowledge Center and Chat Test Center navigation and pages over the new backend contracts
 - Add operator flows for trace browsing, replay execution, comparison, and governed knowledge investigation without moving orchestration into React
 - Keep the carried gateway hardcoding debt explicit while avoiding a broad refactor that would derail Wave 7
+
+## Iteration 36
+
+### Implemented
+- Extended the exact DreamsChat admin shell with Wave 7 navigation and operational surfaces for `Knowledge Center` and `Chat Test Center`
+- Wired the frontend to the new backend knowledge and test-center contracts for:
+  - knowledge browsing and knowledge detail
+  - test-center run browsing
+  - replay execution against the real chat pipeline
+  - trace exploration and trace comparison
+  - active prompt/resource inspection to support operator investigations
+- Added operator-facing continuity and run-log visibility inside the test-center run detail instead of forcing investigators to leave the workflow
+- Hardened the new frontend flows so filtered knowledge selections and refreshed test-center selections do not drift into stale ids
+
+### Working
+- `Knowledge Center` and `Chat Test Center` now run inside the existing DreamsChat admin shell instead of a separate UI surface
+- Replay scenarios execute through the real backend contracts and return persisted conversations, traces, and responses for inspection
+- Trace comparison, knowledge detail, active managed-resource inspection, continuity-state viewing, and run-log inspection all work from the new operator pages
+- `npm run build --workspace backend`, `npm test --workspace backend -- --runInBand`, and `npm run build --workspace frontend` pass with the new Wave 7 frontend integrated
+
+### Technical Debt
+- `AiGatewayService` provider-registry and inline prompt-scaffolding debt remains explicitly carried and untouched in this milestone
+- Complex managed resources still rely on raw JSON editing in the admin UI; Wave 7 improves operator investigation, not full structured-form redesign
+- Wave 7 still needs explicit closeout review and final architecture/progress updates before it can be considered fully closed
+
+### Next Steps
+- Run the Wave 7 closeout review over workflow coverage, backend-contract alignment, tenant safety, DreamsChat fidelity, and operator clarity
+- Update architecture/progress documentation to show Wave 7 closure, the carried gateway-debt prerequisite before Wave 8, and the async turn-intake / cancellation / typing dependency before or within Wave 8
+- Close the wave with a final validation summary and documentation-focused commit

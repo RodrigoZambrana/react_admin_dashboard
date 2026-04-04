@@ -189,6 +189,52 @@
   background: #fff;
 }
 
+.react-chat-run {
+  display: grid;
+  gap: 14px;
+  max-height: 480px;
+  overflow: auto;
+  padding-right: 6px;
+}
+
+.react-chat-message {
+  display: flex;
+}
+
+.react-chat-message.user {
+  justify-content: flex-end;
+}
+
+.react-chat-bubble {
+  max-width: 88%;
+  background: #f8fafc;
+  border-radius: 18px;
+  padding: 14px 16px;
+}
+
+.react-chat-message.user .react-chat-bubble {
+  background: #e8edff;
+}
+
+.react-chat-role {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+
+.react-chat-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.react-trace-log-table {
+  max-height: 260px;
+  overflow: auto;
+}
+
 .react-resource-table td,
 .react-resource-table th {
   vertical-align: middle;
