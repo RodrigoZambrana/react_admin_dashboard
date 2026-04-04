@@ -553,7 +553,7 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe(
-      'No tengo una confirmación clara sobre eso en este momento. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+      'Por ahora no tengo una confirmación clara sobre eso. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
     );
   });
 
@@ -594,7 +594,7 @@ describe('ChatResponsePolicyService', () => {
         approvedResultKeys: [],
         approvedDocumentIds: [],
       }),
-    ).resolves.toBe('Gracias por el mensaje. Lo dejamos por acá.');
+    ).resolves.toBe('Gracias por escribir. Lo dejo por acá por ahora.');
   });
 
   it('uses a governed natural unavailable response when approved knowledge does not support the question', async () => {
@@ -649,7 +649,47 @@ describe('ChatResponsePolicyService', () => {
           matches: [],
         },
       }),
-    ).resolves.toBe("I can't confirm that clearly right now.");
+    ).resolves.toBe("I don't have a clear confirmation on that right now.");
+  });
+
+  it('uses a warmer basic response without becoming verbose', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'Hola',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'general_conversation',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.88,
+          entities: {
+            rawMessage: 'Hola',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: [],
+      }),
+    ).resolves.toBe('Hola, contame en qué te puedo ayudar.');
   });
 
   it('keeps combined document plus execution fallback concise when the grounded summary is long', async () => {
@@ -733,12 +773,12 @@ function buildCatalog(locale?: string) {
   if ((locale ?? '').toLowerCase().startsWith('es')) {
     return {
       templates: {
-        basic_response: 'Hola, ¿en qué puedo ayudarte?',
+        basic_response: 'Hola, contame en qué te puedo ayudar.',
         clarification_requested_date:
           'Para coordinar la visita, necesito la fecha y la hora que te sirven.',
         clarification_user_goal:
-          'Contame brevemente qué necesitás y sigo con eso.',
-        clarification_generic: 'Necesito un poco más de contexto para seguir.',
+          'Decime qué necesitás y lo seguimos desde ahí.',
+        clarification_generic: 'Contame un poco más y sigo con eso.',
         execution_success_booking:
           'La reserva fue confirmada para {{scheduledFor}}.',
         execution_success_quote:
@@ -753,15 +793,15 @@ function buildCatalog(locale?: string) {
         execution_failure_generic:
           'No pude completar {{actionLabel}} por un error durante la ejecución.',
         document_not_found:
-          'No tengo una confirmación clara sobre eso en este momento.',
+          'Por ahora no tengo una confirmación clara sobre eso.',
         close_turn_acknowledgement:
-          'Gracias por el mensaje. Lo dejamos por acá.',
+          'Gracias por escribir. Lo dejo por acá por ahora.',
         close_turn_resolved:
-          'Perfecto, gracias por avisar. Lo dejamos por acá.',
+          'Perfecto, gracias por avisar. Lo doy por cerrado por ahora.',
       },
       templateVariants: {
         basic_response: [
-          'Hola, ¿en qué puedo ayudarte?',
+          'Hola, contame en qué te puedo ayudar.',
           'Decime qué necesitás y te doy una mano.',
           'Contame qué querés resolver y lo vemos.',
         ],
@@ -771,23 +811,23 @@ function buildCatalog(locale?: string) {
           'Indicame cuándo te queda bien la visita y sigo con eso.',
         ],
         clarification_user_goal: [
-          'Contame brevemente qué necesitás y sigo con eso.',
-          'Decime qué querés resolver y continúo desde ahí.',
-          'Necesito que me cuentes un poco más qué necesitás para avanzar.',
+          'Decime qué necesitás y lo seguimos desde ahí.',
+          'Contame qué querés resolver y continúo con eso.',
+          'Dame un poco más de contexto sobre lo que necesitás y avanzo.',
         ],
         clarification_generic: [
-          'Necesito un poco más de contexto para seguir.',
+          'Contame un poco más y sigo con eso.',
           'Dame un poco más de detalle y continúo.',
           'Contame un poco más para poder avanzar.',
         ],
         document_not_found: [
-          'No tengo una confirmación clara sobre eso en este momento.',
+          'Por ahora no tengo una confirmación clara sobre eso.',
         ],
         close_turn_acknowledgement: [
-          'Gracias por el mensaje. Lo dejamos por acá.',
+          'Gracias por escribir. Lo dejo por acá por ahora.',
         ],
         close_turn_resolved: [
-          'Perfecto, gracias por avisar. Lo dejamos por acá.',
+          'Perfecto, gracias por avisar. Lo doy por cerrado por ahora.',
         ],
       },
       actionLabels: {
@@ -807,11 +847,11 @@ function buildCatalog(locale?: string) {
 
   return {
     templates: {
-      basic_response: 'Hi, how can I help you?',
+      basic_response: 'Hi, tell me how I can help.',
       clarification_requested_date: 'To schedule the visit, I need the requested date and time.',
       clarification_user_goal:
-        'Tell me briefly what you need so I can keep going.',
-      clarification_generic: 'I need a bit more context to continue.',
+        "Tell me what you need and I'll keep going from there.",
+      clarification_generic: "Share a little more detail and I'll keep going.",
       execution_success_booking:
         'The booking was confirmed for {{scheduledFor}}.',
       execution_success_quote:
@@ -826,15 +866,15 @@ function buildCatalog(locale?: string) {
       execution_failure_generic:
         'I could not complete {{actionLabel}} because of an execution error.',
       document_not_found:
-        "I can't confirm that clearly right now.",
+        "I don't have a clear confirmation on that right now.",
       close_turn_acknowledgement:
-        'Thanks for the message. I will leave it here for now.',
+        "Thanks for reaching out. I'll leave it here for now.",
       close_turn_resolved:
-        'Understood, thanks for letting me know. I will leave it here.',
+        "Understood, thanks for letting me know. I'll treat this as closed for now.",
     },
     templateVariants: {
       basic_response: [
-        'Hi, how can I help you?',
+        'Hi, tell me how I can help.',
         "Tell me what you need and I'll take it from there.",
         "Let me know what you'd like to sort out.",
       ],
@@ -844,23 +884,23 @@ function buildCatalog(locale?: string) {
         "Let me know when you'd like the visit and I'll keep going.",
       ],
       clarification_user_goal: [
-        'Tell me briefly what you need so I can keep going.',
-        "Let me know what you want to solve and I'll continue from there.",
+        "Tell me what you need and I'll keep going from there.",
+        "Let me know what you want to sort out and I'll continue from there.",
         'I need a bit more detail about what you need so I can move forward.',
       ],
       clarification_generic: [
-        'I need a bit more context to continue.',
         "Share a little more detail and I'll keep going.",
         'Tell me a bit more so I can move forward.',
+        'A little more context will help me answer better.',
       ],
       document_not_found: [
-        "I can't confirm that clearly right now.",
+        "I don't have a clear confirmation on that right now.",
       ],
       close_turn_acknowledgement: [
-        'Thanks for the message. I will leave it here for now.',
+        "Thanks for reaching out. I'll leave it here for now.",
       ],
       close_turn_resolved: [
-        'Understood, thanks for letting me know. I will leave it here.',
+        "Understood, thanks for letting me know. I'll treat this as closed for now.",
       ],
     },
     actionLabels: {

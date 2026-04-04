@@ -1,10 +1,10 @@
 {
   "locale": "default",
   "templates": {
-    "basic_response": "Hi, how can I help you?",
+    "basic_response": "Hi, tell me how I can help.",
     "clarification_requested_date": "To schedule the visit, I need the requested date and time.",
-    "clarification_user_goal": "Tell me briefly what you need so I can keep going.",
-    "clarification_generic": "I need a bit more context to continue.",
+    "clarification_user_goal": "Tell me what you need and I'll keep going from there.",
+    "clarification_generic": "Share a little more detail and I'll keep going.",
     "execution_success_booking": "The booking was confirmed for {{scheduledFor}}.",
     "execution_success_quote": "The preliminary quote was created for {{currency}} {{estimatedTotal}}.",
     "execution_success_product": "I found {{name}} for {{currency}} {{price}}.",
@@ -13,13 +13,13 @@
     "execution_failure_validation": "I could not complete {{actionLabel}} with the available information.",
     "execution_failure_not_found": "I could not find a valid match for {{actionLabel}} with the available information.",
     "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error.",
-    "document_not_found": "I can't confirm that clearly right now.",
-    "close_turn_acknowledgement": "Thanks for the message. I will leave it here for now.",
-    "close_turn_resolved": "Understood, thanks for letting me know. I will leave it here."
+    "document_not_found": "I don't have a clear confirmation on that right now.",
+    "close_turn_acknowledgement": "Thanks for reaching out. I'll leave it here for now.",
+    "close_turn_resolved": "Understood, thanks for letting me know. I'll treat this as closed for now."
   },
   "templateVariants": {
     "basic_response": [
-      "Hi, how can I help you?",
+      "Hi, tell me how I can help.",
       "Tell me what you need and I'll take it from there.",
       "Let me know what you'd like to sort out."
     ],
@@ -29,29 +29,29 @@
       "Let me know when you'd like the visit and I'll keep going."
     ],
     "clarification_user_goal": [
-      "Tell me briefly what you need so I can keep going.",
+      "Tell me what you need and I'll keep going from there.",
       "Let me know what you want to solve and I'll continue from there.",
       "I need a bit more detail about what you need so I can move forward."
     ],
     "clarification_generic": [
-      "I need a bit more context to continue.",
       "Share a little more detail and I'll keep going.",
-      "Tell me a bit more so I can move forward."
+      "Tell me a bit more so I can move forward.",
+      "A little more context will help me answer better."
     ],
     "document_not_found": [
-      "I can't confirm that clearly right now.",
-      "I don't have a clear confirmation for that at the moment.",
+      "I don't have a clear confirmation on that right now.",
+      "At the moment I can't confirm that clearly.",
       "I can't give you a firm answer on that right now."
     ],
     "close_turn_acknowledgement": [
-      "Thanks for the message. I will leave it here for now.",
-      "Thanks, I will leave it here for now.",
-      "Understood. I will leave it here."
+      "Thanks for reaching out. I'll leave it here for now.",
+      "Thanks, I'll leave it here for now.",
+      "Understood. I'll leave it here for now."
     ],
     "close_turn_resolved": [
-      "Understood, thanks for letting me know. I will leave it here.",
-      "Thanks for confirming. I will treat this as resolved for now.",
-      "All right, I will leave this closed for now."
+      "Understood, thanks for letting me know. I'll treat this as closed for now.",
+      "Thanks for confirming. I'll treat this as resolved for now.",
+      "All right, I'll leave this closed for now."
     ]
   },
   "actionLabels": {

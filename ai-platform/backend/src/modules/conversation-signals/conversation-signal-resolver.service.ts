@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type { CanonicalIntent } from '../interpretation/interpretation.schemas';
+import type { ConversationStateSnapshot } from '../continuity/continuity.types';
 import {
   normalizeConversationSignalText,
   resolveConversationSignalCatalog,
@@ -18,6 +19,7 @@ export class ConversationSignalResolverService {
   resolve(input: ConversationSignalInput): ConversationRoutingSignals {
     const locale = this.normalizeLocale(input.interpretation.language);
     const topicText = this.resolveTopicText(input);
+    const previousTopicText = this.resolveConversationTopic(input.conversationState);
     const candidateTexts = this.resolveCandidateTexts(input);
     const catalog = resolveConversationSignalCatalog(locale);
     const normalizedTexts = candidateTexts.map((value) =>
@@ -45,6 +47,8 @@ export class ConversationSignalResolverService {
     });
     const questionLike = /[?¿]/u.test(primaryText);
     const descriptive = primaryTokens.length >= 6 || primaryText.length >= 28;
+    const briefQuestionLike =
+      questionLike && primaryTokens.length > 0 && primaryTokens.length <= 6;
     const shortFollowUp =
       threading.matchedCategories.includes('short_follow_up') ||
       (primaryTokens.length > 0 &&
@@ -56,12 +60,18 @@ export class ConversationSignalResolverService {
       threading.matchedCategories.includes('switch') &&
       (primaryTokens.length >= 3 || primaryText.length >= 24);
     const channelInterference = noise.matchedCategories.includes('auto_reply');
+    const topicCarryoverEligible =
+      Boolean(previousTopicText) &&
+      !switchSuggested &&
+      !channelInterference &&
+      this.isKnowledgeEligibleIntent(input.interpretation.intent) &&
+      (shortFollowUp || briefQuestionLike || resume);
     const activeContinuation =
       Boolean(input.conversationState) &&
       this.isExplorationFollowUpIntent(input.interpretation.intent) &&
       !switchSuggested &&
       !channelInterference &&
-      (shortFollowUp || resume);
+      topicCarryoverEligible;
     const implicitKnowledgeEligible =
       !channelInterference &&
       !switchSuggested &&
@@ -74,8 +84,11 @@ export class ConversationSignalResolverService {
         descriptive,
         questionLike,
         advisorySupported:
-          advisory.lexicalScore > 0 || (questionLike && descriptive),
+          advisory.lexicalScore > 0 ||
+          (questionLike && descriptive) ||
+          topicCarryoverEligible,
         activeLane: input.conversationState?.lane ?? null,
+        topicCarryoverEligible,
       });
 
     return {
@@ -97,7 +110,10 @@ export class ConversationSignalResolverService {
         ...advisory,
         questionLike,
         descriptive,
-        supported: advisory.lexicalScore > 0 || (questionLike && descriptive),
+        supported:
+          advisory.lexicalScore > 0 ||
+          (questionLike && descriptive) ||
+          topicCarryoverEligible,
         continuationEligible:
           input.conversationState?.lane === 'advisory_exploration' &&
           this.isExplorationFollowUpIntent(input.interpretation.intent) &&
@@ -117,6 +133,7 @@ export class ConversationSignalResolverService {
         resume,
         switchSuggested,
         activeContinuation,
+        topicCarryoverEligible,
       },
       noise: {
         ...noise,
@@ -289,9 +306,20 @@ export class ConversationSignalResolverService {
     questionLike: boolean;
     advisorySupported: boolean;
     activeLane: string | null;
+    topicCarryoverEligible: boolean;
   }) {
-    if (input.retrievalTokenCount >= 2) {
+    if (input.topicCarryoverEligible) {
       return true;
+    }
+
+    if (input.retrievalTokenCount >= 2) {
+      return (
+        input.descriptive ||
+        input.questionLike ||
+        input.advisorySupported ||
+        input.activeLane === 'document_exploration' ||
+        input.activeLane === 'advisory_exploration'
+      );
     }
 
     if (input.retrievalTokenCount === 0) {
@@ -305,6 +333,43 @@ export class ConversationSignalResolverService {
       input.activeLane === 'document_exploration' ||
       input.activeLane === 'advisory_exploration'
     );
+  }
+
+  private resolveConversationTopic(
+    conversationState?: ConversationStateSnapshot | null,
+  ) {
+    if (!conversationState) {
+      return null;
+    }
+
+    const facts =
+      conversationState.approvedFacts &&
+      typeof conversationState.approvedFacts === 'object'
+        ? conversationState.approvedFacts
+        : {};
+
+    if (
+      typeof facts.topicSummary === 'string' &&
+      facts.topicSummary.trim().length > 0
+    ) {
+      return facts.topicSummary.trim();
+    }
+
+    if (
+      typeof facts.lastDocumentQuery === 'string' &&
+      facts.lastDocumentQuery.trim().length > 0
+    ) {
+      return facts.lastDocumentQuery.trim();
+    }
+
+    if (
+      typeof facts.requestSummary === 'string' &&
+      facts.requestSummary.trim().length > 0
+    ) {
+      return facts.requestSummary.trim();
+    }
+
+    return null;
   }
 }
 

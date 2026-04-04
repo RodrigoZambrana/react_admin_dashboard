@@ -312,10 +312,7 @@ export class ChatResponsePolicyService {
     context: ApprovedResponseContext,
     summary: string,
   ) {
-    const normalizedSummary =
-      context.documentContext?.grounding.supportLevel === 'partial'
-        ? this.buildConciseDocumentSummary(summary)
-        : summary.trim();
+    const normalizedSummary = this.buildConciseDocumentSummary(summary);
     const groundingClause =
       this.responseGroundingService.buildUnspecifiedDetailClause({
         locale: context.locale,
@@ -345,9 +342,14 @@ export class ChatResponsePolicyService {
       }) ?? '';
     const hasUnsupportedDetails =
       (context.documentContext?.grounding.unsupportedDetailTypes.length ?? 0) > 0;
+    const hasSupportedContext =
+      (context.documentContext?.grounding.supportedDetailTypes.length ?? 0) > 0 ||
+      (context.documentContext?.grounding.partialDetailTypes.length ?? 0) > 0;
 
     if (hasUnsupportedDetails && groundingClause) {
-      return groundingClause;
+      return hasSupportedContext && conciseSummary
+        ? `${conciseSummary} ${groundingClause}`.trim()
+        : groundingClause;
     }
 
     if (!groundingClause) {

@@ -68,6 +68,7 @@ export type ConversationRoutingSignals = {
     resume: boolean;
     switchSuggested: boolean;
     activeContinuation: boolean;
+    topicCarryoverEligible: boolean;
   };
   noise: ConversationSignalNamespaceMatch & {
     channelInterference: boolean;

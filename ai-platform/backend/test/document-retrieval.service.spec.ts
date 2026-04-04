@@ -111,6 +111,72 @@ describe('DocumentRetrievalService', () => {
     );
   });
 
+  it('keeps the recent topic for short follow-up knowledge turns before the document lane is fully locked', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-roller-2',
+          documentId: 'doc-roller',
+          sequence: 1,
+          content:
+            'Las cortinas de enrollar están disponibles en PVC y aluminio, con opciones manuales o motorizadas.',
+          searchText:
+            'las cortinas de enrollar estan disponibles en pvc y aluminio con opciones manuales o motorizadas',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-roller',
+            title: 'Catálogo Roller',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: '¿Qué tipos tienen?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: '¿Qué tipos tienen?',
+        },
+        language: 'es',
+        confidence: 0.83,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-follow-up',
+        lane: 'advisory_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          topicSummary: 'cortinas de enrollar',
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        attempted: true,
+        reason: 'knowledge_query',
+        result: expect.objectContaining({
+          query: expect.stringMatching(/cortinas de enrollar/i),
+          groundedSummary: expect.stringMatching(/PVC y aluminio/i),
+        }),
+      }),
+    );
+  });
+
   it('retags retrieval as combined booking context after decisioning confirms booking', async () => {
     const service = new DocumentRetrievalService({
       listActiveReadyChunks: jest.fn(async () => [
@@ -282,6 +348,51 @@ describe('DocumentRetrievalService', () => {
     });
 
     expect(result.result?.matches[0]?.excerpt).toMatch(/variedad de colores/i);
+  });
+
+  it('builds a processed grounded summary instead of echoing heading-style excerpts verbatim', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-roller-summary',
+          documentId: 'doc-summary',
+          sequence: 0,
+          content:
+            'Cortinas de Enrollar: disponibles en PVC y aluminio. También pueden ser manuales o motorizadas.',
+          searchText:
+            'cortinas de enrollar disponibles en pvc y aluminio tambien pueden ser manuales o motorizadas',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-summary',
+            title: 'Resumen Roller',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'Según el catálogo, ¿son manuales o motorizadas?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'Según el catálogo, ¿son manuales o motorizadas?',
+        },
+        language: 'es',
+        confidence: 0.91,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(result.result?.groundedSummary).toBe(
+      'También pueden ser manuales o motorizadas.',
+    );
+    expect(result.result?.groundedSummary).not.toContain('Cortinas de Enrollar:');
   });
 
   it('returns an empty document result instead of a misleading low-score grounded summary', async () => {

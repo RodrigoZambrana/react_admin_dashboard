@@ -259,6 +259,51 @@ describe('ResponseGuardrailService', () => {
     });
   });
 
+  it('rejects unspecified-detail replies that dodge into the wrong detail axis', () => {
+    expect(
+      service.evaluate({
+        approvedContext: {
+          ...approvedContext,
+          outcome: 'respond',
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          documentContext: {
+            source: 'document_origin',
+            query: 'que colores exactos tiene',
+            groundedSummary: 'El documento indica variedad de colores para esa linea.',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'partial',
+              exactnessRequested: true,
+              requestedDetailTypes: ['color_options'],
+              supportedDetailTypes: [],
+              partialDetailTypes: ['color_options'],
+              unsupportedDetailTypes: [],
+            },
+            matches: [],
+          },
+        },
+        generatedResponse: {
+          message: 'No se especifican los materiales exactos para esa linea.',
+          assertedOutcome: 'respond',
+          assertedExecutionStatus: 'not_applicable',
+          mentionedMissingFields: [],
+          mentionedApprovedFactKeys: [],
+          mentionedApprovedResultKeys: [],
+          mentionedDocumentIds: [],
+        },
+      }),
+    ).toEqual({
+      accepted: false,
+      reasons: ['wrong_unspecified_detail_axis'],
+    });
+  });
+
   it('rejects document-grounded overreach when the reply introduces several unsupported option terms', () => {
     expect(
       service.evaluate({

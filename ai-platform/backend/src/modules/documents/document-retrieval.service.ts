@@ -37,6 +37,7 @@ export class DocumentRetrievalService {
         interpretation: input.interpretation,
         conversationState: input.conversationState,
       });
+    const previousTopic = this.resolveConversationTopic(input.conversationState);
     const reason = this.resolveReason(signals);
 
     if (reason === 'not_requested') {
@@ -68,11 +69,21 @@ export class DocumentRetrievalService {
     const scored = chunks
       .map((chunk) => ({
         chunk,
-        score: scoreChunk(query, queryTokens, chunk.searchText),
+        score: scoreChunk(query, queryTokens, chunk.searchText, {
+          activeDocumentIds,
+          hasTopicCarryover:
+            Boolean(previousTopic) && signals.threading.topicCarryoverEligible,
+          activeDocumentMatch:
+            Boolean(activeDocumentIds?.includes(chunk.documentId)),
+        }),
       }))
       .filter((entry) => entry.score > 0)
       .sort((left, right) => right.score - left.score);
-    const minimumScore = resolveMinimumScore(queryTokens.length);
+    const minimumScore = resolveMinimumScore(queryTokens.length, {
+      hasTopicCarryover:
+        Boolean(previousTopic) && signals.threading.topicCarryoverEligible,
+      hasActiveDocumentIds: Boolean(activeDocumentIds?.length),
+    });
     const matched = scored.filter((entry) => entry.score >= minimumScore).slice(0, 4);
 
     if (matched.length === 0) {
@@ -143,6 +154,10 @@ export class DocumentRetrievalService {
       return 'active_document_continuation' as const;
     }
 
+    if (signals.threading.topicCarryoverEligible) {
+      return 'knowledge_query' as const;
+    }
+
     if (signals.document.implicitEligible) {
       return 'knowledge_query' as const;
     }
@@ -189,6 +204,10 @@ export class DocumentRetrievalService {
         return previousTopic;
       }
 
+      if (signals.threading.topicCarryoverEligible) {
+        return `${previousTopic}. ${currentTopic}`.trim();
+      }
+
       return `${previousTopic}. ${currentTopic}`.trim();
     }
 
@@ -229,7 +248,11 @@ export class DocumentRetrievalService {
   private resolveActiveDocumentIds(
     state: ConversationStateSnapshot | null | undefined,
   ) {
-    if (!state || state.lane !== 'document_exploration') {
+    if (
+      !state ||
+      (state.lane !== 'document_exploration' &&
+        state.lane !== 'advisory_exploration')
+    ) {
       return undefined;
     }
 
@@ -251,7 +274,16 @@ export class DocumentRetrievalService {
   }
 }
 
-function scoreChunk(query: string, queryTokens: string[], searchText: string) {
+function scoreChunk(
+  query: string,
+  queryTokens: string[],
+  searchText: string,
+  input: {
+    activeDocumentIds?: string[];
+    hasTopicCarryover: boolean;
+    activeDocumentMatch: boolean;
+  },
+) {
   const tokenSet = new Set(searchText.split(/\s+/));
   let score = 0;
 
@@ -271,6 +303,12 @@ function scoreChunk(query: string, queryTokens: string[], searchText: string) {
     if (searchText.includes(phrase)) {
       score += 2;
     }
+  }
+
+  if (input.activeDocumentMatch) {
+    score += 2;
+  } else if (input.hasTopicCarryover && input.activeDocumentIds?.length) {
+    score += 0.5;
   }
 
   return score;
@@ -321,15 +359,45 @@ function buildExcerpt(content: string, queryTokens: string[]) {
 }
 
 function buildGroundedSummary(matches: DocumentRetrievalResult['matches']) {
-  return matches
+  const summarySentences = new Set<string>();
+
+  for (const match of matches.slice(0, 3)) {
+    const sentences = match.excerpt
+      .split(/(?<=[.!?])\s+/u)
+      .map((sentence) => normalizeSummarySentence(sentence))
+      .filter((sentence): sentence is string => Boolean(sentence));
+
+    for (const sentence of sentences) {
+      summarySentences.add(sentence);
+
+      if (summarySentences.size >= 3) {
+        break;
+      }
+    }
+
+    if (summarySentences.size >= 3) {
+      break;
+    }
+  }
+
+  return Array.from(summarySentences.values())
     .slice(0, 2)
-    .map((match) => match.excerpt)
     .join(' ')
     .slice(0, 420)
     .trim();
 }
 
-function resolveMinimumScore(queryTokenCount: number) {
+function resolveMinimumScore(
+  queryTokenCount: number,
+  input: {
+    hasTopicCarryover: boolean;
+    hasActiveDocumentIds: boolean;
+  },
+) {
+  if (input.hasTopicCarryover || input.hasActiveDocumentIds) {
+    return 1;
+  }
+
   if (queryTokenCount <= 2) {
     return 1;
   }
@@ -366,6 +434,22 @@ function shouldAppendNextSentence(currentSentence: string, nextSentence: string)
     normalizedCurrent.length <= 48 &&
     normalizedNext.length > 0
   );
+}
+
+function normalizeSummarySentence(value: string) {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+
+  if (!normalized) {
+    return null;
+  }
+
+  const headingSplit = normalized.match(/^([^:]{1,48}):\s+(.+)$/u);
+
+  if (headingSplit?.[2]) {
+    return headingSplit[2].trim();
+  }
+
+  return normalized;
 }
 
 function tokenizeQuery(value: string, locale?: string | null) {

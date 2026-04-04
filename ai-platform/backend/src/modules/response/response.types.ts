@@ -47,6 +47,7 @@ export type ResponseGuardrailCode =
   | 'unsupported_result_keys'
   | 'unsupported_document_ids'
   | 'unsupported_document_detail'
+  | 'wrong_unspecified_detail_axis'
   | 'partial_document_detail_overclaim'
   | 'document_context_overreach'
   | 'close_turn_reopen';
@@ -127,6 +128,7 @@ export type ApprovedResponseContext = {
       supportedDetailTypes: ResponseGroundingDetailType[];
       partialDetailTypes: ResponseGroundingDetailType[];
       unsupportedDetailTypes: ResponseGroundingDetailType[];
+      requiredUnspecifiedDetailTypes?: ResponseGroundingDetailType[];
     };
     matches: Array<{
       documentId: string;

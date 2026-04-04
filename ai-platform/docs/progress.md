@@ -2417,3 +2417,32 @@
   - catalog admin UI
   - richer connector governance around REST source auth/sync policies
   - frontend harness work
+
+## Iteration 72
+
+### Implemented
+- Strengthened short follow-up carryover for knowledge/advisory turns:
+  - recent topic is now preserved more safely before a document lane is fully locked
+  - document retrieval can reuse structured topic carryover instead of depending only on lexical overlap in the latest short turn
+- Tightened backend-approved document synthesis:
+  - document retrieval now produces more processed grounded summaries instead of concatenating raw excerpts mechanically
+  - document follow-ups can continue from advisory state without requiring explicit document cue wording every turn
+- Hardened response grounding and tone:
+  - response guardrails now reject wrong unspecified-detail axes
+  - response fallback wording and response policy defaults were refreshed to be warmer and less mechanical while staying concise and truthful
+
+### Working
+- Short follow-up turns such as product/type/color continuations keep the prior topic more reliably and can still consult approved tenant knowledge
+- Grounded summaries stay concise and backend-safe without sounding as transcript-like as before
+- Partial and unavailable support still remain honest, and “unspecified” wording is less likely to dodge into the wrong detail type
+- Existing booking, advisory/document continuity, close-turn, and approved-knowledge retrieval behavior remain non-regressed in targeted backend coverage
+
+### Technical Debt
+- Typing/presence is still only partially meaningful until the public async flow delays processing based on real typing/finalization signals
+- Managed active prompt versions can still lag behind updated seed/policy defaults until operators activate a newer governed response prompt version
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Wire typing/presence into the async public chat flow so active composition can delay processing before semantic turn closure
+- Revalidate full backend and frontend builds after the presence changes
+- Keep Wave 9 out of scope while closing this focused reliability/UX phase cleanly

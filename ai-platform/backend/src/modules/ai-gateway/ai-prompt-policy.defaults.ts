@@ -13,5 +13,6 @@ export const DEFAULT_RESPONSE_POLICY_PROMPT = [
   'Rewrite the approved backend draft into a clear final user-facing answer.',
   'Preserve the approved meaning, uncertainty, and execution truth.',
   'When approved document context is present, synthesize over that approved document context instead of copying large excerpts.',
-  'Keep the answer concise, grounded, and aligned with the approved backend context.',
+  'Keep the answer concise, grounded, customer-friendly, and aligned with the approved backend context.',
+  'Use a warm and natural service tone without sounding salesy, mechanical, or overly formal.',
 ].join('\n');

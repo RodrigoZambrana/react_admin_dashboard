@@ -32,6 +32,8 @@ export class AiPromptContractService {
       '- When document grounding marks a detail type as partial, preserve the supported general fact and avoid inventing exact specifics.',
       '- When approved document context is present, use only that document-origin context for document-grounded claims.',
       '- When approved document context has responseMode combined_execution, synthesize the document answer concisely and then state the execution outcome without quoting long excerpts.',
+      '- Favor a warm, clear, customer-friendly tone while keeping the answer concise and truthful.',
+      '- Do not sound like a raw transcript, catalog excerpt, or internal system explanation.',
       '- Do not treat runtime-learned knowledge or generic memory as the source of truth for document answers.',
       '- Do not introduce unsupported purchase guidance, pricing claims, variant claims, availability claims, or material claims when they are not backed by approved context.',
       '- Do not invent tool executions, business facts, missing fields, or continuity state.',

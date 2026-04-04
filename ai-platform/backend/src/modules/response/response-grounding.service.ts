@@ -67,6 +67,14 @@ export class ResponseGroundingService {
     const unsupportedDetailTypes = requestedDetailTypes.filter(
       (detailType) => supportByDetailType[detailType] === 'unsupported',
     );
+    const requiredUnspecifiedDetailTypes = [
+      ...(
+        exactnessRequested
+          ? partialDetailTypes
+          : []
+      ),
+      ...unsupportedDetailTypes,
+    ];
     const hasApprovedEvidence =
       input.documentContext.matches.length > 0 && evidenceText.length > 0;
 
@@ -81,6 +89,7 @@ export class ResponseGroundingService {
       supportedDetailTypes,
       partialDetailTypes,
       unsupportedDetailTypes,
+      requiredUnspecifiedDetailTypes,
     };
   }
 
@@ -107,6 +116,17 @@ export class ResponseGroundingService {
     return hasGroundingCatalogSignal(normalized, catalog.unspecifiedCues);
   }
 
+  extractUnspecifiedDetailTypes(input: {
+    locale?: string | null;
+    message: string;
+  }) {
+    if (!this.containsUnspecifiedCue(input)) {
+      return [];
+    }
+
+    return this.extractClaimedDetailTypes(input);
+  }
+
   containsCloseTurnReopenCue(input: { locale?: string | null; message: string }) {
     const catalog = resolveResponseGroundingCatalog(input.locale);
     const normalized = normalizeText(input.message);
@@ -125,14 +145,19 @@ export class ResponseGroundingService {
     }
 
     const catalog = resolveResponseGroundingCatalog(input.locale);
-    const labels = [
-      ...(
-        input.documentContext.grounding.exactnessRequested
-          ? input.documentContext.grounding.partialDetailTypes
-          : []
-      ),
-      ...input.documentContext.grounding.unsupportedDetailTypes,
-    ].map((detailType) => catalog.detailTypes[detailType].unspecifiedLabel);
+    const requiredDetailTypes =
+      input.documentContext.grounding.requiredUnspecifiedDetailTypes ??
+      [
+        ...(
+          input.documentContext.grounding.exactnessRequested
+            ? input.documentContext.grounding.partialDetailTypes
+            : []
+        ),
+        ...input.documentContext.grounding.unsupportedDetailTypes,
+      ];
+    const labels = [...requiredDetailTypes].map(
+      (detailType) => catalog.detailTypes[detailType].unspecifiedLabel,
+    );
 
     if (labels.length === 0) {
       return null;

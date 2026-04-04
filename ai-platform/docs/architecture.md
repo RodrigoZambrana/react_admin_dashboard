@@ -71,6 +71,11 @@
   - log request and response diagnostics
 - Constraint: may not select tools or business actions
 - Rule: AI is called only from `AiGatewayModule`
+- Approved response context now distinguishes between:
+  - explicit support
+  - partial support
+  - unavailable right now
+- Backend guardrails remain responsible for blocking unsupported detail claims and wrong unspecified-detail axes before a generated answer can surface
 
 ## Core, Tenant Capability, And Tenant Resource Boundaries
 
@@ -96,11 +101,12 @@ Core includes:
 - grounding
 - source selection
 - contextual closure
-- advisory continuity
-- document continuity
-- observability
-- async intake
-- document-processing capability
+  - advisory continuity
+  - document continuity
+  - short follow-up topic carryover before full lane lock
+  - observability
+  - async intake
+  - document-processing capability
 
 Important clarification:
 
@@ -236,6 +242,8 @@ Important clarification:
     - XLSX uploads
     - URL-backed document ingestion
     - structured catalog uploads
+  - short follow-up knowledge/advisory turns preserve recent topic through backend continuity and structured retrieval carryover instead of relying only on lexical overlap in the latest message
+  - grounded summaries are synthesized into concise backend-safe summaries before reaching the response layer
   - managed runtime resources for:
     - prompts
     - date-time locale resources

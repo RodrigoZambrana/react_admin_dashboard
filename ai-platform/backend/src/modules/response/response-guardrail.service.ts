@@ -86,6 +86,30 @@ export class ResponseGuardrailService {
         locale: approvedContext.locale,
         message: generatedResponse.message,
       });
+      const unspecifiedDetailTypes =
+        this.responseGroundingService.extractUnspecifiedDetailTypes({
+          locale: approvedContext.locale,
+          message: generatedResponse.message,
+        });
+      const allowedUnspecifiedDetailTypes = new Set(
+        documentGrounding.requiredUnspecifiedDetailTypes ??
+          [
+            ...(
+              documentGrounding.exactnessRequested
+                ? documentGrounding.partialDetailTypes
+                : []
+            ),
+            ...documentGrounding.unsupportedDetailTypes,
+          ],
+      );
+
+      if (
+        unspecifiedDetailTypes.some(
+          (detailType) => !allowedUnspecifiedDetailTypes.has(detailType),
+        )
+      ) {
+        reasons.add('wrong_unspecified_detail_axis');
+      }
 
       if (
         claimedDetailTypes.some((detailType) =>

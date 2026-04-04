@@ -1,10 +1,10 @@
 {
   "locale": "es",
   "templates": {
-    "basic_response": "Hola, ¿en qué puedo ayudarte?",
+    "basic_response": "Hola, contame en qué te puedo ayudar.",
     "clarification_requested_date": "Para coordinar la visita, necesito la fecha y la hora que te sirven.",
-    "clarification_user_goal": "Contame brevemente qué necesitás y sigo con eso.",
-    "clarification_generic": "Necesito un poco más de contexto para seguir.",
+    "clarification_user_goal": "Decime qué necesitás y lo seguimos desde ahí.",
+    "clarification_generic": "Contame un poco más y sigo con eso.",
     "execution_success_booking": "La reserva fue confirmada para {{scheduledFor}}.",
     "execution_success_quote": "La cotización preliminar fue creada por {{currency}} {{estimatedTotal}}.",
     "execution_success_product": "Encontré {{name}} por {{currency}} {{price}}.",
@@ -13,13 +13,13 @@
     "execution_failure_validation": "No pude completar {{actionLabel}} con la información disponible.",
     "execution_failure_not_found": "No encontré una coincidencia válida para {{actionLabel}} con la información disponible.",
     "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución.",
-    "document_not_found": "No tengo una confirmación clara sobre eso en este momento.",
-    "close_turn_acknowledgement": "Gracias por el mensaje. Lo dejamos por acá.",
-    "close_turn_resolved": "Perfecto, gracias por avisar. Lo dejamos por acá."
+    "document_not_found": "Por ahora no tengo una confirmación clara sobre eso.",
+    "close_turn_acknowledgement": "Gracias por escribir. Lo dejo por acá por ahora.",
+    "close_turn_resolved": "Perfecto, gracias por avisar. Lo doy por cerrado por ahora."
   },
   "templateVariants": {
     "basic_response": [
-      "Hola, ¿en qué puedo ayudarte?",
+      "Hola, contame en qué te puedo ayudar.",
       "Decime qué necesitás y te doy una mano.",
       "Contame qué querés resolver y lo vemos."
     ],
@@ -29,29 +29,29 @@
       "Indicame cuándo te queda bien la visita y sigo con eso."
     ],
     "clarification_user_goal": [
-      "Contame brevemente qué necesitás y sigo con eso.",
-      "Decime qué querés resolver y continúo desde ahí.",
-      "Necesito que me cuentes un poco más qué necesitás para avanzar."
+      "Decime qué necesitás y lo seguimos desde ahí.",
+      "Contame qué querés resolver y continúo con eso.",
+      "Dame un poco más de contexto sobre lo que necesitás y avanzo."
     ],
     "clarification_generic": [
-      "Necesito un poco más de contexto para seguir.",
+      "Contame un poco más y sigo con eso.",
       "Dame un poco más de detalle y continúo.",
       "Contame un poco más para poder avanzar."
     ],
     "document_not_found": [
-      "No tengo una confirmación clara sobre eso en este momento.",
-      "No cuento con una confirmación clara sobre eso por ahora.",
-      "No puedo darte una respuesta firme sobre eso en este momento."
+      "Por ahora no tengo una confirmación clara sobre eso.",
+      "En este momento no tengo una confirmación clara sobre eso.",
+      "Todavía no puedo darte una confirmación firme sobre eso."
     ],
     "close_turn_acknowledgement": [
-      "Gracias por el mensaje. Lo dejamos por acá.",
-      "Perfecto, gracias. Queda cerrado por ahora.",
-      "De acuerdo, lo dejamos acá."
+      "Gracias por escribir. Lo dejo por acá por ahora.",
+      "Perfecto, gracias. Lo dejo cerrado por ahora.",
+      "De acuerdo, lo dejo acá por ahora."
     ],
     "close_turn_resolved": [
-      "Perfecto, gracias por avisar. Lo dejamos por acá.",
-      "Entendido, gracias. Doy esto por cerrado.",
-      "Buenísimo, entonces lo dejamos resuelto por ahora."
+      "Perfecto, gracias por avisar. Lo doy por cerrado por ahora.",
+      "Entendido, gracias. Lo dejo resuelto por ahora.",
+      "Buenísimo, entonces lo dejo cerrado por ahora."
     ]
   },
   "actionLabels": {

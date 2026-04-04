@@ -324,10 +324,13 @@ export class DecisionService {
     }
 
     if (input.interpretation.intent === 'GET_PRODUCT') {
-      return signals.advisory.lexicalScore > 0;
+      return (
+        signals.advisory.lexicalScore > 0 ||
+        signals.threading.topicCarryoverEligible
+      );
     }
 
-    return signals.advisory.supported;
+    return signals.advisory.supported || signals.threading.topicCarryoverEligible;
   }
 
   private shouldPreferContextualResponse(

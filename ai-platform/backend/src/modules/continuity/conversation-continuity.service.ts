@@ -65,7 +65,10 @@ export class ConversationContinuityService {
       signals,
     );
     const currentFacts = effectiveCarryLane
-      ? this.extractLaneFacts(effectiveCarryLane, input.interpretation)
+      ? this.extractLaneFacts(effectiveCarryLane, input.interpretation, {
+          previousState: activeState,
+          signals,
+        })
       : null;
     const carryableFacts = effectiveCarryLane
       ? this.getCarryableFacts(activeState, effectiveCarryLane)
@@ -538,20 +541,34 @@ export class ConversationContinuityService {
   private shouldPersistAdvisoryLane(input: {
     preparedTurn: PreparedContinuityTurn;
     decision: DecisionResult;
+    documentRetrieval: DocumentRetrievalAttempt;
   }) {
     if (input.decision.action !== 'respond') {
       return false;
     }
 
-    if (input.preparedTurn.continuity.activeLane === 'advisory_exploration') {
+    if (
+      input.preparedTurn.continuity.activeLane === 'advisory_exploration' ||
+      input.preparedTurn.continuity.activeLane === 'document_exploration'
+    ) {
       return true;
     }
 
-    return this.conversationSignalResolver.resolve({
+    const signals = this.conversationSignalResolver.resolve({
       message: this.resolveFallbackMessage(input.preparedTurn.effectiveInterpretation),
       interpretation: input.preparedTurn.effectiveInterpretation,
       conversationState: input.preparedTurn.activeState,
-    }).advisory.supported;
+    });
+
+    if (input.documentRetrieval.attempted && !signals.threading.switchSuggested) {
+      return true;
+    }
+
+    return (
+      signals.advisory.supported ||
+      signals.document.implicitEligible ||
+      signals.threading.topicCarryoverEligible
+    );
   }
 
   private isImplicitContinuationCandidate(
@@ -589,6 +606,10 @@ export class ConversationContinuityService {
   private extractLaneFacts(
     lane: ConversationLane,
     interpretation: ParsedInterpretation,
+    input?: {
+      previousState: ConversationStateSnapshot | null;
+      signals: ConversationRoutingSignals;
+    },
   ): ContinuityFacts {
     if (lane === 'booking') {
       return this.cleanFacts({
@@ -647,18 +668,21 @@ export class ConversationContinuityService {
     }
 
     if (lane === 'document_exploration') {
+      const topicSummary = this.resolveTopicSummary(interpretation, input);
+
       return this.cleanFacts({
-        topicSummary: this.resolveTopicSummary(interpretation),
+        topicSummary,
       }) ?? {};
     }
 
     if (lane === 'advisory_exploration') {
-      const topicSummary = this.resolveTopicSummary(interpretation);
+      const topicSummary = this.resolveTopicSummary(interpretation, input);
+      const currentSignal = this.resolveTopicSignal(interpretation, input);
 
       return this.cleanFacts({
         topicSummary,
-        criteriaSignals: topicSummary
-          ? [topicSummary.trim()]
+        criteriaSignals: currentSignal
+          ? [currentSignal]
           : undefined,
       }) ?? {};
     }
@@ -1086,13 +1110,66 @@ export class ConversationContinuityService {
     );
   }
 
-  private resolveTopicSummary(interpretation: ParsedInterpretation) {
+  private resolveTopicSummary(
+    interpretation: ParsedInterpretation,
+    input?: {
+      previousState: ConversationStateSnapshot | null;
+      signals: ConversationRoutingSignals;
+    },
+  ) {
     const topic = this.conversationSignalResolver.resolveTopicText({
       message: this.resolveFallbackMessage(interpretation),
       interpretation,
     });
 
-    return topic.length > 0 ? topic : undefined;
+    if (!input?.previousState || !input.signals.threading.topicCarryoverEligible) {
+      return topic.length > 0 ? topic : undefined;
+    }
+
+    const previousTopic = this.resolveStoredTopicSummary(input.previousState);
+
+    if (!previousTopic) {
+      return topic.length > 0 ? topic : undefined;
+    }
+
+    if (this.isDependentFollowUpTopic(topic, previousTopic)) {
+      return previousTopic;
+    }
+
+    return topic.length > 0 ? topic : previousTopic;
+  }
+
+  private resolveTopicSignal(
+    interpretation: ParsedInterpretation,
+    input?: {
+      previousState: ConversationStateSnapshot | null;
+      signals: ConversationRoutingSignals;
+    },
+  ) {
+    const topic = this.conversationSignalResolver.resolveTopicText({
+      message: this.resolveFallbackMessage(interpretation),
+      interpretation,
+    });
+
+    const normalizedTopic = this.normalizeOptionalString(topic);
+
+    if (!normalizedTopic) {
+      return undefined;
+    }
+
+    const previousTopic = input?.previousState
+      ? this.resolveStoredTopicSummary(input.previousState)
+      : undefined;
+
+    if (
+      previousTopic &&
+      input?.signals.threading.topicCarryoverEligible &&
+      this.isDependentFollowUpTopic(normalizedTopic, previousTopic)
+    ) {
+      return normalizedTopic === previousTopic ? undefined : normalizedTopic;
+    }
+
+    return normalizedTopic;
   }
 
   private resolveFallbackMessage(interpretation: ParsedInterpretation) {
@@ -1110,6 +1187,44 @@ export class ConversationContinuityService {
       interpretation,
       conversationState: state,
     });
+  }
+
+  private resolveStoredTopicSummary(state: ConversationStateSnapshot | null) {
+    if (!state) {
+      return undefined;
+    }
+
+    const facts =
+      state.approvedFacts && typeof state.approvedFacts === 'object'
+        ? state.approvedFacts
+        : {};
+
+    return this.normalizeOptionalString(
+      typeof facts.topicSummary === 'string'
+        ? facts.topicSummary
+        : typeof facts.lastDocumentQuery === 'string'
+          ? facts.lastDocumentQuery
+          : undefined,
+    );
+  }
+
+  private isDependentFollowUpTopic(current: string, previous: string) {
+    const normalizedCurrent = this.normalizeOptionalString(current);
+    const normalizedPrevious = this.normalizeOptionalString(previous);
+
+    if (!normalizedCurrent || !normalizedPrevious) {
+      return false;
+    }
+
+    if (normalizedCurrent === normalizedPrevious) {
+      return true;
+    }
+
+    return (
+      normalizedCurrent.length <= 48 &&
+      normalizedCurrent.split(/\s+/u).length <= 6 &&
+      normalizedCurrent.length < normalizedPrevious.length
+    );
   }
 
   private shouldInvalidatePreviousState(
