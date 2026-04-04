@@ -55,8 +55,14 @@ export type DocumentRetrievalResult = {
   matches: DocumentRetrievalMatch[];
 };
 
+export type DocumentRetrievalReason =
+  | 'document_query'
+  | 'combined_booking_document_query'
+  | 'active_document_continuation'
+  | 'not_requested';
+
 export type DocumentRetrievalAttempt = {
   attempted: boolean;
-  reason: 'document_query' | 'combined_booking_document_query' | 'not_requested';
+  reason: DocumentRetrievalReason;
   result: DocumentRetrievalResult | null;
 };

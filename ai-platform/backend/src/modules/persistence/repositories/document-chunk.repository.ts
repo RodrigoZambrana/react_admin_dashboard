@@ -61,12 +61,19 @@ export class DocumentChunkRepository {
     });
   }
 
-  listActiveReadyChunks(limit = 500) {
+  listActiveReadyChunks(limit = 500, documentIds?: string[]) {
     return this.prisma.documentChunk.findMany({
       where: {
         document: {
           status: 'ACTIVE',
           ingestionStatus: 'READY',
+          ...(Array.isArray(documentIds) && documentIds.length > 0
+            ? {
+                id: {
+                  in: documentIds,
+                },
+              }
+            : {}),
         },
       },
       orderBy: [

@@ -1,21 +1,28 @@
 import { Injectable } from '@nestjs/common';
 
-import { DecisionResult } from '../decision/decision.types';
-import { ParsedInterpretation } from '../parsing/parsing.service';
+import type {
+  ContinuityAwareInterpretation,
+  ConversationStateSnapshot,
+} from '../continuity/continuity.types';
+import type { DecisionResult } from '../decision/decision.types';
 import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
-import { DocumentRetrievalAttempt, DocumentRetrievalResult } from './document.types';
+import {
+  DocumentRetrievalAttempt,
+  DocumentRetrievalResult,
+} from './document.types';
 
 const documentCuePatterns = [
   /\bdocumento\b/i,
+  /\bdocument\b/i,
+  /\bcat[aá]logo\b/i,
+  /\bcatalog\b/i,
   /\bseg[uú]n\b/i,
+  /\bmanual\b/i,
   /\bcubre[n]?\b/i,
   /\bcobertura\b/i,
   /\bpolicy\b/i,
-  /\bmanual\b/i,
-  /\bdocument\b/i,
-  /\baccording to\b/i,
   /\bcovered\b/i,
-];
+] as const;
 
 const stopWords = new Set([
   'a',
@@ -51,8 +58,8 @@ export class DocumentRetrievalService {
 
   async retrieveForConversation(input: {
     message: string;
-    interpretation: ParsedInterpretation;
-    decision: DecisionResult;
+    interpretation: ContinuityAwareInterpretation;
+    conversationState?: ConversationStateSnapshot | null;
   }): Promise<DocumentRetrievalAttempt> {
     const reason = this.resolveReason(input);
 
@@ -64,7 +71,7 @@ export class DocumentRetrievalService {
       };
     }
 
-    const query = this.resolveQuery(input);
+    const query = this.resolveQuery(input, reason);
     const queryTokens = tokenize(query);
 
     if (queryTokens.length === 0) {
@@ -75,7 +82,13 @@ export class DocumentRetrievalService {
       };
     }
 
-    const chunks = await this.documentChunkRepository.listActiveReadyChunks(600);
+    const activeDocumentIds = this.resolveActiveDocumentIds(
+      input.conversationState,
+    );
+    const chunks = await this.documentChunkRepository.listActiveReadyChunks(
+      600,
+      activeDocumentIds,
+    );
     const scored = chunks
       .map((chunk) => ({
         chunk,
@@ -113,59 +126,178 @@ export class DocumentRetrievalService {
     };
   }
 
+  withDecisionContext(
+    attempt: DocumentRetrievalAttempt,
+    decision: DecisionResult,
+  ): DocumentRetrievalAttempt {
+    if (
+      !attempt.attempted ||
+      !attempt.result ||
+      decision.action !== 'invoke_tool' ||
+      decision.toolName !== 'create_booking'
+    ) {
+      return attempt;
+    }
+
+    return {
+      ...attempt,
+      reason: 'combined_booking_document_query',
+    };
+  }
+
   private resolveReason(input: {
     message: string;
-    interpretation: ParsedInterpretation;
-    decision: DecisionResult;
+    interpretation: ContinuityAwareInterpretation;
+    conversationState?: ConversationStateSnapshot | null;
   }) {
     const rawMessage =
       typeof input.interpretation.entities.rawMessage === 'string'
         ? input.interpretation.entities.rawMessage
         : input.message;
-    const hasDocumentCue = documentCuePatterns.some((pattern) =>
-      pattern.test(rawMessage),
-    );
 
-    if (!hasDocumentCue) {
-      return 'not_requested' as const;
+    if (this.hasDocumentCue(rawMessage, input.interpretation)) {
+      return 'document_query' as const;
     }
 
-    if (
-      input.decision.action === 'invoke_tool' &&
-      input.decision.toolName === 'create_booking'
-    ) {
-      return 'combined_booking_document_query' as const;
+    if (this.isActiveDocumentContinuation(input.conversationState, input.interpretation)) {
+      return 'active_document_continuation' as const;
     }
 
-    return 'document_query' as const;
+    return 'not_requested' as const;
   }
 
-  private resolveQuery(input: {
-    message: string;
-    interpretation: ParsedInterpretation;
-  }) {
+  private hasDocumentCue(
+    rawMessage: string,
+    interpretation: ContinuityAwareInterpretation,
+  ) {
+    const candidates = [
+      rawMessage,
+      typeof interpretation.entities.requestSummary === 'string'
+        ? interpretation.entities.requestSummary
+        : '',
+      typeof interpretation.entities.productQuery === 'string'
+        ? interpretation.entities.productQuery
+        : '',
+    ];
+
+    return candidates.some((value) =>
+      documentCuePatterns.some((pattern) => pattern.test(value)),
+    );
+  }
+
+  private isActiveDocumentContinuation(
+    state: ConversationStateSnapshot | null | undefined,
+    interpretation: ContinuityAwareInterpretation,
+  ) {
+    if (state?.lane !== 'document_exploration') {
+      return false;
+    }
+
+    return (
+      interpretation.intent === 'GENERAL_CONVERSATION' ||
+      interpretation.intent === 'CLARIFICATION' ||
+      interpretation.intent === 'GET_PRODUCT'
+    );
+  }
+
+  private resolveQuery(
+    input: {
+      message: string;
+      interpretation: ContinuityAwareInterpretation;
+      conversationState?: ConversationStateSnapshot | null;
+    },
+    reason: DocumentRetrievalAttempt['reason'],
+  ) {
+    const currentTopic =
+      this.resolvePrimaryTopic(input.interpretation) ?? input.message.trim();
+    const previousTopic =
+      this.resolveConversationTopic(input.conversationState) ?? null;
+
+    if (reason === 'active_document_continuation' && previousTopic) {
+      if (!currentTopic || currentTopic === previousTopic) {
+        return previousTopic;
+      }
+
+      return `${previousTopic}. ${currentTopic}`.trim();
+    }
+
+    return currentTopic || previousTopic || input.message.trim();
+  }
+
+  private resolvePrimaryTopic(interpretation: ContinuityAwareInterpretation) {
     if (
-      typeof input.interpretation.entities.requestSummary === 'string' &&
-      input.interpretation.entities.requestSummary.trim().length > 0
+      typeof interpretation.entities.requestSummary === 'string' &&
+      interpretation.entities.requestSummary.trim().length > 0
     ) {
-      return input.interpretation.entities.requestSummary.trim();
+      return interpretation.entities.requestSummary.trim();
     }
 
     if (
-      typeof input.interpretation.entities.productQuery === 'string' &&
-      input.interpretation.entities.productQuery.trim().length > 0
+      typeof interpretation.entities.productQuery === 'string' &&
+      interpretation.entities.productQuery.trim().length > 0
     ) {
-      return input.interpretation.entities.productQuery.trim();
+      return interpretation.entities.productQuery.trim();
     }
 
     if (
-      typeof input.interpretation.entities.rawMessage === 'string' &&
-      input.interpretation.entities.rawMessage.trim().length > 0
+      typeof interpretation.entities.rawMessage === 'string' &&
+      interpretation.entities.rawMessage.trim().length > 0
     ) {
-      return input.interpretation.entities.rawMessage.trim();
+      return interpretation.entities.rawMessage.trim();
     }
 
-    return input.message.trim();
+    return null;
+  }
+
+  private resolveConversationTopic(state: ConversationStateSnapshot | null | undefined) {
+    if (!state || state.lane !== 'document_exploration') {
+      return null;
+    }
+
+    const facts =
+      state.approvedFacts && typeof state.approvedFacts === 'object'
+        ? state.approvedFacts
+        : {};
+
+    if (
+      typeof facts.topicSummary === 'string' &&
+      facts.topicSummary.trim().length > 0
+    ) {
+      return facts.topicSummary.trim();
+    }
+
+    if (
+      typeof facts.lastDocumentQuery === 'string' &&
+      facts.lastDocumentQuery.trim().length > 0
+    ) {
+      return facts.lastDocumentQuery.trim();
+    }
+
+    return null;
+  }
+
+  private resolveActiveDocumentIds(
+    state: ConversationStateSnapshot | null | undefined,
+  ) {
+    if (!state || state.lane !== 'document_exploration') {
+      return undefined;
+    }
+
+    const facts =
+      state.approvedFacts && typeof state.approvedFacts === 'object'
+        ? state.approvedFacts
+        : {};
+
+    if (!Array.isArray(facts.activeDocumentIds)) {
+      return undefined;
+    }
+
+    const ids = facts.activeDocumentIds.filter(
+      (value): value is string =>
+        typeof value === 'string' && value.trim().length > 0,
+    );
+
+    return ids.length > 0 ? ids : undefined;
   }
 }
 
@@ -199,10 +331,26 @@ function scoreChunk(query: string, queryTokens: string[], searchText: string) {
     .trim();
 
   if (normalizedQuery.length > 0 && searchText.includes(normalizedQuery)) {
-    score += 3;
+    score += 4;
+  }
+
+  for (const phrase of buildTokenPhrases(queryTokens)) {
+    if (searchText.includes(phrase)) {
+      score += 2;
+    }
   }
 
   return score;
+}
+
+function buildTokenPhrases(tokens: string[]) {
+  const phrases: string[] = [];
+
+  for (let index = 0; index < tokens.length - 1; index += 1) {
+    phrases.push(tokens.slice(index, index + 2).join(' '));
+  }
+
+  return phrases;
 }
 
 function buildExcerpt(content: string, queryTokens: string[]) {

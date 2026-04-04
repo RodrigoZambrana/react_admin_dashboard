@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { DecisionResult } from '../decision/decision.types';
+import { DocumentRetrievalAttempt } from '../documents/document.types';
 import { CanonicalIntent } from '../interpretation/interpretation.schemas';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { ParsedInterpretation } from '../parsing/parsing.service';
@@ -14,6 +15,8 @@ import {
   ContinuityMetadata,
   ConversationLane,
   ConversationStateSnapshot,
+  DocumentExplorationFacts,
+  AdvisoryExplorationFacts,
   ProductFacts,
   PreparedContinuityTurn,
   QuoteFacts,
@@ -40,8 +43,17 @@ export class ConversationContinuityService {
   }): Promise<PreparedContinuityTurn> {
     const previousState = await this.getState(input.conversationId);
     const explicitLane = this.resolveExplicitLane(input.interpretation.intent);
+    const suppressExplicitInvalidation = Boolean(
+      previousState &&
+        explicitLane &&
+        previousState.lane !== explicitLane &&
+        this.shouldPreserveExplorationLane(previousState, explicitLane),
+    );
     const invalidatedFactKeys =
-      previousState && explicitLane && previousState.lane !== explicitLane
+      previousState &&
+      explicitLane &&
+      previousState.lane !== explicitLane &&
+      !suppressExplicitInvalidation
         ? this.collectStateFactKeys(previousState)
         : [];
     const activeState =
@@ -122,6 +134,7 @@ export class ConversationContinuityService {
     preparedTurn: PreparedContinuityTurn;
     decision: DecisionResult;
     execution: ToolExecutionAttempt | null;
+    documentRetrieval: DocumentRetrievalAttempt;
   }): Promise<ConversationStateSnapshot | null> {
     const nextState = this.buildNextState(input);
 
@@ -160,10 +173,11 @@ export class ConversationContinuityService {
     preparedTurn: PreparedContinuityTurn;
     decision: DecisionResult;
     execution: ToolExecutionAttempt | null;
+    documentRetrieval: DocumentRetrievalAttempt;
   }): ConversationStateSnapshot | null {
     const lane = this.resolveNextStateLane(input);
 
-    if (!lane || input.decision.action === 'respond') {
+    if (!lane) {
       return null;
     }
 
@@ -176,10 +190,16 @@ export class ConversationContinuityService {
       lane,
     );
     const mergedFacts = this.mergeLaneFacts(lane, previousApprovedFacts, effectiveFacts);
+    const explorationFacts = this.enrichExplorationFacts({
+      lane,
+      facts: mergedFacts,
+      documentRetrieval: input.documentRetrieval,
+      interpretation: input.preparedTurn.effectiveInterpretation,
+    });
     const preservedApprovedFacts = this.cleanFacts(
       input.decision.action === 'invoke_tool' && input.execution?.ok
-        ? this.enrichFactsWithExecution(lane, mergedFacts, input.execution.payload)
-        : mergedFacts,
+        ? this.enrichFactsWithExecution(lane, explorationFacts, input.execution.payload)
+        : explorationFacts,
     );
     const filteredMissingFields = this.filterResolvedFields(
       input.decision.missingFields,
@@ -224,7 +244,24 @@ export class ConversationContinuityService {
   private resolveNextStateLane(input: {
     preparedTurn: PreparedContinuityTurn;
     decision: DecisionResult;
+    documentRetrieval: DocumentRetrievalAttempt;
   }): ConversationLane | null {
+    if (input.decision.action === 'invoke_tool') {
+      return (
+        input.preparedTurn.continuity.activeLane ??
+        this.resolveExplicitLane(input.preparedTurn.effectiveInterpretation.intent) ??
+        null
+      );
+    }
+
+    if (input.documentRetrieval.result) {
+      return 'document_exploration';
+    }
+
+    if (this.shouldPersistAdvisoryLane(input)) {
+      return 'advisory_exploration';
+    }
+
     if (input.preparedTurn.continuity.activeLane) {
       return input.preparedTurn.continuity.activeLane;
     }
@@ -246,6 +283,10 @@ export class ConversationContinuityService {
     const explicitLane = this.resolveExplicitLane(interpretation.intent);
 
     if (explicitLane === state.lane) {
+      return state.lane;
+    }
+
+    if (this.shouldContinueExplorationLane(state, interpretation)) {
       return state.lane;
     }
 
@@ -381,6 +422,24 @@ export class ConversationContinuityService {
       }
     }
 
+    if (
+      lane === 'document_exploration' ||
+      lane === 'advisory_exploration'
+    ) {
+      const facts =
+        lane === 'document_exploration'
+          ? (mergedFacts as DocumentExplorationFacts)
+          : (mergedFacts as AdvisoryExplorationFacts);
+
+      if (
+        typeof facts.topicSummary === 'string' &&
+        facts.topicSummary.trim().length > 0 &&
+        typeof entities.requestSummary !== 'string'
+      ) {
+        entities.requestSummary = facts.topicSummary;
+      }
+    }
+
     return this.attachContinuityMetadata(
       {
         ...interpretation,
@@ -432,6 +491,50 @@ export class ConversationContinuityService {
     return laneByIntent[intent];
   }
 
+  private shouldPreserveExplorationLane(
+    previousState: ConversationStateSnapshot,
+    explicitLane: ConversationLane,
+  ) {
+    return (
+      (previousState.lane === 'document_exploration' ||
+        previousState.lane === 'advisory_exploration') &&
+      explicitLane === 'product_lookup'
+    );
+  }
+
+  private shouldContinueExplorationLane(
+    state: ConversationStateSnapshot,
+    interpretation: ParsedInterpretation,
+  ) {
+    if (
+      state.lane !== 'document_exploration' &&
+      state.lane !== 'advisory_exploration'
+    ) {
+      return false;
+    }
+
+    return (
+      interpretation.intent === 'GENERAL_CONVERSATION' ||
+      interpretation.intent === 'CLARIFICATION' ||
+      interpretation.intent === 'GET_PRODUCT'
+    );
+  }
+
+  private shouldPersistAdvisoryLane(input: {
+    preparedTurn: PreparedContinuityTurn;
+    decision: DecisionResult;
+  }) {
+    if (input.decision.action !== 'respond') {
+      return false;
+    }
+
+    if (input.preparedTurn.continuity.activeLane === 'advisory_exploration') {
+      return true;
+    }
+
+    return this.hasAdvisorySignals(input.preparedTurn.effectiveInterpretation);
+  }
+
   private isImplicitContinuationCandidate(
     interpretation: ParsedInterpretation,
   ): boolean {
@@ -440,6 +543,21 @@ export class ConversationContinuityService {
       interpretation.intent === 'CLARIFICATION' ||
       interpretation.confidence < 0.6
     );
+  }
+
+  private hasAdvisorySignals(
+    interpretation: ParsedInterpretation,
+  ) {
+    const topicSummary =
+      typeof interpretation.entities.requestSummary === 'string'
+        ? interpretation.entities.requestSummary
+        : typeof interpretation.entities.productQuery === 'string'
+          ? interpretation.entities.productQuery
+          : typeof interpretation.entities.rawMessage === 'string'
+            ? interpretation.entities.rawMessage
+            : '';
+
+    return topicSummary.trim().length >= 12;
   }
 
   private getCarryableFacts(
@@ -524,6 +642,37 @@ export class ConversationContinuityService {
       }) ?? {};
     }
 
+    if (lane === 'document_exploration') {
+      return this.cleanFacts({
+        topicSummary:
+          typeof interpretation.entities.requestSummary === 'string'
+            ? interpretation.entities.requestSummary
+            : typeof interpretation.entities.productQuery === 'string'
+              ? interpretation.entities.productQuery
+              : typeof interpretation.entities.rawMessage === 'string'
+                ? interpretation.entities.rawMessage
+                : undefined,
+      }) ?? {};
+    }
+
+    if (lane === 'advisory_exploration') {
+      const topicSummary =
+        typeof interpretation.entities.requestSummary === 'string'
+          ? interpretation.entities.requestSummary
+          : typeof interpretation.entities.productQuery === 'string'
+            ? interpretation.entities.productQuery
+            : typeof interpretation.entities.rawMessage === 'string'
+              ? interpretation.entities.rawMessage
+              : undefined;
+
+      return this.cleanFacts({
+        topicSummary,
+        criteriaSignals: topicSummary
+          ? [topicSummary.trim()]
+          : undefined,
+      }) ?? {};
+    }
+
     return {};
   }
 
@@ -599,6 +748,53 @@ export class ConversationContinuityService {
       }) ?? {};
     }
 
+    if (lane === 'document_exploration') {
+      const base = baseFacts as DocumentExplorationFacts;
+      const current = currentFacts as DocumentExplorationFacts;
+
+      return this.cleanFacts({
+        topicSummary: this.preferMoreSpecificSummary(
+          base.topicSummary,
+          current.topicSummary,
+        ),
+        activeDocumentIds:
+          Array.isArray(current.activeDocumentIds) &&
+          current.activeDocumentIds.length > 0
+            ? current.activeDocumentIds
+            : base.activeDocumentIds,
+        lastDocumentQuery:
+          typeof current.lastDocumentQuery === 'string' &&
+          current.lastDocumentQuery.trim().length > 0
+            ? current.lastDocumentQuery
+            : base.lastDocumentQuery,
+        lastGroundedSummary: this.preferMoreSpecificSummary(
+          base.lastGroundedSummary,
+          current.lastGroundedSummary,
+        ),
+        lastDocumentTitles:
+          Array.isArray(current.lastDocumentTitles) &&
+          current.lastDocumentTitles.length > 0
+            ? current.lastDocumentTitles
+            : base.lastDocumentTitles,
+      }) ?? {};
+    }
+
+    if (lane === 'advisory_exploration') {
+      const base = baseFacts as AdvisoryExplorationFacts;
+      const current = currentFacts as AdvisoryExplorationFacts;
+
+      return this.cleanFacts({
+        topicSummary: this.preferMoreSpecificSummary(
+          base.topicSummary,
+          current.topicSummary,
+        ),
+        criteriaSignals: this.mergeSignals(
+          base.criteriaSignals,
+          current.criteriaSignals,
+        ),
+      }) ?? {};
+    }
+
     return {};
   }
 
@@ -651,7 +847,56 @@ export class ConversationContinuityService {
       }) ?? {};
     }
 
+    if (lane === 'document_exploration') {
+      return this.cleanFacts({
+        ...facts,
+        topicSummary:
+          typeof payload.name === 'string'
+            ? payload.name
+            : (facts as DocumentExplorationFacts).topicSummary,
+      }) ?? {};
+    }
+
     return facts;
+  }
+
+  private enrichExplorationFacts(input: {
+    lane: ConversationLane;
+    facts: ContinuityFacts;
+    documentRetrieval: DocumentRetrievalAttempt;
+    interpretation: ParsedInterpretation;
+  }) {
+    if (input.lane !== 'document_exploration') {
+      return input.facts;
+    }
+
+    const currentFacts = input.facts as DocumentExplorationFacts;
+    const retrieval = input.documentRetrieval.result;
+    const topicSummary =
+      typeof input.interpretation.entities.requestSummary === 'string'
+        ? input.interpretation.entities.requestSummary
+        : typeof input.interpretation.entities.productQuery === 'string'
+          ? input.interpretation.entities.productQuery
+          : typeof input.interpretation.entities.rawMessage === 'string'
+            ? input.interpretation.entities.rawMessage
+            : currentFacts.topicSummary;
+
+    return this.cleanFacts({
+      ...currentFacts,
+      topicSummary: this.preferMoreSpecificSummary(
+        currentFacts.topicSummary,
+        topicSummary,
+      ),
+      activeDocumentIds:
+        retrieval?.matches.map((match) => match.documentId) ??
+        currentFacts.activeDocumentIds,
+      lastDocumentQuery: retrieval?.query ?? currentFacts.lastDocumentQuery,
+      lastGroundedSummary:
+        retrieval?.groundedSummary ?? currentFacts.lastGroundedSummary,
+      lastDocumentTitles:
+        retrieval?.matches.map((match) => match.title) ??
+        currentFacts.lastDocumentTitles,
+    }) ?? {};
   }
 
   private filterResolvedFields(
@@ -738,6 +983,21 @@ export class ConversationContinuityService {
     return normalizedCurrent.length > normalizedBase.length
       ? normalizedCurrent
       : normalizedBase;
+  }
+
+  private mergeSignals(
+    base: string[] | undefined,
+    current: string[] | undefined,
+  ) {
+    const merged = [...(base ?? []), ...(current ?? [])]
+      .map((value) => this.normalizeOptionalString(value))
+      .filter((value): value is string => Boolean(value));
+
+    if (merged.length === 0) {
+      return undefined;
+    }
+
+    return Array.from(new Set(merged)).slice(-6);
   }
 
   private hasMeaningfulValue(value: unknown): boolean {
@@ -839,6 +1099,8 @@ export class ConversationContinuityService {
       value === 'booking' ||
       value === 'quote' ||
       value === 'product_lookup' ||
+      value === 'document_exploration' ||
+      value === 'advisory_exploration' ||
       value === 'core_knowledge' ||
       value === 'handoff'
     );

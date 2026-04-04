@@ -9,9 +9,10 @@
     "execution_success_quote": "The preliminary quote was created for {{currency}} {{estimatedTotal}}.",
     "execution_success_product": "I found {{name}} for {{currency}} {{price}}.",
     "execution_success_generic": "The requested action was executed successfully.",
-    "execution_failure_unknown_tool": "I could not complete {{actionLabel}} because the approved capability is not available.",
-    "execution_failure_validation": "I could not complete {{actionLabel}} with the available information.",
-    "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error.",
+  "execution_failure_unknown_tool": "I could not complete {{actionLabel}} because the approved capability is not available.",
+  "execution_failure_validation": "I could not complete {{actionLabel}} with the available information.",
+  "execution_failure_not_found": "I could not find a valid match for {{actionLabel}} with the available information.",
+  "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error.",
     "document_not_found": "I could not find relevant information about that in the active documents."
   },
   "templateVariants": {

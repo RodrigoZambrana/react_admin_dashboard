@@ -91,26 +91,33 @@ export class SemanticTurnExecutionService {
       conversationId: input.conversationId,
       interpretation: parsedInterpretation,
     });
-    const decision = this.decisionService.decide(
-      preparedTurn.effectiveInterpretation,
-    );
+    const documentRetrievalPreview =
+      await this.documentRetrievalService.retrieveForConversation({
+        message: input.message,
+        interpretation: preparedTurn.effectiveInterpretation,
+        conversationState: preparedTurn.activeState,
+      });
+    const decision = this.decisionService.decide({
+      interpretation: preparedTurn.effectiveInterpretation,
+      conversationState: preparedTurn.activeState,
+      documentRetrieval: documentRetrievalPreview,
+    });
     const execution = await this.toolExecutionService.executeApprovedAction({
       decision,
       interpretation: preparedTurn.effectiveInterpretation,
       abortSignal: options?.abortSignal,
     });
-    const documentRetrieval =
-      await this.documentRetrievalService.retrieveForConversation({
-        message: input.message,
-        interpretation: preparedTurn.effectiveInterpretation,
-        decision,
-      });
+    const documentRetrieval = this.documentRetrievalService.withDecisionContext(
+      documentRetrievalPreview,
+      decision,
+    );
     throwIfAborted(options?.abortSignal);
     const conversationState = await this.continuityService.persistTurnState({
       conversationId: input.conversationId,
       preparedTurn,
       decision,
       execution,
+      documentRetrieval,
     });
 
     await this.traceInterpretationStage(

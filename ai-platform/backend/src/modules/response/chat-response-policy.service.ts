@@ -199,6 +199,16 @@ export class ChatResponsePolicyService {
       });
     }
 
+    if (errorCode === 'not_found') {
+      return this.responseFallbackService.render({
+        locale: context.locale,
+        templateKey: 'execution_failure_not_found',
+        variables: {
+          actionLabel,
+        },
+      });
+    }
+
     return this.responseFallbackService.render({
       locale: context.locale,
       templateKey: 'execution_failure_generic',

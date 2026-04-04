@@ -11,6 +11,7 @@ import { TemporalExpressionService } from '../src/modules/temporal/temporal-expr
 import { CreateBookingTool } from '../src/modules/tools/create-booking.tool';
 import { CreateQuoteTool } from '../src/modules/tools/create-quote.tool';
 import { GetProductTool } from '../src/modules/tools/get-product.tool';
+import { ProductCatalogService } from '../src/modules/tools/product-catalog.service';
 import { ToolEngineService } from '../src/modules/tools/tool-engine.service';
 import { ToolExecutionService } from '../src/modules/tools/tool-execution.service';
 import { buildManagedTemporalLocaleProviderStub } from './support/managed-temporal-provider.stub';
@@ -147,7 +148,10 @@ function buildBookingPipeline(
     stateRepository as any,
     logger as any,
   );
-  const decisionService = new DecisionService(new PipelineLoggerService());
+  const decisionService = new DecisionService(
+    new PipelineLoggerService(),
+    new ProductCatalogService(),
+  );
   const toolExecutionService = new ToolExecutionService(
     {
       getTenantId: () => 'tenant-alpha',
@@ -156,7 +160,7 @@ function buildBookingPipeline(
     new ToolEngineService(
       new PipelineLoggerService(),
       new CreateBookingTool(),
-      new GetProductTool(),
+      new GetProductTool(new ProductCatalogService()),
       new CreateQuoteTool(),
     ),
   );
@@ -185,6 +189,11 @@ function buildBookingPipeline(
         preparedTurn: prepared,
         decision,
         execution,
+        documentRetrieval: {
+          attempted: false,
+          reason: 'not_requested',
+          result: null,
+        },
       });
 
       return {

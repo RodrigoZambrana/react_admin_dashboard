@@ -158,6 +158,7 @@ describe('SemanticTurnExecutionService', () => {
           reason: 'not_requested',
           result: null,
         })),
+        withDecisionContext: jest.fn((attempt: any) => attempt),
       } as any,
       chatResponseService as any,
       memoryService as any,
@@ -266,6 +267,7 @@ describe('SemanticTurnExecutionService', () => {
           reason: 'not_requested',
           result: null,
         })),
+        withDecisionContext: jest.fn((attempt: any) => attempt),
       } as any,
       {
         generate: jest.fn(async () => ({
@@ -457,8 +459,12 @@ describe('SemanticTurnExecutionService', () => {
       {
         retrieveForConversation: jest.fn(async () => ({
           attempted: true,
-          reason: 'combined_booking_document_query',
+          reason: 'document_query',
           result: documentContext,
+        })),
+        withDecisionContext: jest.fn((attempt: any) => ({
+          ...attempt,
+          reason: 'combined_booking_document_query',
         })),
       } as any,
       chatResponseService as any,

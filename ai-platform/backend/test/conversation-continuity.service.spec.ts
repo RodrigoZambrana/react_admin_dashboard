@@ -2,6 +2,12 @@ import { PipelineLoggerService } from '../src/modules/logging/pipeline-logger.se
 import { ConversationContinuityService } from '../src/modules/continuity/conversation-continuity.service';
 
 describe('ConversationContinuityService', () => {
+  const noDocumentRetrieval = {
+    attempted: false,
+    reason: 'not_requested' as const,
+    result: null,
+  };
+
   function createService(record: Record<string, unknown> | null = null) {
     const repository = {
       findByConversationId: jest.fn(async () => record),
@@ -469,6 +475,7 @@ describe('ConversationContinuityService', () => {
         responseTemplateKey: 'core.clarification',
       },
       execution: null,
+      documentRetrieval: noDocumentRetrieval,
     });
 
     expect(state).toEqual(
@@ -511,9 +518,147 @@ describe('ConversationContinuityService', () => {
         responseTemplateKey: 'core.general_response',
       },
       execution: null,
+      documentRetrieval: noDocumentRetrieval,
     });
 
     expect(state).toBeNull();
     expect(repository.deleteByConversationId).toHaveBeenCalledWith('conv-5');
+  });
+
+  it('persists document exploration facts across grounded follow-up turns', async () => {
+    const { service } = createService({
+      conversationId: 'conv-doc',
+      lane: 'document_exploration',
+      lastIntent: 'GENERAL_CONVERSATION',
+      lastApprovedAction: 'respond',
+      lastApprovedToolName: null,
+      approvedFacts: {
+        activeDocumentIds: ['doc-1'],
+        topicSummary: 'tela screen para cortinas roller',
+      },
+      pendingFacts: null,
+      missingFields: [],
+      nextUsefulField: null,
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-03T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-doc',
+      interpretation: {
+        intent: 'GET_PRODUCT',
+        language: 'es',
+        confidence: 0.71,
+        entities: {
+          rawMessage: '¿y en colores más claros?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    const state = await service.persistTurnState({
+      conversationId: 'conv-doc',
+      preparedTurn: prepared,
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      execution: null,
+      documentRetrieval: {
+        attempted: true,
+        reason: 'active_document_continuation',
+        result: {
+          source: 'document_origin',
+          query: 'tela screen para cortinas roller. ¿y en colores más claros?',
+          groundedSummary: 'El catálogo describe tonos claros para screen.',
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Catálogo roller',
+              excerpt: 'Hay tonos claros para la tela screen.',
+              sequence: 0,
+              score: 3.2,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(state).toEqual(
+      expect.objectContaining({
+        lane: 'document_exploration',
+        approvedFacts: expect.objectContaining({
+          activeDocumentIds: ['doc-1'],
+        }),
+      }),
+    );
+  });
+
+  it('persists advisory exploration state across multi-turn recommendation flows', async () => {
+    const { service } = createService({
+      conversationId: 'conv-adv',
+      lane: 'advisory_exploration',
+      lastIntent: 'GENERAL_CONVERSATION',
+      lastApprovedAction: 'respond',
+      lastApprovedToolName: null,
+      approvedFacts: {
+        topicSummary: 'comparación entre opciones roller',
+        preferenceSignals: ['más privacidad'],
+      },
+      pendingFacts: null,
+      missingFields: [],
+      nextUsefulField: null,
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-03T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-adv',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.74,
+        entities: {
+          rawMessage: '¿y cuál me conviene más si quiero algo más privado?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    const state = await service.persistTurnState({
+      conversationId: 'conv-adv',
+      preparedTurn: prepared,
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'advisory_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      execution: null,
+      documentRetrieval: noDocumentRetrieval,
+    });
+
+    expect(state).toEqual(
+      expect.objectContaining({
+        lane: 'advisory_exploration',
+        approvedFacts: expect.objectContaining({
+          topicSummary: expect.any(String),
+        }),
+      }),
+    );
   });
 });

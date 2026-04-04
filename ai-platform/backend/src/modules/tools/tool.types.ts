@@ -21,7 +21,8 @@ export type ToolExecutionSuccess = {
 export type ToolExecutionFailureCode =
   | 'unknown_tool'
   | 'validation_failed'
-  | 'execution_failed';
+  | 'execution_failed'
+  | 'not_found';
 
 export type ToolExecutionFailure = {
   ok: false;

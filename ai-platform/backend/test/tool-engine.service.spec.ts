@@ -4,16 +4,21 @@ import { PipelineLoggerService } from '../src/modules/logging/pipeline-logger.se
 import { CreateBookingTool } from '../src/modules/tools/create-booking.tool';
 import { CreateQuoteTool } from '../src/modules/tools/create-quote.tool';
 import { GetProductTool } from '../src/modules/tools/get-product.tool';
+import { ProductCatalogService } from '../src/modules/tools/product-catalog.service';
 import { ToolEngineService } from '../src/modules/tools/tool-engine.service';
 
 describe('ToolEngineService', () => {
-  it('validates and executes the booking tool', async () => {
-    const service = new ToolEngineService(
+  function createService() {
+    return new ToolEngineService(
       new PipelineLoggerService(),
       new CreateBookingTool(),
-      new GetProductTool(),
+      new GetProductTool(new ProductCatalogService()),
       new CreateQuoteTool(),
     );
+  }
+
+  it('validates and executes the booking tool', async () => {
+    const service = createService();
 
     const result = await service.execute('create_booking', {
       interpretation: {
@@ -53,12 +58,7 @@ describe('ToolEngineService', () => {
   });
 
   it('prefers a continuity-carried booking summary over a date-only follow-up when building booking notes', async () => {
-    const service = new ToolEngineService(
-      new PipelineLoggerService(),
-      new CreateBookingTool(),
-      new GetProductTool(),
-      new CreateQuoteTool(),
-    );
+    const service = createService();
 
     const result = await service.execute('create_booking', {
       interpretation: {
@@ -99,12 +99,7 @@ describe('ToolEngineService', () => {
   });
 
   it('validates and executes the quote tool', async () => {
-    const service = new ToolEngineService(
-      new PipelineLoggerService(),
-      new CreateBookingTool(),
-      new GetProductTool(),
-      new CreateQuoteTool(),
-    );
+    const service = createService();
 
     const result = await service.execute('create_quote', {
       interpretation: {
@@ -147,12 +142,7 @@ describe('ToolEngineService', () => {
   });
 
   it('validates and executes the product tool', async () => {
-    const service = new ToolEngineService(
-      new PipelineLoggerService(),
-      new CreateBookingTool(),
-      new GetProductTool(),
-      new CreateQuoteTool(),
-    );
+    const service = createService();
 
     const result = await service.execute('get_product', {
       interpretation: {
@@ -185,12 +175,7 @@ describe('ToolEngineService', () => {
   });
 
   it('fails safely when a tool name is unknown', async () => {
-    const service = new ToolEngineService(
-      new PipelineLoggerService(),
-      new CreateBookingTool(),
-      new GetProductTool(),
-      new CreateQuoteTool(),
-    );
+    const service = createService();
 
     await expect(
       service.execute('missing_tool', {
@@ -220,12 +205,7 @@ describe('ToolEngineService', () => {
   });
 
   it('fails safely when tool input validation fails', async () => {
-    const service = new ToolEngineService(
-      new PipelineLoggerService(),
-      new CreateBookingTool(),
-      new GetProductTool(),
-      new CreateQuoteTool(),
-    );
+    const service = createService();
 
     await expect(
       service.execute('create_booking', {
@@ -255,12 +235,7 @@ describe('ToolEngineService', () => {
   });
 
   it('fails safely when the tool implementation throws', async () => {
-    const service = new ToolEngineService(
-      new PipelineLoggerService(),
-      new CreateBookingTool(),
-      new GetProductTool(),
-      new CreateQuoteTool(),
-    );
+    const service = createService();
     (service as any).tools.set('explode_tool', {
       name: 'explode_tool',
       schema: z.object({
@@ -300,6 +275,36 @@ describe('ToolEngineService', () => {
         validatedInput: {
           note: 'explode',
         },
+      }),
+    );
+  });
+
+  it('fails closed when the product lookup has no grounded catalog match', async () => {
+    const service = createService();
+
+    await expect(
+      service.execute('get_product', {
+        interpretation: {
+          intent: 'GET_PRODUCT',
+          language: 'es',
+          confidence: 0.86,
+          entities: {
+            rawMessage: 'necesito algo lindo para el living',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        tenantId: 'tenant-alpha',
+        traceId: 'trace-product-no-match',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        toolName: 'get_product',
+        errorCode: 'not_found',
       }),
     );
   });

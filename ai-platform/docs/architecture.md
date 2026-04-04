@@ -440,6 +440,14 @@ After the exploratory-runtime closeout, the branch absorbed one focused product-
   - backend transactional truth:
     - execution and state facts such as confirmed bookings
     - remains separate from both document and learned corpora
+- A future product-catalog source is now an explicit roadmap requirement:
+  - the current demo `get_product` path is only a temporary placeholder for exploratory flows
+  - the platform will need a dedicated backend-owned catalog boundary that can connect to a real product catalog
+  - that catalog source must remain distinct from:
+    - document-origin knowledge
+    - runtime-learned knowledge
+    - backend transactional execution truth
+  - document continuity/retrieval fixes must not solve future catalog needs by expanding demo-catalog assumptions into the document corpus or response layer
 - Retrieval source selection remains backend-owned:
   - semantic-turn execution decides whether document retrieval is relevant for the turn
   - retrieval runs over the document-origin corpus only
@@ -448,8 +456,43 @@ After the exploratory-runtime closeout, the branch absorbed one focused product-
   - document grounding enriches approved response context
   - booking still runs through backend decision and tool execution truth
   - the final response may synthesize over both approved document context and confirmed booking truth without letting the model decide actions or fabricate requirements
+- Near-term continuity work remains focused on preserving document-grounded and advisory multi-turn coherence; future real catalog connectivity should layer in as its own backend source once that continuity work is stable.
 
 This leaves the platform ready for real exploratory testing of both document-grounded QA and booking completion, while keeping Wave 9 as the next centralized hardening step rather than reopening the core runtime architecture.
+
+## Post-Document Conversational Structural Fix
+
+After the document + booking product phase, the branch absorbed one narrow structural conversational pass to fix failures discovered in real exploratory follow-up turns without broadening into Wave 9 hardening.
+
+- Continuity now distinguishes exploratory conversation modes explicitly and backend-owned:
+  - `document_exploration`
+    - active when the conversation is grounded in uploaded document knowledge
+    - preserves approved document references, last topic, and grounded retrieval summary compactly
+  - `advisory_exploration`
+    - active when the conversation is in a generic multi-turn recommendation or comparison flow
+    - preserves an open advisory goal, accumulated approved signals, and useful topical continuity without hardcoding a room/preference taxonomy
+- Retrieval is no longer only a post-decision sidecar for conversational document use:
+  - semantic-turn execution now computes document retrieval preview before decisioning
+  - backend decisioning can use that preview plus active continuity state to decide whether the turn should stay in document-grounded exploration, stay in advisory exploration, invoke a transactional tool, clarify, or simply respond
+  - this preserves backend-owned routing while avoiding example-driven hacks around one or two literal phrases
+- Routing precedence is now explicit:
+  - booking still wins when backend booking requirements are satisfied or minimally clarifiable
+  - document-grounded exploratory turns win over demo `get_product` lookup when active approved document context is still relevant
+  - advisory exploration can stay active across coherent follow-up turns instead of collapsing into generic base prompts
+  - transactional `get_product` only fires when there is an actually grounded catalog match
+- The demo product boundary is now honest:
+  - `get_product` resolves through a dedicated catalog service instead of inline fallback matching
+  - unmatched or weakly matched queries fail closed with a backend-visible no-match result
+  - better wording no longer hides a routing/product mismatch
+- This work preserves the already-good strengths of the platform:
+  - document-grounded answers still synthesize over approved retrieved context
+  - booking remains backend-truth driven and non-regressed
+  - combined document + booking flows still operate on separate truth layers:
+    - document-origin knowledge
+    - backend transactional execution truth
+    - optional continuity state
+
+This leaves the platform structurally safer for multi-turn document and advisory exploration while still keeping Wave 9 as the next broader QA/security/E2E hardening step.
 
 ## Multi-Tenant Enforcement
 

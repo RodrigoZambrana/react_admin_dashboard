@@ -1924,12 +1924,62 @@
 - Live combined/document conversations are correct and grounded, but AI response generation can still be rejected by guardrails when the model mislabels a successful booking outcome as generic `respond`; the deterministic backend-approved fallback remains safe, but conversational naturalness is reduced in those cases
 - The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
 - Broader document ranking quality is still lexical/deterministic in this product phase; future hardening may improve ranking depth without reopening the corpus-separation architecture
+- The current demo `get_product` path remains a placeholder; future product questions over a real catalog must move behind a dedicated backend catalog boundary instead of reusing document retrieval or expanding demo-catalog assumptions in routing/continuity
 
 ### Next Steps
 - Treat this focused document + booking product phase as complete without opening Wave 9 in the same thread
+- Keep the current priority on fixing document/advisory multi-turn continuity without mixing that work with real product-catalog integration
+- Carry a future explicit requirement to connect the platform to a real product catalog through its own backend source of truth, clearly separated from:
+  - document-origin knowledge
+  - runtime-learned knowledge
+  - transactional execution truth
 - Keep Wave 9 as the next step:
   - centralized QA
   - security / roles
   - E2E
   - broader production hardening
 - Carry only the remaining non-core conversational/document-retrieval debt into Wave 9 if it materially affects rollout safety
+
+## Iteration 59
+
+### Implemented
+- Closed a focused structural conversational-fix phase after document + booking completion:
+  - backend continuity now models `document_exploration` and `advisory_exploration` as compact, optional, lane-aware states
+  - semantic-turn execution now computes document retrieval preview before decisioning so backend routing can account for active document context instead of treating retrieval as a pure post-decision sidecar
+  - backend decisioning now gives document-grounded exploration clear precedence over demo `get_product` lookup when the conversation is still exploring uploaded-document knowledge
+  - advisory/recommendation follow-up turns can now persist a generic exploratory goal across turns instead of collapsing back to base prompts
+- Hardened the demo product boundary:
+  - `get_product` now runs through a dedicated catalog boundary
+  - the tool fails closed with `not_found` when there is no grounded match instead of inventing the first catalog item
+- Kept response fallback compatibility safe while adding honest no-match behavior:
+  - `execution_failure_not_found` is now treated as an optional governed template with code fallback so older active managed catalogs remain valid during rollout
+
+### Working
+- Full validation passes for the branch state:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+- Real OpenAI-backed exploratory smokes now confirm the intended structural behavior on the live async public path:
+  - document-grounded multi-turn exploration stays in document mode across follow-up turns without requiring repeated explicit document cue words
+  - generic advisory multi-turn exploration continues coherently instead of resetting to generic “how can I help” style responses
+  - a true specific product lookup still routes to `get_product`
+  - combined document + booking flow still completes without regressing booking execution truth
+- Existing admin document operations and public async chat remain non-breaking
+
+### Technical Debt
+- Combined document + booking response quality is still weaker than pure document exploration:
+  - the flow completes correctly and remains grounded
+  - but the final AI wording can still overexpose raw retrieved document context instead of always synthesizing it cleanly alongside booking confirmation
+- The current product lookup path still uses a tiny demo catalog boundary; it is now safe and honest, but it is not a real product-catalog integration
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+
+### Next Steps
+- Treat this structural conversational-fix phase as complete without opening Wave 9 in the same thread
+- Keep the next platform step as Wave 9:
+  - centralized QA
+  - security / roles
+  - E2E
+  - broader production hardening
+- Carry the remaining non-blocking conversational quality debt into a later hardening pass only if exploratory evidence shows it affects rollout safety:
+  - cleaner synthesis for combined document + booking responses
+  - eventual replacement of the demo product catalog with a real backend-owned catalog source

@@ -5,6 +5,7 @@ import { isAbortError, throwIfAborted } from '../shared/abort.utils';
 import { CreateBookingTool } from './create-booking.tool';
 import { CreateQuoteTool } from './create-quote.tool';
 import { GetProductTool } from './get-product.tool';
+import { ProductCatalogNoMatchError } from './product-catalog.service';
 import {
   ToolDefinition,
   ToolExecutionAttempt,
@@ -87,6 +88,17 @@ export class ToolEngineService {
     } catch (error) {
       if (isAbortError(error)) {
         throw error;
+      }
+
+      if (error instanceof ProductCatalogNoMatchError) {
+        return this.buildFailure(
+          toolName,
+          'not_found',
+          error.message,
+          undefined,
+          Date.now() - startedAt,
+          validatedInput,
+        );
       }
 
       return this.buildFailure(

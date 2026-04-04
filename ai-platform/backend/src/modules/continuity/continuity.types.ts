@@ -9,6 +9,8 @@ export const conversationLaneValues = [
   'booking',
   'quote',
   'product_lookup',
+  'document_exploration',
+  'advisory_exploration',
   'core_knowledge',
   'handoff',
 ] as const;
@@ -84,6 +86,19 @@ export type ProductFacts = {
   location?: string;
 };
 
+export type DocumentExplorationFacts = {
+  topicSummary?: string;
+  activeDocumentIds?: string[];
+  lastDocumentQuery?: string;
+  lastGroundedSummary?: string;
+  lastDocumentTitles?: string[];
+};
+
+export type AdvisoryExplorationFacts = {
+  topicSummary?: string;
+  criteriaSignals?: string[];
+};
+
 export const laneByIntent: Partial<Record<CanonicalIntent, ConversationLane>> = {
   CREATE_BOOKING: 'booking',
   CREATE_QUOTE: 'quote',
@@ -94,6 +109,8 @@ export const intentByLane: Record<ConversationLane, CanonicalIntent> = {
   booking: 'CREATE_BOOKING',
   quote: 'CREATE_QUOTE',
   product_lookup: 'GET_PRODUCT',
+  document_exploration: 'GENERAL_CONVERSATION',
+  advisory_exploration: 'GENERAL_CONVERSATION',
   core_knowledge: 'GENERAL_CONVERSATION',
   handoff: 'GENERAL_CONVERSATION',
 };

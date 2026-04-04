@@ -9,9 +9,10 @@
     "execution_success_quote": "La cotización preliminar fue creada por {{currency}} {{estimatedTotal}}.",
     "execution_success_product": "Encontré {{name}} por {{currency}} {{price}}.",
     "execution_success_generic": "La acción solicitada se ejecutó correctamente.",
-    "execution_failure_unknown_tool": "No pude completar {{actionLabel}} porque la capacidad aprobada no está disponible.",
-    "execution_failure_validation": "No pude completar {{actionLabel}} con la información disponible.",
-    "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución.",
+  "execution_failure_unknown_tool": "No pude completar {{actionLabel}} porque la capacidad aprobada no está disponible.",
+  "execution_failure_validation": "No pude completar {{actionLabel}} con la información disponible.",
+  "execution_failure_not_found": "No encontré una coincidencia válida para {{actionLabel}} con la información disponible.",
+  "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución.",
     "document_not_found": "No encontré información relevante sobre eso en los documentos activos."
   },
   "templateVariants": {

@@ -14,6 +14,8 @@ const optionalTemplateFallbacks: Partial<
   Record<ResponseFallbackTemplateKey, string>
 > = {
   document_not_found: 'I could not find relevant information in the active documents.',
+  execution_failure_not_found:
+    'I could not find a valid match with the available information.',
 };
 
 @Injectable()

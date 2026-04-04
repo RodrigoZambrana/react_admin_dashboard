@@ -2,23 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 
 import { ToolDefinition, ToolExecutionContext } from './tool.types';
-
-const catalog = [
-  {
-    sku: 'A-19',
-    name: 'Atlas Carry Case',
-    price: 129,
-    currency: 'USD',
-    availability: 'in_stock',
-  },
-  {
-    sku: 'B-77',
-    name: 'Beacon Desk Lamp',
-    price: 89,
-    currency: 'USD',
-    availability: 'backorder',
-  },
-];
+import {
+  ProductCatalogNoMatchError,
+  ProductCatalogService,
+} from './product-catalog.service';
 
 const productInputSchema = z.object({
   sku: z.string().optional(),
@@ -29,6 +16,8 @@ const productInputSchema = z.object({
 export class GetProductTool implements ToolDefinition<typeof productInputSchema> {
   readonly name = 'get_product';
   readonly schema = productInputSchema;
+
+  constructor(private readonly productCatalogService: ProductCatalogService) {}
 
   buildInput(context: ToolExecutionContext) {
     return {
@@ -49,22 +38,15 @@ export class GetProductTool implements ToolDefinition<typeof productInputSchema>
     input: z.infer<typeof productInputSchema>,
     _context: ToolExecutionContext,
   ) {
-    const bySku = input.sku
-      ? catalog.find(
-          (product) => product.sku.toLowerCase() === input.sku?.toLowerCase(),
-        )
-      : undefined;
+    const match = this.productCatalogService.findMatch(input);
 
-    const byQuery =
-      bySku ??
-      catalog.find((product) =>
-        input.query.toLowerCase().includes(product.name.toLowerCase()),
-      ) ??
-      catalog[0];
+    if (!match.matched || !match.product) {
+      throw new ProductCatalogNoMatchError(input.query);
+    }
 
     return {
-      ...byQuery,
-      matchedBy: bySku ? 'sku' : 'query',
+      ...match.product,
+      matchedBy: match.matchedBy,
     };
   }
 }

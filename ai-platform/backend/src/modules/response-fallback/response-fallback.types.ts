@@ -11,6 +11,7 @@ export const responseFallbackTemplateKeySchema = z.enum([
   'execution_success_generic',
   'execution_failure_unknown_tool',
   'execution_failure_validation',
+  'execution_failure_not_found',
   'execution_failure_generic',
   'document_not_found',
 ]);
@@ -32,6 +33,7 @@ export const responseFallbackCatalogResourceSchema = z.object({
     execution_success_generic: z.string().min(1),
     execution_failure_unknown_tool: z.string().min(1),
     execution_failure_validation: z.string().min(1),
+    execution_failure_not_found: z.string().min(1).optional(),
     execution_failure_generic: z.string().min(1),
     document_not_found: z.string().min(1).optional(),
   }),
@@ -47,6 +49,7 @@ export const responseFallbackCatalogResourceSchema = z.object({
       execution_success_generic: z.array(z.string().min(1)).min(1).optional(),
       execution_failure_unknown_tool: z.array(z.string().min(1)).min(1).optional(),
       execution_failure_validation: z.array(z.string().min(1)).min(1).optional(),
+      execution_failure_not_found: z.array(z.string().min(1)).min(1).optional(),
       execution_failure_generic: z.array(z.string().min(1)).min(1).optional(),
       document_not_found: z.array(z.string().min(1)).min(1).optional(),
     })
