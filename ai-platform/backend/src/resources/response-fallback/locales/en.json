@@ -9,11 +9,13 @@
     "execution_success_quote": "The preliminary quote was created for {{currency}} {{estimatedTotal}}.",
     "execution_success_product": "I found {{name}} for {{currency}} {{price}}.",
     "execution_success_generic": "The requested action was executed successfully.",
-  "execution_failure_unknown_tool": "I could not complete {{actionLabel}} because the approved capability is not available.",
-  "execution_failure_validation": "I could not complete {{actionLabel}} with the available information.",
-  "execution_failure_not_found": "I could not find a valid match for {{actionLabel}} with the available information.",
-  "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error.",
-    "document_not_found": "I could not find relevant information about that in the active documents."
+    "execution_failure_unknown_tool": "I could not complete {{actionLabel}} because the approved capability is not available.",
+    "execution_failure_validation": "I could not complete {{actionLabel}} with the available information.",
+    "execution_failure_not_found": "I could not find a valid match for {{actionLabel}} with the available information.",
+    "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error.",
+    "document_not_found": "I could not find relevant information about that in the active documents.",
+    "close_turn_acknowledgement": "Thanks for the message. I will leave it here for now.",
+    "close_turn_resolved": "Understood, thanks for letting me know. I will leave it here."
   },
   "templateVariants": {
     "basic_response": [
@@ -40,6 +42,16 @@
       "I could not find relevant information about that in the active documents.",
       "I do not see active document content that confirms that clearly.",
       "I do not have an active document that answers that with confidence."
+    ],
+    "close_turn_acknowledgement": [
+      "Thanks for the message. I will leave it here for now.",
+      "Thanks, I will leave it here for now.",
+      "Understood. I will leave it here."
+    ],
+    "close_turn_resolved": [
+      "Understood, thanks for letting me know. I will leave it here.",
+      "Thanks for confirming. I will treat this as resolved for now.",
+      "All right, I will leave this closed for now."
     ]
   },
   "actionLabels": {

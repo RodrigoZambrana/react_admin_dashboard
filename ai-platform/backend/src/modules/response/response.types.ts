@@ -12,6 +12,7 @@ export const approvedResponseOutcomeSchema = z.enum([
   'clarify',
   'execution_succeeded',
   'execution_failed',
+  'close_turn',
 ]);
 
 export const approvedExecutionStatusSchema = z.enum([
@@ -44,7 +45,25 @@ export type ResponseGuardrailCode =
   | 'unsupported_missing_fields'
   | 'unsupported_fact_keys'
   | 'unsupported_result_keys'
-  | 'unsupported_document_ids';
+  | 'unsupported_document_ids'
+  | 'unsupported_document_detail'
+  | 'partial_document_detail_overclaim'
+  | 'document_context_overreach'
+  | 'close_turn_reopen';
+
+export const responseGroundingDetailTypeSchema = z.enum([
+  'coverage_support',
+  'pricing',
+  'purchase_channel',
+  'availability',
+  'materials',
+  'color_options',
+  'specific_variants',
+]);
+
+export type ResponseGroundingDetailType = z.infer<
+  typeof responseGroundingDetailTypeSchema
+>;
 
 export type ResponseGuardrailResult = {
   accepted: boolean;
@@ -101,6 +120,14 @@ export type ApprovedResponseContext = {
     query: string;
     groundedSummary: string;
     responseMode: 'document_exploration' | 'combined_execution';
+    grounding: {
+      supportLevel: 'explicit' | 'partial';
+      exactnessRequested: boolean;
+      requestedDetailTypes: ResponseGroundingDetailType[];
+      supportedDetailTypes: ResponseGroundingDetailType[];
+      partialDetailTypes: ResponseGroundingDetailType[];
+      unsupportedDetailTypes: ResponseGroundingDetailType[];
+    };
     matches: Array<{
       documentId: string;
       title: string;

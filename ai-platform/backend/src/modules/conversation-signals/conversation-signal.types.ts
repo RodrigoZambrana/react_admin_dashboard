@@ -16,6 +16,7 @@ export type ConversationSignalNamespaceCatalog = Record<
 export type ConversationSignalCatalog = {
   document: ConversationSignalNamespaceCatalog;
   advisory: ConversationSignalNamespaceCatalog;
+  closure: ConversationSignalNamespaceCatalog;
 };
 
 export type ConversationSignalInput = {
@@ -48,5 +49,11 @@ export type ConversationRoutingSignals = {
     descriptive: boolean;
     supported: boolean;
     continuationEligible: boolean;
+  };
+  closure: ConversationSignalNamespaceMatch & {
+    gratitude: boolean;
+    decline: boolean;
+    farewell: boolean;
+    supported: boolean;
   };
 };

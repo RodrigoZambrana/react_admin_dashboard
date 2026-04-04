@@ -18,8 +18,11 @@ const stopWords = new Set([
   'al',
   'and',
   'con',
+  'cortina',
+  'cortinas',
   'de',
   'del',
+  'documento',
   'el',
   'en',
   'for',
@@ -30,6 +33,8 @@ const stopWords = new Set([
   'me',
   'para',
   'por',
+  'producto',
+  'productos',
   'que',
   'si',
   'the',
@@ -93,18 +98,24 @@ export class DocumentRetrievalService {
         score: scoreChunk(query, queryTokens, chunk.searchText),
       }))
       .filter((entry) => entry.score > 0)
-      .sort((left, right) => right.score - left.score)
-      .slice(0, 4);
+      .sort((left, right) => right.score - left.score);
+    const minimumScore = resolveMinimumScore(queryTokens.length);
+    const matched = scored.filter((entry) => entry.score >= minimumScore).slice(0, 4);
 
-    if (scored.length === 0) {
+    if (matched.length === 0) {
       return {
         attempted: true,
         reason,
-        result: null,
+        result: {
+          source: 'document_origin',
+          query,
+          groundedSummary: '',
+          matches: [],
+        },
       };
     }
 
-    const matches = scored.map((entry) => ({
+    const matches = matched.map((entry) => ({
       documentId: entry.chunk.documentId,
       title: entry.chunk.document.title,
       excerpt: buildExcerpt(entry.chunk.content, queryTokens),
@@ -298,14 +309,21 @@ function buildExcerpt(content: string, queryTokens: string[]) {
     .filter((sentence) => sentence.length > 0);
 
   const matchedSentence =
-    sentences.find((sentence) => {
-      const normalized = sentence
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/\p{Diacritic}/gu, '');
+    sentences
+      .map((sentence, index) => ({
+        index,
+        sentence,
+        score: scoreExcerptSentence(sentence, queryTokens),
+      }))
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
 
-      return queryTokens.some((token) => normalized.includes(token));
-    }) ?? sentences[0] ?? content;
+        return right.index - left.index;
+      })[0]?.sentence ??
+    sentences[0] ??
+    content;
 
   return matchedSentence.slice(0, 260).trim();
 }
@@ -317,4 +335,38 @@ function buildGroundedSummary(matches: DocumentRetrievalResult['matches']) {
     .join(' ')
     .slice(0, 420)
     .trim();
+}
+
+function resolveMinimumScore(queryTokenCount: number) {
+  if (queryTokenCount <= 2) {
+    return 1;
+  }
+
+  return 2;
+}
+
+function scoreExcerptSentence(sentence: string, queryTokens: string[]) {
+  const normalized = sentence
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  let score = 0;
+
+  for (const token of queryTokens) {
+    if (normalized.includes(token)) {
+      score += 1;
+    }
+  }
+
+  for (const phrase of buildTokenPhrases(queryTokens)) {
+    if (normalized.includes(phrase)) {
+      score += 2;
+    }
+  }
+
+  return score;
 }

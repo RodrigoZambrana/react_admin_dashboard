@@ -22,6 +22,17 @@ const defaultCatalog: ConversationSignalCatalog = {
       terms: ['prefer', 'preference', 'option', 'options', 'alternative'],
     },
   },
+  closure: {
+    gratitude: {
+      terms: ['thanks', 'thank you', 'appreciate'],
+    },
+    decline: {
+      phrases: ['no thanks', 'no thank you', 'all set', 'that is all', 'already solved'],
+    },
+    farewell: {
+      terms: ['bye', 'goodbye'],
+    },
+  },
 };
 
 const spanishCatalog: ConversationSignalCatalog = {
@@ -55,6 +66,25 @@ const spanishCatalog: ConversationSignalCatalog = {
       ],
     },
   },
+  closure: {
+    gratitude: {
+      terms: ['gracias', 'agradezco'],
+    },
+    decline: {
+      phrases: [
+        'no gracias',
+        'ya resolvi',
+        'ya resolví',
+        'ya esta',
+        'ya está',
+        'eso es todo',
+        'con eso alcanza',
+      ],
+    },
+    farewell: {
+      terms: ['chau', 'adios', 'adiós', 'hasta luego'],
+    },
+  },
 };
 
 const englishCatalog: ConversationSignalCatalog = {
@@ -77,6 +107,17 @@ const englishCatalog: ConversationSignalCatalog = {
     },
     preference: {
       terms: ['prefer', 'preference', 'option', 'options', 'alternative', 'alternatives'],
+    },
+  },
+  closure: {
+    gratitude: {
+      terms: ['thanks', 'thank you', 'appreciate'],
+    },
+    decline: {
+      phrases: ['no thanks', 'no thank you', 'all set', 'that is all', 'already solved'],
+    },
+    farewell: {
+      terms: ['bye', 'goodbye', 'see you'],
     },
   },
 };
@@ -102,6 +143,7 @@ function mergeCatalogs(
   return {
     document: mergeNamespace(base.document, override.document),
     advisory: mergeNamespace(base.advisory, override.advisory),
+    closure: mergeNamespace(base.closure, override.closure),
   };
 }
 

@@ -4,9 +4,14 @@ import {
   ApprovedResponseContext,
   ApprovedResponseContextInput,
 } from './response.types';
+import { ResponseGroundingService } from './response-grounding.service';
 
 @Injectable()
 export class ApprovedResponseContextService {
+  constructor(
+    private readonly responseGroundingService: ResponseGroundingService,
+  ) {}
+
   build(input: ApprovedResponseContextInput): ApprovedResponseContext {
     const outcome = this.resolveOutcome(input);
     const stateMissingFields = input.conversationState?.missingFields ?? [];
@@ -100,6 +105,10 @@ export class ApprovedResponseContextService {
   }
 
   private resolveOutcome(input: ApprovedResponseContextInput) {
+    if (input.decision.action === 'close_turn') {
+      return 'close_turn' as const;
+    }
+
     if (input.decision.action === 'clarify') {
       return 'clarify' as const;
     }
@@ -154,12 +163,18 @@ export class ApprovedResponseContextService {
       input.decision.action === 'invoke_tool'
         ? 'combined_execution'
         : 'document_exploration';
+    const grounding = this.responseGroundingService.assessDocumentContext({
+      locale: input.interpretation.language,
+      userMessage: input.message,
+      documentContext: input.documentContext,
+    });
 
     return {
       source: input.documentContext.source,
       query: input.documentContext.query,
       groundedSummary: input.documentContext.groundedSummary,
       responseMode: responseMode as 'document_exploration' | 'combined_execution',
+      grounding,
       matches: input.documentContext.matches.map((match) =>
         this.pruneUndefined({
           documentId: match.documentId,

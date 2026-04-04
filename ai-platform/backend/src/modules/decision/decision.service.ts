@@ -74,6 +74,25 @@ export class DecisionService {
       };
     }
 
+    if (
+      this.shouldCloseTurn(
+        input,
+        signals,
+        productCatalogMatch.matched,
+        continuityMissingFields,
+      )
+    ) {
+      return {
+        domain: 'core',
+        action: 'close_turn',
+        reasonCode: signals.closure.decline
+          ? 'contextual_close_declined'
+          : 'contextual_close_acknowledged',
+        missingFields: [],
+        responseTemplateKey: 'core.close_turn',
+      };
+    }
+
     if (this.shouldStayInDocumentExploration(input)) {
       return this.buildRespondDecision('document_grounded_exploration');
     }
@@ -122,6 +141,61 @@ export class DecisionService {
     }
 
     return this.buildRespondDecision('general_conversation');
+  }
+
+  private shouldCloseTurn(
+    input: DecisionInput,
+    signals: ConversationRoutingSignals,
+    hasGroundedProductMatch: boolean,
+    continuityMissingFields: string[],
+  ) {
+    if (!signals.closure.supported) {
+      return false;
+    }
+
+    if (
+      input.interpretation.intent === 'CREATE_BOOKING' ||
+      input.interpretation.intent === 'CREATE_QUOTE'
+    ) {
+      return false;
+    }
+
+    if (
+      continuityMissingFields.length > 0 ||
+      (input.conversationState?.missingFields.length ?? 0) > 0 ||
+      input.conversationState?.nextUsefulField
+    ) {
+      return false;
+    }
+
+    if (
+      hasGroundedProductMatch ||
+      signals.document.explicitRequest ||
+      signals.advisory.supported ||
+      signals.advisory.questionLike ||
+      input.interpretation.normalizedEntities.dates.length > 0 ||
+      input.interpretation.normalizedEntities.measurements.length > 0 ||
+      input.interpretation.normalizedEntities.dimensions.length > 0
+    ) {
+      return false;
+    }
+
+    const lastApprovedAction =
+      input.conversationState?.lastApprovedAction ??
+      input.interpretation.continuity?.previousStateSummary?.lastApprovedAction;
+    const priorFlowComplete = Boolean(
+      input.conversationState &&
+        input.conversationState.missingFields.length === 0 &&
+        (lastApprovedAction === 'invoke_tool' ||
+          lastApprovedAction === 'respond' ||
+          lastApprovedAction === 'close_turn'),
+    );
+
+    if (signals.closure.decline || signals.closure.farewell) {
+      return priorFlowComplete;
+    }
+
+    return signals.closure.gratitude && priorFlowComplete;
   }
 
   private shouldStayInDocumentExploration(input: DecisionInput) {

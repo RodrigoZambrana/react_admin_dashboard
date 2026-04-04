@@ -90,4 +90,22 @@ describe('ConversationSignalResolverService', () => {
     expect(signals.document.explicitRequest).toBe(false);
     expect(signals.document.continuationEligible).toBe(true);
   });
+
+  it('detects gratitude and decline signals for contextual close-turn decisions', () => {
+    const signals = service.resolve({
+      message: 'No gracias, ya resolví',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        entities: {
+          rawMessage: 'No gracias, ya resolví',
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(signals.closure.supported).toBe(true);
+    expect(signals.closure.gratitude).toBe(true);
+    expect(signals.closure.decline).toBe(true);
+  });
 });

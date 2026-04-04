@@ -5,6 +5,7 @@ import { ResponseFallbackModule } from '../response-fallback/response-fallback.m
 import { ApprovedResponseContextService } from './approved-response-context.service';
 import { ChatResponsePolicyService } from './chat-response-policy.service';
 import { ChatResponseService } from './chat-response.service';
+import { ResponseGroundingService } from './response-grounding.service';
 import { ResponseGuardrailService } from './response-guardrail.service';
 
 @Module({
@@ -13,12 +14,14 @@ import { ResponseGuardrailService } from './response-guardrail.service';
     ApprovedResponseContextService,
     ChatResponsePolicyService,
     ChatResponseService,
+    ResponseGroundingService,
     ResponseGuardrailService,
   ],
   exports: [
     ApprovedResponseContextService,
     ChatResponsePolicyService,
     ChatResponseService,
+    ResponseGroundingService,
     ResponseGuardrailService,
   ],
 })

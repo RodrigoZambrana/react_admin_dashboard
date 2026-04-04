@@ -1,15 +1,21 @@
 import { Injectable } from '@nestjs/common';
 
 import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
+import { ResponseGroundingService } from './response-grounding.service';
 import { ApprovedResponseContext } from './response.types';
 
 @Injectable()
 export class ChatResponsePolicyService {
   constructor(
     private readonly responseFallbackService: ResponseFallbackService,
+    private readonly responseGroundingService: ResponseGroundingService,
   ) {}
 
   async resolve(context: ApprovedResponseContext) {
+    if (context.outcome === 'close_turn') {
+      return this.buildCloseTurnResponse(context);
+    }
+
     if (context.documentContext) {
       return this.buildDocumentAwareResponse(context);
     }
@@ -31,19 +37,41 @@ export class ChatResponsePolicyService {
 
   private async buildDocumentAwareResponse(context: ApprovedResponseContext) {
     const groundedSummary = context.documentContext?.groundedSummary?.trim();
+    const missingSummaryResponse = await this.responseFallbackService.render({
+      locale: context.locale,
+      templateKey: 'document_not_found',
+      variationSeed: this.buildVariationSeed(context, 'document_not_found'),
+    });
 
     if (!groundedSummary) {
-      return this.responseFallbackService.render({
-        locale: context.locale,
-        templateKey: 'document_not_found',
-        variationSeed: this.buildVariationSeed(context, 'document_not_found'),
-      });
+      if (context.outcome === 'clarify') {
+        return this.composeWithDocumentSummary(
+          missingSummaryResponse,
+          await this.buildClarificationResponse(context),
+        );
+      }
+
+      if (context.outcome === 'execution_succeeded') {
+        return this.composeWithDocumentSummary(
+          missingSummaryResponse,
+          await this.buildExecutionSuccessResponse(context),
+        );
+      }
+
+      if (context.outcome === 'execution_failed') {
+        return this.composeWithDocumentSummary(
+          missingSummaryResponse,
+          await this.buildExecutionFailureResponse(context),
+        );
+      }
+
+      return missingSummaryResponse;
     }
 
     const responseSummary =
       context.documentContext?.responseMode === 'combined_execution'
-        ? this.buildConciseDocumentSummary(groundedSummary)
-        : groundedSummary;
+        ? this.buildCombinedDocumentSummary(context, groundedSummary)
+        : this.buildDocumentGroundingSummary(context, groundedSummary);
 
     if (context.outcome === 'clarify') {
       return this.composeWithDocumentSummary(
@@ -67,6 +95,22 @@ export class ChatResponsePolicyService {
     }
 
     return responseSummary;
+  }
+
+  private async buildCloseTurnResponse(context: ApprovedResponseContext) {
+    return this.responseFallbackService.render({
+      locale: context.locale,
+      templateKey:
+        context.decision.reasonCode === 'contextual_close_declined'
+          ? 'close_turn_resolved'
+          : 'close_turn_acknowledgement',
+      variationSeed: this.buildVariationSeed(
+        context,
+        context.decision.reasonCode === 'contextual_close_declined'
+          ? 'close_turn_resolved'
+          : 'close_turn_acknowledgement',
+      ),
+    });
   }
 
   private async buildBasicResponse(context: ApprovedResponseContext) {
@@ -261,5 +305,55 @@ export class ChatResponsePolicyService {
     }
 
     return `${normalized.slice(0, 217).trimEnd()}...`;
+  }
+
+  private buildDocumentGroundingSummary(
+    context: ApprovedResponseContext,
+    summary: string,
+  ) {
+    const normalizedSummary = summary.trim();
+    const groundingClause =
+      this.responseGroundingService.buildUnspecifiedDetailClause({
+        locale: context.locale,
+        documentContext: context.documentContext,
+      }) ?? '';
+
+    if (!groundingClause) {
+      return normalizedSummary;
+    }
+
+    if (normalizedSummary.endsWith(groundingClause)) {
+      return normalizedSummary;
+    }
+
+    return `${normalizedSummary} ${groundingClause}`.trim();
+  }
+
+  private buildCombinedDocumentSummary(
+    context: ApprovedResponseContext,
+    summary: string,
+  ) {
+    const conciseSummary = this.buildConciseDocumentSummary(summary);
+    const groundingClause =
+      this.responseGroundingService.buildUnspecifiedDetailClause({
+        locale: context.locale,
+        documentContext: context.documentContext,
+      }) ?? '';
+    const hasUnsupportedDetails =
+      (context.documentContext?.grounding.unsupportedDetailTypes.length ?? 0) > 0;
+
+    if (hasUnsupportedDetails && groundingClause) {
+      return groundingClause;
+    }
+
+    if (!groundingClause) {
+      return conciseSummary;
+    }
+
+    if (conciseSummary.endsWith(groundingClause)) {
+      return conciseSummary;
+    }
+
+    return `${conciseSummary} ${groundingClause}`.trim();
   }
 }

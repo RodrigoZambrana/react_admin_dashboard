@@ -4,19 +4,12 @@ import { Prisma } from '@prisma/client';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { ResponseFallbackVersionRepository } from '../persistence/repositories/response-fallback-version.repository';
 import { ResponseFallbackProvider } from './response-fallback.provider';
+import { resolveBootstrapTemplateFallback } from './response-fallback-bootstrap.catalogs';
 import {
   ResponseFallbackCatalogResource,
   ResponseFallbackTemplateKey,
   responseFallbackCatalogResourceSchema,
 } from './response-fallback.types';
-
-const optionalTemplateFallbacks: Partial<
-  Record<ResponseFallbackTemplateKey, string>
-> = {
-  document_not_found: 'I could not find relevant information in the active documents.',
-  execution_failure_not_found:
-    'I could not find a valid match with the available information.',
-};
 
 @Injectable()
 export class ResponseFallbackService {
@@ -48,7 +41,12 @@ export class ResponseFallbackService {
     variationSeed?: string | null;
   }) {
     const catalog = await this.resolveCatalog(input.locale);
-    const template = this.resolveTemplate(catalog, input.templateKey, input.variationSeed);
+    const template = this.resolveTemplate(
+      catalog,
+      input.templateKey,
+      input.variationSeed,
+      input.locale,
+    );
 
     return template.value.replace(
       /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g,
@@ -178,6 +176,7 @@ export class ResponseFallbackService {
     catalog: ResponseFallbackCatalogResource,
     templateKey: ResponseFallbackTemplateKey,
     variationSeed?: string | null,
+    requestedLocale?: string | null,
   ) {
     const configuredVariants = catalog.templateVariants?.[templateKey] ?? [];
     const normalizedSeed = variationSeed?.trim();
@@ -194,7 +193,7 @@ export class ResponseFallbackService {
       );
 
       return {
-        value: this.resolveTemplateValue(catalog, templateKey),
+        value: this.resolveTemplateValue(catalog, templateKey, requestedLocale),
         selectedVariantIndex: null as number | null,
       };
     }
@@ -218,7 +217,7 @@ export class ResponseFallbackService {
     return {
       value:
         configuredVariants[selectedVariantIndex] ??
-        this.resolveTemplateValue(catalog, templateKey),
+        this.resolveTemplateValue(catalog, templateKey, requestedLocale),
       selectedVariantIndex,
     };
   }
@@ -226,17 +225,17 @@ export class ResponseFallbackService {
   private resolveTemplateValue(
     catalog: ResponseFallbackCatalogResource,
     templateKey: ResponseFallbackTemplateKey,
+    requestedLocale?: string | null,
   ) {
-    const value = catalog.templates[templateKey];
+    const resolved = resolveBootstrapTemplateFallback({
+      templateKey,
+      requestedLocale,
+      resolvedLocale: catalog.locale,
+      configuredValue: catalog.templates[templateKey],
+    });
 
-    if (typeof value === 'string' && value.trim().length > 0) {
-      return value;
-    }
-
-    const fallback = optionalTemplateFallbacks[templateKey];
-
-    if (fallback) {
-      return fallback;
+    if (resolved) {
+      return resolved;
     }
 
     throw new Error(`Fallback template "${templateKey}" is not configured`);

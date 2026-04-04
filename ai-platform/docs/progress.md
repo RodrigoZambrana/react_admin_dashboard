@@ -2152,3 +2152,36 @@
   - response fallback bootstrap compatibility
 - Keep governed fallback catalogs as the primary source of user-facing fallback wording
 - Preserve existing document/advisory/booking behavior while removing inline heuristic/copy ownership from decisive services
+
+## Iteration 64
+
+### Implemented
+- Closed Stage 2 of the current intervention plan by removing new ownership drift from the response path:
+  - `ResponseGuardrailService` no longer owns inline stopword-heavy novel-token heuristics
+  - document overreach detection now runs through the dedicated response-grounding boundary using contextual overlap over approved document context instead of a growing inline stopword bucket in the decisive guardrail service
+  - `ResponseFallbackService` no longer owns inline multilingual compatibility maps for optional templates
+  - compatibility-safe bootstrap wording for optional fallback templates now lives in a dedicated response-fallback bootstrap boundary while governed fallback catalogs remain the runtime primary source
+- Added regression coverage so the branch now asserts that:
+  - decisive response services do not reintroduce inline heuristic/copy ownership
+  - response grounding still catches unsupported document overreach
+  - bootstrap fallback compatibility still works when a managed catalog lacks an optional template
+
+### Working
+- Full validation passes for the branch state:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+- Existing document/advisory/booking behavior remains non-regressed after the ownership cleanup:
+  - document/detail grounding checks still reject unsupported commercial or variant claims
+  - close-turn behavior remains contextual
+  - governed fallback catalogs still drive normal user-facing fallback wording
+
+### Technical Debt
+- Response grounding still relies on structured lexical support catalogs, but that ownership is now explicit and bounded inside the response-grounding boundary instead of leaking into decisive guardrail services
+- The frontend workspace still lacks a supported automated test harness
+- The current `get_product` path remains a temporary demo-catalog boundary until a real catalog source exists
+
+### Next Steps
+- Treat Stage 1 and Stage 2 of the intervention plan as complete
+- Keep future corpus-distillation/runtime changes separate from this cleanup pass
+- Preserve the documented core vs tenant boundary model while any later conversational work continues

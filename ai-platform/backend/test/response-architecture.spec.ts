@@ -32,4 +32,20 @@ describe('Wave 4 response architecture guardrails', () => {
       }
     }
   });
+
+  it('keeps heuristic and bootstrap ownership out of the decisive runtime services', () => {
+    const guardrailContent = readFileSync(
+      join(repoRoot, 'src/modules/response/response-guardrail.service.ts'),
+      'utf8',
+    );
+    const fallbackContent = readFileSync(
+      join(repoRoot, 'src/modules/response-fallback/response-fallback.service.ts'),
+      'utf8',
+    );
+
+    expect(guardrailContent).not.toMatch(/guardrailStopWords/);
+    expect(guardrailContent).not.toMatch(/extractInformativeTokens/);
+    expect(fallbackContent).not.toMatch(/optionalTemplateFallbacks/);
+    expect(fallbackContent).not.toMatch(/resolveOptionalTemplateFallback/);
+  });
 });

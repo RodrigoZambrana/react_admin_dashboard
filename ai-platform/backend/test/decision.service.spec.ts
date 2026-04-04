@@ -301,4 +301,107 @@ describe('DecisionService', () => {
       }),
     );
   });
+
+  it('closes the turn contextually for gratitude after a completed flow instead of reopening a generic prompt', () => {
+    const service = createService();
+
+    const decision = service.decide({
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.74,
+        entities: {
+          rawMessage: 'Gracias por la ayuda',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-closed',
+        lane: 'booking',
+        lastIntent: 'CREATE_BOOKING',
+        lastApprovedAction: 'invoke_tool',
+        lastApprovedToolName: 'create_booking',
+        approvedFacts: {
+          requestedDate: {
+            iso: '2026-04-05T11:00:00.000Z',
+            precision: 'date',
+            source: 'execution',
+          },
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: {
+          bookingId: 'bk_1',
+          scheduledFor: '2026-04-05T11:00:00.000Z',
+          status: 'confirmed',
+        },
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+      documentRetrieval: {
+        attempted: true,
+        reason: 'active_document_continuation',
+        result: {
+          source: 'document_origin',
+          query: 'cambio de cadena roller',
+          groundedSummary: 'Servicio estándar.',
+          matches: [],
+        },
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'close_turn',
+        reasonCode: 'contextual_close_acknowledged',
+      }),
+    );
+  });
+
+  it('does not close the turn when gratitude also contains a fresh request', () => {
+    const service = createService();
+
+    const decision = service.decide({
+      interpretation: {
+        intent: 'CREATE_BOOKING',
+        language: 'es',
+        confidence: 0.88,
+        entities: {
+          rawMessage: 'Gracias, agendame una visita para mañana',
+        },
+        normalizedEntities: {
+          dates: [
+            {
+              source: 'mañana',
+              iso: '2026-04-05T12:00:00.000Z',
+              precision: 'date',
+            },
+          ],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-open',
+        lane: 'booking',
+        lastIntent: 'CREATE_BOOKING',
+        lastApprovedAction: 'clarify',
+        missingFields: ['requested_date'],
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      } as any,
+      documentRetrieval: null,
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'invoke_tool',
+        toolName: 'create_booking',
+      }),
+    );
+  });
 });

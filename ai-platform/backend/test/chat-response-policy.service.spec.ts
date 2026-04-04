@@ -1,4 +1,5 @@
 import { ChatResponsePolicyService } from '../src/modules/response/chat-response-policy.service';
+import { ResponseGroundingService } from '../src/modules/response/response-grounding.service';
 
 describe('ChatResponsePolicyService', () => {
   const service = new ChatResponsePolicyService({
@@ -38,7 +39,7 @@ describe('ChatResponsePolicyService', () => {
         return labels.default;
       },
     ),
-  } as any);
+  } as any, new ResponseGroundingService());
 
   it('returns a grounded booking confirmation after successful execution', async () => {
     await expect(
@@ -399,6 +400,14 @@ describe('ChatResponsePolicyService', () => {
           groundedSummary:
             'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
           responseMode: 'combined_execution',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
           matches: [
             {
               documentId: 'doc-1',
@@ -414,6 +423,178 @@ describe('ChatResponsePolicyService', () => {
     ).resolves.toBe(
       'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
     );
+  });
+
+  it('keeps partially supported document answers in the middle ground instead of claiming no information at all', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: '¿Qué colores exactos tiene esta línea?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.9,
+          entities: {
+            rawMessage: '¿Qué colores exactos tiene esta línea?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'colores exactos de esta línea',
+          groundedSummary:
+            'El documento indica que esta línea ofrece una variedad de colores.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'partial',
+            exactnessRequested: true,
+            requestedDetailTypes: ['color_options'],
+            supportedDetailTypes: [],
+            partialDetailTypes: ['color_options'],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Catálogo',
+              excerpt: 'Disponible en una variedad de colores.',
+              sequence: 0,
+              score: 3.8,
+            },
+          ],
+        },
+      }),
+    ).resolves.toBe(
+      'El documento indica que esta línea ofrece una variedad de colores. No especifica los colores exactos.',
+    );
+  });
+
+  it('keeps combined document plus booking answers concise when the document does not specify the requested detail', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage:
+          'Según el documento, ¿cubren cambio de cadena? Si sí, agendame una visita para mañana a las 11.',
+        intent: 'CREATE_BOOKING',
+        outcome: 'execution_succeeded',
+        decision: {
+          domain: 'tenant',
+          action: 'invoke_tool',
+          toolName: 'create_booking',
+          reasonCode: 'booking_requested',
+          missingFields: [],
+          responseTemplateKey: 'tenant.booking.confirmation',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.94,
+          entities: {
+            rawMessage:
+              'Según el documento, ¿cubren cambio de cadena? Si sí, agendame una visita para mañana a las 11.',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'succeeded',
+          toolName: 'create_booking',
+          validatedInputSummary: {
+            requestedDateIso: '2026-04-05T11:00:00.000Z',
+          },
+          resultSummary: {
+            bookingId: 'bk_12345678',
+            scheduledFor: '2026-04-05T11:00:00.000Z',
+            status: 'confirmed',
+          },
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: ['bookingId', 'scheduledFor', 'status'],
+        approvedDocumentIds: [],
+        documentContext: {
+          source: 'document_origin',
+          query: 'cubren cambio de cadena',
+          groundedSummary: '',
+          responseMode: 'combined_execution',
+          grounding: {
+            supportLevel: 'partial',
+            exactnessRequested: false,
+            requestedDetailTypes: ['coverage_support'],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: ['coverage_support'],
+          },
+          matches: [],
+        },
+      }),
+    ).resolves.toBe(
+      'No encontré información relevante sobre eso en los documentos activos. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+    );
+  });
+
+  it('returns a short contextual acknowledgment for close_turn responses', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'Gracias por la ayuda',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'close_turn',
+        decision: {
+          domain: 'core',
+          action: 'close_turn',
+          reasonCode: 'contextual_close_acknowledged',
+          missingFields: [],
+          responseTemplateKey: 'core.close_turn',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.82,
+          entities: {
+            rawMessage: 'Gracias por la ayuda',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: [],
+      }),
+    ).resolves.toBe('Gracias por el mensaje. Lo dejamos por acá.');
   });
 
   it('uses a governed not-found response when active documents do not support the question', async () => {
@@ -457,6 +638,14 @@ describe('ChatResponsePolicyService', () => {
           query: 'chain replacement coverage',
           groundedSummary: '',
           responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
           matches: [],
         },
       }),
@@ -514,6 +703,14 @@ describe('ChatResponsePolicyService', () => {
           groundedSummary:
             'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. También describe características generales del producto y recomendaciones de mantenimiento complementarias para distintos ambientes.',
           responseMode: 'combined_execution',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
           matches: [
             {
               documentId: 'doc-1',
@@ -557,6 +754,10 @@ function buildCatalog(locale?: string) {
           'No pude completar {{actionLabel}} por un error durante la ejecución.',
         document_not_found:
           'No encontré información relevante sobre eso en los documentos activos.',
+        close_turn_acknowledgement:
+          'Gracias por el mensaje. Lo dejamos por acá.',
+        close_turn_resolved:
+          'Perfecto, gracias por avisar. Lo dejamos por acá.',
       },
       templateVariants: {
         basic_response: [
@@ -581,6 +782,12 @@ function buildCatalog(locale?: string) {
         ],
         document_not_found: [
           'No encontré información relevante sobre eso en los documentos activos.',
+        ],
+        close_turn_acknowledgement: [
+          'Gracias por el mensaje. Lo dejamos por acá.',
+        ],
+        close_turn_resolved: [
+          'Perfecto, gracias por avisar. Lo dejamos por acá.',
         ],
       },
       actionLabels: {
@@ -620,6 +827,10 @@ function buildCatalog(locale?: string) {
         'I could not complete {{actionLabel}} because of an execution error.',
       document_not_found:
         'I could not find relevant information about that in the active documents.',
+      close_turn_acknowledgement:
+        'Thanks for the message. I will leave it here for now.',
+      close_turn_resolved:
+        'Understood, thanks for letting me know. I will leave it here.',
     },
     templateVariants: {
       basic_response: [
@@ -644,6 +855,12 @@ function buildCatalog(locale?: string) {
       ],
       document_not_found: [
         'I could not find relevant information about that in the active documents.',
+      ],
+      close_turn_acknowledgement: [
+        'Thanks for the message. I will leave it here for now.',
+      ],
+      close_turn_resolved: [
+        'Understood, thanks for letting me know. I will leave it here.',
       ],
     },
     actionLabels: {

@@ -189,4 +189,101 @@ describe('DocumentRetrievalService', () => {
       }),
     );
   });
+
+  it('prefers the most query-relevant sentence inside a matched chunk instead of the first generic sentence', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-ven-1',
+          documentId: 'doc-ven',
+          sequence: 0,
+          content:
+            'Las cortinas venecianas permiten controlar la luz y la privacidad. Contamos con variedad de colores que permiten combinarlas con distintos ambientes.',
+          searchText:
+            'las cortinas venecianas permiten controlar la luz y la privacidad contamos con variedad de colores que permiten combinarlas con distintos ambientes',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-ven',
+            title: 'Venecianas',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'Según el catálogo, ¿qué colores exactos tienen las cortinas venecianas?',
+      interpretation: {
+        intent: 'GET_PRODUCT',
+        entities: {
+          rawMessage:
+            'Según el catálogo, ¿qué colores exactos tienen las cortinas venecianas?',
+        },
+        language: 'es',
+        confidence: 0.9,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(result.result?.matches[0]?.excerpt).toMatch(/variedad de colores/i);
+  });
+
+  it('returns an empty document result instead of a misleading low-score grounded summary', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-low-1',
+          documentId: 'doc-low',
+          sequence: 0,
+          content:
+            'Las cortinas roller se pueden clasificar en dos tipos según el pasaje de luz.',
+          searchText:
+            'las cortinas roller se pueden clasificar en dos tipos segun el pasaje de luz',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-low',
+            title: 'Catalogo Roller',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message:
+        'Según el documento, ¿cubren cambio de cadena de una roller? Si sí, agendame una visita.',
+      interpretation: {
+        intent: 'CREATE_BOOKING',
+        entities: {
+          rawMessage:
+            'Según el documento, ¿cubren cambio de cadena de una roller? Si sí, agendame una visita.',
+          requestSummary: 'cambio de cadena de una roller',
+        },
+        language: 'es',
+        confidence: 0.94,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(result).toEqual({
+      attempted: true,
+      reason: 'document_query',
+      result: {
+        source: 'document_origin',
+        query: '¿cubren cambio de cadena de una roller',
+        groundedSummary: '',
+        matches: [],
+      },
+    });
+  });
 });

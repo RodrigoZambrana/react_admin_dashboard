@@ -209,7 +209,9 @@ export class ConversationContinuityService {
     );
     const nextUsefulField = filteredMissingFields[0];
     const lastApprovedAction =
-      input.execution?.ok && input.decision.action === 'invoke_tool'
+      input.decision.action === 'respond' ||
+      input.decision.action === 'close_turn' ||
+      (input.execution?.ok && input.decision.action === 'invoke_tool')
         ? input.decision.action
         : input.preparedTurn.activeState?.lastApprovedAction;
     const lastApprovedToolName =
@@ -248,6 +250,10 @@ export class ConversationContinuityService {
     decision: DecisionResult;
     documentRetrieval: DocumentRetrievalAttempt;
   }): ConversationLane | null {
+    if (input.decision.action === 'close_turn') {
+      return null;
+    }
+
     if (input.decision.action === 'invoke_tool') {
       return (
         input.preparedTurn.continuity.activeLane ??

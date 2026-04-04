@@ -224,4 +224,58 @@ describe('ResponseFallbackService', () => {
       }),
     );
   });
+
+  it('uses the bootstrap compatibility boundary when an optional template is missing from the resolved catalog', async () => {
+    const service = new ResponseFallbackService(
+      {
+        resolveCatalog: jest.fn(async () => ({
+          locale: 'default',
+          templates: {
+            basic_response: 'Hi, how can I help you?',
+            clarification_requested_date: '',
+            clarification_user_goal: '',
+            clarification_generic: '',
+            execution_success_booking: '',
+            execution_success_quote: '',
+            execution_success_product: '',
+            execution_success_generic: '',
+            execution_failure_unknown_tool: '',
+            execution_failure_validation: '',
+            execution_failure_generic: '',
+          },
+          templateVariants: {},
+          actionLabels: {
+            create_booking: 'the requested booking',
+            create_quote: 'the requested quote',
+            get_product: 'the requested product lookup',
+            default: 'the approved request',
+          },
+          defaults: {
+            scheduledFor: 'the requested date',
+            currency: 'USD',
+            amount: '0.00',
+            productName: 'the requested product',
+          },
+        })),
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(),
+        createVersion: jest.fn(),
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.render({
+        locale: 'es-UY',
+        templateKey: 'document_not_found',
+      }),
+    ).resolves.toBe(
+      'No encontré información relevante sobre eso en los documentos activos.',
+    );
+  });
 });

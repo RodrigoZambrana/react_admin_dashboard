@@ -14,10 +14,33 @@ export const responseFallbackTemplateKeySchema = z.enum([
   'execution_failure_not_found',
   'execution_failure_generic',
   'document_not_found',
+  'close_turn_acknowledgement',
+  'close_turn_resolved',
 ]);
 
 export type ResponseFallbackTemplateKey = z.infer<
   typeof responseFallbackTemplateKeySchema
+>;
+
+export const responseFallbackBootstrapTemplateKeySchema = z.enum([
+  'execution_failure_not_found',
+  'document_not_found',
+  'close_turn_acknowledgement',
+  'close_turn_resolved',
+]);
+
+export type ResponseFallbackBootstrapTemplateKey = z.infer<
+  typeof responseFallbackBootstrapTemplateKeySchema
+>;
+
+export const responseFallbackLocaleFamilySchema = z.enum([
+  'default',
+  'en',
+  'es',
+]);
+
+export type ResponseFallbackLocaleFamily = z.infer<
+  typeof responseFallbackLocaleFamilySchema
 >;
 
 export const responseFallbackCatalogResourceSchema = z.object({
@@ -36,6 +59,8 @@ export const responseFallbackCatalogResourceSchema = z.object({
     execution_failure_not_found: z.string().min(1).optional(),
     execution_failure_generic: z.string().min(1),
     document_not_found: z.string().min(1).optional(),
+    close_turn_acknowledgement: z.string().min(1).optional(),
+    close_turn_resolved: z.string().min(1).optional(),
   }),
   templateVariants: z
     .object({
@@ -52,6 +77,8 @@ export const responseFallbackCatalogResourceSchema = z.object({
       execution_failure_not_found: z.array(z.string().min(1)).min(1).optional(),
       execution_failure_generic: z.array(z.string().min(1)).min(1).optional(),
       document_not_found: z.array(z.string().min(1)).min(1).optional(),
+      close_turn_acknowledgement: z.array(z.string().min(1)).min(1).optional(),
+      close_turn_resolved: z.array(z.string().min(1)).min(1).optional(),
     })
     .optional(),
   actionLabels: z.object({

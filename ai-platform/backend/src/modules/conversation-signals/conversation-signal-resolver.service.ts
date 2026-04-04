@@ -19,6 +19,7 @@ export class ConversationSignalResolverService {
     const normalizedTexts = candidateTexts.map((value) => normalizeText(value));
     const document = this.matchNamespace(catalog.document, normalizedTexts);
     const advisory = this.matchNamespace(catalog.advisory, normalizedTexts);
+    const closure = this.matchNamespace(catalog.closure, normalizedTexts);
     const documentFocusText =
       document.lexicalScore > 0
         ? this.resolveFocusText(catalog.document, candidateTexts)
@@ -47,6 +48,13 @@ export class ConversationSignalResolverService {
         continuationEligible:
           input.conversationState?.lane === 'advisory_exploration' &&
           this.isExplorationFollowUpIntent(input.interpretation.intent),
+      },
+      closure: {
+        ...closure,
+        gratitude: closure.matchedCategories.includes('gratitude'),
+        decline: closure.matchedCategories.includes('decline'),
+        farewell: closure.matchedCategories.includes('farewell'),
+        supported: closure.lexicalScore > 0,
       },
     };
   }

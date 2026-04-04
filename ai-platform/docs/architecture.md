@@ -665,6 +665,11 @@ Response grounding now distinguishes three backend-owned support modes for docum
 - partial support that allows bounded synthesis but still requires unspecified-detail disclosure when exact data is absent
 - document miss / unsupported detail, which must stay honest and concise instead of inventing coverage, pricing, materials, or purchase facts
 
+Response grounding and response fallback ownership are now also split more cleanly:
+
+- `ResponseGroundingService` owns contextual support assessment and bounded document-overreach detection through a dedicated grounding boundary instead of inline stopword-heavy heuristics inside `ResponseGuardrailService`
+- `ResponseFallbackService` still resolves managed runtime catalogs as the primary source of deterministic wording, but compatibility-safe bootstrap copy now lives in a dedicated response-fallback bootstrap boundary instead of inline multilingual maps inside the runtime service
+
 Contextual `close_turn` is also now backend-owned and state-aware:
 
 - it depends on prior approved flow completion, missing-field state, and fresh-request signals

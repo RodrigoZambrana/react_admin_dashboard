@@ -597,6 +597,7 @@ describe('ConversationContinuityService', () => {
     expect(state).toEqual(
       expect.objectContaining({
         lane: 'document_exploration',
+        lastApprovedAction: 'respond',
         approvedFacts: expect.objectContaining({
           activeDocumentIds: ['doc-1'],
         }),
@@ -657,6 +658,7 @@ describe('ConversationContinuityService', () => {
     expect(state).toEqual(
       expect.objectContaining({
         lane: 'advisory_exploration',
+        lastApprovedAction: 'respond',
         approvedFacts: expect.objectContaining({
           topicSummary: expect.any(String),
         }),

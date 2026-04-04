@@ -9,11 +9,13 @@
     "execution_success_quote": "La cotización preliminar fue creada por {{currency}} {{estimatedTotal}}.",
     "execution_success_product": "Encontré {{name}} por {{currency}} {{price}}.",
     "execution_success_generic": "La acción solicitada se ejecutó correctamente.",
-  "execution_failure_unknown_tool": "No pude completar {{actionLabel}} porque la capacidad aprobada no está disponible.",
-  "execution_failure_validation": "No pude completar {{actionLabel}} con la información disponible.",
-  "execution_failure_not_found": "No encontré una coincidencia válida para {{actionLabel}} con la información disponible.",
-  "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución.",
-    "document_not_found": "No encontré información relevante sobre eso en los documentos activos."
+    "execution_failure_unknown_tool": "No pude completar {{actionLabel}} porque la capacidad aprobada no está disponible.",
+    "execution_failure_validation": "No pude completar {{actionLabel}} con la información disponible.",
+    "execution_failure_not_found": "No encontré una coincidencia válida para {{actionLabel}} con la información disponible.",
+    "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución.",
+    "document_not_found": "No encontré información relevante sobre eso en los documentos activos.",
+    "close_turn_acknowledgement": "Gracias por el mensaje. Lo dejamos por acá.",
+    "close_turn_resolved": "Perfecto, gracias por avisar. Lo dejamos por acá."
   },
   "templateVariants": {
     "basic_response": [
@@ -40,6 +42,16 @@
       "No encontré información relevante sobre eso en los documentos activos.",
       "No veo contenido activo que confirme eso en los documentos cargados.",
       "No tengo un documento activo que responda eso con claridad."
+    ],
+    "close_turn_acknowledgement": [
+      "Gracias por el mensaje. Lo dejamos por acá.",
+      "Perfecto, gracias. Queda cerrado por ahora.",
+      "De acuerdo, lo dejamos acá."
+    ],
+    "close_turn_resolved": [
+      "Perfecto, gracias por avisar. Lo dejamos por acá.",
+      "Entendido, gracias. Doy esto por cerrado.",
+      "Buenísimo, entonces lo dejamos resuelto por ahora."
     ]
   },
   "actionLabels": {

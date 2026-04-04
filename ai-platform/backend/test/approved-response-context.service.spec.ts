@@ -1,8 +1,11 @@
 import { ApprovedResponseContextService } from '../src/modules/response/approved-response-context.service';
+import { ResponseGroundingService } from '../src/modules/response/response-grounding.service';
 
 describe('ApprovedResponseContextService', () => {
   it('reduces raw document excerpt exposure for combined execution responses', () => {
-    const service = new ApprovedResponseContextService();
+    const service = new ApprovedResponseContextService(
+      new ResponseGroundingService(),
+    );
 
     const context = service.build({
       message:
@@ -72,6 +75,11 @@ describe('ApprovedResponseContextService', () => {
     expect(context.documentContext).toEqual(
       expect.objectContaining({
         responseMode: 'combined_execution',
+        grounding: expect.objectContaining({
+          supportLevel: 'partial',
+          requestedDetailTypes: ['coverage_support'],
+          unsupportedDetailTypes: ['coverage_support'],
+        }),
         matches: [
           expect.not.objectContaining({
             excerpt: expect.any(String),

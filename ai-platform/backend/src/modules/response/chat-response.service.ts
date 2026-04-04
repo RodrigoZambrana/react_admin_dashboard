@@ -59,6 +59,7 @@ export class ChatResponseService {
       generation.ok && generation.parsedResponse
         ? this.responseGuardrailService.evaluate({
             approvedContext,
+            approvedDraft,
             generatedResponse: generation.parsedResponse,
           })
         : {

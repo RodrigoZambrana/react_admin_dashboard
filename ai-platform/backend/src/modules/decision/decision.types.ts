@@ -5,7 +5,7 @@ import type {
 import type { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import type { DocumentRetrievalAttempt } from '../documents/document.types';
 
-export type DecisionAction = 'respond' | 'clarify' | 'invoke_tool';
+export type DecisionAction = 'respond' | 'clarify' | 'invoke_tool' | 'close_turn';
 export type DecisionDomain = 'core' | 'tenant';
 export type ToolName = 'create_booking' | 'get_product' | 'create_quote';
 
