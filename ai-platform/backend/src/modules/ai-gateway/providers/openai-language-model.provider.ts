@@ -12,6 +12,8 @@ import {
 
 @Injectable()
 export class OpenAiLanguageModelProvider implements LanguageModelProvider {
+  readonly providerName = 'openai';
+
   async interpret(
     input: LanguageModelInterpretationRequest,
     providerInput: LanguageModelProviderConfig,

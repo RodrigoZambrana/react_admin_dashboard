@@ -1154,3 +1154,26 @@
 - Start Wave 8, `User Chat Product UI`, on top of the now-live admin knowledge/test-center tooling and the stabilized governed backend runtime
 - Land the async turn-intake / cancellation / typing capability before or within Wave 8 instead of building the public chat product on a synchronous request/response shell
 - Absorb the carried `AiGatewayService` registry/scaffolding debt through a clean backend boundary before or during Wave 8 without disrupting the live pipeline contract
+
+## Iteration 38
+
+### Implemented
+- Started Wave 8.0, `Gateway Structural Cleanup For User Chat Readiness`, by extracting provider registration and resolution out of `AiGatewayService`
+- Introduced a dedicated `LanguageModelProviderRegistry` backend boundary and a provider token-based registration path inside `AiGatewayModule`
+- Added explicit provider identity to language-model providers so supported backends register themselves instead of being selected through hardcoded branching in the gateway
+- Refactored gateway tests to resolve providers through the new registry boundary instead of constructor-time branching assumptions
+
+### Working
+- `AiGatewayService` no longer contains hardcoded provider selection branches for `mock` versus `openai`
+- Supported providers still resolve and execute through the live gateway path
+- `npm run build --workspace backend` and `npm test --workspace backend -- --runInBand` pass after the registry extraction
+
+### Technical Debt
+- Prompt/protocol scaffolding still lives inline inside `AiGatewayService`; this remains the next structural concentration to remove in Wave 8.0
+- Bootstrap env-seed compatibility still contains provider-specific fallback handling, but that logic remains outside the gateway core path and was intentionally not expanded in this milestone
+- Async turn-intake / cancellation / typing remains out of scope and untouched in this phase
+
+### Next Steps
+- Extract prompt/protocol assembly out of `AiGatewayService` into a dedicated backend-owned boundary for interpretation and response flows
+- Add architecture-level tests proving the gateway is no longer the concentration point for provider resolution or prompt scaffolding
+- Close Wave 8.0 with a hardcode audit, full validation pass, and roadmap continuity documentation toward Wave 8.1 and Wave 8.2

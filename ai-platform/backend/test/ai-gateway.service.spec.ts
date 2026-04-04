@@ -1,4 +1,5 @@
 import { AiGatewayService } from '../src/modules/ai-gateway/ai-gateway.service';
+import { LanguageModelProviderRegistry } from '../src/modules/ai-gateway/providers/language-model-provider.registry';
 
 describe('AiGatewayService', () => {
   it('parses valid interpretation JSON from the selected provider', async () => {
@@ -16,18 +17,16 @@ describe('AiGatewayService', () => {
         debug: jest.fn(),
         error: jest.fn(),
       } as any,
-      {
-        interpret: jest.fn(async () => ({
-          rawResponse:
-            '{"intent":"GENERAL_CONVERSATION","entities":{},"language":"es","confidence":0.91}',
-          model: 'mock-rule-engine',
-        })),
-        generateResponse: jest.fn(),
-      } as any,
-      {
-        interpret: jest.fn(),
-        generateResponse: jest.fn(),
-      } as any,
+      buildProviderRegistry({
+        mock: {
+          interpret: jest.fn(async () => ({
+            rawResponse:
+              '{"intent":"GENERAL_CONVERSATION","entities":{},"language":"es","confidence":0.91}',
+            model: 'mock-rule-engine',
+          })),
+          generateResponse: jest.fn(),
+        },
+      }),
     );
 
     await expect(service.interpret({ message: 'hola' })).resolves.toEqual({
@@ -62,17 +61,15 @@ describe('AiGatewayService', () => {
         debug: jest.fn(),
         error: jest.fn(),
       } as any,
-      {
-        interpret: jest.fn(async () => ({
-          rawResponse: 'not-json',
-          model: 'mock-rule-engine',
-        })),
-        generateResponse: jest.fn(),
-      } as any,
-      {
-        interpret: jest.fn(),
-        generateResponse: jest.fn(),
-      } as any,
+      buildProviderRegistry({
+        mock: {
+          interpret: jest.fn(async () => ({
+            rawResponse: 'not-json',
+            model: 'mock-rule-engine',
+          })),
+          generateResponse: jest.fn(),
+        },
+      }),
     );
 
     await expect(service.interpret({ message: 'hola' })).resolves.toEqual(
@@ -100,18 +97,16 @@ describe('AiGatewayService', () => {
         debug: jest.fn(),
         error: jest.fn(),
       } as any,
-      {
-        interpret: jest.fn(async () => ({
-          rawResponse:
-            '{"intent":"GENERAL_CONVERSATION","entities":{},"language":"es","confidence":0.91}',
-          model: 'mock-rule-engine',
-        })),
-        generateResponse: jest.fn(),
-      } as any,
-      {
-        interpret: jest.fn(),
-        generateResponse: jest.fn(),
-      } as any,
+      buildProviderRegistry({
+        mock: {
+          interpret: jest.fn(async () => ({
+            rawResponse:
+              '{"intent":"GENERAL_CONVERSATION","entities":{},"language":"es","confidence":0.91}',
+            model: 'mock-rule-engine',
+          })),
+          generateResponse: jest.fn(),
+        },
+      }),
     );
 
     await service.interpret({
@@ -146,11 +141,9 @@ describe('AiGatewayService', () => {
         debug: jest.fn(),
         error: jest.fn(),
       } as any,
-      mockProvider as any,
-      {
-        interpret: jest.fn(),
-        generateResponse: jest.fn(),
-      } as any,
+      buildProviderRegistry({
+        mock: mockProvider,
+      }),
     );
 
     await expect(
@@ -235,11 +228,13 @@ describe('AiGatewayService', () => {
         debug: jest.fn(),
         error: jest.fn(),
       } as any,
-      {
-        interpret: jest.fn(),
-        generateResponse: jest.fn(),
-      } as any,
-      openAiProvider as any,
+      buildProviderRegistry({
+        mock: {
+          interpret: jest.fn(),
+          generateResponse: jest.fn(),
+        },
+        openai: openAiProvider,
+      }),
     );
 
     await expect(service.interpret({ message: 'hola' })).resolves.toEqual(
@@ -277,14 +272,16 @@ describe('AiGatewayService', () => {
         debug: jest.fn(),
         error: jest.fn(),
       } as any,
-      {
-        interpret: jest.fn(),
-        generateResponse: jest.fn(),
-      } as any,
-      {
-        interpret: jest.fn(),
-        generateResponse: jest.fn(),
-      } as any,
+      buildProviderRegistry({
+        mock: {
+          interpret: jest.fn(),
+          generateResponse: jest.fn(),
+        },
+        openai: {
+          interpret: jest.fn(),
+          generateResponse: jest.fn(),
+        },
+      }),
     );
 
     await expect(service.interpret({ message: 'hola' })).resolves.toEqual(
@@ -344,4 +341,21 @@ function buildGatewayConfig(
         version: 1,
       },
   };
+}
+
+function buildProviderRegistry(
+  providers: Record<
+    string,
+    {
+      interpret: jest.Mock;
+      generateResponse: jest.Mock;
+    }
+  >,
+) {
+  return new LanguageModelProviderRegistry(
+    Object.entries(providers).map(([providerName, provider]) => ({
+      providerName,
+      ...provider,
+    })) as any,
+  );
 }

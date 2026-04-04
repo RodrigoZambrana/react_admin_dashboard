@@ -64,6 +64,7 @@ export type LanguageModelProviderConfig = {
 };
 
 export interface LanguageModelProvider {
+  readonly providerName: string;
   interpret(
     input: LanguageModelInterpretationRequest,
     providerInput: LanguageModelProviderConfig,

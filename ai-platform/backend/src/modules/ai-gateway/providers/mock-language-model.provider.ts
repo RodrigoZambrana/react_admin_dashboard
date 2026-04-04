@@ -50,6 +50,8 @@ function detectIntent(message: string) {
 
 @Injectable()
 export class MockLanguageModelProvider implements LanguageModelProvider {
+  readonly providerName = 'mock';
+
   constructor(
     private readonly temporalExpressionService: TemporalExpressionService,
   ) {}

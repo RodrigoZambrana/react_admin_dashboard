@@ -12,8 +12,7 @@ import {
   InterpretationOutput,
   ResponseGenerationInput,
 } from './ai-gateway.types';
-import { MockLanguageModelProvider } from './providers/mock-language-model.provider';
-import { OpenAiLanguageModelProvider } from './providers/openai-language-model.provider';
+import { LanguageModelProviderRegistry } from './providers/language-model-provider.registry';
 
 const interpretationOutputSchema = z.object({
   intent: z.string().min(1),
@@ -28,13 +27,12 @@ export class AiGatewayService {
     private readonly runtimeConfig: RuntimeConfigService,
     private readonly promptService: PromptService,
     private readonly logger: PipelineLoggerService,
-    private readonly mockProvider: MockLanguageModelProvider,
-    private readonly openAiProvider: OpenAiLanguageModelProvider,
+    private readonly providerRegistry: LanguageModelProviderRegistry,
   ) {}
 
   async interpret(input: InterpretationInput): Promise<AiGatewayInterpretationResult> {
     const providerConfig = await this.runtimeConfig.getAiGatewayConfig();
-    const provider = this.resolveInterpretationProvider(providerConfig.provider);
+    const provider = this.providerRegistry.resolve(providerConfig.provider);
     const startedAt = Date.now();
     const promptTemplate =
       input.promptTemplate ??
@@ -159,7 +157,7 @@ export class AiGatewayService {
     input: ResponseGenerationInput,
   ): Promise<AiGatewayResponseGenerationResult> {
     const providerConfig = await this.runtimeConfig.getAiGatewayConfig();
-    const provider = this.resolveInterpretationProvider(providerConfig.provider);
+    const provider = this.providerRegistry.resolve(providerConfig.provider);
     const startedAt = Date.now();
     const prompt =
       input.promptTemplate !== undefined
@@ -295,18 +293,6 @@ export class AiGatewayService {
         promptVersion: prompt?.version ?? null,
       };
     }
-  }
-
-  private resolveInterpretationProvider(providerName: string) {
-    if (providerName === 'openai') {
-      return this.openAiProvider;
-    }
-
-    if (providerName === 'mock') {
-      return this.mockProvider;
-    }
-
-    return null;
   }
 
   private requiresCredentials(input: {
