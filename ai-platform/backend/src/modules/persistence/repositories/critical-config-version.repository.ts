@@ -36,6 +36,12 @@ export class CriticalConfigVersionRepository {
     });
   }
 
+  findById(id: string) {
+    return this.prisma.criticalConfigVersion.findFirst({
+      where: { id },
+    });
+  }
+
   hasAnyVersions() {
     return this.prisma.criticalConfigVersion.count().then((count) => count > 0);
   }

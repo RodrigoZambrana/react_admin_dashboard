@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
@@ -112,6 +112,50 @@ export class ResponseFallbackService {
         locale: created.locale,
         version: created.version,
         status: created.status,
+      }),
+    );
+
+    return created;
+  }
+
+  async activateVersion(versionId: string, createdBy?: string) {
+    const existing = await this.responseFallbackVersionRepository.findById(
+      versionId,
+    );
+
+    if (!existing) {
+      throw new NotFoundException(
+        `Response fallback version ${versionId} was not found`,
+      );
+    }
+
+    if (existing.status === 'ACTIVE') {
+      return existing;
+    }
+
+    const resource = responseFallbackCatalogResourceSchema.parse(existing.resource);
+    const created = await this.responseFallbackVersionRepository.createVersion({
+      locale: existing.locale,
+      resource: resource as Prisma.InputJsonValue,
+      metadata: {
+        ...(typeof existing.metadata === 'object' && existing.metadata
+          ? (existing.metadata as Record<string, unknown>)
+          : {}),
+        origin: 'admin',
+        activatedFromVersionId: existing.id,
+        activatedFromVersion: existing.version,
+      } as Prisma.InputJsonValue,
+      createdBy,
+      activate: true,
+    });
+
+    this.logger.log(
+      JSON.stringify({
+        stage: 'response_fallback.activated',
+        locale: created.locale,
+        version: created.version,
+        sourceVersionId: existing.id,
+        sourceVersion: existing.version,
       }),
     );
 

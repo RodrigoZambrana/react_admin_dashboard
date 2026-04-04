@@ -142,6 +142,36 @@ export async function listActiveCriticalConfigs() {
   );
 }
 
+export async function createCriticalConfigVersion(input: {
+  key: CriticalConfigVersion['key'];
+  value: CriticalConfigVersion['value'];
+  createdBy?: string;
+  activate?: boolean;
+}) {
+  return apiRequest<CriticalConfigVersion>(
+    '/admin/runtime-resources/critical-configs',
+    {
+      method: 'POST',
+      body: input,
+    },
+  );
+}
+
+export async function activateCriticalConfigVersion(
+  versionId: string,
+  createdBy = 'admin-ui',
+) {
+  return apiRequest<CriticalConfigVersion>(
+    `/admin/runtime-resources/critical-configs/${versionId}/activate`,
+    {
+      method: 'POST',
+      body: {
+        createdBy,
+      },
+    },
+  );
+}
+
 export async function listResponseFallbackVersions() {
   return apiRequest<ResponseFallbackVersion[]>(
     '/admin/runtime-resources/response-fallbacks',
@@ -154,6 +184,36 @@ export async function listActiveResponseFallbacks() {
   );
 }
 
+export async function createResponseFallbackVersion(input: {
+  locale: string;
+  resource: ResponseFallbackVersion['resource'];
+  createdBy?: string;
+  activate?: boolean;
+}) {
+  return apiRequest<ResponseFallbackVersion>(
+    '/admin/runtime-resources/response-fallbacks',
+    {
+      method: 'POST',
+      body: input,
+    },
+  );
+}
+
+export async function activateResponseFallbackVersion(
+  versionId: string,
+  createdBy = 'admin-ui',
+) {
+  return apiRequest<ResponseFallbackVersion>(
+    `/admin/runtime-resources/response-fallbacks/${versionId}/activate`,
+    {
+      method: 'POST',
+      body: {
+        createdBy,
+      },
+    },
+  );
+}
+
 export async function listKnowledgeMetadataVersions() {
   return apiRequest<KnowledgeMetadataVersion[]>(
     '/admin/runtime-resources/knowledge-metadata',
@@ -163,5 +223,35 @@ export async function listKnowledgeMetadataVersions() {
 export async function listActiveKnowledgeMetadata() {
   return apiRequest<KnowledgeMetadataVersion[]>(
     '/admin/runtime-resources/knowledge-metadata/active',
+  );
+}
+
+export async function createKnowledgeMetadataVersion(input: {
+  key: KnowledgeMetadataVersion['key'];
+  resource: KnowledgeMetadataVersion['resource'];
+  createdBy?: string;
+  activate?: boolean;
+}) {
+  return apiRequest<KnowledgeMetadataVersion>(
+    '/admin/runtime-resources/knowledge-metadata',
+    {
+      method: 'POST',
+      body: input,
+    },
+  );
+}
+
+export async function activateKnowledgeMetadataVersion(
+  versionId: string,
+  createdBy = 'admin-ui',
+) {
+  return apiRequest<KnowledgeMetadataVersion>(
+    `/admin/runtime-resources/knowledge-metadata/${versionId}/activate`,
+    {
+      method: 'POST',
+      body: {
+        createdBy,
+      },
+    },
   );
 }

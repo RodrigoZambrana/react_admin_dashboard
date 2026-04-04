@@ -36,6 +36,12 @@ export class KnowledgeMetadataVersionRepository {
     });
   }
 
+  findById(id: string) {
+    return this.prisma.knowledgeMetadataVersion.findFirst({
+      where: { id },
+    });
+  }
+
   hasAnyVersions() {
     return this.prisma.knowledgeMetadataVersion
       .count()

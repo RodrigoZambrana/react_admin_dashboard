@@ -82,4 +82,62 @@ describe('KnowledgeMetadataService', () => {
     ).rejects.toBeInstanceOf(ZodError);
     expect(createVersion).not.toHaveBeenCalled();
   });
+
+  it('promotes existing knowledge metadata through a governed activation path', async () => {
+    const createVersion = jest.fn(async () => ({
+      id: 'knowledge-2',
+      key: 'default',
+      version: 2,
+      status: 'ACTIVE',
+    }));
+    const service = new KnowledgeMetadataService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        findById: jest.fn(async () => ({
+          id: 'knowledge-1',
+          key: 'default',
+          version: 1,
+          status: 'DRAFT',
+          resource: {
+            enabledStages: ['execution', 'response'],
+            metadataAllowList: ['sku'],
+            stagePolicies: {
+              execution: {
+                enabled: true,
+                minConfidence: 0.7,
+                defaultTags: ['approved'],
+              },
+            },
+          },
+          metadata: {
+            origin: 'admin',
+          },
+        })),
+        createVersion,
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.activateVersion('knowledge-1', 'admin-ui'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: 'knowledge-2',
+        status: 'ACTIVE',
+      }),
+    );
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'default',
+        activate: true,
+        createdBy: 'admin-ui',
+      }),
+    );
+  });
 });

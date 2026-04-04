@@ -36,6 +36,12 @@ export class ResponseFallbackVersionRepository {
     });
   }
 
+  findById(id: string) {
+    return this.prisma.responseFallbackVersion.findFirst({
+      where: { id },
+    });
+  }
+
   hasAnyVersions() {
     return this.prisma.responseFallbackVersion
       .count()

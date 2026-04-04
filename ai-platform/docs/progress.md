@@ -982,3 +982,37 @@
 - Implement create/activate admin flows for critical configs, response fallback catalogs, and knowledge metadata on the same governed pattern
 - Finish Wave 6 operator-safe lifecycle UX and then run the closeout review against layer separation, tenant safety, operator clarity, and DreamsChat fidelity
 - Update architecture/progress documentation to tie the completed admin operations UI to Wave 7, Wave 8 async prerequisites, and Wave 9 hardening
+
+## Iteration 33
+
+### Implemented
+- Extended governed activation helpers to the remaining Wave 6 resource families:
+  - critical configs
+  - response fallback catalogs
+  - knowledge metadata
+- Completed the remaining admin ABM pages with real backend create/activate flows and selected-version detail panes for:
+  - critical configs
+  - response fallback catalogs
+  - knowledge metadata
+- Added backend tests proving the new governed activation paths stay service-owned and controller-thin across those resource families
+- Kept the UI thin by using JSON editors only as operator input surfaces while all validation, versioning, activation, and tenant rules remain in backend services
+
+### Working
+- All five required Wave 6 admin domains now support list/detail/create/activate flows over real backend governance surfaces:
+  - prompts
+  - date-time-locale-resources
+  - critical configs
+  - response fallback catalogs
+  - knowledge metadata
+- Backend build, backend tests, and frontend build all pass after landing the remaining ABM flows
+- The frontend remains non-breaking for the live runtime path and `/chat/message` behavior is unchanged
+
+### Technical Debt
+- The UI still depends on JSON editing for the more complex managed-resource families; richer field-level operator affordances can come later without changing backend contracts
+- `AiGatewayService` provider-registry and inline prompt-scaffolding debt remains explicitly carried forward and unchanged in this wave
+- Wave 6 still needs final closeout review and architectural documentation updates before it can be considered fully closed
+
+### Next Steps
+- Run the explicit Wave 6 closeout review against workflow coverage, tenant safety, DreamsChat fidelity, and operator clarity
+- Finalize architecture/progress documentation to show how Wave 6 enables Wave 7, Wave 8 async prerequisites, and Wave 9 hardening
+- Close the wave with a final validation pass and a documentation-focused commit

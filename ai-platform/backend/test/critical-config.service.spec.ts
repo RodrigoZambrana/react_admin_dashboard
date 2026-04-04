@@ -132,4 +132,57 @@ describe('CriticalConfigService', () => {
     ).rejects.toBeInstanceOf(ZodError);
     expect(createVersion).not.toHaveBeenCalled();
   });
+
+  it('promotes an existing critical config through a governed activation path', async () => {
+    const createVersion = jest.fn(async () => ({
+      id: 'config-2',
+      key: 'learning',
+      version: 3,
+      status: 'ACTIVE',
+    }));
+    const service = new CriticalConfigService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        findById: jest.fn(async () => ({
+          id: 'config-1',
+          key: 'learning',
+          version: 2,
+          status: 'DRAFT',
+          value: {
+            enabled: true,
+            observedStages: ['execution', 'response'],
+            minConfidence: 0.6,
+            maxBodyLength: 240,
+            maxSummaryLength: 180,
+            persistEmbeddings: true,
+          },
+          metadata: {
+            origin: 'admin',
+          },
+        })),
+        createVersion,
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(service.activateVersion('config-1', 'admin-ui')).resolves.toEqual(
+      expect.objectContaining({
+        id: 'config-2',
+        status: 'ACTIVE',
+      }),
+    );
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'learning',
+        activate: true,
+        createdBy: 'admin-ui',
+      }),
+    );
+  });
 });

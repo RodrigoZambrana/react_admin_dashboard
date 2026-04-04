@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
@@ -79,6 +79,51 @@ export class KnowledgeMetadataService {
         key: version.key,
         version: version.version,
         status: version.status,
+      }),
+    );
+
+    return version;
+  }
+
+  async activateVersion(versionId: string, createdBy?: string) {
+    const existing = await this.knowledgeMetadataVersionRepository.findById(
+      versionId,
+    );
+
+    if (!existing) {
+      throw new NotFoundException(
+        `Knowledge metadata version ${versionId} was not found`,
+      );
+    }
+
+    if (existing.status === 'ACTIVE') {
+      return existing;
+    }
+
+    const key = parseKnowledgeMetadataKey(existing.key);
+    const resource = parseKnowledgeMetadataResource(existing.resource);
+    const version = await this.knowledgeMetadataVersionRepository.createVersion({
+      key,
+      resource: resource as Prisma.InputJsonValue,
+      metadata: {
+        ...(typeof existing.metadata === 'object' && existing.metadata
+          ? (existing.metadata as Record<string, unknown>)
+          : {}),
+        origin: 'admin',
+        activatedFromVersionId: existing.id,
+        activatedFromVersion: existing.version,
+      } as Prisma.InputJsonValue,
+      createdBy,
+      activate: true,
+    });
+
+    this.logger.log(
+      JSON.stringify({
+        stage: 'knowledge_metadata.activated',
+        key: version.key,
+        version: version.version,
+        sourceVersionId: existing.id,
+        sourceVersion: existing.version,
       }),
     );
 

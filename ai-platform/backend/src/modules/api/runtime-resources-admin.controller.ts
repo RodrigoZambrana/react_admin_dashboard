@@ -93,6 +93,14 @@ export class RuntimeResourcesAdminController {
     });
   }
 
+  @Post('critical-configs/:versionId/activate')
+  activateCriticalConfigVersion(
+    @Param('versionId') versionId: string,
+    @Body() body: ActivateManagedResourceVersionDto,
+  ) {
+    return this.criticalConfigService.activateVersion(versionId, body.createdBy);
+  }
+
   @Get('knowledge-metadata')
   listKnowledgeMetadataVersions(@Query('key') key?: string) {
     return this.knowledgeMetadataService.listVersions(key as any);
@@ -115,6 +123,17 @@ export class RuntimeResourcesAdminController {
     });
   }
 
+  @Post('knowledge-metadata/:versionId/activate')
+  activateKnowledgeMetadataVersion(
+    @Param('versionId') versionId: string,
+    @Body() body: ActivateManagedResourceVersionDto,
+  ) {
+    return this.knowledgeMetadataService.activateVersion(
+      versionId,
+      body.createdBy,
+    );
+  }
+
   @Get('response-fallbacks')
   listResponseFallbackVersions(@Query('locale') locale?: string) {
     return this.responseFallbackService.listVersions(locale);
@@ -133,5 +152,13 @@ export class RuntimeResourcesAdminController {
       createdBy: body.createdBy,
       activate: body.activate,
     });
+  }
+
+  @Post('response-fallbacks/:versionId/activate')
+  activateResponseFallbackVersion(
+    @Param('versionId') versionId: string,
+    @Body() body: ActivateManagedResourceVersionDto,
+  ) {
+    return this.responseFallbackService.activateVersion(versionId, body.createdBy);
   }
 }

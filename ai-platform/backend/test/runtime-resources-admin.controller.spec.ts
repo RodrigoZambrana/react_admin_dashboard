@@ -6,16 +6,19 @@ describe('RuntimeResourcesAdminController', () => {
       listConfigs: jest.fn(async () => ['config-version']),
       listActiveConfigs: jest.fn(async () => ['config-active']),
       createVersion: jest.fn(async () => ({ id: 'config-created' })),
+      activateVersion: jest.fn(async () => ({ id: 'config-activated' })),
     };
     const knowledgeMetadataService = {
       listVersions: jest.fn(async () => ['knowledge-version']),
       listActiveResources: jest.fn(async () => ['knowledge-active']),
       createVersion: jest.fn(async () => ({ id: 'knowledge-created' })),
+      activateVersion: jest.fn(async () => ({ id: 'knowledge-activated' })),
     };
     const responseFallbackService = {
       listVersions: jest.fn(async () => ['fallback-version']),
       listActiveCatalogs: jest.fn(async () => ['fallback-active']),
       createVersion: jest.fn(async () => ({ id: 'fallback-created' })),
+      activateVersion: jest.fn(async () => ({ id: 'fallback-activated' })),
     };
     const controller = new RuntimeResourcesAdminController(
       {
@@ -98,5 +101,20 @@ describe('RuntimeResourcesAdminController', () => {
         createdBy: 'admin-ui',
       }),
     ).resolves.toEqual({ id: 'temporal-activated' });
+    await expect(
+      controller.activateCriticalConfigVersion('config-1', {
+        createdBy: 'admin-ui',
+      }),
+    ).resolves.toEqual({ id: 'config-activated' });
+    await expect(
+      controller.activateKnowledgeMetadataVersion('knowledge-1', {
+        createdBy: 'admin-ui',
+      }),
+    ).resolves.toEqual({ id: 'knowledge-activated' });
+    await expect(
+      controller.activateResponseFallbackVersion('fallback-1', {
+        createdBy: 'admin-ui',
+      }),
+    ).resolves.toEqual({ id: 'fallback-activated' });
   });
 });
