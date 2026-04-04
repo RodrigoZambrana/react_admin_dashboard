@@ -60,6 +60,57 @@ describe('DocumentRetrievalService', () => {
     });
   });
 
+  it('retrieves approved knowledge for eligible advisory turns without explicit document cue wording', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-roller-1',
+          documentId: 'doc-roller',
+          sequence: 0,
+          content:
+            'Tipos de Cortinas de Enrollar. Disponibles en PVC y Aluminio, con opciones manuales o motorizadas.',
+          searchText:
+            'tipos de cortinas de enrollar disponibles en pvc y aluminio con opciones manuales o motorizadas',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-roller',
+            title: 'Catálogo Roller',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'Necesito información de cortinas de enrollar',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'Necesito información de cortinas de enrollar',
+        },
+        language: 'es',
+        confidence: 0.88,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        attempted: true,
+        reason: 'knowledge_query',
+        result: expect.objectContaining({
+          source: 'document_origin',
+          groundedSummary: expect.stringMatching(/PVC y Aluminio/i),
+        }),
+      }),
+    );
+  });
+
   it('retags retrieval as combined booking context after decisioning confirms booking', async () => {
     const service = new DocumentRetrievalService({
       listActiveReadyChunks: jest.fn(async () => [

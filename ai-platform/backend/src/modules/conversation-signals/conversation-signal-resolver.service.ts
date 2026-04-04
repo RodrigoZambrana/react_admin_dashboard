@@ -38,6 +38,11 @@ export class ConversationSignalResolverService {
       minimumTokenLength: 2,
       stopWordSet: null,
     });
+    const retrievalTokens = tokenizeConversationSignalText(primaryText, {
+      locale,
+      minimumTokenLength: 3,
+      stopWordSet: 'retrieval',
+    });
     const questionLike = /[?¿]/u.test(primaryText);
     const descriptive = primaryTokens.length >= 6 || primaryText.length >= 28;
     const shortFollowUp =
@@ -57,6 +62,21 @@ export class ConversationSignalResolverService {
       !switchSuggested &&
       !channelInterference &&
       (shortFollowUp || resume);
+    const implicitKnowledgeEligible =
+      !channelInterference &&
+      !switchSuggested &&
+      !document.lexicalScore &&
+      !closure.matchedCategories.includes('decline') &&
+      !closure.matchedCategories.includes('farewell') &&
+      this.isKnowledgeEligibleIntent(input.interpretation.intent) &&
+      this.hasImplicitKnowledgeShape({
+        retrievalTokenCount: retrievalTokens.length,
+        descriptive,
+        questionLike,
+        advisorySupported:
+          advisory.lexicalScore > 0 || (questionLike && descriptive),
+        activeLane: input.conversationState?.lane ?? null,
+      });
 
     return {
       locale,
@@ -66,6 +86,7 @@ export class ConversationSignalResolverService {
         ...document,
         focusText: documentFocusText,
         explicitRequest: document.lexicalScore > 0,
+        implicitEligible: implicitKnowledgeEligible,
         continuationEligible:
           input.conversationState?.lane === 'document_exploration' &&
           this.isExplorationFollowUpIntent(input.interpretation.intent) &&
@@ -251,6 +272,38 @@ export class ConversationSignalResolverService {
       intent === 'GENERAL_CONVERSATION' ||
       intent === 'CLARIFICATION' ||
       intent === 'GET_PRODUCT'
+    );
+  }
+
+  private isKnowledgeEligibleIntent(intent: CanonicalIntent) {
+    return (
+      intent === 'GENERAL_CONVERSATION' ||
+      intent === 'CLARIFICATION' ||
+      intent === 'GET_PRODUCT'
+    );
+  }
+
+  private hasImplicitKnowledgeShape(input: {
+    retrievalTokenCount: number;
+    descriptive: boolean;
+    questionLike: boolean;
+    advisorySupported: boolean;
+    activeLane: string | null;
+  }) {
+    if (input.retrievalTokenCount >= 2) {
+      return true;
+    }
+
+    if (input.retrievalTokenCount === 0) {
+      return false;
+    }
+
+    return (
+      input.descriptive ||
+      input.questionLike ||
+      input.advisorySupported ||
+      input.activeLane === 'document_exploration' ||
+      input.activeLane === 'advisory_exploration'
     );
   }
 }

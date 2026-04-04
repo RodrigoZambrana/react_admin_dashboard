@@ -48,6 +48,7 @@ export type ConversationRoutingSignals = {
   document: ConversationSignalNamespaceMatch & {
     focusText: string | null;
     explicitRequest: boolean;
+    implicitEligible: boolean;
     continuationEligible: boolean;
   };
   advisory: ConversationSignalNamespaceMatch & {

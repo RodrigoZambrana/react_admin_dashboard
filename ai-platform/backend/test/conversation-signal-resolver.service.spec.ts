@@ -91,6 +91,23 @@ describe('ConversationSignalResolverService', () => {
     expect(signals.document.continuationEligible).toBe(true);
   });
 
+  it('marks topic-rich knowledge requests as implicitly eligible without requiring explicit document cue words', () => {
+    const signals = service.resolve({
+      message: 'Necesito información de cortinas de enrollar en aluminio',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        entities: {
+          rawMessage: 'Necesito información de cortinas de enrollar en aluminio',
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(signals.document.explicitRequest).toBe(false);
+    expect(signals.document.implicitEligible).toBe(true);
+  });
+
   it('detects gratitude and decline signals for contextual close-turn decisions', () => {
     const signals = service.resolve({
       message: 'No gracias, ya resolví',

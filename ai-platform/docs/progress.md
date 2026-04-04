@@ -2256,6 +2256,35 @@
   - fuller tenant-resource adapters
   - frontend harness work
 
+## Iteration 68
+
+### Implemented
+- Expanded backend-owned approved-knowledge source selection for eligible knowledge/advisory turns:
+  - added `implicitEligible` support in the conversation-signal boundary so topic-rich knowledge turns can consult tenant-scoped approved documentation without requiring explicit phrases like `según el documento`
+  - introduced `knowledge_query` as an explicit retrieval reason in the document-origin retrieval path
+  - broadened document retrieval query construction so active advisory/document topical continuity can continue feeding approved knowledge lookup cleanly across turns
+- Tightened retrieval/query usefulness without re-growing inline routing heuristics:
+  - moved additional generic information-seeking noise words into the structured retrieval stop-word catalog boundary instead of decisive services
+  - improved excerpt building so short heading-like matches include the next sentence when that yields the actual supported detail instead of only the section title
+- Preserved routing boundaries:
+  - empty `knowledge_query` retrieval no longer overrides a genuinely grounded `get_product` path
+  - document/advisory continuity remains intact and no new inline regex/vocabulary ownership was added to decisive services
+
+### Working
+- Eligible knowledge/advisory turns can now attempt approved document-origin retrieval even when the user does not explicitly mention `documento`, `catálogo`, or equivalent cue phrases
+- Existing explicit document-grounded turns and active document continuations remain non-regressed
+- Grounded transactional product lookup still wins when there is a real catalog match instead of being eclipsed by an empty retrieval preview
+
+### Technical Debt
+- User-facing wording for knowledge unavailability still needs to stop leaking retrieval mechanics in the approved response draft; that remains the next contained cleanup block
+- The current `get_product` path remains a temporary demo-catalog boundary until a real catalog source exists
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Refine approved response context and response policy so explicit vs partial vs unavailable support is modeled naturally for the user
+- Remove remaining `document not found` style retrieval-mechanic leakage from governed fallback behavior
+- Run the full validation set and align architecture docs with the new approved-knowledge source-selection behavior
+
 ## Iteration 66
 
 ### Implemented

@@ -104,7 +104,7 @@ export class DecisionService {
       };
     }
 
-    if (this.shouldStayInDocumentExploration(input)) {
+    if (this.shouldStayInDocumentExploration(input, productCatalogMatch.matched)) {
       return this.buildRespondDecision('document_grounded_exploration');
     }
 
@@ -224,12 +224,33 @@ export class DecisionService {
     return signals.closure.gratitude && priorFlowComplete;
   }
 
-  private shouldStayInDocumentExploration(input: DecisionInput) {
-    if (!input.documentRetrieval?.result) {
+  private shouldStayInDocumentExploration(
+    input: DecisionInput,
+    hasGroundedProductMatch: boolean,
+  ) {
+    const result = input.documentRetrieval?.result;
+
+    if (!result) {
       return false;
     }
 
-    return input.interpretation.intent !== 'CREATE_QUOTE';
+    if (input.interpretation.intent === 'CREATE_QUOTE') {
+      return false;
+    }
+
+    if (result.matches.length > 0 && result.groundedSummary.trim().length > 0) {
+      return true;
+    }
+
+    if (hasGroundedProductMatch) {
+      return false;
+    }
+
+    return (
+      input.documentRetrieval?.reason === 'document_query' ||
+      input.documentRetrieval?.reason === 'knowledge_query' ||
+      input.documentRetrieval?.reason === 'active_document_continuation'
+    );
   }
 
   private shouldStayInAdvisoryExploration(

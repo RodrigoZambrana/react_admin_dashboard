@@ -143,6 +143,10 @@ export class DocumentRetrievalService {
       return 'active_document_continuation' as const;
     }
 
+    if (signals.document.implicitEligible) {
+      return 'knowledge_query' as const;
+    }
+
     return 'not_requested' as const;
   }
 
@@ -160,7 +164,7 @@ export class DocumentRetrievalService {
       this.resolveConversationTopic(input.conversationState) ?? null;
 
     if (
-      reason === 'document_query' &&
+      (reason === 'document_query' || reason === 'knowledge_query') &&
       typeof signals.document.focusText === 'string' &&
       signals.document.focusText.trim().length > 0
     ) {
@@ -177,7 +181,10 @@ export class DocumentRetrievalService {
       return focusedQuery;
     }
 
-    if (reason === 'active_document_continuation' && previousTopic) {
+    if (
+      (reason === 'active_document_continuation' || reason === 'knowledge_query') &&
+      previousTopic
+    ) {
       if (!currentTopic || currentTopic === previousTopic) {
         return previousTopic;
       }
@@ -189,7 +196,11 @@ export class DocumentRetrievalService {
   }
 
   private resolveConversationTopic(state: ConversationStateSnapshot | null | undefined) {
-    if (!state || state.lane !== 'document_exploration') {
+    if (
+      !state ||
+      (state.lane !== 'document_exploration' &&
+        state.lane !== 'advisory_exploration')
+    ) {
       return null;
     }
 
@@ -281,7 +292,7 @@ function buildExcerpt(content: string, queryTokens: string[]) {
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence.length > 0);
 
-  const matchedSentence =
+  const rankedSentence =
     sentences
       .map((sentence, index) => ({
         index,
@@ -294,11 +305,19 @@ function buildExcerpt(content: string, queryTokens: string[]) {
         }
 
         return right.index - left.index;
-      })[0]?.sentence ??
-    sentences[0] ??
-    content;
+      })[0] ?? null;
 
-  return matchedSentence.slice(0, 260).trim();
+  const matchedSentence = rankedSentence?.sentence ?? sentences[0] ?? content;
+  const nextSentence =
+    rankedSentence && rankedSentence.index < sentences.length - 1
+      ? sentences[rankedSentence.index + 1]
+      : null;
+  const excerpt =
+    nextSentence && shouldAppendNextSentence(matchedSentence, nextSentence)
+      ? `${matchedSentence} ${nextSentence}`
+      : matchedSentence;
+
+  return excerpt.slice(0, 260).trim();
 }
 
 function buildGroundedSummary(matches: DocumentRetrievalResult['matches']) {
@@ -336,6 +355,17 @@ function scoreExcerptSentence(sentence: string, queryTokens: string[]) {
   }
 
   return score;
+}
+
+function shouldAppendNextSentence(currentSentence: string, nextSentence: string) {
+  const normalizedCurrent = currentSentence.trim().replace(/\s+/g, ' ');
+  const normalizedNext = nextSentence.trim().replace(/\s+/g, ' ');
+
+  return (
+    normalizedCurrent.length > 0 &&
+    normalizedCurrent.length <= 48 &&
+    normalizedNext.length > 0
+  );
 }
 
 function tokenizeQuery(value: string, locale?: string | null) {

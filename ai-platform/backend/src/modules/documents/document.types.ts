@@ -57,6 +57,7 @@ export type DocumentRetrievalResult = {
 
 export type DocumentRetrievalReason =
   | 'document_query'
+  | 'knowledge_query'
   | 'combined_booking_document_query'
   | 'active_document_continuation'
   | 'not_requested';

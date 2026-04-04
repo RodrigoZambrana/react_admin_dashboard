@@ -327,6 +327,46 @@ describe('DecisionService', () => {
     );
   });
 
+  it('does not let an empty knowledge-query retrieval override a grounded product lookup', () => {
+    const service = createService();
+
+    const decision = service.decide({
+      interpretation: {
+        intent: 'GET_PRODUCT',
+        language: 'en',
+        confidence: 0.9,
+        entities: {
+          rawMessage: 'Beacon Desk Lamp',
+          productQuery: 'Beacon Desk Lamp',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+      documentRetrieval: {
+        attempted: true,
+        reason: 'knowledge_query',
+        result: {
+          source: 'document_origin',
+          query: 'Beacon Desk Lamp',
+          groundedSummary: '',
+          matches: [],
+        },
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'invoke_tool',
+        toolName: 'get_product',
+        reasonCode: 'product_lookup_requested',
+      }),
+    );
+  });
+
   it('keeps advisory follow-up turns active instead of resetting to a generic response', () => {
     const service = createService();
 
