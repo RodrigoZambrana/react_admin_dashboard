@@ -21,7 +21,19 @@ import type {
   TemporalLocaleVersion,
 } from './types';
 
-const apiBaseUrl = import.meta.env.VITE_API_URL ?? 'http://localhost:4100';
+function resolveApiBaseUrl() {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:4110`;
+  }
+
+  return 'http://127.0.0.1:4110';
+}
+
+const apiBaseUrl = resolveApiBaseUrl();
 const tenantId = import.meta.env.VITE_TENANT_ID ?? 'demo-tenant';
 
 type JsonBody = Record<string, unknown> | Array<unknown>;

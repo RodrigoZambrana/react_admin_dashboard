@@ -1,3 +1,8 @@
+.main-wrapper.admin-platform-shell,
+.main-wrapper.public-chat-shell {
+  visibility: visible;
+}
+
 .admin-platform-shell .page-wrapper {
   min-height: 100vh;
 }
@@ -285,6 +290,29 @@
 
 .public-chat-shell .chat-footer .btn:disabled {
   opacity: 0.72;
+}
+
+.public-chat-shell .main_content,
+.public-chat-shell .chat.chat-messages,
+.public-chat-shell .chat.chat-messages > div {
+  min-height: 0;
+}
+
+.public-chat-shell .chat.chat-messages > div {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.public-chat-shell .chat-body.chat-page-group {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.public-chat-shell .chat-body.chat-page-group .messages {
+  min-height: 100%;
 }
 
 @media (max-width: 991px) {

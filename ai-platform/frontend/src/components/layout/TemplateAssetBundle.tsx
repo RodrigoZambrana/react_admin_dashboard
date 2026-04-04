@@ -1,4 +1,4 @@
-import { useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
 type TemplateBundleDefinition = {
   key: string;
@@ -45,11 +45,47 @@ const TEMPLATE_BUNDLES: Record<'admin' | 'chat', TemplateBundleDefinition> = {
   },
 };
 
+const ASSET_READY_TIMEOUT_MS = 2500;
+
 type TemplateAssetBundleProps = {
   bundle: keyof typeof TEMPLATE_BUNDLES;
+  onReadyChange?: (ready: boolean) => void;
 };
 
-export function TemplateAssetBundle({ bundle }: TemplateAssetBundleProps) {
+function waitForAssetLoad(node: HTMLLinkElement | HTMLScriptElement) {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    let timeoutId = 0;
+
+    const finish = () => {
+      if (settled) {
+        return;
+      }
+
+      settled = true;
+      window.clearTimeout(timeoutId);
+      node.removeEventListener('load', finish);
+      node.removeEventListener('error', finish);
+      resolve();
+    };
+
+    timeoutId = window.setTimeout(finish, ASSET_READY_TIMEOUT_MS);
+
+    node.addEventListener('load', finish, { once: true });
+    node.addEventListener('error', finish, { once: true });
+  });
+}
+
+export function TemplateAssetBundle({
+  bundle,
+  onReadyChange,
+}: TemplateAssetBundleProps) {
+  const onReadyChangeRef = useRef(onReadyChange);
+
+  useEffect(() => {
+    onReadyChangeRef.current = onReadyChange;
+  }, [onReadyChange]);
+
   useLayoutEffect(() => {
     const definition = TEMPLATE_BUNDLES[bundle];
     const previousTitle = document.title;
@@ -57,6 +93,9 @@ export function TemplateAssetBundle({ bundle }: TemplateAssetBundleProps) {
     const previousManagedAssets = document.querySelectorAll(
       '[data-runtime-template-asset="true"]',
     );
+    let cancelled = false;
+
+    onReadyChangeRef.current?.(false);
     previousManagedAssets.forEach((node) => node.parentNode?.removeChild(node));
 
     const favicon =
@@ -71,12 +110,14 @@ export function TemplateAssetBundle({ bundle }: TemplateAssetBundleProps) {
     }
 
     const managedNodes: HTMLElement[] = [];
+    const assetLoadPromises: Promise<void>[] = [];
 
     for (const scriptSrc of definition.scripts ?? []) {
       const script = document.createElement('script');
       script.src = scriptSrc;
       script.setAttribute('data-runtime-template-asset', 'true');
       script.async = false;
+      assetLoadPromises.push(waitForAssetLoad(script));
       document.head.appendChild(script);
       managedNodes.push(script);
     }
@@ -86,6 +127,7 @@ export function TemplateAssetBundle({ bundle }: TemplateAssetBundleProps) {
       link.rel = 'stylesheet';
       link.href = stylesheetHref;
       link.setAttribute('data-runtime-template-asset', 'true');
+      assetLoadPromises.push(waitForAssetLoad(link));
       document.head.appendChild(link);
       managedNodes.push(link);
     }
@@ -93,7 +135,20 @@ export function TemplateAssetBundle({ bundle }: TemplateAssetBundleProps) {
     document.title = definition.title;
     document.body.setAttribute('data-template-bundle', definition.key);
 
+    void Promise.all(assetLoadPromises).then(() => {
+      if (cancelled) {
+        return;
+      }
+
+      window.requestAnimationFrame(() => {
+        if (!cancelled) {
+          onReadyChangeRef.current?.(true);
+        }
+      });
+    });
+
     return () => {
+      cancelled = true;
       managedNodes.forEach((node) => node.parentNode?.removeChild(node));
       document.title = previousTitle;
       if (document.body.getAttribute('data-template-bundle') === definition.key) {

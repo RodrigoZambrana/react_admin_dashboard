@@ -406,6 +406,32 @@ Use these rules in future implementation prompts:
   - Can the result be logged in a stage-specific `ChatLog` record?
 - If any answer is `no`, do not port that legacy pattern.
 
+## Roadmap Planning Rule
+
+Use this audit not only during implementation, but also when shaping the roadmap itself.
+
+Planning rule:
+- Future roadmap waves must explicitly consider whether the legacy chat already solved part of the same problem in a reusable way.
+- Legacy solutions should be mined when they can be reimplemented cleanly inside the new architecture, especially for:
+  - runtime-managed resource governance
+  - deterministic conversation state and follow-up continuity
+  - response safety and approved-draft controls
+  - admin test tooling and QA flows
+  - user-facing chat experience concepts
+- Legacy reference must inform sequencing, but must not force migration of invalid architectural patterns.
+
+Decision rule for future planning:
+- Before opening a new roadmap wave, check whether the legacy audit contains:
+  - a reusable concept
+  - a reusable validation asset
+  - a reusable admin or operator workflow idea
+- If it does, incorporate that reference into the roadmap narrative and implementation scope.
+- If the legacy solution depends on model-owned decisions, provider-owned tool execution, monolithic orchestration, or manual tenant routing, keep it out of the roadmap implementation path.
+
+Roadmap consequence:
+- The legacy codebase is a mandatory reference source for future iteration design.
+- It remains a mined reference library, not a migration template.
+
 ## Concrete Guidance For The New Standalone Platform
 
 ### Safe to reimplement early

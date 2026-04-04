@@ -1,4 +1,12 @@
-import type { FormEvent } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type FormEvent,
+  type MouseEvent,
+  type UIEvent,
+} from 'react';
 
 import type { AsyncPresenceState } from '../../types';
 import {
@@ -40,6 +48,7 @@ type PublicChatShellProps = {
   isSending: boolean;
   error: string | null;
   presenceState: AsyncPresenceState;
+  showGlobalLoader: boolean;
   onConversationSelect: (conversationId: string) => void;
   onStartConversation: () => void;
   onDraftChange: (value: string) => void;
@@ -75,11 +84,24 @@ export function PublicChatShell({
   isSending,
   error,
   presenceState,
+  showGlobalLoader,
   onConversationSelect,
   onStartConversation,
   onDraftChange,
   onSend,
 }: PublicChatShellProps) {
+  const transcriptViewportRef = useRef<HTMLDivElement | null>(null);
+  const previousConversationIdRef = useRef<string | null>(null);
+  const shouldStickToBottomRef = useRef(true);
+
+  const handleNoopClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+  };
+
+  const handleNoopSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+  };
+
   const selectedConversation =
     conversations.find((conversation) => conversation.conversationId === selectedConversationId) ??
     null;
@@ -88,6 +110,49 @@ export function PublicChatShell({
     : 'AI Concierge';
   const headerSubtitle = buildHeaderSubtitle(presenceState, isSyncing);
 
+  const scrollAnchorKey = useMemo(() => {
+    const lastEntry = transcript.at(-1);
+
+    return [
+      selectedConversationId ?? 'none',
+      transcript.length,
+      lastEntry?.id ?? 'none',
+      lastEntry?.createdAt ?? 'none',
+      lastEntry?.typing ? 'typing' : 'static',
+      lastEntry?.pending ? 'pending' : 'settled',
+      presenceState,
+    ].join('|');
+  }, [presenceState, selectedConversationId, transcript]);
+
+  useLayoutEffect(() => {
+    const viewport = transcriptViewportRef.current;
+
+    if (!viewport) {
+      return;
+    }
+
+    const conversationChanged =
+      previousConversationIdRef.current !== selectedConversationId;
+
+    if (conversationChanged || shouldStickToBottomRef.current) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+
+    previousConversationIdRef.current = selectedConversationId;
+  }, [scrollAnchorKey, selectedConversationId]);
+
+  useEffect(() => {
+    shouldStickToBottomRef.current = true;
+  }, [selectedConversationId]);
+
+  const handleTranscriptScroll = (event: UIEvent<HTMLDivElement>) => {
+    const viewport = event.currentTarget;
+    const remainingDistance =
+      viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+
+    shouldStickToBottomRef.current = remainingDistance <= 48;
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     onSend();
@@ -95,9 +160,11 @@ export function PublicChatShell({
 
   return (
     <>
-      <div id="global-loader">
-        <div className="page-loader"></div>
-      </div>
+      {showGlobalLoader ? (
+        <div id="global-loader">
+          <div className="page-loader"></div>
+        </div>
+      ) : null}
       <div className="main-wrapper public-chat-shell">
         <div className="content main_content">
           <div className="sidebar-menu">
@@ -126,7 +193,7 @@ export function PublicChatShell({
                     data-bs-original-title="Contacts"
                     data-bs-custom-class="tooltip-primary"
                   >
-                    <a href="javascript:void(0);">
+                    <a href="#" onClick={handleNoopClick}>
                       <i className="ti ti-user-shield"></i>
                     </a>
                   </li>
@@ -136,7 +203,7 @@ export function PublicChatShell({
                     data-bs-original-title="Groups"
                     data-bs-custom-class="tooltip-primary"
                   >
-                    <a href="javascript:void(0);">
+                    <a href="#" onClick={handleNoopClick}>
                       <i className="ti ti-users-group"></i>
                     </a>
                   </li>
@@ -146,7 +213,7 @@ export function PublicChatShell({
                     data-bs-original-title="Status"
                     data-bs-custom-class="tooltip-primary"
                   >
-                    <a href="javascript:void(0);">
+                    <a href="#" onClick={handleNoopClick}>
                       <i className="ti ti-circle-dot"></i>
                     </a>
                   </li>
@@ -156,7 +223,7 @@ export function PublicChatShell({
                     data-bs-original-title="Calls"
                     data-bs-custom-class="tooltip-primary"
                   >
-                    <a href="javascript:void(0);">
+                    <a href="#" onClick={handleNoopClick}>
                       <i className="ti ti-phone-call"></i>
                     </a>
                   </li>
@@ -166,7 +233,7 @@ export function PublicChatShell({
                     data-bs-original-title="Profile"
                     data-bs-custom-class="tooltip-primary"
                   >
-                    <a href="javascript:void(0);">
+                    <a href="#" onClick={handleNoopClick}>
                       <i className="ti ti-user-circle"></i>
                     </a>
                   </li>
@@ -176,7 +243,7 @@ export function PublicChatShell({
                     data-bs-original-title="Settings"
                     data-bs-custom-class="tooltip-primary"
                   >
-                    <a href="javascript:void(0);">
+                    <a href="#" onClick={handleNoopClick}>
                       <i className="ti ti-settings"></i>
                     </a>
                   </li>
@@ -185,16 +252,16 @@ export function PublicChatShell({
               <div className="profile-menu">
                 <ul>
                   <li>
-                    <a href="javascript:void(0);" id="dark-mode-toggle" className="dark-mode-toggle active">
+                    <a href="#" id="dark-mode-toggle" className="dark-mode-toggle active" onClick={handleNoopClick}>
                       <i className="ti ti-moon"></i>
                     </a>
-                    <a href="javascript:void(0);" id="light-mode-toggle" className="dark-mode-toggle">
+                    <a href="#" id="light-mode-toggle" className="dark-mode-toggle" onClick={handleNoopClick}>
                       <i className="ti ti-sun"></i>
                     </a>
                   </li>
                   <li>
                     <div className="dropdown">
-                      <a href="javascript:void(0);" className="avatar avatar-md" data-bs-toggle="dropdown">
+                      <a href="#" className="avatar avatar-md" data-bs-toggle="dropdown" onClick={handleNoopClick}>
                         <img
                           src={userAvatar}
                           alt="You"
@@ -223,7 +290,7 @@ export function PublicChatShell({
                         <h4 className="mb-3">Chats</h4>
                         <div className="d-flex align-items-center mb-3">
                           <a
-                            href="javascript:void(0);"
+                            href="#"
                             className="add-icon btn btn-primary p-0 d-flex align-items-center justify-content-center fs-16 me-2"
                             onClick={(event) => {
                               event.preventDefault();
@@ -233,12 +300,12 @@ export function PublicChatShell({
                             <i className="ti ti-plus"></i>
                           </a>
                           <div className="dropdown">
-                            <a href="javascript:void(0);" data-bs-toggle="dropdown" className="fs-16 text-default">
+                            <a href="#" data-bs-toggle="dropdown" className="fs-16 text-default" onClick={handleNoopClick}>
                               <i className="ti ti-dots-vertical"></i>
                             </a>
                             <ul className="dropdown-menu p-3">
                               <li>
-                                <a className="dropdown-item" href="javascript:void(0);">
+                                <a className="dropdown-item" href="#" onClick={handleNoopClick}>
                                   <i className="ti ti-device-desktop me-2"></i>Async session sync
                                 </a>
                               </li>
@@ -247,7 +314,7 @@ export function PublicChatShell({
                         </div>
                       </div>
                       <div className="search-wrap">
-                        <form action="javascript:void(0);">
+                        <form onSubmit={handleNoopSubmit}>
                           <div className="input-group">
                             <input
                               type="text"
@@ -268,17 +335,17 @@ export function PublicChatShell({
                       <div className="d-flex align-items-center justify-content-between">
                         <h5 className="mb-3">Recent Chats</h5>
                         <div className="dropdown mb-3">
-                          <a href="javascript:void(0);" className="text-default" data-bs-toggle="dropdown">
+                          <a href="#" className="text-default" data-bs-toggle="dropdown" onClick={handleNoopClick}>
                             <i className="ti ti-dots-vertical"></i>
                           </a>
                           <ul className="dropdown-menu dropdown-menu-end p-3">
                             <li>
-                              <a className="dropdown-item mb-1" href="javascript:void(0);">
+                              <a className="dropdown-item mb-1" href="#" onClick={handleNoopClick}>
                                 <i className="ti ti-clock me-2"></i>Async delivery
                               </a>
                             </li>
                             <li>
-                              <a className="dropdown-item" href="javascript:void(0);">
+                              <a className="dropdown-item" href="#" onClick={handleNoopClick}>
                                 <i className="ti ti-refresh me-2"></i>Session recovery
                               </a>
                             </li>
@@ -327,17 +394,17 @@ export function PublicChatShell({
                       <div className="d-flex justify-content-between align-items-center mb-3">
                         <h5 className="chat-title">All Chats</h5>
                         <div className="dropdown">
-                          <a href="javascript:void(0);" className="text-default fs-16" data-bs-toggle="dropdown">
+                          <a href="#" className="text-default fs-16" data-bs-toggle="dropdown" onClick={handleNoopClick}>
                             <i className="ti ti-filter"></i>
                           </a>
                           <ul className="dropdown-menu dropdown-menu-end p-3">
                             <li>
-                              <a className="dropdown-item active" href="javascript:void(0);">
+                              <a className="dropdown-item active" href="#" onClick={handleNoopClick}>
                                 All Chats
                               </a>
                             </li>
                             <li>
-                              <a className="dropdown-item" href="javascript:void(0);">
+                              <a className="dropdown-item" href="#" onClick={handleNoopClick}>
                                 Async Sessions
                               </a>
                             </li>
@@ -440,7 +507,7 @@ export function PublicChatShell({
               <div className="chat-header">
                 <div className="user-details">
                   <div className="d-xl-none">
-                    <a className="text-muted chat-close me-2" href="javascript:void(0);">
+                    <a className="text-muted chat-close me-2" href="#" onClick={handleNoopClick}>
                       <i className="fas fa-arrow-left"></i>
                     </a>
                   </div>
@@ -459,17 +526,17 @@ export function PublicChatShell({
                 <div className="chat-options">
                   <ul>
                     <li>
-                      <a href="javascript:void(0)" className="btn chat-search-btn">
+                      <a href="#" className="btn chat-search-btn" onClick={handleNoopClick}>
                         <i className="ti ti-search"></i>
                       </a>
                     </li>
                     <li>
-                      <a href="javascript:void(0)" className="btn">
+                      <a href="#" className="btn" onClick={handleNoopClick}>
                         <i className="ti ti-clock-hour-4"></i>
                       </a>
                     </li>
                     <li>
-                      <a href="javascript:void(0)" className="btn">
+                      <a href="#" className="btn" onClick={handleNoopClick}>
                         <i className="ti ti-info-circle"></i>
                       </a>
                     </li>
@@ -477,7 +544,11 @@ export function PublicChatShell({
                 </div>
               </div>
 
-              <div className="chat-body chat-page-group slimscroll">
+              <div
+                ref={transcriptViewportRef}
+                className="chat-body chat-page-group slimscroll"
+                onScroll={handleTranscriptScroll}
+              >
                 <div className="messages">
                   {!selectedConversationId && !isBootstrapping ? (
                     <div className="public-chat-welcome-state">
@@ -532,7 +603,7 @@ export function PublicChatShell({
                           <div className={entry.typing ? 'message-content' : 'chat-info'}>
                             {isUser ? (
                               <div className="chat-actions">
-                                <a href="javascript:void(0);">
+                                <a href="#" onClick={handleNoopClick}>
                                   <i className="ti ti-dots-vertical"></i>
                                 </a>
                               </div>
@@ -576,7 +647,7 @@ export function PublicChatShell({
               <form className="footer-form" onSubmit={handleSubmit}>
                 <div className="chat-footer-wrap">
                   <div className="form-item">
-                    <a href="javascript:void(0);" className="action-circle">
+                    <a href="#" className="action-circle" onClick={handleNoopClick}>
                       <i className="ti ti-microphone"></i>
                     </a>
                   </div>
@@ -590,18 +661,18 @@ export function PublicChatShell({
                     />
                   </div>
                   <div className="form-item emoj-action-foot">
-                    <a href="javascript:void(0);" className="action-circle">
+                    <a href="#" className="action-circle" onClick={handleNoopClick}>
                       <i className="ti ti-mood-smile"></i>
                     </a>
                   </div>
                   <div className="form-item position-relative d-flex align-items-center justify-content-center">
-                    <a href="javascript:void(0);" className="action-circle file-action position-absolute">
+                    <a href="#" className="action-circle file-action position-absolute" onClick={handleNoopClick}>
                       <i className="ti ti-folder"></i>
                     </a>
                     <input type="file" className="open-file position-relative" name="files" id="files" disabled />
                   </div>
                   <div className="form-item">
-                    <a href="javascript:void(0);">
+                    <a href="#" onClick={handleNoopClick}>
                       <i className="ti ti-dots-vertical"></i>
                     </a>
                   </div>

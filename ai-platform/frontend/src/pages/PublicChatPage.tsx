@@ -18,7 +18,6 @@ import type {
   AsyncPresenceState,
 } from '../types';
 
-const CHAT_SELECTION_STORAGE_KEY = 'ai-platform.public-chat.selectedConversationId.v1';
 const ACTIVE_SESSION_POLL_MS = 1200;
 const IDLE_SESSION_POLL_MS = 4000;
 const RECENT_CONVERSATION_SYNC_MS = 6000;
@@ -120,28 +119,11 @@ function buildOptimisticSession(
   };
 }
 
-function resolveStoredConversationId() {
+function resolveConversationIdFromUrl() {
   const params = new URLSearchParams(window.location.search);
   const queryConversationId = params.get('conversationId');
 
-  if (queryConversationId?.trim()) {
-    return queryConversationId.trim();
-  }
-
-  const storedConversationId = window.localStorage.getItem(
-    CHAT_SELECTION_STORAGE_KEY,
-  );
-
-  return storedConversationId?.trim() || null;
-}
-
-function persistConversationId(conversationId: string | null) {
-  if (conversationId) {
-    window.localStorage.setItem(CHAT_SELECTION_STORAGE_KEY, conversationId);
-    return;
-  }
-
-  window.localStorage.removeItem(CHAT_SELECTION_STORAGE_KEY);
+  return queryConversationId?.trim() || null;
 }
 
 function syncConversationIdToUrl(conversationId: string | null) {
@@ -237,7 +219,7 @@ function toUiError(error: unknown) {
 
 export function PublicChatPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-    () => resolveStoredConversationId(),
+    () => resolveConversationIdFromUrl(),
   );
   const [conversations, setConversations] = useState<AsyncChatConversationSummary[]>([]);
   const [session, setSession] = useState<AsyncChatSessionView | null>(null);
@@ -246,6 +228,7 @@ export function PublicChatPage() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [templateReady, setTemplateReady] = useState(false);
 
   const conversationItems = useMemo(
     () => buildConversationItems(conversations),
@@ -256,7 +239,6 @@ export function PublicChatPage() {
 
   const applyConversationSelection = useCallback((conversationId: string | null) => {
     setSelectedConversationId(conversationId);
-    persistConversationId(conversationId);
     syncConversationIdToUrl(conversationId);
   }, []);
 
@@ -305,32 +287,19 @@ export function PublicChatPage() {
     const bootstrap = async () => {
       setIsBootstrapping(true);
       try {
-        const recent = await syncRecentConversations();
+        await syncRecentConversations();
         if (cancelled) {
           return;
         }
 
-        const preferredConversationId =
-          resolveStoredConversationId() ??
-          recent[0]?.conversationId ??
-          null;
+        const preferredConversationId = resolveConversationIdFromUrl();
 
         if (preferredConversationId) {
           try {
             await loadSession(preferredConversationId);
           } catch {
-            const fallbackConversationId =
-              recent.find(
-                (conversation) =>
-                  conversation.conversationId !== preferredConversationId,
-              )?.conversationId ?? null;
-
-            if (fallbackConversationId) {
-              await loadSession(fallbackConversationId);
-            } else {
-              setSession(null);
-              applyConversationSelection(null);
-            }
+            setSession(null);
+            applyConversationSelection(null);
           }
         } else {
           setSession(null);
@@ -475,7 +444,7 @@ export function PublicChatPage() {
 
   return (
     <>
-      <TemplateAssetBundle bundle="chat" />
+      <TemplateAssetBundle bundle="chat" onReadyChange={setTemplateReady} />
       <PublicChatShell
         conversations={conversationItems}
         selectedConversationId={selectedConversationId}
@@ -486,6 +455,7 @@ export function PublicChatPage() {
         isSending={isSending}
         error={error}
         presenceState={presenceState}
+        showGlobalLoader={!templateReady}
         onConversationSelect={handleConversationSelect}
         onStartConversation={handleStartConversation}
         onDraftChange={setDraft}

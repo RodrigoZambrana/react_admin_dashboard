@@ -1,4 +1,4 @@
-import type { PropsWithChildren } from 'react';
+import type { FormEvent, MouseEvent, PropsWithChildren } from 'react';
 
 export type AdminNavigationItem = {
   key: string;
@@ -11,19 +11,31 @@ type AdminShellProps = PropsWithChildren<{
   activeKey: string;
   currentLabel: string;
   navigationItems: AdminNavigationItem[];
+  showGlobalLoader: boolean;
 }>;
 
 export function AdminShell({
   activeKey,
   currentLabel,
   navigationItems,
+  showGlobalLoader,
   children,
 }: AdminShellProps) {
+  const handleNoopClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+  };
+
+  const handleNoopSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+  };
+
   return (
     <>
-      <div id="global-loader">
-        <div className="page-loader"></div>
-      </div>
+      {showGlobalLoader ? (
+        <div id="global-loader">
+          <div className="page-loader"></div>
+        </div>
+      ) : null}
       <div className="main-wrapper admin-platform-shell">
         <div className="header">
           <div className="header-left active">
@@ -41,7 +53,7 @@ export function AdminShell({
             </a>
           </div>
 
-          <a id="mobile_btn" className="mobile_btn" href="javascript:void(0);sidebar">
+          <a id="mobile_btn" className="mobile_btn" href="#" onClick={handleNoopClick}>
             <span className="bar-icon">
               <span></span>
               <span></span>
@@ -53,14 +65,14 @@ export function AdminShell({
             <div className="nav user-menu">
               <div className="nav-item nav-search-inputs me-auto">
                 <div className="top-nav-search">
-                  <a href="javascript:void(0);" className="responsive-search">
+                  <a href="#" className="responsive-search" onClick={handleNoopClick}>
                     <i className="fa fa-search"></i>
                   </a>
                   <div className="d-flex align-items-center">
-                    <a id="toggle_btn" href="javascript:void(0);" className="me-2">
+                    <a id="toggle_btn" href="#" className="me-2" onClick={handleNoopClick}>
                       <i className="ti ti-menu-2"></i>
                     </a>
-                    <form action="javascript:void(0);" className="dropdown">
+                    <form className="dropdown" onSubmit={handleNoopSubmit}>
                       <div className="searchinputs" id="dropdownMenuClickable">
                         <input type="text" value={currentLabel} readOnly />
                         <div className="search-addon">
@@ -83,16 +95,18 @@ export function AdminShell({
                 <div className="provider-head-links">
                   <div className="dark-mode">
                     <a
-                      href="javascript:void(0);"
+                      href="#"
                       id="dark-mode-toggle"
                       className="dark-mode-toggle header-icon"
+                      onClick={handleNoopClick}
                     >
                       <i className="fa-regular fa-moon"></i>
                     </a>
                     <a
-                      href="javascript:void(0);"
+                      href="#"
                       id="light-mode-toggle"
                       className="dark-mode-toggle header-icon"
+                      onClick={handleNoopClick}
                     >
                       <i className="ti ti-sun-filled"></i>
                     </a>
@@ -100,10 +114,11 @@ export function AdminShell({
                 </div>
                 <div className="dropdown">
                   <a
-                    href="javascript:void(0);"
+                    href="#"
                     className="header-icon flag-icon"
                     data-bs-toggle="dropdown"
                     aria-expanded="false"
+                    onClick={handleNoopClick}
                   >
                     <img
                       src="/dreamschat-admin/assets/img/flag/flag-03.png"
@@ -113,8 +128,9 @@ export function AdminShell({
                   </a>
                   <div className="dropdown-menu dropdown-menu-right p-3">
                     <a
-                      href="javascript:void(0);"
+                      href="#"
                       className="dropdown-item active d-flex align-items-center"
+                      onClick={handleNoopClick}
                     >
                       <img
                         className="me-2 rounded-pill"
@@ -126,8 +142,9 @@ export function AdminShell({
                       Operator locale aware
                     </a>
                     <a
-                      href="javascript:void(0);"
+                      href="#"
                       className="dropdown-item d-flex align-items-center"
+                      onClick={handleNoopClick}
                     >
                       <img
                         className="me-2 rounded-pill"
@@ -149,7 +166,7 @@ export function AdminShell({
                   </a>
                 </div>
                 <div className="dropdown">
-                  <a href="javascript:void(0);" data-bs-toggle="dropdown">
+                  <a href="#" data-bs-toggle="dropdown" onClick={handleNoopClick}>
                     <div className="booking-user d-flex align-items-center">
                       <span className="user-img me-2">
                         <img
@@ -167,7 +184,8 @@ export function AdminShell({
                     <li>
                       <a
                         className="dropdown-item d-flex align-items-center"
-                        href="javascript:void(0);"
+                        href="#"
+                        onClick={handleNoopClick}
                       >
                         <i className="ti ti-shield me-1"></i>Governed workspace
                       </a>
@@ -180,10 +198,11 @@ export function AdminShell({
 
           <div className="dropdown mobile-user-menu">
             <a
-              href="javascript:void(0);"
+              href="#"
               className="nav-link dropdown-toggle"
               data-bs-toggle="dropdown"
               aria-expanded="false"
+              onClick={handleNoopClick}
             >
               <i className="fa fa-ellipsis-v"></i>
             </a>

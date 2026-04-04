@@ -97,6 +97,7 @@ export function AdminApp() {
   const [route, setRoute] = useState<RouteKey>(() =>
     parseRouteFromHash(window.location.hash),
   );
+  const [templateReady, setTemplateReady] = useState(false);
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -117,11 +118,12 @@ export function AdminApp() {
 
   return (
     <>
-      <TemplateAssetBundle bundle="admin" />
+      <TemplateAssetBundle bundle="admin" onReadyChange={setTemplateReady} />
       <AdminShell
         activeKey={route}
         navigationItems={navigationItems}
         currentLabel={routeLabels[route]}
+        showGlobalLoader={!templateReady}
       >
         {route === 'dashboard' ? <DashboardPage /> : null}
         {route === 'chat-test-center' ? <ChatTestCenterPage /> : null}
