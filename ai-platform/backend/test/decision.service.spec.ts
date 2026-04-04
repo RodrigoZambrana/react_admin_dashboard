@@ -23,10 +23,46 @@ describe('DecisionService', () => {
 
     return new DecisionService(
       new PipelineLoggerService(),
-      new ProductCatalogService(),
+      {
+        findMatch: jest.fn(
+          async (catalogInput: { sku?: string; query?: string | null }) => {
+            const query = catalogInput.query?.trim().toLowerCase() ?? '';
+
+            if (
+              catalogInput.sku?.trim().toLowerCase() === 'b-77' ||
+              query.includes('beacon desk lamp')
+            ) {
+              return {
+                matched: true as const,
+                matchedBy: catalogInput.sku ? ('sku' as const) : ('query' as const),
+                product: {
+                  id: 'prod-beacon',
+                  sourceId: 'catalog-upload-1',
+                  sourceKind: 'UPLOADED_STRUCTURED',
+                  sourceTitle: 'Lighting Catalog',
+                  sku: 'B-77',
+                  name: 'Beacon Desk Lamp',
+                  price: 89,
+                  currency: 'USD',
+                  availability: 'backorder',
+                  attributes: {},
+                },
+                score: 95,
+              };
+            }
+
+            return {
+              matched: false as const,
+              matchedBy: null,
+              product: null,
+              score: 0,
+            };
+          },
+        ),
+      } as unknown as ProductCatalogService,
       new ConversationSignalResolverService(),
       {
-        resolveForCurrentTenant: () => ({
+        resolveForCurrentTenant: async () => ({
           tenantId: 'tenant-alpha',
           capabilities: {
             booking: {
@@ -66,10 +102,10 @@ describe('DecisionService', () => {
     );
   }
 
-  it('routes valid booking requests to the booking tool', () => {
+  it('routes valid booking requests to the booking tool', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       intent: 'CREATE_BOOKING',
       language: 'es',
       confidence: 0.9,
@@ -97,10 +133,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('forces clarification when booking date is missing', () => {
+  it('forces clarification when booking date is missing', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       intent: 'CREATE_BOOKING',
       language: 'en',
       confidence: 0.9,
@@ -122,10 +158,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('continues continuity-prepared booking follow-ups without falling back to low-confidence clarification', () => {
+  it('continues continuity-prepared booking follow-ups without falling back to low-confidence clarification', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       intent: 'CREATE_BOOKING',
       language: 'es',
       confidence: 0.41,
@@ -166,10 +202,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('uses continuity missing fields for low-confidence follow-up clarifications when the active lane remains open', () => {
+  it('uses continuity missing fields for low-confidence follow-up clarifications when the active lane remains open', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       intent: 'CLARIFICATION',
       language: 'es',
       confidence: 0.32,
@@ -206,10 +242,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('keeps a contextual follow-up in the active lane instead of resetting into generic clarification', () => {
+  it('keeps a contextual follow-up in the active lane instead of resetting into generic clarification', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       interpretation: {
         intent: 'GENERAL_CONVERSATION',
         language: 'es',
@@ -262,10 +298,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('keeps document-grounded follow-up turns in exploration instead of invoking product lookup', () => {
+  it('keeps document-grounded follow-up turns in exploration instead of invoking product lookup', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       interpretation: {
         intent: 'GET_PRODUCT',
         language: 'es',
@@ -327,10 +363,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('does not let an empty knowledge-query retrieval override a grounded product lookup', () => {
+  it('does not let an empty knowledge-query retrieval override a grounded product lookup', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       interpretation: {
         intent: 'GET_PRODUCT',
         language: 'en',
@@ -367,10 +403,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('keeps advisory follow-up turns active instead of resetting to a generic response', () => {
+  it('keeps advisory follow-up turns active instead of resetting to a generic response', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       interpretation: {
         intent: 'GENERAL_CONVERSATION',
         language: 'es',
@@ -422,10 +458,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('uses product lookup only when there is a grounded catalog match', () => {
+  it('uses product lookup only when there is a grounded catalog match', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       interpretation: {
         intent: 'GET_PRODUCT',
         language: 'en',
@@ -452,14 +488,14 @@ describe('DecisionService', () => {
     );
   });
 
-  it('does not route to a disabled tenant capability even when the intent matches', () => {
+  it('does not route to a disabled tenant capability even when the intent matches', async () => {
     const service = createService({
       capabilities: {
         product_catalog_lookup: false,
       },
     });
 
-    const decision = service.decide({
+    const decision = await service.decide({
       interpretation: {
         intent: 'GET_PRODUCT',
         language: 'en',
@@ -486,10 +522,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('closes the turn contextually for gratitude after a completed flow instead of reopening a generic prompt', () => {
+  it('closes the turn contextually for gratitude after a completed flow instead of reopening a generic prompt', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       interpretation: {
         intent: 'GENERAL_CONVERSATION',
         language: 'es',
@@ -547,10 +583,10 @@ describe('DecisionService', () => {
     );
   });
 
-  it('does not close the turn when gratitude also contains a fresh request', () => {
+  it('does not close the turn when gratitude also contains a fresh request', async () => {
     const service = createService();
 
-    const decision = service.decide({
+    const decision = await service.decide({
       interpretation: {
         intent: 'CREATE_BOOKING',
         language: 'es',

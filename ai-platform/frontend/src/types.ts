@@ -1,6 +1,6 @@
 export type ManagedResourceStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
 export type DocumentIngestionStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
-export type DocumentOriginKind = 'TEXT' | 'UPLOAD';
+export type DocumentOriginKind = 'TEXT' | 'UPLOAD' | 'URL';
 
 export type ConversationSummary = {
   id: string;
@@ -109,12 +109,27 @@ export type AsyncIntakeRuntimeResource = {
   >;
 };
 
+export type TenantCapabilitiesResource = {
+  capabilities: Array<{
+    key: 'booking' | 'quote' | 'product_catalog_lookup' | 'support_post_sale';
+    enabled: boolean;
+    description: string;
+    intents: string[];
+    tools: string[];
+    config?: Record<string, unknown>;
+  }>;
+};
+
 export type CriticalConfigVersion = {
   id: string;
-  key: 'ai_runtime' | 'learning' | 'async_intake';
+  key: 'ai_runtime' | 'learning' | 'async_intake' | 'tenant_capabilities';
   version: number;
   status: ManagedResourceStatus;
-  value: AiRuntimeResource | LearningRuntimeResource | AsyncIntakeRuntimeResource;
+  value:
+    | AiRuntimeResource
+    | LearningRuntimeResource
+    | AsyncIntakeRuntimeResource
+    | TenantCapabilitiesResource;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
   createdBy?: string | null;

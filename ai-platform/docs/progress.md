@@ -2352,3 +2352,35 @@
 - Apply only reusable core conversational improvements from the distilled patterns without mixing tenant logic into the base runtime
 - Introduce explicit tenant-capability and tenant-resource boundaries in runtime code
 - Keep the previously closed Stage 1 and Stage 2 ownership cleanup intact while extending the runtime safely
+
+## Iteration 70
+
+### Implemented
+- Replaced the inline demo product boundary with a real backend-owned catalog domain:
+  - added persisted `CatalogSourceRecord` and `CatalogItemRecord`
+  - added tenant-neutral catalog services and repositories under `backend/src/modules/catalog/*`
+  - added active source adapters for uploaded structured catalog files and REST-backed catalog sources
+  - wired `get_product` and decision preview matching through the catalog boundary instead of inline sample data
+- Replaced static tenant capability activation with real per-tenant runtime configuration:
+  - added managed `tenant_capabilities` critical-config support
+  - added `ManagedTenantCapabilityResolverService`
+  - kept the static resolver only as compatibility-safe bootstrap fallback
+- Added backend-operable catalog administration surfaces:
+  - `admin/catalog-sources` list/detail/upload/rest/sync/activate/archive endpoints
+  - capability activation remains operable through governed critical-config versions
+
+### Working
+- `get_product` no longer depends on inline sample catalog rows
+- Product lookup stays backend-owned and honest while supporting both uploaded structured and REST-backed source paths
+- Tenant capabilities are now resolved from tenant-scoped managed runtime configuration instead of hardcoded defaults alone
+- Existing document/advisory/booking behavior remains non-regressed after the async decision/capability changes
+
+### Technical Debt
+- Catalog sources are backend-operable today through admin APIs, but the admin UI does not yet expose a dedicated catalog ABM
+- REST-backed catalog sources currently refresh on explicit create/sync, not on a scheduled sync policy
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Finish routing document ingestion through concrete tenant-resource adapters beyond plain text
+- Add URL-backed document creation and multi-format extraction coverage without mixing catalogs into document retrieval
+- Keep Wave 9 out of scope while closing this tenant runtime/source phase cleanly

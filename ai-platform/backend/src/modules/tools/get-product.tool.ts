@@ -38,7 +38,7 @@ export class GetProductTool implements ToolDefinition<typeof productInputSchema>
     input: z.infer<typeof productInputSchema>,
     _context: ToolExecutionContext,
   ) {
-    const match = this.productCatalogService.findMatch(input);
+    const match = await this.productCatalogService.findMatch(input);
 
     if (!match.matched || !match.product) {
       throw new ProductCatalogNoMatchError(input.query);

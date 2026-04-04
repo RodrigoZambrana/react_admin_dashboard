@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { CatalogModule } from '../catalog/catalog.module';
 import { CreateBookingTool } from './create-booking.tool';
 import { CreateQuoteTool } from './create-quote.tool';
 import { GetProductTool } from './get-product.tool';
@@ -8,6 +9,7 @@ import { ToolExecutionService } from './tool-execution.service';
 import { ToolEngineService } from './tool-engine.service';
 
 @Module({
+  imports: [CatalogModule],
   providers: [
     ProductCatalogService,
     ToolEngineService,

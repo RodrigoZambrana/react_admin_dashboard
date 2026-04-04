@@ -132,6 +132,8 @@ Tenant resources are tenant-scoped approved sources of business truth.
 Examples:
 
 - uploaded documents
+- uploaded structured catalogs
+- external REST-backed catalog sources
 - catalogs
 - pricing
 - payment terms
@@ -145,10 +147,19 @@ Important clarification:
 - these resources must remain outside core business logic
 - they stay usable only through approved backend-governed boundaries
 - the real corpus is analysis/regression input only and must never become active runtime knowledge
+- tenant resource source forms now explicitly include:
+  - plain text / markdown / html
+  - PDF
+  - DOCX
+  - XLSX
+  - URL-backed fetches
+  - structured catalog uploads
+  - REST-backed external connectors
 
 ## Backend Modules
 
 - `ApiModule`: REST controllers and orchestration endpoints
+- `CatalogModule`: tenant-neutral catalog source boundary with uploaded structured and REST adapters
 - `InterpretationModule`: AI interpretation service
 - `DecisionModule`: deterministic rules and tool routing
 - `ToolsModule`: tool interface and execution engine
@@ -162,6 +173,8 @@ Important clarification:
 - `ParsingModule`: normalization of dates, measurements, and entities
 - `RuntimeConfigModule`: abstraction over managed runtime configuration and safe env-backed secret resolution, keeping provider/runtime selection portable while leaving room for future repository-backed tenant/auth settings
 - `SecurityModule`: placeholder security planning for future Bearer auth and admin-only endpoint guards
+- `TenantCapabilitiesModule`: backend-owned tenant capability resolution from managed runtime configuration with compatibility-safe fallback
+- `TenantResourcesModule`: reusable tenant resource adapters for multi-format document and structured catalog ingestion
 - `RuntimeResources`: shared contracts for versioned runtime-managed resources with swappable providers and bootstrap seed sources
 
 ## Runtime Managed Resources
@@ -194,6 +207,7 @@ Important clarification:
   - critical configs
   - governed knowledge metadata
   - response fallback catalogs
+- Critical config coverage now also includes tenant-operable capability activation through the managed `tenant_capabilities` resource key, preserving a compatibility bootstrap fallback without keeping static activation as the source of truth
 
 ## Current Platform State
 
@@ -210,6 +224,18 @@ Important clarification:
   - execution-stage trace persistence with validated input and outcome summaries
   - AI-generated responses grounded in backend-approved context, with response guardrails and deterministic fallback catalogs
   - governed asynchronous learning from persisted traces/logs
+  - real tenant capability activation resolved through managed `tenant_capabilities` config with compatibility fallback
+  - real product catalog lookup through a tenant-neutral catalog source boundary
+  - active catalog source adapters for:
+    - uploaded structured inputs
+    - REST-backed product sources
+  - explicit tenant resource adapters for:
+    - text / markdown / html uploads
+    - PDF uploads
+    - DOCX uploads
+    - XLSX uploads
+    - URL-backed document ingestion
+    - structured catalog uploads
   - managed runtime resources for:
     - prompts
     - date-time locale resources

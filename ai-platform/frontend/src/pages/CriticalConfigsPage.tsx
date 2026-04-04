@@ -18,6 +18,7 @@ import type {
   AsyncIntakeRuntimeResource,
   CriticalConfigVersion,
   LearningRuntimeResource,
+  TenantCapabilitiesResource,
 } from '../types';
 import { formatDateTime, toPrettyJson } from '../utils';
 
@@ -30,7 +31,11 @@ type CriticalConfigFormState = {
 
 function buildDefaultConfigValue(
   key: CriticalConfigVersion['key'],
-): AiRuntimeResource | LearningRuntimeResource | AsyncIntakeRuntimeResource {
+):
+  | AiRuntimeResource
+  | LearningRuntimeResource
+  | AsyncIntakeRuntimeResource
+  | TenantCapabilitiesResource {
   if (key === 'ai_runtime') {
     return {
       provider: 'openai',
@@ -83,6 +88,45 @@ function buildDefaultConfigValue(
     };
   }
 
+  if (key === 'tenant_capabilities') {
+    return {
+      capabilities: [
+        {
+          key: 'booking',
+          enabled: true,
+          description: 'Tenant-owned scheduling and appointment workflow.',
+          intents: ['CREATE_BOOKING'],
+          tools: ['create_booking'],
+          config: {},
+        },
+        {
+          key: 'quote',
+          enabled: true,
+          description: 'Tenant-owned quote and estimation workflow.',
+          intents: ['CREATE_QUOTE'],
+          tools: ['create_quote'],
+          config: {},
+        },
+        {
+          key: 'product_catalog_lookup',
+          enabled: true,
+          description: 'Tenant-owned product or catalog lookup workflow.',
+          intents: ['GET_PRODUCT'],
+          tools: ['get_product'],
+          config: {},
+        },
+        {
+          key: 'support_post_sale',
+          enabled: true,
+          description: 'Tenant-owned support and post-sale workflow boundary.',
+          intents: ['GENERAL_CONVERSATION', 'CLARIFICATION'],
+          tools: [],
+          config: {},
+        },
+      ],
+    };
+  }
+
   return {
     enabled: true,
     observedStages: ['execution', 'response'],
@@ -101,6 +145,11 @@ function getConfigSecondaryLabel(version: CriticalConfigVersion) {
   if (version.key === 'async_intake') {
     const value = version.value as AsyncIntakeRuntimeResource;
     return `${Object.keys(value.lexicons ?? {}).length} locale lexicons`;
+  }
+
+  if (version.key === 'tenant_capabilities') {
+    const value = version.value as TenantCapabilitiesResource;
+    return `${value.capabilities.filter((capability) => capability.enabled).length} enabled capabilities`;
   }
 
   return `${(version.value as LearningRuntimeResource).observedStages.length} observed stages`;
@@ -476,6 +525,7 @@ export function CriticalConfigsPage() {
                         <option value="ai_runtime">ai_runtime</option>
                         <option value="learning">learning</option>
                         <option value="async_intake">async_intake</option>
+                        <option value="tenant_capabilities">tenant_capabilities</option>
                       </select>
                     </div>
                   </div>

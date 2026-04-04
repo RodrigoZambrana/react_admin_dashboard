@@ -40,11 +40,24 @@ enum AsyncConversationTurnStatus {
 enum DocumentOriginKind {
   TEXT
   UPLOAD
+  URL
 }
 
 enum DocumentIngestionStatus {
   PENDING
   PROCESSING
+  READY
+  FAILED
+}
+
+enum CatalogSourceKind {
+  UPLOADED_STRUCTURED
+  REST
+}
+
+enum CatalogSyncStatus {
+  PENDING
+  SYNCING
   READY
   FAILED
 }
@@ -242,6 +255,51 @@ model DocumentChunk {
 
   @@unique([documentId, sequence])
   @@index([tenantId, documentId, sequence])
+}
+
+model CatalogSourceRecord {
+  id           String              @id @default(cuid())
+  tenantId     String
+  title        String
+  kind         CatalogSourceKind
+  status       ManagedResourceStatus @default(DRAFT)
+  syncStatus   CatalogSyncStatus   @default(PENDING)
+  sourceName   String?
+  mimeType     String?
+  endpointUrl  String?
+  sourceConfig Json?
+  metadata     Json?
+  itemCount    Int                 @default(0)
+  lastSyncedAt DateTime?
+  lastError    String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  items        CatalogItemRecord[]
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, kind, status, createdAt])
+}
+
+model CatalogItemRecord {
+  id           String            @id @default(cuid())
+  tenantId     String
+  sourceId     String
+  externalId   String?
+  sku          String?
+  name         String
+  description  String?
+  price        Float?
+  currency     String?
+  availability String?
+  attributes   Json?
+  searchText   String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  source       CatalogSourceRecord @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, sourceId, createdAt])
+  @@index([tenantId, sku])
+  @@index([tenantId, name])
 }
 
 model AsyncConversationTurn {

@@ -152,10 +152,17 @@ function buildBookingPipeline(
   );
   const decisionService = new DecisionService(
     new PipelineLoggerService(),
-    new ProductCatalogService(),
+    {
+      findMatch: jest.fn(async () => ({
+        matched: false as const,
+        matchedBy: null,
+        product: null,
+        score: 0,
+      })),
+    } as unknown as ProductCatalogService,
     new ConversationSignalResolverService(),
     {
-      resolveForCurrentTenant: () => ({
+      resolveForCurrentTenant: async () => ({
         tenantId: 'tenant-alpha',
         capabilities: {
           booking: {
@@ -204,7 +211,14 @@ function buildBookingPipeline(
     new ToolEngineService(
       new PipelineLoggerService(),
       new CreateBookingTool(),
-      new GetProductTool(new ProductCatalogService()),
+      new GetProductTool({
+        findMatch: jest.fn(async () => ({
+          matched: false as const,
+          matchedBy: null,
+          product: null,
+          score: 0,
+        })),
+      } as unknown as ProductCatalogService),
       new CreateQuoteTool(),
     ),
   );
@@ -223,7 +237,9 @@ function buildBookingPipeline(
         conversationId: 'conv-booking-stabilization',
         interpretation: parsed,
       });
-      const decision = decisionService.decide(prepared.effectiveInterpretation);
+      const decision = await decisionService.decide(
+        prepared.effectiveInterpretation,
+      );
       const execution = await toolExecutionService.executeApprovedAction({
         decision,
         interpretation: prepared.effectiveInterpretation,

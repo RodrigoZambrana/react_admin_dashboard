@@ -8,9 +8,11 @@ import {
   AiRuntimeResource,
   AsyncIntakeRuntimeResource,
   buildDefaultAsyncIntakeRuntimeResource,
+  buildDefaultTenantCapabilityRuntimeResource,
   CriticalConfigKey,
   CriticalConfigValue,
   LearningRuntimeResource,
+  TenantCapabilityRuntimeResource,
 } from './critical-config.types';
 
 @Injectable()
@@ -54,6 +56,15 @@ export class EnvCriticalConfigSeedSource extends RuntimeManagedResourceSeedSourc
       {
         key: 'async_intake',
         value: this.buildAsyncIntakeSeed(),
+        createdBy: 'system:critical-config-seed',
+        metadata: {
+          origin: 'system',
+          source: 'env-seed',
+        },
+      },
+      {
+        key: 'tenant_capabilities',
+        value: this.buildTenantCapabilitiesSeed(),
         createdBy: 'system:critical-config-seed',
         metadata: {
           origin: 'system',
@@ -145,6 +156,26 @@ export class EnvCriticalConfigSeedSource extends RuntimeManagedResourceSeedSourc
         ),
       },
       lexicons: defaults.lexicons,
+    };
+  }
+
+  private buildTenantCapabilitiesSeed(): TenantCapabilityRuntimeResource {
+    const defaults = buildDefaultTenantCapabilityRuntimeResource();
+    const enabledKeys = new Set(
+      this.readStringList(
+        'TENANT_CAPABILITIES_ENABLED',
+        defaults.capabilities.map((capability) => capability.key),
+      ),
+    );
+
+    return {
+      capabilities: defaults.capabilities.map((capability) => ({
+        ...capability,
+        enabled: enabledKeys.has(capability.key),
+        intents: [...capability.intents],
+        tools: [...capability.tools],
+        config: { ...(capability.config ?? {}) },
+      })),
     };
   }
 

@@ -97,7 +97,7 @@ export class SemanticTurnExecutionService {
         interpretation: preparedTurn.effectiveInterpretation,
         conversationState: preparedTurn.activeState,
       });
-    const decision = this.decisionService.decide({
+    const decision = await this.decisionService.decide({
       interpretation: preparedTurn.effectiveInterpretation,
       conversationState: preparedTurn.activeState,
       documentRetrieval: documentRetrievalPreview,

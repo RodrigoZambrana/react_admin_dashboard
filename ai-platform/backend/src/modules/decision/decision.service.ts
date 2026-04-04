@@ -19,9 +19,28 @@ export class DecisionService {
 
   decide(
     input: DecisionInput | ContinuityAwareInterpretation,
-  ): DecisionResult {
+  ): Promise<DecisionResult> {
     const normalizedInput = this.normalizeInput(input);
-    const decision = this.resolveDecision(normalizedInput);
+    return this.resolveDecision(normalizedInput);
+  }
+
+  private async resolveDecision(input: DecisionInput): Promise<DecisionResult> {
+    const interpretation = input.interpretation;
+    const continuityApplied = interpretation.continuity?.applied === true;
+    const continuityMissingFields = this.resolveContinuityMissingFields(input);
+    const signals = this.resolveSignals(input);
+    const productCatalogMatch = await this.resolveProductCatalogMatch(input);
+    const capabilities =
+      await this.tenantCapabilityRegistry.resolveForCurrentTenant();
+    const decision = this.resolveDecisionFromSignals({
+      input,
+      interpretation,
+      continuityApplied,
+      continuityMissingFields,
+      signals,
+      productCatalogMatch,
+      capabilities,
+    });
 
     this.logger.log(
       JSON.stringify({
@@ -33,13 +52,28 @@ export class DecisionService {
     return decision;
   }
 
-  private resolveDecision(input: DecisionInput): DecisionResult {
-    const interpretation = input.interpretation;
-    const continuityApplied = interpretation.continuity?.applied === true;
-    const continuityMissingFields = this.resolveContinuityMissingFields(input);
-    const signals = this.resolveSignals(input);
-    const productCatalogMatch = this.resolveProductCatalogMatch(input);
-    const capabilities = this.tenantCapabilityRegistry.resolveForCurrentTenant();
+  private resolveDecisionFromSignals(input: {
+    input: DecisionInput;
+    interpretation: DecisionInput['interpretation'];
+    continuityApplied: boolean;
+    continuityMissingFields: string[];
+    signals: ConversationRoutingSignals;
+    productCatalogMatch: Awaited<
+      ReturnType<DecisionService['resolveProductCatalogMatch']>
+    >;
+    capabilities: Awaited<
+      ReturnType<TenantCapabilityRegistryService['resolveForCurrentTenant']>
+    >;
+  }): DecisionResult {
+    const {
+      input: normalizedInput,
+      interpretation,
+      continuityApplied,
+      continuityMissingFields,
+      signals,
+      productCatalogMatch,
+      capabilities,
+    } = input;
 
     if (interpretation.intent === 'CREATE_BOOKING') {
       if (!capabilities.capabilities.booking.enabled) {
@@ -87,7 +121,7 @@ export class DecisionService {
 
     if (
       this.shouldCloseTurn(
-        input,
+        normalizedInput,
         signals,
         productCatalogMatch.matched,
         continuityMissingFields,
@@ -104,13 +138,18 @@ export class DecisionService {
       };
     }
 
-    if (this.shouldStayInDocumentExploration(input, productCatalogMatch.matched)) {
+    if (
+      this.shouldStayInDocumentExploration(
+        normalizedInput,
+        productCatalogMatch.matched,
+      )
+    ) {
       return this.buildRespondDecision('document_grounded_exploration');
     }
 
     if (
       this.shouldStayInAdvisoryExploration(
-        input,
+        normalizedInput,
         signals,
         productCatalogMatch.matched,
       )
@@ -120,7 +159,7 @@ export class DecisionService {
 
     if (
       this.shouldPreferContextualResponse(
-        input,
+        normalizedInput,
         signals,
         continuityMissingFields,
         productCatalogMatch.matched,
@@ -417,7 +456,7 @@ export class DecisionService {
     });
   }
 
-  private resolveProductCatalogMatch(input: DecisionInput) {
+  private async resolveProductCatalogMatch(input: DecisionInput) {
     if (input.interpretation.intent !== 'GET_PRODUCT') {
       return {
         matched: false as const,

@@ -1,9 +1,15 @@
 import { z } from 'zod';
+import {
+  buildDefaultTenantCapabilitiesResource,
+  TenantCapabilitiesResource,
+  tenantCapabilitiesResourceSchema,
+} from '../tenant-capabilities/tenant-capability.types';
 
 export const criticalConfigKeySchema = z.enum([
   'ai_runtime',
   'learning',
   'async_intake',
+  'tenant_capabilities',
 ]);
 export type CriticalConfigKey = z.infer<typeof criticalConfigKeySchema>;
 
@@ -64,6 +70,7 @@ export type AsyncIntakeRuntimeResource = z.infer<
   typeof asyncIntakeRuntimeResourceSchema
 >;
 export type AsyncIntakeLexicon = z.infer<typeof asyncIntakeLexiconSchema>;
+export type TenantCapabilityRuntimeResource = TenantCapabilitiesResource;
 
 export function buildDefaultAsyncIntakeRuntimeResource(): AsyncIntakeRuntimeResource {
   return {
@@ -120,16 +127,22 @@ export function buildDefaultAsyncIntakeRuntimeResource(): AsyncIntakeRuntimeReso
   };
 }
 
+export function buildDefaultTenantCapabilityRuntimeResource(): TenantCapabilityRuntimeResource {
+  return buildDefaultTenantCapabilitiesResource();
+}
+
 export type CriticalConfigResourceMap = {
   ai_runtime: AiRuntimeResource;
   learning: LearningRuntimeResource;
   async_intake: AsyncIntakeRuntimeResource;
+  tenant_capabilities: TenantCapabilityRuntimeResource;
 };
 
 export type CriticalConfigValue =
   | AiRuntimeResource
   | LearningRuntimeResource
-  | AsyncIntakeRuntimeResource;
+  | AsyncIntakeRuntimeResource
+  | TenantCapabilityRuntimeResource;
 
 export function parseCriticalConfigValue<TKey extends CriticalConfigKey>(
   key: TKey,
@@ -141,6 +154,12 @@ export function parseCriticalConfigValue<TKey extends CriticalConfigKey>(
 
   if (key === 'async_intake') {
     return asyncIntakeRuntimeResourceSchema.parse(
+      value,
+    ) as CriticalConfigResourceMap[TKey];
+  }
+
+  if (key === 'tenant_capabilities') {
+    return tenantCapabilitiesResourceSchema.parse(
       value,
     ) as CriticalConfigResourceMap[TKey];
   }

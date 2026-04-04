@@ -9,10 +9,46 @@ import { ToolEngineService } from '../src/modules/tools/tool-engine.service';
 
 describe('ToolEngineService', () => {
   function createService() {
+    const productCatalogService = {
+      findMatch: jest.fn(async (input: { sku?: string; query?: string | null }) => {
+        const query = input.query?.trim().toLowerCase() ?? '';
+
+        if (
+          input.sku?.trim().toLowerCase() === 'b-77' ||
+          query.includes('beacon desk lamp')
+        ) {
+          return {
+            matched: true as const,
+            matchedBy: input.sku ? ('sku' as const) : ('query' as const),
+            score: 95,
+            product: {
+              id: 'prod-beacon',
+              sourceId: 'catalog-upload-1',
+              sourceKind: 'UPLOADED_STRUCTURED',
+              sourceTitle: 'Lighting Catalog',
+              sku: 'B-77',
+              name: 'Beacon Desk Lamp',
+              price: 89,
+              currency: 'USD',
+              availability: 'backorder',
+              attributes: {},
+            },
+          };
+        }
+
+        return {
+          matched: false as const,
+          matchedBy: null,
+          product: null,
+          score: 0,
+        };
+      }),
+    } as unknown as ProductCatalogService;
+
     return new ToolEngineService(
       new PipelineLoggerService(),
       new CreateBookingTool(),
-      new GetProductTool(new ProductCatalogService()),
+      new GetProductTool(productCatalogService),
       new CreateQuoteTool(),
     );
   }

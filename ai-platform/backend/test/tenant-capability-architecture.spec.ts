@@ -13,6 +13,7 @@ describe('Tenant capability architecture', () => {
 
     expect(decisionSource).toContain('TenantCapabilityRegistryService');
     expect(registrySource).toContain('resolveForCurrentTenant');
+    expect(registrySource).toContain('ManagedTenantCapabilityResolverService');
     expect(registrySource).not.toContain('urucortinas');
   });
 });

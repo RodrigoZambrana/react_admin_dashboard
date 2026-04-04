@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { CatalogModule } from '../catalog/catalog.module';
 import { ContinuityModule } from '../continuity/continuity.module';
 import { CriticalConfigModule } from '../critical-config/critical-config.module';
 import { DecisionModule } from '../decision/decision.module';
@@ -15,6 +16,8 @@ import { ResponseFallbackModule } from '../response-fallback/response-fallback.m
 import { TemporalModule } from '../temporal/temporal.module';
 import { ToolsModule } from '../tools/tools.module';
 import { ChatOrchestratorService } from './chat-orchestrator.service';
+import { AdminCatalogController } from './admin-catalog.controller';
+import { AdminCatalogService } from './admin-catalog.service';
 import { AdminDocumentsController } from './admin-documents.controller';
 import { AdminDocumentsService } from './admin-documents.service';
 import { AdminKnowledgeController } from './admin-knowledge.controller';
@@ -41,6 +44,7 @@ import { TraceLogService } from './trace-log.service';
     ParsingModule,
     ContinuityModule,
     DocumentsModule,
+    CatalogModule,
     TemporalModule,
     DecisionModule,
     ResponseModule,
@@ -51,6 +55,7 @@ import { TraceLogService } from './trace-log.service';
     ChatController,
     AsyncChatController,
     RuntimeResourcesAdminController,
+    AdminCatalogController,
     AdminDocumentsController,
     AdminKnowledgeController,
     AdminTestCenterController,
@@ -62,6 +67,7 @@ import { TraceLogService } from './trace-log.service';
     SemanticTurnExecutionService,
     AsyncTurnIntakeService,
     ChatOrchestratorService,
+    AdminCatalogService,
     AdminDocumentsService,
     AdminKnowledgeService,
     AdminTestCenterService,
