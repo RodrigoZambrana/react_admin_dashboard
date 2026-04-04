@@ -42,6 +42,9 @@ describe('RuntimeResourcesAdminController', () => {
       {
         ...responseFallbackService,
       } as any,
+      {
+        getDiagnostics: jest.fn(async () => ({ status: 'ready' })),
+      } as any,
     );
 
     await expect(controller.listCriticalConfigVersions('learning')).resolves.toEqual([
@@ -50,6 +53,9 @@ describe('RuntimeResourcesAdminController', () => {
     await expect(controller.listActiveCriticalConfigs()).resolves.toEqual([
       'config-active',
     ]);
+    await expect(controller.getAiRuntimeDiagnostics()).resolves.toEqual({
+      status: 'ready',
+    });
     await expect(
       controller.listKnowledgeMetadataVersions('default'),
     ).resolves.toEqual(['knowledge-version']);

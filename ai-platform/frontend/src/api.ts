@@ -1,4 +1,5 @@
 import type {
+  AiRuntimeDiagnostics,
   AsyncChatAcceptedResponse,
   AsyncChatConversationSummary,
   AsyncChatSessionView,
@@ -185,6 +186,12 @@ export async function listCriticalConfigVersions() {
 export async function listActiveCriticalConfigs() {
   return apiRequest<CriticalConfigVersion[]>(
     '/admin/runtime-resources/critical-configs/active',
+  );
+}
+
+export async function getAiRuntimeDiagnostics() {
+  return apiRequest<AiRuntimeDiagnostics>(
+    '/admin/runtime-resources/critical-configs/ai-runtime/diagnostics',
   );
 }
 

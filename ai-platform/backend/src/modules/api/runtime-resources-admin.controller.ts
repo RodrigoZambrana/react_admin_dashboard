@@ -5,6 +5,7 @@ import { KnowledgeMetadataService } from '../knowledge-metadata/knowledge-metada
 import { PromptService } from '../prompt/prompt.service';
 import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
 import { TemporalLocaleService } from '../temporal/temporal-locale.service';
+import { AiRuntimeDiagnosticsService } from '../runtime-config/ai-runtime-diagnostics.service';
 import { CreateCriticalConfigVersionDto } from './dto/create-critical-config-version.dto';
 import { CreateKnowledgeMetadataVersionDto } from './dto/create-knowledge-metadata-version.dto';
 import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
@@ -20,6 +21,7 @@ export class RuntimeResourcesAdminController {
     private readonly criticalConfigService: CriticalConfigService,
     private readonly knowledgeMetadataService: KnowledgeMetadataService,
     private readonly responseFallbackService: ResponseFallbackService,
+    private readonly aiRuntimeDiagnosticsService: AiRuntimeDiagnosticsService,
   ) {}
 
   @Get('prompts')
@@ -81,6 +83,11 @@ export class RuntimeResourcesAdminController {
   @Get('critical-configs/active')
   listActiveCriticalConfigs() {
     return this.criticalConfigService.listActiveConfigs();
+  }
+
+  @Get('critical-configs/ai-runtime/diagnostics')
+  getAiRuntimeDiagnostics() {
+    return this.aiRuntimeDiagnosticsService.getDiagnostics();
   }
 
   @Post('critical-configs')

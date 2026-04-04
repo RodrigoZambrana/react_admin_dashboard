@@ -26,6 +26,6 @@ import { OpenAiLanguageModelProvider } from './providers/openai-language-model.p
     LanguageModelProviderRegistry,
     AiGatewayService,
   ],
-  exports: [AiGatewayService],
+  exports: [AiGatewayService, LanguageModelProviderRegistry],
 })
 export class AiGatewayModule {}

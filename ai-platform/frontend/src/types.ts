@@ -118,6 +118,36 @@ export type CriticalConfigVersion = {
   createdBy?: string | null;
 };
 
+export type AiRuntimeDiagnostics = {
+  provider: string;
+  model: string | null;
+  timeoutMs: number | null;
+  source:
+    | {
+        type: 'managed';
+        key: 'ai_runtime';
+        version: number | null;
+      }
+    | {
+        type: 'fallback';
+        reason: 'missing_managed_resource';
+      };
+  status: 'ready' | 'invalid' | 'fallback';
+  canUseRuntime: boolean;
+  providerRegistered: boolean;
+  supportedProviders: string[];
+  credentials: {
+    strategy: 'none' | 'env';
+    envKey: string | null;
+    resolved: boolean;
+  };
+  issues: Array<{
+    code: string;
+    severity: 'error' | 'warning';
+    message: string;
+  }>;
+};
+
 export type KnowledgeMetadataResource = {
   enabledStages: string[];
   metadataAllowList: string[];

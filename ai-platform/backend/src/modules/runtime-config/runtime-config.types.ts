@@ -30,6 +30,34 @@ export type AiGatewayConfig = {
       };
 };
 
+export type AiRuntimeDiagnosticIssue = {
+  code:
+    | 'missing_managed_resource'
+    | 'provider_not_registered'
+    | 'missing_env_key'
+    | 'missing_credentials'
+    | 'invalid_timeout';
+  severity: 'error' | 'warning';
+  message: string;
+};
+
+export type AiRuntimeDiagnostics = {
+  provider: string;
+  model: string | null;
+  timeoutMs: number | null;
+  source: AiGatewayConfig['source'];
+  status: 'ready' | 'invalid' | 'fallback';
+  canUseRuntime: boolean;
+  providerRegistered: boolean;
+  supportedProviders: string[];
+  credentials: {
+    strategy: ResolvedAiRuntimeCredentials['strategy'];
+    envKey: string | null;
+    resolved: boolean;
+  };
+  issues: AiRuntimeDiagnosticIssue[];
+};
+
 export type TenantRuntimeConfig = {
   tenantId: string | null;
   source: 'env';

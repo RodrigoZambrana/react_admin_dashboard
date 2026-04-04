@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   activateCriticalConfigVersion,
   createCriticalConfigVersion,
+  getAiRuntimeDiagnostics,
   listActiveCriticalConfigs,
   listCriticalConfigVersions,
 } from '../api';
@@ -12,6 +13,7 @@ import { JsonBlock } from '../components/shared/JsonBlock';
 import { PageHeader } from '../components/shared/PageHeader';
 import { StatusBadge } from '../components/shared/StatusBadge';
 import type {
+  AiRuntimeDiagnostics,
   AiRuntimeResource,
   AsyncIntakeRuntimeResource,
   CriticalConfigVersion,
@@ -23,6 +25,7 @@ type CriticalConfigFormState = {
   key: CriticalConfigVersion['key'];
   jsonText: string;
   activate: boolean;
+  aiRuntimeDraft: AiRuntimeResource;
 };
 
 function buildDefaultConfigValue(
@@ -104,12 +107,17 @@ function getConfigSecondaryLabel(version: CriticalConfigVersion) {
 }
 
 function buildConfigForm(base?: CriticalConfigVersion): CriticalConfigFormState {
-  const key = base?.key ?? 'learning';
+  const key = base?.key ?? 'ai_runtime';
+  const baseValue = base?.value ?? buildDefaultConfigValue(key);
 
   return {
     key,
-    jsonText: toPrettyJson(base?.value ?? buildDefaultConfigValue(key)),
+    jsonText: toPrettyJson(baseValue),
     activate: base?.status === 'ACTIVE',
+    aiRuntimeDraft:
+      key === 'ai_runtime'
+        ? (baseValue as AiRuntimeResource)
+        : (buildDefaultConfigValue('ai_runtime') as AiRuntimeResource),
   };
 }
 
@@ -118,6 +126,8 @@ export function CriticalConfigsPage() {
   const [activeVersions, setActiveVersions] = useState<CriticalConfigVersion[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
   const [form, setForm] = useState<CriticalConfigFormState>(buildConfigForm());
+  const [aiRuntimeDiagnostics, setAiRuntimeDiagnostics] =
+    useState<AiRuntimeDiagnostics | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activatingId, setActivatingId] = useState<string>();
@@ -137,12 +147,14 @@ export function CriticalConfigsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [versionData, activeData] = await Promise.all([
+      const [versionData, activeData, diagnostics] = await Promise.all([
         listCriticalConfigVersions(),
         listActiveCriticalConfigs(),
+        getAiRuntimeDiagnostics(),
       ]);
       setVersions(versionData);
       setActiveVersions(activeData);
+      setAiRuntimeDiagnostics(diagnostics);
       const nextSelected = nextSelectedId ?? selectedId ?? versionData[0]?.id;
       setSelectedId(nextSelected);
       const nextVersion = versionData.find((version) => version.id === nextSelected);
@@ -163,9 +175,13 @@ export function CriticalConfigsPage() {
       setSaving(true);
       setError(null);
       setNotice(null);
+      const value =
+        form.key === 'ai_runtime'
+          ? form.aiRuntimeDraft
+          : (JSON.parse(form.jsonText) as CriticalConfigVersion['value']);
       const created = await createCriticalConfigVersion({
         key: form.key,
-        value: JSON.parse(form.jsonText) as CriticalConfigVersion['value'],
+        value,
         activate: form.activate,
         createdBy: 'admin-ui',
       });
@@ -215,7 +231,22 @@ export function CriticalConfigsPage() {
         matchingActive?.value ?? buildDefaultConfigValue(key),
       ),
       activate: matchingActive?.status === 'ACTIVE',
+      aiRuntimeDraft:
+        key === 'ai_runtime'
+          ? ((matchingActive?.value ??
+              buildDefaultConfigValue('ai_runtime')) as AiRuntimeResource)
+          : form.aiRuntimeDraft,
     });
+  };
+
+  const updateAiRuntimeDraft = (patch: Partial<AiRuntimeResource>) => {
+    setForm((current) => ({
+      ...current,
+      aiRuntimeDraft: {
+        ...current.aiRuntimeDraft,
+        ...patch,
+      },
+    }));
   };
 
   return (
@@ -298,6 +329,31 @@ export function CriticalConfigsPage() {
             </div>
           </div>
         </div>
+        <div className="col-md-12 col-xl-4 d-flex">
+          <div className="card total-users flex-fill">
+            <div className="card-body">
+              <div className="total-counts">
+                <div className="d-flex align-items-center">
+                  <span className="bg-warning total-count-icons">
+                    <i className="ti ti-plug-connected"></i>
+                  </span>
+                  <div>
+                    <p>AI runtime status</p>
+                    <h5>{loading ? '...' : aiRuntimeDiagnostics?.status ?? 'unknown'}</h5>
+                  </div>
+                </div>
+                <div className="percentage">
+                  <span className="bg-warning">
+                    {aiRuntimeDiagnostics?.canUseRuntime
+                      ? `${aiRuntimeDiagnostics.provider} ready`
+                      : aiRuntimeDiagnostics?.issues[0]?.message ??
+                        'Diagnostics pending'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="row">
@@ -374,6 +430,12 @@ export function CriticalConfigsPage() {
                           <span className="react-meta-label">Created at</span>
                           <strong>{formatDateTime(selectedVersion.createdAt)}</strong>
                         </div>
+                        {selectedVersion.key === 'ai_runtime' && aiRuntimeDiagnostics ? (
+                          <div>
+                            <span className="react-meta-label">Runtime diagnostics</span>
+                            <strong>{aiRuntimeDiagnostics.status}</strong>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -444,21 +506,137 @@ export function CriticalConfigsPage() {
                       <input className="form-control" value="admin-ui" readOnly />
                     </div>
                   </div>
-                  <div className="col-12">
-                    <div className="mb-3">
-                      <label className="form-label">Config JSON</label>
-                      <textarea
-                        className="form-control react-large-textarea"
-                        value={form.jsonText}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            jsonText: event.target.value,
-                          }))
-                        }
-                      />
+                  {form.key === 'ai_runtime' ? (
+                    <>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Provider</label>
+                          <input
+                            className="form-control"
+                            value={form.aiRuntimeDraft.provider}
+                            onChange={(event) =>
+                              updateAiRuntimeDraft({ provider: event.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Model</label>
+                          <input
+                            className="form-control"
+                            value={form.aiRuntimeDraft.model}
+                            onChange={(event) =>
+                              updateAiRuntimeDraft({ model: event.target.value })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Timeout (ms)</label>
+                          <input
+                            className="form-control"
+                            type="number"
+                            min={1}
+                            value={form.aiRuntimeDraft.timeoutMs}
+                            onChange={(event) =>
+                              updateAiRuntimeDraft({
+                                timeoutMs: Number(event.target.value || 0),
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Credential strategy</label>
+                          <select
+                            className="form-select"
+                            value={form.aiRuntimeDraft.credentials.strategy}
+                            onChange={(event) =>
+                              updateAiRuntimeDraft({
+                                credentials: {
+                                  strategy: event.target.value as 'none' | 'env',
+                                  envKey:
+                                    event.target.value === 'env'
+                                      ? form.aiRuntimeDraft.credentials.envKey ??
+                                        'OPENAI_API_KEY'
+                                      : null,
+                                },
+                              })
+                            }
+                          >
+                            <option value="env">env</option>
+                            <option value="none">none</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Credential env key</label>
+                          <input
+                            className="form-control"
+                            value={form.aiRuntimeDraft.credentials.envKey ?? ''}
+                            onChange={(event) =>
+                              updateAiRuntimeDraft({
+                                credentials: {
+                                  ...form.aiRuntimeDraft.credentials,
+                                  envKey: event.target.value || null,
+                                },
+                              })
+                            }
+                            disabled={form.aiRuntimeDraft.credentials.strategy === 'none'}
+                          />
+                        </div>
+                      </div>
+                      <div className="col-md-4">
+                        <div className="mb-3">
+                          <label className="form-label">Base URL</label>
+                          <input
+                            className="form-control"
+                            value={
+                              typeof form.aiRuntimeDraft.providerOptions.baseUrl ===
+                              'string'
+                                ? form.aiRuntimeDraft.providerOptions.baseUrl
+                                : ''
+                            }
+                            onChange={(event) =>
+                              updateAiRuntimeDraft({
+                                providerOptions: {
+                                  ...form.aiRuntimeDraft.providerOptions,
+                                  baseUrl: event.target.value || undefined,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
+                      <div className="col-12">
+                        <div className="alert alert-info custom-react-alert mb-3">
+                          Active runtime status: {aiRuntimeDiagnostics?.status ?? 'unknown'}.
+                          {' '}Configured env key:{' '}
+                          {form.aiRuntimeDraft.credentials.envKey ?? 'none'}.
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="col-12">
+                      <div className="mb-3">
+                        <label className="form-label">Config JSON</label>
+                        <textarea
+                          className="form-control react-large-textarea"
+                          value={form.jsonText}
+                          onChange={(event) =>
+                            setForm((current) => ({
+                              ...current,
+                              jsonText: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
                 <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
                   <p className="text-muted mb-0">

@@ -1569,3 +1569,39 @@
 - Make governed OpenAI runtime configuration operable end-to-end with explicit validation and diagnostics
 - Complete the prompt-governance split so structural protocol contracts stay code-owned while editable editorial policy moves behind governed resources
 - Reduce critical raw-JSON admin friction on exploratory paths for AI runtime config, prompts, and fallback resources
+
+## Iteration 49
+
+### Implemented
+- Added governed AI runtime diagnostics on top of the provider-agnostic runtime config contract:
+  - explicit readiness/invalid/fallback status
+  - provider-registration checks
+  - credential-resolution checks
+  - operator-facing issue list for the active `ai_runtime`
+- Exposed diagnostics through the managed admin backend surface so operators can inspect the live runtime before exploratory use
+- Reduced critical admin friction on the main AI runtime path:
+  - `ai_runtime` now has a structured editor for provider, model, timeout, env credential mapping, and base URL
+  - critical-config UI no longer requires raw JSON for the primary real-AI setup path
+
+### Working
+- The platform can now surface whether the active governed AI runtime is:
+  - `ready`
+  - `invalid`
+  - `fallback`
+- Invalid or incomplete OpenAI-style env setup is now visible before exploratory chat runs fail at runtime
+- The managed `ai_runtime` path remains provider-agnostic while still being operable for real OpenAI-backed exploratory use
+- Validation passes after the runtime-operability slice:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- The active runtime now diagnoses configuration shape and credential resolution, but this milestone does not add a separate live provider probe beyond real runtime use
+- Critical admin friction is reduced for `ai_runtime`, but other complex resources still retain JSON-heavy editing paths
+- Prompt editorial-governance split and governed fallback/policy editing are still pending in Wave 8.3
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+
+### Next Steps
+- Complete the prompt-governance split so structural protocol contracts remain backend-owned while editable policy wording moves behind governed resources with safe fallback
+- Reduce remaining critical raw-JSON friction on exploratory prompt/fallback paths where it still blocks real operator use
+- Finish Wave 8.3 closeout with final validation, architecture notes, and explicit readiness framing before Wave 9
