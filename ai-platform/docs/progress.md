@@ -2446,3 +2446,32 @@
 - Wire typing/presence into the async public chat flow so active composition can delay processing before semantic turn closure
 - Revalidate full backend and frontend builds after the presence changes
 - Keep Wave 9 out of scope while closing this focused reliability/UX phase cleanly
+
+## Iteration 73
+
+### Implemented
+- Completed backend-owned typing/finalization gating for async public chat:
+  - added additive `POST /chat/async/typing` reporting
+  - async intake now extends the active stabilization window while the customer is still composing
+  - session and recent-conversation presence now expose `typingActive` and `typingExpiresAt`
+- Wired the public chat UI to the backend typing contract:
+  - typing reports stop on send, draft clear, conversation switch, and unmount
+  - sidebar and active header now reflect composition state from backend truth instead of decorative UI-only hints
+- Updated architecture documentation so typing is explicitly recorded as a semantic-turn finalization signal inside async intake
+
+### Working
+- The public async chat now waits for message finalization before closing a semantic turn when the customer keeps typing in the same conversation
+- Presence remains backend-owned and consistent between session polling and recent-conversation summaries
+- Existing `/chat/message`, document/advisory continuity, close-turn behavior, and approved-knowledge routing remain additive and non-regressed
+
+### Technical Debt
+- Typing quiet-period estimation still depends on the existing async timing policy boundary and remains a later tuning concern
+- The frontend workspace still lacks a supported automated test harness, so the public typing UX is validated by build plus backend contract coverage
+- Managed public-chat wording still depends on the active governed prompt version operators have enabled
+
+### Next Steps
+- Keep Wave 9 out of scope
+- Carry forward only bounded non-core debt:
+  - timing-policy tuning
+  - frontend harness work
+  - governed prompt activation discipline where operators want newer response tone immediately live

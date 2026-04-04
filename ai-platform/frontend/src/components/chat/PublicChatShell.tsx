@@ -25,6 +25,7 @@ export type PublicChatConversationListItem = {
   timestamp: string | null;
   presence: AsyncPresenceState;
   awaitingReply: boolean;
+  typingActive: boolean;
   activeTurnId: string | null;
 };
 
@@ -48,6 +49,7 @@ type PublicChatShellProps = {
   isSending: boolean;
   error: string | null;
   presenceState: AsyncPresenceState;
+  typingActive: boolean;
   showGlobalLoader: boolean;
   onConversationSelect: (conversationId: string) => void;
   onStartConversation: () => void;
@@ -66,7 +68,15 @@ const recentAvatars = [
   '/dreamschat-chat/assets/img/profiles/avatar-05.jpg',
 ];
 
-function buildHeaderSubtitle(state: AsyncPresenceState, isSyncing: boolean) {
+function buildHeaderSubtitle(
+  state: AsyncPresenceState,
+  isSyncing: boolean,
+  typingActive: boolean,
+) {
+  if (typingActive) {
+    return 'Finishing your message';
+  }
+
   if (isSyncing && state === 'idle') {
     return 'Syncing';
   }
@@ -84,6 +94,7 @@ export function PublicChatShell({
   isSending,
   error,
   presenceState,
+  typingActive,
   showGlobalLoader,
   onConversationSelect,
   onStartConversation,
@@ -108,7 +119,11 @@ export function PublicChatShell({
   const headerTitle = selectedConversation
     ? selectedConversation.title
     : 'AI Concierge';
-  const headerSubtitle = buildHeaderSubtitle(presenceState, isSyncing);
+  const headerSubtitle = buildHeaderSubtitle(
+    presenceState,
+    isSyncing,
+    typingActive,
+  );
 
   const scrollAnchorKey = useMemo(() => {
     const lastEntry = transcript.at(-1);
@@ -418,6 +433,9 @@ export function PublicChatShell({
                           const tone = getConversationStatusTone(
                             conversation.presence,
                             conversation.awaitingReply,
+                            {
+                              typingActive: conversation.typingActive,
+                            },
                           );
 
                           return (
@@ -448,6 +466,8 @@ export function PublicChatShell({
                                           <span className="dot"></span>
                                         </span>
                                       </p>
+                                    ) : conversation.typingActive ? (
+                                      <p>{formatChatPresenceLabel(conversation.presence, { typingActive: true })}</p>
                                     ) : (
                                       <p>{getConversationPreview(conversation.preview)}</p>
                                     )}

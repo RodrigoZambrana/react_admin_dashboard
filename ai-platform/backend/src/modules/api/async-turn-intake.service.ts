@@ -17,10 +17,12 @@ import { AsyncConversationTurnRepository } from '../persistence/repositories/asy
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
 import { TraceLogService } from './trace-log.service';
 import { AsyncChatMessageDto } from './dto/async-chat-message.dto';
+import { AsyncChatTypingDto } from './dto/async-chat-typing.dto';
 import {
   AsyncChatAcceptedResponse,
   AsyncChatConversationSummary,
   AsyncChatSessionView,
+  AsyncChatTypingResponse,
   AsyncChatTurnView,
   AsyncPresenceState,
 } from './async-chat.types';
@@ -43,6 +45,13 @@ const ACTIVE_ASYNC_TURN_STATUSES = new Set<AsyncConversationTurnStatus>([
 export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
   private readonly stabilizationTimers = new Map<string, NodeJS.Timeout>();
   private readonly projectionTimers = new Map<string, NodeJS.Timeout>();
+  private readonly typingSignals = new Map<
+    string,
+    {
+      expiresAt: Date;
+      locale: string | null;
+    }
+  >();
 
   constructor(
     private readonly conversationRepository: ConversationRepository,
@@ -99,6 +108,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
 
   async acceptMessage(input: AsyncChatMessageDto): Promise<AsyncChatAcceptedResponse> {
     const conversation = await this.resolveConversation(input);
+    this.clearTypingSignal(conversation.id);
     const activeTurns = await this.asyncTurnRepository.listActiveTurns(
       conversation.id,
     );
@@ -141,7 +151,54 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     return {
       conversationId: conversation.id,
       turn: this.mapTurn(turn),
-      presence: this.buildPresence(turn),
+      presence: this.buildPresence(turn, conversation.id),
+    };
+  }
+
+  async reportTyping(input: AsyncChatTypingDto): Promise<AsyncChatTypingResponse> {
+    const conversation = await this.conversationRepository.findById(
+      input.conversationId,
+    );
+
+    if (!conversation) {
+      throw new NotFoundException(
+        `Conversation "${input.conversationId}" was not found for typing sync.`,
+      );
+    }
+
+    const typingActive = input.isTyping !== false;
+
+    if (typingActive) {
+      const quietPeriodMs = await this.timingPolicy.estimateTypingQuietPeriod(
+        input.locale ?? conversation.language,
+      );
+      const expiresAt = new Date(Date.now() + quietPeriodMs);
+      this.typingSignals.set(conversation.id, {
+        expiresAt,
+        locale: input.locale ?? conversation.language ?? null,
+      });
+
+      const activeTurn =
+        (await this.asyncTurnRepository.listActiveTurns(conversation.id)).at(-1) ??
+        null;
+
+      if (activeTurn?.status === AsyncConversationTurnStatus.STABILIZING) {
+        await this.extendTypingHold(activeTurn, expiresAt);
+      }
+    } else {
+      this.clearTypingSignal(conversation.id);
+    }
+
+    const activeTurn =
+      (await this.asyncTurnRepository.listActiveTurns(conversation.id)).at(-1) ??
+      null;
+    const presence = this.buildPresence(activeTurn, conversation.id);
+
+    return {
+      conversationId: conversation.id,
+      typingActive: presence.typingActive,
+      typingExpiresAt: presence.typingExpiresAt,
+      presence,
     };
   }
 
@@ -168,7 +225,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
           latestPendingInput?.receivedAt?.toISOString() ??
           latestMessage?.createdAt?.toISOString() ??
           null;
-        const presence = this.buildPresence(activeTurn);
+        const presence = this.buildPresence(activeTurn, conversation.id);
 
         return {
           conversationId: conversation.id,
@@ -178,6 +235,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
           updatedAt: conversation.updatedAt.toISOString(),
           presence: presence.state,
           awaitingReply: presence.awaitingReply,
+          typingActive: presence.typingActive,
           activeTurnId: activeTurn?.id ?? null,
           latestPreview,
           latestMessageRole: latestMessage?.role ?? null,
@@ -211,7 +269,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
         createdAt: conversation.createdAt.toISOString(),
         updatedAt: conversation.updatedAt.toISOString(),
       },
-      presence: this.buildPresence(activeTurn),
+      presence: this.buildPresence(activeTurn, conversation.id),
       activeTurn: activeTurn ? this.mapTurn(activeTurn) : null,
       latestCompletedTurn: latestCompletedTurn
         ? this.mapTurn(latestCompletedTurn)
@@ -316,6 +374,10 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     const turn = await this.asyncTurnRepository.findById(turnId);
 
     if (!turn || turn.status !== AsyncConversationTurnStatus.STABILIZING) {
+      return;
+    }
+
+    if (await this.delayForActiveTyping(turn)) {
       return;
     }
 
@@ -600,7 +662,13 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  private buildPresence(turn: AsyncTurnRecord | null): AsyncChatSessionView['presence'] {
+  private buildPresence(
+    turn: AsyncTurnRecord | null,
+    conversationId?: string | null,
+  ): AsyncChatSessionView['presence'] {
+    const typingState =
+      this.resolveTypingSignal(conversationId ?? turn?.conversationId ?? null);
+
     if (!turn) {
       return {
         state: 'idle',
@@ -609,6 +677,8 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
         acceptedAt: null,
         flushAt: null,
         replyDueAt: null,
+        typingActive: Boolean(typingState),
+        typingExpiresAt: typingState?.expiresAt.toISOString() ?? null,
       };
     }
 
@@ -623,6 +693,8 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
       acceptedAt: turn.acceptedAt.toISOString(),
       flushAt: turn.flushAt.toISOString(),
       replyDueAt: turn.replyDueAt?.toISOString() ?? null,
+      typingActive: Boolean(typingState),
+      typingExpiresAt: typingState?.expiresAt.toISOString() ?? null,
     };
   }
 
@@ -736,5 +808,81 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     }
     this.stabilizationTimers.clear();
     this.projectionTimers.clear();
+    this.typingSignals.clear();
+  }
+
+  private resolveTypingSignal(conversationId: string | null | undefined) {
+    if (!conversationId) {
+      return null;
+    }
+
+    const signal = this.typingSignals.get(conversationId);
+
+    if (!signal) {
+      return null;
+    }
+
+    if (signal.expiresAt.getTime() <= Date.now()) {
+      this.typingSignals.delete(conversationId);
+      return null;
+    }
+
+    return signal;
+  }
+
+  private clearTypingSignal(conversationId: string | null | undefined) {
+    if (!conversationId) {
+      return;
+    }
+
+    this.typingSignals.delete(conversationId);
+  }
+
+  private async delayForActiveTyping(turn: AsyncTurnRecord) {
+    const typingState = this.resolveTypingSignal(turn.conversationId);
+
+    if (!typingState) {
+      return false;
+    }
+
+    await this.extendTypingHold(turn, typingState.expiresAt);
+    return true;
+  }
+
+  private async extendTypingHold(turn: AsyncTurnRecord, holdUntil: Date) {
+    if (turn.flushAt.getTime() >= holdUntil.getTime()) {
+      this.scheduleStabilization(turn);
+      return;
+    }
+
+    const updatedTurn = await this.asyncTurnRepository.refreshStabilizationWindow({
+      turnId: turn.id,
+      flushAt: holdUntil,
+      stabilizationDelayMs: Math.max(
+        0,
+        holdUntil.getTime() - turn.acceptedAt.getTime(),
+      ),
+      metadata: {
+        ...(turn.metadata && typeof turn.metadata === 'object'
+          ? turn.metadata
+          : {}),
+        typingHoldUntil: holdUntil.toISOString(),
+      } as Prisma.InputJsonValue,
+    });
+
+    await this.runWithTurnContext(updatedTurn, async () => {
+      await this.traceLogService.recordStage({
+        conversationId: updatedTurn.conversationId,
+        stage: 'async_intake',
+        status: 'typing_hold',
+        payload: {
+          turnId: updatedTurn.id,
+          flushAt: updatedTurn.flushAt.toISOString(),
+          typingHoldUntil: holdUntil.toISOString(),
+        },
+      });
+    });
+
+    this.scheduleStabilization(updatedTurn);
   }
 }

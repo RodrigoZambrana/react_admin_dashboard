@@ -423,6 +423,7 @@ export type AsyncChatConversationSummary = {
   updatedAt: string;
   presence: AsyncPresenceState;
   awaitingReply: boolean;
+  typingActive: boolean;
   activeTurnId: string | null;
   latestPreview: string | null;
   latestMessageRole: 'USER' | 'ASSISTANT' | 'SYSTEM' | null;
@@ -444,6 +445,8 @@ export type AsyncChatSessionView = {
     acceptedAt: string | null;
     flushAt: string | null;
     replyDueAt: string | null;
+    typingActive: boolean;
+    typingExpiresAt: string | null;
   };
   activeTurn: AsyncChatTurnView | null;
   latestCompletedTurn: AsyncChatTurnView | null;
@@ -454,5 +457,12 @@ export type AsyncChatSessionView = {
 export type AsyncChatAcceptedResponse = {
   conversationId: string;
   turn: AsyncChatTurnView;
+  presence: AsyncChatSessionView['presence'];
+};
+
+export type AsyncChatTypingResponse = {
+  conversationId: string;
+  typingActive: boolean;
+  typingExpiresAt: string | null;
   presence: AsyncChatSessionView['presence'];
 };

@@ -221,6 +221,19 @@ export class AsyncConversationTurnRepository {
     });
   }
 
+  refreshStabilizationWindow(input: {
+    turnId: string;
+    flushAt: Date;
+    stabilizationDelayMs: number;
+    metadata?: Prisma.InputJsonValue;
+  }) {
+    return this.updateTurnById(input.turnId, {
+      flushAt: input.flushAt,
+      stabilizationDelayMs: input.stabilizationDelayMs,
+      metadata: input.metadata,
+    });
+  }
+
   async createTurnWithInitialInput(input: {
     conversationId: string;
     traceId: string;

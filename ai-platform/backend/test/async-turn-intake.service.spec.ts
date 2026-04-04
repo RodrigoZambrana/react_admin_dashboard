@@ -162,6 +162,15 @@ function createInMemoryAsyncTurnRepository() {
       turn.flushAt = input.flushAt;
       return cloneTurn(turn);
     }),
+    refreshStabilizationWindow: jest.fn(async (input: any) => {
+      const turn = getTurnOrThrow(input.turnId);
+      turn.flushAt = input.flushAt;
+      turn.stabilizationDelayMs = input.stabilizationDelayMs;
+      turn.metadata = (input.metadata ?? turn.metadata ?? null) as
+        | Record<string, unknown>
+        | null;
+      return cloneTurn(turn);
+    }),
     findById: jest.fn(async (turnId: string) => {
       const turn = turns.get(turnId);
       return turn ? cloneTurn(turn) : null;
@@ -444,6 +453,105 @@ describe('AsyncTurnIntakeService', () => {
     );
   });
 
+  it('delays semantic turn processing while the customer is still actively typing', async () => {
+    const asyncTurnRepository = createInMemoryAsyncTurnRepository();
+    const semanticTurnExecutionService = {
+      executeClosedTurn: jest.fn(async () => ({
+        response: 'Respuesta final',
+        intent: 'GENERAL_CONVERSATION',
+        entities: {},
+        metadata: {
+          conversationId: 'conv-typing',
+          traceId: 'trace-turn-typing',
+        },
+        decision: {
+          action: 'respond',
+        },
+        execution: {
+          ok: false,
+        },
+        approvedResponse: {
+          fallbackReason: null,
+        },
+        assistantMessageMetadata: {
+          source: 'async',
+        },
+      })),
+      projectAssistantReply: jest.fn(async () => ({
+        id: 'msg-assistant-typing',
+      })),
+    };
+    const service = new AsyncTurnIntakeService(
+      {
+        findById: jest.fn(async () => ({
+          id: 'conv-typing',
+          language: 'es',
+          channel: 'webchat_async',
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+          messages: [],
+        })),
+        createConversation: jest.fn(async () => ({
+          id: 'conv-typing',
+          language: 'es',
+          channel: 'webchat_async',
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+          messages: [],
+        })),
+      } as any,
+      asyncTurnRepository as any,
+      {
+        getTenantId: () => 'tenant-alpha',
+        getTraceId: () => 'trace-request',
+        run: (_context: any, callback: () => unknown) => callback(),
+      } as any,
+      {
+        recordStage: jest.fn(async () => undefined),
+      } as any,
+      {
+        calculateFlushAt: jest.fn(({ acceptedAt }: { acceptedAt: Date }) => ({
+          stabilizationDelayMs: 1000,
+          flushAt: new Date(acceptedAt.getTime() + 1000),
+        })),
+        buildSemanticInput: jest.fn((messages: string[]) => messages.join('\n')),
+        estimateReplyDelay: jest.fn(() => 0),
+        estimateTypingQuietPeriod: jest.fn(async () => 1500),
+      } as any,
+      new AsyncTurnExecutionControlService(),
+      semanticTurnExecutionService as any,
+    );
+
+    const accepted = await service.acceptMessage({
+      message: 'Necesito info de rollers',
+      locale: 'es',
+      channel: 'webchat_async',
+    });
+
+    const typingStatus = await service.reportTyping({
+      conversationId: accepted.conversationId,
+      locale: 'es',
+      isTyping: true,
+    });
+
+    expect(typingStatus.typingActive).toBe(true);
+    expect(typingStatus.presence.state).toBe('queued');
+
+    await jest.advanceTimersByTimeAsync(1000);
+
+    expect(semanticTurnExecutionService.executeClosedTurn).not.toHaveBeenCalled();
+
+    const heldSession = await service.getSession(accepted.conversationId);
+    expect(heldSession.presence.typingActive).toBe(true);
+    expect(new Date(heldSession.presence.flushAt ?? 0).getTime()).toBeGreaterThan(
+      new Date(accepted.presence.flushAt ?? 0).getTime(),
+    );
+
+    await jest.advanceTimersByTimeAsync(1500);
+
+    expect(semanticTurnExecutionService.executeClosedTurn).toHaveBeenCalledTimes(1);
+  });
+
   it('lists recent async conversations with backend-derived presence and preview data', async () => {
     const asyncTurnRepository = createInMemoryAsyncTurnRepository();
     const acceptedAt = new Date('2026-04-04T10:00:00.000Z');
@@ -501,6 +609,7 @@ describe('AsyncTurnIntakeService', () => {
         channel: 'webchat_async',
         presence: 'queued',
         awaitingReply: true,
+        typingActive: false,
         activeTurnId: 'turn-1',
         latestPreview: 'Necesito una cotizacion',
         latestMessageRole: null,

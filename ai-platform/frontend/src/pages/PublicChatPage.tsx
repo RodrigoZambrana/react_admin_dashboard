@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   acceptAsyncChatMessage,
   getAsyncChatSession,
   listAsyncChatConversations,
+  reportAsyncChatTyping,
 } from '../api';
 import { TemplateAssetBundle } from '../components/layout/TemplateAssetBundle';
 import {
@@ -21,6 +22,7 @@ import type {
 const ACTIVE_SESSION_POLL_MS = 1200;
 const IDLE_SESSION_POLL_MS = 4000;
 const RECENT_CONVERSATION_SYNC_MS = 6000;
+const TYPING_HEARTBEAT_DEBOUNCE_MS = 250;
 
 function buildConversationItems(
   conversations: AsyncChatConversationSummary[],
@@ -32,6 +34,7 @@ function buildConversationItems(
     timestamp: conversation.latestTimestamp,
     presence: conversation.presence,
     awaitingReply: conversation.awaitingReply,
+    typingActive: conversation.typingActive,
     activeTurnId: conversation.activeTurnId,
   }));
 }
@@ -166,6 +169,7 @@ function buildConversationSummaryFromSession(
     updatedAt: session.conversation.updatedAt,
     presence: session.presence.state,
     awaitingReply: session.presence.awaitingReply,
+    typingActive: session.presence.typingActive,
     activeTurnId: session.activeTurn?.id ?? null,
     latestPreview,
     latestMessageRole: latestPersistedMessage?.role ?? null,
@@ -187,6 +191,7 @@ function buildConversationSummaryFromAccepted(
     updatedAt: accepted.presence.acceptedAt ?? new Date().toISOString(),
     presence: accepted.presence.state,
     awaitingReply: accepted.presence.awaitingReply,
+    typingActive: accepted.presence.typingActive,
     activeTurnId: accepted.turn.id,
     latestPreview:
       latestPendingInput?.content ?? accepted.turn.semanticInput ?? null,
@@ -229,6 +234,13 @@ export function PublicChatPage() {
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [templateReady, setTemplateReady] = useState(false);
+  const typingSignalRef = useRef<{
+    conversationId: string | null;
+    active: boolean;
+  }>({
+    conversationId: null,
+    active: false,
+  });
 
   const conversationItems = useMemo(
     () => buildConversationItems(conversations),
@@ -236,6 +248,7 @@ export function PublicChatPage() {
   );
   const transcript = useMemo(() => buildTranscript(session), [session]);
   const presenceState: AsyncPresenceState = session?.presence.state ?? 'idle';
+  const typingActive = session?.presence.typingActive ?? false;
 
   const applyConversationSelection = useCallback((conversationId: string | null) => {
     setSelectedConversationId(conversationId);
@@ -280,6 +293,32 @@ export function PublicChatPage() {
       }
     }
   }, [applyConversationSelection]);
+
+  const applyTypingPresence = useCallback(
+    (conversationId: string, presence: AsyncChatSessionView['presence']) => {
+      setSession((previous) =>
+        previous?.conversation.id === conversationId
+          ? {
+              ...previous,
+              presence,
+            }
+          : previous,
+      );
+      setConversations((previous) =>
+        previous.map((conversation) =>
+          conversation.conversationId === conversationId
+            ? {
+                ...conversation,
+                presence: presence.state,
+                awaitingReply: presence.awaitingReply,
+                typingActive: presence.typingActive,
+              }
+            : conversation,
+        ),
+      );
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -378,6 +417,103 @@ export function PublicChatPage() {
     };
   }, [syncRecentConversations]);
 
+  useEffect(() => {
+    const trackedConversationId = typingSignalRef.current.conversationId;
+    if (
+      trackedConversationId &&
+      trackedConversationId !== selectedConversationId &&
+      typingSignalRef.current.active
+    ) {
+      void reportAsyncChatTyping({
+        conversationId: trackedConversationId,
+        locale: navigator.language,
+        isTyping: false,
+      }).catch(() => undefined);
+      typingSignalRef.current = {
+        conversationId: selectedConversationId,
+        active: false,
+      };
+    }
+
+    if (!selectedConversationId) {
+      return;
+    }
+
+    const normalizedDraft = draft.trim();
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    if (!normalizedDraft) {
+      if (
+        typingSignalRef.current.active &&
+        typingSignalRef.current.conversationId === selectedConversationId
+      ) {
+        void reportAsyncChatTyping({
+          conversationId: selectedConversationId,
+          locale: navigator.language,
+          isTyping: false,
+        })
+          .then((response) => {
+            if (!cancelled) {
+              applyTypingPresence(response.conversationId, response.presence);
+            }
+          })
+          .catch(() => undefined);
+      }
+
+      typingSignalRef.current = {
+        conversationId: selectedConversationId,
+        active: false,
+      };
+
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    timeoutId = window.setTimeout(() => {
+      void reportAsyncChatTyping({
+        conversationId: selectedConversationId,
+        locale: navigator.language,
+        isTyping: true,
+      })
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+
+          typingSignalRef.current = {
+            conversationId: selectedConversationId,
+            active: response.typingActive,
+          };
+          applyTypingPresence(response.conversationId, response.presence);
+        })
+        .catch(() => undefined);
+    }, TYPING_HEARTBEAT_DEBOUNCE_MS);
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [applyTypingPresence, draft, selectedConversationId]);
+
+  useEffect(
+    () => () => {
+      const activeTypingConversationId = typingSignalRef.current.conversationId;
+
+      if (activeTypingConversationId && typingSignalRef.current.active) {
+        void reportAsyncChatTyping({
+          conversationId: activeTypingConversationId,
+          locale: navigator.language,
+          isTyping: false,
+        }).catch(() => undefined);
+      }
+    },
+    [],
+  );
+
   const handleConversationSelect = useCallback(
     (conversationId: string) => {
       applyConversationSelection(conversationId);
@@ -406,6 +542,23 @@ export function PublicChatPage() {
     setError(null);
 
     try {
+      if (selectedConversationId) {
+        const typingResponse = await reportAsyncChatTyping({
+          conversationId: selectedConversationId,
+          locale: navigator.language,
+          isTyping: false,
+        }).catch(() => null);
+
+        typingSignalRef.current = {
+          conversationId: selectedConversationId,
+          active: false,
+        };
+
+        if (typingResponse) {
+          applyTypingPresence(typingResponse.conversationId, typingResponse.presence);
+        }
+      }
+
       const accepted = await acceptAsyncChatMessage({
         conversationId: selectedConversationId ?? undefined,
         message,
@@ -455,6 +608,7 @@ export function PublicChatPage() {
         isSending={isSending}
         error={error}
         presenceState={presenceState}
+        typingActive={typingActive}
         showGlobalLoader={!templateReady}
         onConversationSelect={handleConversationSelect}
         onStartConversation={handleStartConversation}

@@ -699,6 +699,13 @@ Wave 8.1 adds additive async observability around that canonical pipeline for fu
 
 These stages wrap semantic-turn acceptance, coalescing, supersession, delayed reply projection, and presence-facing session state without changing the canonical execution pipeline that runs only after semantic-turn closure.
 
+Typing/presence is now also a backend-owned finalization signal inside the async intake boundary:
+
+- the public client can report active composition for an existing async conversation
+- the backend can extend the active stabilization window while the user is still typing
+- semantic-turn closure waits for the typing quiet period instead of treating presence as decorative UI only
+- `/chat/message` remains unchanged; this behavior is additive to the async public-chat contracts
+
 Each active stage emits structured records with trace id, tenant id, duration, outcome, and payload summary.
 
 The `interpretation` stage persists:

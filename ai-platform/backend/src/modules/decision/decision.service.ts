@@ -312,6 +312,14 @@ export class DecisionService {
     }
 
     if (
+      activeLane &&
+      activeLane !== 'advisory_exploration' &&
+      activeLane !== 'document_exploration'
+    ) {
+      return false;
+    }
+
+    if (
       input.interpretation.intent !== 'GENERAL_CONVERSATION' &&
       input.interpretation.intent !== 'CLARIFICATION' &&
       input.interpretation.intent !== 'GET_PRODUCT'

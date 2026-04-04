@@ -66,6 +66,21 @@ export class AsyncTurnTimingPolicyService {
     };
   }
 
+  async estimateTypingQuietPeriod(locale?: string | null) {
+    const config = await this.getConfig();
+    const lexicon = this.resolveLexicon(config, locale);
+    const baseQuietWindow = Math.max(
+      config.stabilization.shortMessageDelayMs,
+      Math.min(config.stabilization.fragmentContinuationDelayMs, 1600),
+    );
+
+    if (lexicon.trailingTokens.length > 0 || lexicon.slotPatterns.length > 0) {
+      return baseQuietWindow;
+    }
+
+    return Math.max(baseQuietWindow, 900);
+  }
+
   private estimateStabilizationDelay(
     messages: string[],
     locale: string | null | undefined,

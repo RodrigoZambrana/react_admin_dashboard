@@ -3,6 +3,7 @@ import type {
   AsyncChatAcceptedResponse,
   AsyncChatConversationSummary,
   AsyncChatSessionView,
+  AsyncChatTypingResponse,
   AsyncChatTurnView,
   ChatLog,
   ConversationMessage,
@@ -91,6 +92,17 @@ export async function acceptAsyncChatMessage(input: {
   channel?: string;
 }) {
   return apiRequest<AsyncChatAcceptedResponse>('/chat/async/messages', {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export async function reportAsyncChatTyping(input: {
+  conversationId: string;
+  locale?: string;
+  isTyping?: boolean;
+}) {
+  return apiRequest<AsyncChatTypingResponse>('/chat/async/typing', {
     method: 'POST',
     body: input,
   });

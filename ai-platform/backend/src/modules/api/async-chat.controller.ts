@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
 import { AsyncChatMessageDto } from './dto/async-chat-message.dto';
+import { AsyncChatTypingDto } from './dto/async-chat-typing.dto';
 import { AsyncTurnIntakeService } from './async-turn-intake.service';
 
 @Controller('chat/async')
@@ -15,6 +16,11 @@ export class AsyncChatController {
   @Post('messages')
   acceptMessage(@Body() body: AsyncChatMessageDto) {
     return this.asyncTurnIntakeService.acceptMessage(body);
+  }
+
+  @Post('typing')
+  reportTyping(@Body() body: AsyncChatTypingDto) {
+    return this.asyncTurnIntakeService.reportTyping(body);
   }
 
   @Get('conversations/:conversationId/session')

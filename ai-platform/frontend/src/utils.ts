@@ -32,7 +32,16 @@ export function formatChatListTime(value: string | null) {
   });
 }
 
-export function formatChatPresenceLabel(state: string) {
+export function formatChatPresenceLabel(
+  state: string,
+  options?: {
+    typingActive?: boolean;
+  },
+) {
+  if (options?.typingActive) {
+    return 'Finishing your message';
+  }
+
   switch (state) {
     case 'queued':
       return 'Queued';
@@ -64,7 +73,16 @@ export function getConversationPreview(value: string) {
 export function getConversationStatusTone(
   state: string,
   awaitingReply: boolean,
+  options?: {
+    typingActive?: boolean;
+  },
 ) {
+  if (options?.typingActive) {
+    return {
+      avatarClass: 'online',
+    };
+  }
+
   if (awaitingReply || state === 'processing' || state === 'awaiting_reply') {
     return {
       avatarClass: 'online',

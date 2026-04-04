@@ -146,7 +146,8 @@ describe('ConversationSignalResolverService', () => {
 
     expect(signals.threading.shortFollowUp).toBe(true);
     expect(signals.threading.resume).toBe(true);
-    expect(signals.threading.activeContinuation).toBe(true);
+    expect(signals.threading.activeContinuation).toBe(false);
+    expect(signals.threading.topicCarryoverEligible).toBe(false);
   });
 
   it('detects explicit thread switching without forcing one tenant-specific topic taxonomy', () => {

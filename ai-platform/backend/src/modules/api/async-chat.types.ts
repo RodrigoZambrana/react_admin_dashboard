@@ -58,6 +58,8 @@ export type AsyncChatSessionView = {
     acceptedAt: string | null;
     flushAt: string | null;
     replyDueAt: string | null;
+    typingActive: boolean;
+    typingExpiresAt: string | null;
   };
   activeTurn: AsyncChatTurnView | null;
   latestCompletedTurn: AsyncChatTurnView | null;
@@ -77,6 +79,13 @@ export type AsyncChatAcceptedResponse = {
   presence: AsyncChatSessionView['presence'];
 };
 
+export type AsyncChatTypingResponse = {
+  conversationId: string;
+  typingActive: boolean;
+  typingExpiresAt: string | null;
+  presence: AsyncChatSessionView['presence'];
+};
+
 export type AsyncChatConversationSummary = {
   conversationId: string;
   language: string | null;
@@ -85,6 +94,7 @@ export type AsyncChatConversationSummary = {
   updatedAt: string;
   presence: AsyncPresenceState;
   awaitingReply: boolean;
+  typingActive: boolean;
   activeTurnId: string | null;
   latestPreview: string | null;
   latestMessageRole: 'USER' | 'ASSISTANT' | 'SYSTEM' | null;

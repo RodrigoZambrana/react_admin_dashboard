@@ -15,6 +15,13 @@ describe('AsyncChatController', () => {
           status: 'queued',
         },
       })),
+      reportTyping: jest.fn(async () => ({
+        conversationId: 'conv-1',
+        typingActive: true,
+        presence: {
+          state: 'queued',
+        },
+      })),
       getSession: jest.fn(async () => ({
         presence: {
           state: 'awaiting_reply',
@@ -43,6 +50,18 @@ describe('AsyncChatController', () => {
         status: 'queued',
       },
     });
+    await expect(
+      controller.reportTyping({
+        conversationId: 'conv-1',
+        isTyping: true,
+      } as any),
+    ).resolves.toEqual({
+      conversationId: 'conv-1',
+      typingActive: true,
+      presence: {
+        state: 'queued',
+      },
+    });
     await expect(controller.getSession('conv-1')).resolves.toEqual({
       presence: {
         state: 'awaiting_reply',
@@ -53,5 +72,9 @@ describe('AsyncChatController', () => {
       status: 'completed',
     });
     expect(service.listRecentConversations).toHaveBeenCalledWith(8);
+    expect(service.reportTyping).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      isTyping: true,
+    });
   });
 });
