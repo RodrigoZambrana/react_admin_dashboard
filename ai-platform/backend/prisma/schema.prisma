@@ -121,6 +121,36 @@ model TemporalLocaleVersion {
   @@index([tenantId, locale, status])
 }
 
+model CriticalConfigVersion {
+  id        String                @id @default(cuid())
+  tenantId  String
+  key       String
+  version   Int
+  status    ManagedResourceStatus @default(DRAFT)
+  value     Json
+  metadata  Json?
+  createdAt DateTime              @default(now())
+  createdBy String?
+
+  @@unique([tenantId, key, version])
+  @@index([tenantId, key, status])
+}
+
+model KnowledgeMetadataVersion {
+  id        String                @id @default(cuid())
+  tenantId  String
+  key       String
+  version   Int
+  status    ManagedResourceStatus @default(DRAFT)
+  resource  Json
+  metadata  Json?
+  createdAt DateTime              @default(now())
+  createdBy String?
+
+  @@unique([tenantId, key, version])
+  @@index([tenantId, key, status])
+}
+
 model Knowledge {
   id          String            @id @default(cuid())
   tenantId    String

@@ -3,10 +3,12 @@ import { ConfigModule } from '@nestjs/config';
 
 import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
 import { ApiModule } from './modules/api/api.module';
+import { CriticalConfigModule } from './modules/critical-config/critical-config.module';
 import { DecisionModule } from './modules/decision/decision.module';
 import { InterpretationModule } from './modules/interpretation/interpretation.module';
 import { InfrastructureModule } from './modules/infrastructure/infrastructure.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
+import { KnowledgeMetadataModule } from './modules/knowledge-metadata/knowledge-metadata.module';
 import { LoggingModule } from './modules/logging/logging.module';
 import { MemoryModule } from './modules/memory/memory.module';
 import { ParsingModule } from './modules/parsing/parsing.module';
@@ -29,6 +31,8 @@ import { TenantMiddleware } from './modules/persistence/tenant/tenant.middleware
     PersistenceModule,
     InfrastructureModule,
     PromptModule,
+    CriticalConfigModule,
+    KnowledgeMetadataModule,
     AiGatewayModule,
     InterpretationModule,
     ParsingModule,

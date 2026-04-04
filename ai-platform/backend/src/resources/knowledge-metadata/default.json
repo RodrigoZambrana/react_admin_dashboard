@@ -1,0 +1,22 @@
+{
+  "enabledStages": ["execution", "response"],
+  "metadataAllowList": [
+    "toolName",
+    "reasonCode",
+    "responseFallbackReason",
+    "conversationState",
+    "approvedResponseContext"
+  ],
+  "stagePolicies": {
+    "execution": {
+      "enabled": true,
+      "minConfidence": 0.76,
+      "defaultTags": ["execution", "approved"]
+    },
+    "response": {
+      "enabled": true,
+      "minConfidence": 0.61,
+      "defaultTags": ["response", "approved"]
+    }
+  }
+}

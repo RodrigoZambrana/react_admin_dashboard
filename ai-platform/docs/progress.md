@@ -659,8 +659,68 @@
 - `ChatResponsePolicyService` still contains the existing hardcoded wording and locale branching debt, although it is now isolated to fallback/draft generation instead of the primary live response path
 - Response guardrails currently validate structured grounding metadata rather than the full free-text surface, so stronger semantic/closure checks still belong in future governance/QA work
 - The mock AI provider intentionally mirrors approved drafts instead of providing rich multilingual paraphrasing, so most wording-quality gains depend on a real managed provider such as OpenAI being configured at runtime
+- AI gateway runtime configuration is still implicitly tied to OpenAI-specific env keys and provider assumptions instead of a provider-agnostic configuration contract
 
 ### Next Steps
-- Start Wave 5, `Governance, QA, Learning, And Productization Readiness`, on top of the now-grounded live pipeline
-- Reuse approved response context, response guardrail traces, managed prompt usage, and continuity-safe follow-up behavior as the basis for governance, QA, and later learning activation
+- Start Wave 5, `Governance, Learning, Provider Configuration, And Productization Readiness`, on top of the now-grounded live pipeline
+- Reuse approved response context, response guardrail traces, managed prompt usage, and continuity-safe follow-up behavior as the basis for governance, provider/runtime hardening, and later learning activation
 - Keep the remaining fallback-copy debt isolated while Wave 5 focuses on governed runtime operations, evaluation, and platform readiness rather than reopening response routing
+
+## Iteration 23
+
+### Implemented
+- Reclassified the post-Wave-4 roadmap so Wave 5 no longer carries centralized QA as part of its main objective
+- Updated the architecture narrative so Wave 5 now focuses on:
+  - governance
+  - learning
+  - provider/runtime configuration hardening
+  - productization readiness
+- Moved centralized QA positioning to the later hardening stage so testing strategy can be consolidated once backend, admin, and user surfaces are all stable enough to validate together
+- Recorded the carried-forward AI gateway/provider-config improvement as part of Wave 5 scope: runtime AI configuration should evolve toward a provider-agnostic contract instead of staying implicitly tied to OpenAI-specific env keys
+
+### Working
+- The roadmap now separates:
+  - operational governance and learning readiness in Wave 5
+  - centralized QA, Playwright/E2E, and final hardening in Wave 9
+- Future planning for Wave 5 can now focus on governance and provider/runtime portability without diluting the scope with centralized test-program work
+
+### Technical Debt
+- This iteration updates documentation only; no runtime behavior changed
+- `ChatResponsePolicyService` still contains hardcoded fallback wording and locale branching debt to keep isolated until a later cleanup-compatible wave
+- AI gateway/provider configuration remains OpenAI-shaped in the current implementation and still needs provider-agnostic standardization in runtime config and gateway boundaries
+- Existing unrelated local changes, including `docs/legacy-chat-audit.md`, remain outside this documentation update
+
+### Next Steps
+- Use the updated Wave 5 framing for the next implementation wave
+- Carry forward the non-blocking Wave 4 review findings:
+  - fallback wording/locale debt remains isolated in the response fallback boundary
+  - AI gateway/runtime config should be standardized for provider-agnostic operation
+- Keep centralized QA and Playwright/E2E planning grouped into the later hardening stage instead of pulling them into Wave 5
+
+## Iteration 24
+
+### Implemented
+- Started Wave 5 by extending the runtime-managed resource pattern to two new governed families:
+  - critical configs
+  - knowledge metadata
+- Added new persisted versioned models for `CriticalConfigVersion` and `KnowledgeMetadataVersion`
+- Introduced managed providers, services, repositories, and bootstrap seed sources for both families instead of relying on ad hoc runtime constants
+- Seeded governed knowledge metadata from repository-owned resources and seeded governed critical config from an env-backed seed source designed for later admin mutation
+- Added provider-level tests proving both new resource families bootstrap from managed persistence and stop consulting seeds once managed versions exist
+- Applied and committed the Prisma migration `20260404004605_add_governed_operability_resources`
+
+### Working
+- The backend now has governed persistence and provider boundaries for critical runtime config and knowledge metadata, aligned with the same lifecycle pattern already used by prompts and date-time locale resources
+- Bootstrap responsibility is limited to seed sources; active runtime reads can now move against managed providers instead of filesystem or hardcoded config buckets
+- Backend build, backend tests, frontend build, and Prisma migration/generation all pass after the new governed resource foundation landed
+
+### Technical Debt
+- Learning is not active yet; the new knowledge-metadata foundation is present but not yet consuming persisted logs in runtime
+- AI runtime resolution still flows through the older `RuntimeConfigService` contract, so provider-agnostic managed config is not wired into the live gateway yet
+- Deterministic fallback response copy is still isolated in the fallback service and has not yet been migrated onto a governed backend resource family
+- Admin-ready backend surfaces for the new governed families are still pending even though the underlying persistence and provider contracts now exist
+
+### Next Steps
+- Activate asynchronous learning from persisted `ChatLog` entries using the new governed knowledge-metadata and critical-config boundaries
+- Rewire AI runtime configuration so the live gateway resolves provider/model/credentials through governed provider-agnostic config instead of OpenAI-shaped assumptions
+- Introduce the governed fallback response-copy boundary and migrate the current fallback set through it without changing `/chat/message`
