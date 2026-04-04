@@ -18,6 +18,11 @@ import type {
   AsyncPresenceState,
 } from '../types';
 
+const CHAT_SELECTION_STORAGE_KEY = 'ai-platform.public-chat.selectedConversationId.v1';
+const ACTIVE_SESSION_POLL_MS = 1200;
+const IDLE_SESSION_POLL_MS = 4000;
+const RECENT_CONVERSATION_SYNC_MS = 6000;
+
 function buildConversationItems(
   conversations: AsyncChatConversationSummary[],
 ): PublicChatConversationListItem[] {
@@ -115,15 +120,126 @@ function buildOptimisticSession(
   };
 }
 
+function resolveStoredConversationId() {
+  const params = new URLSearchParams(window.location.search);
+  const queryConversationId = params.get('conversationId');
+
+  if (queryConversationId?.trim()) {
+    return queryConversationId.trim();
+  }
+
+  const storedConversationId = window.localStorage.getItem(
+    CHAT_SELECTION_STORAGE_KEY,
+  );
+
+  return storedConversationId?.trim() || null;
+}
+
+function persistConversationId(conversationId: string | null) {
+  if (conversationId) {
+    window.localStorage.setItem(CHAT_SELECTION_STORAGE_KEY, conversationId);
+    return;
+  }
+
+  window.localStorage.removeItem(CHAT_SELECTION_STORAGE_KEY);
+}
+
+function syncConversationIdToUrl(conversationId: string | null) {
+  const nextUrl = new URL(window.location.href);
+
+  if (conversationId) {
+    nextUrl.searchParams.set('conversationId', conversationId);
+  } else {
+    nextUrl.searchParams.delete('conversationId');
+  }
+
+  window.history.replaceState({}, '', nextUrl);
+}
+
+function buildConversationSummaryFromSession(
+  session: AsyncChatSessionView,
+): AsyncChatConversationSummary {
+  const latestPersistedMessage = session.messages.at(-1) ?? null;
+  const latestPendingInput = session.activeTurn?.inputs.at(-1) ?? null;
+  const latestPreview =
+    (session.activeTurn?.internalStatus === 'STABILIZING'
+      ? latestPendingInput?.content
+      : null) ??
+    latestPersistedMessage?.content ??
+    session.activeTurn?.semanticInput ??
+    null;
+  const latestTimestamp =
+    (session.activeTurn?.internalStatus === 'STABILIZING'
+      ? latestPendingInput?.receivedAt
+      : null) ??
+    latestPersistedMessage?.createdAt ??
+    session.presence.acceptedAt ??
+    null;
+
+  return {
+    conversationId: session.conversation.id,
+    language: session.conversation.language,
+    channel: session.conversation.channel,
+    createdAt: session.conversation.createdAt,
+    updatedAt: session.conversation.updatedAt,
+    presence: session.presence.state,
+    awaitingReply: session.presence.awaitingReply,
+    activeTurnId: session.activeTurn?.id ?? null,
+    latestPreview,
+    latestMessageRole: latestPersistedMessage?.role ?? null,
+    latestTimestamp,
+  };
+}
+
+function buildConversationSummaryFromAccepted(
+  accepted: AsyncChatAcceptedResponse,
+  language: string | null,
+): AsyncChatConversationSummary {
+  const latestPendingInput = accepted.turn.inputs.at(-1);
+
+  return {
+    conversationId: accepted.conversationId,
+    language: accepted.turn.locale ?? language,
+    channel: 'webchat_async',
+    createdAt: accepted.presence.acceptedAt ?? new Date().toISOString(),
+    updatedAt: accepted.presence.acceptedAt ?? new Date().toISOString(),
+    presence: accepted.presence.state,
+    awaitingReply: accepted.presence.awaitingReply,
+    activeTurnId: accepted.turn.id,
+    latestPreview:
+      latestPendingInput?.content ?? accepted.turn.semanticInput ?? null,
+    latestMessageRole: null,
+    latestTimestamp: latestPendingInput?.receivedAt ?? accepted.presence.acceptedAt,
+  };
+}
+
+function upsertConversationSummary(
+  conversations: AsyncChatConversationSummary[],
+  summary: AsyncChatConversationSummary,
+) {
+  const next = [
+    summary,
+    ...conversations.filter(
+      (conversation) => conversation.conversationId !== summary.conversationId,
+    ),
+  ];
+
+  return next.sort(
+    (left, right) =>
+      new Date(right.latestTimestamp ?? right.updatedAt).getTime() -
+      new Date(left.latestTimestamp ?? left.updatedAt).getTime(),
+  );
+}
+
 function toUiError(error: unknown) {
   return error instanceof Error ? error.message : 'Unexpected error';
 }
 
 export function PublicChatPage() {
-  const [conversations, setConversations] = useState<AsyncChatConversationSummary[]>([]);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
-    null,
+    () => resolveStoredConversationId(),
   );
+  const [conversations, setConversations] = useState<AsyncChatConversationSummary[]>([]);
   const [session, setSession] = useState<AsyncChatSessionView | null>(null);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -138,27 +254,50 @@ export function PublicChatPage() {
   const transcript = useMemo(() => buildTranscript(session), [session]);
   const presenceState: AsyncPresenceState = session?.presence.state ?? 'idle';
 
+  const applyConversationSelection = useCallback((conversationId: string | null) => {
+    setSelectedConversationId(conversationId);
+    persistConversationId(conversationId);
+    syncConversationIdToUrl(conversationId);
+  }, []);
+
   const syncRecentConversations = useCallback(async () => {
     const next = await listAsyncChatConversations(12);
     setConversations(next);
     return next;
   }, []);
 
-  const loadSession = useCallback(async (conversationId: string) => {
-    setIsSyncing(true);
+  const loadSession = useCallback(async (
+    conversationId: string,
+    options?: {
+      silent?: boolean;
+    },
+  ) => {
+    if (!options?.silent) {
+      setIsSyncing(true);
+    }
     try {
       const nextSession = await getAsyncChatSession(conversationId);
       setSession(nextSession);
-      setSelectedConversationId(conversationId);
+      applyConversationSelection(conversationId);
+      setConversations((previous) =>
+        upsertConversationSummary(
+          previous,
+          buildConversationSummaryFromSession(nextSession),
+        ),
+      );
       setError(null);
       return nextSession;
     } catch (nextError) {
-      setError(toUiError(nextError));
+      if (!options?.silent) {
+        setError(toUiError(nextError));
+      }
       throw nextError;
     } finally {
-      setIsSyncing(false);
+      if (!options?.silent) {
+        setIsSyncing(false);
+      }
     }
-  }, []);
+  }, [applyConversationSelection]);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,12 +310,31 @@ export function PublicChatPage() {
           return;
         }
 
-        const firstConversationId = recent[0]?.conversationId ?? null;
-        if (firstConversationId) {
-          await loadSession(firstConversationId);
+        const preferredConversationId =
+          resolveStoredConversationId() ??
+          recent[0]?.conversationId ??
+          null;
+
+        if (preferredConversationId) {
+          try {
+            await loadSession(preferredConversationId);
+          } catch {
+            const fallbackConversationId =
+              recent.find(
+                (conversation) =>
+                  conversation.conversationId !== preferredConversationId,
+              )?.conversationId ?? null;
+
+            if (fallbackConversationId) {
+              await loadSession(fallbackConversationId);
+            } else {
+              setSession(null);
+              applyConversationSelection(null);
+            }
+          }
         } else {
           setSession(null);
-          setSelectedConversationId(null);
+          applyConversationSelection(null);
         }
       } catch (nextError) {
         if (!cancelled) {
@@ -194,14 +352,79 @@ export function PublicChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [loadSession, syncRecentConversations]);
+  }, [applyConversationSelection, loadSession, syncRecentConversations]);
+
+  useEffect(() => {
+    if (!selectedConversationId || isBootstrapping) {
+      return;
+    }
+
+    let cancelled = false;
+    let timeoutId: number | null = null;
+
+    const schedule = (delayMs: number) => {
+      timeoutId = window.setTimeout(() => {
+        void loadSession(selectedConversationId, { silent: true })
+          .then((nextSession) => {
+            if (cancelled) {
+              return;
+            }
+
+            schedule(
+              nextSession.presence.state === 'idle' ||
+                nextSession.presence.state === 'completed'
+                ? IDLE_SESSION_POLL_MS
+                : ACTIVE_SESSION_POLL_MS,
+            );
+          })
+          .catch(() => {
+            if (!cancelled) {
+              schedule(IDLE_SESSION_POLL_MS);
+            }
+          });
+      }, delayMs);
+    };
+
+    schedule(
+      presenceState === 'idle' || presenceState === 'completed'
+        ? IDLE_SESSION_POLL_MS
+        : ACTIVE_SESSION_POLL_MS,
+    );
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+    };
+  }, [isBootstrapping, loadSession, presenceState, selectedConversationId]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      void syncRecentConversations().catch(() => undefined);
+    }, RECENT_CONVERSATION_SYNC_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [syncRecentConversations]);
 
   const handleConversationSelect = useCallback(
     (conversationId: string) => {
+      applyConversationSelection(conversationId);
+      setSession(null);
       void loadSession(conversationId);
     },
-    [loadSession],
+    [applyConversationSelection, loadSession],
   );
+
+  const handleStartConversation = useCallback(() => {
+    applyConversationSelection(null);
+    setSession(null);
+    setDraft('');
+    setError(null);
+    setIsSyncing(false);
+  }, [applyConversationSelection]);
 
   const handleSend = useCallback(async () => {
     const message = draft.trim();
@@ -220,7 +443,13 @@ export function PublicChatPage() {
         locale: navigator.language,
         channel: 'webchat_async',
       });
-      setSelectedConversationId(accepted.conversationId);
+      applyConversationSelection(accepted.conversationId);
+      setConversations((previous) =>
+        upsertConversationSummary(
+          previous,
+          buildConversationSummaryFromAccepted(accepted, navigator.language),
+        ),
+      );
       setSession((previous) =>
         buildOptimisticSession(
           previous?.conversation.id === accepted.conversationId ? previous : null,
@@ -228,15 +457,21 @@ export function PublicChatPage() {
           navigator.language,
         ),
       );
-      await syncRecentConversations();
       await loadSession(accepted.conversationId);
+      await syncRecentConversations();
     } catch (nextError) {
       setDraft(message);
       setError(toUiError(nextError));
     } finally {
       setIsSending(false);
     }
-  }, [draft, loadSession, selectedConversationId, syncRecentConversations]);
+  }, [
+    applyConversationSelection,
+    draft,
+    loadSession,
+    selectedConversationId,
+    syncRecentConversations,
+  ]);
 
   return (
     <>
@@ -252,6 +487,7 @@ export function PublicChatPage() {
         error={error}
         presenceState={presenceState}
         onConversationSelect={handleConversationSelect}
+        onStartConversation={handleStartConversation}
         onDraftChange={setDraft}
         onSend={handleSend}
       />

@@ -41,6 +41,7 @@ type PublicChatShellProps = {
   error: string | null;
   presenceState: AsyncPresenceState;
   onConversationSelect: (conversationId: string) => void;
+  onStartConversation: () => void;
   onDraftChange: (value: string) => void;
   onSend: () => void;
 };
@@ -75,6 +76,7 @@ export function PublicChatShell({
   error,
   presenceState,
   onConversationSelect,
+  onStartConversation,
   onDraftChange,
   onSend,
 }: PublicChatShellProps) {
@@ -223,6 +225,10 @@ export function PublicChatShell({
                           <a
                             href="javascript:void(0);"
                             className="add-icon btn btn-primary p-0 d-flex align-items-center justify-content-center fs-16 me-2"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              onStartConversation();
+                            }}
                           >
                             <i className="ti ti-plus"></i>
                           </a>
@@ -301,12 +307,16 @@ export function PublicChatShell({
                           ))}
                           {conversations.length === 0 ? (
                             <div className="swiper-slide">
-                              <div className="chat-status text-center">
+                              <button
+                                type="button"
+                                className="chat-status text-center public-chat-avatar-button"
+                                onClick={onStartConversation}
+                              >
                                 <div className="avatar avatar-lg bg-primary avatar-rounded">
                                   <span className="avatar-title fs-14 fw-medium">AI</span>
                                 </div>
                                 <p>New Chat</p>
-                              </div>
+                              </button>
                             </div>
                           ) : null}
                         </div>
@@ -404,6 +414,15 @@ export function PublicChatShell({
                                   <h6>Start your first chat</h6>
                                   <p>Async user chat is ready for a new conversation.</p>
                                 </div>
+                              </div>
+                              <div className="chat-user-time">
+                                <button
+                                  type="button"
+                                  className="btn btn-primary"
+                                  onClick={onStartConversation}
+                                >
+                                  New Chat
+                                </button>
                               </div>
                             </div>
                           </div>

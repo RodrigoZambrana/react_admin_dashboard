@@ -1444,3 +1444,42 @@
 - Wire the public shell fully to async session-sync/presence polling and local recovery so user chat behavior follows backend truth through queued / processing / awaiting-reply states
 - Handle superseded-turn cleanup and transcript hydration so obsolete replies never surface in the public shell
 - Close Wave 8.2 with UI fidelity review, final documentation, and explicit readiness framing toward Wave 9 hardening
+
+## Iteration 46
+
+### Implemented
+- Completed the second Wave 8.2 public-chat UX slice on the dedicated `/chat` surface:
+  - selected conversation persistence through URL/query + local storage
+  - session hydration and recovery from backend async session state
+  - periodic session polling driven by backend presence truth instead of client-side timing guesses
+  - background recent-conversation refresh to keep the public rail aligned with async session state
+- Added explicit operator-safe user actions on the DreamsChat public shell for:
+  - opening an existing async conversation
+  - starting a new async conversation without mutating backend lifecycle semantics in the client
+- Kept transcript rendering grounded in backend-approved async state:
+  - pending user inputs only while a turn is still stabilizing
+  - typing / awaiting-reply projection only from backend presence state
+  - no surfacing of superseded-turn replies from stale client assumptions
+
+### Working
+- Public chat now survives refresh/reopen and rehydrates the selected async conversation from governed backend session contracts
+- Presence visibility on the public shell now follows backend truth for:
+  - queued
+  - processing
+  - awaiting-reply
+  - idle/completed
+- Recent-conversation previews stay in sync with accepted turns and later backend session updates without falling back to the synchronous `/chat/message` shell
+- Validation passes after the async UX wiring:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- The frontend workspace still has no supported automated test harness, so Wave 8.2 UI validation remains build-only plus backend contract coverage
+- `AsyncTurnTimingPolicyService` still contains inline timing heuristics; this wave consumes those contracts but does not redesign them
+- Supersession continues to suppress obsolete replies at the projection layer, but an already-running model/tool call is still not truly aborted in-flight
+
+### Next Steps
+- Finish Wave 8.2 closeout with exact DreamsChat public-layout fidelity review, final UX polish, and roadmap/documentation updates toward Wave 9
+- Run the final closeout review for blockers vs carried technical debt before declaring full Wave 8 completion
+- Keep the async user-chat foundation explicit as the enabling layer for Wave 9 centralized hardening rather than reopening intake architecture in the UI phase
