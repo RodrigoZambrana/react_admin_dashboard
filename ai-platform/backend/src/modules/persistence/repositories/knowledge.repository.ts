@@ -42,11 +42,23 @@ export class KnowledgeRepository {
   }
 
   updateEmbeddingId(id: string, embeddingId: string | null) {
-    return this.prisma.knowledge.update({
-      where: { id },
-      data: {
-        embeddingId,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      await tx.knowledge.updateMany({
+        where: { id },
+        data: {
+          embeddingId,
+        },
+      });
+
+      const updated = await tx.knowledge.findFirst({
+        where: { id },
+      });
+
+      if (!updated) {
+        throw new Error(`Knowledge entry "${id}" was not found after update.`);
+      }
+
+      return updated;
     });
   }
 

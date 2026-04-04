@@ -1679,3 +1679,47 @@
 - Run a real exploratory smoke against the live backend/public async chat path using the existing runtime environment and confirm OpenAI-backed operation at a high level
 - If the live smoke succeeds, update architecture/progress docs to mark Wave 8.3 fully closed and position Wave 9 as the next step
 - Keep remaining debt bounded to non-core hardening items that can safely move into Wave 9
+
+## Iteration 52
+
+### Implemented
+- Closed the remaining operational blockers for Wave 8.3:
+  - made critical-config bootstrap seeding tolerant to concurrent `P2002` races so readiness/diagnostics no longer fail under parallel startup access
+  - stabilized tenant-safe async/core repository updates by removing tenant-scoped `update`/`findUniqueOrThrow` usage that broke under Prisma tenant hardening
+  - made backend env loading explicit at startup so the governed `ai_runtime` can reliably resolve `OPENAI_API_KEY` from the backend runtime environment
+- Completed the exploratory runtime closure:
+  - activated a governed `ai_runtime` OpenAI config using the existing backend runtime key and recommended defaults
+  - confirmed diagnostics and `/health/ready` report real exploratory readiness instead of mock/fallback ambiguity
+  - validated the public async chat contract end to end against the real OpenAI runtime
+
+### Working
+- `OPENAI_API_KEY` is now sufficient for real exploratory runtime operation once the governed `ai_runtime` points to `openai`
+- AI diagnostics now report `ready` with:
+  - provider `openai`
+  - model `gpt-4.1-mini`
+  - managed source `ai_runtime v2`
+- `/health/ready` now reports `ready` only when infrastructure plus real exploratory AI runtime are both usable
+- Real async public-chat smoke passed against the live backend with OpenAI active:
+  - first turn accepted immediately, moved through `queued -> processing -> awaiting_reply -> idle`, and completed with an AI-generated clarification response without fallback
+  - second follow-up turn on the same conversation also completed through the async path, confirming stable multi-turn exploratory conversation on the public contract
+- Final validation passes for the branch state:
+  - `npm run prisma:migrate:deploy --workspace backend`
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- `AsyncTurnTimingPolicyService` still concentrates timing heuristics, although those heuristics are now governed through managed `async_intake` config rather than inline constants
+- Supersession suppresses stale replies and propagates abort, but it still depends on downstream provider/tool cooperation to stop already-started work promptly
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+- OpenAI structured-output calls still emit SDK warnings for optional response fields that should later be tightened to fully required-or-nullable schemas during broader hardening
+- Async learning remained non-blocking during the live smoke, but it still emitted `Bad Request` errors on the learning path and should be hardened before production rollout
+
+### Next Steps
+- Treat Wave 8.3 as fully closed: the platform is now usable for real exploratory core testing across admin and public user surfaces
+- Start Wave 9 as the next step:
+  - centralized QA
+  - security / roles
+  - E2E
+  - broader production hardening
+- Keep Wave 9 focused on hardening and rollout safety, not on reopening the stabilized Wave 8 runtime/UI architecture

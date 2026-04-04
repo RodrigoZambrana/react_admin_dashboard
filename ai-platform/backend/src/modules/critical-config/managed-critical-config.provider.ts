@@ -50,14 +50,31 @@ export class ManagedCriticalConfigProvider extends CriticalConfigProvider {
         continue;
       }
 
-      await this.criticalConfigVersionRepository.createVersion({
-        key: seed.key,
-        value: seed.value as Prisma.InputJsonValue,
-        metadata: seed.metadata as Prisma.InputJsonValue,
-        createdBy: seed.createdBy,
-        activate: true,
-      });
+      try {
+        await this.criticalConfigVersionRepository.createVersion({
+          key: seed.key,
+          value: seed.value as Prisma.InputJsonValue,
+          metadata: seed.metadata as Prisma.InputJsonValue,
+          createdBy: seed.createdBy,
+          activate: true,
+        });
+      } catch (error) {
+        if (this.isBootstrapRace(error)) {
+          continue;
+        }
+
+        throw error;
+      }
     }
+  }
+
+  private isBootstrapRace(error: unknown) {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'P2002'
+    );
   }
 
   private mapRecord(record: {

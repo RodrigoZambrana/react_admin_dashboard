@@ -196,6 +196,71 @@ describe('ManagedCriticalConfigProvider', () => {
       }),
     );
   });
+
+  it('tolerates concurrent bootstrap seeding races and still returns the active config', async () => {
+    const seedSource = {
+      getSeed: jest.fn(async () => ({
+        key: 'ai_runtime',
+        value: {
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          timeoutMs: 7000,
+          credentials: {
+            strategy: 'env',
+            envKey: 'OPENAI_API_KEY',
+          },
+          providerOptions: {},
+        },
+        createdBy: 'system:critical-config-seed',
+        metadata: {
+          origin: 'system' as const,
+          source: 'env-seed',
+        },
+      })),
+      listSeeds: jest.fn(async () => []),
+    };
+    const provider = new ManagedCriticalConfigProvider(
+      {
+        hasVersionsForKey: jest.fn(async () => false),
+        createVersion: jest.fn(async () => {
+          const error = new Error('duplicate bootstrap');
+          (error as Error & { code?: string }).code = 'P2002';
+          throw error;
+        }),
+        getActiveByKey: jest.fn(async () => ({
+          id: 'cfg-openai-1',
+          key: 'ai_runtime',
+          value: {
+            provider: 'openai',
+            model: 'gpt-4.1-mini',
+            timeoutMs: 7000,
+            credentials: {
+              strategy: 'env',
+              envKey: 'OPENAI_API_KEY',
+            },
+            providerOptions: {},
+          },
+          version: 1,
+          status: 'ACTIVE',
+          metadata: {
+            origin: 'system',
+          },
+          createdAt: new Date(),
+          createdBy: 'system:critical-config-seed',
+        })),
+      } as any,
+      seedSource as any,
+    );
+
+    await expect(provider.getActive('ai_runtime')).resolves.toEqual(
+      expect.objectContaining({
+        key: 'ai_runtime',
+        value: expect.objectContaining({
+          provider: 'openai',
+        }),
+      }),
+    );
+  });
 });
 
 function buildRepository(

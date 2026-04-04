@@ -186,7 +186,7 @@ export class AsyncConversationTurnRepository {
         },
       });
 
-      return tx.asyncConversationTurn.update({
+      await tx.asyncConversationTurn.updateMany({
         where: {
           id: input.turnId,
         },
@@ -198,6 +198,12 @@ export class AsyncConversationTurnRepository {
           stabilizationDelayMs: input.stabilizationDelayMs,
           flushAt: input.flushAt,
         },
+      });
+
+      const updatedTurn = await tx.asyncConversationTurn.findFirst({
+        where: {
+          id: input.turnId,
+        },
         include: {
           inputs: {
             orderBy: {
@@ -206,6 +212,12 @@ export class AsyncConversationTurnRepository {
           },
         },
       });
+
+      if (!updatedTurn) {
+        throw new Error(`Async turn "${input.turnId}" was not found after append.`);
+      }
+
+      return updatedTurn;
     });
   }
 
@@ -252,10 +264,8 @@ export class AsyncConversationTurnRepository {
         },
       });
 
-      return tx.asyncConversationTurn.findUniqueOrThrow({
-        where: {
-          id: turn.id,
-        },
+      const createdTurn = await tx.asyncConversationTurn.findFirst({
+        where: { id: turn.id },
         include: {
           inputs: {
             orderBy: {
@@ -264,23 +274,19 @@ export class AsyncConversationTurnRepository {
           },
         },
       });
+
+      if (!createdTurn) {
+        throw new Error(`Async turn "${turn.id}" was not found after creation.`);
+      }
+
+      return createdTurn;
     });
   }
 
   markProcessing(turnId: string, startedAt: Date) {
-    return this.prisma.asyncConversationTurn.update({
-      where: { id: turnId },
-      data: {
-        status: AsyncConversationTurnStatus.PROCESSING,
-        processingStartedAt: startedAt,
-      },
-      include: {
-        inputs: {
-          orderBy: {
-            sequence: 'asc',
-          },
-        },
-      },
+    return this.updateTurnById(turnId, {
+      status: AsyncConversationTurnStatus.PROCESSING,
+      processingStartedAt: startedAt,
     });
   }
 
@@ -293,9 +299,7 @@ export class AsyncConversationTurnRepository {
     replyMessageMetadata: Prisma.InputJsonValue;
     resultSummary: Prisma.InputJsonValue;
   }) {
-    return this.prisma.asyncConversationTurn.update({
-      where: { id: input.turnId },
-      data: {
+    return this.updateTurnById(input.turnId, {
         status: AsyncConversationTurnStatus.AWAITING_REPLY,
         processingCompletedAt: input.completedAt,
         replyDueAt: input.replyDueAt,
@@ -303,14 +307,6 @@ export class AsyncConversationTurnRepository {
         replyText: input.replyText,
         replyMessageMetadata: input.replyMessageMetadata,
         resultSummary: input.resultSummary,
-      },
-      include: {
-        inputs: {
-          orderBy: {
-            sequence: 'asc',
-          },
-        },
-      },
     });
   }
 
@@ -319,20 +315,10 @@ export class AsyncConversationTurnRepository {
     projectedAt: Date;
     assistantMessageId: string;
   }) {
-    return this.prisma.asyncConversationTurn.update({
-      where: { id: input.turnId },
-      data: {
+    return this.updateTurnById(input.turnId, {
         status: AsyncConversationTurnStatus.COMPLETED,
         projectedAt: input.projectedAt,
         assistantMessageId: input.assistantMessageId,
-      },
-      include: {
-        inputs: {
-          orderBy: {
-            sequence: 'asc',
-          },
-        },
-      },
     });
   }
 
@@ -342,21 +328,11 @@ export class AsyncConversationTurnRepository {
     supersededAt: Date;
     metadata?: Prisma.InputJsonValue;
   }) {
-    return this.prisma.asyncConversationTurn.update({
-      where: { id: input.turnId },
-      data: {
+    return this.updateTurnById(input.turnId, {
         status: AsyncConversationTurnStatus.SUPERSEDED,
         supersededAt: input.supersededAt,
         supersededByTurnId: input.supersededByTurnId,
         metadata: input.metadata,
-      },
-      include: {
-        inputs: {
-          orderBy: {
-            sequence: 'asc',
-          },
-        },
-      },
     });
   }
 
@@ -366,21 +342,42 @@ export class AsyncConversationTurnRepository {
     errorMessage: string;
     metadata?: Prisma.InputJsonValue;
   }) {
-    return this.prisma.asyncConversationTurn.update({
-      where: { id: input.turnId },
-      data: {
+    return this.updateTurnById(input.turnId, {
         status: AsyncConversationTurnStatus.FAILED,
         errorCode: input.errorCode,
         errorMessage: input.errorMessage,
         metadata: input.metadata,
-      },
-      include: {
-        inputs: {
-          orderBy: {
-            sequence: 'asc',
+    });
+  }
+
+  private async updateTurnById(
+    turnId: string,
+    data:
+      | Prisma.AsyncConversationTurnUpdateManyMutationInput
+      | Prisma.AsyncConversationTurnUncheckedUpdateManyInput,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.asyncConversationTurn.updateMany({
+        where: { id: turnId },
+        data,
+      });
+
+      const updatedTurn = await tx.asyncConversationTurn.findFirst({
+        where: { id: turnId },
+        include: {
+          inputs: {
+            orderBy: {
+              sequence: 'asc',
+            },
           },
         },
-      },
+      });
+
+      if (!updatedTurn) {
+        throw new Error(`Async turn "${turnId}" was not found after update.`);
+      }
+
+      return updatedTurn;
     });
   }
 }

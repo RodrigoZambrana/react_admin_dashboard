@@ -35,7 +35,7 @@ export class ConversationStateRepository {
     const existing = await this.findByConversationId(input.conversationId);
 
     if (existing) {
-      return this.prisma.conversationState.update({
+      await this.prisma.conversationState.updateMany({
         where: { id: existing.id },
         data: {
           lane: input.lane,
@@ -50,6 +50,16 @@ export class ConversationStateRepository {
           metadata: this.toJsonValue(input.metadata),
         },
       });
+
+      const updated = await this.findByConversationId(input.conversationId);
+
+      if (!updated) {
+        throw new Error(
+          `Conversation state for conversation "${input.conversationId}" was not found after update.`,
+        );
+      }
+
+      return updated;
     }
 
     return this.prisma.conversationState.create({

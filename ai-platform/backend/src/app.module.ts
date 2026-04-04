@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { join } from 'node:path';
 
 import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
 import { ApiModule } from './modules/api/api.module';
@@ -23,7 +24,10 @@ import { TenantMiddleware } from './modules/persistence/tenant/tenant.middleware
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env.local', '.env'],
+      envFilePath: [
+        join(__dirname, '..', '.env.local'),
+        join(__dirname, '..', '.env'),
+      ],
     }),
     RuntimeConfigModule,
     LoggingModule,
