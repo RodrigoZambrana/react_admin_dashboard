@@ -223,9 +223,14 @@
 ### Current Roadmap Status On This Branch
 
 - Waves 1 through 7 are closed on this branch
-- Wave 8 is the next delivery wave, but it still has two explicit prerequisites:
-  - the async turn-intake / cancellation / typing capability mined from legacy user-chat behavior must land before or within Wave 8
-  - the carried `AiGatewayService` provider-registry and prompt-scaffolding concentration remains a structural cleanup to absorb before or during Wave 8 without changing the live chat contract
+- Wave 8 is now phased on this branch:
+  - Wave 8.0, `Gateway Structural Cleanup For User Chat Readiness`, is closed
+  - Wave 8.1, `Async Turn Intake, Cancellation, And Presence Foundation`, is the next delivery phase
+  - Wave 8.2, `User Chat Product UI`, remains gated on the async capability from Wave 8.1
+- The gateway-specific prerequisite is now absorbed:
+  - provider registration/resolution no longer lives inline in `AiGatewayService`
+  - prompt/protocol assembly no longer lives inline in `AiGatewayService`
+- The remaining explicit prerequisite before public chat rollout is the async turn-intake / cancellation / typing capability mined from legacy user-chat behavior
 - Wave 9 remains the centralized QA, security, roles, E2E, and production-hardening wave; Wave 7 now provides concrete operator workflows and regression journeys for that later hardening work
 
 ### Wave 2: Live Tool Execution
@@ -318,6 +323,20 @@
 8. Expected user/platform value: the platform gains an actual end-user product surface instead of only internal/operator tooling, enabling real conversational product rollout.
 9. Completion criteria: end users can interact with the live pipeline through a productized chat UI; core and tenant-backed flows are visible in a stable user shell; operator/admin workflows remain separate from public UX concerns.
 10. Explicit next-wave enablement: gives Wave 9 stable admin and user surfaces on which to enforce roles, auth, and end-to-end production hardening.
+
+#### Wave 8 Delivery Phases
+
+- Wave 8.0: Gateway Structural Cleanup For User Chat Readiness
+  - closed on this branch
+  - removes provider registry branching and prompt/protocol scaffolding concentration from `AiGatewayService`
+  - preserves the live `/chat/message` contract while preparing the backend for async intake and public-chat delivery
+- Wave 8.1: Async Turn Intake, Cancellation, And Presence Foundation
+  - next phase
+  - must land before or within public chat rollout
+  - carries forward the legacy-backed requirement for realistic wait, pending-turn cancellation, and typing / awaiting-reply presence
+- Wave 8.2: User Chat Product UI
+  - depends on Waves 1 through 7 plus Wave 8.1
+  - must replicate the DreamsChat public layout exactly while running on top of the stabilized async backend intake foundation instead of the current synchronous shell
 
 ### Wave 9: Centralized QA, Security, Roles, E2E, And Production Hardening
 

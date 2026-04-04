@@ -1204,3 +1204,52 @@
 - Add architecture-level tests to prove provider resolution and prompt/protocol assembly no longer live inline in `AiGatewayService`
 - Run the targeted hardcode audit over the touched gateway/runtime path and document what remains
 - Close Wave 8.0 with full backend/frontend validation and roadmap continuity toward Wave 8.1, Wave 8.2, and Wave 9
+
+## Iteration 40
+
+### Implemented
+- Ran the explicit Wave 8.0 closeout review over:
+  - structural removal of gateway hardcoding
+  - provider-agnostic/runtime-managed alignment
+  - layer separation
+  - tenant safety
+  - hardcoded provider/protocol/locale branching in the touched path
+  - readiness for Wave 8.1, Wave 8.2, and Wave 9
+- Added an architecture-level regression test to prove:
+  - provider resolution now flows through `LanguageModelProviderRegistry`
+  - prompt/protocol assembly now flows through `AiPromptAssemblyService`
+  - `AiGatewayService` no longer keeps inline protocol strings or provider branching
+- Updated `architecture.md` so Wave 8 is now documented in phases:
+  - Wave 8.0: gateway structural cleanup
+  - Wave 8.1: async turn intake / cancellation / presence foundation
+  - Wave 8.2: user chat product UI
+- Recorded the targeted hardcode audit outcome explicitly:
+  - absorbed now:
+    - gateway provider branching
+    - inline interpretation protocol framing
+    - inline response protocol framing
+  - carried forward:
+    - bootstrap env-seed compatibility still contains provider-specific fallback handling outside the gateway core path
+    - async turn-intake / cancellation / typing is still pending by design
+
+### Working
+- Wave 8.0 is now fully closed on this branch
+- Closeout review result:
+  - blockers: none
+  - carried technical debt: present, but non-blocking
+- `AiGatewayService` now acts as an orchestration boundary over:
+  - provider registry resolution
+  - prompt/protocol assembly
+  - payload parsing and logging
+  instead of concentrating all three responsibilities
+- `npm run build --workspace backend`, `npm test --workspace backend -- --runInBand`, and `npm run build --workspace frontend` all pass at Wave 8.0 closeout
+
+### Technical Debt
+- Bootstrap env-seed compatibility still contains provider-specific fallback handling for `mock`/`openai`, but it remains outside the gateway core path and did not regress the provider-agnostic runtime boundary
+- Async turn-intake / cancellation / typing remains the next explicit prerequisite before public chat rollout
+- The broader Wave 8 user chat product is still out of scope for this phase and remains gated on Wave 8.1
+
+### Next Steps
+- Start Wave 8.1, `Async Turn Intake, Cancellation, And Presence Foundation`, on top of the now-cleaner gateway boundary
+- Keep the final user chat product in Wave 8.2 gated on the async intake/cancellation/typing capability instead of building on the current synchronous shell
+- Carry the stabilized gateway boundaries and new architecture tests into Wave 9 centralized hardening so provider/runtime separation remains enforced as the platform grows
