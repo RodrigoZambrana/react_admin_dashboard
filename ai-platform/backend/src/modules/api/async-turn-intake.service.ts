@@ -19,6 +19,7 @@ import { TraceLogService } from './trace-log.service';
 import { AsyncChatMessageDto } from './dto/async-chat-message.dto';
 import {
   AsyncChatAcceptedResponse,
+  AsyncChatConversationSummary,
   AsyncChatSessionView,
   AsyncChatTurnView,
   AsyncPresenceState,
@@ -139,6 +140,48 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
       turn: this.mapTurn(turn),
       presence: this.buildPresence(turn),
     };
+  }
+
+  async listRecentConversations(
+    limit = 12,
+  ): Promise<AsyncChatConversationSummary[]> {
+    const conversations = await this.conversationRepository.listRecentByChannel(
+      'webchat_async',
+      limit,
+    );
+
+    return Promise.all(
+      conversations.map(async (conversation) => {
+        const activeTurn =
+          (await this.asyncTurnRepository.listActiveTurns(conversation.id)).at(-1) ??
+          null;
+        const latestMessage = conversation.messages[0] ?? null;
+        const latestPendingInput = activeTurn?.inputs.at(-1) ?? null;
+        const latestPreview =
+          latestPendingInput?.content?.trim() ||
+          latestMessage?.content?.trim() ||
+          null;
+        const latestTimestamp =
+          latestPendingInput?.receivedAt?.toISOString() ??
+          latestMessage?.createdAt?.toISOString() ??
+          null;
+        const presence = this.buildPresence(activeTurn);
+
+        return {
+          conversationId: conversation.id,
+          language: conversation.language ?? null,
+          channel: conversation.channel,
+          createdAt: conversation.createdAt.toISOString(),
+          updatedAt: conversation.updatedAt.toISOString(),
+          presence: presence.state,
+          awaitingReply: presence.awaitingReply,
+          activeTurnId: activeTurn?.id ?? null,
+          latestPreview,
+          latestMessageRole: latestMessage?.role ?? null,
+          latestTimestamp,
+        };
+      }),
+    );
   }
 
   async getSession(conversationId: string): Promise<AsyncChatSessionView> {

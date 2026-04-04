@@ -244,6 +244,49 @@
   display: none;
 }
 
+.public-chat-shell .public-chat-list-button,
+.public-chat-shell .public-chat-avatar-button {
+  border: 0;
+  background: transparent;
+  width: 100%;
+  padding: 0;
+  text-align: inherit;
+}
+
+.public-chat-shell .public-chat-list-button.active .chat-user-info h6 {
+  color: var(--bs-primary);
+}
+
+.public-chat-shell .public-chat-empty-list {
+  cursor: default;
+}
+
+.public-chat-shell .public-chat-welcome-state {
+  display: flex;
+  justify-content: center;
+  padding: 48px 24px;
+}
+
+.public-chat-shell .public-chat-welcome-state .message-content {
+  max-width: 520px;
+  text-align: center;
+}
+
+.public-chat-shell .public-chat-error-banner {
+  margin: 24px auto 0;
+  max-width: 420px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+  font-size: 14px;
+  text-align: center;
+}
+
+.public-chat-shell .chat-footer .btn:disabled {
+  opacity: 0.72;
+}
+
 @media (max-width: 991px) {
   .react-json-block {
     min-height: 240px;

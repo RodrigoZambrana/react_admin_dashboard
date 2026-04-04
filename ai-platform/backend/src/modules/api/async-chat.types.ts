@@ -76,3 +76,17 @@ export type AsyncChatAcceptedResponse = {
   turn: AsyncChatTurnView;
   presence: AsyncChatSessionView['presence'];
 };
+
+export type AsyncChatConversationSummary = {
+  conversationId: string;
+  language: string | null;
+  channel: string;
+  createdAt: string;
+  updatedAt: string;
+  presence: AsyncPresenceState;
+  awaitingReply: boolean;
+  activeTurnId: string | null;
+  latestPreview: string | null;
+  latestMessageRole: 'USER' | 'ASSISTANT' | 'SYSTEM' | null;
+  latestTimestamp: string | null;
+};

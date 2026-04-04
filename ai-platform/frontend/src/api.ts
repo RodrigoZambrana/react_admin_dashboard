@@ -1,4 +1,8 @@
 import type {
+  AsyncChatAcceptedResponse,
+  AsyncChatConversationSummary,
+  AsyncChatSessionView,
+  AsyncChatTurnView,
   ChatLog,
   ConversationMessage,
   ConversationSummary,
@@ -58,6 +62,34 @@ export async function apiRequest<T>(
 
 export async function listConversations(limit = 8) {
   return apiRequest<ConversationSummary[]>(`/conversations?limit=${limit}`);
+}
+
+export async function listAsyncChatConversations(limit = 12) {
+  return apiRequest<AsyncChatConversationSummary[]>(
+    `/chat/async/conversations?limit=${limit}`,
+  );
+}
+
+export async function acceptAsyncChatMessage(input: {
+  message: string;
+  conversationId?: string;
+  locale?: string;
+  channel?: string;
+}) {
+  return apiRequest<AsyncChatAcceptedResponse>('/chat/async/messages', {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export async function getAsyncChatSession(conversationId: string) {
+  return apiRequest<AsyncChatSessionView>(
+    `/chat/async/conversations/${conversationId}/session`,
+  );
+}
+
+export async function getAsyncChatTurn(turnId: string) {
+  return apiRequest<AsyncChatTurnView>(`/chat/async/turns/${turnId}`);
 }
 
 export async function listLogs(limit = 30) {

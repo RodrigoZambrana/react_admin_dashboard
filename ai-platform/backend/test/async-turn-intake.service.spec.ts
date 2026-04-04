@@ -439,6 +439,69 @@ describe('AsyncTurnIntakeService', () => {
     );
   });
 
+  it('lists recent async conversations with backend-derived presence and preview data', async () => {
+    const asyncTurnRepository = createInMemoryAsyncTurnRepository();
+    const acceptedAt = new Date('2026-04-04T10:00:00.000Z');
+    await asyncTurnRepository.createTurnWithInitialInput({
+      conversationId: 'conv-list',
+      traceId: 'trace-turn-list',
+      content: 'Necesito una cotizacion',
+      locale: 'es',
+      semanticInput: 'Necesito una cotizacion',
+      acceptedAt,
+      flushAt: new Date(acceptedAt.getTime() + 1000),
+      stabilizationDelayMs: 1000,
+      metadata: {
+        source: 'async_chat',
+      },
+    });
+
+    const service = new AsyncTurnIntakeService(
+      {
+        listRecentByChannel: jest.fn(async () => [
+          {
+            id: 'conv-list',
+            language: 'es',
+            channel: 'webchat_async',
+            createdAt: acceptedAt,
+            updatedAt: new Date('2026-04-04T10:01:00.000Z'),
+            messages: [],
+          },
+        ]),
+      } as any,
+      asyncTurnRepository as any,
+      {
+        getTenantId: () => 'tenant-alpha',
+        getTraceId: () => 'trace-request',
+        run: (_context: any, callback: () => unknown) => callback(),
+      } as any,
+      {
+        recordStage: jest.fn(async () => undefined),
+      } as any,
+      {
+        calculateFlushAt: jest.fn(),
+        buildSemanticInput: jest.fn(),
+        estimateReplyDelay: jest.fn(),
+      } as any,
+      {
+        executeClosedTurn: jest.fn(),
+        projectAssistantReply: jest.fn(),
+      } as any,
+    );
+
+    await expect(service.listRecentConversations(5)).resolves.toEqual([
+      expect.objectContaining({
+        conversationId: 'conv-list',
+        channel: 'webchat_async',
+        presence: 'queued',
+        awaitingReply: true,
+        activeTurnId: 'turn-1',
+        latestPreview: 'Necesito una cotizacion',
+        latestMessageRole: null,
+      }),
+    ]);
+  });
+
   it('supersedes an awaiting-reply turn when a newer inbound message arrives before projection', async () => {
     const asyncTurnRepository = createInMemoryAsyncTurnRepository();
     const traceLogService = {

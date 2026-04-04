@@ -1397,3 +1397,50 @@
 - Start Wave 8.2, `User Chat Product UI`, on top of the now-closed async intake foundation instead of the synchronous request/response shell
 - Keep exact DreamsChat public-layout replication, presence UX, and future user-facing pending-turn behavior tied to the backend async contracts already landed in Wave 8.1
 - Carry the explicit Wave 8.1 technical debt into Wave 9 centralized hardening so timing heuristics, in-flight cancellation limits, and broader regression/security work are addressed without reopening the platform architecture
+
+## Iteration 45
+
+### Implemented
+- Added the first Wave 8.2 public-chat backend/UI contract slice:
+  - `GET /chat/async/conversations`
+  - frontend async chat types and API bindings for conversation list, intake acceptance, session sync, and turn lookup
+- Split frontend template loading by shell so:
+  - admin continues to load the DreamsChat admin asset bundle
+  - public chat now loads the DreamsChat chat asset bundle
+  without mixing the two visual systems in one static `index.html`
+- Reorganized the frontend root into explicit shell selection:
+  - admin workspace remains the default shell
+  - public user chat now mounts from the dedicated `/chat` route
+- Added the first public user-chat surface using the DreamsChat public layout structure:
+  - left conversation rail
+  - recent chat strip
+  - central transcript area
+  - public composer/footer
+- Wired the shell to real backend data for:
+  - recent async conversations
+  - selected session hydration
+  - initial async message acceptance
+
+### Working
+- Admin UI remains non-breaking while now loading its template assets through an explicit route-owned boundary
+- The public `/chat` shell now renders on the DreamsChat public asset pack instead of reusing the admin shell
+- The public shell already consumes real backend async contracts instead of the synchronous `/chat/message` path
+- Validation passes after the shell split and initial public wiring:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- Public chat still needs full async UX behavior over the new shell:
+  - polling/session recovery durability
+  - presence refresh while turns are in flight
+  - stale/superseded turn cleanup and transcript hydration polish
+- The frontend workspace still has no supported automated test harness, so validation remains build-only on the UI side for this milestone
+- Wave 8.1 carried debt remains unchanged:
+  - inline timing heuristics in `AsyncTurnTimingPolicyService`
+  - no true abort for already-started model/tool calls
+
+### Next Steps
+- Wire the public shell fully to async session-sync/presence polling and local recovery so user chat behavior follows backend truth through queued / processing / awaiting-reply states
+- Handle superseded-turn cleanup and transcript hydration so obsolete replies never surface in the public shell
+- Close Wave 8.2 with UI fidelity review, final documentation, and explicit readiness framing toward Wave 9 hardening

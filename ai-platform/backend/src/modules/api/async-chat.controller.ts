@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
 import { AsyncChatMessageDto } from './dto/async-chat-message.dto';
 import { AsyncTurnIntakeService } from './async-turn-intake.service';
@@ -6,6 +6,11 @@ import { AsyncTurnIntakeService } from './async-turn-intake.service';
 @Controller('chat/async')
 export class AsyncChatController {
   constructor(private readonly asyncTurnIntakeService: AsyncTurnIntakeService) {}
+
+  @Get('conversations')
+  listRecentConversations(@Query('limit') limit?: string) {
+    return this.asyncTurnIntakeService.listRecentConversations(Number(limit ?? 12));
+  }
 
   @Post('messages')
   acceptMessage(@Body() body: AsyncChatMessageDto) {
