@@ -18,8 +18,12 @@ import { AdminKnowledgeController } from './admin-knowledge.controller';
 import { AdminKnowledgeService } from './admin-knowledge.service';
 import { AdminTestCenterController } from './admin-test-center.controller';
 import { AdminTestCenterService } from './admin-test-center.service';
+import { AsyncChatController } from './async-chat.controller';
+import { AsyncTurnIntakeService } from './async-turn-intake.service';
+import { AsyncTurnTimingPolicyService } from './async-turn-timing-policy.service';
 import { ChatController } from './chat.controller';
 import { RuntimeResourcesAdminController } from './runtime-resources-admin.controller';
+import { SemanticTurnExecutionService } from './semantic-turn-execution.service';
 import { TraceLogService } from './trace-log.service';
 
 @Module({
@@ -40,12 +44,16 @@ import { TraceLogService } from './trace-log.service';
   ],
   controllers: [
     ChatController,
+    AsyncChatController,
     RuntimeResourcesAdminController,
     AdminKnowledgeController,
     AdminTestCenterController,
   ],
   providers: [
     TraceLogService,
+    AsyncTurnTimingPolicyService,
+    SemanticTurnExecutionService,
+    AsyncTurnIntakeService,
     ChatOrchestratorService,
     AdminKnowledgeService,
     AdminTestCenterService,

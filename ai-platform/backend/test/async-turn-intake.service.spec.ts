@@ -1,0 +1,426 @@
+import { AsyncConversationTurnStatus } from '@prisma/client';
+
+import { AsyncTurnIntakeService } from '../src/modules/api/async-turn-intake.service';
+
+type TurnRecord = {
+  id: string;
+  conversationId: string;
+  status: AsyncConversationTurnStatus;
+  traceId: string;
+  locale: string | null;
+  acceptedAt: Date;
+  firstInputAt: Date;
+  lastInputAt: Date;
+  processingStartedAt: Date | null;
+  processingCompletedAt: Date | null;
+  flushAt: Date;
+  replyDueAt: Date | null;
+  projectedAt: Date | null;
+  supersededAt: Date | null;
+  stabilizationDelayMs: number;
+  replyDelayMs: number;
+  inputCount: number;
+  semanticInput: string;
+  replyText: string | null;
+  replyMessageMetadata: Record<string, unknown> | null;
+  resultSummary: Record<string, unknown> | null;
+  assistantMessageId: string | null;
+  supersededByTurnId: string | null;
+  errorCode: string | null;
+  errorMessage: string | null;
+  metadata: Record<string, unknown> | null;
+  inputs: Array<{
+    id: string;
+    turnId: string;
+    sequence: number;
+    content: string;
+    locale: string | null;
+    metadata: Record<string, unknown> | null;
+    receivedAt: Date;
+  }>;
+};
+
+function createInMemoryAsyncTurnRepository() {
+  const turns = new Map<string, TurnRecord>();
+  let nextTurnId = 1;
+  let nextInputId = 1;
+
+  const cloneTurn = (turn: TurnRecord): TurnRecord => ({
+    ...turn,
+    metadata: turn.metadata ? { ...turn.metadata } : null,
+    replyMessageMetadata: turn.replyMessageMetadata
+      ? { ...turn.replyMessageMetadata }
+      : null,
+    resultSummary: turn.resultSummary ? { ...turn.resultSummary } : null,
+    inputs: turn.inputs.map((input) => ({
+      ...input,
+      metadata: input.metadata ? { ...input.metadata } : null,
+    })),
+  });
+
+  const getTurnOrThrow = (turnId: string) => {
+    const turn = turns.get(turnId);
+    if (!turn) {
+      throw new Error(`Missing async turn ${turnId}`);
+    }
+
+    return turn;
+  };
+
+  return {
+    listRecoverableTurns: jest.fn(async () => []),
+    findLatestStabilizingTurn: jest.fn(async (conversationId: string) => {
+      const matches = [...turns.values()]
+        .filter(
+          (turn) =>
+            turn.conversationId === conversationId &&
+            turn.status === AsyncConversationTurnStatus.STABILIZING,
+        )
+        .sort((left, right) => right.acceptedAt.getTime() - left.acceptedAt.getTime());
+
+      return matches[0] ? cloneTurn(matches[0]) : null;
+    }),
+    createTurnWithInitialInput: jest.fn(async (input: any) => {
+      const turnId = `turn-${nextTurnId++}`;
+      const turn: TurnRecord = {
+        id: turnId,
+        conversationId: input.conversationId,
+        status: AsyncConversationTurnStatus.STABILIZING,
+        traceId: input.traceId,
+        locale: input.locale ?? null,
+        acceptedAt: input.acceptedAt,
+        firstInputAt: input.acceptedAt,
+        lastInputAt: input.acceptedAt,
+        processingStartedAt: null,
+        processingCompletedAt: null,
+        flushAt: input.flushAt,
+        replyDueAt: null,
+        projectedAt: null,
+        supersededAt: null,
+        stabilizationDelayMs: input.stabilizationDelayMs,
+        replyDelayMs: 0,
+        inputCount: 1,
+        semanticInput: input.semanticInput,
+        replyText: null,
+        replyMessageMetadata: null,
+        resultSummary: null,
+        assistantMessageId: null,
+        supersededByTurnId: null,
+        errorCode: null,
+        errorMessage: null,
+        metadata: (input.metadata ?? null) as Record<string, unknown> | null,
+        inputs: [
+          {
+            id: `turn-input-${nextInputId++}`,
+            turnId,
+            sequence: 0,
+            content: input.content,
+            locale: input.locale ?? null,
+            metadata: null,
+            receivedAt: input.acceptedAt,
+          },
+        ],
+      };
+
+      turns.set(turnId, turn);
+      return cloneTurn(turn);
+    }),
+    appendInputAndRefreshTurn: jest.fn(async (input: any) => {
+      const turn = getTurnOrThrow(input.turnId);
+      const receivedAt = new Date(turn.lastInputAt.getTime() + 50);
+      turn.inputs.push({
+        id: `turn-input-${nextInputId++}`,
+        turnId: turn.id,
+        sequence: turn.inputs.length,
+        content: input.content,
+        locale: input.locale ?? null,
+        metadata: null,
+        receivedAt,
+      });
+      turn.locale = input.locale ?? turn.locale;
+      turn.lastInputAt = receivedAt;
+      turn.inputCount = input.inputCount;
+      turn.semanticInput = input.semanticInput;
+      turn.stabilizationDelayMs = input.stabilizationDelayMs;
+      turn.flushAt = input.flushAt;
+      return cloneTurn(turn);
+    }),
+    findById: jest.fn(async (turnId: string) => {
+      const turn = turns.get(turnId);
+      return turn ? cloneTurn(turn) : null;
+    }),
+    markProcessing: jest.fn(async (turnId: string, startedAt: Date) => {
+      const turn = getTurnOrThrow(turnId);
+      turn.status = AsyncConversationTurnStatus.PROCESSING;
+      turn.processingStartedAt = startedAt;
+      return cloneTurn(turn);
+    }),
+    markAwaitingReply: jest.fn(async (input: any) => {
+      const turn = getTurnOrThrow(input.turnId);
+      turn.status = AsyncConversationTurnStatus.AWAITING_REPLY;
+      turn.processingCompletedAt = input.completedAt;
+      turn.replyDueAt = input.replyDueAt;
+      turn.replyDelayMs = input.replyDelayMs;
+      turn.replyText = input.replyText;
+      turn.replyMessageMetadata = input.replyMessageMetadata;
+      turn.resultSummary = input.resultSummary;
+      return cloneTurn(turn);
+    }),
+    markCompleted: jest.fn(async (input: any) => {
+      const turn = getTurnOrThrow(input.turnId);
+      turn.status = AsyncConversationTurnStatus.COMPLETED;
+      turn.projectedAt = input.projectedAt;
+      turn.assistantMessageId = input.assistantMessageId;
+      return cloneTurn(turn);
+    }),
+    markSuperseded: jest.fn(async (input: any) => {
+      const turn = getTurnOrThrow(input.turnId);
+      turn.status = AsyncConversationTurnStatus.SUPERSEDED;
+      turn.supersededAt = input.supersededAt;
+      turn.supersededByTurnId = input.supersededByTurnId;
+      turn.metadata = (input.metadata ?? null) as Record<string, unknown> | null;
+      return cloneTurn(turn);
+    }),
+    markFailed: jest.fn(async (input: any) => {
+      const turn = getTurnOrThrow(input.turnId);
+      turn.status = AsyncConversationTurnStatus.FAILED;
+      turn.errorCode = input.errorCode;
+      turn.errorMessage = input.errorMessage;
+      turn.metadata = (input.metadata ?? null) as Record<string, unknown> | null;
+      return cloneTurn(turn);
+    }),
+    getSessionTurns: jest.fn(async (conversationId: string) =>
+      [...turns.values()]
+        .filter((turn) => turn.conversationId === conversationId)
+        .sort((left, right) => right.acceptedAt.getTime() - left.acceptedAt.getTime())
+        .map(cloneTurn),
+    ),
+  };
+}
+
+describe('AsyncTurnIntakeService', () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+    jest.clearAllMocks();
+  });
+
+  it('coalesces rapid inbound messages into one semantic turn before pipeline execution', async () => {
+    const asyncTurnRepository = createInMemoryAsyncTurnRepository();
+    const traceLogService = {
+      recordStage: jest.fn(async () => undefined),
+    };
+    const semanticTurnExecutionService = {
+      executeClosedTurn: jest.fn(async () => ({
+        response: 'Respuesta consolidada',
+        intent: 'CREATE_QUOTE',
+        entities: {},
+        metadata: {
+          conversationId: 'conv-1',
+          traceId: 'trace-turn-1',
+        },
+        decision: {
+          action: 'invoke_tool',
+          toolName: 'create_quote',
+        },
+        execution: {
+          ok: true,
+        },
+        approvedResponse: {
+          fallbackReason: null,
+        },
+        assistantMessageMetadata: {
+          source: 'async',
+        },
+      })),
+      projectAssistantReply: jest.fn(async () => ({
+        id: 'msg-assistant-1',
+      })),
+    };
+    const service = new AsyncTurnIntakeService(
+      {
+        findById: jest.fn(async () => ({
+          id: 'conv-1',
+          language: 'es',
+          channel: 'webchat_async',
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+          messages: [],
+        })),
+        createConversation: jest.fn(async () => ({
+          id: 'conv-1',
+          language: 'es',
+          channel: 'webchat_async',
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+          messages: [],
+        })),
+      } as any,
+      asyncTurnRepository as any,
+      {
+        getTenantId: () => 'tenant-alpha',
+        getTraceId: () => 'trace-request',
+        run: (_context: any, callback: () => unknown) => callback(),
+      } as any,
+      traceLogService as any,
+      {
+        calculateFlushAt: jest.fn(({ acceptedAt }: { acceptedAt: Date }) => ({
+          stabilizationDelayMs: 1000,
+          flushAt: new Date(acceptedAt.getTime() + 1000),
+        })),
+        buildSemanticInput: jest.fn((messages: string[]) => messages.join('\n')),
+        estimateReplyDelay: jest.fn(() => 0),
+      } as any,
+      semanticTurnExecutionService as any,
+    );
+
+    const firstAccepted = await service.acceptMessage({
+      message: 'Necesito una cotizacion',
+      locale: 'es',
+      channel: 'webchat_async',
+    });
+    const secondAccepted = await service.acceptMessage({
+      conversationId: firstAccepted.conversationId,
+      message: 'para 3 puertas',
+      locale: 'es',
+    });
+
+    expect(firstAccepted.presence.state).toBe('queued');
+    expect(secondAccepted.turn.id).toBe(firstAccepted.turn.id);
+    expect(secondAccepted.turn.inputCount).toBe(2);
+    expect(secondAccepted.turn.semanticInput).toBe(
+      'Necesito una cotizacion\npara 3 puertas',
+    );
+    expect(semanticTurnExecutionService.executeClosedTurn).not.toHaveBeenCalled();
+
+    const queuedSession = await service.getSession(firstAccepted.conversationId);
+    expect(queuedSession.presence).toEqual(
+      expect.objectContaining({
+        state: 'queued',
+        awaitingReply: true,
+        turnId: firstAccepted.turn.id,
+      }),
+    );
+    expect(queuedSession.activeTurn).toEqual(
+      expect.objectContaining({
+        id: firstAccepted.turn.id,
+        inputCount: 2,
+      }),
+    );
+
+    await jest.advanceTimersByTimeAsync(1000);
+    await jest.runOnlyPendingTimersAsync();
+
+    expect(semanticTurnExecutionService.executeClosedTurn).toHaveBeenCalledTimes(1);
+    expect(semanticTurnExecutionService.executeClosedTurn).toHaveBeenCalledWith(
+      {
+        conversationId: 'conv-1',
+        message: 'Necesito una cotizacion\npara 3 puertas',
+        locale: 'es',
+      },
+      {
+        projectReplyImmediately: false,
+      },
+    );
+    expect(semanticTurnExecutionService.projectAssistantReply).toHaveBeenCalledWith({
+      conversationId: 'conv-1',
+      response: 'Respuesta consolidada',
+      assistantMessageMetadata: {
+        source: 'async',
+      },
+    });
+
+    const completedSession = await service.getSession(firstAccepted.conversationId);
+    expect(completedSession.latestCompletedTurn).toEqual(
+      expect.objectContaining({
+        id: firstAccepted.turn.id,
+        status: 'completed',
+        internalStatus: AsyncConversationTurnStatus.COMPLETED,
+        assistantMessageId: 'msg-assistant-1',
+      }),
+    );
+    expect(completedSession.presence.state).toBe('idle');
+    expect(traceLogService.recordStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'async_intake',
+        status: 'coalesced',
+      }),
+    );
+    expect(traceLogService.recordStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'async_turn',
+        status: 'closed',
+      }),
+    );
+  });
+
+  it('creates a new async conversation when no existing conversation is provided and exposes accepted queue metadata', async () => {
+    const asyncTurnRepository = createInMemoryAsyncTurnRepository();
+    const conversationRepository = {
+      findById: jest.fn(async () => null),
+      createConversation: jest.fn(async () => ({
+        id: 'conv-new',
+        language: 'en',
+        channel: 'webchat_async',
+        createdAt: new Date('2026-04-04T10:00:00.000Z'),
+        updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+        messages: [],
+      })),
+    };
+    const service = new AsyncTurnIntakeService(
+      conversationRepository as any,
+      asyncTurnRepository as any,
+      {
+        getTenantId: () => 'tenant-alpha',
+        getTraceId: () => 'trace-request',
+        run: (_context: any, callback: () => unknown) => callback(),
+      } as any,
+      {
+        recordStage: jest.fn(async () => undefined),
+      } as any,
+      {
+        calculateFlushAt: jest.fn(({ acceptedAt }: { acceptedAt: Date }) => ({
+          stabilizationDelayMs: 1200,
+          flushAt: new Date(acceptedAt.getTime() + 1200),
+        })),
+        buildSemanticInput: jest.fn((messages: string[]) => messages.join('\n')),
+        estimateReplyDelay: jest.fn(() => 0),
+      } as any,
+      {
+        executeClosedTurn: jest.fn(),
+        projectAssistantReply: jest.fn(),
+      } as any,
+    );
+
+    const accepted = await service.acceptMessage({
+      message: 'Hello there',
+      locale: 'en',
+    });
+
+    expect(conversationRepository.createConversation).toHaveBeenCalledWith(
+      'en',
+      'webchat_async',
+    );
+    expect(accepted).toEqual(
+      expect.objectContaining({
+        conversationId: 'conv-new',
+        turn: expect.objectContaining({
+          status: 'queued',
+          internalStatus: AsyncConversationTurnStatus.STABILIZING,
+          stabilizationDelayMs: 1200,
+          inputCount: 1,
+        }),
+        presence: expect.objectContaining({
+          state: 'queued',
+          awaitingReply: true,
+          acceptedAt: expect.any(String),
+          flushAt: expect.any(String),
+        }),
+      }),
+    );
+  });
+});

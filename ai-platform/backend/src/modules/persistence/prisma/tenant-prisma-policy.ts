@@ -22,6 +22,8 @@ const TENANT_MODELS = new Set([
   'ConversationState',
   'Message',
   'ChatLog',
+  'AsyncConversationTurn',
+  'AsyncConversationTurnInput',
   'PromptVersion',
   'TemporalLocaleVersion',
   'Knowledge',

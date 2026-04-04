@@ -28,6 +28,15 @@ enum KnowledgeCategory {
   POLICY
 }
 
+enum AsyncConversationTurnStatus {
+  STABILIZING
+  PROCESSING
+  AWAITING_REPLY
+  COMPLETED
+  SUPERSEDED
+  FAILED
+}
+
 model Conversation {
   id          String    @id @default(cuid())
   tenantId    String
@@ -38,6 +47,7 @@ model Conversation {
   messages    Message[]
   logs        ChatLog[]
   state       ConversationState?
+  asyncTurns  AsyncConversationTurn[]
 
   @@index([tenantId, createdAt])
 }
@@ -181,4 +191,57 @@ model Knowledge {
   createdAt   DateTime          @default(now())
 
   @@index([tenantId, category, createdAt])
+}
+
+model AsyncConversationTurn {
+  id                  String                      @id @default(cuid())
+  tenantId            String
+  conversationId      String
+  status              AsyncConversationTurnStatus
+  traceId             String
+  locale              String?
+  acceptedAt          DateTime                    @default(now())
+  firstInputAt        DateTime
+  lastInputAt         DateTime
+  processingStartedAt DateTime?
+  processingCompletedAt DateTime?
+  flushAt             DateTime
+  replyDueAt          DateTime?
+  projectedAt         DateTime?
+  supersededAt        DateTime?
+  stabilizationDelayMs Int
+  replyDelayMs        Int                         @default(0)
+  inputCount          Int                         @default(1)
+  semanticInput       String
+  replyText           String?
+  replyMessageMetadata Json?
+  resultSummary       Json?
+  assistantMessageId  String?
+  supersededByTurnId  String?
+  errorCode           String?
+  errorMessage        String?
+  metadata            Json?
+  conversation        Conversation                @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  inputs              AsyncConversationTurnInput[]
+  supersededBy        AsyncConversationTurn?      @relation("AsyncTurnSupersession", fields: [supersededByTurnId], references: [id], onDelete: SetNull)
+  supersedes          AsyncConversationTurn[]     @relation("AsyncTurnSupersession")
+
+  @@index([tenantId, conversationId, acceptedAt])
+  @@index([tenantId, conversationId, status, acceptedAt])
+  @@index([tenantId, traceId])
+}
+
+model AsyncConversationTurnInput {
+  id         String                @id @default(cuid())
+  tenantId   String
+  turnId     String
+  sequence   Int
+  content    String
+  locale     String?
+  metadata   Json?
+  receivedAt DateTime              @default(now())
+  turn       AsyncConversationTurn @relation(fields: [turnId], references: [id], onDelete: Cascade)
+
+  @@unique([turnId, sequence])
+  @@index([tenantId, turnId, receivedAt])
 }

@@ -180,6 +180,55 @@ describe('tenant prisma policy', () => {
       });
     });
 
+    it('scopes async turn models and overwrites caller tenantId in their writes', () => {
+      expect(
+        applyTenantScope(
+          {
+            action: 'findFirst',
+            model: 'AsyncConversationTurn',
+            args: {
+              where: {
+                conversationId: 'conv-1',
+                tenantId: 'tenant-b',
+              },
+            },
+          },
+          'tenant-a',
+        ),
+      ).toMatchObject({
+        args: {
+          where: {
+            AND: [{ conversationId: 'conv-1' }, { tenantId: 'tenant-a' }],
+          },
+        },
+      });
+
+      expect(
+        applyTenantScope(
+          {
+            action: 'create',
+            model: 'AsyncConversationTurnInput',
+            args: {
+              data: {
+                tenantId: 'tenant-b',
+                turnId: 'turn-1',
+                content: 'hola',
+              },
+            },
+          },
+          'tenant-a',
+        ),
+      ).toMatchObject({
+        args: {
+          data: {
+            tenantId: 'tenant-a',
+            turnId: 'turn-1',
+            content: 'hola',
+          },
+        },
+      });
+    });
+
     it('overwrites caller tenantId in update data while forcing tenant scope in where', () => {
       expect(
         applyTenantScope(

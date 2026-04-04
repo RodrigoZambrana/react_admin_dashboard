@@ -230,6 +230,11 @@
 - The gateway-specific prerequisite is now absorbed:
   - provider registration/resolution no longer lives inline in `AiGatewayService`
   - prompt/protocol assembly no longer lives inline in `AiGatewayService`
+- A later prompt-governance prioritization remains explicit:
+  - structural response/interpretation protocol contracts, output field names, enum values, and JSON-shape guarantees must remain backend-owned rather than freely admin-editable
+  - policy/editorial prompt instructions can later become governed/admin-editable behind managed resources
+  - `AiPromptAssemblyService` is now the correct boundary for that future split, but the split itself is not a blocker for Wave 8.1
+  - code-owned fallback protocol behavior must continue to exist even if governed prompt policy becomes editable later
 - The remaining explicit prerequisite before public chat rollout is the async turn-intake / cancellation / typing capability mined from legacy user-chat behavior
 - Wave 9 remains the centralized QA, security, roles, E2E, and production-hardening wave; Wave 7 now provides concrete operator workflows and regression journeys for that later hardening work
 
@@ -334,6 +339,7 @@
   - next phase
   - must land before or within public chat rollout
   - carries forward the legacy-backed requirement for realistic wait, pending-turn cancellation, and typing / awaiting-reply presence
+  - must not expand the still-carried prompt-governance debt in `AiPromptAssemblyService`; structural protocol contract remains backend-owned while editable policy wording stays a later prioritization item
 - Wave 8.2: User Chat Product UI
   - depends on Waves 1 through 7 plus Wave 8.1
   - must replicate the DreamsChat public layout exactly while running on top of the stabilized async backend intake foundation instead of the current synchronous shell

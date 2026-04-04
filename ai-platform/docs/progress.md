@@ -1253,3 +1253,67 @@
 - Start Wave 8.1, `Async Turn Intake, Cancellation, And Presence Foundation`, on top of the now-cleaner gateway boundary
 - Keep the final user chat product in Wave 8.2 gated on the async intake/cancellation/typing capability instead of building on the current synchronous shell
 - Carry the stabilized gateway boundaries and new architecture tests into Wave 9 centralized hardening so provider/runtime separation remains enforced as the platform grows
+
+## Iteration 41
+
+### Implemented
+- Added a documentation-level prioritization note for the next prompt-governance split after Wave 8.0
+- Recorded that structural protocol contracts for interpretation/response must remain backend-owned, including:
+  - output field names
+  - enum values
+  - JSON-shape guarantees
+  - protocol fallback behavior
+- Recorded that policy/editorial prompt wording can later become governed/admin-editable behind managed resources
+- Marked `AiPromptAssemblyService` as the correct future boundary for that split, while clarifying that the split itself is not a Wave 8.1 blocker
+
+### Working
+- The roadmap now distinguishes between:
+  - prompt protocol contract that must stay code-owned and safe
+  - prompt policy wording that can later become governed/admin-editable
+- Future iterations can prioritize prompt-governance work without confusing it with the immediate async intake prerequisite for Wave 8.1
+- Wave 8.1 remains the next delivery phase, and prompt-governance refinement is now clearly documented as carried later work rather than an implicit omission
+
+### Technical Debt
+- This iteration updates documentation only; no runtime behavior changed
+- `AiPromptAssemblyService` still mixes structural protocol framing and policy/editorial wording in the current implementation
+- The future split between backend-owned protocol contract and governed prompt policy remains pending, but is intentionally not blocking Wave 8.1
+
+### Next Steps
+- Start Wave 8.1, `Async Turn Intake, Cancellation, And Presence Foundation`, on top of the closed Wave 8.0 gateway cleanup
+- Keep the future prompt-governance split explicit for later prioritization without expanding that debt during Wave 8.1
+- Preserve Wave 8.2 as gated on the async intake/cancellation/typing foundation rather than the current synchronous shell
+
+## Iteration 42
+
+### Implemented
+- Added the first Wave 8.1 backend foundation for async semantic turns:
+  - persisted `AsyncConversationTurn` and `AsyncConversationTurnInput`
+  - tenant-scoped Prisma policy coverage for both new models
+  - additive async chat contracts and endpoints for message acceptance, session sync, and turn lookup
+- Extracted the canonical live pipeline into `SemanticTurnExecutionService` so both sync `/chat/message` and future async user-chat flows share the same backend-owned turn execution path after semantic turn closure
+- Added `AsyncTurnIntakeService` and `AsyncTurnTimingPolicyService` to:
+  - accept inbound messages immediately
+  - coalesce rapid consecutive inputs while a turn remains stabilizing
+  - close one semantic turn before interpretation/parsing/decision/execution/response
+  - defer assistant-message projection behind an async reply stage instead of coupling it to intake
+- Added regression coverage for:
+  - sync orchestrator delegation into the new semantic-turn execution boundary
+  - semantic-turn execution with immediate and deferred reply projection
+  - async coalescing, queued session visibility, and tenant-scope policy coverage for the new async persistence models
+
+### Working
+- The synchronous `/chat/message` contract remains unchanged while now delegating through the shared semantic-turn execution boundary
+- Async intake now exposes explicit accepted/queued session state through additive backend contracts without running the full pipeline until the semantic turn closes
+- Rapid consecutive inbound messages are coalesced into one semantic turn before interpretation/parsing/decision/execution/response runs
+- `npm run build --workspace backend`, `npm test --workspace backend -- --runInBand`, and `npm run build --workspace frontend` pass with the new async foundation in place
+
+### Technical Debt
+- Wave 8.1 still needs pending-analysis and pending-reply supersession so new inbound input can cancel stale work instead of only coalescing stabilizing turns
+- Reply projection is still scheduled immediately after processing; human-like wait and observable awaiting-reply timing still need to be activated as part of the next milestone
+- `AsyncTurnTimingPolicyService` currently keeps inline heuristics for fragment detection and reply delay estimation; this is contained to the new intake boundary but should be audited before Wave 8.1 closeout so the phase does not normalize a new hardcoded-language concentration
+- The later prompt-governance split remains carried debt only; Wave 8.1 intentionally keeps structural prompt protocol contracts backend-owned and does not expand that scope
+
+### Next Steps
+- Add cancellation/supersession behavior for processing and awaiting-reply turns so stale analysis/reply work is invalidated by newer inbound input in the same conversation
+- Activate delayed reply projection and presence-friendly awaiting-reply state using backend-owned timing instead of immediate projection
+- Close Wave 8.1 with a targeted hardcode/scope audit, full async-path validation, and documentation that explicitly gates Wave 8.2 user chat UI on the stabilized async intake foundation

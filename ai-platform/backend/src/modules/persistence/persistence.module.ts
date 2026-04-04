@@ -1,6 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 
 import { LoggingModule } from '../logging/logging.module';
+import { AsyncConversationTurnInputRepository } from './repositories/async-conversation-turn-input.repository';
+import { AsyncConversationTurnRepository } from './repositories/async-conversation-turn.repository';
 import { ChatLogRepository } from './repositories/chat-log.repository';
 import { ConversationRepository } from './repositories/conversation.repository';
 import { ConversationStateRepository } from './repositories/conversation-state.repository';
@@ -22,6 +24,8 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     TenantContextService,
     TenantMiddleware,
     PrismaService,
+    AsyncConversationTurnRepository,
+    AsyncConversationTurnInputRepository,
     InfrastructureRepository,
     ConversationRepository,
     ConversationStateRepository,
@@ -36,6 +40,8 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
   exports: [
     TenantContextService,
     PrismaService,
+    AsyncConversationTurnRepository,
+    AsyncConversationTurnInputRepository,
     InfrastructureRepository,
     ConversationRepository,
     ConversationStateRepository,
