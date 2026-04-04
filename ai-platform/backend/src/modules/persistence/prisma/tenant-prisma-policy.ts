@@ -27,6 +27,8 @@ const TENANT_MODELS = new Set([
   'PromptVersion',
   'TemporalLocaleVersion',
   'Knowledge',
+  'DocumentRecord',
+  'DocumentChunk',
 ]);
 
 export function isTenantScopedModel(model?: string): boolean {

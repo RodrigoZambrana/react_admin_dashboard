@@ -6,6 +6,7 @@ import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
 import { ApiModule } from './modules/api/api.module';
 import { CriticalConfigModule } from './modules/critical-config/critical-config.module';
 import { DecisionModule } from './modules/decision/decision.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { InterpretationModule } from './modules/interpretation/interpretation.module';
 import { InfrastructureModule } from './modules/infrastructure/infrastructure.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
@@ -37,6 +38,7 @@ import { TenantMiddleware } from './modules/persistence/tenant/tenant.middleware
     PromptModule,
     CriticalConfigModule,
     KnowledgeMetadataModule,
+    DocumentsModule,
     AiGatewayModule,
     InterpretationModule,
     ParsingModule,

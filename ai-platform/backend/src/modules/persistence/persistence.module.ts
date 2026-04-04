@@ -7,6 +7,8 @@ import { ChatLogRepository } from './repositories/chat-log.repository';
 import { ConversationRepository } from './repositories/conversation.repository';
 import { ConversationStateRepository } from './repositories/conversation-state.repository';
 import { CriticalConfigVersionRepository } from './repositories/critical-config-version.repository';
+import { DocumentChunkRepository } from './repositories/document-chunk.repository';
+import { DocumentRepository } from './repositories/document.repository';
 import { InfrastructureRepository } from './repositories/infrastructure.repository';
 import { KnowledgeRepository } from './repositories/knowledge.repository';
 import { KnowledgeMetadataVersionRepository } from './repositories/knowledge-metadata-version.repository';
@@ -30,6 +32,8 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     ConversationRepository,
     ConversationStateRepository,
     CriticalConfigVersionRepository,
+    DocumentRepository,
+    DocumentChunkRepository,
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,
@@ -46,6 +50,8 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
     ConversationRepository,
     ConversationStateRepository,
     CriticalConfigVersionRepository,
+    DocumentRepository,
+    DocumentChunkRepository,
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,

@@ -1830,3 +1830,32 @@
   - E2E
   - broader production hardening
 - Carry the remaining non-core conversational debt into Wave 9 only if it materially affects rollout safety; do not reopen the booking stabilization work unless new exploratory evidence justifies it
+
+## Iteration 56
+
+### Implemented
+- Started the document-operations product phase by introducing a governed backend document domain:
+  - new persisted `DocumentRecord` and `DocumentChunk` models now exist behind tenant-safe repositories
+  - document lifecycle and ingestion status are modeled explicitly instead of piggybacking on runtime-learned knowledge records
+  - a dedicated documents module now owns extraction, ingestion, chunking, and retrieval-oriented domain contracts
+- Added admin-ready backend contracts for operator document management:
+  - text document creation
+  - file upload creation
+  - list/detail access
+  - explicit ingest / activate / archive actions
+  - domain validation and operator-safe defaults stay backend-owned
+
+### Working
+- The backend can now persist and manage document-origin records independently from learned chat knowledge
+- Tenant-safe persistence architecture now covers the document corpus as a first-class governed domain
+- Admin/backend contracts for document create/list/detail/lifecycle flows are live and covered by targeted backend tests
+
+### Technical Debt
+- This milestone only lands the backend document domain and admin-ready contracts; live conversational retrieval is not yet wired into the response path at this point in the phase
+- The admin UI still lacks a productized document ABM surface until the next milestone lands
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+
+### Next Steps
+- Build the operator-facing document ABM inside the existing DreamsChat admin shell
+- Wire document-origin retrieval into the conversational path while keeping runtime-learned knowledge out of the active document-answering corpus
+- Close the phase by validating combined document + booking behavior on the live OpenAI runtime

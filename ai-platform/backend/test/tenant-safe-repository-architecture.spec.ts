@@ -6,6 +6,10 @@ const conversationStateRepositoryPath =
   '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/persistence/repositories/conversation-state.repository.ts';
 const knowledgeRepositoryPath =
   '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/persistence/repositories/knowledge.repository.ts';
+const documentRepositoryPath =
+  '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/persistence/repositories/document.repository.ts';
+const documentChunkRepositoryPath =
+  '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/persistence/repositories/document-chunk.repository.ts';
 
 describe('tenant-safe repository architecture', () => {
   it('keeps tenant-scoped async turn writes on updateMany plus scoped reads', () => {
@@ -28,5 +32,20 @@ describe('tenant-safe repository architecture', () => {
 
     expect(source).toContain('knowledge.updateMany(');
     expect(source).not.toContain('knowledge.update(');
+  });
+
+  it('keeps document lifecycle updates on updateMany plus scoped reads', () => {
+    const source = readFileSync(documentRepositoryPath, 'utf8');
+
+    expect(source).toContain('documentRecord.updateMany(');
+    expect(source).not.toContain('documentRecord.update(');
+  });
+
+  it('replaces document chunks through tenant-scoped deleteMany/createMany operations', () => {
+    const source = readFileSync(documentChunkRepositoryPath, 'utf8');
+
+    expect(source).toContain('documentChunk.deleteMany(');
+    expect(source).toContain('documentChunk.createMany(');
+    expect(source).not.toContain('documentChunk.update(');
   });
 });

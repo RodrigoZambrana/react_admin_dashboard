@@ -37,6 +37,18 @@ enum AsyncConversationTurnStatus {
   FAILED
 }
 
+enum DocumentOriginKind {
+  TEXT
+  UPLOAD
+}
+
+enum DocumentIngestionStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
 model Conversation {
   id          String    @id @default(cuid())
   tenantId    String
@@ -191,6 +203,45 @@ model Knowledge {
   createdAt   DateTime          @default(now())
 
   @@index([tenantId, category, createdAt])
+}
+
+model DocumentRecord {
+  id              String                  @id @default(cuid())
+  tenantId        String
+  title           String
+  status          ManagedResourceStatus   @default(DRAFT)
+  ingestionStatus DocumentIngestionStatus @default(PENDING)
+  originKind      DocumentOriginKind
+  sourceName      String?
+  mimeType        String?
+  language        String?
+  sourceText      String
+  summary         String?
+  chunkCount      Int                     @default(0)
+  lastIngestedAt  DateTime?
+  lastError       String?
+  metadata        Json?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  chunks          DocumentChunk[]
+
+  @@index([tenantId, status, createdAt])
+  @@index([tenantId, ingestionStatus, createdAt])
+}
+
+model DocumentChunk {
+  id         String         @id @default(cuid())
+  tenantId   String
+  documentId String
+  sequence   Int
+  content    String
+  searchText String
+  metadata   Json?
+  createdAt  DateTime       @default(now())
+  document   DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, sequence])
+  @@index([tenantId, documentId, sequence])
 }
 
 model AsyncConversationTurn {
