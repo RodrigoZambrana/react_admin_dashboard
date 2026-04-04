@@ -225,8 +225,8 @@
 - Waves 1 through 7 are closed on this branch
 - Wave 8 is now phased on this branch:
   - Wave 8.0, `Gateway Structural Cleanup For User Chat Readiness`, is closed
-  - Wave 8.1, `Async Turn Intake, Cancellation, And Presence Foundation`, is the next delivery phase
-  - Wave 8.2, `User Chat Product UI`, remains gated on the async capability from Wave 8.1
+  - Wave 8.1, `Async Turn Intake, Cancellation, And Presence Foundation`, is closed
+  - Wave 8.2, `User Chat Product UI`, is now the next delivery phase and remains gated on the async foundation already landed in Wave 8.1
 - The gateway-specific prerequisite is now absorbed:
   - provider registration/resolution no longer lives inline in `AiGatewayService`
   - prompt/protocol assembly no longer lives inline in `AiGatewayService`
@@ -235,7 +235,13 @@
   - policy/editorial prompt instructions can later become governed/admin-editable behind managed resources
   - `AiPromptAssemblyService` is now the correct boundary for that future split, but the split itself is not a blocker for Wave 8.1
   - code-owned fallback protocol behavior must continue to exist even if governed prompt policy becomes editable later
-- The remaining explicit prerequisite before public chat rollout is the async turn-intake / cancellation / typing capability mined from legacy user-chat behavior
+- The legacy-backed async prerequisite before public chat rollout is now absorbed into the backend:
+  - async intake accepts and coalesces inbound messages before semantic-turn closure
+  - pending reply projection can be superseded by newer inbound input
+  - explicit queued / processing / awaiting-reply / completed session state is now available for future user-chat presence UX
+- Carried technical debt remains explicit before full public-chat rollout:
+  - `AsyncTurnTimingPolicyService` still uses inline heuristics for stabilization and reply-delay timing
+  - supersession currently invalidates stale reply projection, but it does not yet abort an already-running model/tool call once processing has started
 - Wave 9 remains the centralized QA, security, roles, E2E, and production-hardening wave; Wave 7 now provides concrete operator workflows and regression journeys for that later hardening work
 
 ### Wave 2: Live Tool Execution
@@ -336,9 +342,13 @@
   - removes provider registry branching and prompt/protocol scaffolding concentration from `AiGatewayService`
   - preserves the live `/chat/message` contract while preparing the backend for async intake and public-chat delivery
 - Wave 8.1: Async Turn Intake, Cancellation, And Presence Foundation
-  - next phase
-  - must land before or within public chat rollout
-  - carries forward the legacy-backed requirement for realistic wait, pending-turn cancellation, and typing / awaiting-reply presence
+  - closed on this branch
+  - adds persisted semantic-turn intake, coalescing, additive async acceptance/session-sync contracts, delayed reply projection, and supersession of pending replies before public chat delivery
+  - preserves the canonical backend pipeline after semantic-turn closure:
+    `input -> interpretation -> parsing -> decision -> execution -> response -> logging`
+  - carries explicit non-blocking debt:
+    - inline timing heuristics remain in `AsyncTurnTimingPolicyService`
+    - supersession prevents stale reply emission but does not yet abort already-running model/tool work
   - must not expand the still-carried prompt-governance debt in `AiPromptAssemblyService`; structural protocol contract remains backend-owned while editable policy wording stays a later prioritization item
 - Wave 8.2: User Chat Product UI
   - depends on Waves 1 through 7 plus Wave 8.1
@@ -379,6 +389,14 @@ Canonical stage model for the final pipeline:
 - learning
 
 Current live interactions already persist `input`, `interpretation`, `parsing`, `decision`, `execution`, `response`, and `logging` in the synchronous request path. `learning` is now active as an asynchronous backend-owned stage triggered only from persisted `logging` records, so knowledge extraction never depends on transient orchestration state or model-owned callbacks.
+
+Wave 8.1 adds additive async observability around that canonical pipeline for future user-chat delivery:
+
+- `async_intake`
+- `async_turn`
+- `reply_projection`
+
+These stages wrap semantic-turn acceptance, coalescing, supersession, delayed reply projection, and presence-facing session state without changing the canonical execution pipeline that runs only after semantic-turn closure.
 
 Each active stage emits structured records with trace id, tenant id, duration, outcome, and payload summary.
 

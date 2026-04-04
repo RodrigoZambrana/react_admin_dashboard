@@ -1353,3 +1353,47 @@
 - Run the Wave 8.1 hardcode/scope audit on the touched async intake path, especially timing heuristics and any new runtime wording/presence assumptions
 - Add any remaining architecture-level regression coverage needed for tenant safety and stage-separation guarantees in the async path
 - Close Wave 8.1 with final documentation showing how the async intake foundation now gates Wave 8.2 user chat UI and feeds later Wave 9 hardening
+
+## Iteration 44
+
+### Implemented
+- Ran the Wave 8.1 closeout audit over the touched async path, checking:
+  - async turn-intake correctness
+  - cancellation/supersession behavior
+  - stage separation and backend-owned control
+  - tenant safety in the new async persistence models
+  - provider/scaffolding hardcoding in the touched runtime path
+  - readiness for Wave 8.2 and later Wave 9 hardening
+- Added architecture-level regression coverage proving:
+  - `AsyncTurnIntakeService` stays on the `SemanticTurnExecutionService` boundary instead of depending on provider/gateway internals directly
+  - the synchronous and async chat paths now share the same semantic-turn execution boundary
+  - additive async controller contracts for message acceptance, session sync, and turn lookup stay explicit through the backend service boundary
+- Updated `architecture.md` so branch reality now reflects:
+  - Wave 8.1 is closed on this branch
+  - Wave 8.2 is the next delivery phase
+  - async observability stages (`async_intake`, `async_turn`, `reply_projection`) now wrap the canonical pipeline for future user chat delivery
+
+### Working
+- Wave 8.1 is now fully closed on this branch
+- Closeout review result:
+  - blockers: none
+  - carried technical debt: present, but non-blocking for Wave 8.2
+- Async intake now provides the required backend foundation for future user chat:
+  - immediate acceptance and queued state
+  - semantic-turn coalescing before pipeline execution
+  - supersession of pending replies when newer input arrives
+  - explicit presence-friendly session state for queued / processing / awaiting-reply / completed
+- Validation passes at closeout:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- `AsyncTurnTimingPolicyService` still contains inline heuristics for stabilization and reply-delay timing; the debt is now explicit and contained to the async intake boundary, but it remains a later hardening target
+- Supersession prevents stale reply emission, but it does not yet abort an already-running model/tool call once processing has started
+- The later prompt-governance split remains carried debt only; structural protocol contracts stay backend-owned while editorial prompt policy remains a later governed-resource concern
+
+### Next Steps
+- Start Wave 8.2, `User Chat Product UI`, on top of the now-closed async intake foundation instead of the synchronous request/response shell
+- Keep exact DreamsChat public-layout replication, presence UX, and future user-facing pending-turn behavior tied to the backend async contracts already landed in Wave 8.1
+- Carry the explicit Wave 8.1 technical debt into Wave 9 centralized hardening so timing heuristics, in-flight cancellation limits, and broader regression/security work are addressed without reopening the platform architecture
