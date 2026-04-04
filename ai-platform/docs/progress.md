@@ -1317,3 +1317,39 @@
 - Add cancellation/supersession behavior for processing and awaiting-reply turns so stale analysis/reply work is invalidated by newer inbound input in the same conversation
 - Activate delayed reply projection and presence-friendly awaiting-reply state using backend-owned timing instead of immediate projection
 - Close Wave 8.1 with a targeted hardcode/scope audit, full async-path validation, and documentation that explicitly gates Wave 8.2 user chat UI on the stabilized async intake foundation
+
+## Iteration 43
+
+### Implemented
+- Added backend-owned supersession for async turns when a newer inbound message arrives after semantic-turn intake has already started
+- Updated async intake to:
+  - supersede `PROCESSING` and `AWAITING_REPLY` turns when a new turn is accepted for the same conversation
+  - clear pending stabilization/projection timers for superseded turns
+  - record explicit `async_turn` and `reply_projection` supersession traces
+  - discard stale reply projection when a superseded turn finishes processing later
+- Activated reply-delay scheduling through `AsyncTurnTimingPolicyService` so async session state can now visibly move through:
+  - `queued`
+  - `processing`
+  - `awaiting_reply`
+  - `completed`
+- Added regression coverage for:
+  - superseding an `AWAITING_REPLY` turn before reply projection
+  - superseding a `PROCESSING` turn before stale reply projection can be queued/emitted
+
+### Working
+- New inbound input now invalidates older pending async turns for the same conversation instead of allowing a stale delayed reply to be projected afterward
+- Async session sync now exposes a real `awaiting_reply` window driven by backend timing rather than immediate post-processing projection
+- Full validation still passes:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- Supersession currently prevents stale reply emission, but it does not yet abort an already-running model/tool call once processing has started; the turn is invalidated at the backend state/projection layer instead of true in-flight cancellation
+- `AsyncTurnTimingPolicyService` still contains inline heuristics for fragment detection and reply-delay estimation; Wave 8.1 closeout still needs the targeted hardcode/scope audit before declaring the phase complete
+- The later prompt-governance split remains intentionally out of scope; structural protocol contracts stay backend-owned while editorial prompt policy remains carried work
+
+### Next Steps
+- Run the Wave 8.1 hardcode/scope audit on the touched async intake path, especially timing heuristics and any new runtime wording/presence assumptions
+- Add any remaining architecture-level regression coverage needed for tenant safety and stage-separation guarantees in the async path
+- Close Wave 8.1 with final documentation showing how the async intake foundation now gates Wave 8.2 user chat UI and feeds later Wave 9 hardening

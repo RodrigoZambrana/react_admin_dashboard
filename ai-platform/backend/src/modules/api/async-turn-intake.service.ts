@@ -95,13 +95,26 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
 
   async acceptMessage(input: AsyncChatMessageDto): Promise<AsyncChatAcceptedResponse> {
     const conversation = await this.resolveConversation(input);
-    const existingTurn = await this.asyncTurnRepository.findLatestStabilizingTurn(
+    const activeTurns = await this.asyncTurnRepository.listActiveTurns(
       conversation.id,
     );
+    const existingTurn =
+      [...activeTurns]
+        .reverse()
+        .find((turn) => turn.status === AsyncConversationTurnStatus.STABILIZING) ??
+      null;
     const acceptedAt = new Date();
     const turn = existingTurn
       ? await this.appendToStabilizingTurn(existingTurn, input)
       : await this.createStabilizingTurn(conversation.id, input, acceptedAt);
+
+    if (!existingTurn) {
+      await this.supersedeActiveTurns({
+        conversationId: conversation.id,
+        activeTurns,
+        supersededByTurnId: turn.id,
+      });
+    }
 
     await this.runWithTurnContext(turn, async () => {
       await this.traceLogService.recordStage({
@@ -288,13 +301,41 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
           },
         ),
       );
-      const processingCompletedAt = new Date();
-      const replyDelayMs = 0;
-      const replyDueAt = new Date(processingCompletedAt);
+      const currentTurn = await this.asyncTurnRepository.findById(turn.id);
 
-      const awaitingReplyTurn = await this.runWithTurnContext(turn, async () => {
+      if (!currentTurn) {
+        return;
+      }
+
+      if (currentTurn.status === AsyncConversationTurnStatus.SUPERSEDED) {
+        await this.runWithTurnContext(currentTurn, async () => {
+          await this.traceLogService.recordStage({
+            conversationId: currentTurn.conversationId,
+            stage: 'reply_projection',
+            status: 'superseded',
+            payload: {
+              turnId: currentTurn.id,
+              supersededByTurnId: currentTurn.supersededByTurnId,
+              replyProjectionStatus: 'discarded_before_queue',
+            },
+          });
+        });
+        return;
+      }
+
+      if (currentTurn.status !== AsyncConversationTurnStatus.PROCESSING) {
+        return;
+      }
+
+      const processingCompletedAt = new Date();
+      const replyDelayMs = this.timingPolicy.estimateReplyDelay(result.response);
+      const replyDueAt = new Date(
+        processingCompletedAt.getTime() + replyDelayMs,
+      );
+
+      const awaitingReplyTurn = await this.runWithTurnContext(currentTurn, async () => {
         const updatedTurn = await this.asyncTurnRepository.markAwaitingReply({
-          turnId: turn.id,
+          turnId: currentTurn.id,
           completedAt: processingCompletedAt,
           replyDueAt,
           replyDelayMs,
@@ -315,11 +356,11 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
         });
 
         await this.traceLogService.recordStage({
-          conversationId: turn.conversationId,
+          conversationId: currentTurn.conversationId,
           stage: 'reply_projection',
           status: 'queued',
           payload: {
-            turnId: turn.id,
+            turnId: currentTurn.id,
             replyDueAt: replyDueAt.toISOString(),
             replyDelayMs,
           },
@@ -415,6 +456,67 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
             errorMessage: error instanceof Error ? error.message : String(error),
           },
         });
+      });
+    }
+  }
+
+  private async supersedeActiveTurns(input: {
+    conversationId: string;
+    activeTurns: AsyncTurnRecord[];
+    supersededByTurnId: string;
+  }) {
+    const candidates = input.activeTurns.filter(
+      (turn) =>
+        turn.id !== input.supersededByTurnId &&
+        turn.status !== AsyncConversationTurnStatus.STABILIZING,
+    );
+
+    if (candidates.length === 0) {
+      return;
+    }
+
+    const supersededAt = new Date();
+
+    for (const turn of candidates) {
+      this.clearTimer(this.stabilizationTimers, turn.id);
+      this.clearTimer(this.projectionTimers, turn.id);
+
+      await this.runWithTurnContext(turn, async () => {
+        await this.asyncTurnRepository.markSuperseded({
+          turnId: turn.id,
+          supersededByTurnId: input.supersededByTurnId,
+          supersededAt,
+          metadata: {
+            source: 'new_inbound_message',
+            previousStatus: turn.status,
+          },
+        });
+        await this.traceLogService.recordStage({
+          conversationId: input.conversationId,
+          stage: 'async_turn',
+          status: 'superseded',
+          payload: {
+            turnId: turn.id,
+            supersededByTurnId: input.supersededByTurnId,
+            previousStatus: turn.status,
+            supersededAt: supersededAt.toISOString(),
+            reason: 'new_inbound_message',
+          },
+        });
+
+        if (turn.status === AsyncConversationTurnStatus.AWAITING_REPLY) {
+          await this.traceLogService.recordStage({
+            conversationId: input.conversationId,
+            stage: 'reply_projection',
+            status: 'superseded',
+            payload: {
+              turnId: turn.id,
+              supersededByTurnId: input.supersededByTurnId,
+              previousStatus: turn.status,
+              supersededAt: supersededAt.toISOString(),
+            },
+          });
+        }
       });
     }
   }
