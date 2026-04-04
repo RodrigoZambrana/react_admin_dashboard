@@ -2024,3 +2024,131 @@
   - future governed evolution of conversation signal catalogs if operational editing ever becomes necessary
   - replacement of the demo product catalog with a real backend-owned catalog source
   - frontend harness work as part of later broader hardening, not this phase
+
+## Iteration 61
+
+### Implemented
+- Added an implementation-planning document for the next conversational/runtime stage in [core-tenant-corpus-implementation-plan.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/core-tenant-corpus-implementation-plan.md):
+  - clarified the split between:
+    - core platform
+    - tenant capability modules
+    - tenant resources
+  - documented that document processing is a core capability, while uploaded document content remains tenant-scoped approved knowledge
+  - documented that the real-message corpus and legacy assets are analysis/regression inputs only and must not become active conversational knowledge
+  - documented that future work must not reintroduce inline regex/vocabulary debt in decisive services
+- Updated [architecture.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/architecture.md) to reference that planning split explicitly so the next implementation starts from the correct SaaS-oriented boundary model
+
+### Working
+- The branch now has one explicit planning source for:
+  - core conversational substrate evolution
+  - tenant capability modularization
+  - tenant resource boundaries
+  - corpus-distillation-based implementation planning
+- Already-closed runtime, document, booking, and conversational-routing work remains the preserved baseline for the next stage
+
+### Technical Debt
+- The platform still needs the actual implementation phase that translates corpus-derived reusable patterns into current core logic and tenant capability boundaries
+- The current demo `get_product` path still remains a temporary product-catalog boundary until a real catalog source is introduced
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Start the next implementation phase from the documented plan rather than from ad hoc prompt tweaks or direct corpus replay fixes
+- Use the real corpus to extract:
+  - reusable core conversational patterns
+  - tenant capability patterns
+  - explicit exclusions for tenant wording/content that must not enter core logic
+- Preserve the already-finished document/advisory/booking behavior, updating it only where the new grounding/closure/core-tenant logic truly requires it
+
+## Iteration 62
+
+### Implemented
+- Closed a focused conversational-reliability phase for grounding fidelity and contextual turn closure:
+  - introduced a backend-owned response grounding boundary with explicit distinction between:
+    - explicit supported fact
+    - partial support / bounded inference
+    - unspecified detail
+  - extended approved response context so document-backed responses now carry structured grounding metadata instead of relying only on raw summaries
+  - tightened AI response guardrails to reject:
+    - unsupported document-detail claims
+    - partial-detail overclaims when exactness was requested
+    - close-turn replies that reopen the conversation
+- Improved response fallback and retrieval behavior without reopening Wave 9 scope:
+  - document retrieval now prefers the most query-relevant sentence inside matched chunks instead of defaulting to the first sentence
+  - low-score document retrieval now resolves to an honest miss instead of building misleading grounded summaries
+  - combined document + booking fallback drafting now stays concise and honest when the document does not support the requested detail
+  - optional fallback copy now preserves the requested locale family even when runtime-managed response fallback catalogs do not have a locale-specific active version loaded
+- Activated contextual close-turn safely:
+  - continuity state now persists successful `respond` turns as approved actions
+  - backend decisioning can therefore close a gratitude-only turn after a completed document/advisory flow without relying on keyword-only closure rules
+  - close-turn still does not win when fresh request signals or missing fields remain
+
+### Working
+- Full validation passes:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+- Live OpenAI smokes on the async public path now show the targeted behavior:
+  - partial document detail question:
+    - preserves the supported middle ground (`variedad de colores`)
+    - clearly states that exact colors are not specified
+  - document-backed advisory flow:
+    - keeps continuity across turns
+    - answers with grounded recommendation language instead of resetting or jumping to demo product output
+  - combined document + booking flow:
+    - remains honest when the active document corpus does not confirm coverage
+    - still completes the booking flow cleanly
+  - gratitude / closure flow:
+    - no longer resets into a generic help prompt
+    - ends with a short contextual acknowledgment
+
+### Technical Debt
+- Document-backed advisory answers are now safer and more contextual, but retrieval ranking still remains lexical/deterministic and can surface narrower excerpts than an ideal semantic retriever would
+- Some advisory answers can still mention an unspecified detail axis that was inferred from the user goal rather than explicitly asked, which is acceptable for this phase but still worth tightening later if it affects product feel
+- The frontend workspace still lacks a supported automated test harness, so UI validation remains build-only plus backend contract coverage and live smoke checks
+- The demo `get_product` boundary remains temporary architecture until a real product-catalog source exists
+
+### Next Steps
+- Treat this conversational grounding / closure phase as complete and do not broaden it into Wave 9 within this thread
+- Keep Wave 9 as the next step:
+  - centralized QA
+  - security / roles
+  - E2E
+  - broader production hardening
+- Carry only bounded non-blocking debt forward:
+  - stronger document retrieval/ranking when a richer retrieval source is justified
+  - tighter product feel around optional unspecified-detail wording in advisory flows
+  - frontend harness work as part of later broader hardening
+
+## Iteration 63
+
+### Implemented
+- Closed Stage 1 of the current intervention plan by locking the architecture taxonomy between:
+  - core platform
+  - tenant capability modules
+  - tenant resources
+- Added [core-tenant-boundaries.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/core-tenant-boundaries.md) as the explicit boundary reference for:
+  - what belongs to reusable conversational core
+  - what belongs to tenant business capabilities
+  - what belongs to tenant-scoped approved business truth
+- Aligned [architecture.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/architecture.md) and [core-tenant-corpus-implementation-plan.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/core-tenant-corpus-implementation-plan.md) so they now state explicitly that:
+  - document processing is core capability
+  - uploaded document content is tenant-scoped approved knowledge
+  - corpus-derived labels like `quote_request`, `structured_measurements`, and `appointment_scheduling` indicate tenant capability patterns, not proof of core behavior
+  - real corpus remains analysis/regression input only and never active runtime knowledge
+
+### Working
+- The branch now has one consistent documented boundary model for current and upcoming phases without reopening already-closed runtime, document, booking, or continuity work
+- Core vs tenant decisions are now explicitly anchored to architecture docs instead of remaining implicit in prior phase notes
+
+### Technical Debt
+- Stage 2 is still pending in the same intervention plan:
+  - response guardrail still owns stopword-heavy novel-token heuristics in a decisive path
+  - response fallback service still owns compatibility fallback copy that should move into a clearly bounded bootstrap/seed ownership layer
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Close Stage 2 by removing ownership drift from:
+  - response grounding guardrails
+  - response fallback bootstrap compatibility
+- Keep governed fallback catalogs as the primary source of user-facing fallback wording
+- Preserve existing document/advisory/booking behavior while removing inline heuristic/copy ownership from decisive services

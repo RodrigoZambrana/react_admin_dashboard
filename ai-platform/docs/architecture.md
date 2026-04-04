@@ -72,18 +72,79 @@
 - Constraint: may not select tools or business actions
 - Rule: AI is called only from `AiGatewayModule`
 
-## Core vs Tenant Domains
+## Core, Tenant Capability, And Tenant Resource Boundaries
 
-### Core
+The branch now treats the platform as three explicit layers:
 
-- general conversation
-- clarification
+- core platform
+- tenant capability modules
+- tenant resources
 
-### Tenant
+The authoritative boundary lock lives in:
 
-- quotes
-- bookings
-- ecommerce
+- `docs/core-tenant-boundaries.md`
+- `docs/core-tenant-corpus-implementation-plan.md`
+
+### Core Platform
+
+Core is the reusable conversational substrate shared by all tenants.
+
+Core includes:
+
+- conversational substrate
+- continuity
+- grounding
+- source selection
+- contextual closure
+- advisory continuity
+- document continuity
+- observability
+- async intake
+- document-processing capability
+
+Important clarification:
+
+- document processing is core capability
+- document content is not core truth
+- uploaded document content remains tenant-scoped approved knowledge
+- corpus frequency from one tenant never upgrades a business workflow into core runtime behavior
+
+### Tenant Capability Modules
+
+Tenant capability modules are optional business workflows layered on top of the conversational core.
+
+Current examples:
+
+- booking / scheduling
+- quote / measurements
+- product catalog lookup
+- support / post-sale
+
+Important clarification:
+
+- corpus-derived labels such as `quote_request`, `structured_measurements`, and `appointment_scheduling` are tenant capability behavior patterns, not proof of core behavior
+- these modules may be frequent in one tenant corpus without becoming universal platform logic
+
+### Tenant Resources
+
+Tenant resources are tenant-scoped approved sources of business truth.
+
+Examples:
+
+- uploaded documents
+- catalogs
+- pricing
+- payment terms
+- hours
+- references
+- policies
+- other approved tenant-scoped business truth
+
+Important clarification:
+
+- these resources must remain outside core business logic
+- they stay usable only through approved backend-governed boundaries
+- the real corpus is analysis/regression input only and must never become active runtime knowledge
 
 ## Backend Modules
 
@@ -524,6 +585,31 @@ After the document/advisory continuity fix, the branch absorbed one narrow struc
 
 This leaves the platform with clearer multilingual maintainability and less brittle routing growth while still preserving the current high-quality document-grounded conversational behavior.
 
+## Core/Tenant Planning Note
+
+The next conversational implementation stage must follow the explicit planning split documented in [core-tenant-corpus-implementation-plan.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/core-tenant-corpus-implementation-plan.md).
+
+- Core platform includes:
+  - conversational substrate
+  - continuity
+  - grounding
+  - contextual closure
+  - document-processing capability
+- Tenant capability modules include:
+  - booking
+  - quote
+  - structured measurements
+  - product-catalog lookup
+  - support/post-sale
+- Tenant resources include:
+  - uploaded documents
+  - catalogs
+  - pricing
+  - policies
+  - business metadata
+
+Document processing remains a core capability, while uploaded document content remains tenant-scoped approved knowledge. The real-message corpus and legacy assets remain planning inputs for pattern extraction and regression design only; they must not become active conversational knowledge or a shortcut for hardcoding tenant wording into the core runtime.
+
 ## Multi-Tenant Enforcement
 
 - Tenant id enters through HTTP middleware
@@ -572,6 +658,18 @@ The `response` stage persists:
 - provider and model metadata for response generation
 - parsed AI response JSON
 - guardrail outcomes and deterministic fallback reason when fallback was required
+
+Response grounding now distinguishes three backend-owned support modes for document/advisory turns:
+
+- explicit supported fact
+- partial support that allows bounded synthesis but still requires unspecified-detail disclosure when exact data is absent
+- document miss / unsupported detail, which must stay honest and concise instead of inventing coverage, pricing, materials, or purchase facts
+
+Contextual `close_turn` is also now backend-owned and state-aware:
+
+- it depends on prior approved flow completion, missing-field state, and fresh-request signals
+- it is not triggered by gratitude keywords alone
+- the response layer may acknowledge closure briefly, but guardrails reject close-turn outputs that reopen the conversation with a fresh help prompt
 
 The `learning` stage persists:
 
