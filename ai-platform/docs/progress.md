@@ -1644,3 +1644,38 @@
   - E2E
   - production hardening
 - Keep Wave 9 focused on hardening, not on reopening the structural prompt/runtime work completed here
+
+## Iteration 51
+
+### Implemented
+- Aligned the exploratory AI runtime bootstrap/default path with real OpenAI use:
+  - when `OPENAI_API_KEY` exists and no governed `ai_runtime` is active, runtime now resolves to `openai` with recommended defaults instead of silently defaulting to `mock`
+  - explicit governed `ai_runtime` config still wins unchanged
+  - env/bootstrap and runtime fallback resolution now share the same backend-owned bootstrap logic
+- Tightened runtime observability for exploratory operation:
+  - AI runtime diagnostics now distinguish managed/bootstrap/fallback sources
+  - diagnostics now expose exploratory readiness separately from generic runtime availability
+  - infrastructure readiness now includes AI runtime operability instead of only infrastructure/table checks
+- Reduced critical admin ambiguity on the exploratory path:
+  - the structured `ai_runtime` editor now defaults to `OPENAI_API_KEY`
+  - critical-config status copy now reflects exploratory readiness more honestly
+
+### Working
+- The default exploratory path no longer drifts to `mock` when `OPENAI_API_KEY` is present and there is no explicit override
+- Managed `ai_runtime` versions still retain precedence over env/bootstrap defaults
+- `/health/ready` now reports `not_ready` when the platform is only on mock/fallback or has invalid AI runtime config, and `ready` when infrastructure plus exploratory AI runtime are both usable
+- Targeted validation for the bootstrap/diagnostic/readiness slice passes:
+  - `npm test --workspace backend -- --runInBand runtime-config.service.spec.ts ai-runtime-diagnostics.service.spec.ts infrastructure.service.spec.ts env-critical-config.seed-source.spec.ts`
+  - `npm run build --workspace backend`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- This milestone does not yet prove end-to-end live OpenAI conversation on the running backend; the operational smoke is still the remaining closeout step for Wave 8.3
+- Async supersession is materially safer, but already-started downstream work still depends on provider/tool cooperation to honor abort promptly
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+- Some non-critical admin domains still contain broader UX debt outside the exploratory core paths targeted in Wave 8.3
+
+### Next Steps
+- Run a real exploratory smoke against the live backend/public async chat path using the existing runtime environment and confirm OpenAI-backed operation at a high level
+- If the live smoke succeeds, update architecture/progress docs to mark Wave 8.3 fully closed and position Wave 9 as the next step
+- Keep remaining debt bounded to non-core hardening items that can safely move into Wave 9

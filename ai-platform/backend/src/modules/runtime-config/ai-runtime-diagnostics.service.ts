@@ -20,12 +20,26 @@ export class AiRuntimeDiagnosticsService {
     const providerRegistered = this.providerRegistry.resolve(config.provider) !== null;
     const issues: AiRuntimeDiagnosticIssue[] = [];
 
+    if (config.source.type === 'bootstrap') {
+      issues.push({
+        code:
+          config.source.reason === 'env_provider_override'
+            ? 'using_env_override'
+            : 'using_bootstrap_default',
+        severity: 'warning',
+        message:
+          config.source.reason === 'env_provider_override'
+            ? 'No governed ai_runtime resource is active. The platform is using env bootstrap overrides for provider resolution.'
+            : 'No governed ai_runtime resource is active. The platform is using exploratory OpenAI defaults from OPENAI_API_KEY.',
+      });
+    }
+
     if (config.source.type === 'fallback') {
       issues.push({
         code: 'missing_managed_resource',
         severity: 'warning',
         message:
-          'No governed ai_runtime resource is active. The platform is using the safe fallback runtime.',
+          'No governed ai_runtime resource is active and no exploratory OpenAI bootstrap is available. The platform is using the mock fallback runtime.',
       });
     }
 
@@ -62,20 +76,28 @@ export class AiRuntimeDiagnosticsService {
       });
     }
 
+    if (config.provider === 'mock') {
+      issues.push({
+        code: 'mock_runtime_active',
+        severity: 'warning',
+        message:
+          'The active AI runtime is using the mock provider. Real exploratory AI is not enabled.',
+      });
+    }
+
     const hasErrors = issues.some((issue) => issue.severity === 'error');
+    const canUseRuntime = providerRegistered && !hasErrors;
+    const exploratoryReady = canUseRuntime && config.provider !== 'mock';
+    const status = hasErrors ? 'invalid' : exploratoryReady ? 'ready' : 'fallback';
 
     return {
       provider: config.provider,
       model: config.model ?? null,
       timeoutMs: config.timeoutMs ?? null,
       source: config.source,
-      status:
-        config.source.type === 'fallback'
-          ? 'fallback'
-          : hasErrors
-            ? 'invalid'
-            : 'ready',
-      canUseRuntime: config.source.type === 'managed' && !hasErrors,
+      status,
+      canUseRuntime,
+      exploratoryReady,
       providerRegistered,
       supportedProviders,
       credentials: {

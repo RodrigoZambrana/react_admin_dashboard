@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { CriticalConfigService } from '../critical-config/critical-config.service';
+import { resolveAiRuntimeBootstrap } from './ai-runtime-bootstrap';
 import {
   AiGatewayConfig,
   SecurityPreparationConfig,
@@ -22,20 +23,17 @@ export class RuntimeConfigService {
     const value = managedConfig?.value;
 
     if (!value) {
+      const bootstrap = resolveAiRuntimeBootstrap((key) =>
+        this.readOptionalString(key),
+      );
+
       return {
-        provider: 'mock',
-        model: 'mock-rule-engine',
-        timeoutMs: 1000,
-        credentials: {
-          strategy: 'none',
-          envKey: null,
-          value: null,
-        },
-        providerOptions: {},
-        source: {
-          type: 'fallback',
-          reason: 'missing_managed_resource',
-        },
+        provider: bootstrap.resource.provider,
+        model: bootstrap.resource.model,
+        timeoutMs: bootstrap.resource.timeoutMs,
+        credentials: this.resolveCredentials(bootstrap.resource.credentials),
+        providerOptions: bootstrap.resource.providerOptions ?? {},
+        source: bootstrap.source,
       };
     }
 

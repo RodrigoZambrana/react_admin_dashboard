@@ -8,6 +8,7 @@ import { ConversationRepository } from '../persistence/repositories/conversation
 import { InfrastructureRepository } from '../persistence/repositories/infrastructure.repository';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
 import { QdrantStoreService } from '../knowledge/qdrant-store.service';
+import { AiRuntimeDiagnosticsService } from '../runtime-config/ai-runtime-diagnostics.service';
 
 const requiredTables = [
   'ChatLog',
@@ -27,14 +28,16 @@ export class InfrastructureService {
     private readonly qdrantStoreService: QdrantStoreService,
     private readonly tenantContext: TenantContextService,
     private readonly logger: PipelineLoggerService,
+    private readonly aiRuntimeDiagnosticsService: AiRuntimeDiagnosticsService,
   ) {}
 
   async getReadiness() {
-    const [databaseOk, tables, redis, qdrant] = await Promise.all([
+    const [databaseOk, tables, redis, qdrant, aiRuntime] = await Promise.all([
       this.infrastructureRepository.pingDatabase(),
       this.infrastructureRepository.listPublicTables(),
       this.memoryService.ping(),
       this.qdrantStoreService.healthCheck(),
+      this.aiRuntimeDiagnosticsService.getDiagnostics(),
     ]);
 
     const tablesOk = requiredTables.every((tableName) =>
@@ -42,10 +45,19 @@ export class InfrastructureService {
         (existingTable) => existingTable.toLowerCase() === tableName.toLowerCase(),
       ),
     );
+    const aiRuntimeStatus = aiRuntime.exploratoryReady
+      ? 'ok'
+      : aiRuntime.status === 'invalid'
+        ? 'error'
+        : 'warning';
 
     const readiness = {
       status:
-        databaseOk && tablesOk && redis.status === 'ok' && qdrant.status === 'ok'
+        databaseOk &&
+        tablesOk &&
+        redis.status === 'ok' &&
+        qdrant.status === 'ok' &&
+        aiRuntime.exploratoryReady
           ? 'ready'
           : 'not_ready',
       services: {
@@ -55,6 +67,15 @@ export class InfrastructureService {
         },
         redis,
         qdrant,
+        aiRuntime: {
+          status: aiRuntimeStatus,
+          provider: aiRuntime.provider,
+          model: aiRuntime.model,
+          source: aiRuntime.source,
+          canUseRuntime: aiRuntime.canUseRuntime,
+          exploratoryReady: aiRuntime.exploratoryReady,
+          issues: aiRuntime.issues,
+        },
       },
     };
 

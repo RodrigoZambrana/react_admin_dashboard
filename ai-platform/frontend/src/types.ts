@@ -129,11 +129,16 @@ export type AiRuntimeDiagnostics = {
         version: number | null;
       }
     | {
+        type: 'bootstrap';
+        reason: 'env_openai_exploratory_default' | 'env_provider_override';
+      }
+    | {
         type: 'fallback';
         reason: 'missing_managed_resource';
       };
   status: 'ready' | 'invalid' | 'fallback';
   canUseRuntime: boolean;
+  exploratoryReady: boolean;
   providerRegistered: boolean;
   supportedProviders: string[];
   credentials: {

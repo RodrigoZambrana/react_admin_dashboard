@@ -38,7 +38,7 @@ function buildDefaultConfigValue(
       timeoutMs: 7000,
       credentials: {
         strategy: 'env',
-        envKey: 'AI_PROVIDER_API_KEY',
+        envKey: 'OPENAI_API_KEY',
       },
       providerOptions: {},
     };
@@ -344,7 +344,7 @@ export function CriticalConfigsPage() {
                 </div>
                 <div className="percentage">
                   <span className="bg-warning">
-                    {aiRuntimeDiagnostics?.canUseRuntime
+                    {aiRuntimeDiagnostics?.exploratoryReady
                       ? `${aiRuntimeDiagnostics.provider} ready`
                       : aiRuntimeDiagnostics?.issues[0]?.message ??
                         'Diagnostics pending'}
@@ -615,8 +615,10 @@ export function CriticalConfigsPage() {
                       <div className="col-12">
                         <div className="alert alert-info custom-react-alert mb-3">
                           Active runtime status: {aiRuntimeDiagnostics?.status ?? 'unknown'}.
+                          {' '}Exploratory mode:{' '}
+                          {aiRuntimeDiagnostics?.exploratoryReady ? 'ready' : 'not ready'}.
                           {' '}Configured env key:{' '}
-                          {form.aiRuntimeDraft.credentials.envKey ?? 'none'}.
+                          {form.aiRuntimeDraft.credentials.envKey ?? 'OPENAI_API_KEY'}.
                         </div>
                       </div>
                     </>

@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { RuntimeManagedResourceSeedSource } from '../runtime-resources/runtime-managed-resource.seed-source';
 import { RuntimeManagedResourceSeed } from '../runtime-resources/runtime-managed-resource.types';
+import { resolveAiRuntimeBootstrap } from '../runtime-config/ai-runtime-bootstrap';
 import {
   AiRuntimeResource,
   AsyncIntakeRuntimeResource,
@@ -63,37 +64,7 @@ export class EnvCriticalConfigSeedSource extends RuntimeManagedResourceSeedSourc
   }
 
   private buildAiRuntimeSeed(): AiRuntimeResource {
-    const provider = this.readOptionalString('AI_PROVIDER')?.toLowerCase() ?? 'mock';
-    const providerEnvKey =
-      this.readOptionalString('AI_PROVIDER_API_KEY_ENV') ??
-      (this.readOptionalString('AI_PROVIDER_API_KEY')
-        ? 'AI_PROVIDER_API_KEY'
-        : provider === 'openai' && this.readOptionalString('OPENAI_API_KEY')
-          ? 'OPENAI_API_KEY'
-          : null);
-    const baseUrl =
-      this.readOptionalString('AI_PROVIDER_BASE_URL') ??
-      this.readOptionalString('OPENAI_BASE_URL');
-
-    return {
-      provider,
-      model:
-        this.readOptionalString('AI_MODEL') ??
-        this.readOptionalString('OPENAI_MODEL') ??
-        'gpt-4o-mini',
-      timeoutMs: this.readPositiveNumber('AI_TIMEOUT_MS', 10000),
-      credentials:
-        provider === 'mock'
-          ? {
-              strategy: 'none',
-              envKey: null,
-            }
-          : {
-              strategy: 'env',
-              envKey: providerEnvKey,
-            },
-      providerOptions: baseUrl ? { baseUrl } : {},
-    };
+    return resolveAiRuntimeBootstrap((key) => this.readOptionalString(key)).resource;
   }
 
   private buildLearningSeed(): LearningRuntimeResource {
