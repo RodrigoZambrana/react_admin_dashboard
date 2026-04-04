@@ -6,6 +6,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { ChatTestCenterPage } from './pages/ChatTestCenterPage';
 import { CriticalConfigsPage } from './pages/CriticalConfigsPage';
 import { DateTimeLocaleResourcesPage } from './pages/DateTimeLocaleResourcesPage';
+import { DocumentsPage } from './pages/DocumentsPage';
 import { KnowledgeCenterPage } from './pages/KnowledgeCenterPage';
 import { KnowledgeMetadataPage } from './pages/KnowledgeMetadataPage';
 import { PromptsPage } from './pages/PromptsPage';
@@ -15,6 +16,7 @@ type RouteKey =
   | 'dashboard'
   | 'chat-test-center'
   | 'knowledge-center'
+  | 'documents'
   | 'prompts'
   | 'date-time-locale-resources'
   | 'critical-configs'
@@ -25,6 +27,7 @@ const routeLabels: Record<RouteKey, string> = {
   dashboard: 'Operations Dashboard',
   'chat-test-center': 'Chat Test Center',
   'knowledge-center': 'Knowledge Center',
+  documents: 'Documents',
   prompts: 'Prompts',
   'date-time-locale-resources': 'Date-time locale resources',
   'critical-configs': 'Critical configs',
@@ -50,6 +53,12 @@ const navigationItems: AdminNavigationItem[] = [
     label: 'Knowledge Center',
     icon: 'ti ti-brain',
     href: '#knowledge-center',
+  },
+  {
+    key: 'documents',
+    label: 'Documents',
+    icon: 'ti ti-file-search',
+    href: '#documents',
   },
   {
     key: 'prompts',
@@ -128,6 +137,7 @@ export function AdminApp() {
         {route === 'dashboard' ? <DashboardPage /> : null}
         {route === 'chat-test-center' ? <ChatTestCenterPage /> : null}
         {route === 'knowledge-center' ? <KnowledgeCenterPage /> : null}
+        {route === 'documents' ? <DocumentsPage /> : null}
         {route === 'prompts' ? <PromptsPage /> : null}
         {route === 'date-time-locale-resources' ? (
           <DateTimeLocaleResourcesPage />

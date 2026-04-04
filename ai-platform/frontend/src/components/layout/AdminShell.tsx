@@ -216,6 +216,9 @@ export function AdminShell({
               <a className="dropdown-item" href="#knowledge-center">
                 Knowledge Center
               </a>
+              <a className="dropdown-item" href="#documents">
+                Documents
+              </a>
               <a className="dropdown-item" href="#prompts">
                 Prompts
               </a>
@@ -259,6 +262,12 @@ export function AdminShell({
                   <a href="#knowledge-center">
                     <i className="ti ti-brain"></i>
                     <span>Knowledge workflows</span>
+                  </a>
+                </li>
+                <li>
+                  <a href="#documents">
+                    <i className="ti ti-file-search"></i>
+                    <span>Document corpus</span>
                   </a>
                 </li>
                 <li>

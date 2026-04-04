@@ -86,7 +86,7 @@ export function KnowledgeCenterPage() {
       <PageHeader
         title="Knowledge Center"
         section="Governed Knowledge Workflows"
-        description="Inspect learned knowledge, review active knowledge metadata policy, and trace how governed learning is shaping reusable tenant context."
+        description="Inspect runtime-learned knowledge, review active knowledge metadata policy, and keep it visibly separate from the document-origin corpus managed in Documents."
       />
 
       {error ? (
@@ -258,9 +258,14 @@ export function KnowledgeCenterPage() {
           <div className="card flex-fill">
             <div className="card-header d-flex align-items-center justify-content-between">
               <h5 className="mb-0">Knowledge detail</h5>
-              <a href="#knowledge-metadata" className="btn btn-light btn-sm">
+              <div className="d-flex gap-2">
+                <a href="#documents" className="btn btn-light btn-sm">
+                  <i className="ti ti-file-search me-1"></i>Open documents
+                </a>
+                <a href="#knowledge-metadata" className="btn btn-light btn-sm">
                 <i className="ti ti-settings me-1"></i>Open metadata operations
-              </a>
+                </a>
+              </div>
             </div>
             <div className="card-body">
               {selectedEntry ? (

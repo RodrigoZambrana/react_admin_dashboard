@@ -8,6 +8,7 @@ import type {
   ConversationMessage,
   ConversationSummary,
   CriticalConfigVersion,
+  DocumentRecord,
   KnowledgeEntry,
   KnowledgeMetadataVersion,
   PromptVersion,
@@ -57,7 +58,7 @@ export async function apiRequest<T>(
   const response = await fetch(`${apiBaseUrl}${path}`, {
     headers: {
       Accept: 'application/json',
-      'content-type': isJsonBody ? 'application/json' : 'application/json',
+      ...(init?.body instanceof FormData ? {} : { 'content-type': 'application/json' }),
       'x-tenant-id': tenantId,
       ...(init?.headers ?? {}),
     },
@@ -333,6 +334,101 @@ export async function listKnowledge(limit = 40, category?: string) {
 
 export async function getKnowledge(knowledgeId: string) {
   return apiRequest<KnowledgeEntry>(`/admin/knowledge/${knowledgeId}`);
+}
+
+export async function listDocuments(input?: {
+  status?: string;
+  ingestionStatus?: string;
+  limit?: number;
+}) {
+  const search = new URLSearchParams();
+
+  search.set('limit', String(input?.limit ?? 50));
+
+  if (input?.status) {
+    search.set('status', input.status);
+  }
+
+  if (input?.ingestionStatus) {
+    search.set('ingestionStatus', input.ingestionStatus);
+  }
+
+  return apiRequest<DocumentRecord[]>(`/admin/documents?${search.toString()}`);
+}
+
+export async function getDocument(documentId: string) {
+  return apiRequest<DocumentRecord>(`/admin/documents/${documentId}`);
+}
+
+export async function createTextDocument(input: {
+  title: string;
+  content: string;
+  language?: string;
+  createdBy?: string;
+  activate?: boolean;
+}) {
+  return apiRequest<DocumentRecord>('/admin/documents/text', {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export async function uploadDocument(input: {
+  file: File;
+  title?: string;
+  language?: string;
+  createdBy?: string;
+  activate?: boolean;
+}) {
+  const body = new FormData();
+  body.set('file', input.file);
+
+  if (input.title) {
+    body.set('title', input.title);
+  }
+
+  if (input.language) {
+    body.set('language', input.language);
+  }
+
+  if (input.createdBy) {
+    body.set('createdBy', input.createdBy);
+  }
+
+  body.set('activate', String(input.activate ?? true));
+
+  return apiRequest<DocumentRecord>('/admin/documents/upload', {
+    method: 'POST',
+    body,
+  });
+}
+
+export async function ingestDocument(documentId: string, input?: {
+  activate?: boolean;
+  createdBy?: string;
+}) {
+  return apiRequest<DocumentRecord>(`/admin/documents/${documentId}/ingest`, {
+    method: 'POST',
+    body: input ?? {},
+  });
+}
+
+export async function activateDocument(documentId: string, createdBy = 'admin-ui') {
+  return apiRequest<DocumentRecord>(`/admin/documents/${documentId}/activate`, {
+    method: 'POST',
+    body: {
+      createdBy,
+    },
+  });
+}
+
+export async function archiveDocument(documentId: string, createdBy = 'admin-ui') {
+  return apiRequest<DocumentRecord>(`/admin/documents/${documentId}/archive`, {
+    method: 'POST',
+    body: {
+      createdBy,
+    },
+  });
 }
 
 export async function listTestCenterRuns(limit = 20) {

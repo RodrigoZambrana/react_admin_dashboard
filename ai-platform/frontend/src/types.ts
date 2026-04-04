@@ -1,4 +1,6 @@
 export type ManagedResourceStatus = 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
+export type DocumentIngestionStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
+export type DocumentOriginKind = 'TEXT' | 'UPLOAD';
 
 export type ConversationSummary = {
   id: string;
@@ -207,6 +209,36 @@ export type KnowledgeEntry = {
   embeddingId?: string | null;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
+};
+
+export type DocumentChunk = {
+  id: string;
+  documentId: string;
+  sequence: number;
+  content: string;
+  searchText: string;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export type DocumentRecord = {
+  id: string;
+  title: string;
+  status: ManagedResourceStatus;
+  ingestionStatus: DocumentIngestionStatus;
+  originKind: DocumentOriginKind;
+  sourceName?: string | null;
+  mimeType?: string | null;
+  language?: string | null;
+  sourceText: string;
+  summary?: string | null;
+  chunkCount: number;
+  lastIngestedAt?: string | null;
+  lastError?: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  updatedAt: string;
+  chunks: DocumentChunk[];
 };
 
 export type ConversationStateSummary = {

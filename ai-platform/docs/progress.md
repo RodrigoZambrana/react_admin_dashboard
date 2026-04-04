@@ -1859,3 +1859,30 @@
 - Build the operator-facing document ABM inside the existing DreamsChat admin shell
 - Wire document-origin retrieval into the conversational path while keeping runtime-learned knowledge out of the active document-answering corpus
 - Close the phase by validating combined document + booking behavior on the live OpenAI runtime
+
+## Iteration 57
+
+### Implemented
+- Built the operator-facing document ABM inside the existing exact DreamsChat admin shell:
+  - document inventory with status and ingestion filters
+  - document detail inspection with origin metadata and chunk visibility
+  - text-document creation
+  - file upload creation
+  - explicit ingest / activate / archive actions
+- Updated admin information architecture so document-origin operations are visible as a first-class operator domain rather than hidden inside learned knowledge screens
+- Kept the Knowledge Center wording explicit that document-origin knowledge and runtime-learned chat patterns are distinct operational surfaces
+
+### Working
+- Operators can now manage documents through the product UI instead of filesystem or developer-only flows
+- The document page runs through real backend contracts for list/detail/create/lifecycle actions
+- The exact DreamsChat admin shell/layout remains intact while exposing the new document-management domain
+
+### Technical Debt
+- This milestone productizes document administration, but the active conversational retrieval path is still being wired in the next milestone
+- Some document inputs still rely on freeform text/file content rather than richer structured authoring, which is acceptable for this product phase but not final admin ergonomics
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+
+### Next Steps
+- Connect document-origin retrieval to the conversational response path while keeping runtime-learned knowledge out of active document answering
+- Finish the combined retrieval + booking behavior on the public async chat path
+- Run full validation and real OpenAI-backed smokes before closing the phase
