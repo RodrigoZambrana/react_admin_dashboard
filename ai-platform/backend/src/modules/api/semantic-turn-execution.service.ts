@@ -7,6 +7,8 @@ import {
   ConversationStateSnapshot,
 } from '../continuity/continuity.types';
 import { DecisionService } from '../decision/decision.service';
+import { DocumentRetrievalAttempt } from '../documents/document.types';
+import { DocumentRetrievalService } from '../documents/document-retrieval.service';
 import { InterpretationService } from '../interpretation/interpretation.service';
 import { MemoryService } from '../memory/memory.service';
 import { ParsedInterpretation, ParsingService } from '../parsing/parsing.service';
@@ -29,6 +31,7 @@ export class SemanticTurnExecutionService {
     private readonly continuityService: ConversationContinuityService,
     private readonly decisionService: DecisionService,
     private readonly toolExecutionService: ToolExecutionService,
+    private readonly documentRetrievalService: DocumentRetrievalService,
     private readonly chatResponseService: ChatResponseService,
     private readonly memoryService: MemoryService,
     private readonly traceLogService: TraceLogService,
@@ -96,6 +99,12 @@ export class SemanticTurnExecutionService {
       interpretation: preparedTurn.effectiveInterpretation,
       abortSignal: options?.abortSignal,
     });
+    const documentRetrieval =
+      await this.documentRetrievalService.retrieveForConversation({
+        message: input.message,
+        interpretation: preparedTurn.effectiveInterpretation,
+        decision,
+      });
     throwIfAborted(options?.abortSignal);
     const conversationState = await this.continuityService.persistTurnState({
       conversationId: input.conversationId,
@@ -127,11 +136,27 @@ export class SemanticTurnExecutionService {
       });
     }
 
+    if (documentRetrieval.attempted) {
+      await this.traceLogService.recordStage({
+        conversationId: input.conversationId,
+        stage: 'retrieval',
+        status: documentRetrieval.result ? 'completed' : 'missed',
+        payload: {
+          source: 'document_origin',
+          reason: documentRetrieval.reason,
+          query: documentRetrieval.result?.query ?? null,
+          groundedSummary: documentRetrieval.result?.groundedSummary ?? null,
+          matches: documentRetrieval.result?.matches ?? [],
+        } as Prisma.InputJsonValue,
+      });
+    }
+
     const approvedResponse = await this.chatResponseService.generate({
       message: input.message,
       interpretation: preparedTurn.effectiveInterpretation,
       decision,
       execution,
+      documentContext: documentRetrieval.result,
       continuity: preparedTurn.continuity,
       conversationState,
       abortSignal: options?.abortSignal,
@@ -152,6 +177,7 @@ export class SemanticTurnExecutionService {
         confidence: preparedTurn.effectiveInterpretation.confidence,
         decision,
         execution,
+        documentRetrieval,
         continuity: preparedTurn.continuity,
         conversationState: this.buildConversationStateSummary(conversationState),
         approvedResponseContext: approvedResponse.approvedContext,
@@ -165,6 +191,7 @@ export class SemanticTurnExecutionService {
       interpretation: preparedTurn.effectiveInterpretation,
       decision,
       execution,
+      documentRetrieval,
       continuity: preparedTurn.continuity,
       conversationState,
       approvedResponse,
@@ -288,6 +315,7 @@ export class SemanticTurnExecutionService {
     };
     decision: SemanticTurnExecutionResult['decision'];
     execution: ToolExecutionAttempt | null;
+    documentRetrieval: DocumentRetrievalAttempt;
     continuity: ContinuityMetadata;
     conversationState: ConversationStateSnapshot | null;
     approvedResponse: SemanticTurnExecutionResult['approvedResponse'];
@@ -300,6 +328,7 @@ export class SemanticTurnExecutionService {
       confidence: input.interpretation.confidence,
       decision: input.decision,
       execution: input.execution,
+      documentRetrieval: input.documentRetrieval,
       continuity: input.continuity,
       conversationState: this.buildConversationStateSummary(input.conversationState),
       responseGeneration: input.approvedResponse.generation,

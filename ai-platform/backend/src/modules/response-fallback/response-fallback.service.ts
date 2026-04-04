@@ -10,6 +10,12 @@ import {
   responseFallbackCatalogResourceSchema,
 } from './response-fallback.types';
 
+const optionalTemplateFallbacks: Partial<
+  Record<ResponseFallbackTemplateKey, string>
+> = {
+  document_not_found: 'I could not find relevant information in the active documents.',
+};
+
 @Injectable()
 export class ResponseFallbackService {
   constructor(
@@ -186,7 +192,7 @@ export class ResponseFallbackService {
       );
 
       return {
-        value: catalog.templates[templateKey],
+        value: this.resolveTemplateValue(catalog, templateKey),
         selectedVariantIndex: null as number | null,
       };
     }
@@ -208,9 +214,30 @@ export class ResponseFallbackService {
     );
 
     return {
-      value: configuredVariants[selectedVariantIndex] ?? catalog.templates[templateKey],
+      value:
+        configuredVariants[selectedVariantIndex] ??
+        this.resolveTemplateValue(catalog, templateKey),
       selectedVariantIndex,
     };
+  }
+
+  private resolveTemplateValue(
+    catalog: ResponseFallbackCatalogResource,
+    templateKey: ResponseFallbackTemplateKey,
+  ) {
+    const value = catalog.templates[templateKey];
+
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value;
+    }
+
+    const fallback = optionalTemplateFallbacks[templateKey];
+
+    if (fallback) {
+      return fallback;
+    }
+
+    throw new Error(`Fallback template "${templateKey}" is not configured`);
   }
 
   private computeDeterministicIndex(seed: string, length: number) {

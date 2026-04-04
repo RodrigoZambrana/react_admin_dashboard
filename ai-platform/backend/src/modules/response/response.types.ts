@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { ContinuityMetadata, ConversationStateSnapshot } from '../continuity/continuity.types';
 import type { DecisionResult } from '../decision/decision.types';
+import type { DocumentRetrievalResult } from '../documents/document.types';
 import type { CanonicalIntent } from '../interpretation/interpretation.schemas';
 import type { ParsedInterpretation } from '../parsing/parsing.service';
 import type { ToolExecutionAttempt } from '../tools/tool.types';
@@ -26,6 +27,7 @@ export const aiGeneratedResponseSchema = z.object({
   mentionedMissingFields: z.array(z.string()).default([]),
   mentionedApprovedFactKeys: z.array(z.string()).default([]),
   mentionedApprovedResultKeys: z.array(z.string()).default([]),
+  mentionedDocumentIds: z.array(z.string()).default([]),
 });
 
 export type ApprovedResponseOutcome = z.infer<
@@ -41,7 +43,8 @@ export type ResponseGuardrailCode =
   | 'execution_status_mismatch'
   | 'unsupported_missing_fields'
   | 'unsupported_fact_keys'
-  | 'unsupported_result_keys';
+  | 'unsupported_result_keys'
+  | 'unsupported_document_ids';
 
 export type ResponseGuardrailResult = {
   accepted: boolean;
@@ -93,6 +96,8 @@ export type ApprovedResponseContext = {
   nextUsefulField?: string;
   approvedFactKeys: string[];
   approvedResultKeys: string[];
+  documentContext?: DocumentRetrievalResult;
+  approvedDocumentIds: string[];
 };
 
 export type ApprovedResponseContextInput = {
@@ -102,6 +107,7 @@ export type ApprovedResponseContextInput = {
   execution: ToolExecutionAttempt | null;
   continuity: ContinuityMetadata;
   conversationState: ConversationStateSnapshot | null;
+  documentContext: DocumentRetrievalResult | null;
 };
 
 export type GeneratedChatResponse = {

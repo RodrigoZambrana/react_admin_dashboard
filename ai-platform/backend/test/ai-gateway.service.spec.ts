@@ -182,6 +182,7 @@ describe('AiGatewayService', () => {
           },
           approvedFactKeys: [],
           approvedResultKeys: [],
+          approvedDocumentIds: [],
         },
         approvedDraft: 'Hello, how can I help you?',
       }),

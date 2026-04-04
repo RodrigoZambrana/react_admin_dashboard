@@ -91,6 +91,7 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
         mentionedMissingFields: input.approvedContext.missingFields ?? [],
         mentionedApprovedFactKeys: input.approvedContext.approvedFactKeys,
         mentionedApprovedResultKeys: input.approvedContext.approvedResultKeys,
+        mentionedDocumentIds: input.approvedContext.approvedDocumentIds,
       }),
       model: 'mock-rule-engine',
     };

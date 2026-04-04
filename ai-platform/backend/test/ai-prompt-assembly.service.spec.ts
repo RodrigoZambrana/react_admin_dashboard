@@ -105,6 +105,7 @@ describe('AiPromptAssemblyService', () => {
         },
         approvedFactKeys: [],
         approvedResultKeys: [],
+        approvedDocumentIds: [],
       },
       approvedDraft: 'Hola, como puedo ayudarte?',
     });
@@ -165,6 +166,7 @@ describe('AiPromptAssemblyService', () => {
         },
         approvedFactKeys: [],
         approvedResultKeys: [],
+        approvedDocumentIds: [],
       },
       approvedDraft: 'Hello there.',
     });

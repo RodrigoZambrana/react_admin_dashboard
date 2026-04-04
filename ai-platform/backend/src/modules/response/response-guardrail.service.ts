@@ -53,6 +53,15 @@ export class ResponseGuardrailService {
       reasons.add('unsupported_result_keys');
     }
 
+    if (
+      !this.isSubset(
+        generatedResponse.mentionedDocumentIds,
+        approvedContext.approvedDocumentIds,
+      )
+    ) {
+      reasons.add('unsupported_document_ids');
+    }
+
     return {
       accepted: reasons.size === 0,
       reasons: Array.from(reasons.values()),

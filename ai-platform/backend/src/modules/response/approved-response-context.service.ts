@@ -92,6 +92,12 @@ export class ApprovedResponseContextService {
         input.conversationState?.nextUsefulField ?? input.continuity.nextUsefulField,
       approvedFactKeys: Object.keys(approvedFacts ?? {}),
       approvedResultKeys: Object.keys(lastApprovedResult ?? {}),
+      documentContext: input.documentContext
+        ? this.cloneJson(input.documentContext)
+        : undefined,
+      approvedDocumentIds: input.documentContext?.matches.map(
+        (match) => match.documentId,
+      ) ?? [],
     });
   }
 

@@ -50,6 +50,7 @@ describe('ResponseGuardrailService', () => {
     },
     approvedFactKeys: [],
     approvedResultKeys: ['bookingId', 'scheduledFor', 'status'],
+    approvedDocumentIds: ['doc-1'],
   };
 
   it('accepts grounded AI output that matches backend-approved execution truth', () => {
@@ -63,6 +64,7 @@ describe('ResponseGuardrailService', () => {
           mentionedMissingFields: [],
           mentionedApprovedFactKeys: [],
           mentionedApprovedResultKeys: ['scheduledFor', 'status'],
+          mentionedDocumentIds: ['doc-1'],
         },
       }),
     ).toEqual({
@@ -99,6 +101,7 @@ describe('ResponseGuardrailService', () => {
           mentionedMissingFields: [],
           mentionedApprovedFactKeys: [],
           mentionedApprovedResultKeys: ['bookingId'],
+          mentionedDocumentIds: ['doc-1'],
         },
       }),
     ).toEqual({

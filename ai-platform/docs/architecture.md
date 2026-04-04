@@ -421,6 +421,36 @@ This stabilization pass was validated against the real OpenAI runtime on the liv
 
 That leaves the platform ready for real exploratory booking tests while keeping Wave 9 as the next broader hardening step.
 
+## Post-Wave 8.3 Document Knowledge Operations And Booking Completion
+
+After the exploratory-runtime closeout, the branch absorbed one focused product-capability phase to make document-grounded conversation and booking completion work together without opening Wave 9.
+
+- A governed document domain now exists as a distinct backend-owned resource family:
+  - admin-managed `DocumentRecord` entries own uploaded/text source material, lifecycle, and ingestion state
+  - ingested `DocumentChunk` entries form the active document-origin conversational corpus
+  - operator flows for create/upload/list/detail/ingest/activate/archive run through the admin UI on the existing exact DreamsChat shell rather than filesystem or developer-only shortcuts
+- Knowledge is now explicitly separated into three classes:
+  - document-origin knowledge:
+    - admin-managed
+    - ingested/chunked
+    - the active retrieval corpus for document-grounded conversation
+  - runtime-learned knowledge:
+    - extracted asynchronously from persisted logs for observability and future analysis
+    - not the primary conversational retrieval source for document questions
+  - backend transactional truth:
+    - execution and state facts such as confirmed bookings
+    - remains separate from both document and learned corpora
+- Retrieval source selection remains backend-owned:
+  - semantic-turn execution decides whether document retrieval is relevant for the turn
+  - retrieval runs over the document-origin corpus only
+  - approved document context is injected into the response layer as backend truth; the model may word the answer, but it does not choose the corpus or invent unsupported document facts
+- Combined document + booking flows remain aligned with stage separation:
+  - document grounding enriches approved response context
+  - booking still runs through backend decision and tool execution truth
+  - the final response may synthesize over both approved document context and confirmed booking truth without letting the model decide actions or fabricate requirements
+
+This leaves the platform ready for real exploratory testing of both document-grounded QA and booking completion, while keeping Wave 9 as the next centralized hardening step rather than reopening the core runtime architecture.
+
 ## Multi-Tenant Enforcement
 
 - Tenant id enters through HTTP middleware

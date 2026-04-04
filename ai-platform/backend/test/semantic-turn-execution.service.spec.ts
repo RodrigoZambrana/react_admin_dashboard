@@ -152,6 +152,13 @@ describe('SemanticTurnExecutionService', () => {
       continuityService as any,
       decisionService as any,
       toolExecutionService as any,
+      {
+        retrieveForConversation: jest.fn(async () => ({
+          attempted: false,
+          reason: 'not_requested',
+          result: null,
+        })),
+      } as any,
       chatResponseService as any,
       memoryService as any,
       traceLogService as any,
@@ -254,6 +261,13 @@ describe('SemanticTurnExecutionService', () => {
         executeApprovedAction: jest.fn(async () => null),
       } as any,
       {
+        retrieveForConversation: jest.fn(async () => ({
+          attempted: false,
+          reason: 'not_requested',
+          result: null,
+        })),
+      } as any,
+      {
         generate: jest.fn(async () => ({
           response: 'Queued async response',
           approvedContext: {} as any,
@@ -301,6 +315,179 @@ describe('SemanticTurnExecutionService', () => {
       expect.objectContaining({
         responseGeneration: expect.objectContaining({
           provider: 'mock',
+        }),
+      }),
+    );
+  });
+
+  it('passes approved document retrieval context into the response layer and traces retrieval separately', async () => {
+    const traceLogService = {
+      recordStage: jest.fn(async () => undefined),
+    };
+    const documentContext = {
+      source: 'document_origin' as const,
+      query: 'cambio de cadena cortina roller',
+      groundedSummary:
+        'El documento indica que el cambio de cadena de cortinas roller está cubierto.',
+      matches: [
+        {
+          documentId: 'doc-1',
+          title: 'Coberturas roller',
+          excerpt:
+            'El cambio de cadena de cortinas roller está cubierto dentro del servicio.',
+          sequence: 0,
+          score: 4.2,
+        },
+      ],
+    };
+    const chatResponseService = {
+      generate: jest.fn(async () => ({
+        response:
+          'Según el documento, el cambio de cadena está cubierto. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+        approvedContext: {
+          approvedDocumentIds: ['doc-1'],
+        } as any,
+        approvedDraft:
+          'El documento indica que el cambio de cadena de cortinas roller está cubierto. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+        usedFallback: false,
+        fallbackReason: null,
+        generation: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse: null,
+          parsedJson: null,
+          error: null,
+          guardrails: {
+            accepted: true,
+            issues: [],
+          },
+        },
+      })),
+    };
+
+    const service = new SemanticTurnExecutionService(
+      {
+        getTraceId: () => 'trace-doc-booking',
+      } as any,
+      {
+        appendMessage: jest
+          .fn()
+          .mockResolvedValueOnce({ id: 'msg-user-1' })
+          .mockResolvedValueOnce({ id: 'msg-assistant-1' }),
+      } as any,
+      {
+        interpret: jest.fn(async () => ({
+          interpretation: {
+            intent: 'CREATE_BOOKING',
+            entities: {
+              rawMessage:
+                'Si el documento dice que cubren cambio de cadena, agendame una visita para mañana a las 11.',
+              requestSummary: 'cambio de cadena de cortina roller',
+            },
+            language: 'es',
+            confidence: 0.94,
+          },
+          rawAiResponse: null,
+          parsedJson: null,
+          error: null,
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          usedFallback: false,
+        })),
+      } as any,
+      {
+        normalize: jest.fn(async (interpretation: any) => ({
+          ...interpretation,
+          normalizedEntities: {
+            dates: [
+              {
+                source: 'mañana a las 11',
+                iso: '2026-04-05T11:00:00.000Z',
+                precision: 'datetime',
+              },
+            ],
+            measurements: [],
+            dimensions: [],
+          },
+        })),
+      } as any,
+      {
+        prepareTurn: jest.fn(async ({ interpretation }: any) => ({
+          previousState: null,
+          activeState: null,
+          effectiveInterpretation: interpretation,
+          continuity: {
+            applied: false,
+            activeLane: 'booking',
+            carriedFactKeys: [],
+            invalidatedFactKeys: [],
+            missingFields: [],
+            previousStateSummary: null,
+          },
+        })),
+        persistTurnState: jest.fn(async () => null),
+      } as any,
+      {
+        decide: jest.fn(() => ({
+          domain: 'tenant',
+          action: 'invoke_tool',
+          toolName: 'create_booking',
+          reasonCode: 'booking_requested',
+          missingFields: [],
+          responseTemplateKey: 'tenant.booking.confirmation',
+        })),
+      } as any,
+      {
+        executeApprovedAction: jest.fn(async () => ({
+          ok: true,
+          toolName: 'create_booking',
+          validatedInput: {
+            requestedDateIso: '2026-04-05T11:00:00.000Z',
+          },
+          payload: {
+            bookingId: 'bk_doc_1',
+            scheduledFor: '2026-04-05T11:00:00.000Z',
+            status: 'confirmed',
+          },
+          durationMs: 5,
+        })),
+      } as any,
+      {
+        retrieveForConversation: jest.fn(async () => ({
+          attempted: true,
+          reason: 'combined_booking_document_query',
+          result: documentContext,
+        })),
+      } as any,
+      chatResponseService as any,
+      {
+        getRecent: jest.fn(async () => []),
+        append: jest.fn(async () => undefined),
+      } as any,
+      traceLogService as any,
+    );
+
+    await service.executeClosedTurn({
+      conversationId: 'conv-doc-booking',
+      message:
+        'Si el documento dice que cubren cambio de cadena, agendame una visita para mañana a las 11.',
+      locale: 'es',
+    });
+
+    expect(chatResponseService.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentContext,
+      }),
+    );
+    expect(traceLogService.recordStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'retrieval',
+        status: 'completed',
+        payload: expect.objectContaining({
+          source: 'document_origin',
+          reason: 'combined_booking_document_query',
         }),
       }),
     );

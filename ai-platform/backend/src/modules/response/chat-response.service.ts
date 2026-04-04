@@ -6,6 +6,7 @@ import {
   ConversationStateSnapshot,
 } from '../continuity/continuity.types';
 import { DecisionResult } from '../decision/decision.types';
+import { DocumentRetrievalResult } from '../documents/document.types';
 import { ParsedInterpretation } from '../parsing/parsing.service';
 import { ToolExecutionAttempt } from '../tools/tool.types';
 import { ApprovedResponseContextService } from './approved-response-context.service';
@@ -27,6 +28,7 @@ export class ChatResponseService {
     interpretation: ParsedInterpretation;
     decision: DecisionResult;
     execution: ToolExecutionAttempt | null;
+    documentContext: DocumentRetrievalResult | null;
     continuity: ContinuityMetadata;
     conversationState: ConversationStateSnapshot | null;
     abortSignal?: AbortSignal;
@@ -36,6 +38,7 @@ export class ChatResponseService {
       interpretation: input.interpretation,
       decision: input.decision,
       execution: input.execution,
+      documentContext: input.documentContext,
       continuity: input.continuity ?? {
         applied: false,
         activeLane: null,

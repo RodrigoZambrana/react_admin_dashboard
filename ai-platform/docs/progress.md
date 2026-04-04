@@ -1886,3 +1886,50 @@
 - Connect document-origin retrieval to the conversational response path while keeping runtime-learned knowledge out of active document answering
 - Finish the combined retrieval + booking behavior on the public async chat path
 - Run full validation and real OpenAI-backed smokes before closing the phase
+
+## Iteration 58
+
+### Implemented
+- Closed the `Document Knowledge Operations And Booking Conversation Completion` phase:
+  - semantic-turn execution now performs backend-owned document retrieval when the current turn actually asks about uploaded documents
+  - approved response context now carries document-origin knowledge separately from execution truth and continuity state
+  - response guardrails now validate cited/mentioned document ids against backend-approved document context
+  - runtime-learned chat knowledge remains persisted for observability and future analysis, but is no longer the active conversational retrieval corpus for document questions
+- Completed the combined document + booking path:
+  - document-aware prompts and response policy now allow grounded synthesis over approved document context plus booking execution truth
+  - combined requests such as asking whether a service is covered and then booking in the same turn now complete without collapsing into generic unsupported clarification
+- Kept the booking path grounded:
+  - realistic booking requests continue to converge without unsupported asks such as appointment type or objective
+  - combined document + booking handling preserves the existing async public-chat stability
+
+### Working
+- Full validation passes for the branch state:
+  - `npm run prisma:migrate:deploy --workspace backend`
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+- Real OpenAI-backed exploratory smokes now pass on the live async public path:
+  - document question:
+    - `¿Qué dice el documento sobre el cambio de cadena de una roller?`
+    - answered from approved document-origin context, not from runtime-learned knowledge
+  - direct booking:
+    - `Necesito agendar una visita para mañana a las 11 para cambiar la cadena de una cortina roller.`
+    - completed with booking confirmation
+  - combined retrieval + booking:
+    - `Según el documento, ¿cubren cambio de cadena? Si sí, agendame una visita para mañana a las 11.`
+    - completed with grounded document summary plus confirmed booking
+- Admin and public shells remain non-breaking and preserve the exact DreamsChat layout already adopted on the branch
+
+### Technical Debt
+- Live combined/document conversations are correct and grounded, but AI response generation can still be rejected by guardrails when the model mislabels a successful booking outcome as generic `respond`; the deterministic backend-approved fallback remains safe, but conversational naturalness is reduced in those cases
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+- Broader document ranking quality is still lexical/deterministic in this product phase; future hardening may improve ranking depth without reopening the corpus-separation architecture
+
+### Next Steps
+- Treat this focused document + booking product phase as complete without opening Wave 9 in the same thread
+- Keep Wave 9 as the next step:
+  - centralized QA
+  - security / roles
+  - E2E
+  - broader production hardening
+- Carry only the remaining non-core conversational/document-retrieval debt into Wave 9 if it materially affects rollout safety

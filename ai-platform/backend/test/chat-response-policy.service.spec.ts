@@ -80,6 +80,7 @@ describe('ChatResponsePolicyService', () => {
         },
         approvedFactKeys: [],
         approvedResultKeys: ['bookingId', 'scheduledFor', 'status'],
+        approvedDocumentIds: [],
       }),
     ).resolves.toBe('La reserva fue confirmada para 2026-04-04T12:00:00.000Z.');
   });
@@ -125,6 +126,7 @@ describe('ChatResponsePolicyService', () => {
         },
         approvedFactKeys: [],
         approvedResultKeys: ['quoteId', 'estimatedTotal', 'currency', 'status'],
+        approvedDocumentIds: [],
       }),
     ).resolves.toBe('The preliminary quote was created for USD 144.00.');
   });
@@ -170,6 +172,7 @@ describe('ChatResponsePolicyService', () => {
         },
         approvedFactKeys: [],
         approvedResultKeys: ['sku', 'name', 'price', 'currency'],
+        approvedDocumentIds: [],
       }),
     ).resolves.toBe('Encontré Beacon Desk Lamp por USD 89.00.');
   });
@@ -212,6 +215,7 @@ describe('ChatResponsePolicyService', () => {
         },
         approvedFactKeys: [],
         approvedResultKeys: [],
+        approvedDocumentIds: [],
       }),
     ).resolves.toBe(
       'No pude completar la reserva solicitada con la información disponible.',
@@ -256,6 +260,7 @@ describe('ChatResponsePolicyService', () => {
         },
         approvedFactKeys: [],
         approvedResultKeys: [],
+        approvedDocumentIds: [],
       }),
     ).resolves.toBe(
       'I could not complete the requested product lookup because the approved capability is not available.',
@@ -298,6 +303,7 @@ describe('ChatResponsePolicyService', () => {
         missingFields: ['requested_date'],
         approvedFactKeys: [],
         approvedResultKeys: [],
+        approvedDocumentIds: [],
       }),
     ).resolves.toMatch(/fecha|hora|visita/i);
 
@@ -336,8 +342,123 @@ describe('ChatResponsePolicyService', () => {
         missingFields: ['requested_date'],
         approvedFactKeys: [],
         approvedResultKeys: [],
+        approvedDocumentIds: [],
       }),
     ).resolves.not.toMatch(/objetivo|tipo de cita/i);
+  });
+
+  it('composes document grounding with booking confirmation for combined flows', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage:
+          'Si el documento dice que cubren cambio de cadena, agendame una visita para mañana a las 11.',
+        intent: 'CREATE_BOOKING',
+        outcome: 'execution_succeeded',
+        decision: {
+          domain: 'tenant',
+          action: 'invoke_tool',
+          toolName: 'create_booking',
+          reasonCode: 'booking_requested',
+          missingFields: [],
+          responseTemplateKey: 'tenant.booking.confirmation',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.96,
+          entities: {
+            rawMessage:
+              'Si el documento dice que cubren cambio de cadena, agendame una visita para mañana a las 11.',
+            requestSummary: 'cambio de cadena de cortina roller',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'succeeded',
+          toolName: 'create_booking',
+          validatedInputSummary: {
+            requestedDateIso: '2026-04-05T11:00:00.000Z',
+          },
+          resultSummary: {
+            bookingId: 'bk_12345678',
+            scheduledFor: '2026-04-05T11:00:00.000Z',
+            status: 'confirmed',
+          },
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: ['bookingId', 'scheduledFor', 'status'],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'cambio de cadena de cortina roller',
+          groundedSummary:
+            'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Cobertura Roller',
+              excerpt:
+                'El cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
+              sequence: 0,
+              score: 4.4,
+            },
+          ],
+        },
+      }),
+    ).resolves.toBe(
+      'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+    );
+  });
+
+  it('uses a governed not-found response when active documents do not support the question', async () => {
+    await expect(
+      service.resolve({
+        locale: 'en',
+        userMessage: 'What does the document say about chain replacement coverage?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'general_conversation',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'en',
+          confidence: 0.78,
+          entities: {
+            rawMessage: 'What does the document say about chain replacement coverage?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: [],
+        documentContext: {
+          source: 'document_origin',
+          query: 'chain replacement coverage',
+          groundedSummary: '',
+          matches: [],
+        },
+      }),
+    ).resolves.toMatch(/document/i);
   });
 });
 
@@ -364,6 +485,8 @@ function buildCatalog(locale?: string) {
           'No pude completar {{actionLabel}} con la información disponible.',
         execution_failure_generic:
           'No pude completar {{actionLabel}} por un error durante la ejecución.',
+        document_not_found:
+          'No encontré información relevante sobre eso en los documentos activos.',
       },
       templateVariants: {
         basic_response: [
@@ -385,6 +508,9 @@ function buildCatalog(locale?: string) {
           'Necesito un poco más de contexto para seguir.',
           'Dame un poco más de detalle y continúo.',
           'Contame un poco más para poder avanzar.',
+        ],
+        document_not_found: [
+          'No encontré información relevante sobre eso en los documentos activos.',
         ],
       },
       actionLabels: {
@@ -422,6 +548,8 @@ function buildCatalog(locale?: string) {
         'I could not complete {{actionLabel}} with the available information.',
       execution_failure_generic:
         'I could not complete {{actionLabel}} because of an execution error.',
+      document_not_found:
+        'I could not find relevant information about that in the active documents.',
     },
     templateVariants: {
       basic_response: [
@@ -443,6 +571,9 @@ function buildCatalog(locale?: string) {
         'I need a bit more context to continue.',
         "Share a little more detail and I'll keep going.",
         'Tell me a bit more so I can move forward.',
+      ],
+      document_not_found: [
+        'I could not find relevant information about that in the active documents.',
       ],
     },
     actionLabels: {

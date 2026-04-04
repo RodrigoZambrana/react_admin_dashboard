@@ -10,6 +10,10 @@ export class ChatResponsePolicyService {
   ) {}
 
   async resolve(context: ApprovedResponseContext) {
+    if (context.documentContext) {
+      return this.buildDocumentAwareResponse(context);
+    }
+
     if (context.outcome === 'clarify') {
       return this.buildClarificationResponse(context);
     }
@@ -23,6 +27,41 @@ export class ChatResponsePolicyService {
     }
 
     return this.buildBasicResponse(context);
+  }
+
+  private async buildDocumentAwareResponse(context: ApprovedResponseContext) {
+    const groundedSummary = context.documentContext?.groundedSummary?.trim();
+
+    if (!groundedSummary) {
+      return this.responseFallbackService.render({
+        locale: context.locale,
+        templateKey: 'document_not_found',
+        variationSeed: this.buildVariationSeed(context, 'document_not_found'),
+      });
+    }
+
+    if (context.outcome === 'clarify') {
+      return this.composeWithDocumentSummary(
+        groundedSummary,
+        await this.buildClarificationResponse(context),
+      );
+    }
+
+    if (context.outcome === 'execution_succeeded') {
+      return this.composeWithDocumentSummary(
+        groundedSummary,
+        await this.buildExecutionSuccessResponse(context),
+      );
+    }
+
+    if (context.outcome === 'execution_failed') {
+      return this.composeWithDocumentSummary(
+        groundedSummary,
+        await this.buildExecutionFailureResponse(context),
+      );
+    }
+
+    return groundedSummary;
   }
 
   private async buildBasicResponse(context: ApprovedResponseContext) {
@@ -184,5 +223,13 @@ export class ChatResponsePolicyService {
       .filter((value) => typeof value === 'string' && value.trim().length > 0)
       .join('|')
       .toLowerCase();
+  }
+
+  private composeWithDocumentSummary(summary: string, trailing: string) {
+    if (!trailing.trim()) {
+      return summary;
+    }
+
+    return `${summary} ${trailing}`.trim();
   }
 }

@@ -26,6 +26,8 @@ export class AiPromptContractService {
       'Backend-owned response contract:',
       '- You will receive approved backend context as JSON.',
       '- You will receive an approved deterministic fallback draft.',
+      '- When approved document context is present, use only that document-origin context for document-grounded claims.',
+      '- Do not treat runtime-learned knowledge or generic memory as the source of truth for document answers.',
       '- Do not invent tool executions, business facts, missing fields, or continuity state.',
       '- Only ask for missing fields that appear in approved backend context.',
       '- Never ask for unsupported concepts such as appointment type or visit objective unless they are explicitly present in approved missing fields.',
@@ -38,6 +40,7 @@ export class AiPromptContractService {
       '  - mentionedMissingFields: string[]',
       '  - mentionedApprovedFactKeys: string[]',
       '  - mentionedApprovedResultKeys: string[]',
+      '  - mentionedDocumentIds: string[]',
     ];
   }
 }

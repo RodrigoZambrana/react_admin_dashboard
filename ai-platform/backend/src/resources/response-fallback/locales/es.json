@@ -11,7 +11,8 @@
     "execution_success_generic": "La acción solicitada se ejecutó correctamente.",
     "execution_failure_unknown_tool": "No pude completar {{actionLabel}} porque la capacidad aprobada no está disponible.",
     "execution_failure_validation": "No pude completar {{actionLabel}} con la información disponible.",
-    "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución."
+    "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución.",
+    "document_not_found": "No encontré información relevante sobre eso en los documentos activos."
   },
   "templateVariants": {
     "basic_response": [
@@ -33,6 +34,11 @@
       "Necesito un poco más de contexto para seguir.",
       "Dame un poco más de detalle y continúo.",
       "Contame un poco más para poder avanzar."
+    ],
+    "document_not_found": [
+      "No encontré información relevante sobre eso en los documentos activos.",
+      "No veo contenido activo que confirme eso en los documentos cargados.",
+      "No tengo un documento activo que responda eso con claridad."
     ]
   },
   "actionLabels": {
