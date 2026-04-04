@@ -19,9 +19,14 @@ describe('MockLanguageModelProvider', () => {
         previousMessages: [],
       },
       {
-        apiKey: '',
         model: 'mock',
         timeoutMs: 1000,
+        credentials: {
+          strategy: 'none',
+          envKey: null,
+          value: null,
+        },
+        providerOptions: {},
       },
     );
     const payload = JSON.parse(response.rawResponse);
@@ -60,9 +65,14 @@ describe('MockLanguageModelProvider', () => {
         previousMessages: [],
       },
       {
-        apiKey: '',
         model: 'mock',
         timeoutMs: 1000,
+        credentials: {
+          strategy: 'none',
+          envKey: null,
+          value: null,
+        },
+        providerOptions: {},
       },
     );
     const payload = JSON.parse(response.rawResponse);

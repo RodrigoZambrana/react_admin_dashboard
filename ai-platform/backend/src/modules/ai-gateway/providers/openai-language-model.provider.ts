@@ -5,24 +5,20 @@ import { zodResponseFormat } from 'openai/helpers/zod';
 import { interpretationResultSchema } from '../../interpretation/interpretation.schemas';
 import { aiGeneratedResponseSchema } from '../../response/response.types';
 import {
+  LanguageModelProviderConfig,
   LanguageModelInterpretationRequest,
   LanguageModelProvider,
 } from '../ai-gateway.types';
-
-type OpenAiProviderInput = {
-  apiKey: string;
-  model: string;
-  timeoutMs: number;
-};
 
 @Injectable()
 export class OpenAiLanguageModelProvider implements LanguageModelProvider {
   async interpret(
     input: LanguageModelInterpretationRequest,
-    providerInput: OpenAiProviderInput,
+    providerInput: LanguageModelProviderConfig,
   ) {
     const client = new OpenAI({
-      apiKey: providerInput.apiKey,
+      apiKey: providerInput.credentials.value ?? '',
+      baseURL: this.readOptionalString(providerInput.providerOptions.baseUrl),
       timeout: providerInput.timeoutMs,
     });
 
@@ -70,10 +66,11 @@ export class OpenAiLanguageModelProvider implements LanguageModelProvider {
       approvedContext: Record<string, unknown>;
       approvedDraft: string;
     },
-    providerInput: OpenAiProviderInput,
+    providerInput: LanguageModelProviderConfig,
   ) {
     const client = new OpenAI({
-      apiKey: providerInput.apiKey,
+      apiKey: providerInput.credentials.value ?? '',
+      baseURL: this.readOptionalString(providerInput.providerOptions.baseUrl),
       timeout: providerInput.timeoutMs,
     });
 
@@ -112,5 +109,11 @@ export class OpenAiLanguageModelProvider implements LanguageModelProvider {
       rawResponse,
       model: completion.model ?? providerInput.model,
     };
+  }
+
+  private readOptionalString(value: unknown) {
+    return typeof value === 'string' && value.trim().length > 0
+      ? value.trim()
+      : undefined;
   }
 }

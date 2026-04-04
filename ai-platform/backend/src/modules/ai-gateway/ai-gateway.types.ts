@@ -2,6 +2,7 @@ import type {
   AiGeneratedResponse,
   ApprovedResponseContext,
 } from '../response/response.types';
+import type { ResolvedAiRuntimeCredentials } from '../runtime-config/runtime-config.types';
 
 export type ConversationContextMessage = {
   role: 'user' | 'assistant';
@@ -55,14 +56,17 @@ export type AiGatewayResponseGenerationResult = {
   promptVersion: number | null;
 };
 
+export type LanguageModelProviderConfig = {
+  model: string;
+  timeoutMs: number;
+  credentials: ResolvedAiRuntimeCredentials;
+  providerOptions: Record<string, unknown>;
+};
+
 export interface LanguageModelProvider {
   interpret(
     input: LanguageModelInterpretationRequest,
-    providerInput: {
-      apiKey: string;
-      model: string;
-      timeoutMs: number;
-    },
+    providerInput: LanguageModelProviderConfig,
   ): Promise<{
     rawResponse: string;
     model?: string | null;
@@ -73,11 +77,7 @@ export interface LanguageModelProvider {
       approvedContext: ApprovedResponseContext;
       approvedDraft: string;
     },
-    providerInput: {
-      apiKey: string;
-      model: string;
-      timeoutMs: number;
-    },
+    providerInput: LanguageModelProviderConfig,
   ): Promise<{
     rawResponse: string;
     model?: string | null;

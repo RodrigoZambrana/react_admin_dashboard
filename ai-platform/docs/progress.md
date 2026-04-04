@@ -753,3 +753,34 @@
 - Standardize AI runtime configuration behind a provider-agnostic governed backend contract and remove OpenAI-shaped assumptions from the configuration boundary
 - Introduce the governed fallback response-copy boundary and migrate the current fallback set through it without changing `/chat/message`
 - Extend backend governance surfaces so future admin ABMs can operate on the new critical-config, learning, and fallback-governance families safely
+
+## Iteration 26
+
+### Implemented
+- Standardized AI runtime resolution behind a provider-agnostic governed backend contract
+- Refactored `RuntimeConfigService` so live AI runtime reads now come from managed critical config `ai_runtime` instead of OpenAI-shaped env assumptions at the runtime boundary
+- Introduced resolved credential handling as a generic runtime concern:
+  - credential strategy
+  - env-backed secret resolution
+  - managed resource version/source metadata
+- Updated `AiGatewayService` and provider contracts so provider implementations receive a common provider config object rather than OpenAI-specific fields leaking through the gateway boundary
+- Added safe failure handling for:
+  - missing managed credentials
+  - unknown managed providers not registered in the gateway
+- Added tests covering provider-agnostic runtime config resolution, generic credential handling, and unknown-provider failure behavior
+
+### Working
+- Live AI runtime configuration is now governed through the managed critical-config family and remains swappable without changing orchestration logic
+- Provider-specific details are reduced to provider implementations/adapters instead of the runtime configuration boundary
+- Backend build, backend tests, and frontend build all pass after the provider-agnostic refactor
+- Existing `/chat/message` behavior remains non-breaking while the runtime config contract is now portable beyond OpenAI-shaped assumptions
+
+### Technical Debt
+- The currently registered live providers are still `mock` and `openai`; the contract is provider-agnostic but additional provider implementations remain future work
+- Deterministic fallback response copy is still isolated in the fallback service and has not yet moved behind a governed backend resource/policy boundary
+- Security-preparation documentation still points to future auth/key-storage work; Wave 5 is only hardening the runtime configuration contract, not finishing auth/admin protection
+
+### Next Steps
+- Introduce the governed fallback response-copy boundary and migrate the current fallback set through it without changing `/chat/message`
+- Align backend governance surfaces with the new provider/runtime config model so future admin ABMs can manage critical config safely
+- Close Wave 5 with final documentation that links this governance work to Wave 6 admin operations and Wave 9 centralized hardening

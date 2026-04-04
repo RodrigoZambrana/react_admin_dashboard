@@ -33,7 +33,7 @@ export class AiGatewayService {
   ) {}
 
   async interpret(input: InterpretationInput): Promise<AiGatewayInterpretationResult> {
-    const providerConfig = this.runtimeConfig.getAiGatewayConfig();
+    const providerConfig = await this.runtimeConfig.getAiGatewayConfig();
     const provider = this.resolveInterpretationProvider(providerConfig.provider);
     const startedAt = Date.now();
     const promptTemplate =
@@ -56,8 +56,31 @@ export class AiGatewayService {
       }),
     );
 
-    if (providerConfig.provider === 'openai' && !providerConfig.apiKey) {
-      const error = 'OPENAI_API_KEY is not configured for AI_PROVIDER=openai.';
+    if (!provider) {
+      const error = this.buildUnknownProviderError(providerConfig.provider);
+
+      this.logger.error(
+        JSON.stringify({
+          stage: 'ai_gateway.response',
+          provider: providerConfig.provider,
+          model: providerConfig.model,
+          durationMs: Date.now() - startedAt,
+          error,
+        }),
+      );
+
+      return {
+        ok: false,
+        rawResponse: null,
+        parsedResponse: null,
+        error,
+        provider: providerConfig.provider,
+        model: providerConfig.model,
+      };
+    }
+
+    if (this.requiresCredentials(providerConfig) && !providerConfig.credentials.value) {
+      const error = this.buildMissingCredentialsError(providerConfig.provider);
 
       this.logger.error(
         JSON.stringify({
@@ -81,9 +104,10 @@ export class AiGatewayService {
 
     try {
       const providerResponse = await provider.interpret(request, {
-        apiKey: providerConfig.apiKey ?? '',
         model: providerConfig.model,
         timeoutMs: providerConfig.timeoutMs,
+        credentials: providerConfig.credentials,
+        providerOptions: providerConfig.providerOptions,
       });
       const rawResponse = providerResponse.rawResponse;
       const parsedPayload = this.parseInterpretationPayload(rawResponse);
@@ -134,7 +158,7 @@ export class AiGatewayService {
   async generateResponse(
     input: ResponseGenerationInput,
   ): Promise<AiGatewayResponseGenerationResult> {
-    const providerConfig = this.runtimeConfig.getAiGatewayConfig();
+    const providerConfig = await this.runtimeConfig.getAiGatewayConfig();
     const provider = this.resolveInterpretationProvider(providerConfig.provider);
     const startedAt = Date.now();
     const prompt =
@@ -164,8 +188,34 @@ export class AiGatewayService {
       }),
     );
 
-    if (providerConfig.provider === 'openai' && !providerConfig.apiKey) {
-      const error = 'OPENAI_API_KEY is not configured for AI_PROVIDER=openai.';
+    if (!provider) {
+      const error = this.buildUnknownProviderError(providerConfig.provider);
+
+      this.logger.error(
+        JSON.stringify({
+          stage: 'ai_gateway.response_output',
+          provider: providerConfig.provider,
+          model: providerConfig.model,
+          durationMs: Date.now() - startedAt,
+          promptVersion: prompt?.version ?? null,
+          error,
+        }),
+      );
+
+      return {
+        ok: false,
+        rawResponse: null,
+        parsedResponse: null,
+        error,
+        provider: providerConfig.provider,
+        model: providerConfig.model,
+        promptId: prompt?.id ?? null,
+        promptVersion: prompt?.version ?? null,
+      };
+    }
+
+    if (this.requiresCredentials(providerConfig) && !providerConfig.credentials.value) {
+      const error = this.buildMissingCredentialsError(providerConfig.provider);
 
       this.logger.error(
         JSON.stringify({
@@ -191,9 +241,10 @@ export class AiGatewayService {
 
     try {
       const providerResponse = await provider.generateResponse(request, {
-        apiKey: providerConfig.apiKey ?? '',
         model: providerConfig.model,
         timeoutMs: providerConfig.timeoutMs,
+        credentials: providerConfig.credentials,
+        providerOptions: providerConfig.providerOptions,
       });
       const parsedPayload = this.parseResponsePayload(providerResponse.rawResponse);
 
@@ -246,12 +297,33 @@ export class AiGatewayService {
     }
   }
 
-  private resolveInterpretationProvider(providerName: 'mock' | 'openai') {
+  private resolveInterpretationProvider(providerName: string) {
     if (providerName === 'openai') {
       return this.openAiProvider;
     }
 
-    return this.mockProvider;
+    if (providerName === 'mock') {
+      return this.mockProvider;
+    }
+
+    return null;
+  }
+
+  private requiresCredentials(input: {
+    credentials: {
+      strategy: 'none' | 'env';
+      value: string | null;
+    };
+  }) {
+    return input.credentials.strategy !== 'none';
+  }
+
+  private buildMissingCredentialsError(provider: string) {
+    return `AI provider credentials are not configured for provider "${provider}".`;
+  }
+
+  private buildUnknownProviderError(provider: string) {
+    return `AI provider "${provider}" is not registered in the gateway.`;
   }
 
   private buildInterpretationPrompt(template: string, locale?: string) {

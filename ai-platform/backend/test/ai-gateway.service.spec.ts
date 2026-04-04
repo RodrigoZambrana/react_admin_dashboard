@@ -9,13 +9,7 @@ describe('AiGatewayService', () => {
     };
     const service = new AiGatewayService(
       {
-        getAiGatewayConfig: () => ({
-          provider: 'mock',
-          apiKey: null,
-          model: 'mock-rule-engine',
-          timeoutMs: 1000,
-          source: 'env',
-        }),
+        getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
       promptService as any,
       {
@@ -61,13 +55,7 @@ describe('AiGatewayService', () => {
     };
     const service = new AiGatewayService(
       {
-        getAiGatewayConfig: () => ({
-          provider: 'mock',
-          apiKey: null,
-          model: 'mock-rule-engine',
-          timeoutMs: 1000,
-          source: 'env',
-        }),
+        getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
       promptService as any,
       {
@@ -105,13 +93,7 @@ describe('AiGatewayService', () => {
     };
     const service = new AiGatewayService(
       {
-        getAiGatewayConfig: () => ({
-          provider: 'mock',
-          apiKey: null,
-          model: 'mock-rule-engine',
-          timeoutMs: 1000,
-          source: 'env',
-        }),
+        getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
       promptService as any,
       {
@@ -157,13 +139,7 @@ describe('AiGatewayService', () => {
     };
     const service = new AiGatewayService(
       {
-        getAiGatewayConfig: () => ({
-          provider: 'mock',
-          apiKey: null,
-          model: 'mock-rule-engine',
-          timeoutMs: 1000,
-          source: 'env',
-        }),
+        getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
       promptService as any,
       {
@@ -231,4 +207,141 @@ describe('AiGatewayService', () => {
       expect.any(Object),
     );
   });
+
+  it('fails closed when the selected provider requires credentials but none are resolved', async () => {
+    const promptService = {
+      getActivePrompt: jest.fn(async () => ({
+        value: 'Return JSON only.',
+      })),
+    };
+    const openAiProvider = {
+      interpret: jest.fn(),
+      generateResponse: jest.fn(),
+    };
+    const service = new AiGatewayService(
+      {
+        getAiGatewayConfig: () =>
+          buildGatewayConfig({
+            provider: 'openai',
+            credentials: {
+              strategy: 'env',
+              envKey: 'AI_PROVIDER_API_KEY',
+              value: null,
+            },
+          }),
+      } as any,
+      promptService as any,
+      {
+        debug: jest.fn(),
+        error: jest.fn(),
+      } as any,
+      {
+        interpret: jest.fn(),
+        generateResponse: jest.fn(),
+      } as any,
+      openAiProvider as any,
+    );
+
+    await expect(service.interpret({ message: 'hola' })).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        error:
+          'AI provider credentials are not configured for provider "openai".',
+        provider: 'openai',
+        model: 'mock-rule-engine',
+      }),
+    );
+    expect(openAiProvider.interpret).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when managed config points to an unregistered provider', async () => {
+    const promptService = {
+      getActivePrompt: jest.fn(async () => ({
+        value: 'Return JSON only.',
+      })),
+    };
+    const service = new AiGatewayService(
+      {
+        getAiGatewayConfig: () =>
+          buildGatewayConfig({
+            provider: 'anthropic',
+            credentials: {
+              strategy: 'env',
+              envKey: 'AI_PROVIDER_API_KEY',
+              value: 'secret-token',
+            },
+          }),
+      } as any,
+      promptService as any,
+      {
+        debug: jest.fn(),
+        error: jest.fn(),
+      } as any,
+      {
+        interpret: jest.fn(),
+        generateResponse: jest.fn(),
+      } as any,
+      {
+        interpret: jest.fn(),
+        generateResponse: jest.fn(),
+      } as any,
+    );
+
+    await expect(service.interpret({ message: 'hola' })).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        error: 'AI provider "anthropic" is not registered in the gateway.',
+        provider: 'anthropic',
+      }),
+    );
+  });
 });
+
+function buildGatewayConfig(
+  overrides: Partial<{
+    provider: string;
+    model: string;
+    timeoutMs: number;
+    credentials:
+      | {
+          strategy: 'none';
+          envKey: null;
+          value: null;
+        }
+      | {
+          strategy: 'env';
+          envKey: string | null;
+          value: string | null;
+        };
+    providerOptions: Record<string, unknown>;
+    source:
+      | {
+          type: 'managed';
+          key: 'ai_runtime';
+          version: number | null;
+        }
+      | {
+          type: 'fallback';
+          reason: 'missing_managed_resource';
+        };
+  }> = {},
+) {
+  return {
+    provider: overrides.provider ?? 'mock',
+    model: overrides.model ?? 'mock-rule-engine',
+    timeoutMs: overrides.timeoutMs ?? 1000,
+    credentials:
+      overrides.credentials ?? {
+        strategy: 'none',
+        envKey: null,
+        value: null,
+      },
+    providerOptions: overrides.providerOptions ?? {},
+    source:
+      overrides.source ?? {
+        type: 'managed',
+        key: 'ai_runtime',
+        version: 1,
+      },
+  };
+}

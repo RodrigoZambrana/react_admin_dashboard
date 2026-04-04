@@ -98,7 +98,7 @@
 - `PromptModule`: prompt storage, retrieval, and versioning
 - `PersistenceModule`: Prisma repositories and tenant enforcement
 - `ParsingModule`: normalization of dates, measurements, and entities
-- `RuntimeConfigModule`: abstraction over env-backed runtime configuration with future DB handoff points for AI keys, tenant configs, and prompts
+- `RuntimeConfigModule`: abstraction over managed runtime configuration and safe env-backed secret resolution, keeping provider/runtime selection portable while leaving room for future repository-backed tenant/auth settings
 - `SecurityModule`: placeholder security planning for future Bearer auth and admin-only endpoint guards
 - `RuntimeResources`: shared contracts for versioned runtime-managed resources with swappable providers and bootstrap seed sources
 
@@ -370,7 +370,7 @@ The `learning` stage persists:
   - `/conversations`
   - `/admin/runtime-resources/prompts`
   - `/admin/runtime-resources/temporal-locales`
-- AI keys currently come from env-backed runtime config and are isolated behind `RuntimeConfigModule`
+- AI runtime selection now comes from governed `ai_runtime` critical config, while secret material can still resolve from env-backed credential references behind `RuntimeConfigModule`
 - Future secure API key storage and tenant config retrieval will move behind repository-backed configuration services without changing controller or orchestrator layers
 
 ## Delivery Strategy

@@ -5,6 +5,7 @@ import type { ApprovedResponseContext } from '../../response/response.types';
 import {
   InterpretationOutput,
   LanguageModelInterpretationRequest,
+  LanguageModelProviderConfig,
   LanguageModelProvider,
 } from '../ai-gateway.types';
 
@@ -55,11 +56,7 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
 
   async interpret(
     input: LanguageModelInterpretationRequest,
-    _providerInput: {
-      apiKey: string;
-      model: string;
-      timeoutMs: number;
-    },
+    _providerInput: LanguageModelProviderConfig,
   ): Promise<{ rawResponse: string; model: string }> {
     const language = await this.detectLanguage(input.message);
     const intent = detectIntent(input.message);
@@ -82,11 +79,7 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
     approvedContext: ApprovedResponseContext;
     approvedDraft: string;
   },
-  _providerInput?: {
-    apiKey: string;
-    model: string;
-    timeoutMs: number;
-  }): Promise<{ rawResponse: string; model: string }> {
+  _providerInput?: LanguageModelProviderConfig): Promise<{ rawResponse: string; model: string }> {
     return {
       rawResponse: JSON.stringify({
         message: input.approvedDraft,

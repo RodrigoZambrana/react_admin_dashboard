@@ -1,27 +1,55 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { CriticalConfigService } from '../critical-config/critical-config.service';
 import {
   AiGatewayConfig,
-  AiProvider,
   SecurityPreparationConfig,
   TenantRuntimeConfig,
 } from './runtime-config.types';
 
 @Injectable()
 export class RuntimeConfigService {
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly criticalConfigService: CriticalConfigService,
+  ) {}
 
-  getAiGatewayConfig(): AiGatewayConfig {
+  async getAiGatewayConfig(): Promise<AiGatewayConfig> {
+    const managedConfig = await this.criticalConfigService.getActiveConfig(
+      'ai_runtime',
+    );
+    const value = managedConfig?.value;
+
+    if (!value) {
+      return {
+        provider: 'mock',
+        model: 'mock-rule-engine',
+        timeoutMs: 1000,
+        credentials: {
+          strategy: 'none',
+          envKey: null,
+          value: null,
+        },
+        providerOptions: {},
+        source: {
+          type: 'fallback',
+          reason: 'missing_managed_resource',
+        },
+      };
+    }
+
     return {
-      provider: this.getAiProvider(),
-      apiKey: this.readOptionalString('OPENAI_API_KEY'),
-      model:
-        this.readOptionalString('OPENAI_MODEL') ??
-        this.readOptionalString('AI_MODEL') ??
-        'gpt-4o-mini',
-      timeoutMs: this.readPositiveNumber('AI_TIMEOUT_MS', 10000),
-      source: 'env',
+      provider: value.provider,
+      model: value.model,
+      timeoutMs: value.timeoutMs,
+      credentials: this.resolveCredentials(value.credentials),
+      providerOptions: value.providerOptions ?? {},
+      source: {
+        type: 'managed',
+        key: 'ai_runtime',
+        version: managedConfig.version,
+      },
     };
   }
 
@@ -52,29 +80,29 @@ export class RuntimeConfigService {
     };
   }
 
-  private getAiProvider(): AiProvider {
-    const configuredProvider = this.readOptionalString('AI_PROVIDER')?.toLowerCase();
-
-    if (configuredProvider === 'openai') {
-      return 'openai';
+  private resolveCredentials(input: {
+    strategy: 'none' | 'env';
+    envKey?: string | null;
+  }): AiGatewayConfig['credentials'] {
+    if (input.strategy === 'none') {
+      return {
+        strategy: 'none',
+        envKey: null,
+        value: null,
+      };
     }
 
-    return 'mock';
+    const envKey = input.envKey?.trim() ? input.envKey.trim() : null;
+
+    return {
+      strategy: 'env',
+      envKey,
+      value: envKey ? this.readOptionalString(envKey) : null,
+    };
   }
 
   private readOptionalString(key: string) {
     const value = this.configService.get<string>(key);
     return value?.trim() ? value.trim() : null;
-  }
-
-  private readPositiveNumber(key: string, fallback: number) {
-    const rawValue = this.configService.get<string>(key);
-    const parsedValue = rawValue ? Number(rawValue) : Number.NaN;
-
-    if (Number.isFinite(parsedValue) && parsedValue > 0) {
-      return parsedValue;
-    }
-
-    return fallback;
   }
 }
