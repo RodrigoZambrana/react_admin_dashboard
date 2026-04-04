@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { KnowledgeCategory, Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { KnowledgeRepository } from '../persistence/repositories/knowledge.repository';
@@ -62,5 +62,20 @@ export class KnowledgeService {
       ...stored,
       embeddingId,
     };
+  }
+
+  listKnowledge(input: { limit?: number; category?: string }) {
+    if (!input.category) {
+      return this.knowledgeRepository.listRecent(input.limit);
+    }
+
+    return this.knowledgeRepository.listByCategory(
+      input.category as KnowledgeCategory,
+      input.limit,
+    );
+  }
+
+  getKnowledgeById(knowledgeId: string) {
+    return this.knowledgeRepository.getById(knowledgeId);
   }
 }

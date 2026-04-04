@@ -12,4 +12,8 @@ export class ChatMessageDto {
   @IsOptional()
   @IsString()
   locale?: string;
+
+  @IsOptional()
+  @IsString()
+  channel?: string;
 }

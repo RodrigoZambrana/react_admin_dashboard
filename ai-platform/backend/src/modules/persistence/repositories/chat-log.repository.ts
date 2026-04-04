@@ -55,4 +55,13 @@ export class ChatLogRepository {
       orderBy: { createdAt: 'asc' },
     });
   }
+
+  listByConversationId(conversationId: string) {
+    return this.prisma.chatLog.findMany({
+      where: {
+        conversationId,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
 }

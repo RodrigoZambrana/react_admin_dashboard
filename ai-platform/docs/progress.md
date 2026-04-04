@@ -1056,3 +1056,34 @@
 - Start Wave 7, `Knowledge And Chat Test Center UI`, on top of the now-live admin operations shell and governed resource ABMs
 - Land the async turn-intake / cancellation / typing capability before or within Wave 8 instead of building the public chat product on a synchronous request/response shell
 - Carry the stabilized admin UI and managed-resource contracts into Wave 9 for centralized QA, auth/roles, E2E, and production hardening
+
+## Iteration 35
+
+### Implemented
+- Added explicit Wave 7 backend contracts for admin knowledge and chat test-center operations instead of relying on frontend-only orchestration
+- Introduced governed admin surfaces for:
+  - recent knowledge browsing and knowledge detail
+  - test-center conversation/run browsing
+  - test-center conversation detail with messages, state, logs, and grouped traces
+  - recent trace summaries
+  - trace detail
+  - trace comparison
+  - replay/re-run of multi-turn scenarios through the real chat orchestrator
+- Extended the conversation path additively with optional `channel` support so test-center replays can be persisted and distinguished as `admin_test_center` runs without breaking `/chat/message`
+- Added targeted backend tests for the new Wave 7 services/controllers and tightened validation on new replay/compare inputs
+
+### Working
+- The backend now exposes a real contract surface for Wave 7 operator tooling instead of requiring ad hoc client-side stitching
+- Replay/test execution uses the actual chat pipeline and persists normal conversation/message/log artifacts while marking test-center conversations through a dedicated channel
+- Trace comparison and trace exploration can be backed by explicit backend summaries instead of frontend-only heuristics
+- `npm run build --workspace backend` and `npm test --workspace backend -- --runInBand` pass after landing the new Wave 7 backend contracts
+
+### Technical Debt
+- The new test-center backend contracts intentionally stop at explicit admin APIs; no final UI/operator affordances exist yet on top of them
+- `AiGatewayService` hardcoding debt remains carried and untouched in this milestone
+- Wave 7 still needs the frontend Knowledge Center and Chat Test Center surfaces before the wave can be considered complete
+
+### Next Steps
+- Extend the exact DreamsChat admin shell with Knowledge Center and Chat Test Center navigation and pages over the new backend contracts
+- Add operator flows for trace browsing, replay execution, comparison, and governed knowledge investigation without moving orchestration into React
+- Keep the carried gateway hardcoding debt explicit while avoiding a broad refactor that would derail Wave 7

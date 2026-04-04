@@ -11,12 +11,13 @@ export class ConversationRepository {
     private readonly tenantContext: TenantContextService,
   ) {}
 
-  createConversation(language?: string) {
+  createConversation(language?: string, channel = 'web') {
     const tenantId = this.tenantContext.getTenantId();
     return this.prisma.conversation.create({
       data: {
         tenantId,
         language,
+        channel,
       },
     });
   }
@@ -34,6 +35,22 @@ export class ConversationRepository {
 
   listRecent(limit = 20) {
     return this.prisma.conversation.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+  }
+
+  listRecentByChannel(channel: string, limit = 20) {
+    return this.prisma.conversation.findMany({
+      where: {
+        channel,
+      },
       orderBy: { updatedAt: 'desc' },
       take: limit,
       include: {

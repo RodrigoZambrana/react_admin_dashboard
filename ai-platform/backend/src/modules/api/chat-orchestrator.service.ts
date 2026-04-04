@@ -225,7 +225,10 @@ export class ChatOrchestratorService {
       }
     }
 
-    return this.conversationRepository.createConversation(input.locale);
+    return this.conversationRepository.createConversation(
+      input.locale,
+      input.channel,
+    );
   }
 
   private buildExecutionTracePayload(execution: ToolExecutionAttempt) {

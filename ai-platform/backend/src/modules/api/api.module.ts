@@ -14,6 +14,10 @@ import { ResponseFallbackModule } from '../response-fallback/response-fallback.m
 import { TemporalModule } from '../temporal/temporal.module';
 import { ToolsModule } from '../tools/tools.module';
 import { ChatOrchestratorService } from './chat-orchestrator.service';
+import { AdminKnowledgeController } from './admin-knowledge.controller';
+import { AdminKnowledgeService } from './admin-knowledge.service';
+import { AdminTestCenterController } from './admin-test-center.controller';
+import { AdminTestCenterService } from './admin-test-center.service';
 import { ChatController } from './chat.controller';
 import { RuntimeResourcesAdminController } from './runtime-resources-admin.controller';
 import { TraceLogService } from './trace-log.service';
@@ -34,7 +38,17 @@ import { TraceLogService } from './trace-log.service';
     ResponseFallbackModule,
     ToolsModule,
   ],
-  controllers: [ChatController, RuntimeResourcesAdminController],
-  providers: [TraceLogService, ChatOrchestratorService],
+  controllers: [
+    ChatController,
+    RuntimeResourcesAdminController,
+    AdminKnowledgeController,
+    AdminTestCenterController,
+  ],
+  providers: [
+    TraceLogService,
+    ChatOrchestratorService,
+    AdminKnowledgeService,
+    AdminTestCenterService,
+  ],
 })
 export class ApiModule {}

@@ -64,4 +64,10 @@ export class KnowledgeRepository {
       take: limit,
     });
   }
+
+  getById(id: string) {
+    return this.prisma.knowledge.findFirst({
+      where: { id },
+    });
+  }
 }
