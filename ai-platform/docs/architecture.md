@@ -147,13 +147,19 @@
   - deterministic backend decisioning
   - deterministic backend tool execution for approved tenant actions
   - execution-stage trace persistence with validated input and outcome summaries
-  - deterministic backend responses grounded in approved decision and execution truth
-  - a minimal backend response-policy boundary that keeps execution-aware wording outside the orchestrator until Wave 4
-  - managed runtime resources for prompts and date-time locale resources
-  - minimal admin-ready backend resource surfaces
-- Not active in the live path yet:
-  - AI response generation from backend-approved context
-  - asynchronous learning from stored logs
+  - AI-generated responses grounded in backend-approved context, with response guardrails and deterministic fallback catalogs
+  - governed asynchronous learning from persisted traces/logs
+  - managed runtime resources for:
+    - prompts
+    - date-time locale resources
+    - critical configs
+    - knowledge metadata
+    - response fallback catalogs
+  - Wave 6 admin operations UI over real backend governance surfaces for all managed-resource families
+- Not active as product surfaces yet:
+  - Wave 7 knowledge and chat test center workflows
+  - Wave 8 public/user chat product UI
+  - the async turn-intake / cancellation / typing capability required before or within Wave 8
 
 ## Deterministic Conversation State
 
@@ -273,11 +279,11 @@
 3. Why it happens now: once Waves 1 through 5 have stabilized the runtime and its governed resource contracts, operators need a first-class admin UI instead of relying on direct endpoint usage.
 4. Dependency on previous waves: depends on Waves 1 through 5, especially the runtime-managed resource pattern, admin-ready backend surfaces, and governance/runtime contracts delivered in Wave 5.
 5. Main implementation scope: build modular admin sections for managed resource CRUD/versioning/publishing; expose trace/resource inspection workflows; connect the frontend to `/admin/runtime-resources/*` and related governance endpoints; begin retiring compatibility-only admin paths once equivalent flows are live.
-6. Architecture constraints: the UI must remain a thin client over backend-governed contracts; no browser-owned decision logic; no direct datastore access; no new legacy runtime coupling; naming should converge toward `date-time-locale-resources` when backend compatibility allows it.
+6. Architecture constraints: the UI must remain a thin client over backend-governed contracts; no browser-owned decision logic; no direct datastore access; no new legacy runtime coupling; naming should converge toward `date-time-locale-resources` when backend compatibility allows it; the visual/admin layout must replicate the DreamsChat template exactly from `/Users/rodrigo/Personal/Proyectos/react projects/dreamschat-v2.8.4`, adapting only data wiring and capabilities rather than reinterpreting the layout.
 7. Legacy contributions that should be mined: legacy operator workflow concepts, admin dashboard patterns already audited in the legacy review, and trace inspection flows that improve operator efficiency without copying legacy runtime behavior.
 8. Expected user/platform value: operators can manage prompts, date-time-locale-resources, and critical configs safely through productized UI flows instead of manual backend calls or filesystem/bootstrap procedures.
 9. Completion criteria: admin UI can manage managed prompts, date-time-locale-resources, critical configs, knowledge metadata, and response fallback catalogs through backend-governed lifecycles; trace/resource inspection supports routine operator workflows; compatibility-only admin paths have a defined retirement path.
-10. Explicit next-wave enablement: provides the operator shell needed for governed knowledge workflows and an admin chat test center in Wave 7.
+10. Explicit next-wave enablement: provides the operator shell needed for governed knowledge workflows and an admin chat test center in Wave 7; establishes the managed-resource operator surface that must exist before the async turn-intake / cancellation / typing capability is productized before or within Wave 8; and gives Wave 9 stable admin surfaces for later auth, roles, centralized QA, and production hardening.
 
 ### Wave 7: Knowledge And Chat Test Center UI
 
@@ -296,10 +302,10 @@
 
 1. Wave name: User Chat Product UI
 2. Strategic objective: deliver the end-user conversational product surface on top of the stabilized backend runtime, governed resources, and operator tooling built in earlier waves.
-3. Why it happens now: once runtime correctness, governance, and operator validation flows are in place, the platform can expose a productized chat surface without using the frontend as a substitute for backend control.
-4. Dependency on previous waves: depends on Waves 1 through 7, especially the approved-context response path, operator test-center feedback loops, and admin-managed resources.
-5. Main implementation scope: build the public/user chat shell; integrate transcript, turn status, and recovery states with the live backend pipeline; expose safe multilingual/user-facing presentation surfaces; prepare tenant-facing rollout flows without duplicating backend logic in the client.
-6. Architecture constraints: the UI must remain presentation-only; no client-side decisioning, tool routing, or tenant-scoping shortcuts; user-facing wording still comes from backend-approved response flows; any locale presentation logic must avoid new hardcoded linguistic assumptions in the browser.
+3. Why it happens now: once runtime correctness, governance, operator validation flows, and the required async turn-intake / cancellation / typing behavior are in place, the platform can expose a productized chat surface without using the frontend as a substitute for backend control.
+4. Dependency on previous waves: depends on Waves 1 through 7, especially the approved-context response path, operator test-center feedback loops, admin-managed resources, and the async turn-intake / cancellation / typing capability mined from legacy user-chat behavior.
+5. Main implementation scope: build the public/user chat shell; integrate transcript, turn status, pending-turn handling, cancellation, and recovery states with the live backend pipeline; expose safe multilingual/user-facing presentation surfaces; prepare tenant-facing rollout flows without duplicating backend logic in the client; replicate the DreamsChat chat layout exactly from `/Users/rodrigo/Personal/Proyectos/react projects/dreamschat-v2.8.4` while replacing the underlying behavior with the new platform capabilities.
+6. Architecture constraints: the UI must remain presentation-only; no client-side decisioning, tool routing, or tenant-scoping shortcuts; user-facing wording still comes from backend-approved response flows; any locale presentation logic must avoid new hardcoded linguistic assumptions in the browser; the target is exact layout replication of the template, not a visual approximation; the user chat surface must not be shipped as a purely synchronous request/response shell.
 7. Legacy contributions that should be mined: user-facing chat experience concepts from `webchat.adapter.js`, legacy conversation UX lessons documented in the audit, and later Playwright/E2E journeys as regression references once the user shell stabilizes.
 8. Expected user/platform value: the platform gains an actual end-user product surface instead of only internal/operator tooling, enabling real conversational product rollout.
 9. Completion criteria: end users can interact with the live pipeline through a productized chat UI; core and tenant-backed flows are visible in a stable user shell; operator/admin workflows remain separate from public UX concerns.
@@ -402,5 +408,8 @@ The `learning` stage persists:
 ## Frontend Theme Strategy
 
 - The standalone frontend owns copied DreamsChat assets locally inside `frontend/public`
-- Admin operations UI uses the DreamsChat admin dashboard shell and native asset pack
+- Admin operations UI uses the DreamsChat admin dashboard shell and native asset pack as a first-class in-project dependency
 - Public chat visuals are also vendored now so the future end-user shell can be built without re-importing external packages
+- The source-of-truth visual template for both admin and public chat UI is `/Users/rodrigo/Personal/Proyectos/react projects/dreamschat-v2.8.4`
+- Future UI waves must replicate that template layout exactly and swap in the new platform capabilities behind it, rather than building a merely similar variant
+- Legacy user-chat behaviors around human-like wait, pending-turn cancellation, and typing/awaiting-reply remain an explicit prerequisite before or within Wave 8; they must inform the future public chat runtime but are intentionally out of scope for Wave 6

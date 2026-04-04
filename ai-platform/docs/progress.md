@@ -1016,3 +1016,43 @@
 - Run the explicit Wave 6 closeout review against workflow coverage, tenant safety, DreamsChat fidelity, and operator clarity
 - Finalize architecture/progress documentation to show how Wave 6 enables Wave 7, Wave 8 async prerequisites, and Wave 9 hardening
 - Close the wave with a final validation pass and a documentation-focused commit
+
+## Iteration 34
+
+### Implemented
+- Completed the explicit Wave 6 closeout review over:
+  - functional admin workflow coverage
+  - managed-resource contract alignment
+  - layer separation
+  - tenant safety
+  - hardcoded or language-limited logic introduced in touched paths
+  - operator clarity and DreamsChat shell fidelity
+  - readiness for the next roadmap steps
+- Updated `architecture.md` so the documented branch state now matches the real codebase:
+  - AI response generation is active
+  - governed async learning is active
+  - all managed resource families are runtime-governed
+  - Wave 6 admin operations UI is live
+- Documented Wave 6 continuity explicitly:
+  - Wave 7: Knowledge And Chat Test Center UI
+  - the async turn-intake / cancellation / typing prerequisite before or within Wave 8
+  - Wave 8: User Chat Product UI
+  - Wave 9: Centralized QA, Security, Roles, E2E, And Production Hardening
+
+### Working
+- Wave 6 is now fully closed on this branch
+- Closeout review result:
+  - blockers: none
+  - carried technical debt: present, but non-blocking
+- The admin operations UI now provides operator-safe list/detail/create/activate flows for all required managed-resource families over real backend surfaces while keeping backend lifecycle rules authoritative
+- Backend build, backend tests, and frontend build all pass at wave closeout
+
+### Technical Debt
+- `AiGatewayService` still concentrates provider-registry logic and inline prompt scaffolding; this remains explicit carried debt and was intentionally not expanded in Wave 6
+- Complex managed-resource families still use JSON-editor UX in the admin UI; richer field-level operator forms can be added later without changing backend governance contracts
+- The final user chat product still requires async turn-intake, cancellation, and typing/awaiting-reply behavior before or within Wave 8; Wave 6 only documents and preserves that dependency
+
+### Next Steps
+- Start Wave 7, `Knowledge And Chat Test Center UI`, on top of the now-live admin operations shell and governed resource ABMs
+- Land the async turn-intake / cancellation / typing capability before or within Wave 8 instead of building the public chat product on a synchronous request/response shell
+- Carry the stabilized admin UI and managed-resource contracts into Wave 9 for centralized QA, auth/roles, E2E, and production hardening
