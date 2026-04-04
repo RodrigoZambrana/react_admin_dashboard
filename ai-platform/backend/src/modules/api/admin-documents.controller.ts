@@ -14,6 +14,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AdminDocumentsService } from './admin-documents.service';
 import { ActivateManagedResourceVersionDto } from './dto/activate-managed-resource-version.dto';
 import { CreateTextDocumentDto } from './dto/create-text-document.dto';
+import { CreateUrlDocumentDto } from './dto/create-url-document.dto';
 import { IngestDocumentDto } from './dto/ingest-document.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 
@@ -42,6 +43,17 @@ export class AdminDocumentsController {
   @Post('text')
   createTextDocument(@Body() body: CreateTextDocumentDto) {
     return this.adminDocumentsService.createTextDocument(body);
+  }
+
+  @Post('url')
+  createUrlDocument(@Body() body: CreateUrlDocumentDto) {
+    return this.adminDocumentsService.createUrlDocument({
+      url: body.url,
+      title: body.title,
+      language: body.language,
+      createdBy: body.createdBy,
+      activate: normalizeBoolean(body.activate, true),
+    });
   }
 
   @Post('upload')

@@ -8,8 +8,10 @@ import {
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { DocumentRepository } from '../persistence/repositories/document.repository';
 import {
+  CreateUrlDocumentInput,
   CreateTextDocumentInput,
   createTextDocumentSchema,
+  createUrlDocumentSchema,
   ExtractedDocumentSource,
   ingestDocumentOptionsSchema,
   IngestDocumentOptions,
@@ -60,6 +62,24 @@ export class DocumentService {
     });
   }
 
+  async createUrlDocument(input: CreateUrlDocumentInput) {
+    const parsed = createUrlDocumentSchema.parse(input);
+    const extractedSource = await this.contentExtractor.extractFromUrl({
+      url: parsed.url,
+      title: parsed.title ?? null,
+      language: parsed.language ?? null,
+    });
+
+    return this.createAndIngest({
+      title:
+        parsed.title?.trim() ||
+        deriveDocumentTitleFromUrl(parsed.url),
+      extractedSource,
+      activate: parsed.activate,
+      createdBy: parsed.createdBy,
+    });
+  }
+
   async createUploadedDocument(input: {
     title?: string;
     file: {
@@ -71,7 +91,7 @@ export class DocumentService {
     createdBy?: string;
     language?: string;
   }) {
-    const extractedSource = this.contentExtractor.extractFromUpload({
+    const extractedSource = await this.contentExtractor.extractFromUpload({
       originalName: input.file.originalName,
       mimeType: input.file.mimeType ?? null,
       buffer: input.file.buffer,
@@ -170,4 +190,14 @@ export class DocumentService {
 
 function deriveDocumentTitle(fileName: string) {
   return fileName.replace(/\.[^.]+$/, '').trim() || 'Uploaded document';
+}
+
+function deriveDocumentTitleFromUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const lastSegment = parsed.pathname.split('/').filter(Boolean).pop();
+    return deriveDocumentTitle(lastSegment ?? parsed.hostname);
+  } catch {
+    return 'URL document';
+  }
 }

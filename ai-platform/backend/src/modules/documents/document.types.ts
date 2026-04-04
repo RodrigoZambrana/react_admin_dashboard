@@ -17,12 +17,21 @@ export const createTextDocumentSchema = z.object({
   createdBy: z.string().min(1).max(120).optional(),
 });
 
+export const createUrlDocumentSchema = z.object({
+  url: z.string().url(),
+  title: z.string().min(1).max(200).optional(),
+  language: z.string().min(2).max(16).optional(),
+  activate: z.boolean().default(true),
+  createdBy: z.string().min(1).max(120).optional(),
+});
+
 export const ingestDocumentOptionsSchema = z.object({
   activate: z.boolean().default(true),
   createdBy: z.string().min(1).max(120).optional(),
 });
 
 export type CreateTextDocumentInput = z.infer<typeof createTextDocumentSchema>;
+export type CreateUrlDocumentInput = z.infer<typeof createUrlDocumentSchema>;
 export type IngestDocumentOptions = z.infer<typeof ingestDocumentOptionsSchema>;
 
 export type ExtractedDocumentSource = {

@@ -41,6 +41,19 @@ export class AdminDocumentsService {
     });
   }
 
+  createUrlDocument(input: {
+    url: string;
+    title?: string;
+    language?: string;
+    createdBy?: string;
+    activate?: boolean;
+  }) {
+    return this.documentService.createUrlDocument({
+      ...input,
+      activate: input.activate ?? true,
+    });
+  }
+
   createUploadedDocument(input: {
     title?: string;
     language?: string;

@@ -1,87 +1,116 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { extname } from 'node:path';
+import { DocumentOriginKind } from '@prisma/client';
 
+import { StructuredCatalogUploadAdapter } from '../tenant-resources/structured-catalog-upload.adapter';
+import {
+  TenantResourceExtraction,
+  TenantResourceUploadInput,
+} from '../tenant-resources/tenant-resource.types';
+import { UploadDocxDocumentAdapter } from '../tenant-resources/upload-docx-document.adapter';
+import { UploadPdfDocumentAdapter } from '../tenant-resources/upload-pdf-document.adapter';
+import { UploadTextDocumentAdapter } from '../tenant-resources/upload-text-document.adapter';
+import { UploadXlsxDocumentAdapter } from '../tenant-resources/upload-xlsx-document.adapter';
+import { UrlDocumentResourceAdapter } from '../tenant-resources/url-document-resource.adapter';
 import { ExtractedDocumentSource } from './document.types';
-
-const supportedMimeTypes = new Set([
-  'text/plain',
-  'text/markdown',
-  'text/x-markdown',
-  'application/json',
-  'text/html',
-  'application/xhtml+xml',
-  'application/octet-stream',
-]);
 
 @Injectable()
 export class DocumentContentExtractorService {
-  extractFromUpload(input: {
+  private readonly uploadAdapters;
+
+  constructor(
+    private readonly textUploadAdapter: UploadTextDocumentAdapter,
+    private readonly docxUploadAdapter: UploadDocxDocumentAdapter,
+    private readonly xlsxUploadAdapter: UploadXlsxDocumentAdapter,
+    private readonly pdfUploadAdapter: UploadPdfDocumentAdapter,
+    private readonly urlDocumentResourceAdapter: UrlDocumentResourceAdapter,
+    private readonly structuredCatalogUploadAdapter: StructuredCatalogUploadAdapter,
+  ) {
+    this.uploadAdapters = [
+      this.textUploadAdapter,
+      this.docxUploadAdapter,
+      this.xlsxUploadAdapter,
+      this.pdfUploadAdapter,
+    ];
+  }
+
+  async extractFromUpload(input: {
     originalName: string;
     mimeType?: string | null;
     buffer: Buffer;
     language?: string | null;
-  }): ExtractedDocumentSource {
-    const mimeType = input.mimeType?.trim().toLowerCase() || null;
-    const extension = extname(input.originalName).toLowerCase();
+  }): Promise<ExtractedDocumentSource> {
+    const adapterInput: TenantResourceUploadInput = {
+      sourceName: input.originalName,
+      mimeType: input.mimeType ?? null,
+      buffer: input.buffer,
+      language: input.language ?? null,
+    };
+    const adapter = this.uploadAdapters.find((candidate) =>
+      candidate.supportsUpload(adapterInput),
+    );
 
-    if (!this.isSupported(mimeType, extension)) {
+    if (!adapter) {
+      if (this.structuredCatalogUploadAdapter.supportsUpload(adapterInput)) {
+        throw new BadRequestException(
+          'Structured catalogs must be loaded through the catalog boundary, not the document corpus',
+        );
+      }
+
       throw new BadRequestException(
-        `Unsupported document type "${mimeType ?? (extension || 'unknown')}"`,
+        `Unsupported document type "${input.mimeType ?? input.originalName}"`,
       );
     }
 
-    const raw = input.buffer.toString('utf8');
-    const content = this.normalizeExtractedText(
-      mimeType === 'text/html' || mimeType === 'application/xhtml+xml'
-        ? raw.replace(/<[^>]+>/g, ' ')
-        : raw,
-    );
+    const extracted = await adapter.extractFromUpload(adapterInput);
+    return this.mapExtraction(extracted, DocumentOriginKind.UPLOAD);
+  }
 
-    if (content.length === 0) {
-      throw new BadRequestException('Uploaded document does not contain usable text');
+  async extractFromUrl(input: {
+    url: string;
+    title?: string | null;
+    language?: string | null;
+  }): Promise<ExtractedDocumentSource> {
+    if (
+      !this.urlDocumentResourceAdapter.supportsUrl({
+        url: input.url,
+        title: input.title ?? null,
+        language: input.language ?? null,
+      })
+    ) {
+      throw new BadRequestException(`Unsupported document URL "${input.url}"`);
+    }
+
+    const extracted = await this.urlDocumentResourceAdapter.extractFromUrl({
+      url: input.url,
+      title: input.title ?? null,
+      language: input.language ?? null,
+    });
+
+    return this.mapExtraction(extracted, DocumentOriginKind.URL);
+  }
+
+  private mapExtraction(
+    extracted: TenantResourceExtraction,
+    originKind: DocumentOriginKind,
+  ): ExtractedDocumentSource {
+    if (extracted.contentType !== 'text') {
+      throw new BadRequestException(
+        'Document extraction produced structured content instead of plain knowledge text',
+      );
+    }
+
+    if (!extracted.textContent.trim()) {
+      throw new BadRequestException(
+        'Uploaded document does not contain usable text',
+      );
     }
 
     return {
-      originKind: 'UPLOAD',
-      sourceName: input.originalName,
-      mimeType: mimeType ?? this.resolveMimeTypeFromExtension(extension),
-      language: input.language ?? null,
-      content,
+      originKind,
+      sourceName: extracted.sourceName ?? null,
+      mimeType: extracted.mimeType ?? null,
+      language: extracted.language ?? null,
+      content: extracted.textContent.trim(),
     };
-  }
-
-  private isSupported(mimeType: string | null, extension: string) {
-    if (mimeType && supportedMimeTypes.has(mimeType)) {
-      return true;
-    }
-
-    return ['.txt', '.md', '.markdown', '.json', '.html', '.htm'].includes(
-      extension,
-    );
-  }
-
-  private resolveMimeTypeFromExtension(extension: string) {
-    if (extension === '.md' || extension === '.markdown') {
-      return 'text/markdown';
-    }
-
-    if (extension === '.json') {
-      return 'application/json';
-    }
-
-    if (extension === '.html' || extension === '.htm') {
-      return 'text/html';
-    }
-
-    return 'text/plain';
-  }
-
-  private normalizeExtractedText(value: string) {
-    return value
-      .replace(/\r\n/g, '\n')
-      .replace(/\u0000/g, ' ')
-      .replace(/[ \t]+\n/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
   }
 }

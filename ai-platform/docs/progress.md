@@ -2384,3 +2384,36 @@
 - Finish routing document ingestion through concrete tenant-resource adapters beyond plain text
 - Add URL-backed document creation and multi-format extraction coverage without mixing catalogs into document retrieval
 - Keep Wave 9 out of scope while closing this tenant runtime/source phase cleanly
+
+## Iteration 71
+
+### Implemented
+- Routed document ingestion through the explicit tenant-resource adapter boundary:
+  - `DocumentContentExtractorService` now delegates to reusable upload/URL adapters instead of treating uploads as plain UTF-8 by default
+  - added support for DOCX, XLSX, PDF, HTML/text, and URL-backed document extraction in the backend runtime
+- Added URL-backed document creation on the existing admin document surface:
+  - new `POST /admin/documents/url`
+  - `DocumentOriginKind.URL`
+  - compatibility-safe document service path that keeps document content tenant-scoped and approved
+- Added regression coverage for:
+  - DOCX extraction
+  - XLSX extraction
+  - URL document extraction
+  - rejection of structured catalog uploads inside the document corpus boundary
+
+### Working
+- Document processing remains a core capability, but catalog uploads stay separated from the document-origin conversational corpus
+- The existing admin document ABM can now ingest richer tenant resource formats through backend-owned adapters instead of a plain-text-only path
+- No regression was introduced in booking, advisory/document continuity, close-turn, or approved-knowledge retrieval behavior
+
+### Technical Debt
+- The admin UI still does not expose dedicated flows for catalog sources or URL document creation even though the backend surfaces now exist
+- PDF extraction quality still depends on the source file text layer; image-only PDFs remain a later OCR concern
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Keep Wave 9 out of scope
+- Carry forward only bounded non-core debt:
+  - catalog admin UI
+  - richer connector governance around REST source auth/sync policies
+  - frontend harness work
