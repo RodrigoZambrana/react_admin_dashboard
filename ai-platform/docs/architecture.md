@@ -263,6 +263,10 @@ Important clarification:
 - Interpretation and response prompts now resolve through managed `PromptVersion` storage, not code-backed runtime defaults
 - Filesystem prompt files exist only as bootstrap seeds when a tenant has no managed prompt versions yet
 - Prompt retrieval is already wired into the live AI gateway path for interpretation and prepared for future response generation activation
+- Core prompt/policy defaults must remain tenant-neutral:
+  - they may preserve raw user signals and backend-owned structural contracts
+  - they must not embed tenant/domain overlays such as price-band shortcuts, room taxonomies, or business-specific attribute mappings
+  - if those overlays are ever needed, they must live behind tenant capability boundaries rather than the core prompt base
 
 ## Roadmap: Waves 2 To 9
 

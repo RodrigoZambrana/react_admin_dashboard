@@ -36,7 +36,7 @@ function detectIntent(message: string) {
   }
 
   if (
-    /(product|sku|catalog|precio|producto|item|buy|comprar|barato|barata|cheap|econ[oó]mico|puertas|door)/.test(
+    /(product|sku|catalog|precio|producto|item|buy|purchase|comprar)/.test(
       lower,
     )
   ) {
@@ -103,9 +103,6 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
       'quiero',
       'cotizacion',
       'cotización',
-      'barato',
-      'cocina',
-      'puertas',
       'reservar',
       'precio',
       'producto',
@@ -147,20 +144,16 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
       entities.dimensionCandidates = dimensions;
     }
 
-    if (/(barato|barata|cheap|econ[oó]mico)/.test(lower)) {
-      entities.price = 'low';
-    }
-
-    if (/(cocina|kitchen)/.test(lower)) {
-      entities.location = 'kitchen';
-    }
-
     if (peopleMatch) {
       entities.attendees = Number(peopleMatch[1]);
     }
 
     if (skuMatch?.[1]) {
       entities.sku = skuMatch[1];
+    }
+
+    if (detectIntent(message) === 'GET_PRODUCT' && !entities.sku) {
+      entities.productQuery = message;
     }
 
     return entities;

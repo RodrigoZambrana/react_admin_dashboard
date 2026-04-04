@@ -2185,3 +2185,31 @@
 - Treat Stage 1 and Stage 2 of the intervention plan as complete
 - Keep future corpus-distillation/runtime changes separate from this cleanup pass
 - Preserve the documented core vs tenant boundary model while any later conversational work continues
+
+## Iteration 65
+
+### Implemented
+- Neutralized the core interpretation prompt/policy base:
+  - removed tenant/domain semantic overlay instructions like `price = low`
+  - removed room-taxonomy normalization like `location = kitchen`
+  - reinforced that the core prompt may preserve raw user signals and neutral summaries, but not synthesize tenant-specific overlays
+- Tightened the core interpretation path accordingly:
+  - the mock provider no longer infers `price` or `location` from tenant-specific wording shortcuts
+  - the normalized interpretation layer no longer treats those semantic overlays as part of the core interpretation base
+- Added regression coverage around prompt neutrality so those mappings do not re-enter the core policy path silently
+
+### Working
+- The core prompt base now stays aligned with the locked architecture boundary:
+  - booking/document/product intents still work
+  - raw user message preservation remains intact
+  - tenant/domain overlay shortcuts are no longer encoded into the base interpretation policy
+
+### Technical Debt
+- Tenant capability overlays are still not formalized yet in runtime code; that remains the next architectural step after corpus distillation and core-pattern application
+- The current `get_product` path remains a temporary demo-catalog boundary until a real catalog source exists
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Distill the real corpus and legacy artifacts into reusable core patterns, regression fixtures, and explicit exclusions
+- Apply only reusable core conversational improvements from that distillation
+- Introduce the tenant-capability and tenant-resource boundaries in runtime code without mixing tenant logic back into the core prompt base

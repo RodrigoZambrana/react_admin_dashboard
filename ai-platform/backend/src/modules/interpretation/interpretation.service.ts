@@ -109,8 +109,6 @@ export class InterpretationService {
     const dimensionCandidates = this.normalizeStringArray(
       entities?.dimensionCandidates,
     );
-    const price = this.normalizeOptionalString(entities?.price);
-    const location = this.normalizeOptionalString(entities?.location);
     const sku = this.normalizeOptionalString(entities?.sku);
     const productQuery = this.normalizeOptionalString(entities?.productQuery);
     const requestSummary = this.normalizeOptionalString(entities?.requestSummary);
@@ -129,14 +127,6 @@ export class InterpretationService {
 
     if (typeof entities?.attendees === 'number' && Number.isFinite(entities.attendees)) {
       normalized.attendees = Math.trunc(entities.attendees);
-    }
-
-    if (price && intent === 'GET_PRODUCT') {
-      normalized.price = price;
-    }
-
-    if (location && intent === 'GET_PRODUCT') {
-      normalized.location = location;
     }
 
     if (sku && intent === 'GET_PRODUCT') {

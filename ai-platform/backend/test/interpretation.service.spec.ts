@@ -7,11 +7,11 @@ describe('InterpretationService', () => {
         interpret: jest.fn(async () => ({
           ok: true,
           rawResponse:
-            '{"intent":"tenant.get_product","entities":{"price":"low"},"language":"ES-UY","confidence":0.9}',
+            '{"intent":"tenant.get_product","entities":{"productQuery":"quiero algo barato"},"language":"ES-UY","confidence":0.9}',
           parsedResponse: {
             intent: 'tenant.get_product',
             entities: {
-              price: 'low',
+              productQuery: 'quiero algo barato',
             },
             language: 'ES-UY',
             confidence: 0.9,
@@ -31,13 +31,50 @@ describe('InterpretationService', () => {
         interpretation: {
           intent: 'GET_PRODUCT',
           entities: {
-            price: 'low',
+            productQuery: 'quiero algo barato',
             rawMessage: 'quiero algo barato',
           },
           language: 'es',
           confidence: 0.9,
         },
         usedFallback: false,
+      }),
+    );
+  });
+
+  it('drops tenant-specific semantic overlays when they arrive from the provider without explicit core backing', async () => {
+    const service = new InterpretationService(
+      {
+        interpret: jest.fn(async () => ({
+          ok: true,
+          rawResponse:
+            '{"intent":"GET_PRODUCT","entities":{"price":"low","location":"kitchen"},"language":"es","confidence":0.91}',
+          parsedResponse: {
+            intent: 'GET_PRODUCT',
+            entities: {
+              price: 'low',
+              location: 'kitchen',
+            },
+            language: 'es',
+            confidence: 0.91,
+          },
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+        })),
+      } as any,
+      {
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(service.interpret('quiero algo barato para la cocina', 'es')).resolves.toEqual(
+      expect.objectContaining({
+        interpretation: expect.objectContaining({
+          entities: {
+            rawMessage: 'quiero algo barato para la cocina',
+          },
+        }),
       }),
     );
   });

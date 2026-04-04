@@ -88,6 +88,42 @@ describe('MockLanguageModelProvider', () => {
       }),
     );
   });
+
+  it('keeps product lookup extraction neutral instead of synthesizing tenant overlays like price bands or kitchen location', async () => {
+    const provider = new MockLanguageModelProvider(
+      new TemporalExpressionService(
+        buildManagedTemporalLocaleProviderStub().provider,
+      ),
+    );
+
+    const response = await provider.interpret(
+      {
+        message: 'quiero algo barato para la cocina',
+        systemPrompt: 'Return JSON only.',
+        previousMessages: [],
+      },
+      {
+        model: 'mock',
+        timeoutMs: 1000,
+        credentials: {
+          strategy: 'none',
+          envKey: null,
+          value: null,
+        },
+        providerOptions: {},
+      },
+    );
+    const payload = JSON.parse(response.rawResponse);
+
+    expect(payload.intent).toBe('GENERAL_CONVERSATION');
+    expect(payload.entities).toEqual(
+      expect.objectContaining({
+        rawMessage: 'quiero algo barato para la cocina',
+      }),
+    );
+    expect(payload.entities).not.toHaveProperty('price');
+    expect(payload.entities).not.toHaveProperty('location');
+  });
 });
 
 class FakeTemporalLocaleProvider extends TemporalLocaleProvider {

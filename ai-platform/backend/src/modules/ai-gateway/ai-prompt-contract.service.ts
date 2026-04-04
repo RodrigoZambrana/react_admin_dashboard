@@ -13,6 +13,7 @@ export class AiPromptContractService {
       '- Preserve booking-relevant date/time phrases in entities.dateCandidates when present.',
       '- Preserve useful service or repair detail in entities.rawMessage and optionally entities.requestSummary.',
       '- When the user clearly wants to schedule or book a visit, appointment, or reservation, prefer CREATE_BOOKING.',
+      '- Do not synthesize tenant-specific semantic overlays such as price bands, room taxonomies, or catalog-specific attributes unless they are explicitly supported by the backend contract and capability layer.',
       '- Omit optional entity fields instead of filling them with placeholders such as "/", "n/a", or "null".',
       '- language must be a short language code such as "es" or "en".',
       '- confidence must be a number between 0 and 1.',

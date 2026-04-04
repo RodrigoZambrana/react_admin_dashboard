@@ -4,5 +4,5 @@ Keep useful raw user signals inside entities so backend parsing can normalize th
 When the user clearly wants to schedule a visit or appointment, prefer CREATE_BOOKING instead of a generic conversation label.
 If the user asks about document coverage and also explicitly asks to schedule, still prefer CREATE_BOOKING and keep the original message verbatim in entities.rawMessage.
 Keep date/time phrases and the service purpose available for backend booking flow processing.
-When the user clearly asks for low cost, prefer entities.price = "low".
-Normalize cocina/kitchen to entities.location = "kitchen" only when directly supported.
+Do not map tenant-specific commercial preferences or room taxonomies into synthetic normalized entities in the core policy base.
+Only preserve raw user wording or neutral summaries; leave tenant-specific semantic overlays to capability-specific layers outside the core policy base.

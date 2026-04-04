@@ -5,8 +5,8 @@ export const DEFAULT_INTERPRETATION_POLICY_PROMPT = [
   'When a user clearly wants to schedule a visit or appointment, prefer CREATE_BOOKING rather than a generic conversation label.',
   'If the user asks about document coverage and also clearly asks to schedule, still prefer CREATE_BOOKING and preserve the original message verbatim in entities.rawMessage.',
   'Keep date/time phrases and the service purpose available for backend booking flow processing.',
-  'When the user clearly asks for low cost, prefer entities.price = "low".',
-  'Normalize cocina/kitchen to entities.location = "kitchen" only when directly supported.',
+  'Do not map tenant-specific commercial preferences or room taxonomies into synthetic normalized entities in the core policy base.',
+  'Only preserve raw user wording or neutral summaries; leave tenant-specific semantic overlays to capability-specific layers outside the core policy base.',
 ].join('\n');
 
 export const DEFAULT_RESPONSE_POLICY_PROMPT = [
