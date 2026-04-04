@@ -151,6 +151,21 @@ model KnowledgeMetadataVersion {
   @@index([tenantId, key, status])
 }
 
+model ResponseFallbackVersion {
+  id        String                @id @default(cuid())
+  tenantId  String
+  locale    String
+  version   Int
+  status    ManagedResourceStatus @default(DRAFT)
+  resource  Json
+  metadata  Json?
+  createdAt DateTime              @default(now())
+  createdBy String?
+
+  @@unique([tenantId, locale, version])
+  @@index([tenantId, locale, status])
+}
+
 model Knowledge {
   id          String            @id @default(cuid())
   tenantId    String

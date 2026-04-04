@@ -784,3 +784,33 @@
 - Introduce the governed fallback response-copy boundary and migrate the current fallback set through it without changing `/chat/message`
 - Align backend governance surfaces with the new provider/runtime config model so future admin ABMs can manage critical config safely
 - Close Wave 5 with final documentation that links this governance work to Wave 6 admin operations and Wave 9 centralized hardening
+
+## Iteration 27
+
+### Implemented
+- Introduced a governed fallback-response catalog family with the same runtime-managed resource pattern used by prompts, date-time-locale-resources, critical configs, and knowledge metadata
+- Added persisted versioning for fallback catalogs through `ResponseFallbackVersion`, managed provider/bootstrap seeding, and locale-aware catalog resolution
+- Moved deterministic fallback copy out of inline multilingual branching in `ChatResponsePolicyService` and behind `ResponseFallbackService`
+- Migrated the current fallback copy set into governed locale catalogs and kept the policy layer focused on backend-approved template selection plus parameter assembly
+- Added tests covering:
+  - managed fallback catalog bootstrap/reuse
+  - governed catalog rendering
+  - non-regression of deterministic fallback outputs
+  - no new hardcoded locale branching in the touched live response services
+- Applied and committed the Prisma migration `20260404010213_add_response_fallback_versions`
+
+### Working
+- Deterministic fallback responses are now governed backend resources instead of inline copy buckets in runtime services
+- Live `/chat/message` behavior remains non-breaking while fallback copy resolution now flows through managed locale catalogs
+- Backend build, backend tests, frontend build, and Prisma migration/generation all pass after the fallback governance refactor
+- The touched response path no longer adds locale-specific branching debt beyond managed resource selection
+
+### Technical Debt
+- Future admin-ready backend surfaces still need to expose managed operations for the newer governed families introduced in Wave 5
+- The current fallback catalogs are bootstrap-seeded from repository resources; later admin mutation flows will need publication workflows on top of the already-landed lifecycle model
+- Wave 5 still needs final closeout documentation tying these governance surfaces to Wave 6 admin operations and Wave 9 centralized hardening
+
+### Next Steps
+- Add the remaining admin-ready backend management surfaces for critical config, knowledge metadata, and fallback response catalogs
+- Finalize Wave 5 documentation so the closed scope explicitly enables Wave 6 admin operations and Wave 9 hardening without reopening runtime architecture
+- Run final full validation and close the wave with a clean commit set

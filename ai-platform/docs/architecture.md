@@ -96,6 +96,7 @@
 - `KnowledgeModule`: asynchronous knowledge extraction and storage
 - `LoggingModule`: pipeline logging and observability
 - `PromptModule`: prompt storage, retrieval, and versioning
+- `ResponseFallbackModule`: governed deterministic fallback catalogs for backend-safe response drafts
 - `PersistenceModule`: Prisma repositories and tenant enforcement
 - `ParsingModule`: normalization of dates, measurements, and entities
 - `RuntimeConfigModule`: abstraction over managed runtime configuration and safe env-backed secret resolution, keeping provider/runtime selection portable while leaving room for future repository-backed tenant/auth settings
@@ -254,11 +255,11 @@
 2. Strategic objective: make the completed backend pipeline operable through governed critical resources, learning activation, provider/runtime configuration hardening, and backend contracts that support later admin UI and public chat productization.
 3. Why it happens now: once execution and AI response are live, the primary risk shifts from missing runtime stages to governed rollout, configuration portability, learning control, and operator readiness.
 4. Dependency on previous waves: depends on Waves 1 through 4 so governance and learning can operate on the real end-to-end pipeline rather than placeholders.
-5. Main implementation scope: activate asynchronous learning from stored logs under governed extraction policies; migrate critical configs and governed knowledge metadata onto the runtime-managed resource pattern; standardize AI gateway/runtime provider configuration so the active client configuration is not implicitly tied to one provider family; expand backend governance surfaces needed by later admin UI and user UI delivery.
+5. Main implementation scope: activate asynchronous learning from stored logs under governed extraction policies; migrate critical configs, governed knowledge metadata, and fallback response catalogs onto the runtime-managed resource pattern; standardize AI gateway/runtime provider configuration so the active client configuration is not implicitly tied to one provider family; expand backend governance surfaces needed by later admin UI and user UI delivery.
 6. Architecture constraints: learning remains async and backend-owned; no raw knowledge dumping; provider/runtime configuration must remain backend-governed and provider-agnostic at the configuration boundary; admin surfaces stay separate from runtime orchestration; this wave must not become the centralized QA wave.
 7. Legacy contributions that should be mined: structured tenant/domain concepts from `runtime-tenant-policy.js`; legacy knowledge-service concepts that fit the new governance model; user-facing chat experience concepts from `webchat.adapter.js` only as product/API guidance, not as runtime architecture.
 8. Expected user/platform value: safer governed rollout, portable provider/runtime configuration, live learning readiness, and backend readiness for future admin ABMs and public chat product surfaces.
-9. Completion criteria: learning is live and observable; critical configs and governed knowledge metadata follow the runtime-managed resource pattern; AI provider/runtime configuration is standardized behind a provider-agnostic contract instead of provider-specific environment assumptions; admin-ready backend endpoints cover resource governance and runtime operations needed by later UI waves.
+9. Completion criteria: learning is live and observable; critical configs, governed knowledge metadata, and fallback response catalogs follow the runtime-managed resource pattern; AI provider/runtime configuration is standardized behind a provider-agnostic contract instead of provider-specific environment assumptions; admin-ready backend endpoints cover resource governance and runtime operations needed by later UI waves.
 10. Explicit next-wave enablement: enables later product tracks such as admin UI ABMs, public chat UX delivery, centralized QA/test delivery, security hardening, and tenant onboarding workflows without changing core runtime architecture.
 
 ### Wave 6: Admin Operations UI
@@ -349,6 +350,7 @@ The `response` stage persists:
 
 - approved backend response context
 - deterministic approved draft used for rewrite/fallback
+- governed fallback catalog resolution behind locale-aware managed resources
 - provider and model metadata for response generation
 - parsed AI response JSON
 - guardrail outcomes and deterministic fallback reason when fallback was required

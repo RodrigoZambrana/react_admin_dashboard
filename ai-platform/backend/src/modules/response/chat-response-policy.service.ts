@@ -1,15 +1,15 @@
 import { Injectable } from '@nestjs/common';
 
+import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
 import { ApprovedResponseContext } from './response.types';
-
-const BASIC_RESPONSES = {
-  en: 'Hello, how can I help you?',
-  es: 'Entiendo. Como puedo ayudarte?',
-} as const;
 
 @Injectable()
 export class ChatResponsePolicyService {
-  resolve(context: ApprovedResponseContext) {
+  constructor(
+    private readonly responseFallbackService: ResponseFallbackService,
+  ) {}
+
+  async resolve(context: ApprovedResponseContext) {
     if (context.outcome === 'clarify') {
       return this.buildClarificationResponse(
         context.missingFields ?? [],
@@ -28,128 +28,141 @@ export class ChatResponsePolicyService {
     return this.buildBasicResponse(context.locale);
   }
 
-  private buildBasicResponse(locale?: string) {
-    return this.isSpanish(locale) ? BASIC_RESPONSES.es : BASIC_RESPONSES.en;
+  private async buildBasicResponse(locale?: string) {
+    return this.responseFallbackService.render({
+      locale,
+      templateKey: 'basic_response',
+    });
   }
 
-  private buildClarificationResponse(missingFields: string[], locale?: string) {
-    const isSpanish = this.isSpanish(locale);
-
+  private async buildClarificationResponse(
+    missingFields: string[],
+    locale?: string,
+  ) {
     if (missingFields.includes('requested_date')) {
-      return isSpanish
-        ? 'Necesito la fecha deseada para continuar.'
-        : 'I need the requested date to continue.';
+      return this.responseFallbackService.render({
+        locale,
+        templateKey: 'clarification_requested_date',
+      });
     }
 
     if (missingFields.includes('user_goal')) {
-      return isSpanish
-        ? 'Necesito entender mejor lo que necesitas para continuar.'
-        : 'I need to better understand what you need to continue.';
+      return this.responseFallbackService.render({
+        locale,
+        templateKey: 'clarification_user_goal',
+      });
     }
 
-    return isSpanish
-      ? 'Necesito un poco más de contexto para continuar.'
-      : 'I need a bit more context to continue.';
+    return this.responseFallbackService.render({
+      locale,
+      templateKey: 'clarification_generic',
+    });
   }
 
-  private buildExecutionSuccessResponse(context: ApprovedResponseContext) {
-    const isSpanish = this.isSpanish(context.locale);
+  private async buildExecutionSuccessResponse(context: ApprovedResponseContext) {
     const execution = context.execution;
+    const defaults = await this.responseFallbackService.getDefaults(context.locale);
 
     if (context.decision.toolName === 'create_booking') {
       const scheduledFor =
         typeof execution.resultSummary?.scheduledFor === 'string'
           ? execution.resultSummary.scheduledFor
-          : 'the requested date';
+          : defaults.scheduledFor;
 
-      return isSpanish
-        ? `La reserva fue confirmada para ${scheduledFor}.`
-        : `The booking was confirmed for ${scheduledFor}.`;
+      return this.responseFallbackService.render({
+        locale: context.locale,
+        templateKey: 'execution_success_booking',
+        variables: {
+          scheduledFor,
+        },
+      });
     }
 
     if (context.decision.toolName === 'create_quote') {
       const currency =
         typeof execution.resultSummary?.currency === 'string'
           ? execution.resultSummary.currency
-          : 'USD';
+          : defaults.currency;
       const estimatedTotal =
         typeof execution.resultSummary?.estimatedTotal === 'number'
           ? execution.resultSummary.estimatedTotal.toFixed(2)
-          : '0.00';
+          : defaults.amount;
 
-      return isSpanish
-        ? `La cotizacion preliminar fue creada por ${currency} ${estimatedTotal}.`
-        : `The preliminary quote was created for ${currency} ${estimatedTotal}.`;
+      return this.responseFallbackService.render({
+        locale: context.locale,
+        templateKey: 'execution_success_quote',
+        variables: {
+          currency,
+          estimatedTotal,
+        },
+      });
     }
 
     if (context.decision.toolName === 'get_product') {
       const name =
         typeof execution.resultSummary?.name === 'string'
           ? execution.resultSummary.name
-          : 'the requested product';
+          : defaults.productName;
       const currency =
         typeof execution.resultSummary?.currency === 'string'
           ? execution.resultSummary.currency
-          : 'USD';
+          : defaults.currency;
       const price =
         typeof execution.resultSummary?.price === 'number'
           ? execution.resultSummary.price.toFixed(2)
-          : '0.00';
+          : defaults.amount;
 
-      return isSpanish
-        ? `Encontre ${name} por ${currency} ${price}.`
-        : `I found ${name} for ${currency} ${price}.`;
+      return this.responseFallbackService.render({
+        locale: context.locale,
+        templateKey: 'execution_success_product',
+        variables: {
+          name,
+          currency,
+          price,
+        },
+      });
     }
 
-    return isSpanish
-      ? 'La accion solicitada fue ejecutada correctamente.'
-      : 'The requested action was executed successfully.';
+    return this.responseFallbackService.render({
+      locale: context.locale,
+      templateKey: 'execution_success_generic',
+    });
   }
 
-  private buildExecutionFailureResponse(context: ApprovedResponseContext) {
-    const isSpanish = this.isSpanish(context.locale);
+  private async buildExecutionFailureResponse(context: ApprovedResponseContext) {
     const toolName = context.decision.toolName;
     const errorCode = context.execution.failure?.code;
-    const actionLabel = this.getActionLabel(toolName, context.locale);
+    const actionLabel = await this.responseFallbackService.getActionLabel(
+      context.locale,
+      toolName,
+    );
 
     if (errorCode === 'unknown_tool') {
-      return isSpanish
-        ? `No pude completar ${actionLabel} porque la capacidad aprobada no esta disponible.`
-        : `I could not complete ${actionLabel} because the approved capability is not available.`;
+      return this.responseFallbackService.render({
+        locale: context.locale,
+        templateKey: 'execution_failure_unknown_tool',
+        variables: {
+          actionLabel,
+        },
+      });
     }
 
     if (errorCode === 'validation_failed') {
-      return isSpanish
-        ? `No pude completar ${actionLabel} con la informacion disponible.`
-        : `I could not complete ${actionLabel} with the available information.`;
+      return this.responseFallbackService.render({
+        locale: context.locale,
+        templateKey: 'execution_failure_validation',
+        variables: {
+          actionLabel,
+        },
+      });
     }
 
-    return isSpanish
-      ? `No pude completar ${actionLabel} por un error durante la ejecucion.`
-      : `I could not complete ${actionLabel} because of an execution error.`;
-  }
-
-  private getActionLabel(toolName: string | undefined, locale?: string) {
-    const isSpanish = this.isSpanish(locale);
-
-    if (toolName === 'create_booking') {
-      return isSpanish ? 'la reserva solicitada' : 'the requested booking';
-    }
-
-    if (toolName === 'create_quote') {
-      return isSpanish ? 'la cotizacion solicitada' : 'the requested quote';
-    }
-
-    if (toolName === 'get_product') {
-      return isSpanish
-        ? 'la consulta de producto solicitada'
-        : 'the requested product lookup';
-    }
-
-    return isSpanish ? 'la solicitud aprobada' : 'the approved request';
-  }
-
-  private isSpanish(locale?: string) {
-    return (locale ?? '').toLowerCase().startsWith('es');
+    return this.responseFallbackService.render({
+      locale: context.locale,
+      templateKey: 'execution_failure_generic',
+      variables: {
+        actionLabel,
+      },
+    });
   }
 }

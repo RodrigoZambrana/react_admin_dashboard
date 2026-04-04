@@ -1,0 +1,28 @@
+{
+  "locale": "default",
+  "templates": {
+    "basic_response": "Hello, how can I help you?",
+    "clarification_requested_date": "I need the requested date to continue.",
+    "clarification_user_goal": "I need to better understand what you need to continue.",
+    "clarification_generic": "I need a bit more context to continue.",
+    "execution_success_booking": "The booking was confirmed for {{scheduledFor}}.",
+    "execution_success_quote": "The preliminary quote was created for {{currency}} {{estimatedTotal}}.",
+    "execution_success_product": "I found {{name}} for {{currency}} {{price}}.",
+    "execution_success_generic": "The requested action was executed successfully.",
+    "execution_failure_unknown_tool": "I could not complete {{actionLabel}} because the approved capability is not available.",
+    "execution_failure_validation": "I could not complete {{actionLabel}} with the available information.",
+    "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error."
+  },
+  "actionLabels": {
+    "create_booking": "the requested booking",
+    "create_quote": "the requested quote",
+    "get_product": "the requested product lookup",
+    "default": "the approved request"
+  },
+  "defaults": {
+    "scheduledFor": "the requested date",
+    "currency": "USD",
+    "amount": "0.00",
+    "productName": "the requested product"
+  }
+}

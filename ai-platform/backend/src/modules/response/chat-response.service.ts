@@ -45,7 +45,7 @@ export class ChatResponseService {
       },
       conversationState: input.conversationState,
     });
-    const approvedDraft = this.policyService.resolve(approvedContext);
+    const approvedDraft = await this.policyService.resolve(approvedContext);
     const generation = await this.aiGatewayService.generateResponse({
       approvedContext,
       approvedDraft,

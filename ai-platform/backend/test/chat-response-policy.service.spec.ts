@@ -1,10 +1,47 @@
 import { ChatResponsePolicyService } from '../src/modules/response/chat-response-policy.service';
 
 describe('ChatResponsePolicyService', () => {
-  const service = new ChatResponsePolicyService();
+  const service = new ChatResponsePolicyService({
+    render: jest.fn(
+      async (input: {
+        locale?: string;
+        templateKey: string;
+        variables?: Record<string, string | number | null | undefined>;
+      }) => {
+        const templates = buildCatalog(input.locale).templates as Record<
+          string,
+          string
+        >;
+        return templates[input.templateKey].replace(
+          /\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g,
+          (_match, key: string) => String(input.variables?.[key] ?? ''),
+        );
+      },
+    ),
+    getDefaults: jest.fn(async (locale?: string) => buildCatalog(locale).defaults),
+    getActionLabel: jest.fn(
+      async (locale: string | undefined, toolName: string | null | undefined) => {
+        const labels = buildCatalog(locale).actionLabels;
 
-  it('returns a grounded booking confirmation after successful execution', () => {
-    expect(
+        if (toolName === 'create_booking') {
+          return labels.create_booking;
+        }
+
+        if (toolName === 'create_quote') {
+          return labels.create_quote;
+        }
+
+        if (toolName === 'get_product') {
+          return labels.get_product;
+        }
+
+        return labels.default;
+      },
+    ),
+  } as any);
+
+  it('returns a grounded booking confirmation after successful execution', async () => {
+    await expect(
       service.resolve({
         locale: 'es',
         userMessage: 'Reservar para manana',
@@ -44,11 +81,11 @@ describe('ChatResponsePolicyService', () => {
         approvedFactKeys: [],
         approvedResultKeys: ['bookingId', 'scheduledFor', 'status'],
       }),
-    ).toBe('La reserva fue confirmada para 2026-04-04T12:00:00.000Z.');
+    ).resolves.toBe('La reserva fue confirmada para 2026-04-04T12:00:00.000Z.');
   });
 
-  it('returns a grounded quote confirmation after successful execution', () => {
-    expect(
+  it('returns a grounded quote confirmation after successful execution', async () => {
+    await expect(
       service.resolve({
         locale: 'en',
         userMessage: 'Need a quote',
@@ -89,11 +126,11 @@ describe('ChatResponsePolicyService', () => {
         approvedFactKeys: [],
         approvedResultKeys: ['quoteId', 'estimatedTotal', 'currency', 'status'],
       }),
-    ).toBe('The preliminary quote was created for USD 144.00.');
+    ).resolves.toBe('The preliminary quote was created for USD 144.00.');
   });
 
-  it('returns a grounded product result after successful execution', () => {
-    expect(
+  it('returns a grounded product result after successful execution', async () => {
+    await expect(
       service.resolve({
         locale: 'es',
         userMessage: 'Beacon Desk Lamp',
@@ -134,11 +171,11 @@ describe('ChatResponsePolicyService', () => {
         approvedFactKeys: [],
         approvedResultKeys: ['sku', 'name', 'price', 'currency'],
       }),
-    ).toBe('Encontre Beacon Desk Lamp por USD 89.00.');
+    ).resolves.toBe('Encontre Beacon Desk Lamp por USD 89.00.');
   });
 
-  it('returns a deterministic validation failure response without claiming success', () => {
-    expect(
+  it('returns a deterministic validation failure response without claiming success', async () => {
+    await expect(
       service.resolve({
         locale: 'es',
         userMessage: 'Reservar',
@@ -176,13 +213,13 @@ describe('ChatResponsePolicyService', () => {
         approvedFactKeys: [],
         approvedResultKeys: [],
       }),
-    ).toBe(
+    ).resolves.toBe(
       'No pude completar la reserva solicitada con la informacion disponible.',
     );
   });
 
-  it('returns a deterministic unknown-tool failure response without claiming success', () => {
-    expect(
+  it('returns a deterministic unknown-tool failure response without claiming success', async () => {
+    await expect(
       service.resolve({
         locale: 'en',
         userMessage: 'do the thing',
@@ -220,8 +257,83 @@ describe('ChatResponsePolicyService', () => {
         approvedFactKeys: [],
         approvedResultKeys: [],
       }),
-    ).toBe(
+    ).resolves.toBe(
       'I could not complete the requested product lookup because the approved capability is not available.',
     );
   });
 });
+
+function buildCatalog(locale?: string) {
+  if ((locale ?? '').toLowerCase().startsWith('es')) {
+    return {
+      templates: {
+        basic_response: 'Entiendo. Como puedo ayudarte?',
+        clarification_requested_date:
+          'Necesito la fecha deseada para continuar.',
+        clarification_user_goal:
+          'Necesito entender mejor lo que necesitas para continuar.',
+        clarification_generic: 'Necesito un poco mas de contexto para continuar.',
+        execution_success_booking:
+          'La reserva fue confirmada para {{scheduledFor}}.',
+        execution_success_quote:
+          'La cotizacion preliminar fue creada por {{currency}} {{estimatedTotal}}.',
+        execution_success_product: 'Encontre {{name}} por {{currency}} {{price}}.',
+        execution_success_generic:
+          'La accion solicitada fue ejecutada correctamente.',
+        execution_failure_unknown_tool:
+          'No pude completar {{actionLabel}} porque la capacidad aprobada no esta disponible.',
+        execution_failure_validation:
+          'No pude completar {{actionLabel}} con la informacion disponible.',
+        execution_failure_generic:
+          'No pude completar {{actionLabel}} por un error durante la ejecucion.',
+      },
+      actionLabels: {
+        create_booking: 'la reserva solicitada',
+        create_quote: 'la cotizacion solicitada',
+        get_product: 'la consulta de producto solicitada',
+        default: 'la solicitud aprobada',
+      },
+      defaults: {
+        scheduledFor: 'la fecha solicitada',
+        currency: 'USD',
+        amount: '0.00',
+        productName: 'el producto solicitado',
+      },
+    };
+  }
+
+  return {
+    templates: {
+      basic_response: 'Hello, how can I help you?',
+      clarification_requested_date: 'I need the requested date to continue.',
+      clarification_user_goal:
+        'I need to better understand what you need to continue.',
+      clarification_generic: 'I need a bit more context to continue.',
+      execution_success_booking:
+        'The booking was confirmed for {{scheduledFor}}.',
+      execution_success_quote:
+        'The preliminary quote was created for {{currency}} {{estimatedTotal}}.',
+      execution_success_product: 'I found {{name}} for {{currency}} {{price}}.',
+      execution_success_generic:
+        'The requested action was executed successfully.',
+      execution_failure_unknown_tool:
+        'I could not complete {{actionLabel}} because the approved capability is not available.',
+      execution_failure_validation:
+        'I could not complete {{actionLabel}} with the available information.',
+      execution_failure_generic:
+        'I could not complete {{actionLabel}} because of an execution error.',
+    },
+    actionLabels: {
+      create_booking: 'the requested booking',
+      create_quote: 'the requested quote',
+      get_product: 'the requested product lookup',
+      default: 'the approved request',
+    },
+    defaults: {
+      scheduledFor: 'the requested date',
+      currency: 'USD',
+      amount: '0.00',
+      productName: 'the requested product',
+    },
+  };
+}

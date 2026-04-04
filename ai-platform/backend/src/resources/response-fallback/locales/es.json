@@ -1,0 +1,28 @@
+{
+  "locale": "es",
+  "templates": {
+    "basic_response": "Entiendo. Como puedo ayudarte?",
+    "clarification_requested_date": "Necesito la fecha deseada para continuar.",
+    "clarification_user_goal": "Necesito entender mejor lo que necesitas para continuar.",
+    "clarification_generic": "Necesito un poco mas de contexto para continuar.",
+    "execution_success_booking": "La reserva fue confirmada para {{scheduledFor}}.",
+    "execution_success_quote": "La cotizacion preliminar fue creada por {{currency}} {{estimatedTotal}}.",
+    "execution_success_product": "Encontre {{name}} por {{currency}} {{price}}.",
+    "execution_success_generic": "La accion solicitada fue ejecutada correctamente.",
+    "execution_failure_unknown_tool": "No pude completar {{actionLabel}} porque la capacidad aprobada no esta disponible.",
+    "execution_failure_validation": "No pude completar {{actionLabel}} con la informacion disponible.",
+    "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecucion."
+  },
+  "actionLabels": {
+    "create_booking": "la reserva solicitada",
+    "create_quote": "la cotizacion solicitada",
+    "get_product": "la consulta de producto solicitada",
+    "default": "la solicitud aprobada"
+  },
+  "defaults": {
+    "scheduledFor": "la fecha solicitada",
+    "currency": "USD",
+    "amount": "0.00",
+    "productName": "el producto solicitado"
+  }
+}
