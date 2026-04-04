@@ -8,6 +8,7 @@ import {
   LanguageModelProviderConfig,
   LanguageModelInterpretationRequest,
   LanguageModelProvider,
+  LanguageModelResponseGenerationRequest,
 } from '../ai-gateway.types';
 
 @Injectable()
@@ -63,11 +64,7 @@ export class OpenAiLanguageModelProvider implements LanguageModelProvider {
   }
 
   async generateResponse(
-    input: {
-      systemPrompt: string;
-      approvedContext: Record<string, unknown>;
-      approvedDraft: string;
-    },
+    input: LanguageModelResponseGenerationRequest,
     providerInput: LanguageModelProviderConfig,
   ) {
     const client = new OpenAI({

@@ -2,15 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { ZodError, z } from 'zod';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
-import { PromptService } from '../prompt/prompt.service';
 import { RuntimeConfigService } from '../runtime-config/runtime-config.service';
 import { aiGeneratedResponseSchema } from '../response/response.types';
+import { AiPromptAssemblyService } from './ai-prompt-assembly.service';
 import {
   AiGatewayInterpretationResult,
   AiGatewayResponseGenerationResult,
-  InterpretationInput,
   InterpretationOutput,
-  ResponseGenerationInput,
 } from './ai-gateway.types';
 import { LanguageModelProviderRegistry } from './providers/language-model-provider.registry';
 
@@ -25,31 +23,25 @@ const interpretationOutputSchema = z.object({
 export class AiGatewayService {
   constructor(
     private readonly runtimeConfig: RuntimeConfigService,
-    private readonly promptService: PromptService,
+    private readonly promptAssemblyService: AiPromptAssemblyService,
     private readonly logger: PipelineLoggerService,
     private readonly providerRegistry: LanguageModelProviderRegistry,
   ) {}
 
-  async interpret(input: InterpretationInput): Promise<AiGatewayInterpretationResult> {
+  async interpret(input: import('./ai-gateway.types').InterpretationInput): Promise<AiGatewayInterpretationResult> {
     const providerConfig = await this.runtimeConfig.getAiGatewayConfig();
     const provider = this.providerRegistry.resolve(providerConfig.provider);
     const startedAt = Date.now();
-    const promptTemplate =
-      input.promptTemplate ??
-      (await this.promptService.getActivePrompt('interpretation'))?.value ??
-      '';
-    const request = {
-      systemPrompt: this.buildInterpretationPrompt(promptTemplate, input.locale),
-      message: input.message,
-      locale: input.locale,
-      previousMessages: input.previousMessages ?? [],
-    };
+    const assembledPrompt =
+      await this.promptAssemblyService.buildInterpretationRequest(input);
+    const request = assembledPrompt.request;
 
     this.logger.debug(
       JSON.stringify({
         stage: 'ai_gateway.request',
         provider: providerConfig.provider,
         model: providerConfig.model,
+        promptVersion: assembledPrompt.promptVersion,
         previousMessageCount: request.previousMessages.length,
       }),
     );
@@ -154,35 +146,21 @@ export class AiGatewayService {
   }
 
   async generateResponse(
-    input: ResponseGenerationInput,
+    input: import('./ai-gateway.types').ResponseGenerationInput,
   ): Promise<AiGatewayResponseGenerationResult> {
     const providerConfig = await this.runtimeConfig.getAiGatewayConfig();
     const provider = this.providerRegistry.resolve(providerConfig.provider);
     const startedAt = Date.now();
-    const prompt =
-      input.promptTemplate !== undefined
-        ? {
-            id: null,
-            version: null,
-            value: input.promptTemplate,
-          }
-        : await this.promptService.getActivePrompt('response');
-    const promptTemplate = prompt?.value ?? '';
-    const request = {
-      systemPrompt: this.buildResponsePrompt(
-        promptTemplate,
-        input.approvedContext.locale,
-      ),
-      approvedContext: input.approvedContext,
-      approvedDraft: input.approvedDraft,
-    };
+    const assembledPrompt =
+      await this.promptAssemblyService.buildResponseRequest(input);
+    const request = assembledPrompt.request;
 
     this.logger.debug(
       JSON.stringify({
         stage: 'ai_gateway.response_request',
         provider: providerConfig.provider,
         model: providerConfig.model,
-        promptVersion: prompt?.version ?? null,
+        promptVersion: assembledPrompt.promptVersion,
       }),
     );
 
@@ -195,7 +173,7 @@ export class AiGatewayService {
           provider: providerConfig.provider,
           model: providerConfig.model,
           durationMs: Date.now() - startedAt,
-          promptVersion: prompt?.version ?? null,
+          promptVersion: assembledPrompt.promptVersion,
           error,
         }),
       );
@@ -207,8 +185,8 @@ export class AiGatewayService {
         error,
         provider: providerConfig.provider,
         model: providerConfig.model,
-        promptId: prompt?.id ?? null,
-        promptVersion: prompt?.version ?? null,
+        promptId: assembledPrompt.promptId,
+        promptVersion: assembledPrompt.promptVersion,
       };
     }
 
@@ -232,8 +210,8 @@ export class AiGatewayService {
         error,
         provider: providerConfig.provider,
         model: providerConfig.model,
-        promptId: prompt?.id ?? null,
-        promptVersion: prompt?.version ?? null,
+        promptId: assembledPrompt.promptId,
+        promptVersion: assembledPrompt.promptVersion,
       };
     }
 
@@ -252,7 +230,7 @@ export class AiGatewayService {
           provider: providerConfig.provider,
           model: providerResponse.model ?? providerConfig.model,
           durationMs: Date.now() - startedAt,
-          promptVersion: prompt?.version ?? null,
+          promptVersion: assembledPrompt.promptVersion,
           outcome: parsedPayload.assertedOutcome,
         }),
       );
@@ -264,8 +242,8 @@ export class AiGatewayService {
         error: null,
         provider: providerConfig.provider,
         model: providerResponse.model ?? providerConfig.model,
-        promptId: prompt?.id ?? null,
-        promptVersion: prompt?.version ?? null,
+        promptId: assembledPrompt.promptId,
+        promptVersion: assembledPrompt.promptVersion,
       };
     } catch (error) {
       const issue =
@@ -277,7 +255,7 @@ export class AiGatewayService {
           provider: providerConfig.provider,
           model: providerConfig.model,
           durationMs: Date.now() - startedAt,
-          promptVersion: prompt?.version ?? null,
+          promptVersion: assembledPrompt.promptVersion,
           issue,
         }),
       );
@@ -289,8 +267,8 @@ export class AiGatewayService {
         error: this.stringifyError(error),
         provider: providerConfig.provider,
         model: providerConfig.model,
-        promptId: prompt?.id ?? null,
-        promptVersion: prompt?.version ?? null,
+        promptId: assembledPrompt.promptId,
+        promptVersion: assembledPrompt.promptVersion,
       };
     }
   }
@@ -310,35 +288,6 @@ export class AiGatewayService {
 
   private buildUnknownProviderError(provider: string) {
     return `AI provider "${provider}" is not registered in the gateway.`;
-  }
-
-  private buildInterpretationPrompt(template: string, locale?: string) {
-    return `${template}
-
-Requested locale hint: ${locale ?? 'unknown'}
-Return JSON only.`;
-  }
-
-  private buildResponsePrompt(template: string, locale?: string) {
-    return `${template}
-
-You will receive:
-- approved backend context as JSON
-- an approved deterministic fallback draft
-
-Rewrite the approved draft into a clear final user-facing answer.
-Do not invent tool executions, business facts, missing fields, or continuity state.
-Do not hide failures or uncertainty.
-Keep the meaning grounded in approved backend context only.
-Requested locale hint: ${locale ?? 'unknown'}
-
-Return JSON only with:
-- message: string
-- assertedOutcome: respond | clarify | execution_succeeded | execution_failed
-- assertedExecutionStatus: not_applicable | succeeded | failed
-- mentionedMissingFields: string[]
-- mentionedApprovedFactKeys: string[]
-- mentionedApprovedResultKeys: string[]`;
   }
 
   private parseInterpretationPayload(rawPayload: string): InterpretationOutput {

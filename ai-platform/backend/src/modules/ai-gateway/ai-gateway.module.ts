@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { PromptModule } from '../prompt/prompt.module';
 import { TemporalModule } from '../temporal/temporal.module';
+import { AiPromptAssemblyService } from './ai-prompt-assembly.service';
 import { AiGatewayService } from './ai-gateway.service';
 import { LanguageModelProviderRegistry } from './providers/language-model-provider.registry';
 import { LANGUAGE_MODEL_PROVIDERS } from './providers/language-model-provider.tokens';
@@ -21,6 +22,7 @@ import { OpenAiLanguageModelProvider } from './providers/openai-language-model.p
       ) => [mockProvider, openAiProvider],
       inject: [MockLanguageModelProvider, OpenAiLanguageModelProvider],
     },
+    AiPromptAssemblyService,
     LanguageModelProviderRegistry,
     AiGatewayService,
   ],

@@ -7,6 +7,7 @@ import {
   LanguageModelInterpretationRequest,
   LanguageModelProviderConfig,
   LanguageModelProvider,
+  LanguageModelResponseGenerationRequest,
 } from '../ai-gateway.types';
 
 const measurementPattern =
@@ -76,11 +77,7 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
     };
   }
 
-  async generateResponse(input: {
-    systemPrompt: string;
-    approvedContext: ApprovedResponseContext;
-    approvedDraft: string;
-  },
+  async generateResponse(input: LanguageModelResponseGenerationRequest,
   _providerInput?: LanguageModelProviderConfig): Promise<{ rawResponse: string; model: string }> {
     return {
       rawResponse: JSON.stringify({

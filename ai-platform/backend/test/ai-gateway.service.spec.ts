@@ -1,3 +1,4 @@
+import { AiPromptAssemblyService } from '../src/modules/ai-gateway/ai-prompt-assembly.service';
 import { AiGatewayService } from '../src/modules/ai-gateway/ai-gateway.service';
 import { LanguageModelProviderRegistry } from '../src/modules/ai-gateway/providers/language-model-provider.registry';
 
@@ -12,7 +13,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      promptService as any,
+      new AiPromptAssemblyService(promptService as any),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -56,7 +57,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      promptService as any,
+      new AiPromptAssemblyService(promptService as any),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -92,7 +93,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      promptService as any,
+      new AiPromptAssemblyService(promptService as any),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -136,7 +137,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      promptService as any,
+      new AiPromptAssemblyService(promptService as any),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -223,7 +224,7 @@ describe('AiGatewayService', () => {
             },
           }),
       } as any,
-      promptService as any,
+      new AiPromptAssemblyService(promptService as any),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -267,7 +268,7 @@ describe('AiGatewayService', () => {
             },
           }),
       } as any,
-      promptService as any,
+      new AiPromptAssemblyService(promptService as any),
       {
         debug: jest.fn(),
         error: jest.fn(),

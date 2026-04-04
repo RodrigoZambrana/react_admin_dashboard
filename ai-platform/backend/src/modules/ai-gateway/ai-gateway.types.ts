@@ -39,6 +39,12 @@ export type LanguageModelInterpretationRequest = {
   previousMessages: ConversationContextMessage[];
 };
 
+export type LanguageModelResponseGenerationRequest = {
+  systemPrompt: string;
+  approvedContext: ApprovedResponseContext;
+  approvedDraft: string;
+};
+
 export type ResponseGenerationInput = {
   approvedContext: ApprovedResponseContext;
   approvedDraft: string;
@@ -63,6 +69,12 @@ export type LanguageModelProviderConfig = {
   providerOptions: Record<string, unknown>;
 };
 
+export type AssembledPromptRequest<TRequest> = {
+  promptId: string | null;
+  promptVersion: number | null;
+  request: TRequest;
+};
+
 export interface LanguageModelProvider {
   readonly providerName: string;
   interpret(
@@ -73,11 +85,7 @@ export interface LanguageModelProvider {
     model?: string | null;
   }>;
   generateResponse(
-    input: {
-      systemPrompt: string;
-      approvedContext: ApprovedResponseContext;
-      approvedDraft: string;
-    },
+    input: LanguageModelResponseGenerationRequest,
     providerInput: LanguageModelProviderConfig,
   ): Promise<{
     rawResponse: string;

@@ -1177,3 +1177,30 @@
 - Extract prompt/protocol assembly out of `AiGatewayService` into a dedicated backend-owned boundary for interpretation and response flows
 - Add architecture-level tests proving the gateway is no longer the concentration point for provider resolution or prompt scaffolding
 - Close Wave 8.0 with a hardcode audit, full validation pass, and roadmap continuity documentation toward Wave 8.1 and Wave 8.2
+
+## Iteration 39
+
+### Implemented
+- Added `AiPromptAssemblyService` as a dedicated backend-owned boundary for prompt resolution and protocol assembly
+- Moved managed prompt lookup and caller-supplied prompt override handling out of `AiGatewayService`
+- Moved interpretation and response protocol scaffolding out of the gateway core path so:
+  - locale hint injection
+  - JSON-only instruction framing
+  - approved-context response contract instructions
+  are now assembled through the new prompt boundary
+- Added direct tests for prompt assembly behavior and updated gateway tests to consume the new boundary cleanly
+
+### Working
+- `AiGatewayService` no longer assembles interpretation/response prompt scaffolding inline
+- Interpretation and response flows still resolve managed prompts correctly and keep the current grounded behavior
+- `npm run build --workspace backend` and `npm test --workspace backend -- --runInBand` pass after the prompt-assembly extraction
+
+### Technical Debt
+- Wave 8.0 still needs its final closeout audit proving the gateway no longer concentrates provider resolution or prompt scaffolding
+- Bootstrap env-seed compatibility still contains provider-specific fallback handling, but it remains outside the gateway core path and untouched in this milestone
+- Async turn-intake / cancellation / typing remains out of scope and untouched in this phase
+
+### Next Steps
+- Add architecture-level tests to prove provider resolution and prompt/protocol assembly no longer live inline in `AiGatewayService`
+- Run the targeted hardcode audit over the touched gateway/runtime path and document what remains
+- Close Wave 8.0 with full backend/frontend validation and roadmap continuity toward Wave 8.1, Wave 8.2, and Wave 9
