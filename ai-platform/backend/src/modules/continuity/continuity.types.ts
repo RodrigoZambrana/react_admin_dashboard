@@ -67,6 +67,7 @@ export type PreparedContinuityTurn = {
 export type BookingFacts = {
   requestedDate?: NormalizedDate;
   attendees?: number;
+  requestSummary?: string;
 };
 
 export type QuoteFacts = {

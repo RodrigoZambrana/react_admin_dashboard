@@ -332,6 +332,113 @@ describe('ConversationContinuityService', () => {
     );
   });
 
+  it('keeps an open booking lane active even when a follow-up adds no new parseable facts yet', async () => {
+    const { service } = createService({
+      conversationId: 'conv-booking-open',
+      lane: 'booking',
+      lastIntent: 'CREATE_BOOKING',
+      lastApprovedAction: null,
+      lastApprovedToolName: null,
+      approvedFacts: {
+        requestSummary:
+          'Necesito agendar una visita para cambiar la cadena de una cortina roller.',
+      },
+      pendingFacts: {
+        requestSummary:
+          'Necesito agendar una visita para cambiar la cadena de una cortina roller.',
+      },
+      missingFields: ['requested_date'],
+      nextUsefulField: 'requested_date',
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-03T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-booking-open',
+      interpretation: {
+        intent: 'CLARIFICATION',
+        language: 'es',
+        confidence: 0.24,
+        entities: {
+          rawMessage: 'sí',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    expect(prepared.continuity).toEqual(
+      expect.objectContaining({
+        activeLane: 'booking',
+        missingFields: ['requested_date'],
+        nextUsefulField: 'requested_date',
+      }),
+    );
+  });
+
+  it('carries the most specific booking summary forward for fragmented scheduling turns', async () => {
+    const { service } = createService({
+      conversationId: 'conv-booking-summary',
+      lane: 'booking',
+      lastIntent: 'CREATE_BOOKING',
+      lastApprovedAction: null,
+      lastApprovedToolName: null,
+      approvedFacts: {
+        requestSummary:
+          'Necesito agendar una visita para cambiar la cadena de una cortina roller.',
+      },
+      pendingFacts: {
+        requestSummary:
+          'Necesito agendar una visita para cambiar la cadena de una cortina roller.',
+      },
+      missingFields: ['requested_date'],
+      nextUsefulField: 'requested_date',
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-03T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-booking-summary',
+      interpretation: {
+        intent: 'CLARIFICATION',
+        language: 'es',
+        confidence: 0.44,
+        entities: {
+          rawMessage: 'mañana a las 11',
+        },
+        normalizedEntities: {
+          dates: [
+            {
+              source: 'mañana a las 11',
+              iso: '2026-04-04T11:00:00.000Z',
+              precision: 'datetime',
+            },
+          ],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    expect(prepared.effectiveInterpretation.entities).toEqual(
+      expect.objectContaining({
+        rawMessage: 'mañana a las 11',
+        requestSummary:
+          'Necesito agendar una visita para cambiar la cadena de una cortina roller.',
+      }),
+    );
+    expect(prepared.effectiveInterpretation.normalizedEntities.dates).toEqual([
+      expect.objectContaining({
+        iso: '2026-04-04T11:00:00.000Z',
+      }),
+    ]);
+  });
+
   it('persists clarification state only when there is an actionable lane', async () => {
     const { service, repository } = createService();
     const prepared = await service.prepareTurn({

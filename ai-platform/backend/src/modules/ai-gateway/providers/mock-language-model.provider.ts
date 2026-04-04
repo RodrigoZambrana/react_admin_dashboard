@@ -28,7 +28,7 @@ function detectIntent(message: string) {
   }
 
   if (
-    /(booking|book|reserve|reservation|reservar|reserva|appointment|cita)/.test(
+    /(booking|book|reserve|reservation|reservar|reserva|appointment|cita|agendar|agenda|visita|programar)/.test(
       lower,
     )
   ) {

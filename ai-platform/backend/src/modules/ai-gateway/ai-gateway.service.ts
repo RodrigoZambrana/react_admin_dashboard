@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { ZodError, z } from 'zod';
+import { ZodError } from 'zod';
 
+import { interpretationResultSchema } from '../interpretation/interpretation.schemas';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { RuntimeConfigService } from '../runtime-config/runtime-config.service';
 import { aiGeneratedResponseSchema } from '../response/response.types';
@@ -12,13 +13,6 @@ import {
   InterpretationOutput,
 } from './ai-gateway.types';
 import { LanguageModelProviderRegistry } from './providers/language-model-provider.registry';
-
-const interpretationOutputSchema = z.object({
-  intent: z.string().min(1),
-  entities: z.record(z.unknown()),
-  language: z.string().min(2),
-  confidence: z.number().min(0).max(1),
-});
 
 @Injectable()
 export class AiGatewayService {
@@ -305,7 +299,7 @@ export class AiGatewayService {
 
   private parseInterpretationPayload(rawPayload: string): InterpretationOutput {
     try {
-      return interpretationOutputSchema.parse(JSON.parse(rawPayload));
+      return interpretationResultSchema.parse(JSON.parse(rawPayload));
     } catch (error) {
       throw {
         error,

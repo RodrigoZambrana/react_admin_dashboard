@@ -32,6 +32,7 @@ describe('InterpretationService', () => {
           intent: 'GET_PRODUCT',
           entities: {
             price: 'low',
+            rawMessage: 'quiero algo barato',
           },
           language: 'es',
           confidence: 0.9,
@@ -62,13 +63,77 @@ describe('InterpretationService', () => {
       expect.objectContaining({
         interpretation: {
           intent: 'GENERAL_CONVERSATION',
-          entities: {},
+          entities: {
+            rawMessage: 'hola',
+          },
           language: 'unknown',
           confidence: 0,
         },
         rawAiResponse: 'not-json',
         error: 'Unexpected token o in JSON at position 1',
         usedFallback: true,
+      }),
+    );
+  });
+
+  it('preserves the original user message when the provider omits raw booking detail', async () => {
+    const service = new InterpretationService(
+      {
+        interpret: jest.fn(async () => ({
+          ok: true,
+          rawResponse:
+            '{"intent":"CREATE_BOOKING","entities":{"dateCandidates":["mañana a las 11"]},"language":"es","confidence":0.88}',
+          parsedResponse: {
+            intent: 'CREATE_BOOKING',
+            entities: {
+              dateCandidates: ['mañana a las 11'],
+              price: '/',
+              sku: 'cadena cortina roller',
+            },
+            language: 'es',
+            confidence: 0.88,
+          },
+          error: null,
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+        })),
+      } as any,
+      {
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.interpret(
+        'Necesito agendar una visita para mañana a las 11 para cambiar la cadena de una cortina roller.',
+        'es',
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        interpretation: expect.objectContaining({
+          intent: 'CREATE_BOOKING',
+          entities: expect.objectContaining({
+            rawMessage:
+              'Necesito agendar una visita para mañana a las 11 para cambiar la cadena de una cortina roller.',
+            dateCandidates: ['mañana a las 11'],
+          }),
+        }),
+      }),
+    );
+
+    await expect(
+      service.interpret(
+        'Necesito agendar una visita para mañana a las 11 para cambiar la cadena de una cortina roller.',
+        'es',
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        interpretation: expect.objectContaining({
+          entities: expect.not.objectContaining({
+            price: '/',
+            sku: 'cadena cortina roller',
+          }),
+        }),
       }),
     );
   });

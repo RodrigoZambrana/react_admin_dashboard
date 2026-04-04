@@ -52,6 +52,52 @@ describe('ToolEngineService', () => {
     );
   });
 
+  it('prefers a continuity-carried booking summary over a date-only follow-up when building booking notes', async () => {
+    const service = new ToolEngineService(
+      new PipelineLoggerService(),
+      new CreateBookingTool(),
+      new GetProductTool(),
+      new CreateQuoteTool(),
+    );
+
+    const result = await service.execute('create_booking', {
+      interpretation: {
+        intent: 'CREATE_BOOKING',
+        language: 'es',
+        confidence: 0.91,
+        entities: {
+          rawMessage: 'mañana a las 11',
+          requestSummary:
+            'Necesito agendar una visita para cambiar la cadena de una cortina roller.',
+        },
+        normalizedEntities: {
+          dates: [
+            {
+              source: 'mañana a las 11',
+              iso: '2026-04-04T11:00:00.000Z',
+              precision: 'datetime',
+            },
+          ],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      tenantId: 'tenant-alpha',
+      traceId: 'trace-booking-summary',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        ok: true,
+        payload: expect.objectContaining({
+          notes:
+            'Necesito agendar una visita para cambiar la cadena de una cortina roller.',
+          scheduledFor: '2026-04-04T11:00:00.000Z',
+        }),
+      }),
+    );
+  });
+
   it('validates and executes the quote tool', async () => {
     const service = new ToolEngineService(
       new PipelineLoggerService(),

@@ -26,8 +26,10 @@ export class CreateBookingTool
           ? context.interpretation.entities.attendees
           : undefined,
       notes:
-        typeof context.interpretation.entities.rawMessage === 'string'
-          ? context.interpretation.entities.rawMessage
+        typeof context.interpretation.entities.requestSummary === 'string'
+          ? context.interpretation.entities.requestSummary
+          : typeof context.interpretation.entities.rawMessage === 'string'
+            ? context.interpretation.entities.rawMessage
           : 'Booking requested',
     };
   }

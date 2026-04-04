@@ -1723,3 +1723,36 @@
   - E2E
   - broader production hardening
 - Keep Wave 9 focused on hardening and rollout safety, not on reopening the stabilized Wave 8 runtime/UI architecture
+
+## Iteration 53
+
+### Implemented
+- Started the focused conversational-improvement pass for booking reliability:
+  - fixed the live interpretation schema boundary so OpenAI structured interpretation no longer falls back because of an invalid `entities` schema
+  - made `rawMessage` survive normalization and fallback so parsing always sees the original user turn even when the interpretation model omits it
+  - tightened interpretation contract/policy guidance for scheduling requests so booking-relevant date/time and service-purpose signals survive into backend parsing
+- Stabilized booking continuity and tool preparation:
+  - open booking lanes now stay active while real backend missing fields are still unresolved instead of collapsing back to generic `user_goal`
+  - booking continuity now carries a safe request summary across fragmented turns
+  - booking tool input now prefers that carried request summary over date-only follow-ups when building booking notes
+- Added focused regression coverage for:
+  - realistic booking requests that already include scheduling, date/time, and service purpose
+  - fragmented booking convergence through continuity
+  - preservation and sanitization of raw user booking signals
+
+### Working
+- The real exploratory booking message now routes through `CREATE_BOOKING` and completes successfully instead of falling into a generic clarification loop
+- OpenAI structured interpretation no longer fails closed because of `z.record(z.unknown())` on the interpretation schema
+- Booking continuity preserves the active booking lane while `requested_date` is still unresolved, which prevents repeated fallback to unsupported `user_goal` clarification
+- Targeted validation for the booking stabilization slice passes:
+  - `npm test --workspace backend -- --runInBand backend/test/interpretation.service.spec.ts backend/test/conversation-continuity.service.spec.ts backend/test/tool-engine.service.spec.ts backend/test/booking-conversation.stabilization.spec.ts`
+
+### Technical Debt
+- Booking interpretation is now structurally stable, but conversational naturalness is not closed yet; fallback/basic clarification still needs governed variation and improved Spanish copy in the touched paths
+- Some AI interpretation providers can still infer optional non-booking entity fields that are harmless for booking flow but should remain constrained by backend normalization
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+
+### Next Steps
+- Tighten grounded clarification behavior so booking only asks for real backend missing fields and never unsupported concepts such as `tipo de cita` or `objetivo principal`
+- Introduce governed fallback/basic clarification variation through the managed response-fallback boundary and improve touched Spanish wording
+- Run full validation, execute a real public async booking smoke on the live OpenAI runtime, and close the phase documentation

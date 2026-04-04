@@ -255,7 +255,15 @@ export class ConversationContinuityService {
 
     const factContribution = this.extractLaneFacts(state.lane, interpretation);
 
-    return Object.keys(factContribution).length > 0 ? state.lane : null;
+    if (Object.keys(factContribution).length > 0) {
+      return state.lane;
+    }
+
+    if (state.missingFields.length > 0 || state.nextUsefulField) {
+      return state.lane;
+    }
+
+    return null;
   }
 
   private applyLaneFacts(
@@ -293,6 +301,14 @@ export class ConversationContinuityService {
         normalizedEntities.dates.length === 0
       ) {
         normalizedEntities.dates = [this.cloneJson(facts.requestedDate)];
+      }
+
+      if (
+        typeof facts.requestSummary === 'string' &&
+        facts.requestSummary.trim().length > 0 &&
+        typeof entities.requestSummary !== 'string'
+      ) {
+        entities.requestSummary = facts.requestSummary;
       }
     }
 
@@ -453,6 +469,12 @@ export class ConversationContinuityService {
           typeof interpretation.entities.attendees === 'number'
             ? interpretation.entities.attendees
             : undefined,
+        requestSummary:
+          typeof interpretation.entities.requestSummary === 'string'
+            ? interpretation.entities.requestSummary
+            : typeof interpretation.entities.rawMessage === 'string'
+              ? interpretation.entities.rawMessage
+              : undefined,
       }) ?? {};
     }
 
@@ -520,6 +542,10 @@ export class ConversationContinuityService {
           typeof current.attendees === 'number'
             ? current.attendees
             : base.attendees,
+        requestSummary: this.preferMoreSpecificSummary(
+          base.requestSummary,
+          current.requestSummary,
+        ),
       }) ?? {};
     }
 
@@ -596,6 +622,10 @@ export class ConversationContinuityService {
           typeof payload.attendees === 'number'
             ? payload.attendees
             : facts.attendees,
+        requestSummary:
+          typeof payload.notes === 'string' && payload.notes.trim().length > 0
+            ? payload.notes
+            : facts.requestSummary,
       }) ?? {};
     }
 
@@ -690,6 +720,26 @@ export class ConversationContinuityService {
     return Object.fromEntries(nextEntries);
   }
 
+  private preferMoreSpecificSummary(
+    base: string | undefined,
+    current: string | undefined,
+  ) {
+    const normalizedBase = this.normalizeOptionalString(base);
+    const normalizedCurrent = this.normalizeOptionalString(current);
+
+    if (!normalizedCurrent) {
+      return normalizedBase;
+    }
+
+    if (!normalizedBase) {
+      return normalizedCurrent;
+    }
+
+    return normalizedCurrent.length > normalizedBase.length
+      ? normalizedCurrent
+      : normalizedBase;
+  }
+
   private hasMeaningfulValue(value: unknown): boolean {
     if (value === null || value === undefined) {
       return false;
@@ -712,6 +762,12 @@ export class ConversationContinuityService {
     }
 
     return value === true;
+  }
+
+  private normalizeOptionalString(value: unknown) {
+    return typeof value === 'string' && value.trim().length > 0
+      ? value.trim()
+      : undefined;
   }
 
   private mapRecordToState(
