@@ -4,6 +4,7 @@ import { ZodError, z } from 'zod';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { RuntimeConfigService } from '../runtime-config/runtime-config.service';
 import { aiGeneratedResponseSchema } from '../response/response.types';
+import { isAbortError, throwIfAborted } from '../shared/abort.utils';
 import { AiPromptAssemblyService } from './ai-prompt-assembly.service';
 import {
   AiGatewayInterpretationResult,
@@ -29,6 +30,7 @@ export class AiGatewayService {
   ) {}
 
   async interpret(input: import('./ai-gateway.types').InterpretationInput): Promise<AiGatewayInterpretationResult> {
+    throwIfAborted(input.abortSignal);
     const providerConfig = await this.runtimeConfig.getAiGatewayConfig();
     const provider = this.providerRegistry.resolve(providerConfig.provider);
     const startedAt = Date.now();
@@ -98,6 +100,7 @@ export class AiGatewayService {
         timeoutMs: providerConfig.timeoutMs,
         credentials: providerConfig.credentials,
         providerOptions: providerConfig.providerOptions,
+        abortSignal: input.abortSignal,
       });
       const rawResponse = providerResponse.rawResponse;
       const parsedPayload = this.parseInterpretationPayload(rawResponse);
@@ -121,6 +124,10 @@ export class AiGatewayService {
         model: providerResponse.model ?? providerConfig.model,
       };
     } catch (error) {
+      if (isAbortError(error) || input.abortSignal?.aborted) {
+        throw error;
+      }
+
       const issue =
         error instanceof ZodError ? error.flatten() : { message: String(error) };
 
@@ -148,6 +155,7 @@ export class AiGatewayService {
   async generateResponse(
     input: import('./ai-gateway.types').ResponseGenerationInput,
   ): Promise<AiGatewayResponseGenerationResult> {
+    throwIfAborted(input.abortSignal);
     const providerConfig = await this.runtimeConfig.getAiGatewayConfig();
     const provider = this.providerRegistry.resolve(providerConfig.provider);
     const startedAt = Date.now();
@@ -221,6 +229,7 @@ export class AiGatewayService {
         timeoutMs: providerConfig.timeoutMs,
         credentials: providerConfig.credentials,
         providerOptions: providerConfig.providerOptions,
+        abortSignal: input.abortSignal,
       });
       const parsedPayload = this.parseResponsePayload(providerResponse.rawResponse);
 
@@ -246,6 +255,10 @@ export class AiGatewayService {
         promptVersion: assembledPrompt.promptVersion,
       };
     } catch (error) {
+      if (isAbortError(error) || input.abortSignal?.aborted) {
+        throw error;
+      }
+
       const issue =
         error instanceof ZodError ? error.flatten() : { message: String(error) };
 

@@ -7,6 +7,7 @@ export type ToolExecutionContext = {
   interpretation: ParsedInterpretation;
   tenantId: string;
   traceId: string;
+  abortSignal?: AbortSignal;
 };
 
 export type ToolExecutionSuccess = {
@@ -37,11 +38,19 @@ export type ToolExecutionAttempt = ToolExecutionSuccess | ToolExecutionFailure;
 export type ApprovedToolExecutionRequest = {
   decision: DecisionResult;
   interpretation: ParsedInterpretation;
+  abortSignal?: AbortSignal;
 };
 
 export interface ToolDefinition<TSchema extends z.ZodTypeAny> {
   readonly name: string;
   readonly schema: TSchema;
   buildInput(context: ToolExecutionContext): z.infer<TSchema>;
-  execute(input: z.infer<TSchema>): Promise<Record<string, unknown>>;
+  execute(
+    input: z.infer<TSchema>,
+    context: ToolExecutionContext,
+  ): Promise<Record<string, unknown>>;
+}
+
+export function isAbortSignalActive(signal?: AbortSignal | null) {
+  return Boolean(signal?.aborted);
 }

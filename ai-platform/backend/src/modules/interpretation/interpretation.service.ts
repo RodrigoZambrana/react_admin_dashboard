@@ -23,12 +23,16 @@ export class InterpretationService {
       role: 'user' | 'assistant';
       content: string;
     }> = [],
+    options?: {
+      abortSignal?: AbortSignal;
+    },
   ): Promise<InterpretationAttempt> {
     const startedAt = Date.now();
     const gatewayResult = await this.aiGateway.interpret({
       message,
       locale,
       previousMessages,
+      abortSignal: options?.abortSignal,
     });
     const interpretation = gatewayResult.ok && gatewayResult.parsedResponse
       ? this.normalizeInterpretation(gatewayResult.parsedResponse, locale)

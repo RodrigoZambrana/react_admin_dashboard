@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { TemporalExpressionService } from '../../temporal/temporal-expression.service';
 import type { ApprovedResponseContext } from '../../response/response.types';
+import { throwIfAborted } from '../../shared/abort.utils';
 import {
   InterpretationOutput,
   LanguageModelInterpretationRequest,
@@ -59,11 +60,13 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
 
   async interpret(
     input: LanguageModelInterpretationRequest,
-    _providerInput: LanguageModelProviderConfig,
+    providerInput: LanguageModelProviderConfig,
   ): Promise<{ rawResponse: string; model: string }> {
+    throwIfAborted(providerInput.abortSignal);
     const language = await this.detectLanguage(input.message);
     const intent = detectIntent(input.message);
     const entities = await this.extractEntities(input, language);
+    throwIfAborted(providerInput.abortSignal);
     const payload: InterpretationOutput = {
       intent,
       entities,
@@ -78,7 +81,8 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
   }
 
   async generateResponse(input: LanguageModelResponseGenerationRequest,
-  _providerInput?: LanguageModelProviderConfig): Promise<{ rawResponse: string; model: string }> {
+  providerInput?: LanguageModelProviderConfig): Promise<{ rawResponse: string; model: string }> {
+    throwIfAborted(providerInput?.abortSignal);
     return {
       rawResponse: JSON.stringify({
         message: input.approvedDraft,

@@ -1535,3 +1535,37 @@
   - async timing heuristics
   - in-flight cancellation limitations
   - missing supported frontend test harness
+
+## Iteration 48
+
+### Implemented
+- Started Wave 8.3 with core async-runtime stabilization for real exploratory use:
+  - introduced governed `async_intake` critical config as a runtime-managed resource family
+  - moved async turn timing policy to consume governed config instead of inline lexical/timing heuristics
+  - added `AbortSignal` propagation from async intake through semantic execution, AI gateway, and tool execution
+  - added execution-control coordination so superseded turns can actively request cancellation instead of only suppressing stale reply projection
+- Hardened the gateway/runtime boundary for superseded async turns:
+  - provider calls now receive abort signals
+  - gateway aborts propagate instead of degrading into fallback interpretations/responses
+- Kept admin critical-config operations compatible with the new governed key by adding `async_intake` support to the existing UI/editor path
+
+### Working
+- Async intake timing is now backend-governed through managed critical config rather than hardcoded service constants
+- Superseded async turns can request cancellation while preserving safe stale-reply suppression if work already completed too late
+- Supported providers continue to work through the refactored abort-aware gateway path
+- Admin critical-config screens remain usable with the newly bootstrapped `async_intake` key
+- Validation passes after the stabilization slice:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- Full in-flight abort still depends on downstream provider/tool cooperation; supersession is now propagated, but already-started work may still finish if the underlying operation ignores abort
+- `async_intake` admin editing is compatible but still mostly JSON-driven; this milestone removes blindness to the config family, not all operator friction
+- Real OpenAI-backed governed operability, runtime diagnostics, and prompt editorial-governance split are still pending in Wave 8.3
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+
+### Next Steps
+- Make governed OpenAI runtime configuration operable end-to-end with explicit validation and diagnostics
+- Complete the prompt-governance split so structural protocol contracts stay code-owned while editable editorial policy moves behind governed resources
+- Reduce critical raw-JSON admin friction on exploratory paths for AI runtime config, prompts, and fallback resources

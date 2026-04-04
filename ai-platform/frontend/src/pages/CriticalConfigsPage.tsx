@@ -13,6 +13,7 @@ import { PageHeader } from '../components/shared/PageHeader';
 import { StatusBadge } from '../components/shared/StatusBadge';
 import type {
   AiRuntimeResource,
+  AsyncIntakeRuntimeResource,
   CriticalConfigVersion,
   LearningRuntimeResource,
 } from '../types';
@@ -26,7 +27,7 @@ type CriticalConfigFormState = {
 
 function buildDefaultConfigValue(
   key: CriticalConfigVersion['key'],
-): AiRuntimeResource | LearningRuntimeResource {
+): AiRuntimeResource | LearningRuntimeResource | AsyncIntakeRuntimeResource {
   if (key === 'ai_runtime') {
     return {
       provider: 'openai',
@@ -40,6 +41,45 @@ function buildDefaultConfigValue(
     };
   }
 
+  if (key === 'async_intake') {
+    return {
+      stabilization: {
+        defaultDelayMs: 900,
+        maxWindowMs: 2600,
+        fragmentContinuationDelayMs: 1700,
+        trailingThoughtDelayMs: 1500,
+        shortMessageDelayMs: 1300,
+        mediumIncompleteDelayMs: 1000,
+        longCompletedDelayMs: 350,
+        shortMessageLengthThreshold: 24,
+        mediumMessageLengthThreshold: 120,
+        longCompletedLengthThreshold: 50,
+      },
+      replyProjection: {
+        minDelayMs: 900,
+        maxDelayMs: 2600,
+        charDelayMs: 18,
+      },
+      lexicons: {
+        default: {
+          leadingTokens: [],
+          trailingTokens: [],
+          slotPatterns: [],
+        },
+        es: {
+          leadingTokens: ['de', 'con', 'para'],
+          trailingTokens: ['de', 'con', 'para'],
+          slotPatterns: [],
+        },
+        en: {
+          leadingTokens: ['with', 'for'],
+          trailingTokens: ['with', 'for'],
+          slotPatterns: [],
+        },
+      },
+    };
+  }
+
   return {
     enabled: true,
     observedStages: ['execution', 'response'],
@@ -48,6 +88,19 @@ function buildDefaultConfigValue(
     maxSummaryLength: 180,
     persistEmbeddings: true,
   };
+}
+
+function getConfigSecondaryLabel(version: CriticalConfigVersion) {
+  if (version.key === 'ai_runtime') {
+    return `provider ${(version.value as AiRuntimeResource).provider}`;
+  }
+
+  if (version.key === 'async_intake') {
+    const value = version.value as AsyncIntakeRuntimeResource;
+    return `${Object.keys(value.lexicons ?? {}).length} locale lexicons`;
+  }
+
+  return `${(version.value as LearningRuntimeResource).observedStages.length} observed stages`;
 }
 
 function buildConfigForm(base?: CriticalConfigVersion): CriticalConfigFormState {
@@ -270,11 +323,7 @@ export function CriticalConfigsPage() {
                   selectedId={selectedVersion?.id}
                   getId={(version) => version.id}
                   getPrimaryLabel={(version) => version.key}
-                  getSecondaryLabel={(version) =>
-                    version.key === 'ai_runtime'
-                      ? `provider ${(version.value as AiRuntimeResource).provider}`
-                      : `${(version.value as LearningRuntimeResource).observedStages.length} observed stages`
-                  }
+                  getSecondaryLabel={getConfigSecondaryLabel}
                   getVersion={(version) => version.version}
                   getStatus={(version) => version.status}
                   getCreatedAt={(version) => version.createdAt}
@@ -364,6 +413,7 @@ export function CriticalConfigsPage() {
                       >
                         <option value="ai_runtime">ai_runtime</option>
                         <option value="learning">learning</option>
+                        <option value="async_intake">async_intake</option>
                       </select>
                     </div>
                   </div>

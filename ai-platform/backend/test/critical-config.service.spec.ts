@@ -100,6 +100,69 @@ describe('CriticalConfigService', () => {
     );
   });
 
+  it('accepts a valid async_intake config before persistence', async () => {
+    const createVersion = jest.fn(async () => ({
+      key: 'async_intake',
+      version: 1,
+      status: 'ACTIVE',
+    }));
+    const service = new CriticalConfigService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        createVersion,
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.createVersion({
+        key: 'async_intake',
+        value: {
+          stabilization: {
+            defaultDelayMs: 900,
+            maxWindowMs: 2600,
+            fragmentContinuationDelayMs: 1700,
+            trailingThoughtDelayMs: 1500,
+            shortMessageDelayMs: 1300,
+            mediumIncompleteDelayMs: 1000,
+            longCompletedDelayMs: 350,
+            shortMessageLengthThreshold: 24,
+            mediumMessageLengthThreshold: 120,
+            longCompletedLengthThreshold: 50,
+          },
+          replyProjection: {
+            minDelayMs: 900,
+            maxDelayMs: 2600,
+            charDelayMs: 18,
+          },
+          lexicons: {
+            default: {
+              leadingTokens: [],
+              trailingTokens: [],
+              slotPatterns: [],
+            },
+          },
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        key: 'async_intake',
+        version: 1,
+      }),
+    );
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'async_intake',
+      }),
+    );
+  });
+
   it('rejects malformed critical configs before the repository is called', async () => {
     const createVersion = jest.fn();
     const service = new CriticalConfigService(

@@ -46,6 +46,16 @@ export class CriticalConfigVersionRepository {
     return this.prisma.criticalConfigVersion.count().then((count) => count > 0);
   }
 
+  hasVersionsForKey(key: string) {
+    return this.prisma.criticalConfigVersion
+      .count({
+        where: {
+          key,
+        },
+      })
+      .then((count) => count > 0);
+  }
+
   listActive() {
     return this.prisma.criticalConfigVersion.findMany({
       where: { status: ManagedResourceStatus.ACTIVE },

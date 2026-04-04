@@ -32,7 +32,10 @@ export class CreateBookingTool
     };
   }
 
-  async execute(input: z.infer<typeof bookingInputSchema>) {
+  async execute(
+    input: z.infer<typeof bookingInputSchema>,
+    _context: ToolExecutionContext,
+  ) {
     return {
       bookingId: `bk_${randomUUID().slice(0, 8)}`,
       scheduledFor: input.requestedDateIso,

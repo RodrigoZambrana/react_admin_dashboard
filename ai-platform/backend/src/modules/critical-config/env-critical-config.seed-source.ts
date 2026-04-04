@@ -5,6 +5,8 @@ import { RuntimeManagedResourceSeedSource } from '../runtime-resources/runtime-m
 import { RuntimeManagedResourceSeed } from '../runtime-resources/runtime-managed-resource.types';
 import {
   AiRuntimeResource,
+  AsyncIntakeRuntimeResource,
+  buildDefaultAsyncIntakeRuntimeResource,
   CriticalConfigKey,
   CriticalConfigValue,
   LearningRuntimeResource,
@@ -42,6 +44,15 @@ export class EnvCriticalConfigSeedSource extends RuntimeManagedResourceSeedSourc
       {
         key: 'learning',
         value: this.buildLearningSeed(),
+        createdBy: 'system:critical-config-seed',
+        metadata: {
+          origin: 'system',
+          source: 'env-seed',
+        },
+      },
+      {
+        key: 'async_intake',
+        value: this.buildAsyncIntakeSeed(),
         createdBy: 'system:critical-config-seed',
         metadata: {
           origin: 'system',
@@ -102,6 +113,70 @@ export class EnvCriticalConfigSeedSource extends RuntimeManagedResourceSeedSourc
     };
   }
 
+  private buildAsyncIntakeSeed(): AsyncIntakeRuntimeResource {
+    const defaults = buildDefaultAsyncIntakeRuntimeResource();
+
+    return {
+      stabilization: {
+        defaultDelayMs: this.readPositiveNumber(
+          'ASYNC_INTAKE_DEFAULT_DELAY_MS',
+          defaults.stabilization.defaultDelayMs,
+        ),
+        maxWindowMs: this.readPositiveNumber(
+          'ASYNC_INTAKE_MAX_WINDOW_MS',
+          defaults.stabilization.maxWindowMs,
+        ),
+        fragmentContinuationDelayMs: this.readPositiveNumber(
+          'ASYNC_INTAKE_FRAGMENT_DELAY_MS',
+          defaults.stabilization.fragmentContinuationDelayMs,
+        ),
+        trailingThoughtDelayMs: this.readPositiveNumber(
+          'ASYNC_INTAKE_TRAILING_DELAY_MS',
+          defaults.stabilization.trailingThoughtDelayMs,
+        ),
+        shortMessageDelayMs: this.readPositiveNumber(
+          'ASYNC_INTAKE_SHORT_DELAY_MS',
+          defaults.stabilization.shortMessageDelayMs,
+        ),
+        mediumIncompleteDelayMs: this.readPositiveNumber(
+          'ASYNC_INTAKE_MEDIUM_INCOMPLETE_DELAY_MS',
+          defaults.stabilization.mediumIncompleteDelayMs,
+        ),
+        longCompletedDelayMs: this.readNonNegativeNumber(
+          'ASYNC_INTAKE_LONG_COMPLETED_DELAY_MS',
+          defaults.stabilization.longCompletedDelayMs,
+        ),
+        shortMessageLengthThreshold: this.readPositiveNumber(
+          'ASYNC_INTAKE_SHORT_LENGTH_THRESHOLD',
+          defaults.stabilization.shortMessageLengthThreshold,
+        ),
+        mediumMessageLengthThreshold: this.readPositiveNumber(
+          'ASYNC_INTAKE_MEDIUM_LENGTH_THRESHOLD',
+          defaults.stabilization.mediumMessageLengthThreshold,
+        ),
+        longCompletedLengthThreshold: this.readPositiveNumber(
+          'ASYNC_INTAKE_LONG_COMPLETED_LENGTH_THRESHOLD',
+          defaults.stabilization.longCompletedLengthThreshold,
+        ),
+      },
+      replyProjection: {
+        minDelayMs: this.readNonNegativeNumber(
+          'ASYNC_INTAKE_MIN_REPLY_DELAY_MS',
+          defaults.replyProjection.minDelayMs,
+        ),
+        maxDelayMs: this.readPositiveNumber(
+          'ASYNC_INTAKE_MAX_REPLY_DELAY_MS',
+          defaults.replyProjection.maxDelayMs,
+        ),
+        charDelayMs: this.readNonNegativeNumber(
+          'ASYNC_INTAKE_REPLY_CHAR_DELAY_MS',
+          defaults.replyProjection.charDelayMs,
+        ),
+      },
+      lexicons: defaults.lexicons,
+    };
+  }
+
   private readOptionalString(key: string) {
     const value = this.configService.get<string>(key);
     return value?.trim() ? value.trim() : null;
@@ -112,6 +187,17 @@ export class EnvCriticalConfigSeedSource extends RuntimeManagedResourceSeedSourc
     const parsedValue = rawValue ? Number(rawValue) : Number.NaN;
 
     if (Number.isFinite(parsedValue) && parsedValue > 0) {
+      return parsedValue;
+    }
+
+    return fallback;
+  }
+
+  private readNonNegativeNumber(key: string, fallback: number) {
+    const rawValue = this.configService.get<string>(key);
+    const parsedValue = rawValue ? Number(rawValue) : Number.NaN;
+
+    if (Number.isFinite(parsedValue) && parsedValue >= 0) {
       return parsedValue;
     }
 

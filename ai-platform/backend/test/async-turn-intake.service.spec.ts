@@ -1,6 +1,8 @@
 import { AsyncConversationTurnStatus } from '@prisma/client';
 
+import { AsyncTurnExecutionControlService } from '../src/modules/api/async-turn-execution-control.service';
 import { AsyncTurnIntakeService } from '../src/modules/api/async-turn-intake.service';
+import { createAbortError } from '../src/modules/shared/abort.utils';
 
 type TurnRecord = {
   id: string;
@@ -290,6 +292,7 @@ describe('AsyncTurnIntakeService', () => {
         buildSemanticInput: jest.fn((messages: string[]) => messages.join('\n')),
         estimateReplyDelay: jest.fn(() => 0),
       } as any,
+      new AsyncTurnExecutionControlService(),
       semanticTurnExecutionService as any,
     );
 
@@ -337,9 +340,10 @@ describe('AsyncTurnIntakeService', () => {
         message: 'Necesito una cotizacion\npara 3 puertas',
         locale: 'es',
       },
-      {
+      expect.objectContaining({
         projectReplyImmediately: false,
-      },
+        abortSignal: expect.any(Object),
+      }),
     );
     expect(semanticTurnExecutionService.projectAssistantReply).toHaveBeenCalledWith({
       conversationId: 'conv-1',
@@ -405,6 +409,7 @@ describe('AsyncTurnIntakeService', () => {
         buildSemanticInput: jest.fn((messages: string[]) => messages.join('\n')),
         estimateReplyDelay: jest.fn(() => 0),
       } as any,
+      new AsyncTurnExecutionControlService(),
       {
         executeClosedTurn: jest.fn(),
         projectAssistantReply: jest.fn(),
@@ -483,6 +488,7 @@ describe('AsyncTurnIntakeService', () => {
         buildSemanticInput: jest.fn(),
         estimateReplyDelay: jest.fn(),
       } as any,
+      new AsyncTurnExecutionControlService(),
       {
         executeClosedTurn: jest.fn(),
         projectAssistantReply: jest.fn(),
@@ -566,6 +572,7 @@ describe('AsyncTurnIntakeService', () => {
         buildSemanticInput: jest.fn((messages: string[]) => messages.join('\n')),
         estimateReplyDelay: jest.fn(() => 2000),
       } as any,
+      new AsyncTurnExecutionControlService(),
       semanticTurnExecutionService as any,
     );
 
@@ -623,12 +630,23 @@ describe('AsyncTurnIntakeService', () => {
     const traceLogService = {
       recordStage: jest.fn(async () => undefined),
     };
-    let resolveExecution!: (value: any) => void;
-    const executionPromise = new Promise((resolve) => {
-      resolveExecution = resolve;
-    });
+    let activeAbortSignal: AbortSignal | undefined;
     const semanticTurnExecutionService = {
-      executeClosedTurn: jest.fn(() => executionPromise),
+      executeClosedTurn: jest.fn(
+        async (_input: any, options?: { abortSignal?: AbortSignal }) => {
+          activeAbortSignal = options?.abortSignal;
+
+          return new Promise((_resolve, reject) => {
+            options?.abortSignal?.addEventListener(
+              'abort',
+              () => {
+                reject(createAbortError(options.abortSignal?.reason));
+              },
+              { once: true },
+            );
+          });
+        },
+      ),
       projectAssistantReply: jest.fn(async () => ({
         id: 'msg-assistant-1',
       })),
@@ -667,6 +685,7 @@ describe('AsyncTurnIntakeService', () => {
         buildSemanticInput: jest.fn((messages: string[]) => messages.join('\n')),
         estimateReplyDelay: jest.fn(() => 2000),
       } as any,
+      new AsyncTurnExecutionControlService(),
       semanticTurnExecutionService as any,
     );
 
@@ -700,29 +719,7 @@ describe('AsyncTurnIntakeService', () => {
         supersededByTurnId: secondAccepted.turn.id,
       }),
     );
-
-    resolveExecution({
-      response: 'Reserva lista',
-      intent: 'CREATE_BOOKING',
-      entities: {},
-      metadata: {
-        conversationId: 'conv-1',
-        traceId: 'trace-turn-1',
-      },
-      decision: {
-        action: 'invoke_tool',
-        toolName: 'create_booking',
-      },
-      execution: {
-        ok: true,
-      },
-      approvedResponse: {
-        fallbackReason: null,
-      },
-      assistantMessageMetadata: {
-        source: 'async',
-      },
-    });
+    expect(activeAbortSignal?.aborted).toBe(true);
 
     await Promise.resolve();
     await Promise.resolve();
@@ -742,12 +739,11 @@ describe('AsyncTurnIntakeService', () => {
     );
     expect(traceLogService.recordStage).toHaveBeenCalledWith(
       expect.objectContaining({
-        stage: 'reply_projection',
-        status: 'superseded',
+        stage: 'async_turn',
+        status: 'canceled',
         payload: expect.objectContaining({
           turnId: firstAccepted.turn.id,
           supersededByTurnId: secondAccepted.turn.id,
-          replyProjectionStatus: 'discarded_before_queue',
         }),
       }),
     );

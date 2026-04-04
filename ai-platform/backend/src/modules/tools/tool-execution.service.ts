@@ -28,6 +28,7 @@ export class ToolExecutionService {
       interpretation: request.interpretation,
       tenantId: this.tenantContext.getTenantId(),
       traceId: this.tenantContext.getTraceId(),
+      abortSignal: request.abortSignal,
     });
   }
 }

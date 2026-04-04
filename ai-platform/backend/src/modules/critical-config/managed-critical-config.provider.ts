@@ -24,7 +24,7 @@ export class ManagedCriticalConfigProvider extends CriticalConfigProvider {
   async getActive(
     key: CriticalConfigKey,
   ): Promise<RuntimeManagedResourceVersion<CriticalConfigKey, CriticalConfigValue> | null> {
-    await this.ensureBootstrapSeeded();
+    await this.ensureBootstrapSeeded(key);
     const config = await this.criticalConfigVersionRepository.getActiveByKey(key);
     return config ? this.mapRecord(config) : null;
   }
@@ -37,17 +37,19 @@ export class ManagedCriticalConfigProvider extends CriticalConfigProvider {
     return configs.map((config) => this.mapRecord(config));
   }
 
-  private async ensureBootstrapSeeded() {
-    const hasAnyVersions =
-      await this.criticalConfigVersionRepository.hasAnyVersions();
-
-    if (hasAnyVersions) {
-      return;
-    }
-
-    const seeds = await this.seedSource.listSeeds();
+  private async ensureBootstrapSeeded(key?: CriticalConfigKey) {
+    const seeds = key
+      ? [await this.seedSource.getSeed(key)].filter((seed): seed is NonNullable<typeof seed> => Boolean(seed))
+      : await this.seedSource.listSeeds();
 
     for (const seed of seeds) {
+      const hasVersionsForKey =
+        await this.criticalConfigVersionRepository.hasVersionsForKey(seed.key);
+
+      if (hasVersionsForKey) {
+        continue;
+      }
+
       await this.criticalConfigVersionRepository.createVersion({
         key: seed.key,
         value: seed.value as Prisma.InputJsonValue,

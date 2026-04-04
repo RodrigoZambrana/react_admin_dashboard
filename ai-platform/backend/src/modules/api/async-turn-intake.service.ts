@@ -25,7 +25,9 @@ import {
   AsyncPresenceState,
 } from './async-chat.types';
 import { AsyncTurnTimingPolicyService } from './async-turn-timing-policy.service';
+import { AsyncTurnExecutionControlService } from './async-turn-execution-control.service';
 import { SemanticTurnExecutionService } from './semantic-turn-execution.service';
+import { isAbortError } from '../shared/abort.utils';
 
 type AsyncTurnRecord = AsyncConversationTurn & {
   inputs: AsyncConversationTurnInput[];
@@ -48,6 +50,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     private readonly tenantContext: TenantContextService,
     private readonly traceLogService: TraceLogService,
     private readonly timingPolicy: AsyncTurnTimingPolicyService,
+    private readonly asyncTurnExecutionControl: AsyncTurnExecutionControlService,
     private readonly semanticTurnExecutionService: SemanticTurnExecutionService,
   ) {}
 
@@ -239,9 +242,10 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     input: AsyncChatMessageDto,
     acceptedAt: Date,
   ) {
-    const timing = this.timingPolicy.calculateFlushAt({
+    const timing = await this.timingPolicy.calculateFlushAt({
       acceptedAt,
       messages: [input.message],
+      locale: input.locale ?? null,
     });
 
     return this.asyncTurnRepository.createTurnWithInitialInput({
@@ -264,9 +268,10 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     input: AsyncChatMessageDto,
   ) {
     const messages = [...turn.inputs.map((entry) => entry.content), input.message];
-    const timing = this.timingPolicy.calculateFlushAt({
+    const timing = await this.timingPolicy.calculateFlushAt({
       acceptedAt: turn.acceptedAt,
       messages,
+      locale: input.locale ?? turn.locale,
     });
 
     return this.asyncTurnRepository.appendInputAndRefreshTurn({
@@ -331,6 +336,8 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
       });
     });
 
+    const executionControl = this.asyncTurnExecutionControl.acquire(turn.id);
+
     try {
       const result = await this.runWithTurnContext(turn, () =>
         this.semanticTurnExecutionService.executeClosedTurn(
@@ -341,6 +348,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
           },
           {
             projectReplyImmediately: false,
+            abortSignal: executionControl.signal,
           },
         ),
       );
@@ -371,7 +379,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
       }
 
       const processingCompletedAt = new Date();
-      const replyDelayMs = this.timingPolicy.estimateReplyDelay(result.response);
+      const replyDelayMs = await this.timingPolicy.estimateReplyDelay(result.response);
       const replyDueAt = new Date(
         processingCompletedAt.getTime() + replyDelayMs,
       );
@@ -414,6 +422,27 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
 
       this.scheduleReplyProjection(awaitingReplyTurn);
     } catch (error) {
+      const currentTurn = await this.asyncTurnRepository.findById(turn.id);
+
+      if (
+        isAbortError(error) &&
+        currentTurn?.status === AsyncConversationTurnStatus.SUPERSEDED
+      ) {
+        await this.runWithTurnContext(currentTurn, async () => {
+          await this.traceLogService.recordStage({
+            conversationId: currentTurn.conversationId,
+            stage: 'async_turn',
+            status: 'canceled',
+            payload: {
+              turnId: currentTurn.id,
+              supersededByTurnId: currentTurn.supersededByTurnId,
+              reason: 'superseded_during_processing',
+            },
+          });
+        });
+        return;
+      }
+
       await this.runWithTurnContext(turn, async () => {
         await this.asyncTurnRepository.markFailed({
           turnId: turn.id,
@@ -434,6 +463,8 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
           },
         });
       });
+    } finally {
+      executionControl.release();
     }
   }
 
@@ -523,6 +554,10 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     for (const turn of candidates) {
       this.clearTimer(this.stabilizationTimers, turn.id);
       this.clearTimer(this.projectionTimers, turn.id);
+      const cancellationRequested = this.asyncTurnExecutionControl.cancel(
+        turn.id,
+        'superseded_by_new_inbound_message',
+      );
 
       await this.runWithTurnContext(turn, async () => {
         await this.asyncTurnRepository.markSuperseded({
@@ -544,6 +579,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
             previousStatus: turn.status,
             supersededAt: supersededAt.toISOString(),
             reason: 'new_inbound_message',
+            cancellationRequested,
           },
         });
 

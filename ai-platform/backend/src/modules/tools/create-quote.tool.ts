@@ -47,7 +47,10 @@ export class CreateQuoteTool implements ToolDefinition<typeof quoteInputSchema> 
     };
   }
 
-  async execute(input: z.infer<typeof quoteInputSchema>) {
+  async execute(
+    input: z.infer<typeof quoteInputSchema>,
+    _context: ToolExecutionContext,
+  ) {
     const attendeeCost = (input.attendees ?? 1) * 45;
     const materialCost = input.measurements.reduce(
       (total, measurement) => total + measurement.normalizedValue * 12,

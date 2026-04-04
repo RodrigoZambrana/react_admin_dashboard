@@ -79,12 +79,40 @@ export type LearningRuntimeResource = {
   persistEmbeddings: boolean;
 };
 
+export type AsyncIntakeRuntimeResource = {
+  stabilization: {
+    defaultDelayMs: number;
+    maxWindowMs: number;
+    fragmentContinuationDelayMs: number;
+    trailingThoughtDelayMs: number;
+    shortMessageDelayMs: number;
+    mediumIncompleteDelayMs: number;
+    longCompletedDelayMs: number;
+    shortMessageLengthThreshold: number;
+    mediumMessageLengthThreshold: number;
+    longCompletedLengthThreshold: number;
+  };
+  replyProjection: {
+    minDelayMs: number;
+    maxDelayMs: number;
+    charDelayMs: number;
+  };
+  lexicons: Record<
+    string,
+    {
+      leadingTokens: string[];
+      trailingTokens: string[];
+      slotPatterns: string[];
+    }
+  >;
+};
+
 export type CriticalConfigVersion = {
   id: string;
-  key: 'ai_runtime' | 'learning';
+  key: 'ai_runtime' | 'learning' | 'async_intake';
   version: number;
   status: ManagedResourceStatus;
-  value: AiRuntimeResource | LearningRuntimeResource;
+  value: AiRuntimeResource | LearningRuntimeResource | AsyncIntakeRuntimeResource;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
   createdBy?: string | null;

@@ -13,6 +13,7 @@ import { ParsedInterpretation, ParsingService } from '../parsing/parsing.service
 import { ConversationRepository } from '../persistence/repositories/conversation.repository';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
 import { ChatResponseService } from '../response/chat-response.service';
+import { throwIfAborted } from '../shared/abort.utils';
 import { ToolExecutionService } from '../tools/tool-execution.service';
 import { ToolExecutionAttempt } from '../tools/tool.types';
 import { TraceLogService } from './trace-log.service';
@@ -41,6 +42,7 @@ export class SemanticTurnExecutionService {
     },
     options?: {
       projectReplyImmediately?: boolean;
+      abortSignal?: AbortSignal;
     },
   ): Promise<SemanticTurnExecutionResult> {
     const projectReplyImmediately = options?.projectReplyImmediately ?? true;
@@ -68,12 +70,17 @@ export class SemanticTurnExecutionService {
       input.message,
     );
     await this.memoryService.append(input.conversationId, 'user', input.message);
+    throwIfAborted(options?.abortSignal);
 
     const interpretationResult = await this.interpretationService.interpret(
       input.message,
       input.locale,
       previousMessages,
+      {
+        abortSignal: options?.abortSignal,
+      },
     );
+    throwIfAborted(options?.abortSignal);
     const parsedInterpretation = await this.parsingService.normalize(
       interpretationResult.interpretation,
     );
@@ -87,7 +94,9 @@ export class SemanticTurnExecutionService {
     const execution = await this.toolExecutionService.executeApprovedAction({
       decision,
       interpretation: preparedTurn.effectiveInterpretation,
+      abortSignal: options?.abortSignal,
     });
+    throwIfAborted(options?.abortSignal);
     const conversationState = await this.continuityService.persistTurnState({
       conversationId: input.conversationId,
       preparedTurn,
@@ -125,7 +134,9 @@ export class SemanticTurnExecutionService {
       execution,
       continuity: preparedTurn.continuity,
       conversationState,
+      abortSignal: options?.abortSignal,
     });
+    throwIfAborted(options?.abortSignal);
 
     await this.traceLogService.recordStage({
       conversationId: input.conversationId,
@@ -166,6 +177,7 @@ export class SemanticTurnExecutionService {
           assistantMessageMetadata,
         })
       : null;
+    throwIfAborted(options?.abortSignal);
 
     await this.traceLogService.recordStage({
       conversationId: input.conversationId,

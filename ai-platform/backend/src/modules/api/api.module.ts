@@ -19,6 +19,7 @@ import { AdminKnowledgeService } from './admin-knowledge.service';
 import { AdminTestCenterController } from './admin-test-center.controller';
 import { AdminTestCenterService } from './admin-test-center.service';
 import { AsyncChatController } from './async-chat.controller';
+import { AsyncTurnExecutionControlService } from './async-turn-execution-control.service';
 import { AsyncTurnIntakeService } from './async-turn-intake.service';
 import { AsyncTurnTimingPolicyService } from './async-turn-timing-policy.service';
 import { ChatController } from './chat.controller';
@@ -52,6 +53,7 @@ import { TraceLogService } from './trace-log.service';
   providers: [
     TraceLogService,
     AsyncTurnTimingPolicyService,
+    AsyncTurnExecutionControlService,
     SemanticTurnExecutionService,
     AsyncTurnIntakeService,
     ChatOrchestratorService,

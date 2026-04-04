@@ -14,6 +14,7 @@ export type InterpretationInput = {
   locale?: string;
   promptTemplate?: string;
   previousMessages?: ConversationContextMessage[];
+  abortSignal?: AbortSignal;
 };
 
 export type InterpretationOutput = {
@@ -49,6 +50,7 @@ export type ResponseGenerationInput = {
   approvedContext: ApprovedResponseContext;
   approvedDraft: string;
   promptTemplate?: string;
+  abortSignal?: AbortSignal;
 };
 
 export type AiGatewayResponseGenerationResult = {
@@ -67,6 +69,7 @@ export type LanguageModelProviderConfig = {
   timeoutMs: number;
   credentials: ResolvedAiRuntimeCredentials;
   providerOptions: Record<string, unknown>;
+  abortSignal?: AbortSignal;
 };
 
 export type AssembledPromptRequest<TRequest> = {

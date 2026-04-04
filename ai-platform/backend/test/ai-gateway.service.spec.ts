@@ -293,6 +293,51 @@ describe('AiGatewayService', () => {
       }),
     );
   });
+
+  it('propagates aborts instead of converting them into fallback gateway errors', async () => {
+    const promptService = {
+      getActivePrompt: jest.fn(async () => ({
+        value: 'Return JSON only.',
+      })),
+    };
+    const controller = new AbortController();
+    const provider = {
+      interpret: jest.fn(async (_input: any, config: { abortSignal?: AbortSignal }) => {
+        config.abortSignal?.throwIfAborted?.();
+        return new Promise((_resolve, reject) => {
+          config.abortSignal?.addEventListener(
+            'abort',
+            () => reject(new DOMException('The operation was aborted.', 'AbortError')),
+            { once: true },
+          );
+          controller.abort('superseded');
+        });
+      }),
+      generateResponse: jest.fn(),
+    };
+    const service = new AiGatewayService(
+      {
+        getAiGatewayConfig: () => buildGatewayConfig(),
+      } as any,
+      new AiPromptAssemblyService(promptService as any),
+      {
+        debug: jest.fn(),
+        error: jest.fn(),
+      } as any,
+      buildProviderRegistry({
+        mock: provider,
+      }),
+    );
+
+    await expect(
+      service.interpret({
+        message: 'hola',
+        abortSignal: controller.signal,
+      }),
+    ).rejects.toMatchObject({
+      name: 'AbortError',
+    });
+  });
 });
 
 function buildGatewayConfig(

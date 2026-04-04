@@ -3,6 +3,24 @@ import { ManagedCriticalConfigProvider } from '../src/modules/critical-config/ma
 describe('ManagedCriticalConfigProvider', () => {
   it('hydrates active critical configs from managed persistence after bootstrap seeding', async () => {
     const seedSource = {
+      getSeed: async () => ({
+        key: 'ai_runtime',
+        value: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          timeoutMs: 1000,
+          credentials: {
+            strategy: 'none',
+            envKey: null,
+          },
+          providerOptions: {},
+        },
+        createdBy: 'system:critical-config-seed',
+        metadata: {
+          origin: 'system' as const,
+          source: 'env-seed',
+        },
+      }),
       listSeeds: async () => [
         {
           key: 'ai_runtime',
@@ -70,6 +88,7 @@ describe('ManagedCriticalConfigProvider', () => {
       },
     ]);
     const seedSource = {
+      getSeed: jest.fn(async () => null),
       listSeeds: jest.fn(async () => []),
     };
     const provider = new ManagedCriticalConfigProvider(
@@ -87,6 +106,95 @@ describe('ManagedCriticalConfigProvider', () => {
     );
     expect(seedSource.listSeeds).not.toHaveBeenCalled();
     expect(repository.createVersion).not.toHaveBeenCalled();
+  });
+
+  it('bootstrap-seeds a newly introduced critical-config key without resetting existing keys', async () => {
+    const repository = buildRepository([
+      {
+        id: 'cfg-1',
+        key: 'ai_runtime',
+        value: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          timeoutMs: 1000,
+          credentials: {
+            strategy: 'none',
+            envKey: null,
+          },
+          providerOptions: {},
+        },
+        version: 1,
+        status: 'ACTIVE',
+        metadata: {
+          origin: 'system',
+        },
+        createdAt: new Date(),
+        createdBy: 'system',
+      },
+    ]);
+    const seedSource = {
+      getSeed: jest.fn(async (key: string) =>
+        key === 'async_intake'
+          ? {
+              key: 'async_intake',
+              value: {
+                stabilization: {
+                  defaultDelayMs: 900,
+                  maxWindowMs: 2600,
+                  fragmentContinuationDelayMs: 1700,
+                  trailingThoughtDelayMs: 1500,
+                  shortMessageDelayMs: 1300,
+                  mediumIncompleteDelayMs: 1000,
+                  longCompletedDelayMs: 350,
+                  shortMessageLengthThreshold: 24,
+                  mediumMessageLengthThreshold: 120,
+                  longCompletedLengthThreshold: 50,
+                },
+                replyProjection: {
+                  minDelayMs: 900,
+                  maxDelayMs: 2600,
+                  charDelayMs: 18,
+                },
+                lexicons: {
+                  default: {
+                    leadingTokens: [],
+                    trailingTokens: [],
+                    slotPatterns: [],
+                  },
+                },
+              },
+              createdBy: 'system:critical-config-seed',
+              metadata: {
+                origin: 'system' as const,
+                source: 'env-seed',
+              },
+            }
+          : null,
+      ),
+      listSeeds: jest.fn(async () => []),
+    };
+    const provider = new ManagedCriticalConfigProvider(
+      repository as any,
+      seedSource as any,
+    );
+
+    await expect(provider.getActive('async_intake')).resolves.toEqual(
+      expect.objectContaining({
+        key: 'async_intake',
+        value: expect.objectContaining({
+          stabilization: expect.objectContaining({
+            defaultDelayMs: 900,
+          }),
+        }),
+      }),
+    );
+    expect(repository.hasVersionsForKey).toHaveBeenCalledWith('async_intake');
+    expect(repository.createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'async_intake',
+        activate: true,
+      }),
+    );
   });
 });
 
@@ -139,6 +247,9 @@ function buildRepository(
       },
     ),
     hasAnyVersions: jest.fn(async () => records.length > 0),
+    hasVersionsForKey: jest.fn(
+      async (key: string) => records.some((record) => record.key === key),
+    ),
     listActive: jest.fn(async () =>
       records.filter((record) => record.status === 'ACTIVE'),
     ),

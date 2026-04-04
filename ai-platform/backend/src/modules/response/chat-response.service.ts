@@ -29,6 +29,7 @@ export class ChatResponseService {
     execution: ToolExecutionAttempt | null;
     continuity: ContinuityMetadata;
     conversationState: ConversationStateSnapshot | null;
+    abortSignal?: AbortSignal;
   }): Promise<GeneratedChatResponse> {
     const approvedContext = this.approvedResponseContextService.build({
       message: input.message,
@@ -49,6 +50,7 @@ export class ChatResponseService {
     const generation = await this.aiGatewayService.generateResponse({
       approvedContext,
       approvedDraft,
+      abortSignal: input.abortSignal,
     });
     const guardrails =
       generation.ok && generation.parsedResponse

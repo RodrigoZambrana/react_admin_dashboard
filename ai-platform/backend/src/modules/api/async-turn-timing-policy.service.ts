@@ -1,19 +1,21 @@
 import { Injectable } from '@nestjs/common';
 
-const DEFAULT_STABILIZATION_DELAY_MS = 900;
-const DEFAULT_MAX_WINDOW_MS = 2600;
-const DEFAULT_MIN_REPLY_DELAY_MS = 900;
-const DEFAULT_MAX_REPLY_DELAY_MS = 2600;
+import { CriticalConfigService } from '../critical-config/critical-config.service';
+import {
+  AsyncIntakeLexicon,
+  AsyncIntakeRuntimeResource,
+  buildDefaultAsyncIntakeRuntimeResource,
+} from '../critical-config/critical-config.types';
 
-const FRAGMENTARY_CONTINUATION_REGEX =
-  /^(?:de|del|con|sin|para|por|en|y|o|pero|si|sí)\b/iu;
-const QUOTE_SLOT_FRAGMENT_REGEX =
-  /^(?:\d+(?:[.,]\d+)?\s*(?:x|por)\s*\d+(?:[.,]\d+)?(?:\s*(?:cm|cms|m|mt|mts|mm))?|\d+\s*(?:unidad(?:es)?|unid(?:ades)?|u)\b)/iu;
-const TRAILING_THOUGHT_REGEX =
-  /(?:\b(de|con|para|porque|por|y|o|que|si|sí|pero)\s*|[:,-]\s*)$/iu;
+const COMPLETED_SENTENCE_REGEX = /[.!?…]$/u;
+const QUESTION_REGEX = /[?¿]$/u;
 
 @Injectable()
 export class AsyncTurnTimingPolicyService {
+  constructor(
+    private readonly criticalConfigService: CriticalConfigService,
+  ) {}
+
   buildSemanticInput(messages: string[]) {
     return messages
       .map((message) => this.normalizeText(message))
@@ -22,63 +24,38 @@ export class AsyncTurnTimingPolicyService {
       .trim();
   }
 
-  estimateStabilizationDelay(messages: string[]) {
-    const semanticInput = this.buildSemanticInput(messages);
-    const normalizedText = this.normalizeText(semanticInput).replace(/\n+/g, ' ');
-
-    if (!normalizedText) {
-      return DEFAULT_STABILIZATION_DELAY_MS;
-    }
-
-    if (this.looksLikeFragmentaryContinuation(normalizedText)) {
-      return Math.max(DEFAULT_STABILIZATION_DELAY_MS + 500, 1700);
-    }
-
-    if (/[.!?…]$/.test(normalizedText) && normalizedText.length >= 50) {
-      return 350;
-    }
-
-    if (TRAILING_THOUGHT_REGEX.test(normalizedText)) {
-      return Math.max(DEFAULT_STABILIZATION_DELAY_MS + 300, 1500);
-    }
-
-    if (normalizedText.length <= 24) {
-      return Math.max(DEFAULT_STABILIZATION_DELAY_MS, 1300);
-    }
-
-    if (!/[.!?…]$/.test(normalizedText) && normalizedText.length <= 120) {
-      return Math.max(DEFAULT_STABILIZATION_DELAY_MS - 200, 1000);
-    }
-
-    return DEFAULT_STABILIZATION_DELAY_MS;
-  }
-
-  estimateReplyDelay(response: string) {
+  async estimateReplyDelay(response: string) {
+    const config = await this.getConfig();
     const normalized = this.normalizeText(response);
 
     if (!normalized) {
       return 0;
     }
 
+    const { minDelayMs, maxDelayMs, charDelayMs } = config.replyProjection;
     const perChar = Math.min(
-      normalized.length * 18,
-      DEFAULT_MAX_REPLY_DELAY_MS - DEFAULT_MIN_REPLY_DELAY_MS,
+      normalized.length * charDelayMs,
+      Math.max(maxDelayMs - minDelayMs, 0),
     );
 
-    return Math.min(DEFAULT_MIN_REPLY_DELAY_MS + perChar, DEFAULT_MAX_REPLY_DELAY_MS);
+    return Math.min(minDelayMs + perChar, maxDelayMs);
   }
 
-  calculateFlushAt(input: {
+  async calculateFlushAt(input: {
     acceptedAt: Date;
     messages: string[];
+    locale?: string | null;
   }) {
-    const stabilizationDelayMs = this.estimateStabilizationDelay(input.messages);
+    const config = await this.getConfig();
+    const stabilizationDelayMs = this.estimateStabilizationDelay(
+      input.messages,
+      input.locale,
+      config,
+    );
     const maxWindowDeadline = new Date(
-      input.acceptedAt.getTime() + DEFAULT_MAX_WINDOW_MS,
+      input.acceptedAt.getTime() + config.stabilization.maxWindowMs,
     );
-    const desiredFlushAt = new Date(
-      Date.now() + stabilizationDelayMs,
-    );
+    const desiredFlushAt = new Date(Date.now() + stabilizationDelayMs);
 
     return {
       stabilizationDelayMs,
@@ -89,23 +66,160 @@ export class AsyncTurnTimingPolicyService {
     };
   }
 
-  private looksLikeFragmentaryContinuation(normalizedText: string) {
+  private estimateStabilizationDelay(
+    messages: string[],
+    locale: string | null | undefined,
+    config: AsyncIntakeRuntimeResource,
+  ) {
+    const semanticInput = this.buildSemanticInput(messages);
+    const normalizedText = this.normalizeText(semanticInput).replace(/\n+/g, ' ');
+    const lexicon = this.resolveLexicon(config, locale);
+    const rules = config.stabilization;
+
     if (!normalizedText) {
+      return rules.defaultDelayMs;
+    }
+
+    if (this.looksLikeFragmentaryContinuation(normalizedText, lexicon)) {
+      return rules.fragmentContinuationDelayMs;
+    }
+
+    if (
+      COMPLETED_SENTENCE_REGEX.test(normalizedText) &&
+      normalizedText.length >= rules.longCompletedLengthThreshold
+    ) {
+      return rules.longCompletedDelayMs;
+    }
+
+    if (this.hasTrailingThought(normalizedText, lexicon)) {
+      return rules.trailingThoughtDelayMs;
+    }
+
+    if (normalizedText.length <= rules.shortMessageLengthThreshold) {
+      return rules.shortMessageDelayMs;
+    }
+
+    if (
+      !COMPLETED_SENTENCE_REGEX.test(normalizedText) &&
+      normalizedText.length <= rules.mediumMessageLengthThreshold
+    ) {
+      return rules.mediumIncompleteDelayMs;
+    }
+
+    return rules.defaultDelayMs;
+  }
+
+  private looksLikeFragmentaryContinuation(
+    normalizedText: string,
+    lexicon: AsyncIntakeLexicon,
+  ) {
+    if (!normalizedText || QUESTION_REGEX.test(normalizedText)) {
       return false;
     }
 
-    if (/[?¿]$/.test(normalizedText)) {
-      return false;
-    }
+    const leadingRegex = this.buildLeadingTokenRegex(lexicon.leadingTokens);
 
-    if (FRAGMENTARY_CONTINUATION_REGEX.test(normalizedText)) {
+    if (leadingRegex?.test(normalizedText)) {
       return true;
     }
 
-    return QUOTE_SLOT_FRAGMENT_REGEX.test(normalizedText);
+    const slotRegex = this.buildSlotRegex(lexicon.slotPatterns);
+    return slotRegex?.test(normalizedText) ?? false;
+  }
+
+  private hasTrailingThought(normalizedText: string, lexicon: AsyncIntakeLexicon) {
+    const trailingRegex = this.buildTrailingTokenRegex(lexicon.trailingTokens);
+
+    if (trailingRegex?.test(normalizedText)) {
+      return true;
+    }
+
+    return /[:,-]\s*$/u.test(normalizedText);
+  }
+
+  private buildLeadingTokenRegex(tokens: string[]) {
+    if (tokens.length === 0) {
+      return null;
+    }
+
+    return new RegExp(
+      `^(?:${tokens.map((token) => escapeRegex(token)).join('|')})\\b`,
+      'iu',
+    );
+  }
+
+  private buildTrailingTokenRegex(tokens: string[]) {
+    if (tokens.length === 0) {
+      return null;
+    }
+
+    return new RegExp(
+      `\\b(?:${tokens.map((token) => escapeRegex(token)).join('|')})\\s*$`,
+      'iu',
+    );
+  }
+
+  private buildSlotRegex(patterns: string[]) {
+    if (patterns.length === 0) {
+      return null;
+    }
+
+    return new RegExp(`^(?:${patterns.join('|')})$`, 'iu');
+  }
+
+  private resolveLexicon(
+    config: AsyncIntakeRuntimeResource,
+    locale: string | null | undefined,
+  ): AsyncIntakeLexicon {
+    const normalizedLocale = this.normalizeLocale(locale);
+    const defaultLexicon = config.lexicons.default ?? {
+      leadingTokens: [],
+      trailingTokens: [],
+      slotPatterns: [],
+    };
+    const localeLexicon =
+      (normalizedLocale
+        ? config.lexicons[normalizedLocale] ??
+          config.lexicons[normalizedLocale.split('-')[0]]
+        : null) ?? null;
+
+    return {
+      leadingTokens: dedupe([
+        ...defaultLexicon.leadingTokens,
+        ...(localeLexicon?.leadingTokens ?? []),
+      ]),
+      trailingTokens: dedupe([
+        ...defaultLexicon.trailingTokens,
+        ...(localeLexicon?.trailingTokens ?? []),
+      ]),
+      slotPatterns: dedupe([
+        ...defaultLexicon.slotPatterns,
+        ...(localeLexicon?.slotPatterns ?? []),
+      ]),
+    };
+  }
+
+  private normalizeLocale(locale: string | null | undefined) {
+    const normalized = locale?.trim().toLowerCase() ?? '';
+    return normalized.length > 0 ? normalized : null;
   }
 
   private normalizeText(value: string) {
     return String(value ?? '').replace(/\s+/g, ' ').trim();
   }
+
+  private async getConfig() {
+    return (
+      (await this.criticalConfigService.getAsyncIntakeConfig()) ??
+      buildDefaultAsyncIntakeRuntimeResource()
+    );
+  }
+}
+
+function dedupe(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

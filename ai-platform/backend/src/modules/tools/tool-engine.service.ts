@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
+import { isAbortError, throwIfAborted } from '../shared/abort.utils';
 import { CreateBookingTool } from './create-booking.tool';
 import { CreateQuoteTool } from './create-quote.tool';
 import { GetProductTool } from './get-product.tool';
@@ -58,7 +59,9 @@ export class ToolEngineService {
     const startedAt = Date.now();
 
     try {
-      const payload = await tool.execute(validatedInput);
+      throwIfAborted(context.abortSignal);
+      const payload = await tool.execute(validatedInput, context);
+      throwIfAborted(context.abortSignal);
       const result = {
         ok: true as const,
         toolName,
@@ -82,6 +85,10 @@ export class ToolEngineService {
 
       return result;
     } catch (error) {
+      if (isAbortError(error)) {
+        throw error;
+      }
+
       return this.buildFailure(
         toolName,
         'execution_failed',

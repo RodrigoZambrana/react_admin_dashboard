@@ -45,7 +45,10 @@ export class GetProductTool implements ToolDefinition<typeof productInputSchema>
     };
   }
 
-  async execute(input: z.infer<typeof productInputSchema>) {
+  async execute(
+    input: z.infer<typeof productInputSchema>,
+    _context: ToolExecutionContext,
+  ) {
     const bySku = input.sku
       ? catalog.find(
           (product) => product.sku.toLowerCase() === input.sku?.toLowerCase(),

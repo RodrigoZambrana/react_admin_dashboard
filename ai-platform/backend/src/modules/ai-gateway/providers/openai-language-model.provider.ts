@@ -50,6 +50,7 @@ export class OpenAiLanguageModelProvider implements LanguageModelProvider {
       },
       {
         timeout: providerInput.timeoutMs,
+        signal: providerInput.abortSignal,
       },
     );
 
@@ -97,6 +98,7 @@ export class OpenAiLanguageModelProvider implements LanguageModelProvider {
       },
       {
         timeout: providerInput.timeoutMs,
+        signal: providerInput.abortSignal,
       },
     );
 

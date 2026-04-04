@@ -7,6 +7,7 @@ import { RuntimeManagedResourceVersion } from '../runtime-resources/runtime-mana
 import { CriticalConfigProvider } from './critical-config.provider';
 import {
   AiRuntimeResource,
+  AsyncIntakeRuntimeResource,
   CriticalConfigKey,
   criticalConfigKeySchema,
   CriticalConfigResourceMap,
@@ -54,6 +55,12 @@ export class CriticalConfigService {
   async getLearningConfig(): Promise<LearningRuntimeResource | null> {
     return (await this.getActiveConfig('learning'))?.value as
       | LearningRuntimeResource
+      | null;
+  }
+
+  async getAsyncIntakeConfig(): Promise<AsyncIntakeRuntimeResource | null> {
+    return (await this.getActiveConfig('async_intake'))?.value as
+      | AsyncIntakeRuntimeResource
       | null;
   }
 
