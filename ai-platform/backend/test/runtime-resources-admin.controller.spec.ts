@@ -22,11 +22,13 @@ describe('RuntimeResourcesAdminController', () => {
         listPrompts: jest.fn(async () => ['prompt-version']),
         listActivePrompts: jest.fn(async () => ['prompt-active']),
         createPromptVersion: jest.fn(async () => ({ id: 'prompt-created' })),
+        activatePromptVersion: jest.fn(async () => ({ id: 'prompt-activated' })),
       } as any,
       {
         listVersions: jest.fn(async () => ['temporal-version']),
         listActiveLocales: jest.fn(async () => ['temporal-active']),
         createVersion: jest.fn(async () => ({ id: 'temporal-created' })),
+        activateVersion: jest.fn(async () => ({ id: 'temporal-activated' })),
       } as any,
       {
         ...criticalConfigService,
@@ -85,5 +87,16 @@ describe('RuntimeResourcesAdminController', () => {
         key: 'default',
       }),
     );
+
+    await expect(
+      controller.activatePromptVersion('prompt-1', {
+        createdBy: 'admin-ui',
+      }),
+    ).resolves.toEqual({ id: 'prompt-activated' });
+    await expect(
+      controller.activateTemporalLocaleVersion('locale-1', {
+        createdBy: 'admin-ui',
+      }),
+    ).resolves.toEqual({ id: 'temporal-activated' });
   });
 });

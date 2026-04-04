@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
 import { CriticalConfigService } from '../critical-config/critical-config.service';
 import { KnowledgeMetadataService } from '../knowledge-metadata/knowledge-metadata.service';
@@ -10,6 +10,7 @@ import { CreateKnowledgeMetadataVersionDto } from './dto/create-knowledge-metada
 import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
 import { CreateResponseFallbackVersionDto } from './dto/create-response-fallback-version.dto';
 import { CreateTemporalLocaleVersionDto } from './dto/create-temporal-locale-version.dto';
+import { ActivateManagedResourceVersionDto } from './dto/activate-managed-resource-version.dto';
 
 @Controller('admin/runtime-resources')
 export class RuntimeResourcesAdminController {
@@ -36,6 +37,14 @@ export class RuntimeResourcesAdminController {
     return this.promptService.createPromptVersion(body);
   }
 
+  @Post('prompts/:versionId/activate')
+  activatePromptVersion(
+    @Param('versionId') versionId: string,
+    @Body() body: ActivateManagedResourceVersionDto,
+  ) {
+    return this.promptService.activatePromptVersion(versionId, body.createdBy);
+  }
+
   @Get('temporal-locales')
   listTemporalLocaleVersions(@Query('locale') locale?: string) {
     return this.temporalLocaleService.listVersions(locale);
@@ -54,6 +63,14 @@ export class RuntimeResourcesAdminController {
       createdBy: body.createdBy,
       activate: body.activate,
     });
+  }
+
+  @Post('temporal-locales/:versionId/activate')
+  activateTemporalLocaleVersion(
+    @Param('versionId') versionId: string,
+    @Body() body: ActivateManagedResourceVersionDto,
+  ) {
+    return this.temporalLocaleService.activateVersion(versionId, body.createdBy);
   }
 
   @Get('critical-configs')

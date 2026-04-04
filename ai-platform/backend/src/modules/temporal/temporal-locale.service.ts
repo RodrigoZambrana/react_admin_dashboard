@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
@@ -61,6 +61,46 @@ export class TemporalLocaleService {
         locale: created.locale,
         version: created.version,
         status: created.status,
+      }),
+    );
+
+    return created;
+  }
+
+  async activateVersion(versionId: string, createdBy?: string) {
+    const existing = await this.temporalLocaleVersionRepository.findById(versionId);
+
+    if (!existing) {
+      throw new NotFoundException(
+        `Temporal locale version ${versionId} was not found`,
+      );
+    }
+
+    if (existing.status === 'ACTIVE') {
+      return existing;
+    }
+
+    const resource = temporalLocaleResourceSchema.parse(existing.resource);
+    const created = await this.temporalLocaleVersionRepository.createVersion({
+      locale: existing.locale,
+      resource: resource as Prisma.InputJsonValue,
+      createdBy,
+      activate: true,
+      metadata: {
+        ...(existing.metadata as Record<string, unknown> | null | undefined),
+        origin: 'admin',
+        activatedFromVersionId: existing.id,
+        activatedFromVersion: existing.version,
+      } as Prisma.InputJsonValue,
+    });
+
+    this.logger.log(
+      JSON.stringify({
+        stage: 'temporal_locale.activated',
+        locale: created.locale,
+        version: created.version,
+        sourceVersionId: existing.id,
+        sourceVersion: existing.version,
       }),
     );
 

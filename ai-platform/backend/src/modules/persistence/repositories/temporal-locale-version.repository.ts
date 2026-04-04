@@ -36,6 +36,12 @@ export class TemporalLocaleVersionRepository {
     });
   }
 
+  findById(id: string) {
+    return this.prisma.temporalLocaleVersion.findFirst({
+      where: { id },
+    });
+  }
+
   hasAnyVersions() {
     return this.prisma.temporalLocaleVersion.count().then((count) => count > 0);
   }

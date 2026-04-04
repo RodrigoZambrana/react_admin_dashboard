@@ -36,6 +36,12 @@ export class PromptVersionRepository {
     });
   }
 
+  findById(id: string) {
+    return this.prisma.promptVersion.findFirst({
+      where: { id },
+    });
+  }
+
   hasAnyVersions() {
     return this.prisma.promptVersion.count().then((count) => count > 0);
   }

@@ -100,4 +100,53 @@ describe('TemporalLocaleService', () => {
       }),
     ).rejects.toBeInstanceOf(ZodError);
   });
+
+  it('promotes an existing locale version through a governed activation path', async () => {
+    const createVersion = jest.fn(async () => ({
+      id: 'locale-2',
+      locale: 'es',
+      version: 3,
+      status: 'ACTIVE',
+    }));
+    const service = new TemporalLocaleService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        findById: jest.fn(async () => ({
+          id: 'locale-1',
+          locale: 'es',
+          version: 2,
+          status: 'DRAFT',
+          resource: {
+            locale: 'es',
+            datePhrases: ['mañana'],
+            timeJoiners: ['a las'],
+          },
+          metadata: {
+            origin: 'admin',
+          },
+        })),
+        createVersion,
+      } as any,
+      {
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(service.activateVersion('locale-1', 'admin-ui')).resolves.toEqual(
+      expect.objectContaining({
+        id: 'locale-2',
+        status: 'ACTIVE',
+      }),
+    );
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        locale: 'es',
+        activate: true,
+        createdBy: 'admin-ui',
+      }),
+    );
+  });
 });

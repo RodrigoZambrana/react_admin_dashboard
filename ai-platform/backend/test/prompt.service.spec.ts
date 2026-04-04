@@ -66,4 +66,52 @@ describe('PromptService', () => {
     ]);
     expect(list).toHaveBeenCalledWith('response');
   });
+
+  it('activates a stored prompt version through a new governed active version', async () => {
+    const createVersion = jest.fn(async () => ({
+      id: 'prompt-2',
+      key: 'response',
+      version: 4,
+      status: 'ACTIVE',
+    }));
+    const service = new PromptService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        findById: jest.fn(async () => ({
+          id: 'prompt-1',
+          key: 'response',
+          template: 'Approved response template',
+          version: 3,
+          status: 'DRAFT',
+          metadata: {
+            origin: 'admin',
+          },
+        })),
+        createVersion,
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.activatePromptVersion('prompt-1', 'admin-ui'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        id: 'prompt-2',
+        status: 'ACTIVE',
+      }),
+    );
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'response',
+        activate: true,
+        createdBy: 'admin-ui',
+      }),
+    );
+  });
 });

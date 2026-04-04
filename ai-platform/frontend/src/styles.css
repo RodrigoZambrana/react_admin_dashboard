@@ -70,6 +70,14 @@
   line-height: 1.6;
 }
 
+.react-large-textarea {
+  min-height: 260px;
+}
+
+.react-medium-textarea {
+  min-height: 220px;
+}
+
 .react-resource-summary,
 .react-roadmap-note,
 .react-ops-domain-card {
@@ -157,6 +165,10 @@
   background: #f8fafc;
   color: #334155;
   min-height: 140px;
+}
+
+.react-large-preview {
+  min-height: 280px;
 }
 
 .react-chip-list {

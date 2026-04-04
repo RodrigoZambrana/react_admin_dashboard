@@ -947,3 +947,38 @@
 - Implement operator-safe create and activate flows for prompts and date-time-locale-resources on top of the governed backend contracts
 - Add the remaining ABMs for critical configs, response fallback catalogs, and knowledge metadata without moving lifecycle logic into the frontend
 - Close Wave 6 with activation/version UX, validation, documentation, and a formal closeout review
+
+## Iteration 32
+
+### Implemented
+- Added explicit backend activation helpers for governed prompt and date-time-locale versions so the frontend can activate published resources without replaying lifecycle logic client-side
+- Extended the admin runtime-resources controller with activation endpoints for:
+  - prompts
+  - temporal locale resources
+- Turned the `Prompts` page into a real ABM workflow with:
+  - version history
+  - selected-version inspection
+  - create version
+  - activate version
+  - reuse selected version as the base for a new draft/active version
+- Turned the `Date-time locale resources` page into a real ABM workflow with:
+  - version history
+  - selected-version inspection
+  - create version from operator fields
+  - activate version
+  - reuse selected locale version as the base for a new governed version
+
+### Working
+- Operators can now manage prompts and date-time-locale-resources through real backend-governed create/activate flows instead of read-only inspection
+- Activation remains backend-owned and version-aware; the UI no longer needs brittle payload replay tricks to publish an existing version
+- Backend build, backend tests, and frontend build all pass with the new prompt/locale ABMs
+
+### Technical Debt
+- Critical configs, response fallback catalogs, and knowledge metadata still need equivalent Wave 6 ABM flows
+- `AiGatewayService` provider-registry and inline prompt-scaffolding debt remains explicit and untouched
+- The current activation helper pattern is only applied to the first two managed-resource families so far; the rest must align before Wave 6 can close
+
+### Next Steps
+- Implement create/activate admin flows for critical configs, response fallback catalogs, and knowledge metadata on the same governed pattern
+- Finish Wave 6 operator-safe lifecycle UX and then run the closeout review against layer separation, tenant safety, operator clarity, and DreamsChat fidelity
+- Update architecture/progress documentation to tie the completed admin operations UI to Wave 7, Wave 8 async prerequisites, and Wave 9 hardening

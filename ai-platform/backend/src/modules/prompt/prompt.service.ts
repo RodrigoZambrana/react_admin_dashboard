@@ -1,4 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { PromptVersionRepository } from '../persistence/repositories/prompt-version.repository';
@@ -62,6 +63,43 @@ export class PromptService {
         key: prompt.key,
         version: prompt.version,
         status: prompt.status,
+      }),
+    );
+
+    return prompt;
+  }
+
+  async activatePromptVersion(versionId: string, createdBy?: string) {
+    const existing = await this.promptVersionRepository.findById(versionId);
+
+    if (!existing) {
+      throw new NotFoundException(`Prompt version ${versionId} was not found`);
+    }
+
+    if (existing.status === 'ACTIVE') {
+      return existing;
+    }
+
+    const prompt = await this.promptVersionRepository.createVersion({
+      key: existing.key,
+      template: existing.template,
+      metadata: {
+        ...(existing.metadata as Record<string, unknown> | null | undefined),
+        origin: 'admin',
+        activatedFromVersionId: existing.id,
+        activatedFromVersion: existing.version,
+      } as Prisma.InputJsonValue,
+      createdBy,
+      activate: true,
+    });
+
+    this.logger.log(
+      JSON.stringify({
+        stage: 'prompt.activated',
+        key: prompt.key,
+        version: prompt.version,
+        sourceVersionId: existing.id,
+        sourceVersion: existing.version,
       }),
     );
 
