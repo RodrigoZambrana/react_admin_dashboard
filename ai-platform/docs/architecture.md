@@ -400,6 +400,27 @@
 9. Completion criteria: centralized QA strategy is active; auth and role separation are active; admin surfaces are guarded; Playwright/E2E suites cover critical admin and user journeys; multitenant regression and operational hardening are in place for production rollout.
 10. Explicit next-wave enablement: enables controlled tenant onboarding, rollout scaling, and ongoing delivery without revisiting the core platform architecture.
 
+## Post-Wave 8.3 Conversational Stabilization
+
+After Wave 8.3 closed exploratory runtime readiness, the branch absorbed one narrow stabilization pass focused on reliable appointment scheduling and conversational naturalness without opening Wave 9.
+
+- Interpretation remains AI-only, but the backend-owned contract now requires a provider-compatible structured entity schema and explicit preservation of `entities.rawMessage`, so parser/continuity never lose the original user booking signal when the model omits detail.
+- Parsing and continuity remain backend-owned:
+  - booking continuity keeps the booking lane active while real backend booking fields are still unresolved
+  - fragmented booking turns can carry a safe request summary forward into tool execution instead of degrading to date-only notes
+  - unsupported booking asks such as generic appointment type or visit objective are not part of the backend booking contract and therefore must not survive decision/response clarification in the stabilized path
+- Response naturalness remains governed:
+  - deterministic fallback/basic clarification wording is still backend-approved
+  - locale-aware managed response-fallback catalogs now support optional `templateVariants`
+  - variant selection is deterministic and observable from backend seeds rather than inline phrase arrays inside response services
+
+This stabilization pass was validated against the real OpenAI runtime on the live async public chat path:
+
+- a direct realistic booking message completed successfully without a generic clarification loop
+- three rapid fragmented booking messages coalesced into one semantic turn and completed as a confirmed booking
+
+That leaves the platform ready for real exploratory booking tests while keeping Wave 9 as the next broader hardening step.
+
 ## Multi-Tenant Enforcement
 
 - Tenant id enters through HTTP middleware
