@@ -125,10 +125,14 @@
 - Minimal future-admin backend surfaces now live under:
   - `/admin/runtime-resources/prompts`
   - `/admin/runtime-resources/temporal-locales`
+  - `/admin/runtime-resources/critical-configs`
+  - `/admin/runtime-resources/knowledge-metadata`
+  - `/admin/runtime-resources/response-fallbacks`
 - Roadmap terminology should converge on `date-time-locale-resources` as the product-facing name for the resource family currently implemented under `backend/src/modules/temporal/*`
-- Future families expected to align to the same pattern:
+- Additional families now aligned to the same pattern:
   - critical configs
   - governed knowledge metadata
+  - response fallback catalogs
 
 ## Current Platform State
 
@@ -260,7 +264,7 @@
 7. Legacy contributions that should be mined: structured tenant/domain concepts from `runtime-tenant-policy.js`; legacy knowledge-service concepts that fit the new governance model; user-facing chat experience concepts from `webchat.adapter.js` only as product/API guidance, not as runtime architecture.
 8. Expected user/platform value: safer governed rollout, portable provider/runtime configuration, live learning readiness, and backend readiness for future admin ABMs and public chat product surfaces.
 9. Completion criteria: learning is live and observable; critical configs, governed knowledge metadata, and fallback response catalogs follow the runtime-managed resource pattern; AI provider/runtime configuration is standardized behind a provider-agnostic contract instead of provider-specific environment assumptions; admin-ready backend endpoints cover resource governance and runtime operations needed by later UI waves.
-10. Explicit next-wave enablement: enables later product tracks such as admin UI ABMs, public chat UX delivery, centralized QA/test delivery, security hardening, and tenant onboarding workflows without changing core runtime architecture.
+10. Explicit next-wave enablement: directly enables Wave 6 by giving the admin UI stable backend ABM contracts for prompts, date-time-locale-resources, critical configs, knowledge metadata, and response fallback catalogs; also enables Wave 9 by ensuring later auth/roles, centralized QA, and hardening work operate over governed runtime surfaces instead of placeholder configs.
 
 ### Wave 6: Admin Operations UI
 
@@ -272,7 +276,7 @@
 6. Architecture constraints: the UI must remain a thin client over backend-governed contracts; no browser-owned decision logic; no direct datastore access; no new legacy runtime coupling; naming should converge toward `date-time-locale-resources` when backend compatibility allows it.
 7. Legacy contributions that should be mined: legacy operator workflow concepts, admin dashboard patterns already audited in the legacy review, and trace inspection flows that improve operator efficiency without copying legacy runtime behavior.
 8. Expected user/platform value: operators can manage prompts, date-time-locale-resources, and critical configs safely through productized UI flows instead of manual backend calls or filesystem/bootstrap procedures.
-9. Completion criteria: admin UI can manage managed prompts, date-time-locale-resources, and critical configs through backend-governed lifecycles; trace/resource inspection supports routine operator workflows; compatibility-only admin paths have a defined retirement path.
+9. Completion criteria: admin UI can manage managed prompts, date-time-locale-resources, critical configs, knowledge metadata, and response fallback catalogs through backend-governed lifecycles; trace/resource inspection supports routine operator workflows; compatibility-only admin paths have a defined retirement path.
 10. Explicit next-wave enablement: provides the operator shell needed for governed knowledge workflows and an admin chat test center in Wave 7.
 
 ### Wave 7: Knowledge And Chat Test Center UI
@@ -372,6 +376,9 @@ The `learning` stage persists:
   - `/conversations`
   - `/admin/runtime-resources/prompts`
   - `/admin/runtime-resources/temporal-locales`
+  - `/admin/runtime-resources/critical-configs`
+  - `/admin/runtime-resources/knowledge-metadata`
+  - `/admin/runtime-resources/response-fallbacks`
 - AI runtime selection now comes from governed `ai_runtime` critical config, while secret material can still resolve from env-backed credential references behind `RuntimeConfigModule`
 - Future secure API key storage and tenant config retrieval will move behind repository-backed configuration services without changing controller or orchestrator layers
 

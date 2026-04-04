@@ -814,3 +814,39 @@
 - Add the remaining admin-ready backend management surfaces for critical config, knowledge metadata, and fallback response catalogs
 - Finalize Wave 5 documentation so the closed scope explicitly enables Wave 6 admin operations and Wave 9 hardening without reopening runtime architecture
 - Run final full validation and close the wave with a clean commit set
+
+## Iteration 28
+
+### Implemented
+- Expanded the admin-ready backend governance surface under `/admin/runtime-resources/*` to cover the new Wave 5 families:
+  - critical configs
+  - knowledge metadata
+  - response fallback catalogs
+- Added DTOs and controller routes for listing active/versions and creating new governed versions for those families without pushing any business logic into controllers
+- Updated security-preparation/runtime documentation so future admin-guard planning now reflects the real governed resource surfaces exposed by the backend
+- Closed Wave 5 documentation to show the wave is now complete and to make its enablement of Wave 6 and Wave 9 explicit
+
+### Working
+- Backend governance surfaces now exist for:
+  - prompts
+  - date-time-locale-resources
+  - critical configs
+  - knowledge metadata
+  - response fallback catalogs
+- Backend build, backend tests, and frontend build all pass with the widened admin-ready backend surface
+- Wave 5 is now complete on this branch:
+  - governed critical resources are in place
+  - learning is active from persisted logs
+  - AI runtime config is provider-agnostic at the managed runtime boundary
+  - deterministic fallback copy is governed
+  - future admin ABMs now have stable backend contracts
+
+### Technical Debt
+- Wave 5 intentionally stops at backend/admin-ready contracts; no admin UI or auth/admin guards are active yet
+- Learning still runs in-process and async worker separation remains future operational work
+- Centralized QA, Playwright/E2E, roles, and security hardening remain explicitly deferred to the later hardening wave
+
+### Next Steps
+- Start Wave 6, `Admin Operations UI And Managed Resource ABMs`, on top of the now-complete governed backend surface
+- Use the new backend contracts to build admin operations for prompts, date-time-locale-resources, critical configs, knowledge metadata, and fallback catalogs without changing runtime architecture
+- Carry the completed Wave 5 governance contracts into Wave 9 so centralized QA, auth/roles, and production hardening can operate over real admin and user surfaces instead of placeholders

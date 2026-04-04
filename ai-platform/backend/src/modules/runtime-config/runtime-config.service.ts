@@ -72,6 +72,9 @@ export class RuntimeConfigService {
         '/conversations',
         '/admin/runtime-resources/prompts',
         '/admin/runtime-resources/temporal-locales',
+        '/admin/runtime-resources/critical-configs',
+        '/admin/runtime-resources/knowledge-metadata',
+        '/admin/runtime-resources/response-fallbacks',
       ],
       apiKeyStorage: {
         current: 'env',
