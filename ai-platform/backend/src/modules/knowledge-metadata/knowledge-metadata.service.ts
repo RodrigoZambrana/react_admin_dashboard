@@ -7,6 +7,8 @@ import { KnowledgeMetadataProvider } from './knowledge-metadata.provider';
 import {
   KnowledgeMetadataKey,
   KnowledgeMetadataResource,
+  parseKnowledgeMetadataKey,
+  parseKnowledgeMetadataResource,
 } from './knowledge-metadata.types';
 
 @Injectable()
@@ -62,9 +64,11 @@ export class KnowledgeMetadataService {
     createdBy?: string;
     activate?: boolean;
   }) {
+    const key = parseKnowledgeMetadataKey(input.key);
+    const resource = parseKnowledgeMetadataResource(input.resource);
     const version = await this.knowledgeMetadataVersionRepository.createVersion({
-      key: input.key,
-      resource: input.resource as Prisma.InputJsonValue,
+      key,
+      resource: resource as Prisma.InputJsonValue,
       createdBy: input.createdBy,
       activate: input.activate,
     });

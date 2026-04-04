@@ -36,3 +36,16 @@ export type CriticalConfigResourceMap = {
 };
 
 export type CriticalConfigValue = AiRuntimeResource | LearningRuntimeResource;
+
+export function parseCriticalConfigValue<TKey extends CriticalConfigKey>(
+  key: TKey,
+  value: unknown,
+): CriticalConfigResourceMap[TKey] {
+  if (key === 'ai_runtime') {
+    return aiRuntimeResourceSchema.parse(value) as CriticalConfigResourceMap[TKey];
+  }
+
+  return learningRuntimeResourceSchema.parse(
+    value,
+  ) as CriticalConfigResourceMap[TKey];
+}

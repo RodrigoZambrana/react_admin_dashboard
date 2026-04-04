@@ -4,11 +4,10 @@ import { Prisma } from '@prisma/client';
 import { CriticalConfigVersionRepository } from '../persistence/repositories/critical-config-version.repository';
 import { RuntimeManagedResourceVersion } from '../runtime-resources/runtime-managed-resource.types';
 import {
-  aiRuntimeResourceSchema,
   CriticalConfigKey,
   CriticalConfigValue,
   criticalConfigKeySchema,
-  learningRuntimeResourceSchema,
+  parseCriticalConfigValue,
 } from './critical-config.types';
 import { CriticalConfigProvider } from './critical-config.provider';
 import { EnvCriticalConfigSeedSource } from './env-critical-config.seed-source';
@@ -89,10 +88,6 @@ export class ManagedCriticalConfigProvider extends CriticalConfigProvider {
   }
 
   private parseValue(key: CriticalConfigKey, value: unknown): CriticalConfigValue {
-    if (key === 'ai_runtime') {
-      return aiRuntimeResourceSchema.parse(value);
-    }
-
-    return learningRuntimeResourceSchema.parse(value);
+    return parseCriticalConfigValue(key, value);
   }
 }

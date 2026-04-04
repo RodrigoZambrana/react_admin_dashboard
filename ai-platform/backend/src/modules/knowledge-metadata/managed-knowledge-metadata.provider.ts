@@ -8,8 +8,8 @@ import { KnowledgeMetadataProvider } from './knowledge-metadata.provider';
 import {
   KnowledgeMetadataKey,
   KnowledgeMetadataResource,
-  knowledgeMetadataKeySchema,
-  knowledgeMetadataResourceSchema,
+  parseKnowledgeMetadataKey,
+  parseKnowledgeMetadataResource,
 } from './knowledge-metadata.types';
 
 @Injectable()
@@ -75,8 +75,8 @@ export class ManagedKnowledgeMetadataProvider extends KnowledgeMetadataProvider 
   > {
     return {
       id: record.id,
-      key: knowledgeMetadataKeySchema.parse(record.key),
-      value: knowledgeMetadataResourceSchema.parse(record.resource),
+      key: parseKnowledgeMetadataKey(record.key),
+      value: parseKnowledgeMetadataResource(record.resource),
       version: record.version,
       status: record.status as RuntimeManagedResourceVersion<
         KnowledgeMetadataKey,

@@ -2,6 +2,21 @@ import { RuntimeResourcesAdminController } from '../src/modules/api/runtime-reso
 
 describe('RuntimeResourcesAdminController', () => {
   it('exposes admin-ready surfaces for governed Wave 5 resource families', async () => {
+    const criticalConfigService = {
+      listConfigs: jest.fn(async () => ['config-version']),
+      listActiveConfigs: jest.fn(async () => ['config-active']),
+      createVersion: jest.fn(async () => ({ id: 'config-created' })),
+    };
+    const knowledgeMetadataService = {
+      listVersions: jest.fn(async () => ['knowledge-version']),
+      listActiveResources: jest.fn(async () => ['knowledge-active']),
+      createVersion: jest.fn(async () => ({ id: 'knowledge-created' })),
+    };
+    const responseFallbackService = {
+      listVersions: jest.fn(async () => ['fallback-version']),
+      listActiveCatalogs: jest.fn(async () => ['fallback-active']),
+      createVersion: jest.fn(async () => ({ id: 'fallback-created' })),
+    };
     const controller = new RuntimeResourcesAdminController(
       {
         listPrompts: jest.fn(async () => ['prompt-version']),
@@ -14,19 +29,13 @@ describe('RuntimeResourcesAdminController', () => {
         createVersion: jest.fn(async () => ({ id: 'temporal-created' })),
       } as any,
       {
-        listConfigs: jest.fn(async () => ['config-version']),
-        listActiveConfigs: jest.fn(async () => ['config-active']),
-        createVersion: jest.fn(async () => ({ id: 'config-created' })),
+        ...criticalConfigService,
       } as any,
       {
-        listVersions: jest.fn(async () => ['knowledge-version']),
-        listActiveResources: jest.fn(async () => ['knowledge-active']),
-        createVersion: jest.fn(async () => ({ id: 'knowledge-created' })),
+        ...knowledgeMetadataService,
       } as any,
       {
-        listVersions: jest.fn(async () => ['fallback-version']),
-        listActiveCatalogs: jest.fn(async () => ['fallback-active']),
-        createVersion: jest.fn(async () => ({ id: 'fallback-created' })),
+        ...responseFallbackService,
       } as any,
     );
 
@@ -48,5 +57,33 @@ describe('RuntimeResourcesAdminController', () => {
     await expect(controller.listActiveResponseFallbacks()).resolves.toEqual([
       'fallback-active',
     ]);
+
+    await expect(
+      controller.createCriticalConfigVersion({
+        key: 'learning',
+        value: {
+          enabled: true,
+        },
+      } as any),
+    ).resolves.toEqual({ id: 'config-created' });
+    expect(criticalConfigService.createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'learning',
+      }),
+    );
+
+    await expect(
+      controller.createKnowledgeMetadataVersion({
+        key: 'default',
+        resource: {
+          enabledStages: ['execution'],
+        },
+      } as any),
+    ).resolves.toEqual({ id: 'knowledge-created' });
+    expect(knowledgeMetadataService.createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'default',
+      }),
+    );
   });
 });

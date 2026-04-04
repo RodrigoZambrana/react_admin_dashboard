@@ -1,0 +1,135 @@
+import { ZodError } from 'zod';
+
+import { CriticalConfigService } from '../src/modules/critical-config/critical-config.service';
+
+describe('CriticalConfigService', () => {
+  it('accepts a valid ai_runtime config before persistence', async () => {
+    const createVersion = jest.fn(async () => ({
+      key: 'ai_runtime',
+      version: 1,
+      status: 'ACTIVE',
+    }));
+    const service = new CriticalConfigService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        createVersion,
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.createVersion({
+        key: 'ai_runtime',
+        value: {
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          timeoutMs: 7000,
+          credentials: {
+            strategy: 'env',
+            envKey: 'AI_PROVIDER_API_KEY',
+          },
+          providerOptions: {
+            baseUrl: 'https://provider.internal/v1',
+          },
+        },
+        activate: true,
+        createdBy: 'admin',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        key: 'ai_runtime',
+        version: 1,
+      }),
+    );
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'ai_runtime',
+        activate: true,
+      }),
+    );
+  });
+
+  it('accepts a valid learning config before persistence', async () => {
+    const createVersion = jest.fn(async () => ({
+      key: 'learning',
+      version: 1,
+      status: 'ACTIVE',
+    }));
+    const service = new CriticalConfigService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        createVersion,
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.createVersion({
+        key: 'learning',
+        value: {
+          enabled: true,
+          observedStages: ['execution', 'response'],
+          minConfidence: 0.6,
+          maxBodyLength: 240,
+          maxSummaryLength: 180,
+          persistEmbeddings: true,
+        },
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        key: 'learning',
+        version: 1,
+      }),
+    );
+    expect(createVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: 'learning',
+      }),
+    );
+  });
+
+  it('rejects malformed critical configs before the repository is called', async () => {
+    const createVersion = jest.fn();
+    const service = new CriticalConfigService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        createVersion,
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.createVersion({
+        key: 'ai_runtime',
+        value: {
+          provider: 'openai',
+          model: '',
+          timeoutMs: 0,
+          credentials: {
+            strategy: 'env',
+          },
+          providerOptions: {},
+        } as any,
+      }),
+    ).rejects.toBeInstanceOf(ZodError);
+    expect(createVersion).not.toHaveBeenCalled();
+  });
+});

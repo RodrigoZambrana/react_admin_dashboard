@@ -8,9 +8,11 @@ import { CriticalConfigProvider } from './critical-config.provider';
 import {
   AiRuntimeResource,
   CriticalConfigKey,
+  criticalConfigKeySchema,
   CriticalConfigResourceMap,
   CriticalConfigValue,
   LearningRuntimeResource,
+  parseCriticalConfigValue,
 } from './critical-config.types';
 
 @Injectable()
@@ -81,9 +83,11 @@ export class CriticalConfigService {
     createdBy?: string;
     activate?: boolean;
   }) {
+    const key = criticalConfigKeySchema.parse(input.key);
+    const value = parseCriticalConfigValue(key, input.value);
     const config = await this.criticalConfigVersionRepository.createVersion({
-      key: input.key,
-      value: input.value as Prisma.InputJsonValue,
+      key,
+      value: value as Prisma.InputJsonValue,
       createdBy: input.createdBy,
       activate: input.activate,
     });

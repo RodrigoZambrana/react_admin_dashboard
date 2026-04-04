@@ -18,3 +18,13 @@ export const knowledgeMetadataResourceSchema = z.object({
 export type KnowledgeMetadataResource = z.infer<
   typeof knowledgeMetadataResourceSchema
 >;
+
+export function parseKnowledgeMetadataKey(value: unknown): KnowledgeMetadataKey {
+  return knowledgeMetadataKeySchema.parse(value);
+}
+
+export function parseKnowledgeMetadataResource(
+  value: unknown,
+): KnowledgeMetadataResource {
+  return knowledgeMetadataResourceSchema.parse(value);
+}

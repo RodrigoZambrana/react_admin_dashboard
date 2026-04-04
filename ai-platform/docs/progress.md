@@ -850,3 +850,38 @@
 - Start Wave 6, `Admin Operations UI And Managed Resource ABMs`, on top of the now-complete governed backend surface
 - Use the new backend contracts to build admin operations for prompts, date-time-locale-resources, critical configs, knowledge metadata, and fallback catalogs without changing runtime architecture
 - Carry the completed Wave 5 governance contracts into Wave 9 so centralized QA, auth/roles, and production hardening can operate over real admin and user surfaces instead of placeholders
+
+## Iteration 29
+
+### Implemented
+- Closed the Wave 5 review blocker by adding service-level schema validation for governed admin-ready writes in:
+  - `CriticalConfigService`
+  - `KnowledgeMetadataService`
+- Aligned write-side validation with the same zod resource schemas already used on the managed read side, so stored payloads now obey the same contract regardless of whether they come from bootstrap seeds or admin-ready writes
+- Added targeted tests proving:
+  - valid `ai_runtime` writes succeed
+  - valid `learning` writes succeed
+  - malformed `critical-config` writes are rejected before the repository is called
+  - valid `knowledge-metadata` writes succeed
+  - malformed `knowledge-metadata` writes are rejected before the repository is called
+  - the admin-ready controller path remains intact for valid governed writes
+
+### Working
+- Malformed managed resources for `critical-config` and `knowledge-metadata` can no longer be persisted through the Wave 5 admin-ready write surfaces
+- Repository boundaries no longer receive invalid payloads for those governed families
+- Backend build, backend tests, and frontend build all pass after the blocker hardening
+- `/chat/message` remains non-breaking
+- Wave 5 is now fully closed on this branch, and Wave 6 is enabled from a backend-governance perspective
+
+### Technical Debt
+- `AiGatewayService` still carries non-blocking hardcoded provider registry logic and inline prompt scaffolding; that debt remains explicit and carried forward, but it is not blocking Wave 6
+- Wave 5 still intentionally stops at backend/admin-ready contracts:
+  - no admin UI yet
+  - no auth/admin guards yet
+  - no centralized QA/E2E rollout yet
+- Learning still runs in-process and async worker separation remains future operational work
+
+### Next Steps
+- Begin Wave 6, `Admin Operations UI And Managed Resource ABMs`, on top of the now-safe governed backend write surfaces
+- Keep the carried AI gateway hardcoding debt explicit while prioritizing admin UI/productization work that does not require a broad gateway refactor
+- Preserve the validated managed-resource contracts so later Wave 9 hardening can add auth, roles, centralized QA, and E2E over stable backend governance surfaces
