@@ -2213,3 +2213,35 @@
 - Distill the real corpus and legacy artifacts into reusable core patterns, regression fixtures, and explicit exclusions
 - Apply only reusable core conversational improvements from that distillation
 - Introduce the tenant-capability and tenant-resource boundaries in runtime code without mixing tenant logic back into the core prompt base
+
+## Iteration 66
+
+### Implemented
+- Distilled the real corpus into explicit architecture and regression artifacts instead of leaving it as ad hoc analysis:
+  - added [corpus-distillation-report.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/corpus-distillation-report.md)
+  - added `backend/test/fixtures/real-corpus/runtime-general/*`
+  - added `backend/test/corpus-derived/runtime-general-distillation.spec.ts`
+- Locked the distinction between:
+  - reusable runtime-general conversational mechanics promoted to core
+  - tenant capability behavior labels that remain outside the shared runtime even when frequent in `urucortinas`
+- Aligned [architecture.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/architecture.md) with the distillation artifacts so the corpus now has an explicit executable role:
+  - regression input
+  - boundary evidence
+  - never active runtime knowledge
+
+### Working
+- The branch now has executable artifacts proving that:
+  - runtime-general fixtures promote only reusable core conversational patterns
+  - `quote_request`, `structured_measurements`, and `appointment_scheduling` remain explicit non-core labels
+  - corpus distillation is documented as analysis/regression input rather than runtime truth
+
+### Technical Debt
+- Stage 3 is still pending:
+  - close-turn, loop prevention, follow-up continuity, thread switching, and re-engagement still need the distilled core improvements applied in runtime code
+- Tenant capabilities are still implicit in runtime routing; the registry layer remains the next architectural step
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Apply only reusable core conversational improvements from the distilled patterns without mixing tenant logic into the base runtime
+- Introduce explicit tenant-capability and tenant-resource boundaries in runtime code
+- Keep the previously closed Stage 1 and Stage 2 ownership cleanup intact while extending the runtime safely

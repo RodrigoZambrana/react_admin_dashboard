@@ -1,0 +1,27 @@
+{
+  "id": "runtime-general:operational-thread-switch",
+  "promotionTarget": "core_platform",
+  "implementationScope": "runtime_general",
+  "corePattern": "operational_thread_switch",
+  "sourceConversationId": "00000006-chat-de-whatsapp-con-valeria-godoy",
+  "sourceLabels": [
+    "operational_thread_switch",
+    "outbound_follow_up",
+    "long_running_thread",
+    "payment_terms"
+  ],
+  "nonPromotedLabels": [
+    "payment_terms"
+  ],
+  "sampleTurns": [
+    {
+      "role": "customer",
+      "text": "Retomo por aca, pero ahora te consulto por otra abertura."
+    }
+  ],
+  "expectedCoreBehavior": [
+    "detect a thread switch without losing the conversation channel",
+    "invalidate stale thread-specific facts when the user moves to a new operational topic",
+    "avoid dragging previous lane facts into the new thread"
+  ]
+}

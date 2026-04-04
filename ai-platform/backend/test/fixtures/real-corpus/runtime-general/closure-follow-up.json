@@ -1,0 +1,30 @@
+{
+  "id": "runtime-general:closure-follow-up",
+  "promotionTarget": "core_platform",
+  "implementationScope": "runtime_general",
+  "corePattern": "contextual_closure",
+  "sourceConversationId": "00000005-chat-de-whatsapp-con-andrea-mendaro",
+  "sourceLabels": [
+    "quote_request",
+    "structured_measurements",
+    "appointment_scheduling",
+    "quote_follow_up",
+    "reengagement_after_gap"
+  ],
+  "nonPromotedLabels": [
+    "quote_request",
+    "structured_measurements",
+    "appointment_scheduling"
+  ],
+  "sampleTurns": [
+    {
+      "role": "customer",
+      "text": "Si me interesa"
+    }
+  ],
+  "expectedCoreBehavior": [
+    "resume the active thread instead of reopening intake",
+    "avoid generic reset prompts",
+    "treat closure as contextual, not keyword-only"
+  ]
+}

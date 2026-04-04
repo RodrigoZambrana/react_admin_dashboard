@@ -1,0 +1,29 @@
+{
+  "id": "runtime-general:loop-prevention",
+  "promotionTarget": "core_platform",
+  "implementationScope": "runtime_general",
+  "corePattern": "loop_prevention",
+  "sourceConversationId": "00000005-chat-de-whatsapp-con-andrea-mendaro",
+  "sourceLabels": [
+    "quote_request",
+    "structured_measurements",
+    "quote_follow_up",
+    "long_running_thread"
+  ],
+  "nonPromotedLabels": [
+    "quote_request",
+    "structured_measurements",
+    "quote_follow_up"
+  ],
+  "sampleTurns": [
+    {
+      "role": "customer",
+      "text": "Ya te pase las medidas."
+    }
+  ],
+  "expectedCoreBehavior": [
+    "do not reopen an already answered slot without structural reason",
+    "prefer progress-aware follow-up over repeated generic clarification",
+    "preserve captured evidence across related turns"
+  ]
+}

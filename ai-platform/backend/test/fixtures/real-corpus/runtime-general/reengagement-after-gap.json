@@ -1,0 +1,31 @@
+{
+  "id": "runtime-general:reengagement-after-gap",
+  "promotionTarget": "core_platform",
+  "implementationScope": "runtime_general",
+  "corePattern": "reengagement_after_gap",
+  "sourceConversationId": "00000003-chat-de-whatsapp-con-598-99-972-518",
+  "sourceLabels": [
+    "quote_request",
+    "structured_measurements",
+    "appointment_scheduling",
+    "reengagement_after_gap",
+    "multimodal_image",
+    "long_running_thread"
+  ],
+  "nonPromotedLabels": [
+    "quote_request",
+    "structured_measurements",
+    "appointment_scheduling"
+  ],
+  "sampleTurns": [
+    {
+      "role": "customer",
+      "text": "Buenas tardes. Era para ver un presupuesto para sustituir esta ventana de hierro por una de PVC. Ustedes la colocan?"
+    }
+  ],
+  "expectedCoreBehavior": [
+    "resume conversational context after a gap",
+    "preserve already captured topic evidence when it still applies",
+    "avoid treating a resumed thread as a brand-new generic conversation"
+  ]
+}

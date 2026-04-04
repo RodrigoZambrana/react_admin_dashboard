@@ -1,0 +1,28 @@
+{
+  "id": "runtime-general:system-message-interference",
+  "promotionTarget": "core_platform",
+  "implementationScope": "runtime_general",
+  "corePattern": "system_message_interference",
+  "sourceConversationId": "00000006-chat-de-whatsapp-con-valeria-godoy",
+  "sourceLabels": [
+    "system_message_interference",
+    "auto_reply_present",
+    "reengagement_after_gap"
+  ],
+  "nonPromotedLabels": [],
+  "sampleTurns": [
+    {
+      "role": "system",
+      "text": "Mensaje automatico: gracias por comunicarte."
+    },
+    {
+      "role": "customer",
+      "text": "Hola, retomo lo de ayer."
+    }
+  ],
+  "expectedCoreBehavior": [
+    "ignore channel/system noise as topic truth",
+    "preserve the real user thread after an auto-reply interruption",
+    "continue from the user-owned topic instead of reacting to the system message"
+  ]
+}

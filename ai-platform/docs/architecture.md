@@ -614,6 +614,18 @@ The next conversational implementation stage must follow the explicit planning s
 
 Document processing remains a core capability, while uploaded document content remains tenant-scoped approved knowledge. The real-message corpus and legacy assets remain planning inputs for pattern extraction and regression design only; they must not become active conversational knowledge or a shortcut for hardcoding tenant wording into the core runtime.
 
+The current corpus-distillation artifacts for this branch live in:
+
+- [corpus-distillation-report.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/corpus-distillation-report.md)
+- `/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/test/fixtures/real-corpus/runtime-general`
+- `/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/test/corpus-derived`
+
+These artifacts exist to keep the boundary executable:
+
+- reusable conversational mechanics can be promoted into core with explicit evidence
+- tenant capability behavior patterns remain outside the shared runtime even when frequent in one tenant corpus
+- the real corpus stays as regression input, never active runtime knowledge
+
 ## Multi-Tenant Enforcement
 
 - Tenant id enters through HTTP middleware
