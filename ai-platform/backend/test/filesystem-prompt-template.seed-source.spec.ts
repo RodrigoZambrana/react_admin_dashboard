@@ -8,11 +8,15 @@ describe('FileSystemPromptTemplateSeedSource', () => {
       expect.arrayContaining([
         expect.objectContaining({
           key: 'interpretation',
-          value: expect.stringContaining('You are the interpretation layer'),
+          value: expect.stringContaining(
+            'Classify the latest user turn conservatively',
+          ),
         }),
         expect.objectContaining({
           key: 'response',
-          value: expect.stringContaining('You are the response generation layer'),
+          value: expect.stringContaining(
+            'Rewrite the approved backend draft into a clear final user-facing answer.',
+          ),
         }),
       ]),
     );

@@ -1605,3 +1605,42 @@
 - Complete the prompt-governance split so structural protocol contracts remain backend-owned while editable policy wording moves behind governed resources with safe fallback
 - Reduce remaining critical raw-JSON friction on exploratory prompt/fallback paths where it still blocks real operator use
 - Finish Wave 8.3 closeout with final validation, architecture notes, and explicit readiness framing before Wave 9
+
+## Iteration 50
+
+### Implemented
+- Completed the safe prompt-governance split for live AI flows:
+  - backend-owned protocol contracts now live behind dedicated prompt-contract boundaries
+  - governed managed prompts now serve as editable editorial/policy layers instead of carrying structural JSON/output contracts
+  - code fallback now exists only for the governed editorial layer when no managed prompt is active
+- Reduced critical admin friction on exploratory wording paths:
+  - prompt operations now make the editable-policy vs backend-owned-contract split explicit in the UI
+  - response fallback catalogs moved off raw JSON editing into structured operator forms for templates, action labels, and defaults
+  - fallback editor defaults were aligned with the actual runtime placeholder vocabulary used by the backend response policy path
+- Kept runtime behavior stable while tightening architecture:
+  - builds/tests remain green
+  - public chat and admin shells remain on the exact DreamsChat layout
+
+### Working
+- Structural response/interpretation contracts are now backend-owned and assembled separately from governed editorial prompt policy
+- Managed prompt seeds now carry editorial policy wording only; structural output-shape requirements no longer live in the editable prompt resources
+- Critical fallback/policy exploratory paths are now operable without raw JSON on the main admin flows
+- Validation passes for the current branch state:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- The environment used for this iteration does not contain `OPENAI_API_KEY` or `AI_PROVIDER_API_KEY`, so live end-to-end OpenAI smoke validation could not be completed here even though the governed runtime path and diagnostics are now ready
+- The frontend workspace still has no supported automated test harness, so UI validation remains build-only plus backend contract coverage
+- Async cancellation is materially safer, but already-started downstream work still depends on provider/tool cooperation to honor abort promptly
+- Some non-critical admin domains still contain broader UX debt outside the exploratory core paths targeted in Wave 8.3
+
+### Next Steps
+- Provide a real OpenAI credential in the environment, activate the governed `ai_runtime` resource against it, and run the final live exploratory smoke
+- If that operational smoke passes, mark Wave 8.3 fully closed and open Wave 9:
+  - centralized QA
+  - security / roles
+  - E2E
+  - production hardening
+- Keep Wave 9 focused on hardening, not on reopening the structural prompt/runtime work completed here

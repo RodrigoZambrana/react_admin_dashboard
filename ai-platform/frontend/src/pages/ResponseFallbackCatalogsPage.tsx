@@ -12,13 +12,41 @@ import { JsonBlock } from '../components/shared/JsonBlock';
 import { PageHeader } from '../components/shared/PageHeader';
 import { StatusBadge } from '../components/shared/StatusBadge';
 import type { ResponseFallbackCatalog, ResponseFallbackVersion } from '../types';
-import { formatDateTime, toPrettyJson } from '../utils';
+import { formatDateTime } from '../utils';
 
 type ResponseFallbackFormState = {
   locale: string;
-  jsonText: string;
+  catalog: ResponseFallbackCatalog;
   activate: boolean;
 };
+
+const templateFields = [
+  ['basic_response', 'Basic response'],
+  ['clarification_requested_date', 'Clarification: requested date'],
+  ['clarification_user_goal', 'Clarification: user goal'],
+  ['clarification_generic', 'Clarification: generic'],
+  ['execution_success_booking', 'Execution success: booking'],
+  ['execution_success_quote', 'Execution success: quote'],
+  ['execution_success_product', 'Execution success: product'],
+  ['execution_success_generic', 'Execution success: generic'],
+  ['execution_failure_unknown_tool', 'Execution failure: unknown tool'],
+  ['execution_failure_validation', 'Execution failure: validation'],
+  ['execution_failure_generic', 'Execution failure: generic'],
+] as const;
+
+const actionLabelFields = [
+  ['create_booking', 'Booking action label'],
+  ['create_quote', 'Quote action label'],
+  ['get_product', 'Product action label'],
+  ['default', 'Default action label'],
+] as const;
+
+const defaultFields = [
+  ['scheduledFor', 'Default scheduled date'],
+  ['currency', 'Default currency'],
+  ['amount', 'Default amount'],
+  ['productName', 'Default product name'],
+] as const;
 
 function buildDefaultFallbackCatalog(locale = 'es'): ResponseFallbackCatalog {
   return {
@@ -29,8 +57,10 @@ function buildDefaultFallbackCatalog(locale = 'es'): ResponseFallbackCatalog {
       clarification_user_goal: 'Que necesitas resolver?',
       clarification_generic: 'Puedes darme un poco mas de contexto?',
       execution_success_booking: 'La reserva fue creada para {{scheduledFor}}.',
-      execution_success_quote: 'La cotizacion fue creada con total {{amount}} {{currency}}.',
-      execution_success_product: 'Encontre {{productName}} para tu consulta.',
+      execution_success_quote:
+        'La cotizacion preliminar fue creada por {{currency}} {{estimatedTotal}}.',
+      execution_success_product:
+        'Encontre {{name}} por {{currency}} {{price}}.',
       execution_success_generic: 'La solicitud aprobada fue procesada.',
       execution_failure_unknown_tool: 'No pude ejecutar la accion solicitada.',
       execution_failure_validation: 'Faltan datos aprobados para completar la solicitud.',
@@ -52,11 +82,11 @@ function buildDefaultFallbackCatalog(locale = 'es'): ResponseFallbackCatalog {
 }
 
 function buildFallbackForm(base?: ResponseFallbackVersion): ResponseFallbackFormState {
+  const locale = base?.locale ?? 'es';
+
   return {
-    locale: base?.locale ?? 'es',
-    jsonText: toPrettyJson(
-      base?.resource ?? buildDefaultFallbackCatalog(base?.locale ?? 'es'),
-    ),
+    locale,
+    catalog: base?.resource ?? buildDefaultFallbackCatalog(locale),
     activate: base?.status === 'ACTIVE',
   };
 }
@@ -111,7 +141,10 @@ export function ResponseFallbackCatalogsPage() {
       setSaving(true);
       setError(null);
       setNotice(null);
-      const resource = JSON.parse(form.jsonText) as ResponseFallbackCatalog;
+      const resource = {
+        ...form.catalog,
+        locale: form.locale,
+      } as ResponseFallbackCatalog;
       const created = await createResponseFallbackVersion({
         locale: form.locale,
         resource,
@@ -153,6 +186,54 @@ export function ResponseFallbackCatalogsPage() {
     setNotice(
       `Loaded fallback catalog ${selectedVersion.locale} v${selectedVersion.version} into the editor.`,
     );
+  };
+
+  const updateTemplate = (
+    key: keyof ResponseFallbackCatalog['templates'],
+    value: string,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      catalog: {
+        ...current.catalog,
+        templates: {
+          ...current.catalog.templates,
+          [key]: value,
+        },
+      },
+    }));
+  };
+
+  const updateActionLabel = (
+    key: keyof ResponseFallbackCatalog['actionLabels'],
+    value: string,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      catalog: {
+        ...current.catalog,
+        actionLabels: {
+          ...current.catalog.actionLabels,
+          [key]: value,
+        },
+      },
+    }));
+  };
+
+  const updateDefaultValue = (
+    key: keyof ResponseFallbackCatalog['defaults'],
+    value: string,
+  ) => {
+    setForm((current) => ({
+      ...current,
+      catalog: {
+        ...current.catalog,
+        defaults: {
+          ...current.catalog.defaults,
+          [key]: value,
+        },
+      },
+    }));
   };
 
   return (
@@ -354,6 +435,10 @@ export function ResponseFallbackCatalogsPage() {
                           setForm((current) => ({
                             ...current,
                             locale: event.target.value,
+                            catalog: {
+                              ...current.catalog,
+                              locale: event.target.value,
+                            },
                           }))
                         }
                       />
@@ -388,19 +473,59 @@ export function ResponseFallbackCatalogsPage() {
                   </div>
                   <div className="col-12">
                     <div className="mb-3">
-                      <label className="form-label">Catalog JSON</label>
-                      <textarea
-                        className="form-control react-large-textarea"
-                        value={form.jsonText}
-                        onChange={(event) =>
-                          setForm((current) => ({
-                            ...current,
-                            jsonText: event.target.value,
-                          }))
-                        }
-                      />
+                      <label className="form-label">Template coverage</label>
+                      <p className="text-muted mb-0">
+                        Edit the governed editorial fallback copy directly without
+                        raw JSON. Structural response semantics remain backend-owned.
+                      </p>
                     </div>
                   </div>
+                  {templateFields.map(([key, label]) => (
+                    <div key={key} className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">{label}</label>
+                        <textarea
+                          className="form-control"
+                          rows={3}
+                          value={form.catalog.templates[key]}
+                          onChange={(event) =>
+                            updateTemplate(key, event.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="col-12">
+                    <hr />
+                  </div>
+                  {actionLabelFields.map(([key, label]) => (
+                    <div key={key} className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">{label}</label>
+                        <input
+                          className="form-control"
+                          value={form.catalog.actionLabels[key]}
+                          onChange={(event) =>
+                            updateActionLabel(key, event.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  {defaultFields.map(([key, label]) => (
+                    <div key={key} className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">{label}</label>
+                        <input
+                          className="form-control"
+                          value={form.catalog.defaults[key]}
+                          onChange={(event) =>
+                            updateDefaultValue(key, event.target.value)
+                          }
+                        />
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
                   <p className="text-muted mb-0">

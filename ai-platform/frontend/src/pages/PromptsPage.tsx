@@ -13,6 +13,20 @@ import { StatusBadge } from '../components/shared/StatusBadge';
 import type { PromptVersion } from '../types';
 
 const promptKeys = ['interpretation', 'response'] as const;
+const promptContractPreview: Record<(typeof promptKeys)[number], string[]> = {
+  interpretation: [
+    'JSON-only output',
+    'Required keys: intent, entities, language, confidence',
+    'Allowed intents remain backend-owned',
+    'No tool execution or business decisions',
+  ],
+  response: [
+    'Approved backend context remains the source of truth',
+    'Return JSON with message/outcome/execution assertions',
+    'No invented facts, actions, or continuity state',
+    'Guardrails still decide whether AI wording is accepted',
+  ],
+};
 
 type PromptFormState = {
   key: (typeof promptKeys)[number];
@@ -127,7 +141,7 @@ export function PromptsPage() {
       <PageHeader
         title="Prompt operations"
         section="Prompts"
-        description="Create, inspect, and activate governed prompt versions over the managed backend lifecycle."
+        description="Edit governed editorial policy wording while backend-owned protocol contracts remain fixed in code."
       />
 
       {error ? (
@@ -271,7 +285,7 @@ export function PromptsPage() {
                     <div className="react-resource-summary">
                       <h6>{selectedVersion.key}</h6>
                       <p className="text-muted mb-3">
-                        Prompt v{selectedVersion.version} currently marked as{' '}
+                        Prompt policy v{selectedVersion.version} currently marked as{' '}
                         {selectedVersion.status.toLowerCase()}.
                       </p>
                       <div className="react-meta-list">
@@ -371,8 +385,15 @@ export function PromptsPage() {
                     </div>
                   </div>
                   <div className="col-12">
+                    <div className="alert alert-info custom-react-alert mb-3">
+                      Editing the governed policy layer for <strong>{form.key}</strong>.
+                      Structural output shape, enums, and protocol assertions remain
+                      backend-owned and are not editable here.
+                    </div>
+                  </div>
+                  <div className="col-xl-7">
                     <div className="mb-3">
-                      <label className="form-label">Template</label>
+                      <label className="form-label">Editable policy wording</label>
                       <textarea
                         className="form-control react-large-textarea"
                         value={form.template}
@@ -382,15 +403,28 @@ export function PromptsPage() {
                             template: event.target.value,
                           }))
                         }
-                        placeholder="Write the governed prompt template here"
+                        placeholder="Write the governed editorial policy wording here"
                       />
+                    </div>
+                  </div>
+                  <div className="col-xl-5">
+                    <div className="mb-3">
+                      <label className="form-label">Backend-owned protocol preview</label>
+                      <div className="react-rich-preview react-large-preview">
+                        <ul className="mb-0">
+                          {promptContractPreview[form.key].map((line) => (
+                            <li key={line}>{line}</li>
+                          ))}
+                        </ul>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
                   <p className="text-muted mb-0">
-                    Prompt editing stays thin-client only. Validation, versioning, and
-                    activation remain backend-governed.
+                    Policy editing stays thin-client only. Structural protocol
+                    contracts, validation, versioning, and activation remain
+                    backend-governed.
                   </p>
                   <button className="btn btn-dark" type="submit" disabled={saving}>
                     <i className="ti ti-device-floppy me-1"></i>

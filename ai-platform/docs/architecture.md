@@ -367,12 +367,26 @@
     - inline timing heuristics remain concentrated in `AsyncTurnTimingPolicyService`
     - supersession suppresses obsolete replies but does not yet abort model/tool work already in flight
     - frontend validation remains build-only because the workspace still lacks a supported UI test harness
+- Wave 8.3: Core Stabilization, Real AI Configuration, And Exploratory Readiness
+  - implementation is now landed on this branch, but final operational closeout in this environment is blocked only by missing real OpenAI credentials for the last live smoke
+  - stabilizes async intake for exploratory use by moving timing policy behind governed `async_intake` config and propagating cancellation/abort through semantic execution, AI runtime, and tool execution paths
+  - makes the governed `ai_runtime` path operationally usable with:
+    - provider-agnostic diagnostics
+    - structured admin editing for the critical AI runtime path
+    - explicit readiness / invalid / fallback status before runtime use
+  - completes the safe prompt-governance split:
+    - backend-owned protocol/output contracts stay fixed in code
+    - managed prompt resources become editable editorial/policy layers only
+    - code fallback exists only for missing editorial policy layers
+  - reduces critical exploratory admin friction by replacing raw JSON editing on the fallback-catalog path with structured forms while preserving governed backend lifecycle rules
+  - leaves the branch stable for exploratory core use across admin and public surfaces, with one environment-level closeout prerequisite still explicit:
+    - provide a real OpenAI credential and run the final live smoke against the governed runtime path before declaring Wave 8.3 fully closed
 
 ### Wave 9: Centralized QA, Security, Roles, E2E, And Production Hardening
 
 1. Wave name: Centralized QA, Security, Roles, E2E, And Production Hardening
 2. Strategic objective: centralize regression and QA strategy, finalize authentication and role separation, guard admin access, and harden rollout across the now-complete backend and UI surfaces.
-3. Why it happens now: centralized QA, security, roles, and E2E hardening are most effective after both admin and user product surfaces are real and stable enough to validate end-to-end behavior instead of placeholders.
+3. Why it happens now: centralized QA, security, roles, and E2E hardening are most effective after both admin and user product surfaces are real and stable enough to validate end-to-end behavior instead of placeholders, and after Wave 8.3 operational smoke has confirmed real exploratory readiness of the governed AI runtime path.
 4. Dependency on previous waves: depends on Waves 1 through 8, including stable runtime, admin tooling, knowledge/test-center UI, and user-facing chat product flows.
 5. Main implementation scope: centralize QA strategy and regression execution; implement auth and role boundaries; guard admin routes and managed-resource mutations; add Playwright/E2E regression for admin and user flows; finalize multitenant smoke coverage; harden rollout, observability, and tenant onboarding/operational readiness.
 6. Architecture constraints: security remains backend-enforced; automatic tenant isolation cannot be weakened by client context; centralized QA suites must assert canonical backend truth rather than UI-only heuristics; hardening must not collapse stage separation or reintroduce manual routing shortcuts.

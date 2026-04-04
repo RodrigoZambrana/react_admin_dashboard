@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-import { PromptService } from '../prompt/prompt.service';
 import type {
   AssembledPromptRequest,
   InterpretationInput,
@@ -8,44 +7,22 @@ import type {
   LanguageModelResponseGenerationRequest,
   ResponseGenerationInput,
 } from './ai-gateway.types';
-
-const INTERPRETATION_PROTOCOL_LINES = [
-  'Return JSON only.',
-];
-
-const RESPONSE_PROTOCOL_LINES = [
-  'You will receive:',
-  '- approved backend context as JSON',
-  '- an approved deterministic fallback draft',
-  '',
-  'Rewrite the approved draft into a clear final user-facing answer.',
-  'Do not invent tool executions, business facts, missing fields, or continuity state.',
-  'Do not hide failures or uncertainty.',
-  'Keep the meaning grounded in approved backend context only.',
-  '',
-  'Return JSON only with:',
-  '- message: string',
-  '- assertedOutcome: respond | clarify | execution_succeeded | execution_failed',
-  '- assertedExecutionStatus: not_applicable | succeeded | failed',
-  '- mentionedMissingFields: string[]',
-  '- mentionedApprovedFactKeys: string[]',
-  '- mentionedApprovedResultKeys: string[]',
-];
-
-type ResolvedPromptTemplate = {
-  promptId: string | null;
-  promptVersion: number | null;
-  value: string;
-};
+import { AiPromptContractService } from './ai-prompt-contract.service';
+import { AiPromptPolicyService } from './ai-prompt-policy.service';
 
 @Injectable()
 export class AiPromptAssemblyService {
-  constructor(private readonly promptService: PromptService) {}
+  constructor(
+    private readonly promptPolicyService: AiPromptPolicyService,
+    private readonly promptContractService: AiPromptContractService,
+  ) {}
 
   async buildInterpretationRequest(
     input: InterpretationInput,
   ): Promise<AssembledPromptRequest<LanguageModelInterpretationRequest>> {
-    const prompt = await this.resolvePrompt('interpretation', input.promptTemplate);
+    const prompt = await this.promptPolicyService.resolveInterpretationPolicy(
+      input.promptTemplate,
+    );
 
     return {
       promptId: prompt.promptId,
@@ -53,7 +30,7 @@ export class AiPromptAssemblyService {
       request: {
         systemPrompt: this.buildSystemPrompt(prompt.value, {
           locale: input.locale,
-          protocolLines: INTERPRETATION_PROTOCOL_LINES,
+          contractLines: this.promptContractService.buildInterpretationContract(),
         }),
         message: input.message,
         locale: input.locale,
@@ -65,7 +42,9 @@ export class AiPromptAssemblyService {
   async buildResponseRequest(
     input: ResponseGenerationInput,
   ): Promise<AssembledPromptRequest<LanguageModelResponseGenerationRequest>> {
-    const prompt = await this.resolvePrompt('response', input.promptTemplate);
+    const prompt = await this.promptPolicyService.resolveResponsePolicy(
+      input.promptTemplate,
+    );
 
     return {
       promptId: prompt.promptId,
@@ -73,7 +52,7 @@ export class AiPromptAssemblyService {
       request: {
         systemPrompt: this.buildSystemPrompt(prompt.value, {
           locale: input.approvedContext.locale,
-          protocolLines: RESPONSE_PROTOCOL_LINES,
+          contractLines: this.promptContractService.buildResponseContract(),
         }),
         approvedContext: input.approvedContext,
         approvedDraft: input.approvedDraft,
@@ -81,39 +60,20 @@ export class AiPromptAssemblyService {
     };
   }
 
-  private async resolvePrompt(
-    key: 'interpretation' | 'response',
-    promptTemplate?: string,
-  ): Promise<ResolvedPromptTemplate> {
-    if (promptTemplate !== undefined) {
-      return {
-        promptId: null,
-        promptVersion: null,
-        value: promptTemplate,
-      };
-    }
-
-    const prompt = await this.promptService.getActivePrompt(key);
-
-    return {
-      promptId: prompt?.id ?? null,
-      promptVersion: prompt?.version ?? null,
-      value: prompt?.value ?? '',
-    };
-  }
-
   private buildSystemPrompt(
-    template: string,
+    policyLayer: string,
     input: {
       locale?: string;
-      protocolLines: string[];
+      contractLines: string[];
     },
   ) {
     return [
-      template.trim(),
+      'Governed editorial policy layer:',
+      policyLayer.trim(),
       '',
       `Requested locale hint: ${input.locale ?? 'unknown'}`,
-      ...input.protocolLines,
+      '',
+      ...input.contractLines,
     ]
       .filter((line, index, lines) => {
         if (line.length > 0) {

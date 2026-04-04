@@ -1,4 +1,6 @@
 import { AiPromptAssemblyService } from '../src/modules/ai-gateway/ai-prompt-assembly.service';
+import { AiPromptContractService } from '../src/modules/ai-gateway/ai-prompt-contract.service';
+import { AiPromptPolicyService } from '../src/modules/ai-gateway/ai-prompt-policy.service';
 import { AiGatewayService } from '../src/modules/ai-gateway/ai-gateway.service';
 import { LanguageModelProviderRegistry } from '../src/modules/ai-gateway/providers/language-model-provider.registry';
 
@@ -13,7 +15,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      new AiPromptAssemblyService(promptService as any),
+      buildPromptAssembly(promptService),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -57,7 +59,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      new AiPromptAssemblyService(promptService as any),
+      buildPromptAssembly(promptService),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -93,7 +95,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      new AiPromptAssemblyService(promptService as any),
+      buildPromptAssembly(promptService),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -137,7 +139,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      new AiPromptAssemblyService(promptService as any),
+      buildPromptAssembly(promptService),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -224,7 +226,7 @@ describe('AiGatewayService', () => {
             },
           }),
       } as any,
-      new AiPromptAssemblyService(promptService as any),
+      buildPromptAssembly(promptService),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -268,7 +270,7 @@ describe('AiGatewayService', () => {
             },
           }),
       } as any,
-      new AiPromptAssemblyService(promptService as any),
+      buildPromptAssembly(promptService),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -319,7 +321,7 @@ describe('AiGatewayService', () => {
       {
         getAiGatewayConfig: () => buildGatewayConfig(),
       } as any,
-      new AiPromptAssemblyService(promptService as any),
+      buildPromptAssembly(promptService),
       {
         debug: jest.fn(),
         error: jest.fn(),
@@ -403,5 +405,14 @@ function buildProviderRegistry(
       providerName,
       ...provider,
     })) as any,
+  );
+}
+
+function buildPromptAssembly(promptService: {
+  getActivePrompt: jest.Mock | ((key: string) => Promise<unknown>);
+}) {
+  return new AiPromptAssemblyService(
+    new AiPromptPolicyService(promptService as any),
+    new AiPromptContractService(),
   );
 }
