@@ -1116,3 +1116,41 @@
 - Run the Wave 7 closeout review over workflow coverage, backend-contract alignment, tenant safety, DreamsChat fidelity, and operator clarity
 - Update architecture/progress documentation to show Wave 7 closure, the carried gateway-debt prerequisite before Wave 8, and the async turn-intake / cancellation / typing dependency before or within Wave 8
 - Close the wave with a final validation summary and documentation-focused commit
+
+## Iteration 37
+
+### Implemented
+- Ran the explicit Wave 7 closeout review over:
+  - functional coverage of knowledge workflows, replay flows, trace exploration, trace comparison, and resource inspection
+  - alignment with governed backend contracts and lifecycle boundaries
+  - layer separation and tenant safety
+  - hardcoded or language-limited logic introduced in the touched paths
+  - observability and operator clarity
+  - fidelity to the existing DreamsChat admin shell/layout
+  - readiness for Wave 8 and Wave 9
+- Updated `architecture.md` so the documented roadmap now reflects the real branch state:
+  - Waves 1 through 7 are closed
+  - Wave 8 is next
+  - the carried `AiGatewayService` registry/prompt-scaffolding debt is explicit as a structural prerequisite before or within Wave 8
+  - async turn-intake / cancellation / typing remains explicit before or within Wave 8
+- Recorded Wave 7 continuity explicitly toward:
+  - Wave 8: User Chat Product UI
+  - Wave 9: Centralized QA, Security, Roles, E2E, And Production Hardening
+
+### Working
+- Wave 7 is now fully closed on this branch
+- Closeout review result:
+  - blockers: none
+  - carried technical debt: present, but non-blocking
+- Operators now have a real admin knowledge and chat test center over backend-governed contracts, not a frontend-only simulation layer
+- Backend build, backend tests, and frontend build all pass at Wave 7 closeout
+
+### Technical Debt
+- `AiGatewayService` still concentrates provider-registry logic and inline prompt scaffolding; this remains explicit carried debt and should be structurally absorbed before or during Wave 8
+- Complex managed resources still rely on raw JSON editing in parts of the admin UI; Wave 7 improved investigation and stewardship workflows, not full structured-form redesign
+- Async turn-intake, cancellation, and typing/awaiting-reply behavior remain mandatory before or within Wave 8; Wave 7 intentionally does not build the public chat product on top of the current synchronous shell
+
+### Next Steps
+- Start Wave 8, `User Chat Product UI`, on top of the now-live admin knowledge/test-center tooling and the stabilized governed backend runtime
+- Land the async turn-intake / cancellation / typing capability before or within Wave 8 instead of building the public chat product on a synchronous request/response shell
+- Absorb the carried `AiGatewayService` registry/scaffolding debt through a clean backend boundary before or during Wave 8 without disrupting the live pipeline contract

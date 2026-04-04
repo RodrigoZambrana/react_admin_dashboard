@@ -220,6 +220,14 @@
   - monolithic orchestration
   - manual tenant routing
 
+### Current Roadmap Status On This Branch
+
+- Waves 1 through 7 are closed on this branch
+- Wave 8 is the next delivery wave, but it still has two explicit prerequisites:
+  - the async turn-intake / cancellation / typing capability mined from legacy user-chat behavior must land before or within Wave 8
+  - the carried `AiGatewayService` provider-registry and prompt-scaffolding concentration remains a structural cleanup to absorb before or during Wave 8 without changing the live chat contract
+- Wave 9 remains the centralized QA, security, roles, E2E, and production-hardening wave; Wave 7 now provides concrete operator workflows and regression journeys for that later hardening work
+
 ### Wave 2: Live Tool Execution
 
 1. Wave name: Live Tool Execution And Execution Governance
@@ -296,14 +304,14 @@
 7. Legacy contributions that should be mined: legacy operator test flows, multitenant smoke scenarios, and later legacy Playwright-ready journeys once the frontend surfaces are stable enough to use them as meaningful references.
 8. Expected user/platform value: operators can validate behavior before rollout, manage governed knowledge safely, and inspect failures using productized workflows instead of manual log digging.
 9. Completion criteria: governed knowledge metadata can be managed from the admin UI; operators can run chat tests, inspect traces, compare outcomes, and execute QA flows through the test center; backend QA surfaces are exercised through real admin workflows.
-10. Explicit next-wave enablement: de-risks the public chat experience in Wave 8 and supplies concrete regression journeys for the centralized QA and security/E2E hardening work in Wave 9.
+10. Explicit next-wave enablement: this wave is now closed on the branch and de-risks the public chat experience in Wave 8 by giving operators replay, trace, and governed-knowledge workflows over real backend contracts; it also keeps the carried `AiGatewayService` registry/scaffolding debt explicit as a structural prerequisite to absorb before or within Wave 8, preserves the async turn-intake / cancellation / typing requirement before public-chat rollout, and supplies concrete operator journeys for the centralized QA and security/E2E hardening work in Wave 9.
 
 ### Wave 8: User Chat Product UI
 
 1. Wave name: User Chat Product UI
 2. Strategic objective: deliver the end-user conversational product surface on top of the stabilized backend runtime, governed resources, and operator tooling built in earlier waves.
 3. Why it happens now: once runtime correctness, governance, operator validation flows, and the required async turn-intake / cancellation / typing behavior are in place, the platform can expose a productized chat surface without using the frontend as a substitute for backend control.
-4. Dependency on previous waves: depends on Waves 1 through 7, especially the approved-context response path, operator test-center feedback loops, admin-managed resources, and the async turn-intake / cancellation / typing capability mined from legacy user-chat behavior.
+4. Dependency on previous waves: depends on Waves 1 through 7, especially the approved-context response path, operator test-center feedback loops, admin-managed resources, the async turn-intake / cancellation / typing capability mined from legacy user-chat behavior, and the carried gateway-structure cleanup remaining explicit from Wave 7 closeout.
 5. Main implementation scope: build the public/user chat shell; integrate transcript, turn status, pending-turn handling, cancellation, and recovery states with the live backend pipeline; expose safe multilingual/user-facing presentation surfaces; prepare tenant-facing rollout flows without duplicating backend logic in the client; replicate the DreamsChat chat layout exactly from `/Users/rodrigo/Personal/Proyectos/react projects/dreamschat-v2.8.4` while replacing the underlying behavior with the new platform capabilities.
 6. Architecture constraints: the UI must remain presentation-only; no client-side decisioning, tool routing, or tenant-scoping shortcuts; user-facing wording still comes from backend-approved response flows; any locale presentation logic must avoid new hardcoded linguistic assumptions in the browser; the target is exact layout replication of the template, not a visual approximation; the user chat surface must not be shipped as a purely synchronous request/response shell.
 7. Legacy contributions that should be mined: user-facing chat experience concepts from `webchat.adapter.js`, legacy conversation UX lessons documented in the audit, and later Playwright/E2E journeys as regression references once the user shell stabilizes.
