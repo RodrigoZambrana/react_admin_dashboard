@@ -601,3 +601,55 @@
 - Apply this completion review gate starting with the next reported wave closeout
 - Use the gate to review Wave 3 completion against both continuity requirements and cross-layer architectural rules
 - Keep documenting hardcoded-language and locale-limited findings explicitly when they appear in touched paths
+
+## Iteration 21
+
+### Implemented
+- Updated the roadmap/process guidance so code-review findings from a completed wave must be carried into the next implementation prompt and planning context by default
+- Clarified that only blocker findings are allowed to stop progression into the next wave; non-blocking findings must remain explicit but should not freeze roadmap advancement
+- Recorded the current example pattern for future use: Wave closeout review can identify residual continuity or wording debt that must inform the next wave without forcing a full roadmap stop
+
+### Working
+- Future wave closeouts now have a clearer operating rule:
+  - complete the wave review
+  - classify findings
+  - carry non-blocking findings into the next wave prompt
+  - stop only on blockers
+- The planning context now supports continuous forward progress without losing architectural review rigor
+
+### Technical Debt
+- This iteration updates documentation only; no runtime behavior changed
+- The process still depends on disciplined classification of findings as blockers versus carried-forward debt
+- Existing unrelated local changes, including `docs/legacy-chat-audit.md`, remain outside this documentation update
+
+### Next Steps
+- Apply this carry-forward review rule to the next wave prompt and future completion reports
+- Keep surfacing review findings explicitly in prompts so follow-up work can absorb them without losing roadmap continuity
+
+## Iteration 22
+
+### Implemented
+- Started Wave 4, `AI Response On Approved Context`, by introducing a dedicated response module instead of expanding response wording logic inside `ChatOrchestratorService`
+- Defined an explicit approved response context contract that packages only backend-approved truth from interpretation, decision, execution, continuity, and conversation state
+- Added `ChatResponseService` to build approved context, produce an approved deterministic draft, and call `AiGatewayService` for AI wording over that approved draft
+- Refactored the AI gateway response path so managed response prompts now load through `PromptService` and response providers return strict JSON instead of raw free text
+- Wired the live orchestrator to consume the new response service and persist approved response context plus response-generation metadata in the `response` trace stage
+- Moved `ChatResponsePolicyService` into the response layer as a deterministic fallback boundary instead of the primary live wording path
+- Updated backend tests so the live orchestrator and AI gateway cover the new response-layer wiring without changing the `/chat/message` HTTP contract
+
+### Working
+- Backend-approved response context now exists as a first-class contract for the live flow
+- Live `/chat/message` now reaches AI response generation through a dedicated response boundary while preserving the same public response shape
+- Response prompt retrieval stays under managed runtime governance instead of ad hoc code templates
+- Response-stage traces now persist approved draft/context metadata and provider/model generation metadata needed for the next guardrail milestone
+- Backend build, backend tests, and frontend build all pass after the first Wave 4 response-layer refactor
+
+### Technical Debt
+- Guardrail enforcement is not active yet; the AI path still falls back only on provider/generation failure, not on semantic grounding checks
+- `ChatResponsePolicyService` still contains the existing hardcoded wording and locale branching debt, although it is now isolated to fallback/draft generation instead of the primary live response path
+- The carried-forward Wave 3 low-confidence continuity finding is not fixed yet in this milestone and remains explicit debt for the next Wave 4 milestone
+
+### Next Steps
+- Add response guardrails, provider-call trace auditing, and deterministic fallback reasons before treating AI wording as production-safe
+- Reduce live dependence on hardcoded fallback wording and absorb the safe continuity clarification fix if it can be done without moving business logic into the response layer
+- Keep Wave 4 aligned with Wave 5 by preserving approved context, traceability, and backend truth as the basis for governance, QA, and later learning activation

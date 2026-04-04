@@ -10,9 +10,9 @@ import { ParsingService } from '../parsing/parsing.service';
 import { ConversationRepository } from '../persistence/repositories/conversation.repository';
 import { MessageRepository } from '../persistence/repositories/message.repository';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
+import { ChatResponseService } from '../response/chat-response.service';
 import { ToolExecutionService } from '../tools/tool-execution.service';
 import { ToolExecutionAttempt } from '../tools/tool.types';
-import { ChatResponsePolicyService } from './chat-response-policy.service';
 import { TraceLogService } from './trace-log.service';
 import { ChatMessageDto } from './dto/chat-message.dto';
 
@@ -27,7 +27,7 @@ export class ChatOrchestratorService {
     private readonly continuityService: ConversationContinuityService,
     private readonly decisionService: DecisionService,
     private readonly toolExecutionService: ToolExecutionService,
-    private readonly responsePolicyService: ChatResponsePolicyService,
+    private readonly chatResponseService: ChatResponseService,
     private readonly memoryService: MemoryService,
     private readonly traceLogService: TraceLogService,
   ) {}
@@ -132,17 +132,20 @@ export class ChatOrchestratorService {
       });
     }
 
-    const response = this.responsePolicyService.resolve({
+    const resolvedResponse = await this.chatResponseService.generate({
+      message: input.message,
+      interpretation: preparedTurn.effectiveInterpretation,
       decision,
       execution,
-      message: input.message,
-      locale: preparedTurn.effectiveInterpretation.language,
+      continuity: preparedTurn.continuity,
+      conversationState,
     });
+    const response = resolvedResponse.response;
 
     await this.traceLogService.recordStage({
       conversationId,
       stage: 'response',
-      status: 'completed',
+      status: resolvedResponse.usedFallback ? 'fallback' : 'completed',
       payload: {
         response,
         intent: preparedTurn.effectiveInterpretation.intent,
@@ -155,6 +158,9 @@ export class ChatOrchestratorService {
         execution,
         continuity: preparedTurn.continuity,
         conversationState: this.buildConversationStateSummary(conversationState),
+        approvedResponseContext: resolvedResponse.approvedContext,
+        approvedResponseDraft: resolvedResponse.approvedDraft,
+        responseGeneration: resolvedResponse.generation,
       } as Prisma.InputJsonValue,
     });
 
@@ -173,6 +179,7 @@ export class ChatOrchestratorService {
         execution,
         continuity: preparedTurn.continuity,
         conversationState: this.buildConversationStateSummary(conversationState),
+        responseGeneration: resolvedResponse.generation,
       } as Prisma.InputJsonValue,
     );
     await this.memoryService.append(conversationId, 'assistant', response);

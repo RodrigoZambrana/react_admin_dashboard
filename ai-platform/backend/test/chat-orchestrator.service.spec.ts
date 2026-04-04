@@ -78,8 +78,61 @@ describe('ChatOrchestratorService', () => {
     const toolExecutionService = {
       executeApprovedAction: jest.fn(async () => null),
     };
-    const responsePolicyService = {
-      resolve: jest.fn(() => 'Hello, how can I help you?'),
+    const chatResponseService = {
+      generate: jest.fn(async () => ({
+        response: 'Hello, how can I help you?',
+        approvedContext: {
+          locale: 'es',
+          userMessage: 'hola',
+          intent: 'GENERAL_CONVERSATION',
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'general_conversation',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          interpretation: {
+            language: 'es',
+            confidence: 0.94,
+            entities: {},
+            normalizedEntities: {
+              dates: [],
+              measurements: [],
+              dimensions: [],
+            },
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          approvedFactKeys: [],
+          approvedResultKeys: [],
+        },
+        approvedDraft: 'Hello, how can I help you?',
+        usedFallback: false,
+        generation: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse:
+            '{"message":"Hello, how can I help you?","assertedOutcome":"respond","assertedExecutionStatus":"not_applicable","mentionedMissingFields":[],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":[]}',
+          parsedJson: {
+            message: 'Hello, how can I help you?',
+            assertedOutcome: 'respond',
+            assertedExecutionStatus: 'not_applicable',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [],
+          },
+          error: null,
+        },
+      })),
     };
     const memoryService = {
       getRecent: jest.fn(async () => []),
@@ -107,7 +160,7 @@ describe('ChatOrchestratorService', () => {
       continuityService as any,
       decisionService as any,
       toolExecutionService as any,
-      responsePolicyService as any,
+      chatResponseService as any,
       memoryService as any,
       traceLogService as any,
     );
@@ -140,13 +193,19 @@ describe('ChatOrchestratorService', () => {
         intent: 'GENERAL_CONVERSATION',
       }),
     });
-    expect(responsePolicyService.resolve).toHaveBeenCalledWith({
+    expect(chatResponseService.generate).toHaveBeenCalledWith({
+      message: 'hola',
+      interpretation: expect.objectContaining({
+        intent: 'GENERAL_CONVERSATION',
+      }),
       decision: expect.objectContaining({
         action: 'respond',
       }),
       execution: null,
-      message: 'hola',
-      locale: 'es',
+      continuity: expect.objectContaining({
+        applied: false,
+      }),
+      conversationState: null,
     });
     const hasExecutionStage = traceLogService.recordStage.mock.calls.some(
       (args: any[]) => args[0]?.stage === 'execution',
@@ -233,8 +292,78 @@ describe('ChatOrchestratorService', () => {
     const toolExecutionService = {
       executeApprovedAction: jest.fn(async () => null),
     };
-    const responsePolicyService = {
-      resolve: jest.fn(() => 'Necesito la fecha deseada para continuar.'),
+    const chatResponseService = {
+      generate: jest.fn(async () => ({
+        response: 'Necesito la fecha deseada para continuar.',
+        approvedContext: {
+          locale: 'es',
+          userMessage: 'Reservar',
+          intent: 'CREATE_BOOKING',
+          outcome: 'clarify',
+          decision: {
+            domain: 'core',
+            action: 'clarify',
+            reasonCode: 'booking_missing_fields',
+            missingFields: ['requested_date'],
+            responseTemplateKey: 'core.clarification',
+          },
+          interpretation: {
+            language: 'es',
+            confidence: 0.91,
+            entities: {
+              rawMessage: 'Reservar',
+            },
+            normalizedEntities: {
+              dates: [],
+              measurements: [],
+              dimensions: [],
+            },
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: 'create_booking',
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          continuity: {
+            applied: false,
+            activeLane: 'booking',
+            carriedFactKeys: [],
+            invalidatedFactKeys: [],
+            missingFields: [],
+            previousStateSummary: null,
+          },
+          conversationState: {
+            lane: 'booking',
+            missingFields: ['requested_date'],
+            nextUsefulField: 'requested_date',
+          },
+          missingFields: ['requested_date'],
+          nextUsefulField: 'requested_date',
+          approvedFactKeys: [],
+          approvedResultKeys: [],
+        },
+        approvedDraft: 'Necesito la fecha deseada para continuar.',
+        usedFallback: false,
+        generation: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse:
+            '{"message":"Necesito la fecha deseada para continuar.","assertedOutcome":"clarify","assertedExecutionStatus":"not_applicable","mentionedMissingFields":["requested_date"],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":[]}',
+          parsedJson: {
+            message: 'Necesito la fecha deseada para continuar.',
+            assertedOutcome: 'clarify',
+            assertedExecutionStatus: 'not_applicable',
+            mentionedMissingFields: ['requested_date'],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [],
+          },
+          error: null,
+        },
+      })),
     };
     const memoryService = {
       getRecent: jest.fn(async () => []),
@@ -262,7 +391,7 @@ describe('ChatOrchestratorService', () => {
       continuityService as any,
       decisionService as any,
       toolExecutionService as any,
-      responsePolicyService as any,
+      chatResponseService as any,
       memoryService as any,
       traceLogService as any,
     );
@@ -382,8 +511,68 @@ describe('ChatOrchestratorService', () => {
     const toolExecutionService = {
       executeApprovedAction: jest.fn(async () => execution),
     };
-    const responsePolicyService = {
-      resolve: jest.fn(() => 'Listo. La accion solicitada fue procesada correctamente.'),
+    const chatResponseService = {
+      generate: jest.fn(async () => ({
+        response: 'Listo. La accion solicitada fue procesada correctamente.',
+        approvedContext: {
+          locale: 'es',
+          userMessage: 'quiero algo barato',
+          intent: 'GET_PRODUCT',
+          outcome: 'execution_succeeded',
+          decision: {
+            domain: 'tenant',
+            action: 'invoke_tool',
+            toolName: 'get_product',
+            reasonCode: 'product_lookup_requested',
+            missingFields: [],
+            responseTemplateKey: 'tenant.ecommerce.product_result',
+          },
+          interpretation: {
+            language: 'es',
+            confidence: 0.93,
+            entities: {
+              rawMessage: 'quiero algo barato',
+            },
+            normalizedEntities: {
+              dates: [],
+              measurements: [],
+              dimensions: [],
+            },
+          },
+          execution: {
+            status: 'succeeded',
+            toolName: 'get_product',
+            validatedInputSummary: {
+              query: 'quiero algo barato',
+            },
+            resultSummary: {
+              sku: 'A-19',
+            },
+            failure: null,
+          },
+          approvedFactKeys: [],
+          approvedResultKeys: ['sku'],
+        },
+        approvedDraft: 'Listo. La accion solicitada fue procesada correctamente.',
+        usedFallback: false,
+        generation: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse:
+            '{"message":"Listo. La accion solicitada fue procesada correctamente.","assertedOutcome":"execution_succeeded","assertedExecutionStatus":"succeeded","mentionedMissingFields":[],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":["sku"]}',
+          parsedJson: {
+            message: 'Listo. La accion solicitada fue procesada correctamente.',
+            assertedOutcome: 'execution_succeeded',
+            assertedExecutionStatus: 'succeeded',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: ['sku'],
+          },
+          error: null,
+        },
+      })),
     };
     const memoryService = {
       getRecent: jest.fn(async () => []),
@@ -411,7 +600,7 @@ describe('ChatOrchestratorService', () => {
       continuityService as any,
       decisionService as any,
       toolExecutionService as any,
-      responsePolicyService as any,
+      chatResponseService as any,
       memoryService as any,
       traceLogService as any,
     );
@@ -573,8 +762,91 @@ describe('ChatOrchestratorService', () => {
     const toolExecutionService = {
       executeApprovedAction: jest.fn(async () => execution),
     };
-    const responsePolicyService = {
-      resolve: jest.fn(() => 'La reserva fue confirmada para 2026-04-04T12:00:00.000Z.'),
+    const chatResponseService = {
+      generate: jest.fn(async () => ({
+        response: 'La reserva fue confirmada para 2026-04-04T12:00:00.000Z.',
+        approvedContext: {
+          locale: 'es',
+          userMessage: 'para 3 personas',
+          intent: 'CREATE_BOOKING',
+          outcome: 'execution_succeeded',
+          decision: {
+            domain: 'tenant',
+            action: 'invoke_tool',
+            toolName: 'create_booking',
+            reasonCode: 'booking_requested',
+            missingFields: [],
+            responseTemplateKey: 'tenant.booking.confirmation',
+          },
+          interpretation: {
+            language: 'es',
+            confidence: 0.41,
+            entities: {
+              rawMessage: 'para 3 personas',
+              attendees: 3,
+            },
+            normalizedEntities: {
+              dates: [
+                {
+                  source: 'execution',
+                  iso: '2026-04-04T12:00:00.000Z',
+                  precision: 'date',
+                },
+              ],
+              measurements: [],
+              dimensions: [],
+            },
+          },
+          execution: {
+            status: 'succeeded',
+            toolName: 'create_booking',
+            validatedInputSummary: {
+              requestedDateIso: '2026-04-04T12:00:00.000Z',
+              attendees: 3,
+            },
+            resultSummary: {
+              bookingId: 'bk_55',
+              scheduledFor: '2026-04-04T12:00:00.000Z',
+              attendees: 3,
+              status: 'confirmed',
+            },
+            failure: null,
+          },
+          continuity: continuityInterpretation.continuity,
+          conversationState: {
+            lane: 'booking',
+            missingFields: [],
+            lastApprovedAction: 'invoke_tool',
+            lastApprovedToolName: 'create_booking',
+          },
+          approvedFactKeys: [],
+          approvedResultKeys: ['bookingId', 'scheduledFor', 'attendees', 'status'],
+        },
+        approvedDraft: 'La reserva fue confirmada para 2026-04-04T12:00:00.000Z.',
+        usedFallback: false,
+        generation: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse:
+            '{"message":"La reserva fue confirmada para 2026-04-04T12:00:00.000Z.","assertedOutcome":"execution_succeeded","assertedExecutionStatus":"succeeded","mentionedMissingFields":[],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":["bookingId","scheduledFor","attendees","status"]}',
+          parsedJson: {
+            message: 'La reserva fue confirmada para 2026-04-04T12:00:00.000Z.',
+            assertedOutcome: 'execution_succeeded',
+            assertedExecutionStatus: 'succeeded',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [
+              'bookingId',
+              'scheduledFor',
+              'attendees',
+              'status',
+            ],
+          },
+          error: null,
+        },
+      })),
     };
     const memoryService = {
       getRecent: jest.fn(async () => []),
@@ -602,7 +874,7 @@ describe('ChatOrchestratorService', () => {
       continuityService as any,
       decisionService as any,
       toolExecutionService as any,
-      responsePolicyService as any,
+      chatResponseService as any,
       memoryService as any,
       traceLogService as any,
     );
@@ -747,10 +1019,91 @@ describe('ChatOrchestratorService', () => {
     const toolExecutionService = {
       executeApprovedAction: jest.fn(async () => execution),
     };
-    const responsePolicyService = {
-      resolve: jest.fn(
-        () => 'No pude completar la cotizacion solicitada con la informacion disponible.',
-      ),
+    const chatResponseService = {
+      generate: jest.fn(async () => ({
+        response:
+          'No pude completar la cotizacion solicitada con la informacion disponible.',
+        approvedContext: {
+          locale: 'es',
+          userMessage: 'Necesito una cotizacion',
+          intent: 'CREATE_QUOTE',
+          outcome: 'execution_failed',
+          decision: {
+            domain: 'tenant',
+            action: 'invoke_tool',
+            toolName: 'create_quote',
+            reasonCode: 'quote_requested',
+            missingFields: [],
+            responseTemplateKey: 'tenant.quote.confirmation',
+          },
+          interpretation: {
+            language: 'es',
+            confidence: 0.87,
+            entities: {
+              rawMessage: 'Necesito una cotizacion',
+            },
+            normalizedEntities: {
+              dates: [],
+              measurements: [],
+              dimensions: [],
+            },
+          },
+          execution: {
+            status: 'failed',
+            toolName: 'create_quote',
+            validatedInputSummary: {
+              requestSummary: 'Necesito una cotizacion',
+            },
+            resultSummary: null,
+            failure: {
+              code: 'validation_failed',
+              message: 'Tool input validation failed.',
+              details: {
+                issues: {
+                  fieldErrors: {
+                    requestSummary: ['invalid'],
+                  },
+                },
+              },
+            },
+          },
+          continuity: {
+            applied: false,
+            activeLane: 'quote',
+            carriedFactKeys: [],
+            invalidatedFactKeys: [],
+            missingFields: [],
+            previousStateSummary: null,
+          },
+          conversationState: {
+            lane: 'quote',
+            missingFields: [],
+          },
+          approvedFactKeys: [],
+          approvedResultKeys: [],
+        },
+        approvedDraft:
+          'No pude completar la cotizacion solicitada con la informacion disponible.',
+        usedFallback: false,
+        generation: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse:
+            '{"message":"No pude completar la cotizacion solicitada con la informacion disponible.","assertedOutcome":"execution_failed","assertedExecutionStatus":"failed","mentionedMissingFields":[],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":[]}',
+          parsedJson: {
+            message:
+              'No pude completar la cotizacion solicitada con la informacion disponible.',
+            assertedOutcome: 'execution_failed',
+            assertedExecutionStatus: 'failed',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [],
+          },
+          error: null,
+        },
+      })),
     };
     const memoryService = {
       getRecent: jest.fn(async () => []),
@@ -778,7 +1131,7 @@ describe('ChatOrchestratorService', () => {
       continuityService as any,
       decisionService as any,
       toolExecutionService as any,
-      responsePolicyService as any,
+      chatResponseService as any,
       memoryService as any,
       traceLogService as any,
     );

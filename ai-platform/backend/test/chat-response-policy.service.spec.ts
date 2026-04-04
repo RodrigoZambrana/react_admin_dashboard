@@ -1,4 +1,4 @@
-import { ChatResponsePolicyService } from '../src/modules/api/chat-response-policy.service';
+import { ChatResponsePolicyService } from '../src/modules/response/chat-response-policy.service';
 
 describe('ChatResponsePolicyService', () => {
   const service = new ChatResponsePolicyService();
@@ -6,6 +6,10 @@ describe('ChatResponsePolicyService', () => {
   it('returns a grounded booking confirmation after successful execution', () => {
     expect(
       service.resolve({
+        locale: 'es',
+        userMessage: 'Reservar para manana',
+        intent: 'CREATE_BOOKING',
+        outcome: 'execution_succeeded',
         decision: {
           domain: 'tenant',
           action: 'invoke_tool',
@@ -14,21 +18,31 @@ describe('ChatResponsePolicyService', () => {
           missingFields: [],
           responseTemplateKey: 'tenant.booking.confirmation',
         },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {},
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
         execution: {
-          ok: true,
+          status: 'succeeded',
           toolName: 'create_booking',
-          validatedInput: {
+          validatedInputSummary: {
             requestedDateIso: '2026-04-04T12:00:00.000Z',
           },
-          payload: {
+          resultSummary: {
             bookingId: 'bk_12345678',
             scheduledFor: '2026-04-04T12:00:00.000Z',
             status: 'confirmed',
           },
-          durationMs: 4,
+          failure: null,
         },
-        message: 'Reservar para manana',
-        locale: 'es',
+        approvedFactKeys: [],
+        approvedResultKeys: ['bookingId', 'scheduledFor', 'status'],
       }),
     ).toBe('La reserva fue confirmada para 2026-04-04T12:00:00.000Z.');
   });
@@ -36,6 +50,10 @@ describe('ChatResponsePolicyService', () => {
   it('returns a grounded quote confirmation after successful execution', () => {
     expect(
       service.resolve({
+        locale: 'en',
+        userMessage: 'Need a quote',
+        intent: 'CREATE_QUOTE',
+        outcome: 'execution_succeeded',
         decision: {
           domain: 'tenant',
           action: 'invoke_tool',
@@ -44,22 +62,32 @@ describe('ChatResponsePolicyService', () => {
           missingFields: [],
           responseTemplateKey: 'tenant.quote.confirmation',
         },
+        interpretation: {
+          language: 'en',
+          confidence: 0.95,
+          entities: {},
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
         execution: {
-          ok: true,
+          status: 'succeeded',
           toolName: 'create_quote',
-          validatedInput: {
+          validatedInputSummary: {
             requestSummary: 'Need a quote',
           },
-          payload: {
+          resultSummary: {
             quoteId: 'qt_12345678',
             estimatedTotal: 144,
             currency: 'USD',
             status: 'drafted',
           },
-          durationMs: 3,
+          failure: null,
         },
-        message: 'Need a quote',
-        locale: 'en',
+        approvedFactKeys: [],
+        approvedResultKeys: ['quoteId', 'estimatedTotal', 'currency', 'status'],
       }),
     ).toBe('The preliminary quote was created for USD 144.00.');
   });
@@ -67,6 +95,10 @@ describe('ChatResponsePolicyService', () => {
   it('returns a grounded product result after successful execution', () => {
     expect(
       service.resolve({
+        locale: 'es',
+        userMessage: 'Beacon Desk Lamp',
+        intent: 'GET_PRODUCT',
+        outcome: 'execution_succeeded',
         decision: {
           domain: 'tenant',
           action: 'invoke_tool',
@@ -75,22 +107,32 @@ describe('ChatResponsePolicyService', () => {
           missingFields: [],
           responseTemplateKey: 'tenant.ecommerce.product_result',
         },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {},
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
         execution: {
-          ok: true,
+          status: 'succeeded',
           toolName: 'get_product',
-          validatedInput: {
+          validatedInputSummary: {
             query: 'Beacon Desk Lamp',
           },
-          payload: {
+          resultSummary: {
             sku: 'B-77',
             name: 'Beacon Desk Lamp',
             price: 89,
             currency: 'USD',
           },
-          durationMs: 2,
+          failure: null,
         },
-        message: 'Beacon Desk Lamp',
-        locale: 'es',
+        approvedFactKeys: [],
+        approvedResultKeys: ['sku', 'name', 'price', 'currency'],
       }),
     ).toBe('Encontre Beacon Desk Lamp por USD 89.00.');
   });
@@ -98,6 +140,10 @@ describe('ChatResponsePolicyService', () => {
   it('returns a deterministic validation failure response without claiming success', () => {
     expect(
       service.resolve({
+        locale: 'es',
+        userMessage: 'Reservar',
+        intent: 'CREATE_BOOKING',
+        outcome: 'execution_failed',
         decision: {
           domain: 'tenant',
           action: 'invoke_tool',
@@ -106,16 +152,29 @@ describe('ChatResponsePolicyService', () => {
           missingFields: [],
           responseTemplateKey: 'tenant.booking.confirmation',
         },
-        execution: {
-          ok: false,
-          toolName: 'create_booking',
-          validatedInput: null,
-          errorCode: 'validation_failed',
-          errorMessage: 'Tool input validation failed.',
-          durationMs: null,
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {},
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
         },
-        message: 'Reservar',
-        locale: 'es',
+        execution: {
+          status: 'failed',
+          toolName: 'create_booking',
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: {
+            code: 'validation_failed',
+            message: 'Tool input validation failed.',
+            details: null,
+          },
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
       }),
     ).toBe(
       'No pude completar la reserva solicitada con la informacion disponible.',
@@ -125,6 +184,10 @@ describe('ChatResponsePolicyService', () => {
   it('returns a deterministic unknown-tool failure response without claiming success', () => {
     expect(
       service.resolve({
+        locale: 'en',
+        userMessage: 'do the thing',
+        intent: 'GET_PRODUCT',
+        outcome: 'execution_failed',
         decision: {
           domain: 'tenant',
           action: 'invoke_tool',
@@ -133,16 +196,29 @@ describe('ChatResponsePolicyService', () => {
           missingFields: [],
           responseTemplateKey: 'tenant.ecommerce.product_result',
         },
-        execution: {
-          ok: false,
-          toolName: 'missing_tool',
-          validatedInput: null,
-          errorCode: 'unknown_tool',
-          errorMessage: 'Unknown tool',
-          durationMs: null,
+        interpretation: {
+          language: 'en',
+          confidence: 0.95,
+          entities: {},
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
         },
-        message: 'do the thing',
-        locale: 'en',
+        execution: {
+          status: 'failed',
+          toolName: 'missing_tool',
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: {
+            code: 'unknown_tool',
+            message: 'Unknown tool',
+            details: null,
+          },
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
       }),
     ).toBe(
       'I could not complete the requested product lookup because the approved capability is not available.',

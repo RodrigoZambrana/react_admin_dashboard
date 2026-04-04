@@ -1,38 +1,28 @@
 import { Injectable } from '@nestjs/common';
 
-import { DecisionResult } from '../decision/decision.types';
-import {
-  ToolExecutionAttempt,
-  ToolExecutionFailure,
-  ToolExecutionSuccess,
-} from '../tools/tool.types';
+import { ApprovedResponseContext } from './response.types';
 
 const BASIC_RESPONSE = 'Hello, how can I help you?';
 
 @Injectable()
 export class ChatResponsePolicyService {
-  resolve(input: {
-    decision: DecisionResult;
-    locale?: string;
-    message: string;
-    execution: ToolExecutionAttempt | null;
-  }) {
-    if (input.decision.action === 'clarify') {
+  resolve(context: ApprovedResponseContext) {
+    if (context.outcome === 'clarify') {
       return this.buildClarificationResponse(
-        input.decision.missingFields,
-        input.locale,
+        context.missingFields ?? [],
+        context.locale,
       );
     }
 
-    if (input.decision.action === 'invoke_tool') {
-      return this.buildExecutionAwareResponse(
-        input.decision,
-        input.execution,
-        input.locale,
-      );
+    if (context.outcome === 'execution_succeeded') {
+      return this.buildExecutionSuccessResponse(context);
     }
 
-    return this.buildBasicResponse(input.message, input.locale);
+    if (context.outcome === 'execution_failed') {
+      return this.buildExecutionFailureResponse(context);
+    }
+
+    return this.buildBasicResponse(context.userMessage, context.locale);
   }
 
   private buildBasicResponse(message: string, locale?: string) {
@@ -54,52 +44,25 @@ export class ChatResponsePolicyService {
         : 'I need the requested date to continue.';
     }
 
+    if (missingFields.includes('user_goal')) {
+      return isSpanish
+        ? 'Necesito entender mejor lo que necesitas para continuar.'
+        : 'I need to better understand what you need to continue.';
+    }
+
     return isSpanish
       ? 'Necesito un poco más de contexto para continuar.'
       : 'I need a bit more context to continue.';
   }
 
-  private buildExecutionAwareResponse(
-    decision: DecisionResult,
-    execution: ToolExecutionAttempt | null,
-    locale?: string,
-  ) {
-    if (!execution) {
-      return this.buildExecutionFailureResponse(
-        decision.toolName,
-        {
-          ok: false,
-          toolName: decision.toolName ?? 'unknown',
-          validatedInput: null,
-          errorCode: 'execution_failed',
-          errorMessage: 'Execution was not started.',
-          durationMs: null,
-        },
-        locale,
-      );
-    }
+  private buildExecutionSuccessResponse(context: ApprovedResponseContext) {
+    const isSpanish = this.isSpanish(context.locale);
+    const execution = context.execution;
 
-    if (!execution.ok) {
-      return this.buildExecutionFailureResponse(
-        decision.toolName,
-        execution,
-        locale,
-      );
-    }
-
-    return this.buildExecutionSuccessResponse(execution, locale);
-  }
-
-  private buildExecutionSuccessResponse(
-    execution: ToolExecutionSuccess,
-    locale?: string,
-  ) {
-    const isSpanish = this.isSpanish(locale);
-
-    if (execution.toolName === 'create_booking') {
+    if (context.decision.toolName === 'create_booking') {
       const scheduledFor =
-        typeof execution.payload.scheduledFor === 'string'
-          ? execution.payload.scheduledFor
+        typeof execution.resultSummary?.scheduledFor === 'string'
+          ? execution.resultSummary.scheduledFor
           : 'the requested date';
 
       return isSpanish
@@ -107,14 +70,14 @@ export class ChatResponsePolicyService {
         : `The booking was confirmed for ${scheduledFor}.`;
     }
 
-    if (execution.toolName === 'create_quote') {
+    if (context.decision.toolName === 'create_quote') {
       const currency =
-        typeof execution.payload.currency === 'string'
-          ? execution.payload.currency
+        typeof execution.resultSummary?.currency === 'string'
+          ? execution.resultSummary.currency
           : 'USD';
       const estimatedTotal =
-        typeof execution.payload.estimatedTotal === 'number'
-          ? execution.payload.estimatedTotal.toFixed(2)
+        typeof execution.resultSummary?.estimatedTotal === 'number'
+          ? execution.resultSummary.estimatedTotal.toFixed(2)
           : '0.00';
 
       return isSpanish
@@ -122,18 +85,18 @@ export class ChatResponsePolicyService {
         : `The preliminary quote was created for ${currency} ${estimatedTotal}.`;
     }
 
-    if (execution.toolName === 'get_product') {
+    if (context.decision.toolName === 'get_product') {
       const name =
-        typeof execution.payload.name === 'string'
-          ? execution.payload.name
+        typeof execution.resultSummary?.name === 'string'
+          ? execution.resultSummary.name
           : 'the requested product';
       const currency =
-        typeof execution.payload.currency === 'string'
-          ? execution.payload.currency
+        typeof execution.resultSummary?.currency === 'string'
+          ? execution.resultSummary.currency
           : 'USD';
       const price =
-        typeof execution.payload.price === 'number'
-          ? execution.payload.price.toFixed(2)
+        typeof execution.resultSummary?.price === 'number'
+          ? execution.resultSummary.price.toFixed(2)
           : '0.00';
 
       return isSpanish
@@ -146,21 +109,19 @@ export class ChatResponsePolicyService {
       : 'The requested action was executed successfully.';
   }
 
-  private buildExecutionFailureResponse(
-    toolName: string | undefined,
-    execution: ToolExecutionFailure,
-    locale?: string,
-  ) {
-    const isSpanish = this.isSpanish(locale);
-    const actionLabel = this.getActionLabel(toolName, locale);
+  private buildExecutionFailureResponse(context: ApprovedResponseContext) {
+    const isSpanish = this.isSpanish(context.locale);
+    const toolName = context.decision.toolName;
+    const errorCode = context.execution.failure?.code;
+    const actionLabel = this.getActionLabel(toolName, context.locale);
 
-    if (execution.errorCode === 'unknown_tool') {
+    if (errorCode === 'unknown_tool') {
       return isSpanish
         ? `No pude completar ${actionLabel} porque la capacidad aprobada no esta disponible.`
         : `I could not complete ${actionLabel} because the approved capability is not available.`;
     }
 
-    if (execution.errorCode === 'validation_failed') {
+    if (errorCode === 'validation_failed') {
       return isSpanish
         ? `No pude completar ${actionLabel} con la informacion disponible.`
         : `I could not complete ${actionLabel} with the available information.`;

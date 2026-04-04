@@ -149,7 +149,11 @@ describe('AiGatewayService', () => {
     };
     const mockProvider = {
       interpret: jest.fn(),
-      generateResponse: jest.fn(async () => 'ok'),
+      generateResponse: jest.fn(async () => ({
+        rawResponse:
+          '{"message":"ok","assertedOutcome":"respond","assertedExecutionStatus":"not_applicable","mentionedMissingFields":[],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":[]}',
+        model: 'mock-rule-engine',
+      })),
     };
     const service = new AiGatewayService(
       {
@@ -175,16 +179,56 @@ describe('AiGatewayService', () => {
 
     await expect(
       service.generateResponse({
-        message: 'hola',
-        intent: 'GENERAL_CONVERSATION',
-        language: 'es',
+        approvedContext: {
+          locale: 'es',
+          userMessage: 'hola',
+          intent: 'GENERAL_CONVERSATION',
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'general_conversation',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          interpretation: {
+            language: 'es',
+            confidence: 0.92,
+            entities: {},
+            normalizedEntities: {
+              dates: [],
+              measurements: [],
+              dimensions: [],
+            },
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          approvedFactKeys: [],
+          approvedResultKeys: [],
+        },
+        approvedDraft: 'Hello, how can I help you?',
       }),
-    ).resolves.toBe('ok');
+    ).resolves.toEqual(
+      expect.objectContaining({
+        ok: true,
+        parsedResponse: expect.objectContaining({
+          message: 'ok',
+        }),
+        promptVersion: null,
+      }),
+    );
     expect(promptService.getActivePrompt).toHaveBeenCalledWith('response');
     expect(mockProvider.generateResponse).toHaveBeenCalledWith(
       expect.objectContaining({
-        promptTemplate: 'Use approved backend context.',
+        systemPrompt: expect.stringContaining('Use approved backend context.'),
+        approvedDraft: 'Hello, how can I help you?',
       }),
+      expect.any(Object),
     );
   });
 });

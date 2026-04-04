@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
 import { TemporalExpressionService } from '../../temporal/temporal-expression.service';
+import type { ApprovedResponseContext } from '../../response/response.types';
 import {
   InterpretationOutput,
   LanguageModelInterpretationRequest,
   LanguageModelProvider,
-  ResponseGenerationInput,
 } from '../ai-gateway.types';
 
 const measurementPattern =
@@ -77,22 +77,27 @@ export class MockLanguageModelProvider implements LanguageModelProvider {
     };
   }
 
-  async generateResponse(input: ResponseGenerationInput): Promise<string> {
-    if (input.missingFields?.length) {
-      return input.language === 'es'
-        ? `Necesito un poco más de información para continuar: ${input.missingFields.join(', ')}.`
-        : `I need a bit more information to continue: ${input.missingFields.join(', ')}.`;
-    }
-
-    if (input.toolResult) {
-      return input.language === 'es'
-        ? `Resultado procesado para ${input.intent}: ${JSON.stringify(input.toolResult)}`
-        : `Processed result for ${input.intent}: ${JSON.stringify(input.toolResult)}`;
-    }
-
-    return input.language === 'es'
-      ? 'Entendido. Estoy preparando una respuesta basada en la política aprobada del backend.'
-      : 'Understood. I am preparing a response based on the backend-approved policy.';
+  async generateResponse(input: {
+    systemPrompt: string;
+    approvedContext: ApprovedResponseContext;
+    approvedDraft: string;
+  },
+  _providerInput?: {
+    apiKey: string;
+    model: string;
+    timeoutMs: number;
+  }): Promise<{ rawResponse: string; model: string }> {
+    return {
+      rawResponse: JSON.stringify({
+        message: input.approvedDraft,
+        assertedOutcome: input.approvedContext.outcome,
+        assertedExecutionStatus: input.approvedContext.execution.status,
+        mentionedMissingFields: input.approvedContext.missingFields ?? [],
+        mentionedApprovedFactKeys: input.approvedContext.approvedFactKeys,
+        mentionedApprovedResultKeys: input.approvedContext.approvedResultKeys,
+      }),
+      model: 'mock-rule-engine',
+    };
   }
 
   private async detectLanguage(message: string) {

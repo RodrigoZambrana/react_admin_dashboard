@@ -4,8 +4,10 @@ import { ZodError, z } from 'zod';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { PromptService } from '../prompt/prompt.service';
 import { RuntimeConfigService } from '../runtime-config/runtime-config.service';
+import { aiGeneratedResponseSchema } from '../response/response.types';
 import {
   AiGatewayInterpretationResult,
+  AiGatewayResponseGenerationResult,
   InterpretationInput,
   InterpretationOutput,
   ResponseGenerationInput,
@@ -129,16 +131,119 @@ export class AiGatewayService {
     }
   }
 
-  async generateResponse(input: ResponseGenerationInput) {
-    const promptTemplate =
-      input.promptTemplate ??
-      (await this.promptService.getActivePrompt('response'))?.value ??
-      '';
+  async generateResponse(
+    input: ResponseGenerationInput,
+  ): Promise<AiGatewayResponseGenerationResult> {
+    const providerConfig = this.runtimeConfig.getAiGatewayConfig();
+    const provider = this.resolveInterpretationProvider(providerConfig.provider);
+    const startedAt = Date.now();
+    const prompt =
+      input.promptTemplate !== undefined
+        ? {
+            id: null,
+            version: null,
+            value: input.promptTemplate,
+          }
+        : await this.promptService.getActivePrompt('response');
+    const promptTemplate = prompt?.value ?? '';
+    const request = {
+      systemPrompt: this.buildResponsePrompt(
+        promptTemplate,
+        input.approvedContext.locale,
+      ),
+      approvedContext: input.approvedContext,
+      approvedDraft: input.approvedDraft,
+    };
 
-    return this.mockProvider.generateResponse({
-      ...input,
-      promptTemplate,
-    });
+    this.logger.debug(
+      JSON.stringify({
+        stage: 'ai_gateway.response_request',
+        provider: providerConfig.provider,
+        model: providerConfig.model,
+        promptVersion: prompt?.version ?? null,
+      }),
+    );
+
+    if (providerConfig.provider === 'openai' && !providerConfig.apiKey) {
+      const error = 'OPENAI_API_KEY is not configured for AI_PROVIDER=openai.';
+
+      this.logger.error(
+        JSON.stringify({
+          stage: 'ai_gateway.response_output',
+          provider: providerConfig.provider,
+          model: providerConfig.model,
+          durationMs: Date.now() - startedAt,
+          error,
+        }),
+      );
+
+      return {
+        ok: false,
+        rawResponse: null,
+        parsedResponse: null,
+        error,
+        provider: providerConfig.provider,
+        model: providerConfig.model,
+        promptId: prompt?.id ?? null,
+        promptVersion: prompt?.version ?? null,
+      };
+    }
+
+    try {
+      const providerResponse = await provider.generateResponse(request, {
+        apiKey: providerConfig.apiKey ?? '',
+        model: providerConfig.model,
+        timeoutMs: providerConfig.timeoutMs,
+      });
+      const parsedPayload = this.parseResponsePayload(providerResponse.rawResponse);
+
+      this.logger.debug(
+        JSON.stringify({
+          stage: 'ai_gateway.response_output',
+          provider: providerConfig.provider,
+          model: providerResponse.model ?? providerConfig.model,
+          durationMs: Date.now() - startedAt,
+          promptVersion: prompt?.version ?? null,
+          outcome: parsedPayload.assertedOutcome,
+        }),
+      );
+
+      return {
+        ok: true,
+        rawResponse: providerResponse.rawResponse,
+        parsedResponse: parsedPayload,
+        error: null,
+        provider: providerConfig.provider,
+        model: providerResponse.model ?? providerConfig.model,
+        promptId: prompt?.id ?? null,
+        promptVersion: prompt?.version ?? null,
+      };
+    } catch (error) {
+      const issue =
+        error instanceof ZodError ? error.flatten() : { message: String(error) };
+
+      this.logger.error(
+        JSON.stringify({
+          stage: 'ai_gateway.response_output',
+          provider: providerConfig.provider,
+          model: providerConfig.model,
+          durationMs: Date.now() - startedAt,
+          promptVersion: prompt?.version ?? null,
+          issue,
+        }),
+      );
+
+      return {
+        ok: false,
+        rawResponse: this.extractRawResponse(error),
+        parsedResponse: null,
+        error: this.stringifyError(error),
+        provider: providerConfig.provider,
+        model: providerConfig.model,
+        promptId: prompt?.id ?? null,
+        promptVersion: prompt?.version ?? null,
+      };
+    }
   }
 
   private resolveInterpretationProvider(providerName: 'mock' | 'openai') {
@@ -156,9 +261,42 @@ Requested locale hint: ${locale ?? 'unknown'}
 Return JSON only.`;
   }
 
+  private buildResponsePrompt(template: string, locale?: string) {
+    return `${template}
+
+You will receive:
+- approved backend context as JSON
+- an approved deterministic fallback draft
+
+Rewrite the approved draft into a clear final user-facing answer.
+Do not invent tool executions, business facts, missing fields, or continuity state.
+Do not hide failures or uncertainty.
+Keep the meaning grounded in approved backend context only.
+Requested locale hint: ${locale ?? 'unknown'}
+
+Return JSON only with:
+- message: string
+- assertedOutcome: respond | clarify | execution_succeeded | execution_failed
+- assertedExecutionStatus: not_applicable | succeeded | failed
+- mentionedMissingFields: string[]
+- mentionedApprovedFactKeys: string[]
+- mentionedApprovedResultKeys: string[]`;
+  }
+
   private parseInterpretationPayload(rawPayload: string): InterpretationOutput {
     try {
       return interpretationOutputSchema.parse(JSON.parse(rawPayload));
+    } catch (error) {
+      throw {
+        error,
+        rawResponse: rawPayload,
+      };
+    }
+  }
+
+  private parseResponsePayload(rawPayload: string) {
+    try {
+      return aiGeneratedResponseSchema.parse(JSON.parse(rawPayload));
     } catch (error) {
       throw {
         error,

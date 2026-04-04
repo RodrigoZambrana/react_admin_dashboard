@@ -1,3 +1,8 @@
+import type {
+  AiGeneratedResponse,
+  ApprovedResponseContext,
+} from '../response/response.types';
+
 export type ConversationContextMessage = {
   role: 'user' | 'assistant';
   content: string;
@@ -34,13 +39,20 @@ export type LanguageModelInterpretationRequest = {
 };
 
 export type ResponseGenerationInput = {
-  message: string;
-  intent: string;
-  toolResult?: Record<string, unknown> | null;
-  language: string;
+  approvedContext: ApprovedResponseContext;
+  approvedDraft: string;
   promptTemplate?: string;
-  responseTemplateKey?: string;
-  missingFields?: string[];
+};
+
+export type AiGatewayResponseGenerationResult = {
+  ok: boolean;
+  rawResponse: string | null;
+  parsedResponse: AiGeneratedResponse | null;
+  error: string | null;
+  provider: string;
+  model: string | null;
+  promptId: string | null;
+  promptVersion: number | null;
 };
 
 export interface LanguageModelProvider {
@@ -55,5 +67,19 @@ export interface LanguageModelProvider {
     rawResponse: string;
     model?: string | null;
   }>;
-  generateResponse(input: ResponseGenerationInput): Promise<string>;
+  generateResponse(
+    input: {
+      systemPrompt: string;
+      approvedContext: ApprovedResponseContext;
+      approvedDraft: string;
+    },
+    providerInput: {
+      apiKey: string;
+      model: string;
+      timeoutMs: number;
+    },
+  ): Promise<{
+    rawResponse: string;
+    model?: string | null;
+  }>;
 }
