@@ -352,7 +352,21 @@
   - must not expand the still-carried prompt-governance debt in `AiPromptAssemblyService`; structural protocol contract remains backend-owned while editable policy wording stays a later prioritization item
 - Wave 8.2: User Chat Product UI
   - depends on Waves 1 through 7 plus Wave 8.1
-  - must replicate the DreamsChat public layout exactly while running on top of the stabilized async backend intake foundation instead of the current synchronous shell
+  - is now closed on this branch
+  - replicates the DreamsChat public layout as the production-facing user chat shell while running on top of the stabilized async backend intake foundation instead of the synchronous `/chat/message` shell
+  - consumes the additive async contracts for:
+    - immediate acceptance
+    - queued / processing / awaiting-reply visibility
+    - session sync and transcript recovery
+    - stale reply suppression through backend supersession truth
+  - keeps the public chat client presentation-only:
+    - no client-side decisioning
+    - no client-side tool routing
+    - no tenant shortcuts
+  - carries explicit non-blocking debt into Wave 9:
+    - inline timing heuristics remain concentrated in `AsyncTurnTimingPolicyService`
+    - supersession suppresses obsolete replies but does not yet abort model/tool work already in flight
+    - frontend validation remains build-only because the workspace still lacks a supported UI test harness
 
 ### Wave 9: Centralized QA, Security, Roles, E2E, And Production Hardening
 
@@ -460,7 +474,8 @@ The `learning` stage persists:
 
 - The standalone frontend owns copied DreamsChat assets locally inside `frontend/public`
 - Admin operations UI uses the DreamsChat admin dashboard shell and native asset pack as a first-class in-project dependency
-- Public chat visuals are also vendored now so the future end-user shell can be built without re-importing external packages
+- Public chat visuals are also vendored now and the public user-chat product shell is live on that exact asset pack
 - The source-of-truth visual template for both admin and public chat UI is `/Users/rodrigo/Personal/Proyectos/react projects/dreamschat-v2.8.4`
 - Future UI waves must replicate that template layout exactly and swap in the new platform capabilities behind it, rather than building a merely similar variant
-- Legacy user-chat behaviors around human-like wait, pending-turn cancellation, and typing/awaiting-reply remain an explicit prerequisite before or within Wave 8; they must inform the future public chat runtime but are intentionally out of scope for Wave 6
+- Wave 8.2 now fulfills the public chat product requirement on top of the async intake foundation instead of the synchronous shell
+- Legacy user-chat behaviors around human-like wait, pending-turn cancellation, and typing/awaiting-reply were mined into the async foundation and public chat product work, while remaining hardening debt stays explicit for Wave 9

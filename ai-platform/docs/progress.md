@@ -1483,3 +1483,55 @@
 - Finish Wave 8.2 closeout with exact DreamsChat public-layout fidelity review, final UX polish, and roadmap/documentation updates toward Wave 9
 - Run the final closeout review for blockers vs carried technical debt before declaring full Wave 8 completion
 - Keep the async user-chat foundation explicit as the enabling layer for Wave 9 centralized hardening rather than reopening intake architecture in the UI phase
+
+## Iteration 47
+
+### Implemented
+- Closed Wave 8.2 and the full Wave 8 roadmap on this branch:
+  - public/user chat now runs on the DreamsChat public shell
+  - the user-facing transcript consumes the async acceptance/session-sync contracts from Wave 8.1
+  - public chat recovery, presence visibility, and stale-reply suppression now stay grounded in backend async truth
+- Finalized architecture documentation so branch reality is explicit:
+  - Wave 8.0 closed gateway cleanup
+  - Wave 8.1 closed async intake / cancellation / presence foundation
+  - Wave 8.2 closed user chat product UI
+  - Wave 9 is now the next hardening wave
+- Ran the Wave 8.2 closeout review focused on:
+  - DreamsChat layout fidelity
+  - async user-chat correctness
+  - stale/superseded reply handling
+  - tenant safety
+  - carried hardcoding debt boundaries
+
+### Working
+- Wave 8 is now fully enabled and functionally complete on this branch:
+  - admin/operator UI remains non-breaking
+  - public user chat runs on async backend intake instead of the old synchronous shell
+  - queued / processing / awaiting-reply visibility is backed by backend session truth
+  - transcript recovery and selected-session persistence work across refresh/reopen
+  - obsolete replies are not surfaced after supersession
+- Closeout review result:
+  - blockers: none
+  - technical debt: present, but non-blocking for Wave 9
+- Validation remains green at closeout:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- `AsyncTurnTimingPolicyService` still contains inline timing heuristics for stabilization and reply-delay policy; it is now isolated but still a later hardening target
+- Supersession prevents stale reply projection to users, but it does not yet abort model/tool work already in flight once processing has begun
+- The frontend workspace still lacks a supported automated test harness, so public-chat validation remains build-only plus backend contract coverage
+- `AiGatewayService` no longer carries the Wave 8.0 blocker, but broader editorial prompt-governance split remains later work and should stay out of Wave 9 security/QA hardening unless separately prioritized
+
+### Next Steps
+- Start Wave 9: `Centralized QA, Security, Roles, E2E, And Production Hardening`
+- Use the now-complete admin and public product surfaces as the basis for:
+  - centralized regression and QA strategy
+  - auth and role separation
+  - guarded admin operations
+  - E2E coverage for async user chat and governed admin workflows
+- Carry the explicit Wave 8 technical debt into Wave 9 without reopening Wave 8 architecture:
+  - async timing heuristics
+  - in-flight cancellation limitations
+  - missing supported frontend test harness
