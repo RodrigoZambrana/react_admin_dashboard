@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import { ApprovedResponseContext } from './response.types';
 
-const BASIC_RESPONSE = 'Hello, how can I help you?';
+const BASIC_RESPONSES = {
+  en: 'Hello, how can I help you?',
+  es: 'Entiendo. Como puedo ayudarte?',
+} as const;
 
 @Injectable()
 export class ChatResponsePolicyService {
@@ -22,17 +25,11 @@ export class ChatResponsePolicyService {
       return this.buildExecutionFailureResponse(context);
     }
 
-    return this.buildBasicResponse(context.userMessage, context.locale);
+    return this.buildBasicResponse(context.locale);
   }
 
-  private buildBasicResponse(message: string, locale?: string) {
-    const normalized = `${locale ?? ''} ${message}`.toLowerCase();
-
-    if (normalized.includes('hola') || normalized.includes('hello')) {
-      return BASIC_RESPONSE;
-    }
-
-    return BASIC_RESPONSE;
+  private buildBasicResponse(locale?: string) {
+    return this.isSpanish(locale) ? BASIC_RESPONSES.es : BASIC_RESPONSES.en;
   }
 
   private buildClarificationResponse(missingFields: string[], locale?: string) {

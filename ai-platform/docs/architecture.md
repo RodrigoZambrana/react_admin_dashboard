@@ -201,6 +201,7 @@
 - Waves 6 through 8 deliver the admin and public product surfaces on top of the stabilized runtime and governance contracts
 - Wave 9 closes security, role separation, end-to-end regression, and production hardening
 - A wave is not considered complete only because implementation and tests pass; every reported wave completion must also pass a dedicated code-review gate that verifies functional requirements and architectural alignment across all touched layers
+- Completion review findings must feed the next implementation prompt and planning context by default; only blocker findings are allowed to stop progression into the next wave
 - Every wave must mine the legacy audit only for reusable concepts, validation assets, and operator workflows that fit the new architecture
 - No wave may introduce:
   - model-driven decisions
@@ -240,8 +241,8 @@
 2. Strategic objective: activate AI-generated user-facing responses only after backend interpretation, parsing, decision, execution, and conversation-state approval have produced a safe response context.
 3. Why it happens now: response generation becomes safe only after execution and continuity are deterministic; before that, AI wording would be forced to compensate for missing backend truth.
 4. Dependency on previous waves: depends on Wave 1 managed prompts, Wave 2 execution results, and Wave 3 deterministic conversation continuity.
-5. Main implementation scope: define the backend-approved response context contract; activate live response generation through `AiGatewayService`; add approved-draft rewrite, response guardrails, grounding/closure checks, and provider trace logging; keep deterministic fallbacks when response generation fails.
-6. Architecture constraints: AI may rewrite wording only; it may not decide actions, missing fields, tenant policy, or tool usage; response prompts stay runtime-managed; logging must persist prompt version, provider/model data, and guardrail outcomes.
+5. Main implementation scope: define the backend-approved response context contract; activate live response generation through `AiGatewayService`; add approved-draft rewrite, response guardrails, grounding/closure checks, provider trace logging, and deterministic fallback reasons; keep deterministic fallbacks when response generation fails.
+6. Architecture constraints: AI may rewrite wording only; it may not decide actions, missing fields, tenant policy, or tool usage; response prompts stay runtime-managed; the active runtime response path must flow through a backend-owned response service that builds approved context, calls AI, enforces guardrails, and falls back safely without pushing wording logic back into the orchestrator.
 7. Legacy contributions that should be mined: approved-draft rewrite concepts from `generate-response.js`; response guardrails from `validate-response.js`; provider-call tracing from `provider-call-trace.js`; grounding audit and closure checks from `grounding-audit.js` and related QA assets.
 8. Expected user/platform value: user-facing replies become clearer, more natural, and multilingual while staying grounded in backend-approved outcomes.
 9. Completion criteria: live flow reaches `response` through AI wording over approved context; outputs never imply unexecuted actions; fallback responses stay deterministic; trace logs capture response audit metadata; endpoint contract remains non-breaking.
@@ -344,6 +345,14 @@ The `interpretation` stage persists:
 - provider and model metadata
 - fallback/error details when AI is unavailable or invalid
 
+The `response` stage persists:
+
+- approved backend response context
+- deterministic approved draft used for rewrite/fallback
+- provider and model metadata for response generation
+- parsed AI response JSON
+- guardrail outcomes and deterministic fallback reason when fallback was required
+
 ## Security Preparation
 
 - Current API mode remains open for this iteration
@@ -371,6 +380,7 @@ The `interpretation` stage persists:
 - Treat deviations found in that review as explicit findings:
   - blockers when they violate non-negotiable architecture or break the next wave
   - technical debt when they are acceptable to defer without compromising the roadmap
+- Do not stop platform progress after a completed wave just because review findings exist; carry non-blocking findings into the next wave prompt, roadmap context, and closeout documentation
 - Update `docs/progress.md` after every iteration
 
 ## Frontend Theme Strategy

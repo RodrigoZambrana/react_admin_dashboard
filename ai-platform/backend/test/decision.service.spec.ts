@@ -101,4 +101,44 @@ describe('DecisionService', () => {
       }),
     );
   });
+
+  it('uses continuity missing fields for low-confidence follow-up clarifications when the active lane remains open', () => {
+    const service = new DecisionService(new PipelineLoggerService());
+
+    const decision = service.decide({
+      intent: 'CLARIFICATION',
+      language: 'es',
+      confidence: 0.32,
+      entities: {
+        rawMessage: 'todavia no se',
+      },
+      normalizedEntities: {
+        dates: [],
+        measurements: [],
+        dimensions: [],
+      },
+      continuity: {
+        applied: false,
+        activeLane: 'booking',
+        carriedFactKeys: [],
+        invalidatedFactKeys: [],
+        missingFields: ['requested_date'],
+        nextUsefulField: 'requested_date',
+        previousStateSummary: {
+          lane: 'booking',
+          missingFields: ['requested_date'],
+          nextUsefulField: 'requested_date',
+          lastApprovedAction: 'clarify',
+        },
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'clarify',
+        reasonCode: 'continuity_missing_fields',
+        missingFields: ['requested_date'],
+      }),
+    );
+  });
 });

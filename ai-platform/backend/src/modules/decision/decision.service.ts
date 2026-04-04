@@ -23,6 +23,7 @@ export class DecisionService {
 
   private resolveDecision(input: ContinuityAwareInterpretation): DecisionResult {
     const continuityApplied = input.continuity?.applied === true;
+    const continuityMissingFields = this.resolveContinuityMissingFields(input);
 
     if (
       !continuityApplied &&
@@ -31,8 +32,13 @@ export class DecisionService {
       return {
         domain: 'core',
         action: 'clarify',
-        reasonCode: 'low_confidence_or_clarification',
-        missingFields: ['user_goal'],
+        reasonCode: continuityMissingFields.length
+          ? 'continuity_missing_fields'
+          : 'low_confidence_or_clarification',
+        missingFields:
+          continuityMissingFields.length > 0
+            ? continuityMissingFields
+            : ['user_goal'],
         responseTemplateKey: 'core.clarification',
       };
     }
@@ -91,5 +97,28 @@ export class DecisionService {
       missingFields: [],
       responseTemplateKey: 'core.general_response',
     };
+  }
+
+  private resolveContinuityMissingFields(input: ContinuityAwareInterpretation) {
+    if (!input.continuity?.activeLane) {
+      return [];
+    }
+
+    const continuityFields = input.continuity.missingFields.filter(
+      (value) => value.trim().length > 0,
+    );
+
+    if (continuityFields.length > 0) {
+      return continuityFields;
+    }
+
+    if (
+      input.continuity.nextUsefulField &&
+      input.continuity.nextUsefulField.trim().length > 0
+    ) {
+      return [input.continuity.nextUsefulField];
+    }
+
+    return [];
   }
 }

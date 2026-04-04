@@ -639,22 +639,28 @@
 - Added a dedicated backend `ResponseGuardrailService` so AI wording is now checked against backend-approved outcome, execution status, missing-field context, approved facts, and approved result keys
 - Extended response traces and message metadata with explicit guardrail outcomes and deterministic fallback reasons instead of silently swallowing response-generation failures
 - Added focused response-layer tests covering generation failure fallback and guardrail rejection fallback without moving business routing into the response path
+- Simplified the deterministic fallback service so generic core fallback no longer depends on message-content heuristics and remains isolated to the fallback boundary
+- Absorbed the carried-forward Wave 3 continuity fix by making low-confidence follow-up clarifications reuse active-lane missing fields instead of dropping to generic `user_goal`
+- Added final Wave 4 tests for successful AI wording over approved execution truth, AI wording over approved clarification context, response-path locale-branching guardrails, and the continuity-aware clarification edge case
 
 ### Working
 - Backend-approved response context now exists as a first-class contract for the live flow
 - Live `/chat/message` now reaches AI response generation through a dedicated response boundary while preserving the same public response shape
 - Response prompt retrieval stays under managed runtime governance instead of ad hoc code templates
-- Response-stage traces now persist approved draft/context metadata and provider/model generation metadata needed for the next guardrail milestone
-- Backend build, backend tests, and frontend build all pass after the first Wave 4 response-layer refactor
+- Response-stage traces now persist approved draft/context metadata, provider/model generation metadata, guardrail outcomes, and fallback reasons
+- Backend build, backend tests, and frontend build all pass with the full Wave 4 response path active
 - Response generation now fails closed: provider errors and guardrail rejections both return the approved deterministic fallback instead of ungrounded AI wording
 - Guardrail results are now observable in the live response trace, which keeps Wave 4 grounded in backend truth and prepares Wave 5 governance/QA work
+- AI-worded execution and clarification responses are now covered by tests that prove wording stays grounded in backend-approved context
+- The carried-forward continuity clarification edge case is now resolved without moving continuity ownership into the model or response layer
+- Wave 4, `AI Response On Approved Context`, is now complete on this branch
 
 ### Technical Debt
 - `ChatResponsePolicyService` still contains the existing hardcoded wording and locale branching debt, although it is now isolated to fallback/draft generation instead of the primary live response path
-- The carried-forward Wave 3 low-confidence continuity finding is not fixed yet in this milestone and remains explicit debt for the next Wave 4 milestone
-- Response guardrails currently validate structured grounding metadata rather than the full free-text surface, so stronger semantic/closure checks are still needed before calling Wave 4 complete
+- Response guardrails currently validate structured grounding metadata rather than the full free-text surface, so stronger semantic/closure checks still belong in future governance/QA work
+- The mock AI provider intentionally mirrors approved drafts instead of providing rich multilingual paraphrasing, so most wording-quality gains depend on a real managed provider such as OpenAI being configured at runtime
 
 ### Next Steps
-- Reduce live dependence on hardcoded fallback wording and absorb the safe continuity clarification fix if it can be done without moving business logic into the response layer
-- Keep Wave 4 aligned with Wave 5 by preserving approved context, traceability, and backend truth as the basis for governance, QA, and later learning activation
-- Add final response-path tests for successful grounded AI wording, no-expansion locale audit coverage, and the carried-forward continuity clarification edge case before closing Wave 4
+- Start Wave 5, `Governance, QA, Learning, And Productization Readiness`, on top of the now-grounded live pipeline
+- Reuse approved response context, response guardrail traces, managed prompt usage, and continuity-safe follow-up behavior as the basis for governance, QA, and later learning activation
+- Keep the remaining fallback-copy debt isolated while Wave 5 focuses on governed runtime operations, evaluation, and platform readiness rather than reopening response routing
