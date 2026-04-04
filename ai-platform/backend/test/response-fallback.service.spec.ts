@@ -275,7 +275,7 @@ describe('ResponseFallbackService', () => {
         templateKey: 'document_not_found',
       }),
     ).resolves.toBe(
-      'No encontré información relevante sobre eso en los documentos activos.',
+      'No tengo una confirmación clara sobre eso en este momento.',
     );
   });
 });

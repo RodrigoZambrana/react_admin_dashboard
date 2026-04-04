@@ -11,9 +11,9 @@ type BootstrapTemplateCatalog = Record<
 
 const bootstrapTemplateCatalog: BootstrapTemplateCatalog = {
   document_not_found: {
-    default: 'I could not find relevant information in the active documents.',
-    en: 'I could not find relevant information in the active documents.',
-    es: 'No encontré información relevante sobre eso en los documentos activos.',
+    default: "I can't confirm that clearly right now.",
+    en: "I can't confirm that clearly right now.",
+    es: 'No tengo una confirmación clara sobre eso en este momento.',
   },
   execution_failure_not_found: {
     default: 'I could not find a valid match with the available information.',

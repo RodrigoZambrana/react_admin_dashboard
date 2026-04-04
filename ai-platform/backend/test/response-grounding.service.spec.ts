@@ -57,6 +57,25 @@ describe('ResponseGroundingService', () => {
     );
   });
 
+  it('marks missing approved evidence as unavailable instead of pretending support exists', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: '¿Qué tipos tienen de cortinas de enrollar?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'tipos de cortinas de enrollar',
+        groundedSummary: '',
+        matches: [],
+      },
+    });
+
+    expect(assessment).toEqual(
+      expect.objectContaining({
+        supportLevel: 'unavailable',
+      }),
+    );
+  });
+
   it('marks unsupported coverage questions when the approved document context does not confirm coverage', () => {
     const assessment = service.assessDocumentContext({
       locale: 'es',

@@ -37,13 +37,14 @@ export class ChatResponsePolicyService {
 
   private async buildDocumentAwareResponse(context: ApprovedResponseContext) {
     const groundedSummary = context.documentContext?.groundedSummary?.trim();
+    const supportLevel = context.documentContext?.grounding.supportLevel;
     const missingSummaryResponse = await this.responseFallbackService.render({
       locale: context.locale,
       templateKey: 'document_not_found',
       variationSeed: this.buildVariationSeed(context, 'document_not_found'),
     });
 
-    if (!groundedSummary) {
+    if (!groundedSummary || supportLevel === 'unavailable') {
       if (context.outcome === 'clarify') {
         return this.composeWithDocumentSummary(
           missingSummaryResponse,

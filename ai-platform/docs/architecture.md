@@ -516,6 +516,7 @@ After the exploratory-runtime closeout, the branch absorbed one focused product-
 - Retrieval source selection remains backend-owned:
   - semantic-turn execution decides whether document retrieval is relevant for the turn
   - retrieval runs over the document-origin corpus only
+  - retrieval eligibility is no longer limited to explicit phrases like `what does the document say`; eligible knowledge/advisory turns can consult approved tenant-scoped knowledge through structured backend signals and active continuity state
   - approved document context is injected into the response layer as backend truth; the model may word the answer, but it does not choose the corpus or invent unsupported document facts
 - Combined document + booking flows remain aligned with stage separation:
   - document grounding enriches approved response context
@@ -686,12 +687,13 @@ Response grounding now distinguishes three backend-owned support modes for docum
 
 - explicit supported fact
 - partial support that allows bounded synthesis but still requires unspecified-detail disclosure when exact data is absent
-- document miss / unsupported detail, which must stay honest and concise instead of inventing coverage, pricing, materials, or purchase facts
+- unavailable support, which must stay honest and concise instead of inventing coverage, pricing, materials, or purchase facts or exposing internal retrieval mechanics to the user
 
 Response grounding and response fallback ownership are now also split more cleanly:
 
 - `ResponseGroundingService` owns contextual support assessment and bounded document-overreach detection through a dedicated grounding boundary instead of inline stopword-heavy heuristics inside `ResponseGuardrailService`
 - `ResponseFallbackService` still resolves managed runtime catalogs as the primary source of deterministic wording, but compatibility-safe bootstrap copy now lives in a dedicated response-fallback bootstrap boundary instead of inline multilingual maps inside the runtime service
+- governed fallback wording for unavailable approved knowledge is expressed in natural product language rather than backend retrieval terminology, while source selection remains fully backend-owned
 
 Contextual `close_turn` is also now backend-owned and state-aware:
 

@@ -13,7 +13,7 @@
     "execution_failure_validation": "I could not complete {{actionLabel}} with the available information.",
     "execution_failure_not_found": "I could not find a valid match for {{actionLabel}} with the available information.",
     "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error.",
-    "document_not_found": "I could not find relevant information about that in the active documents.",
+    "document_not_found": "I can't confirm that clearly right now.",
     "close_turn_acknowledgement": "Thanks for the message. I will leave it here for now.",
     "close_turn_resolved": "Understood, thanks for letting me know. I will leave it here."
   },
@@ -39,9 +39,9 @@
       "Tell me a bit more so I can move forward."
     ],
     "document_not_found": [
-      "I could not find relevant information about that in the active documents.",
-      "I do not see active document content that confirms that clearly.",
-      "I do not have an active document that answers that with confidence."
+      "I can't confirm that clearly right now.",
+      "I don't have a clear confirmation for that at the moment.",
+      "I can't give you a firm answer on that right now."
     ],
     "close_turn_acknowledgement": [
       "Thanks for the message. I will leave it here for now.",

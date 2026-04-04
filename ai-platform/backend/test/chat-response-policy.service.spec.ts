@@ -542,7 +542,7 @@ describe('ChatResponsePolicyService', () => {
           groundedSummary: '',
           responseMode: 'combined_execution',
           grounding: {
-            supportLevel: 'partial',
+            supportLevel: 'unavailable',
             exactnessRequested: false,
             requestedDetailTypes: ['coverage_support'],
             supportedDetailTypes: [],
@@ -553,7 +553,7 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe(
-      'No encontré información relevante sobre eso en los documentos activos. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+      'No tengo una confirmación clara sobre eso en este momento. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
     );
   });
 
@@ -597,7 +597,7 @@ describe('ChatResponsePolicyService', () => {
     ).resolves.toBe('Gracias por el mensaje. Lo dejamos por acá.');
   });
 
-  it('uses a governed not-found response when active documents do not support the question', async () => {
+  it('uses a governed natural unavailable response when approved knowledge does not support the question', async () => {
     await expect(
       service.resolve({
         locale: 'en',
@@ -639,7 +639,7 @@ describe('ChatResponsePolicyService', () => {
           groundedSummary: '',
           responseMode: 'document_exploration',
           grounding: {
-            supportLevel: 'explicit',
+            supportLevel: 'unavailable',
             exactnessRequested: false,
             requestedDetailTypes: [],
             supportedDetailTypes: [],
@@ -649,7 +649,7 @@ describe('ChatResponsePolicyService', () => {
           matches: [],
         },
       }),
-    ).resolves.toMatch(/document/i);
+    ).resolves.toBe("I can't confirm that clearly right now.");
   });
 
   it('keeps combined document plus execution fallback concise when the grounded summary is long', async () => {
@@ -753,7 +753,7 @@ function buildCatalog(locale?: string) {
         execution_failure_generic:
           'No pude completar {{actionLabel}} por un error durante la ejecución.',
         document_not_found:
-          'No encontré información relevante sobre eso en los documentos activos.',
+          'No tengo una confirmación clara sobre eso en este momento.',
         close_turn_acknowledgement:
           'Gracias por el mensaje. Lo dejamos por acá.',
         close_turn_resolved:
@@ -781,7 +781,7 @@ function buildCatalog(locale?: string) {
           'Contame un poco más para poder avanzar.',
         ],
         document_not_found: [
-          'No encontré información relevante sobre eso en los documentos activos.',
+          'No tengo una confirmación clara sobre eso en este momento.',
         ],
         close_turn_acknowledgement: [
           'Gracias por el mensaje. Lo dejamos por acá.',
@@ -826,7 +826,7 @@ function buildCatalog(locale?: string) {
       execution_failure_generic:
         'I could not complete {{actionLabel}} because of an execution error.',
       document_not_found:
-        'I could not find relevant information about that in the active documents.',
+        "I can't confirm that clearly right now.",
       close_turn_acknowledgement:
         'Thanks for the message. I will leave it here for now.',
       close_turn_resolved:
@@ -854,7 +854,7 @@ function buildCatalog(locale?: string) {
         'Tell me a bit more so I can move forward.',
       ],
       document_not_found: [
-        'I could not find relevant information about that in the active documents.',
+        "I can't confirm that clearly right now.",
       ],
       close_turn_acknowledgement: [
         'Thanks for the message. I will leave it here for now.',

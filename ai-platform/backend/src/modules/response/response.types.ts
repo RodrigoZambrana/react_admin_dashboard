@@ -121,7 +121,7 @@ export type ApprovedResponseContext = {
     groundedSummary: string;
     responseMode: 'document_exploration' | 'combined_execution';
     grounding: {
-      supportLevel: 'explicit' | 'partial';
+      supportLevel: 'explicit' | 'partial' | 'unavailable';
       exactnessRequested: boolean;
       requestedDetailTypes: ResponseGroundingDetailType[];
       supportedDetailTypes: ResponseGroundingDetailType[];

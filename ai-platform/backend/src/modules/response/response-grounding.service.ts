@@ -67,10 +67,13 @@ export class ResponseGroundingService {
     const unsupportedDetailTypes = requestedDetailTypes.filter(
       (detailType) => supportByDetailType[detailType] === 'unsupported',
     );
+    const hasApprovedEvidence =
+      input.documentContext.matches.length > 0 && evidenceText.length > 0;
 
     return {
-      supportLevel:
-        partialDetailTypes.length > 0 || unsupportedDetailTypes.length > 0
+      supportLevel: !hasApprovedEvidence
+        ? ('unavailable' as const)
+        : partialDetailTypes.length > 0 || unsupportedDetailTypes.length > 0
           ? ('partial' as const)
           : ('explicit' as const),
       exactnessRequested,
@@ -114,7 +117,10 @@ export class ResponseGroundingService {
   buildUnspecifiedDetailClause(
     input: Pick<ApprovedResponseContext, 'locale' | 'documentContext'>,
   ) {
-    if (!input.documentContext) {
+    if (
+      !input.documentContext ||
+      input.documentContext.grounding.supportLevel === 'unavailable'
+    ) {
       return null;
     }
 

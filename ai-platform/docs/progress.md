@@ -2285,6 +2285,42 @@
 - Remove remaining `document not found` style retrieval-mechanic leakage from governed fallback behavior
 - Run the full validation set and align architecture docs with the new approved-knowledge source-selection behavior
 
+## Iteration 69
+
+### Implemented
+- Refined approved response support modeling so document/advisory turns now distinguish:
+  - `explicit`
+  - `partial`
+  - `unavailable`
+  at the approved response context boundary instead of collapsing misses into the same response path
+- Removed retrieval-mechanic leakage from the governed user-facing draft path:
+  - `ChatResponsePolicyService` now treats empty/unsupported approved knowledge as natural unavailability instead of exposing active-document internals
+  - governed fallback catalogs and the bootstrap compatibility boundary now use natural “no clear confirmation right now” wording instead of `document not found` style messaging
+- Tightened retrieval-backed answer usefulness without degrading grounding:
+  - document excerpts can now append the adjacent sentence when the best lexical hit is only a short heading, which keeps the supported detail available for downstream synthesis
+- Added regressions for:
+  - unavailable support-mode assessment
+  - natural unavailable response wording
+  - governed bootstrap fallback compatibility
+  - non-regression of explicit/partial document-grounded behavior
+
+### Working
+- Eligible knowledge/advisory turns can consult approved knowledge without explicit document cue wording, and when support is unavailable the user sees a natural answer instead of internal retrieval mechanics
+- Partial support still preserves the supported fact and avoids inventing missing specifics
+- Existing booking/document/advisory continuity remains intact while combined document + booking flows stay honest and concise
+
+### Technical Debt
+- The current `get_product` path remains a temporary demo-catalog boundary until a real catalog source exists
+- The frontend workspace still lacks a supported automated test harness
+- Managed response-fallback catalogs remain the primary runtime source; environments with already-activated older catalog versions still require governed activation if operators want the new unavailable wording immediately
+
+### Next Steps
+- Treat this conversational phase as complete without opening Wave 9
+- Keep future work focused on bounded non-core debt:
+  - real product-catalog integration
+  - frontend harness work
+  - broader Wave 9 hardening concerns kept out of this thread
+
 ## Iteration 66
 
 ### Implemented

@@ -13,7 +13,7 @@
     "execution_failure_validation": "No pude completar {{actionLabel}} con la información disponible.",
     "execution_failure_not_found": "No encontré una coincidencia válida para {{actionLabel}} con la información disponible.",
     "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución.",
-    "document_not_found": "No encontré información relevante sobre eso en los documentos activos.",
+    "document_not_found": "No tengo una confirmación clara sobre eso en este momento.",
     "close_turn_acknowledgement": "Gracias por el mensaje. Lo dejamos por acá.",
     "close_turn_resolved": "Perfecto, gracias por avisar. Lo dejamos por acá."
   },
@@ -39,9 +39,9 @@
       "Contame un poco más para poder avanzar."
     ],
     "document_not_found": [
-      "No encontré información relevante sobre eso en los documentos activos.",
-      "No veo contenido activo que confirme eso en los documentos cargados.",
-      "No tengo un documento activo que responda eso con claridad."
+      "No tengo una confirmación clara sobre eso en este momento.",
+      "No cuento con una confirmación clara sobre eso por ahora.",
+      "No puedo darte una respuesta firme sobre eso en este momento."
     ],
     "close_turn_acknowledgement": [
       "Gracias por el mensaje. Lo dejamos por acá.",
