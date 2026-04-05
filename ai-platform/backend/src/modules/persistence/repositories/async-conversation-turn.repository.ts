@@ -234,6 +234,19 @@ export class AsyncConversationTurnRepository {
     });
   }
 
+  refreshReplyProjectionWindow(input: {
+    turnId: string;
+    replyDueAt: Date;
+    replyDelayMs?: number;
+    metadata?: Prisma.InputJsonValue;
+  }) {
+    return this.updateTurnById(input.turnId, {
+      replyDueAt: input.replyDueAt,
+      replyDelayMs: input.replyDelayMs,
+      metadata: input.metadata,
+    });
+  }
+
   async createTurnWithInitialInput(input: {
     conversationId: string;
     traceId: string;

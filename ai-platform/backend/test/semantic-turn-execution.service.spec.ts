@@ -64,7 +64,12 @@ describe('SemanticTurnExecutionService', () => {
           previousStateSummary: null,
         },
       })),
-      persistTurnState: jest.fn(async () => null),
+      persistTurnState: jest.fn(async () => ({
+        conversationId: 'conv-1',
+        lane: 'document_exploration',
+        missingFields: [],
+        lastApprovedAction: 'respond',
+      })),
     };
     const decisionService = {
       decide: jest.fn(() => ({
@@ -183,6 +188,11 @@ describe('SemanticTurnExecutionService', () => {
       'conv-1',
       'assistant',
       'Hello, how can I help you?',
+    );
+    expect(chatResponseService.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationState: null,
+      }),
     );
     expect(traceLogService.recordStage).toHaveBeenCalledWith(
       expect.objectContaining({

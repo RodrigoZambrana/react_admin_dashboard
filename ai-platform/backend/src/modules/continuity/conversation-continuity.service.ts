@@ -1154,9 +1154,17 @@ export class ConversationContinuityService {
     }
 
     const previousTopic = this.resolveStoredTopicSummary(input.previousState);
+    const explicitSubjectTopic = this.resolveExplicitSubjectTopic(interpretation);
 
     if (!previousTopic) {
       return topic.length > 0 ? topic : undefined;
+    }
+
+    if (
+      explicitSubjectTopic &&
+      this.isExplicitSubjectRefresh(explicitSubjectTopic, previousTopic)
+    ) {
+      return explicitSubjectTopic;
     }
 
     if (this.isDependentFollowUpTopic(topic, previousTopic)) {
@@ -1187,6 +1195,15 @@ export class ConversationContinuityService {
     const previousTopic = input?.previousState
       ? this.resolveStoredTopicSummary(input.previousState)
       : undefined;
+    const explicitSubjectTopic = this.resolveExplicitSubjectTopic(interpretation);
+
+    if (
+      previousTopic &&
+      explicitSubjectTopic &&
+      this.isExplicitSubjectRefresh(explicitSubjectTopic, previousTopic)
+    ) {
+      return normalizedTopic;
+    }
 
     if (
       previousTopic &&
@@ -1271,6 +1288,7 @@ export class ConversationContinuityService {
     const previousTopic = input?.previousState
       ? this.resolveStoredTopicSummary(input.previousState)
       : undefined;
+    const explicitSubjectTopic = this.resolveExplicitSubjectTopic(interpretation);
 
     if (!previousTopic) {
       return topic.length > 0 ? topic : undefined;
@@ -1284,6 +1302,13 @@ export class ConversationContinuityService {
       return previousTopic;
     }
 
+    if (
+      explicitSubjectTopic &&
+      this.isExplicitSubjectRefresh(explicitSubjectTopic, previousTopic)
+    ) {
+      return explicitSubjectTopic;
+    }
+
     if (this.isDependentFollowUpTopic(topic, previousTopic)) {
       return previousTopic;
     }
@@ -1293,6 +1318,34 @@ export class ConversationContinuityService {
     }
 
     return topic;
+  }
+
+  private resolveExplicitSubjectTopic(interpretation: ParsedInterpretation) {
+    return this.normalizeOptionalString(interpretation.entities.productQuery);
+  }
+
+  private isExplicitSubjectRefresh(current: string, previous: string) {
+    const currentTokens = tokenizeConversationSignalText(current, {
+      minimumTokenLength: 2,
+      stopWordSet: 'informative',
+    });
+    const previousTokens = new Set(
+      tokenizeConversationSignalText(previous, {
+        minimumTokenLength: 2,
+        stopWordSet: 'informative',
+      }),
+    );
+
+    if (currentTokens.length < 2 || previousTokens.size === 0) {
+      return false;
+    }
+
+    const overlapCount = currentTokens.filter((token) =>
+      previousTokens.has(token),
+    ).length;
+    const novelTokenCount = currentTokens.length - overlapCount;
+
+    return novelTokenCount > 0 && overlapCount < currentTokens.length;
   }
 
   private hasTopicOverlap(current: string, previous: string) {

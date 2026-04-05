@@ -159,13 +159,6 @@ export class ConversationSignalResolverService {
     const entities = input.interpretation.entities;
 
     if (
-      typeof entities.requestSummary === 'string' &&
-      entities.requestSummary.trim().length > 0
-    ) {
-      return entities.requestSummary.trim();
-    }
-
-    if (
       typeof entities.productQuery === 'string' &&
       entities.productQuery.trim().length > 0
     ) {
@@ -179,6 +172,13 @@ export class ConversationSignalResolverService {
       return entities.rawMessage.trim();
     }
 
+    if (
+      typeof entities.requestSummary === 'string' &&
+      entities.requestSummary.trim().length > 0
+    ) {
+      return entities.requestSummary.trim();
+    }
+
     return input.message.trim();
   }
 
@@ -186,9 +186,9 @@ export class ConversationSignalResolverService {
     const entities = input.interpretation.entities;
 
     return dedupe([
+      typeof entities.productQuery === 'string' ? entities.productQuery : '',
       typeof entities.rawMessage === 'string' ? entities.rawMessage : '',
       typeof entities.requestSummary === 'string' ? entities.requestSummary : '',
-      typeof entities.productQuery === 'string' ? entities.productQuery : '',
       input.message,
     ]);
   }

@@ -457,7 +457,13 @@ export function PublicChatShell({
                                 <div className="chat-user-info">
                                   <div className="chat-user-msg">
                                     <h6>{getConversationDisplayTitle(conversation.title)}</h6>
-                                    {conversation.awaitingReply ? (
+                                    {conversation.typingActive ? (
+                                      <p>
+                                        {formatChatPresenceLabel(conversation.presence, {
+                                          typingActive: true,
+                                        })}
+                                      </p>
+                                    ) : conversation.awaitingReply ? (
                                       <p>
                                         <span className="animate-typing">
                                           {formatChatPresenceLabel(conversation.presence)}
@@ -466,8 +472,6 @@ export function PublicChatShell({
                                           <span className="dot"></span>
                                         </span>
                                       </p>
-                                    ) : conversation.typingActive ? (
-                                      <p>{formatChatPresenceLabel(conversation.presence, { typingActive: true })}</p>
                                     ) : (
                                       <p>{getConversationPreview(conversation.preview)}</p>
                                     )}
@@ -477,7 +481,8 @@ export function PublicChatShell({
                                       {formatChatListTime(conversation.timestamp)}
                                     </span>
                                     <div className="chat-pin">
-                                      {conversation.awaitingReply ? (
+                                      {conversation.awaitingReply &&
+                                      !conversation.typingActive ? (
                                         <span className="count-message fs-12 fw-semibold">
                                           Live
                                         </span>

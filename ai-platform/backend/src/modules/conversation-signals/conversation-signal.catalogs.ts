@@ -57,9 +57,11 @@ const sharedRetrievalStopWords = [
   'productos',
   'quiero',
   'saber',
+  'sobre',
   'tambien',
   'tiene',
   'tienen',
+  'about',
 ];
 
 const sharedBridgeTerms = ['also', 'tambien'];

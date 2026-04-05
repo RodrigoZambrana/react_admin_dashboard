@@ -5,6 +5,7 @@ import { ContinuityModule } from '../continuity/continuity.module';
 import { CriticalConfigModule } from '../critical-config/critical-config.module';
 import { DecisionModule } from '../decision/decision.module';
 import { DocumentsModule } from '../documents/documents.module';
+import { AiGatewayModule } from '../ai-gateway/ai-gateway.module';
 import { InterpretationModule } from '../interpretation/interpretation.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
 import { KnowledgeMetadataModule } from '../knowledge-metadata/knowledge-metadata.module';
@@ -35,6 +36,7 @@ import { TraceLogService } from './trace-log.service';
 
 @Module({
   imports: [
+    AiGatewayModule,
     MemoryModule,
     KnowledgeModule,
     KnowledgeMetadataModule,

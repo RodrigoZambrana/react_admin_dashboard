@@ -165,7 +165,7 @@ export class SemanticTurnExecutionService {
       execution,
       documentContext: documentRetrieval.result,
       continuity: preparedTurn.continuity,
-      conversationState,
+      conversationState: preparedTurn.activeState,
       abortSignal: options?.abortSignal,
     });
     throwIfAborted(options?.abortSignal);

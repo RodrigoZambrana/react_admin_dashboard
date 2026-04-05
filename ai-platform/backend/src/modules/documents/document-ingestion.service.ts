@@ -4,6 +4,7 @@ import { ManagedResourceStatus, Prisma } from '@prisma/client';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
 import { DocumentRepository } from '../persistence/repositories/document.repository';
+import { buildDocumentChunkBoundaryMetadata } from './document-chunk-boundary';
 import { DocumentChunkCandidate } from './document.types';
 
 @Injectable()
@@ -101,6 +102,7 @@ export class DocumentIngestionService {
         searchText: normalizeSearchText(content),
         metadata: {
           characterLength: content.length,
+          ...buildDocumentChunkBoundaryMetadata(content),
         },
       });
       sequence += 1;
@@ -153,7 +155,12 @@ export class DocumentIngestionService {
   }
 
   private buildSummary(chunks: DocumentChunkCandidate[]) {
-    return chunks
+    const preferredChunks =
+      chunks.some((chunk) => chunk.metadata?.usageBoundary === 'knowledge')
+        ? chunks.filter((chunk) => chunk.metadata?.usageBoundary === 'knowledge')
+        : chunks;
+
+    return preferredChunks
       .slice(0, 2)
       .map((chunk) => chunk.content)
       .join(' ')
