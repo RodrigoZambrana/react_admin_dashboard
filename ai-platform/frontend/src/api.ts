@@ -13,6 +13,7 @@ import type {
   KnowledgeEntry,
   KnowledgeMetadataVersion,
   PromptVersion,
+  PromptEffectiveView,
   ReplayResponse,
   ResponseFallbackVersion,
   TestCenterRunDetail,
@@ -136,6 +137,12 @@ export async function listActivePrompts() {
   return apiRequest<PromptVersion[]>('/admin/runtime-resources/prompts/active');
 }
 
+export async function listEffectivePrompts() {
+  return apiRequest<PromptEffectiveView[]>(
+    '/admin/runtime-resources/prompts/effective',
+  );
+}
+
 export async function createPromptVersion(input: {
   key: string;
   template: string;
@@ -151,6 +158,18 @@ export async function createPromptVersion(input: {
 export async function activatePromptVersion(versionId: string, createdBy = 'admin-ui') {
   return apiRequest<PromptVersion>(
     `/admin/runtime-resources/prompts/${versionId}/activate`,
+    {
+      method: 'POST',
+      body: {
+        createdBy,
+      },
+    },
+  );
+}
+
+export async function archivePromptVersion(versionId: string, createdBy = 'admin-ui') {
+  return apiRequest<PromptVersion>(
+    `/admin/runtime-resources/prompts/${versionId}/archive`,
     {
       method: 'POST',
       body: {

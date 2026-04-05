@@ -2511,3 +2511,36 @@
 ### Next Steps
 - Wire the admin `#prompts` experience to the new effective prompt view and archive operation
 - Keep Wave 9 out of scope while closing prompt governance and operator usability cleanly
+
+## Iteration 75
+
+### Implemented
+- Upgraded the admin `#prompts` surface to consume the real backend runtime view:
+  - shows effective runtime source per prompt key
+  - shows managed policy vs current recommended baseline
+  - shows fixed safety and backend-owned contract layers separately from editable policy text
+  - shows an assembled system-prompt preview so operators can inspect runtime reality without reading backend code
+- Added prompt archive operations to the admin UI while preserving version history
+- Added editor affordances for governed prompt operations:
+  - load selected version as base
+  - load current recommended baseline
+  - detect when the live managed wording differs from the current recommended baseline
+
+### Working
+- The admin `#prompts` experience is no longer policy-only or misleading:
+  - operators can now distinguish governed prompt wording from backend-owned safety/contract behavior
+  - active-vs-recommended drift is visible and replaceable from the same screen
+- Prompt lifecycle remains operator-usable through governed backend contracts instead of developer-only inspection
+- Existing conversational runtime behavior remains untouched by the admin-only visibility upgrade
+
+### Technical Debt
+- The frontend workspace still lacks a supported automated test harness, so prompt admin validation remains build-only plus backend coverage
+- Effective prompt preview intentionally stays high-level; it is truthful for operator inspection but not a raw dump of every runtime input variant
+- Operators still need to activate a newer version explicitly when they want recommended wording to become live
+
+### Next Steps
+- Keep Wave 9 out of scope
+- Carry forward only bounded non-core debt:
+  - frontend harness work
+  - richer prompt diff tooling if operators later need side-by-side text diffs
+  - optional audit surfaces for prompt activation history beyond the current version metadata

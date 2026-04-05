@@ -44,6 +44,23 @@ export type PromptVersion = {
   createdBy?: string | null;
 };
 
+export type PromptEffectiveView = {
+  key: 'interpretation' | 'response';
+  promptId: string | null;
+  promptVersion: number | null;
+  source: 'managed' | 'recommended_default' | 'caller_override';
+  localeHint: string | null;
+  effectivePolicy: string;
+  recommendedPolicy: string;
+  differsFromRecommended: boolean;
+  managedPromptStatus: ManagedResourceStatus | null;
+  managedPromptCreatedAt: string | null;
+  managedPromptCreatedBy: string | null;
+  safetyLines: string[];
+  contractLines: string[];
+  assembledSystemPrompt: string;
+};
+
 export type TemporalLocaleResource = {
   locale: string;
   datePhrases: string[];
