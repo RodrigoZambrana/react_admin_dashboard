@@ -20,8 +20,10 @@ export class TemporalLocaleVersionRepository {
   ) {}
 
   async getActiveByLocale(locale: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.temporalLocaleVersion.findFirst({
       where: {
+        tenantId,
         locale: normalizeLocaleCode(locale),
         status: ManagedResourceStatus.ACTIVE,
       },
@@ -30,25 +32,36 @@ export class TemporalLocaleVersionRepository {
   }
 
   list(locale?: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.temporalLocaleVersion.findMany({
-      where: locale ? { locale: normalizeLocaleCode(locale) } : undefined,
+      where: {
+        tenantId,
+        ...(locale ? { locale: normalizeLocaleCode(locale) } : {}),
+      },
       orderBy: [{ locale: 'asc' }, { version: 'desc' }],
     });
   }
 
   findById(id: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.temporalLocaleVersion.findFirst({
-      where: { id },
+      where: { id, tenantId },
     });
   }
 
   hasAnyVersions() {
-    return this.prisma.temporalLocaleVersion.count().then((count) => count > 0);
+    const tenantId = this.tenantContext.getTenantId();
+    return this.prisma.temporalLocaleVersion
+      .count({
+        where: { tenantId },
+      })
+      .then((count) => count > 0);
   }
 
   async listActive() {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.temporalLocaleVersion.findMany({
-      where: { status: ManagedResourceStatus.ACTIVE },
+      where: { tenantId, status: ManagedResourceStatus.ACTIVE },
       orderBy: [{ locale: 'asc' }, { version: 'desc' }],
     });
   }
@@ -57,13 +70,14 @@ export class TemporalLocaleVersionRepository {
     const tenantId = this.tenantContext.getTenantId();
     const locale = normalizeLocaleCode(input.locale);
     const latest = await this.prisma.temporalLocaleVersion.findFirst({
-      where: { locale },
+      where: { tenantId, locale },
       orderBy: { version: 'desc' },
     });
 
     if (input.activate) {
       await this.prisma.temporalLocaleVersion.updateMany({
         where: {
+          tenantId,
           locale,
           status: ManagedResourceStatus.ACTIVE,
         },

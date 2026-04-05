@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 
+import { getRuntimeResourceContext } from './api';
 import { AdminShell, type AdminNavigationItem } from './components/layout/AdminShell';
 import { TemplateAssetBundle } from './components/layout/TemplateAssetBundle';
 import { DashboardPage } from './pages/DashboardPage';
@@ -107,6 +108,8 @@ export function AdminApp() {
     parseRouteFromHash(window.location.hash),
   );
   const [templateReady, setTemplateReady] = useState(false);
+  const [tenantDisplayName, setTenantDisplayName] = useState('runtime default');
+  const [tenantModeLabel, setTenantModeLabel] = useState('Resolving tenant context');
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -117,6 +120,35 @@ export function AdminApp() {
 
     return () => {
       window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    void getRuntimeResourceContext()
+      .then((context) => {
+        if (!active) {
+          return;
+        }
+
+        setTenantDisplayName(context.tenantId);
+        setTenantModeLabel(
+          context.source === 'default_tenant'
+            ? 'Default runtime tenant'
+            : 'Header override tenant',
+        );
+      })
+      .catch(() => {
+        if (!active) {
+          return;
+        }
+
+        setTenantModeLabel('Runtime tenant context unavailable');
+      });
+
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -133,6 +165,8 @@ export function AdminApp() {
         navigationItems={navigationItems}
         currentLabel={routeLabels[route]}
         showGlobalLoader={!templateReady}
+        tenantDisplayName={tenantDisplayName}
+        tenantModeLabel={tenantModeLabel}
       >
         {route === 'dashboard' ? <DashboardPage /> : null}
         {route === 'chat-test-center' ? <ChatTestCenterPage /> : null}

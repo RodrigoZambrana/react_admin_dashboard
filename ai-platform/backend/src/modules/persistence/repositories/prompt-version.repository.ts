@@ -20,8 +20,10 @@ export class PromptVersionRepository {
   ) {}
 
   async getActiveByKey(key: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.promptVersion.findFirst({
       where: {
+        tenantId,
         key,
         status: ManagedResourceStatus.ACTIVE,
       },
@@ -30,15 +32,20 @@ export class PromptVersionRepository {
   }
 
   list(key?: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.promptVersion.findMany({
-      where: key ? { key } : undefined,
+      where: {
+        tenantId,
+        ...(key ? { key } : {}),
+      },
       orderBy: [{ key: 'asc' }, { version: 'desc' }],
     });
   }
 
   findById(id: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.promptVersion.findFirst({
-      where: { id },
+      where: { id, tenantId },
     });
   }
 
@@ -46,22 +53,41 @@ export class PromptVersionRepository {
     id: string;
     metadata?: Prisma.InputJsonValue;
   }) {
-    return this.prisma.promptVersion.update({
-      where: { id: input.id },
-      data: {
-        status: ManagedResourceStatus.ARCHIVED,
-        metadata: input.metadata,
-      },
+    const tenantId = this.tenantContext.getTenantId();
+    return this.prisma.$transaction(async (tx) => {
+      await tx.promptVersion.updateMany({
+        where: {
+          id: input.id,
+          tenantId,
+        },
+        data: {
+          status: ManagedResourceStatus.ARCHIVED,
+          metadata: input.metadata,
+        },
+      });
+
+      return tx.promptVersion.findFirstOrThrow({
+        where: {
+          id: input.id,
+          tenantId,
+        },
+      });
     });
   }
 
   hasAnyVersions() {
-    return this.prisma.promptVersion.count().then((count) => count > 0);
+    const tenantId = this.tenantContext.getTenantId();
+    return this.prisma.promptVersion
+      .count({
+        where: { tenantId },
+      })
+      .then((count) => count > 0);
   }
 
   listActive() {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.promptVersion.findMany({
-      where: { status: ManagedResourceStatus.ACTIVE },
+      where: { tenantId, status: ManagedResourceStatus.ACTIVE },
       orderBy: [{ key: 'asc' }, { version: 'desc' }],
     });
   }
@@ -69,13 +95,14 @@ export class PromptVersionRepository {
   async createVersion(input: CreatePromptVersionInput) {
     const tenantId = this.tenantContext.getTenantId();
     const latest = await this.prisma.promptVersion.findFirst({
-      where: { key: input.key },
+      where: { tenantId, key: input.key },
       orderBy: { version: 'desc' },
     });
 
     if (input.activate) {
       await this.prisma.promptVersion.updateMany({
         where: {
+          tenantId,
           key: input.key,
           status: ManagedResourceStatus.ACTIVE,
         },

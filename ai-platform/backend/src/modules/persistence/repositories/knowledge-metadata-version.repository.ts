@@ -20,8 +20,10 @@ export class KnowledgeMetadataVersionRepository {
   ) {}
 
   async getActiveByKey(key: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.knowledgeMetadataVersion.findFirst({
       where: {
+        tenantId,
         key,
         status: ManagedResourceStatus.ACTIVE,
       },
@@ -30,27 +32,36 @@ export class KnowledgeMetadataVersionRepository {
   }
 
   list(key?: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.knowledgeMetadataVersion.findMany({
-      where: key ? { key } : undefined,
+      where: {
+        tenantId,
+        ...(key ? { key } : {}),
+      },
       orderBy: [{ key: 'asc' }, { version: 'desc' }],
     });
   }
 
   findById(id: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.knowledgeMetadataVersion.findFirst({
-      where: { id },
+      where: { id, tenantId },
     });
   }
 
   hasAnyVersions() {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.knowledgeMetadataVersion
-      .count()
+      .count({
+        where: { tenantId },
+      })
       .then((count) => count > 0);
   }
 
   listActive() {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.knowledgeMetadataVersion.findMany({
-      where: { status: ManagedResourceStatus.ACTIVE },
+      where: { tenantId, status: ManagedResourceStatus.ACTIVE },
       orderBy: [{ key: 'asc' }, { version: 'desc' }],
     });
   }
@@ -58,13 +69,14 @@ export class KnowledgeMetadataVersionRepository {
   async createVersion(input: CreateKnowledgeMetadataVersionInput) {
     const tenantId = this.tenantContext.getTenantId();
     const latest = await this.prisma.knowledgeMetadataVersion.findFirst({
-      where: { key: input.key },
+      where: { tenantId, key: input.key },
       orderBy: { version: 'desc' },
     });
 
     if (input.activate) {
       await this.prisma.knowledgeMetadataVersion.updateMany({
         where: {
+          tenantId,
           key: input.key,
           status: ManagedResourceStatus.ACTIVE,
         },

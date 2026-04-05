@@ -4,6 +4,7 @@ import {
   activatePromptVersion,
   archivePromptVersion,
   createPromptVersion,
+  getRuntimeResourceContext,
   listActivePrompts,
   listEffectivePrompts,
   listPromptVersions,
@@ -12,7 +13,11 @@ import { ResourceVersionTable } from '../components/resources/ResourceVersionTab
 import { EmptyState } from '../components/shared/EmptyState';
 import { PageHeader } from '../components/shared/PageHeader';
 import { StatusBadge } from '../components/shared/StatusBadge';
-import type { PromptEffectiveView, PromptVersion } from '../types';
+import type {
+  PromptEffectiveView,
+  PromptVersion,
+  RuntimeResourceContextView,
+} from '../types';
 
 const promptKeys = ['interpretation', 'response'] as const;
 
@@ -66,6 +71,16 @@ function getPromptAlignment(view: PromptEffectiveView) {
   };
 }
 
+function getRuntimeContextLabel(context: RuntimeResourceContextView | null) {
+  if (!context) {
+    return 'Tenant context unavailable';
+  }
+
+  return context.source === 'default_tenant'
+    ? 'Backend default tenant'
+    : 'Explicit tenant override';
+}
+
 export function PromptsPage() {
   const [versions, setVersions] = useState<PromptVersion[]>([]);
   const [activeVersions, setActiveVersions] = useState<PromptVersion[]>([]);
@@ -76,6 +91,8 @@ export function PromptsPage() {
   const [saving, setSaving] = useState(false);
   const [activatingId, setActivatingId] = useState<string>();
   const [archivingId, setArchivingId] = useState<string>();
+  const [runtimeContext, setRuntimeContext] =
+    useState<RuntimeResourceContextView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -97,14 +114,17 @@ export function PromptsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [versionData, activeData, effectiveData] = await Promise.all([
+      const [versionData, activeData, effectiveData, runtimeContextData] =
+        await Promise.all([
         listPromptVersions(),
         listActivePrompts(),
         listEffectivePrompts(),
+        getRuntimeResourceContext().catch(() => null),
       ]);
       setVersions(versionData);
       setActiveVersions(activeData);
       setEffectiveViews(effectiveData);
+      setRuntimeContext(runtimeContextData);
       const nextSelected = nextSelectedId ?? selectedId ?? versionData[0]?.id;
       setSelectedId(nextSelected);
       const nextVersion = versionData.find((version) => version.id === nextSelected);
@@ -212,6 +232,15 @@ export function PromptsPage() {
           {notice}
         </div>
       ) : null}
+      <div className="alert alert-info custom-react-alert" role="alert">
+        Prompt operations are currently scoped to{' '}
+        <strong>{runtimeContext?.tenantId ?? 'the resolved runtime tenant'}</strong>.
+        {' '}
+        {getRuntimeContextLabel(runtimeContext)}
+        {runtimeContext?.defaultTenantId
+          ? ` (${runtimeContext.defaultTenantId} is the backend default).`
+          : '.'}
+      </div>
 
       <div className="row">
         <div className="col-md-6 col-xl-4 d-flex">

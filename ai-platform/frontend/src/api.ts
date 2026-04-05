@@ -13,6 +13,7 @@ import type {
   KnowledgeEntry,
   KnowledgeMetadataVersion,
   PromptVersion,
+  RuntimeResourceContextView,
   PromptEffectiveView,
   ReplayResponse,
   ResponseFallbackVersion,
@@ -37,7 +38,11 @@ function resolveApiBaseUrl() {
 }
 
 const apiBaseUrl = resolveApiBaseUrl();
-const tenantId = import.meta.env.VITE_TENANT_ID ?? 'demo-tenant';
+const configuredTenantId =
+  typeof import.meta.env.VITE_TENANT_ID === 'string' &&
+  import.meta.env.VITE_TENANT_ID.trim().length > 0
+    ? import.meta.env.VITE_TENANT_ID.trim()
+    : null;
 
 type JsonBody = Record<string, unknown> | Array<unknown>;
 type ApiRequestInit = Omit<RequestInit, 'body'> & {
@@ -61,7 +66,7 @@ export async function apiRequest<T>(
     headers: {
       Accept: 'application/json',
       ...(init?.body instanceof FormData ? {} : { 'content-type': 'application/json' }),
-      'x-tenant-id': tenantId,
+      ...(configuredTenantId ? { 'x-tenant-id': configuredTenantId } : {}),
       ...(init?.headers ?? {}),
     },
     ...init,
@@ -74,6 +79,10 @@ export async function apiRequest<T>(
   }
 
   return response.json() as Promise<T>;
+}
+
+export async function getRuntimeResourceContext() {
+  return apiRequest<RuntimeResourceContextView>('/admin/runtime-resources/context');
 }
 
 export async function listConversations(limit = 8) {

@@ -20,8 +20,10 @@ export class ResponseFallbackVersionRepository {
   ) {}
 
   async getActiveByLocale(locale: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.responseFallbackVersion.findFirst({
       where: {
+        tenantId,
         locale,
         status: ManagedResourceStatus.ACTIVE,
       },
@@ -30,27 +32,36 @@ export class ResponseFallbackVersionRepository {
   }
 
   list(locale?: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.responseFallbackVersion.findMany({
-      where: locale ? { locale } : undefined,
+      where: {
+        tenantId,
+        ...(locale ? { locale } : {}),
+      },
       orderBy: [{ locale: 'asc' }, { version: 'desc' }],
     });
   }
 
   findById(id: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.responseFallbackVersion.findFirst({
-      where: { id },
+      where: { id, tenantId },
     });
   }
 
   hasAnyVersions() {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.responseFallbackVersion
-      .count()
+      .count({
+        where: { tenantId },
+      })
       .then((count) => count > 0);
   }
 
   listActive() {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.responseFallbackVersion.findMany({
-      where: { status: ManagedResourceStatus.ACTIVE },
+      where: { tenantId, status: ManagedResourceStatus.ACTIVE },
       orderBy: [{ locale: 'asc' }, { version: 'desc' }],
     });
   }
@@ -58,13 +69,14 @@ export class ResponseFallbackVersionRepository {
   async createVersion(input: CreateResponseFallbackVersionInput) {
     const tenantId = this.tenantContext.getTenantId();
     const latest = await this.prisma.responseFallbackVersion.findFirst({
-      where: { locale: input.locale },
+      where: { tenantId, locale: input.locale },
       orderBy: { version: 'desc' },
     });
 
     if (input.activate) {
       await this.prisma.responseFallbackVersion.updateMany({
         where: {
+          tenantId,
           locale: input.locale,
           status: ManagedResourceStatus.ACTIVE,
         },

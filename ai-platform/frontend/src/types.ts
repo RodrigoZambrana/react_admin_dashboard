@@ -61,6 +61,13 @@ export type PromptEffectiveView = {
   assembledSystemPrompt: string;
 };
 
+export type RuntimeResourceContextView = {
+  tenantId: string;
+  defaultTenantId: string | null;
+  source: 'default_tenant' | 'header_override';
+  matchesDefault: boolean;
+};
+
 export type TemporalLocaleResource = {
   locale: string;
   datePhrases: string[];

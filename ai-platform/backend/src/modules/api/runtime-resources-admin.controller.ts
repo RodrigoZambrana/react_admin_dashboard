@@ -7,6 +7,7 @@ import { ResponseFallbackService } from '../response-fallback/response-fallback.
 import { TemporalLocaleService } from '../temporal/temporal-locale.service';
 import { AiRuntimeDiagnosticsService } from '../runtime-config/ai-runtime-diagnostics.service';
 import { AiPromptVisibilityService } from '../ai-gateway/ai-prompt-visibility.service';
+import { TenantRuntimeContextService } from '../persistence/tenant/tenant-runtime-context.service';
 import { CreateCriticalConfigVersionDto } from './dto/create-critical-config-version.dto';
 import { CreateKnowledgeMetadataVersionDto } from './dto/create-knowledge-metadata-version.dto';
 import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
@@ -24,6 +25,7 @@ export class RuntimeResourcesAdminController {
     private readonly responseFallbackService: ResponseFallbackService,
     private readonly aiRuntimeDiagnosticsService: AiRuntimeDiagnosticsService,
     private readonly aiPromptVisibilityService: AiPromptVisibilityService,
+    private readonly tenantRuntimeContextService: TenantRuntimeContextService,
   ) {}
 
   @Get('prompts')
@@ -39,6 +41,11 @@ export class RuntimeResourcesAdminController {
   @Get('prompts/effective')
   listEffectivePromptViews() {
     return this.aiPromptVisibilityService.listEffectivePromptViews();
+  }
+
+  @Get('context')
+  getRuntimeContext() {
+    return this.tenantRuntimeContextService.getRuntimeContext();
   }
 
   @Post('prompts')

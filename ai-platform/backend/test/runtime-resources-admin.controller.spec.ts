@@ -49,6 +49,14 @@ describe('RuntimeResourcesAdminController', () => {
       {
         listEffectivePromptViews: jest.fn(async () => ['prompt-effective']),
       } as any,
+      {
+        getRuntimeContext: jest.fn(() => ({
+          tenantId: 'demo-tenant',
+          defaultTenantId: 'demo-tenant',
+          source: 'default_tenant',
+          matchesDefault: true,
+        })),
+      } as any,
     );
 
     await expect(controller.listCriticalConfigVersions('learning')).resolves.toEqual([
@@ -69,6 +77,12 @@ describe('RuntimeResourcesAdminController', () => {
     await expect(controller.listEffectivePromptViews()).resolves.toEqual([
       'prompt-effective',
     ]);
+    expect(controller.getRuntimeContext()).toEqual({
+      tenantId: 'demo-tenant',
+      defaultTenantId: 'demo-tenant',
+      source: 'default_tenant',
+      matchesDefault: true,
+    });
     await expect(controller.listResponseFallbackVersions('es')).resolves.toEqual([
       'fallback-version',
     ]);

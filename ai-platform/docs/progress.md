@@ -2544,3 +2544,28 @@
   - frontend harness work
   - richer prompt diff tooling if operators later need side-by-side text diffs
   - optional audit surfaces for prompt activation history beyond the current version metadata
+
+## Iteration 76
+
+### Implemented
+- Unified governed runtime-resource operations around the backend-resolved tenant context:
+  - prompt, temporal-locale, response-fallback, knowledge-metadata, and critical-config repositories now scope reads, activation history, and version increments explicitly to the current tenant instead of depending only on implicit Prisma middleware behavior
+  - added an admin runtime-context surface so operators can see which tenant the governed prompt/resource screens are actually editing
+- Removed misleading frontend tenant defaults from prompt operations:
+  - the frontend no longer injects a hardcoded fallback tenant id when no explicit `VITE_TENANT_ID` override exists
+  - admin shell and prompt operations now display the effective tenant resolved by the backend runtime context
+
+### Working
+- In local/single-tenant operation, governed prompt/version actions now align with the backend default tenant instead of a separate frontend fallback assumption
+- Admin `#prompts` now shows the effective runtime tenant context, reducing the risk of activating or editing the wrong prompt family when historical bootstrap tenants still exist in storage
+- Managed resource repositories keep multi-tenant isolation intact while making tenant ownership explicit in the code path
+
+### Technical Debt
+- Historical `tenant-alpha` runtime-managed rows still exist in storage as legacy bootstrap/test residue; they are no longer the active runtime truth, but cleanup/migration remains a separate deliberate operation
+- The frontend workspace still lacks a supported automated test harness
+- Prompt content upgrades themselves still need to be applied on top of this now-unified tenant/runtime base
+
+### Next Steps
+- Validate backend and frontend after the tenant/runtime unification changes
+- Continue the real prompt-content upgrade only against the now-explicit runtime tenant context
+- Keep Wave 9 out of scope

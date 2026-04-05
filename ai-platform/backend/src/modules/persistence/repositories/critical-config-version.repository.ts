@@ -20,8 +20,10 @@ export class CriticalConfigVersionRepository {
   ) {}
 
   async getActiveByKey(key: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.criticalConfigVersion.findFirst({
       where: {
+        tenantId,
         key,
         status: ManagedResourceStatus.ACTIVE,
       },
@@ -30,26 +32,38 @@ export class CriticalConfigVersionRepository {
   }
 
   list(key?: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.criticalConfigVersion.findMany({
-      where: key ? { key } : undefined,
+      where: {
+        tenantId,
+        ...(key ? { key } : {}),
+      },
       orderBy: [{ key: 'asc' }, { version: 'desc' }],
     });
   }
 
   findById(id: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.criticalConfigVersion.findFirst({
-      where: { id },
+      where: { id, tenantId },
     });
   }
 
   hasAnyVersions() {
-    return this.prisma.criticalConfigVersion.count().then((count) => count > 0);
+    const tenantId = this.tenantContext.getTenantId();
+    return this.prisma.criticalConfigVersion
+      .count({
+        where: { tenantId },
+      })
+      .then((count) => count > 0);
   }
 
   hasVersionsForKey(key: string) {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.criticalConfigVersion
       .count({
         where: {
+          tenantId,
           key,
         },
       })
@@ -57,8 +71,9 @@ export class CriticalConfigVersionRepository {
   }
 
   listActive() {
+    const tenantId = this.tenantContext.getTenantId();
     return this.prisma.criticalConfigVersion.findMany({
-      where: { status: ManagedResourceStatus.ACTIVE },
+      where: { tenantId, status: ManagedResourceStatus.ACTIVE },
       orderBy: [{ key: 'asc' }, { version: 'desc' }],
     });
   }
@@ -66,13 +81,14 @@ export class CriticalConfigVersionRepository {
   async createVersion(input: CreateCriticalConfigVersionInput) {
     const tenantId = this.tenantContext.getTenantId();
     const latest = await this.prisma.criticalConfigVersion.findFirst({
-      where: { key: input.key },
+      where: { tenantId, key: input.key },
       orderBy: { version: 'desc' },
     });
 
     if (input.activate) {
       await this.prisma.criticalConfigVersion.updateMany({
         where: {
+          tenantId,
           key: input.key,
           status: ManagedResourceStatus.ACTIVE,
         },

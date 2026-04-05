@@ -20,12 +20,14 @@ import { TemporalLocaleVersionRepository } from './repositories/temporal-locale-
 import { PrismaService } from './prisma/prisma.service';
 import { TenantContextService } from './tenant/tenant-context.service';
 import { TenantMiddleware } from './tenant/tenant.middleware';
+import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.service';
 
 @Global()
 @Module({
   imports: [LoggingModule],
   providers: [
     TenantContextService,
+    TenantRuntimeContextService,
     TenantMiddleware,
     PrismaService,
     AsyncConversationTurnRepository,
@@ -47,6 +49,7 @@ import { TenantMiddleware } from './tenant/tenant.middleware';
   ],
   exports: [
     TenantContextService,
+    TenantRuntimeContextService,
     PrismaService,
     AsyncConversationTurnRepository,
     AsyncConversationTurnInputRepository,

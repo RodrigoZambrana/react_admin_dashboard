@@ -795,6 +795,29 @@ This boundary makes explicit that:
 
 remain approved tenant-scoped resources rather than core logic. The chat may consume them only through approved backend-governed boundaries.
 
+## Runtime Tenant Resolution For Governed Resources
+
+Governed runtime resources such as:
+
+- prompts
+- temporal locale resources
+- critical configs
+- response fallback catalogs
+- knowledge metadata
+
+are tenant-scoped resources. The active runtime truth for those resources must therefore resolve from the backend tenant context, not from a separate frontend-only default.
+
+Current shape:
+
+- backend request handling resolves tenant context from `x-tenant-id` when explicitly provided or `DEFAULT_TENANT_ID` otherwise
+- runtime-managed resource repositories now scope version history, active lookups, and activation/archive operations explicitly to the resolved tenant
+- admin prompt/runtime-resource surfaces expose the effective runtime tenant context so operators can see which tenant they are governing
+
+This keeps the platform multi-tenant-safe while also making local/single-tenant exploratory operation unambiguous:
+
+- `demo-tenant` is the current backend default runtime tenant in local exploratory mode
+- historical rows under other tenants (for example `tenant-alpha`) do not become the active runtime truth unless a request explicitly resolves into that tenant
+
 ## Security Preparation
 
 - Current API mode remains open for this iteration

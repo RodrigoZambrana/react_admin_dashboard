@@ -12,6 +12,8 @@ type AdminShellProps = PropsWithChildren<{
   currentLabel: string;
   navigationItems: AdminNavigationItem[];
   showGlobalLoader: boolean;
+  tenantDisplayName: string;
+  tenantModeLabel: string;
 }>;
 
 export function AdminShell({
@@ -19,6 +21,8 @@ export function AdminShell({
   currentLabel,
   navigationItems,
   showGlobalLoader,
+  tenantDisplayName,
+  tenantModeLabel,
   children,
 }: AdminShellProps) {
   const handleNoopClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -175,8 +179,8 @@ export function AdminShell({
                         />
                       </span>
                       <div>
-                        <h6 className="fs-14 fw-medium">Demo Tenant</h6>
-                        <span className="text-primary fs-12">Platform Operator</span>
+                        <h6 className="fs-14 fw-medium">{tenantDisplayName}</h6>
+                        <span className="text-primary fs-12">{tenantModeLabel}</span>
                       </div>
                     </div>
                   </a>
@@ -249,7 +253,7 @@ export function AdminShell({
                 <li>
                   <a href="#dashboard">
                     <i className="ti ti-building-store"></i>
-                    <span>Tenant: demo-tenant</span>
+                    <span>Tenant: {tenantDisplayName}</span>
                   </a>
                 </li>
                 <li>
