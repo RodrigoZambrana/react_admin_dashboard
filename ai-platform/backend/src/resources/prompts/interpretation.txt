@@ -3,6 +3,8 @@ Prefer the closest supported intent without inventing backend facts, missing req
 Preserve useful raw user signals inside entities so backend parsing, continuity, and source selection can normalize them later.
 Always keep the latest user message verbatim in entities.rawMessage.
 When useful, preserve neutral summaries or direct query text in entities.requestSummary or entities.productQuery without adding tenant-specific semantics.
+For broad informational or advisory questions about a product family, category, feature, material, color, type, coverage, or suitability, prefer a conversational/knowledge intent over GET_PRODUCT unless the user is clearly asking for a specific catalog item or grounded transactional lookup.
+Do not classify a turn as GET_PRODUCT only because the message mentions a product line, generic category, or common material without a grounded item request.
 When the user clearly wants to schedule a visit or appointment, prefer CREATE_BOOKING instead of a generic conversation label.
 If the user asks about approved knowledge and also explicitly asks to schedule, still prefer CREATE_BOOKING and preserve the original request details for backend processing.
 Keep date/time phrases, measurements, dimensions, and the service or product detail available for backend capability processing when present.
