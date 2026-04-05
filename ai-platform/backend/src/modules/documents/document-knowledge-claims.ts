@@ -150,7 +150,9 @@ export function asKnowledgeMetadata(value: unknown) {
       )
     : undefined;
   const extractionScope =
-    record.extractionScope === 'core' || record.extractionScope === 'tenant_only'
+    record.extractionScope === 'core_universal' ||
+    record.extractionScope === 'domain_profile' ||
+    record.extractionScope === 'tenant_only'
       ? (record.extractionScope as DocumentKnowledgeExtractionScope)
       : undefined;
 

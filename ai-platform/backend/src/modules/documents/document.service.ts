@@ -18,6 +18,7 @@ import {
 } from './document.types';
 import { DocumentContentExtractorService } from './document-content-extractor.service';
 import { DocumentIngestionService } from './document-ingestion.service';
+import { DocumentKnowledgeViewService } from './document-knowledge-view.service';
 
 @Injectable()
 export class DocumentService {
@@ -25,6 +26,7 @@ export class DocumentService {
     private readonly documentRepository: DocumentRepository,
     private readonly contentExtractor: DocumentContentExtractorService,
     private readonly documentIngestionService: DocumentIngestionService,
+    private readonly documentKnowledgeViewService: DocumentKnowledgeViewService,
     private readonly logger: PipelineLoggerService,
   ) {}
 
@@ -44,6 +46,10 @@ export class DocumentService {
     }
 
     return document;
+  }
+
+  getKnowledgeView(input?: { documentId?: string; limit?: number }) {
+    return this.documentKnowledgeViewService.getKnowledgeView(input);
   }
 
   async createTextDocument(input: CreateTextDocumentInput) {

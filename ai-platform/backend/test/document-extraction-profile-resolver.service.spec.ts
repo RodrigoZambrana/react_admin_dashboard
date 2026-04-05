@@ -1,12 +1,15 @@
+import { DocumentExtractionProfileConfigService } from '../src/modules/documents/document-extraction-profile-config.service';
 import { DocumentExtractionProfileResolverService } from '../src/modules/documents/document-extraction-profile-resolver.service';
 import { DocumentExtractionProfileRegistryService } from '../src/modules/documents/document-extraction-profile-registry.service';
 import { ProductCatalogDocumentProfile } from '../src/modules/documents/profiles/product-catalog-document.profile';
 
 describe('DocumentExtractionProfileResolverService', () => {
   it('does not activate product/catalog extraction by default for unrelated document contexts', () => {
+    const configService = new DocumentExtractionProfileConfigService();
     const resolver = new DocumentExtractionProfileResolverService(
       new DocumentExtractionProfileRegistryService(
-        new ProductCatalogDocumentProfile(),
+        configService,
+        new ProductCatalogDocumentProfile(configService),
       ),
     );
 
@@ -23,9 +26,11 @@ describe('DocumentExtractionProfileResolverService', () => {
   });
 
   it('activates the product/catalog profile when capability context supports it', () => {
+    const configService = new DocumentExtractionProfileConfigService();
     const resolver = new DocumentExtractionProfileResolverService(
       new DocumentExtractionProfileRegistryService(
-        new ProductCatalogDocumentProfile(),
+        configService,
+        new ProductCatalogDocumentProfile(configService),
       ),
     );
 

@@ -7,6 +7,7 @@ describe('AdminDocumentsService', () => {
     const documentService = {
       listDocuments: jest.fn(async () => [{ id: 'doc-1' }]),
       getDocument: jest.fn(async () => ({ id: 'doc-1' })),
+      getKnowledgeView: jest.fn(async () => ({ scope: 'active_corpus' })),
       createTextDocument: jest.fn(async () => ({ id: 'doc-text' })),
       createUploadedDocument: jest.fn(async () => ({ id: 'doc-upload' })),
       ingestDocument: jest.fn(async () => ({ id: 'doc-ingested' })),
@@ -29,6 +30,16 @@ describe('AdminDocumentsService', () => {
     });
 
     await expect(service.getDocument('doc-1')).resolves.toEqual({ id: 'doc-1' });
+    await expect(
+      service.getKnowledgeView({
+        documentId: 'doc-1',
+        limit: 20,
+      }),
+    ).resolves.toEqual({ scope: 'active_corpus' });
+    expect(documentService.getKnowledgeView).toHaveBeenCalledWith({
+      documentId: 'doc-1',
+      limit: 20,
+    });
     await expect(
       service.createTextDocument({
         title: 'Manual',

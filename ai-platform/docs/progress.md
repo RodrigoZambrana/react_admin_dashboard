@@ -2795,3 +2795,34 @@
 - Add more domain extraction profiles only through explicit modular boundaries when a capability truly needs them
 - Evolve retrieval ranking to use structured claims more strongly without making the base extractor domain-aware again
 - Keep Wave 9 out of scope and preserve the separation between neutral extraction core and capability-scoped semantic profiles
+
+## Iteration 83
+
+### Implemented
+- Externalized the product/catalog extraction vocabulary from TS constants into governed resource files by `profile + locale`
+- Added a loader/compiler boundary for document extraction profile config so modular profiles consume declarative resources instead of inline catalog constants
+- Replaced the extraction scope model with:
+  - `core_universal`
+  - `domain_profile`
+  - `tenant_only`
+- Added system-owned bootstrap assistance during document ingest so uploaded approved documents derive bounded internal hints automatically
+- Updated architecture and regression coverage for:
+  - externalized profile config ownership
+  - new extraction scope semantics
+  - bootstrap hint derivation from extracted claims
+
+### Working
+- The base and profile TS code no longer own inline locale vocab lists for the active product/catalog extraction profile
+- Product/catalog extraction still works through the modular profile, while concrete values remain document-derived and tenant-scoped
+- Uploaded documents are treated as approved knowledge on ingest without requiring users to write regex/config
+- Ingestion now persists bounded internal bootstrap hints such as observed axes, sections, profile ids, and support counts
+
+### Technical Debt
+- Profile config is filesystem-governed for now; there is still no admin-managed editing surface for extraction profile resources
+- Bootstrap hints are intentionally bounded and summary-oriented, not a full document-type classifier
+- Operator-facing visibility of extracted knowledge lands in the next phase increment
+
+### Next Steps
+- Add an admin/backend grounded view of what the system currently knows from uploaded documents
+- Keep retrieval/response compatibility while exposing extracted claims, provenance, and support axes
+- Preserve the modular profile resolver shape and keep Wave 9 out of scope

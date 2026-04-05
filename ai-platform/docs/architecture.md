@@ -233,7 +233,8 @@ The document knowledge path now distinguishes clearly between:
 - support class assignment
 - provenance metadata
 - extraction scope classification:
-  - `core`
+  - `core_universal`
+  - `domain_profile`
   - `tenant_only`
 
 Extraction may persist:
@@ -305,6 +306,46 @@ This keeps:
 - extraction orchestration
 
 inside core, while moving domain semantics into bounded, replaceable modules.
+
+### Externalized Profile Configuration
+
+Domain profiles now keep their locale vocabulary/config outside TS constants and inside governed resource files by `profile + locale`, for example:
+
+- `backend/src/resources/document-extraction-profiles/product_catalog/es.json`
+- `backend/src/resources/document-extraction-profiles/product_catalog/en.json`
+
+These resources are:
+
+- declarative
+- system-owned
+- compiled by a backend loader into bounded runtime matchers
+- not exposed to operators as raw regex authoring
+
+This keeps:
+
+- reusable structural behavior in code
+- locale/domain config in resources
+- tenant truth only in uploaded document content
+
+### System-Owned Bootstrap Assistance
+
+Uploaded documents are treated as approved tenant knowledge immediately.
+The platform does not require users to author technical extraction rules.
+
+Instead, ingestion now derives bounded internal bootstrap hints from extracted claims and chunk support summaries, including:
+
+- active extraction profiles
+- observed sections
+- observed axes
+- observed values by axis
+- support-class counts
+
+These hints remain:
+
+- internal
+- explainable
+- refreshable on re-ingest
+- non-authoritative compared with the source document itself
 
 ### Retrieval Owns
 

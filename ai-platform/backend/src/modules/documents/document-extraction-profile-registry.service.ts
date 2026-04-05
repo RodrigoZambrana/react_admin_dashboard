@@ -4,6 +4,7 @@ import {
   DocumentExtractionProfile,
   DocumentExtractionProfileId,
 } from './document-extraction-profile.types';
+import { DocumentExtractionProfileConfigService } from './document-extraction-profile-config.service';
 import { ProductCatalogDocumentProfile } from './profiles/product-catalog-document.profile';
 
 @Injectable()
@@ -11,7 +12,10 @@ export class DocumentExtractionProfileRegistryService {
   private readonly profiles: DocumentExtractionProfile[];
 
   constructor(
-    productCatalogProfile: ProductCatalogDocumentProfile = new ProductCatalogDocumentProfile(),
+    configService: DocumentExtractionProfileConfigService = new DocumentExtractionProfileConfigService(),
+    productCatalogProfile: ProductCatalogDocumentProfile = new ProductCatalogDocumentProfile(
+      configService,
+    ),
   ) {
     this.profiles = [productCatalogProfile];
   }

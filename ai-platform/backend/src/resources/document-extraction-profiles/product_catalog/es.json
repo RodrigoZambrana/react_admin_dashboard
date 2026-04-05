@@ -1,0 +1,57 @@
+{
+  "locale": "es",
+  "axes": {
+    "product_types": {
+      "listLeadTerms": ["tipos", "tipos principales", "modelos", "lineas", "líneas", "opciones"]
+    },
+    "materials": {
+      "listLeadPhrases": [
+        "disponibles en",
+        "disponible en",
+        "fabricadas en",
+        "fabricados en",
+        "hechas en",
+        "hechos en",
+        "realizadas en",
+        "realizados en"
+      ],
+      "listLeadTerms": ["material", "materiales"]
+    },
+    "operation_modes": {
+      "termFamilies": {
+        "manuales": ["manual", "manuales"],
+        "motorizadas": ["motorizado", "motorizada", "motorizados", "motorizadas"],
+        "automatizadas": ["automatizado", "automatizada", "automatizados", "automatizadas"]
+      }
+    },
+    "color_options": {
+      "listLeadTerms": ["color", "colores"],
+      "varietySignals": ["variedad de colores", "varios colores", "diferentes colores"],
+      "unspecifiedAxes": ["exact_color_options"]
+    },
+    "suitability": {
+      "leadPhrases": [
+        "ideal para",
+        "recomendado para",
+        "recomendada para",
+        "recomendados para",
+        "recomendadas para",
+        "adecuado para",
+        "adecuada para",
+        "adecuados para",
+        "adecuadas para"
+      ]
+    }
+  },
+  "matchingHints": {
+    "listStopTerms": ["con", "para"],
+    "oversizedClaimTailPhrases": [
+      "pueden ser",
+      "puede ser",
+      "con opciones",
+      "opciones manuales",
+      "opciones motorizadas"
+    ],
+    "conjunctionTerms": ["y"]
+  }
+}

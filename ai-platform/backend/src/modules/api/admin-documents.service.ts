@@ -28,6 +28,10 @@ export class AdminDocumentsService {
     return this.documentService.getDocument(documentId);
   }
 
+  getKnowledgeView(input?: { documentId?: string; limit?: number }) {
+    return this.documentService.getKnowledgeView(input);
+  }
+
   createTextDocument(input: {
     title: string;
     content: string;

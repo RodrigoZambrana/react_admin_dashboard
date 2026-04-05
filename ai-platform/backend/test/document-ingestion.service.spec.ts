@@ -45,6 +45,23 @@ describe('DocumentIngestionService', () => {
         },
       })),
     };
+    const bootstrapService = {
+      deriveHints: jest.fn(() => ({
+        approvedByUpload: true,
+        manualConfigRequired: false,
+        activeProfileIds: ['product_catalog'],
+        observedSections: ['CORTINAS DE ENROLLAR'],
+        observedAxes: ['materials'],
+        observedValuesByAxis: {
+          materials: ['PVC', 'aluminio'],
+        },
+        supportCounts: {
+          explicit: 1,
+          partial: 0,
+          boundedInference: 0,
+        },
+      })),
+    };
     const service = new DocumentIngestionService(
       documentRepository as any,
       documentChunkRepository as any,
@@ -54,6 +71,7 @@ describe('DocumentIngestionService', () => {
         error: jest.fn(),
       } as any,
       tenantCapabilityRegistry as any,
+      bootstrapService as any,
     );
 
     await service.ingestDocument({
@@ -70,6 +88,20 @@ describe('DocumentIngestionService', () => {
         }),
         sourceMetadata: expect.objectContaining({
           sourceName: 'catalogo.txt',
+        }),
+      }),
+    );
+    expect(bootstrapService.deriveHints).toHaveBeenCalledWith({
+      chunks: expect.any(Array),
+      activeProfileIds: [],
+    });
+    expect(documentRepository.markReady).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          approvalMode: 'uploaded_document',
+          extractionBootstrap: expect.objectContaining({
+            approvedByUpload: true,
+          }),
         }),
       }),
     );

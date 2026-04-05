@@ -9,6 +9,7 @@ import {
   buildStructuralKnowledgeSummary,
   extractKnowledgeAxisSummaries,
 } from './document-knowledge-claims';
+import { DocumentProfileBootstrapService } from './document-profile-bootstrap.service';
 import { DocumentChunkCandidate } from './document.types';
 import { DocumentKnowledgeExtractionService } from './document-knowledge-extraction.service';
 
@@ -20,6 +21,7 @@ export class DocumentIngestionService {
     private readonly documentKnowledgeExtractionService: DocumentKnowledgeExtractionService,
     private readonly logger: PipelineLoggerService,
     private readonly tenantCapabilityRegistry: TenantCapabilityRegistryService,
+    private readonly documentProfileBootstrapService: DocumentProfileBootstrapService,
   ) {}
 
   async ingestDocument(input: {
@@ -43,6 +45,21 @@ export class DocumentIngestionService {
           locale: document.language,
           activeCapabilities: capabilities.enabledKeys,
         },
+      });
+      const activeProfileIds = Array.from(
+        new Set(
+          chunks.flatMap((chunk) =>
+            Array.isArray(chunk.metadata?.extractionProfiles)
+              ? chunk.metadata.extractionProfiles.filter(
+                  (value): value is string => typeof value === 'string',
+                )
+              : [],
+          ),
+        ),
+      );
+      const bootstrapHints = this.documentProfileBootstrapService.deriveHints({
+        chunks,
+        activeProfileIds,
       });
 
       if (chunks.length === 0) {
@@ -80,6 +97,8 @@ export class DocumentIngestionService {
           ...(this.asRecord(document.metadata) ?? {}),
           lastIngestedBy: input.createdBy ?? 'system',
           ingestOrigin: 'document_domain',
+          approvalMode: 'uploaded_document',
+          extractionBootstrap: bootstrapHints,
         },
       });
 

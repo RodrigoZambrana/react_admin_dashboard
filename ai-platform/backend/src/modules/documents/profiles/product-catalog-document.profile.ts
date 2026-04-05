@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { DocumentExtractionProfileConfigService } from '../document-extraction-profile-config.service';
 import {
-  DocumentExtractionContext,
   DocumentExtractionProfile,
   DocumentExtractionProfileInput,
 } from '../document-extraction-profile.types';
@@ -16,78 +16,59 @@ import {
   normalizeDocumentKnowledgeText,
 } from '../document-knowledge-extraction.utils';
 
-const productCatalogExtractionCatalog = {
-  operationModeTerms: [
-    'manual',
-    'manuales',
-    'motorizado',
-    'motorizada',
-    'motorizados',
-    'motorizadas',
-    'automatizado',
-    'automatizada',
-    'automatizados',
-    'automatizadas',
-  ],
-  patterns: {
-    productTypes:
-      /(?:tipos?(?:\s+principales)?|modelos?|lineas?|líneas?|opciones)\s*[:\-]?\s*(.+)$/iu,
-    materialListLeads: [
-      /(?:disponibles?|disponible|fabricad[oa]s?|hech[oa]s?|realizad[oa]s?)\s+en\s+(.+?)(?:,?\s+(?:con|para)\b|[.;]|$)/iu,
-      /material(?:es)?\s*[:\-]?\s*(.+)$/iu,
-    ],
-    suitability: /(?:ideal|recomendad[oa]s?|adecuad[oa]s?)\s+para\s+(.+)$/iu,
-    colorList: /colores?\s*[:\-]?\s*(.+)$/iu,
-    oversizedClaimTail:
-      /\b(?:pueden ser|puede ser|con opciones|opciones manuales?|opciones motorizadas?)\b.*$/iu,
-  },
-  colorVarietySignals: [
-    'variedad de colores',
-    'varios colores',
-    'diferentes colores',
-  ],
-} as const;
+type ProductCatalogProfileConfig = ReturnType<
+  DocumentExtractionProfileConfigService['resolveCompiledConfig']
+>;
 
 @Injectable()
 export class ProductCatalogDocumentProfile implements DocumentExtractionProfile {
   readonly id = 'product_catalog' as const;
 
-  supports(context: DocumentExtractionContext) {
+  constructor(
+    private readonly configService: DocumentExtractionProfileConfigService = new DocumentExtractionProfileConfigService(),
+  ) {}
+
+  supports(input: DocumentExtractionProfileInput['context']) {
     if (
-      Array.isArray(context.sourceMetadata?.extractionProfiles) &&
-      context.sourceMetadata.extractionProfiles.includes(this.id)
+      Array.isArray(input.sourceMetadata?.extractionProfiles) &&
+      input.sourceMetadata.extractionProfiles.includes(this.id)
     ) {
       return true;
     }
 
-    return context.activeCapabilities?.includes('product_catalog_lookup') ?? false;
+    return input.activeCapabilities?.includes('product_catalog_lookup') ?? false;
   }
 
   extractChunk(input: DocumentExtractionProfileInput) {
+    const config = this.configService.resolveCompiledConfig({
+      profileId: this.id,
+      locale: input.context.locale,
+    });
     const items: DocumentKnowledgeItemSeed[] = [];
 
     for (const sentence of input.sentences) {
-      items.push(...extractProductTypeSeeds(sentence));
-      items.push(...extractMaterialSeeds(sentence));
-      items.push(...extractOperationModeSeeds(sentence));
-      items.push(...extractColorSeeds(sentence));
-      items.push(...extractSuitabilitySeeds(sentence));
+      items.push(...extractProductTypeSeeds(sentence, config));
+      items.push(...extractMaterialSeeds(sentence, config));
+      items.push(...extractOperationModeSeeds(sentence, config));
+      items.push(...extractColorSeeds(sentence, config));
+      items.push(...extractSuitabilitySeeds(sentence, config));
     }
 
     return dedupeStructuredItemSeeds(items);
   }
 }
 
-function extractProductTypeSeeds(sentence: string) {
-  const listMatch = sentence.match(
-    productCatalogExtractionCatalog.patterns.productTypes,
-  );
+function extractProductTypeSeeds(
+  sentence: string,
+  config: ProductCatalogProfileConfig,
+) {
+  const listMatch = sentence.match(config.productTypes?.listPattern ?? /^$/u);
 
   if (!listMatch?.[1]) {
     return [];
   }
 
-  const values = splitListValues(listMatch[1]);
+  const values = splitListValues(listMatch[1], config);
 
   if (values.length < 2) {
     return [];
@@ -105,15 +86,18 @@ function extractProductTypeSeeds(sentence: string) {
   });
 }
 
-function extractMaterialSeeds(sentence: string) {
+function extractMaterialSeeds(
+  sentence: string,
+  config: ProductCatalogProfileConfig,
+) {
   const normalizedSentence = normalizeDocumentKnowledgeText(sentence);
   const materialSource = firstPatternCapture(
     sentence,
-    productCatalogExtractionCatalog.patterns.materialListLeads,
+    config.materials?.listPatterns ?? [],
   );
   const explicitValues = Array.from(
     new Set(
-      splitListValues(materialSource)
+      splitListValues(materialSource, config)
         .map((value) => value.replace(/[.;]+$/u, '').trim())
         .filter((value) => value.length > 1)
         .filter(
@@ -141,15 +125,20 @@ function extractMaterialSeeds(sentence: string) {
   });
 }
 
-function extractOperationModeSeeds(sentence: string) {
+function extractOperationModeSeeds(
+  sentence: string,
+  config: ProductCatalogProfileConfig,
+) {
   const normalizedSentence = normalizeDocumentKnowledgeText(sentence);
   const values = Array.from(
     new Set(
-      productCatalogExtractionCatalog.operationModeTerms
-        .filter((term) =>
-          normalizedSentence.includes(normalizeDocumentKnowledgeText(term)),
+      (config.operationModes?.normalizedTerms ?? [])
+        .filter((termFamily) =>
+          termFamily.sourceTerms.some((term) =>
+            normalizedSentence.includes(normalizeDocumentKnowledgeText(term)),
+          ),
         )
-        .map(normalizeOperationModeTerm),
+        .map((termFamily) => termFamily.normalizedValue),
     ),
   );
 
@@ -165,16 +154,16 @@ function extractOperationModeSeeds(sentence: string) {
     entities: values,
     supportClass: 'explicit_fact',
     evidenceTextSpan: sentence,
-    metadata: buildProfileMetadata('core'),
+    metadata: buildProfileMetadata('domain_profile'),
   });
 }
 
-function extractColorSeeds(sentence: string) {
+function extractColorSeeds(sentence: string, config: ProductCatalogProfileConfig) {
   const normalizedSentence = normalizeDocumentKnowledgeText(sentence);
 
   if (
-    productCatalogExtractionCatalog.colorVarietySignals.some((value) =>
-      normalizedSentence.includes(normalizeDocumentKnowledgeText(value)),
+    (config.colorOptions?.varietySignals ?? []).some((signal) =>
+      normalizedSentence.includes(signal),
     )
   ) {
     return [
@@ -187,8 +176,8 @@ function extractColorSeeds(sentence: string) {
         evidenceTextSpan: sentence,
         metadata:
           cleanDocumentKnowledgeRecord({
-            ...buildProfileMetadata('core'),
-            unspecifiedAxes: ['exact_color_options'],
+            ...buildProfileMetadata('domain_profile'),
+            unspecifiedAxes: config.colorOptions?.unspecifiedAxes ?? [],
             claim: {
               axis: 'color_options',
               kind: 'qualifier',
@@ -199,15 +188,13 @@ function extractColorSeeds(sentence: string) {
     ];
   }
 
-  const colorListMatch = sentence.match(
-    productCatalogExtractionCatalog.patterns.colorList,
-  );
+  const colorListMatch = sentence.match(config.colorOptions?.listPattern ?? /^$/u);
 
   if (!colorListMatch?.[1]) {
     return [];
   }
 
-  const values = splitListValues(colorListMatch[1]);
+  const values = splitListValues(colorListMatch[1], config);
 
   if (values.length === 0) {
     return [];
@@ -225,8 +212,11 @@ function extractColorSeeds(sentence: string) {
   });
 }
 
-function extractSuitabilitySeeds(sentence: string) {
-  const match = sentence.match(productCatalogExtractionCatalog.patterns.suitability);
+function extractSuitabilitySeeds(
+  sentence: string,
+  config: ProductCatalogProfileConfig,
+) {
+  const match = sentence.match(config.suitability?.pattern ?? /^$/u);
 
   if (!match?.[1]) {
     return [];
@@ -248,7 +238,7 @@ function extractSuitabilitySeeds(sentence: string) {
       evidenceTextSpan: sentence,
       metadata:
         cleanDocumentKnowledgeRecord({
-          ...buildProfileMetadata('core'),
+          ...buildProfileMetadata('domain_profile'),
           claim: {
             axis: 'suitability',
             kind: 'relation_target',
@@ -328,32 +318,39 @@ function firstPatternCapture(value: string, patterns: readonly RegExp[]) {
   return '';
 }
 
-function splitListValues(value: string) {
+function splitListValues(value: string, config: ProductCatalogProfileConfig) {
+  const conjunctionPattern = buildConjunctionPattern(
+    config.matchingHints.conjunctionTerms,
+  );
   const truncated = value
-    .replace(productCatalogExtractionCatalog.patterns.oversizedClaimTail, '')
+    .replace(config.matchingHints.oversizedClaimTailPattern ?? /$^/u, '')
     .replace(/[.;]+$/u, '')
     .trim();
+  const normalized =
+    conjunctionPattern === null
+      ? truncated
+      : truncated.replace(conjunctionPattern, ', ');
 
-  return truncated
-    .replace(/\s+y\s+/giu, ', ')
+  return normalized
     .split(/\s*[|,/]\s*|\s+-\s+/u)
     .map((part) => part.trim())
     .filter((part) => part.length > 1)
     .slice(0, 8);
 }
 
-function normalizeOperationModeTerm(value: string) {
-  const normalized = normalizeDocumentKnowledgeText(value);
+function buildConjunctionPattern(terms: string[]) {
+  const filtered = terms.map((term) => term.trim()).filter(Boolean);
 
-  if (normalized.startsWith('manual')) {
-    return 'manuales';
+  if (filtered.length === 0) {
+    return null;
   }
 
-  if (normalized.startsWith('motoriz')) {
-    return 'motorizadas';
-  }
+  const alternation = filtered.map(escapeRegExp).join('|');
+  return new RegExp(`\\s+(?:${alternation})\\s+`, 'giu');
+}
 
-  return 'automatizadas';
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function dedupeStructuredItemSeeds(items: DocumentKnowledgeItemSeed[]) {

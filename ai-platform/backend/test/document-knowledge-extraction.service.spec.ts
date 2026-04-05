@@ -113,7 +113,7 @@ describe('DocumentKnowledgeExtractionService', () => {
             valueText: 'manuales | motorizadas',
             supportClass: 'explicit_fact',
             metadata: expect.objectContaining({
-              extractionScope: 'core',
+              extractionScope: 'domain_profile',
               profileKey: 'product_catalog',
               claim: expect.objectContaining({
                 axis: 'operation_modes',
@@ -128,7 +128,7 @@ describe('DocumentKnowledgeExtractionService', () => {
             valueText: 'variety',
             supportClass: 'partial_fact',
             metadata: expect.objectContaining({
-              extractionScope: 'core',
+              extractionScope: 'domain_profile',
               profileKey: 'product_catalog',
               unspecifiedAxes: ['exact_color_options'],
               claim: expect.objectContaining({

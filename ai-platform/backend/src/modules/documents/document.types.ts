@@ -50,7 +50,10 @@ export type DocumentKnowledgeSupportClass =
   | 'partial_fact'
   | 'bounded_inference';
 
-export type DocumentKnowledgeExtractionScope = 'core' | 'tenant_only';
+export type DocumentKnowledgeExtractionScope =
+  | 'core_universal'
+  | 'domain_profile'
+  | 'tenant_only';
 
 export type DocumentSemanticBlock = {
   content: string;
@@ -140,4 +143,62 @@ export type DocumentRetrievalAttempt = {
   attempted: boolean;
   reason: DocumentRetrievalReason;
   result: DocumentRetrievalResult | null;
+};
+
+export type DocumentKnowledgeViewScope = 'active_corpus' | 'document';
+
+export type DocumentKnowledgeProvenance = {
+  documentId: string;
+  documentTitle: string;
+  sourceName?: string | null;
+  originKind: DocumentOriginKind;
+  chunkSequence: number;
+  section?: string;
+  page?: number;
+  sheet?: string;
+  evidenceTextSpan: string;
+};
+
+export type DocumentKnowledgeClaimView = {
+  axis: string;
+  supportClass: DocumentKnowledgeSupportClass;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  values: string[];
+  unspecifiedAxes: string[];
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+export type DocumentKnowledgeEntityView = {
+  label: string;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  values: string[];
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+export type DocumentKnowledgeView = {
+  scope: DocumentKnowledgeViewScope;
+  generatedAt: string;
+  documents: Array<{
+    id: string;
+    title: string;
+    status: ManagedResourceStatus;
+    ingestionStatus: DocumentIngestionStatus;
+    language?: string | null;
+    sourceName?: string | null;
+    updatedAt: string;
+  }>;
+  counts: {
+    documentCount: number;
+    chunkCount: number;
+    claimCount: number;
+    entityCount: number;
+  };
+  support: {
+    topics: string[];
+    supportedAxes: string[];
+    unspecifiedAxes: string[];
+  };
+  overviewLines: string[];
+  claims: DocumentKnowledgeClaimView[];
+  entities: DocumentKnowledgeEntityView[];
 };

@@ -35,6 +35,17 @@ export class AdminDocumentsController {
     });
   }
 
+  @Get('knowledge-view')
+  getKnowledgeView(
+    @Query('documentId') documentId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.adminDocumentsService.getKnowledgeView({
+      documentId,
+      limit: Number(limit ?? 500),
+    });
+  }
+
   @Get(':documentId')
   getDocument(@Param('documentId') documentId: string) {
     return this.adminDocumentsService.getDocument(documentId);
