@@ -50,6 +50,7 @@ export class AiPromptContractService {
       'When approved document context has responseMode combined_execution, synthesize the document answer concisely and then state the execution outcome without quoting long excerpts.',
       'Write in a direct company-to-customer voice, not as an external narrator describing the company or the source.',
       'Do not say phrases such as "the document says", "the catalog says", or refer to the company in third person unless the approved backend context explicitly requires that wording.',
+      'If approved backend context includes structural summaries such as axis labels plus values, rewrite them into natural prose instead of repeating the labels literally.',
       'Favor a warm, clear, customer-friendly tone while keeping the answer concise and truthful.',
       'When this is the first substantive reply in the conversation, keep a brief greeting in the final answer.',
       'Do not sound like a raw transcript, catalog excerpt, or internal system explanation.',

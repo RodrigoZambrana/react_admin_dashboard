@@ -38,6 +38,18 @@ describe('Wave 4 response architecture guardrails', () => {
       join(repoRoot, 'src/modules/response/response-guardrail.service.ts'),
       'utf8',
     );
+    const groundingCatalogContent = readFileSync(
+      join(repoRoot, 'src/modules/response/response-grounding.catalogs.ts'),
+      'utf8',
+    );
+    const approvedContextContent = readFileSync(
+      join(repoRoot, 'src/modules/response/approved-response-context.service.ts'),
+      'utf8',
+    );
+    const sourceNormalizationContent = readFileSync(
+      join(repoRoot, 'src/modules/response/response-source-normalization.ts'),
+      'utf8',
+    );
     const fallbackContent = readFileSync(
       join(repoRoot, 'src/modules/response-fallback/response-fallback.service.ts'),
       'utf8',
@@ -45,6 +57,13 @@ describe('Wave 4 response architecture guardrails', () => {
 
     expect(guardrailContent).not.toMatch(/guardrailStopWords/);
     expect(guardrailContent).not.toMatch(/extractInformativeTokens/);
+    expect(groundingCatalogContent).not.toContain("'pvc'");
+    expect(groundingCatalogContent).not.toContain("'aluminio'");
+    expect(groundingCatalogContent).not.toContain("'vinilo'");
+    expect(approvedContextContent).not.toContain("return 'Tenemos'");
+    expect(approvedContextContent).not.toContain("return 'Realizamos'");
+    expect(approvedContextContent).not.toContain("return 'Trabajamos con'");
+    expect(sourceNormalizationContent).toContain('normalizeSourceObliviousSummary');
     expect(fallbackContent).not.toMatch(/optionalTemplateFallbacks/);
     expect(fallbackContent).not.toMatch(/resolveOptionalTemplateFallback/);
   });

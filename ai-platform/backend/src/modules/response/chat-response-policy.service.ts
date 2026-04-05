@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
+import { buildStructuralKnowledgeSummary } from '../documents/document-knowledge-claims';
 import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
 import { ResponseGroundingService } from './response-grounding.service';
+import { normalizeSourceObliviousSummary } from './response-source-normalization';
 import {
   ApprovedResponseContext,
   ResponseGroundingDetailType,
@@ -324,6 +326,18 @@ export class ChatResponsePolicyService {
   }
 
   private buildMatchBackedDocumentSummary(context: ApprovedResponseContext) {
+    const structuredSummary = buildStructuralKnowledgeSummary({
+      locale: context.locale,
+      claims: context.documentContext?.matches.flatMap(
+        (match) => match.supportSummary?.axisSummaries ?? [],
+      ) ?? [],
+      limit: 2,
+    });
+
+    if (structuredSummary) {
+      return this.buildConciseDocumentSummary(structuredSummary);
+    }
+
     const excerpt = context.documentContext?.matches
       .map((match) => match.excerpt?.trim() ?? '')
       .find((value) => value.length > 0);
@@ -351,6 +365,7 @@ export class ChatResponsePolicyService {
         locale: context.locale,
         summary: normalizedSummary,
         detailTypes: context.documentContext.grounding.requestedDetailTypes,
+        documentContext: context.documentContext,
       });
 
     if (!summarySupportsRequestedDetail) {
@@ -367,6 +382,7 @@ export class ChatResponsePolicyService {
         locale: context.locale,
         summary: normalizedSummary,
         detailTypes: context.documentContext.grounding.requestedDetailTypes,
+        documentContext: context.documentContext,
       });
 
     if (!groundingClause) {
@@ -552,17 +568,33 @@ export class ChatResponsePolicyService {
     const queryTokens = tokenizeSummaryText(
       `${context.userMessage} ${context.documentContext.query}`,
     );
-    const candidates = context.documentContext.matches.flatMap((match) =>
-      splitSummarySentences(match.excerpt ?? '').map((sentence) => ({
+    const candidates = context.documentContext.matches.flatMap((match) => {
+      const structuralSentences = buildStructuralSentencesFromMatch(match, context.locale);
+
+      if (structuralSentences.length > 0) {
+        return structuralSentences.map((sentence) => ({
+          sentence,
+          score: this.scoreDetailSentence({
+            locale: context.locale,
+            sentence,
+            requestedDetailTypes,
+            queryTokens,
+            documentContext: context.documentContext,
+          }),
+        }));
+      }
+
+      return splitSummarySentences(match.excerpt ?? '').map((sentence) => ({
         sentence,
         score: this.scoreDetailSentence({
           locale: context.locale,
           sentence,
           requestedDetailTypes,
           queryTokens,
+          documentContext: context.documentContext,
         }),
-      })),
-    );
+      }));
+    });
     const best = candidates
       .filter((candidate) => candidate.score > 0)
       .sort((left, right) => right.score - left.score)[0];
@@ -579,6 +611,7 @@ export class ChatResponsePolicyService {
     sentence: string;
     requestedDetailTypes: ResponseGroundingDetailType[];
     queryTokens: string[];
+    documentContext?: ApprovedResponseContext['documentContext'];
   }) {
     let score = 0;
 
@@ -587,6 +620,7 @@ export class ChatResponsePolicyService {
         locale: input.locale,
         summary: input.sentence,
         detailTypes: input.requestedDetailTypes,
+        documentContext: input.documentContext,
       })
     ) {
       score += 6;
@@ -611,6 +645,27 @@ function splitSummarySentences(value: string) {
     .filter((sentence) => sentence.length > 0);
 }
 
+function buildStructuralSentencesFromMatch(
+  match: NonNullable<ApprovedResponseContext['documentContext']>['matches'][number],
+  locale: string,
+) {
+  const claims = match.supportSummary?.axisSummaries ?? [];
+
+  if (claims.length === 0) {
+    return [];
+  }
+
+  return claims
+    .map((claim) =>
+      buildStructuralKnowledgeSummary({
+        locale,
+        claims: [claim],
+        limit: 1,
+      }),
+    )
+    .filter((value): value is string => value.trim().length > 0);
+}
+
 function tokenizeSummaryText(value: string) {
   return value
     .toLowerCase()
@@ -623,50 +678,5 @@ function tokenizeSummaryText(value: string) {
 }
 
 function toCustomerFacingSummaryText(value: string) {
-  const normalized = value.trim().replace(/\s+/g, ' ');
-
-  if (!normalized) {
-    return '';
-  }
-
-  const withoutSourceLead = normalized
-    .replace(/^(seg[uú]n el (?:documento|cat[aá]logo),?\s*)/iu, '')
-    .replace(
-      /^(el (?:documento|cat[aá]logo)\s+(?:indica|menciona|dice|señala)\s+que\s+)/iu,
-      '',
-    );
-
-  const companyVoiceRewritten = withoutSourceLead.replace(
-    /^([A-ZÁÉÍÓÚÜÑ][\p{L}\d&'.-]*(?:\s+[A-ZÁÉÍÓÚÜÑa-záéíóúüñ][\p{L}\d&'.-]*){0,4})\s+(ofrece|cuenta con|dispone de|tiene|realiza|trabaja con)\b/iu,
-    (match, company: string, verb: string) => {
-      if (
-        /^(esta|este|estas|estos|esa|ese|esas|esos|la|el|las|los|this|these|that|those)\b/iu.test(
-          company,
-        )
-      ) {
-        return match;
-      }
-
-      const normalizedVerb = verb.toLowerCase();
-
-      if (
-        normalizedVerb === 'ofrece' ||
-        normalizedVerb === 'cuenta con' ||
-        normalizedVerb === 'dispone de' ||
-        normalizedVerb === 'tiene'
-      ) {
-        return 'Tenemos';
-      }
-
-      if (normalizedVerb === 'realiza') {
-        return 'Realizamos';
-      }
-
-      return 'Trabajamos con';
-    },
-  );
-
-  return companyVoiceRewritten.replace(/^./u, (character) =>
-    character.toUpperCase(),
-  );
+  return normalizeSourceObliviousSummary(value);
 }

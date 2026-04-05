@@ -303,6 +303,27 @@ Instead it now prefers:
 
 This keeps core grounding reusable while still allowing document-derived tenant facts to participate safely when they are actually present in approved context.
 
+## Response Voice Ownership After Cleanup
+
+Direct company voice is still required for customer-facing answers, but its ownership is now narrower:
+
+- extraction does not write customer-facing phrasing
+- retrieval does not persist customer-facing phrasing
+- approved response context no longer owns broad verb-rewrite logic
+- governed response prompt + contract remain the primary voice strategy
+- a small explicit presentation helper may normalize:
+  - source lead-ins such as `El documento indica...`
+  - leading third-person company narration when needed for deterministic fallback quality
+
+This keeps response voice behavior:
+
+- source-oblivious
+- customer-friendly
+- bounded
+- testable
+
+without making extraction or grounding responsible for writing the answer.
+
 ## Current Platform State
 
 - Live `/chat/message` flow on this branch:

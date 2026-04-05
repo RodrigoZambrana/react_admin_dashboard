@@ -2724,3 +2724,38 @@
 - Finish the response voice ownership cleanup so direct company voice stays in governed response behavior instead of backend core rewrites
 - Run full backend/frontend validation after the remaining response-layer cleanup lands
 - Keep Wave 9 out of scope and avoid folding broader product work into this structural cleanup phase
+
+## Iteration 81
+
+### Implemented
+- Corrected response voice ownership so source-oblivious company voice no longer depends on broad hardcoded rewrites inside approved-context shaping
+- Added a dedicated presentation helper for bounded source normalization and moved the minimal deterministic voice rewrite there
+- Aligned governed response prompt + fixed contract with the new structural-summary model so prompt behavior, fallback behavior, and runtime context stay consistent
+- Strengthened response architecture regressions to catch:
+  - tenant fact vocabularies creeping back into grounding catalogs
+  - broad direct-voice rewrites creeping back into approved-context core
+  - source normalization ownership moving outside the explicit presentation helper
+
+### Working
+- Extraction produces structured traceable knowledge without response prose
+- Retrieval still works with structural projections and claim-backed neutral summaries
+- Grounding still works using extracted claims/provenance plus generic request terms instead of hardcoded tenant fact vocabularies
+- Customer-facing response behavior remains natural:
+  - source lead-ins are stripped
+  - direct company voice is still preserved through the governed prompt plus the explicit presentation helper
+- Full validation passed:
+  - `npm run prisma:generate --workspace backend`
+  - `npm run prisma:migrate:deploy --workspace backend`
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- The presentation helper still contains a bounded deterministic direct-voice rewrite for leading third-person company narration
+- Retrieval ranking is still partly lexical even though the structured claim layer is now available
+- Response generation is still only partially claim-driven; broader claim-first generation can land in a later phase
+
+### Next Steps
+- Evolve ranking to use claim-aware signals more strongly without replacing the current lexical path abruptly
+- Expand response composition so structured claims participate more directly in approved drafts
+- Keep Wave 9 out of scope and avoid mixing unrelated product work into this cleanup branch
