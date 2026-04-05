@@ -10,6 +10,7 @@ import type {
   ConversationSummary,
   CriticalConfigVersion,
   DocumentRecord,
+  DocumentKnowledgeView,
   KnowledgeEntry,
   KnowledgeMetadataVersion,
   PromptVersion,
@@ -398,6 +399,23 @@ export async function listDocuments(input?: {
 
 export async function getDocument(documentId: string) {
   return apiRequest<DocumentRecord>(`/admin/documents/${documentId}`);
+}
+
+export async function getDocumentKnowledgeView(input?: {
+  documentId?: string;
+  limit?: number;
+}) {
+  const search = new URLSearchParams();
+
+  if (input?.documentId) {
+    search.set('documentId', input.documentId);
+  }
+
+  search.set('limit', String(input?.limit ?? 500));
+
+  return apiRequest<DocumentKnowledgeView>(
+    `/admin/documents/knowledge-view?${search.toString()}`,
+  );
 }
 
 export async function createTextDocument(input: {

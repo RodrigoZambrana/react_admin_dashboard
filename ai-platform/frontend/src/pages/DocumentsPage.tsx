@@ -5,6 +5,7 @@ import {
   archiveDocument,
   createTextDocument,
   getDocument,
+  getDocumentKnowledgeView,
   ingestDocument,
   listDocuments,
   uploadDocument,
@@ -13,7 +14,7 @@ import { EmptyState } from '../components/shared/EmptyState';
 import { JsonBlock } from '../components/shared/JsonBlock';
 import { PageHeader } from '../components/shared/PageHeader';
 import { StatusBadge } from '../components/shared/StatusBadge';
-import type { DocumentRecord } from '../types';
+import type { DocumentKnowledgeView, DocumentRecord } from '../types';
 import { formatDateTime } from '../utils';
 
 const documentStatuses = ['ALL', 'ACTIVE', 'DRAFT', 'ARCHIVED'] as const;
@@ -37,6 +38,10 @@ export function DocumentsPage() {
   const [documents, setDocuments] = useState<DocumentRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
   const [selectedDocument, setSelectedDocument] = useState<DocumentRecord | null>(null);
+  const [activeKnowledgeView, setActiveKnowledgeView] =
+    useState<DocumentKnowledgeView | null>(null);
+  const [selectedKnowledgeView, setSelectedKnowledgeView] =
+    useState<DocumentKnowledgeView | null>(null);
   const [statusFilter, setStatusFilter] =
     useState<(typeof documentStatuses)[number]>('ALL');
   const [ingestionFilter, setIngestionFilter] =
@@ -75,12 +80,14 @@ export function DocumentsPage() {
     try {
       setLoading(true);
       setError(null);
-      const inventory = await listDocuments({
+      const inventoryPromise = listDocuments({
         status: statusFilter === 'ALL' ? undefined : statusFilter,
         ingestionStatus:
           ingestionFilter === 'ALL' ? undefined : ingestionFilter,
         limit: 60,
       });
+      const activeKnowledgePromise = getDocumentKnowledgeView();
+      const inventory = await inventoryPromise;
       setDocuments(inventory);
       const selected =
         nextSelectedId ??
@@ -89,10 +96,23 @@ export function DocumentsPage() {
           : inventory[0]?.id);
       setSelectedId(selected);
 
+      const [activeKnowledge, selectedDetail, selectedKnowledge] = await Promise.all([
+        activeKnowledgePromise,
+        selected ? getDocument(selected) : Promise.resolve(null),
+        selected
+          ? getDocumentKnowledgeView({
+              documentId: selected,
+            })
+          : Promise.resolve(null),
+      ]);
+      setActiveKnowledgeView(activeKnowledge);
+
       if (selected) {
-        setSelectedDocument(await getDocument(selected));
+        setSelectedDocument(selectedDetail);
+        setSelectedKnowledgeView(selectedKnowledge);
       } else {
         setSelectedDocument(null);
+        setSelectedKnowledgeView(null);
       }
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -104,7 +124,14 @@ export function DocumentsPage() {
   const handleSelect = async (documentId: string) => {
     try {
       setSelectedId(documentId);
-      setSelectedDocument(await getDocument(documentId));
+      const [document, knowledgeView] = await Promise.all([
+        getDocument(documentId),
+        getDocumentKnowledgeView({
+          documentId,
+        }),
+      ]);
+      setSelectedDocument(document);
+      setSelectedKnowledgeView(knowledgeView);
       setError(null);
     } catch (requestError) {
       setError((requestError as Error).message);
@@ -526,6 +553,169 @@ export function DocumentsPage() {
       </div>
 
       <div className="row">
+        <div className="col-xxl-5 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="mb-0">What the system knows right now</h5>
+              <span className="badge badge-soft-secondary">
+                {activeKnowledgeView?.counts.documentCount ?? 0} active docs
+              </span>
+            </div>
+            <div className="card-body">
+              {activeKnowledgeView ? (
+                <>
+                  {activeKnowledgeView.overviewLines.length > 0 ? (
+                    <div className="react-meta-list mb-3">
+                      {activeKnowledgeView.overviewLines.map((line) => (
+                        <div key={line}>
+                          <span className="react-meta-label">Grounded summary</span>
+                          <strong>{line}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState
+                      title="No extracted knowledge yet"
+                      body="Active ready documents have not produced claim-level knowledge yet."
+                    />
+                  )}
+                  {activeKnowledgeView.support.supportedAxes.length > 0 ? (
+                    <div className="mb-3">
+                      <span className="react-meta-label d-block mb-2">
+                        Supported axes
+                      </span>
+                      <div className="d-flex flex-wrap gap-2">
+                        {activeKnowledgeView.support.supportedAxes.map((axis) => (
+                          <span key={axis} className="badge badge-soft-info">
+                            {formatAxisLabel(axis)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {activeKnowledgeView.support.unspecifiedAxes.length > 0 ? (
+                    <div>
+                      <span className="react-meta-label d-block mb-2">
+                        Still unspecified
+                      </span>
+                      <div className="d-flex flex-wrap gap-2">
+                        {activeKnowledgeView.support.unspecifiedAxes.map((axis) => (
+                          <span key={axis} className="badge badge-soft-warning">
+                            {formatAxisLabel(axis)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <EmptyState
+                  title="Loading knowledge view"
+                  body="The active document corpus knowledge summary will appear here."
+                />
+              )}
+            </div>
+          </div>
+        </div>
+
+        <div className="col-xxl-7 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <h5 className="mb-0">Extracted knowledge for selected document</h5>
+              {selectedKnowledgeView ? (
+                <span className="badge badge-soft-secondary">
+                  {selectedKnowledgeView.counts.claimCount} claims
+                </span>
+              ) : null}
+            </div>
+            <div className="card-body">
+              {selectedKnowledgeView ? (
+                <>
+                  {selectedKnowledgeView.overviewLines.length > 0 ? (
+                    <div className="react-meta-list mb-3">
+                      {selectedKnowledgeView.overviewLines.map((line) => (
+                        <div key={line}>
+                          <span className="react-meta-label">Grounded summary</span>
+                          <strong>{line}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {selectedKnowledgeView.claims.length > 0 ? (
+                    <div className="table-responsive">
+                      <table className="table datanew react-resource-table mb-0">
+                        <thead>
+                          <tr>
+                            <th>Axis</th>
+                            <th>Support</th>
+                            <th>Values</th>
+                            <th>Provenance</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedKnowledgeView.claims.slice(0, 8).map((claim) => (
+                            <tr key={`${claim.axis}:${claim.values.join('|')}`}>
+                              <td>
+                                <span className="fw-semibold">
+                                  {formatAxisLabel(claim.axis)}
+                                </span>
+                              </td>
+                              <td>
+                                <span
+                                  className={`badge ${resolveSupportBadge(
+                                    claim.supportClass,
+                                  )}`}
+                                >
+                                  {formatSupportLabel(claim.supportClass)}
+                                </span>
+                              </td>
+                              <td>
+                                <div className="d-flex flex-wrap gap-2">
+                                  {claim.values.map((value) => (
+                                    <span key={value} className="badge badge-soft-info">
+                                      {value}
+                                    </span>
+                                  ))}
+                                  {claim.unspecifiedAxes.map((axis) => (
+                                    <span
+                                      key={axis}
+                                      className="badge badge-soft-warning"
+                                    >
+                                      {formatAxisLabel(axis)}
+                                    </span>
+                                  ))}
+                                </div>
+                              </td>
+                              <td className="fs-12 text-muted">
+                                {claim.provenance[0]
+                                  ? formatProvenance(claim.provenance[0])
+                                  : 'n/a'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <EmptyState
+                      title="No structured claims yet"
+                      body="Re-ingest the selected document if you expect extracted knowledge here."
+                    />
+                  )}
+                </>
+              ) : (
+                <EmptyState
+                  title="Select a document"
+                  body="Choose a document to inspect claim-level extracted knowledge and provenance."
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="row">
         <div className="col-xxl-6 d-flex">
           <div className="card flex-fill">
             <div className="card-header">
@@ -662,4 +852,40 @@ export function DocumentsPage() {
       </div>
     </>
   );
+}
+
+function formatAxisLabel(value: string) {
+  return value.replace(/_/g, ' ');
+}
+
+function formatSupportLabel(value: string) {
+  return value.replace(/_/g, ' ');
+}
+
+function resolveSupportBadge(value: string) {
+  if (value === 'partial_fact') {
+    return 'badge-soft-warning';
+  }
+
+  if (value === 'bounded_inference') {
+    return 'badge-soft-secondary';
+  }
+
+  return 'badge-soft-success';
+}
+
+function formatProvenance(input: {
+  documentTitle: string;
+  section?: string;
+  page?: number;
+  sheet?: string;
+  chunkSequence: number;
+}) {
+  const location = [input.section, input.sheet, input.page ? `p.${input.page}` : null]
+    .filter(Boolean)
+    .join(' / ');
+
+  return [input.documentTitle, location || `chunk ${input.chunkSequence + 1}`]
+    .filter(Boolean)
+    .join(' - ');
 }

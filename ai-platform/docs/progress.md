@@ -2826,3 +2826,34 @@
 - Add an admin/backend grounded view of what the system currently knows from uploaded documents
 - Keep retrieval/response compatibility while exposing extracted claims, provenance, and support axes
 - Preserve the modular profile resolver shape and keep Wave 9 out of scope
+
+## Iteration 84
+
+### Implemented
+- Added a grounded backend knowledge view over active/selected documents using persisted:
+  - claims
+  - entities
+  - support summaries
+  - provenance
+- Exposed that knowledge view through the admin documents API without leaking raw retrieval mechanics or runtime-learned chat artifacts
+- Extended the admin documents UI with:
+  - current active-corpus knowledge summary
+  - selected-document extracted claims
+  - provenance references for claim-level evidence
+- Documented the visibility model and refresh lifecycle for re-ingest / activate / archive flows
+
+### Working
+- Operators can now see what the system currently knows from uploaded documents without reading raw chunks only
+- The view stays grounded in extracted data and provenance instead of free-form generated summaries
+- The active knowledge view refreshes from current document state after normal document operations
+- Retrieval/response compatibility remains intact because the visibility layer reads persisted structured items instead of changing the runtime answer path
+
+### Technical Debt
+- The operator view currently uses deterministic grounded summaries, not an additional AI-assisted summarizer over extracted claims
+- Claim ranking inside the visibility view is still simple and structural, not yet tuned for larger multi-document corpora
+- The admin UI exposes the knowledge view in the documents area only; there is not yet a separate deeper diagnostics surface for cross-document exploration
+
+### Next Steps
+- Strengthen claim-aware ranking for both retrieval and operator visibility
+- Add broader cross-document navigation only if operators actually need it
+- Keep Wave 9 out of scope and preserve the current retrieval/response architecture

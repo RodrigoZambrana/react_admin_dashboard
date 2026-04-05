@@ -280,6 +280,62 @@ export type DocumentRecord = {
   chunks: DocumentChunk[];
 };
 
+export type DocumentKnowledgeProvenance = {
+  documentId: string;
+  documentTitle: string;
+  sourceName?: string | null;
+  originKind: DocumentOriginKind;
+  chunkSequence: number;
+  section?: string;
+  page?: number;
+  sheet?: string;
+  evidenceTextSpan: string;
+};
+
+export type DocumentKnowledgeClaimView = {
+  axis: string;
+  supportClass: 'explicit_fact' | 'partial_fact' | 'bounded_inference';
+  extractionScope?: 'core_universal' | 'domain_profile' | 'tenant_only';
+  values: string[];
+  unspecifiedAxes: string[];
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+export type DocumentKnowledgeEntityView = {
+  label: string;
+  extractionScope?: 'core_universal' | 'domain_profile' | 'tenant_only';
+  values: string[];
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+export type DocumentKnowledgeView = {
+  scope: 'active_corpus' | 'document';
+  generatedAt: string;
+  documents: Array<{
+    id: string;
+    title: string;
+    status: ManagedResourceStatus;
+    ingestionStatus: DocumentIngestionStatus;
+    language?: string | null;
+    sourceName?: string | null;
+    updatedAt: string;
+  }>;
+  counts: {
+    documentCount: number;
+    chunkCount: number;
+    claimCount: number;
+    entityCount: number;
+  };
+  support: {
+    topics: string[];
+    supportedAxes: string[];
+    unspecifiedAxes: string[];
+  };
+  overviewLines: string[];
+  claims: DocumentKnowledgeClaimView[];
+  entities: DocumentKnowledgeEntityView[];
+};
+
 export type ConversationStateSummary = {
   id?: string;
   lane: string;

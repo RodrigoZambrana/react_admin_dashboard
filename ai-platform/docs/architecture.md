@@ -366,6 +366,51 @@ Retrieval summaries are now structural, not customer-facing prose. Their purpose
 
 They are not the final user-facing answer.
 
+### Knowledge Visibility Model
+
+The platform now exposes a grounded operator-facing view of what the system currently knows from uploaded documentation.
+
+This view is built from:
+
+- persisted structured claims
+- persisted entities
+- support summaries
+- provenance metadata
+
+It does not rely on:
+
+- raw chunk dumps as the primary operator surface
+- free-form AI summaries disconnected from extracted evidence
+- hidden runtime-learned chat patterns
+
+The visibility model can show:
+
+- extracted axes and values
+- support class:
+  - explicit
+  - partial
+  - bounded inference
+- unspecified axes
+- provenance by:
+  - document
+  - section
+  - page or sheet
+  - chunk sequence
+
+Grounded summary lines for operators are composed only from extracted structured data and provenance-backed claims.
+
+### Knowledge View Refresh Lifecycle
+
+The knowledge visibility view reflects the current active document corpus and refreshes when documentation changes through normal document operations:
+
+- upload + ingest
+- re-ingest
+- activate
+- archive
+- replace source content and ingest again
+
+The backend recomputes the view from current persisted chunk/knowledge-item state, so operators do not need to manually approve documents again or re-author extraction rules.
+
 ### Response / Presentation Owns
 
 - final customer-facing voice
