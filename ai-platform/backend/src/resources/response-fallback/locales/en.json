@@ -1,6 +1,14 @@
 {
   "locale": "en",
+  "greetingCues": [
+    "hello",
+    "hi",
+    "good morning",
+    "good afternoon",
+    "good evening"
+  ],
   "templates": {
+    "opening_greeting": "Hello, thanks for reaching out.",
     "basic_response": "Hi, tell me how I can help.",
     "clarification_requested_date": "To schedule the visit, I need the requested date and time.",
     "clarification_user_goal": "Tell me what you need and I'll keep going from there.",
@@ -18,6 +26,11 @@
     "close_turn_resolved": "Understood, thanks for letting me know. I'll treat this as closed for now."
   },
   "templateVariants": {
+    "opening_greeting": [
+      "Hello, thanks for reaching out.",
+      "Hi, thanks for getting in touch.",
+      "Hello, thanks for contacting us."
+    ],
     "basic_response": [
       "Hi, tell me how I can help.",
       "Tell me what you need and I'll take it from there.",

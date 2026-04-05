@@ -11,7 +11,7 @@ import { ParsedInterpretation } from '../parsing/parsing.service';
 import { ToolExecutionAttempt } from '../tools/tool.types';
 import { ApprovedResponseContextService } from './approved-response-context.service';
 import { ChatResponsePolicyService } from './chat-response-policy.service';
-import { GeneratedChatResponse } from './response.types';
+import { AiGeneratedResponse, GeneratedChatResponse } from './response.types';
 import { ResponseGuardrailService } from './response-guardrail.service';
 
 @Injectable()
@@ -79,21 +79,34 @@ export class ChatResponseService {
       approvedDraft,
       abortSignal: input.abortSignal,
     });
-    const guardrails =
+    const normalizedParsedResponse =
       generation.ok && generation.parsedResponse
+        ? this.normalizeGeneratedResponseReferences({
+            approvedContext,
+            generatedResponse: generation.parsedResponse,
+          })
+        : generation.parsedResponse;
+    const guardrails =
+      generation.ok && normalizedParsedResponse
         ? this.responseGuardrailService.evaluate({
             approvedContext,
             approvedDraft,
-            generatedResponse: generation.parsedResponse,
+            generatedResponse: normalizedParsedResponse,
           })
         : {
             accepted: false,
             reasons: [],
           };
 
-    if (generation.ok && generation.parsedResponse && guardrails.accepted) {
+    if (generation.ok && normalizedParsedResponse && guardrails.accepted) {
+      const response = await this.formatFinalResponse({
+        message: normalizedParsedResponse.message,
+        approvedContext,
+        approvedDraft,
+      });
+
       return {
-        response: generation.parsedResponse.message,
+        response,
         approvedContext,
         approvedDraft,
         usedFallback: false,
@@ -104,7 +117,7 @@ export class ChatResponseService {
           promptId: generation.promptId,
           promptVersion: generation.promptVersion,
           rawAiResponse: generation.rawResponse,
-          parsedJson: generation.parsedResponse,
+          parsedJson: normalizedParsedResponse,
           error: generation.error,
           guardrails,
         },
@@ -112,7 +125,11 @@ export class ChatResponseService {
     }
 
     return {
-      response: approvedDraft,
+      response: await this.formatFinalResponse({
+        message: approvedDraft,
+        approvedContext,
+        approvedDraft,
+      }),
       approvedContext,
       approvedDraft,
       usedFallback: true,
@@ -126,10 +143,163 @@ export class ChatResponseService {
         promptId: generation.promptId,
         promptVersion: generation.promptVersion,
         rawAiResponse: generation.rawResponse,
-        parsedJson: generation.parsedResponse,
+        parsedJson: normalizedParsedResponse,
         error: generation.error,
         guardrails,
       },
     };
+  }
+
+  private async formatFinalResponse(input: {
+    message: string;
+    approvedContext: GeneratedChatResponse['approvedContext'];
+    approvedDraft: string;
+  }) {
+    const normalizedMessage = input.message.trim();
+
+    if (!normalizedMessage) {
+      return normalizedMessage;
+    }
+
+    const responseStyle = input.approvedContext.responseStyle;
+    const greetingBlock =
+      responseStyle?.includeInitialGreeting
+        ? this.extractOpeningGreeting(input.approvedDraft)
+        : null;
+    const hasDraftGreetingPrefix =
+      Boolean(greetingBlock) && normalizedMessage.startsWith(greetingBlock!);
+    const bodyMessage = hasDraftGreetingPrefix
+      ? normalizedMessage.slice(greetingBlock!.length).trim()
+      : normalizedMessage;
+    const shouldMultiline =
+      responseStyle?.preferMultiline ||
+      (responseStyle?.includeInitialGreeting && bodyMessage.length > 0);
+
+    if (!shouldMultiline) {
+      return normalizedMessage;
+    }
+
+    const blocks: string[] = [];
+
+    if (greetingBlock) {
+      blocks.push(greetingBlock);
+    }
+
+    const bodyBlocks = this.splitResponseIntoBlocks(bodyMessage, {
+      splitFirstSentence: false,
+    });
+
+    for (const block of bodyBlocks) {
+      if (block.length > 0) {
+        blocks.push(block);
+      }
+    }
+
+    if (blocks.length === 0) {
+      return normalizedMessage;
+    }
+
+    return blocks.join('\n\n').trim();
+  }
+
+  private extractOpeningGreeting(approvedDraft: string) {
+    const firstParagraph = approvedDraft
+      .split(/\n{2,}/u)
+      .map((part) => part.trim())
+      .find((part) => part.length > 0);
+
+    return firstParagraph?.length ? firstParagraph : null;
+  }
+
+  private splitResponseIntoBlocks(
+    value: string,
+    options?: {
+      splitFirstSentence?: boolean;
+    },
+  ) {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return [];
+    }
+
+    const existingBlocks = trimmed
+      .split(/\n{2,}/u)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+
+    if (existingBlocks.length >= 2) {
+      return existingBlocks;
+    }
+
+    const sentences = trimmed
+      .match(/[^.!?]+[.!?]+|[^.!?]+$/gu)
+      ?.map((sentence) => sentence.trim())
+      .filter((sentence) => sentence.length > 0);
+
+    if (!sentences || sentences.length <= 1) {
+      return [trimmed];
+    }
+
+    const blocks: string[] = [];
+    const lastSentence = sentences[sentences.length - 1];
+    const hasQuestionTail =
+      sentences.length > 1 && /[?¿]\s*$/u.test(lastSentence);
+    const informationalSentences = hasQuestionTail
+      ? sentences.slice(0, -1)
+      : [...sentences];
+
+    if (options?.splitFirstSentence && informationalSentences.length > 1) {
+      blocks.push(informationalSentences.shift()!);
+    }
+
+    if (informationalSentences.length > 0) {
+      blocks.push(informationalSentences.join(' '));
+    }
+
+    if (hasQuestionTail) {
+      blocks.push(lastSentence);
+    }
+
+    return blocks;
+  }
+
+  private normalizeGeneratedResponseReferences(input: {
+    approvedContext: GeneratedChatResponse['approvedContext'];
+    generatedResponse: AiGeneratedResponse;
+  }): AiGeneratedResponse {
+    const { approvedContext, generatedResponse } = input;
+
+    return {
+      ...generatedResponse,
+      mentionedMissingFields: this.intersectWithApproved(
+        generatedResponse.mentionedMissingFields,
+        approvedContext.missingFields ?? [],
+      ),
+      mentionedApprovedFactKeys: this.intersectWithApproved(
+        generatedResponse.mentionedApprovedFactKeys,
+        approvedContext.approvedFactKeys,
+      ),
+      mentionedApprovedResultKeys: this.intersectWithApproved(
+        generatedResponse.mentionedApprovedResultKeys,
+        approvedContext.approvedResultKeys,
+      ),
+      mentionedDocumentIds: this.intersectWithApproved(
+        generatedResponse.mentionedDocumentIds,
+        approvedContext.approvedDocumentIds,
+      ),
+    };
+  }
+
+  private intersectWithApproved(
+    candidate: string[] | undefined,
+    approved: string[] | undefined,
+  ) {
+    if (!candidate?.length || !approved?.length) {
+      return [];
+    }
+
+    const allowed = new Set(approved);
+    return candidate.filter((value) => allowed.has(value));
   }
 }

@@ -10,6 +10,11 @@ type BootstrapTemplateCatalog = Record<
 >;
 
 const bootstrapTemplateCatalog: BootstrapTemplateCatalog = {
+  opening_greeting: {
+    default: 'Hello, thanks for reaching out.',
+    en: 'Hello, thanks for reaching out.',
+    es: 'Hola, gracias por contactarnos.',
+  },
   document_not_found: {
     default: "I can't confirm that clearly right now.",
     en: "I can't confirm that clearly right now.",

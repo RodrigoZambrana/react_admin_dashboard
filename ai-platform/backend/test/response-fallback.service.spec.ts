@@ -7,6 +7,10 @@ describe('ResponseFallbackService', () => {
         resolveCatalog: jest.fn(async (locale?: string | null) => ({
           locale: locale?.startsWith('es') ? 'es' : 'default',
           templates: {
+            opening_greeting:
+              locale?.startsWith('es')
+                ? 'Hola, gracias por contactarnos.'
+                : 'Hello, thanks for reaching out.',
             basic_response:
               locale?.startsWith('es')
                 ? 'Hola, ¿en qué puedo ayudarte?'
@@ -24,6 +28,15 @@ describe('ResponseFallbackService', () => {
             execution_failure_generic: '',
           },
           templateVariants: {
+            opening_greeting: locale?.startsWith('es')
+              ? [
+                  'Hola, gracias por contactarnos.',
+                  'Buenas, gracias por contactarnos.',
+                ]
+              : [
+                  'Hello, thanks for reaching out.',
+                  'Hi, thanks for getting in touch.',
+                ],
             basic_response: locale?.startsWith('es')
               ? [
                   'Hola, ¿en qué puedo ayudarte?',
@@ -81,6 +94,7 @@ describe('ResponseFallbackService', () => {
         resolveCatalog: jest.fn(async () => ({
           locale: 'es',
           templates: {
+            opening_greeting: 'Hola, gracias por contactarnos.',
             basic_response: 'Hola, ¿en qué puedo ayudarte?',
             clarification_requested_date: '',
             clarification_user_goal: '',
@@ -94,6 +108,10 @@ describe('ResponseFallbackService', () => {
             execution_failure_generic: '',
           },
           templateVariants: {
+            opening_greeting: [
+              'Hola, gracias por contactarnos.',
+              'Buenas, gracias por contactarnos.',
+            ],
             basic_response: [
               'Hola, ¿en qué puedo ayudarte?',
               'Decime qué necesitás y te doy una mano.',
@@ -167,8 +185,9 @@ describe('ResponseFallbackService', () => {
           status: 'DRAFT',
           resource: {
             locale: 'es',
-            templates: {
-              basic_response: 'Entiendo.',
+          templates: {
+            opening_greeting: 'Entiendo.',
+            basic_response: 'Entiendo.',
               clarification_requested_date: 'Necesito una fecha.',
               clarification_user_goal: 'Contame brevemente qué necesitás.',
               clarification_generic: '¿Podés contarme un poco más?',
@@ -181,6 +200,7 @@ describe('ResponseFallbackService', () => {
               execution_failure_generic: 'No pude completar la solicitud.',
             },
             templateVariants: {
+              opening_greeting: ['Entiendo.'],
               basic_response: ['Entiendo.', 'Contame qué necesitás.'],
             },
             actionLabels: {
@@ -231,6 +251,7 @@ describe('ResponseFallbackService', () => {
         resolveCatalog: jest.fn(async () => ({
           locale: 'default',
           templates: {
+            opening_greeting: '',
             basic_response: 'Hi, how can I help you?',
             clarification_requested_date: '',
             clarification_user_goal: '',
@@ -277,5 +298,12 @@ describe('ResponseFallbackService', () => {
     ).resolves.toBe(
       'No tengo una confirmación clara sobre eso en este momento.',
     );
+
+    await expect(
+      service.render({
+        locale: 'es-UY',
+        templateKey: 'opening_greeting',
+      }),
+    ).resolves.toBe('Hola, gracias por contactarnos.');
   });
 });

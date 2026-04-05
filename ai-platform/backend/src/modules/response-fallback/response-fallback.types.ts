@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const responseFallbackTemplateKeySchema = z.enum([
+  'opening_greeting',
   'basic_response',
   'clarification_requested_date',
   'clarification_user_goal',
@@ -23,6 +24,7 @@ export type ResponseFallbackTemplateKey = z.infer<
 >;
 
 export const responseFallbackBootstrapTemplateKeySchema = z.enum([
+  'opening_greeting',
   'execution_failure_not_found',
   'document_not_found',
   'close_turn_acknowledgement',
@@ -45,7 +47,9 @@ export type ResponseFallbackLocaleFamily = z.infer<
 
 export const responseFallbackCatalogResourceSchema = z.object({
   locale: z.string().min(2),
+  greetingCues: z.array(z.string().min(1)).min(1).optional(),
   templates: z.object({
+    opening_greeting: z.string().min(1).optional(),
     basic_response: z.string().min(1),
     clarification_requested_date: z.string().min(1),
     clarification_user_goal: z.string().min(1),
@@ -64,6 +68,7 @@ export const responseFallbackCatalogResourceSchema = z.object({
   }),
   templateVariants: z
     .object({
+      opening_greeting: z.array(z.string().min(1)).min(1).optional(),
       basic_response: z.array(z.string().min(1)).min(1).optional(),
       clarification_requested_date: z.array(z.string().min(1)).min(1).optional(),
       clarification_user_goal: z.array(z.string().min(1)).min(1).optional(),

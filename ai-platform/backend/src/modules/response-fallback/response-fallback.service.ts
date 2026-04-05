@@ -79,6 +79,19 @@ export class ResponseFallbackService {
     return (await this.resolveCatalog(locale)).defaults;
   }
 
+  async startsWithGreeting(locale: string | null | undefined, value: string) {
+    const normalizedValue = value.trim().toLowerCase();
+
+    if (!normalizedValue) {
+      return false;
+    }
+
+    const catalog = await this.resolveCatalog(locale);
+    const cues = catalog.greetingCues ?? [];
+
+    return cues.some((cue) => normalizedValue.startsWith(cue.toLowerCase()));
+  }
+
   async listVersions(locale?: string) {
     await this.responseFallbackProvider.listActive();
     return this.responseFallbackVersionRepository.list(locale);

@@ -1,6 +1,15 @@
 {
   "locale": "es",
+  "greetingCues": [
+    "hola",
+    "buenas",
+    "buen día",
+    "buen dia",
+    "buenas tardes",
+    "buenas noches"
+  ],
   "templates": {
+    "opening_greeting": "Hola, gracias por contactarnos.",
     "basic_response": "Hola, contame en qué te puedo ayudar.",
     "clarification_requested_date": "Para coordinar la visita, necesito la fecha y la hora que te sirven.",
     "clarification_user_goal": "Decime qué necesitás y lo seguimos desde ahí.",
@@ -18,6 +27,11 @@
     "close_turn_resolved": "Perfecto, gracias por avisar. Lo doy por cerrado por ahora."
   },
   "templateVariants": {
+    "opening_greeting": [
+      "Hola, gracias por contactarnos.",
+      "Buenas, gracias por contactarnos.",
+      "Hola, muchas gracias por escribirnos."
+    ],
     "basic_response": [
       "Hola, contame en qué te puedo ayudar.",
       "Decime qué necesitás y te doy una mano.",

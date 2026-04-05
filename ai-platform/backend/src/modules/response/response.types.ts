@@ -143,6 +143,8 @@ export type ApprovedResponseContext = {
     preferBrief: boolean;
     incrementalFollowUp: boolean;
     groundedKnowledgeOnly: boolean;
+    includeInitialGreeting: boolean;
+    preferMultiline: boolean;
   };
   approvedDocumentIds: string[];
 };

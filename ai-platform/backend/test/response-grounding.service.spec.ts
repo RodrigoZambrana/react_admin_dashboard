@@ -32,6 +32,35 @@ describe('ResponseGroundingService', () => {
     );
   });
 
+  it('qualifies partial color questions with an unspecified-detail requirement even without the word exact when the user asks as a concrete question', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: '¿Qué colores tienen las blackout?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'blackout colores',
+        groundedSummary: 'El documento menciona variedad de colores para esta línea.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt: 'Disponible en una variedad de colores.',
+            sequence: 0,
+            score: 3.1,
+          },
+        ],
+      },
+    });
+
+    expect(assessment).toEqual(
+      expect.objectContaining({
+        supportLevel: 'partial',
+        partialDetailTypes: ['color_options'],
+        requiredUnspecifiedDetailTypes: ['color_options'],
+      }),
+    );
+  });
+
   it('marks unsupported commercial detail requests when the approved context does not back them', () => {
     const assessment = service.assessDocumentContext({
       locale: 'en',
@@ -119,7 +148,19 @@ describe('ResponseGroundingService', () => {
       },
     } as any);
 
-    expect(clause).toBe('No especifica los colores exactos.');
+    expect(clause).toBe(
+      'Por ahora no tengo confirmación sobre los colores exactos.',
+    );
+  });
+
+  it('detects when a grounded summary does not address the requested detail axis', () => {
+    expect(
+      service.summaryAddressesRequestedDetails({
+        locale: 'es',
+        summary: 'Roller Screen, Roller Blackout, Roller Doble',
+        detailTypes: ['color_options'],
+      }),
+    ).toBe(false);
   });
 
   it('recognizes natural unspecified-detail phrasing with reflexive wording', () => {
@@ -127,6 +168,15 @@ describe('ResponseGroundingService', () => {
       service.containsUnspecifiedCue({
         locale: 'es',
         message: 'No se especifica en el documento si cubren ese servicio.',
+      }),
+    ).toBe(true);
+  });
+
+  it('recognizes natural unspecified-detail phrasing with confirmation wording', () => {
+    expect(
+      service.containsUnspecifiedCue({
+        locale: 'es',
+        message: 'Por ahora no tengo confirmación sobre los colores exactos.',
       }),
     ).toBe(true);
   });

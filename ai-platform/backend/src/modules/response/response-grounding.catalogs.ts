@@ -59,6 +59,16 @@ const defaultCatalog: GroundingLocaleCatalog = {
     materials: {
       requestTerms: ['material', 'materials', 'fabric', 'finish'],
       generalEvidenceTerms: ['material', 'materials', 'fabric', 'finish'],
+      specificEvidenceTerms: [
+        'pvc',
+        'aluminum',
+        'aluminium',
+        'wood',
+        'metal',
+        'steel',
+        'vinyl',
+        'polyester',
+      ],
       unspecifiedLabel: 'exact material details',
     },
     color_options: {
@@ -99,7 +109,7 @@ const defaultCatalog: GroundingLocaleCatalog = {
     'i am here to help',
     'let me know if you need',
   ],
-  unspecifiedDetailPrefix: 'It does not specify',
+  unspecifiedDetailPrefix: "I don't have confirmation on",
   labelJoiner: 'or',
   guardrail: sharedGuardrailConfig,
 };
@@ -150,6 +160,16 @@ const spanishCatalog: GroundingLocaleCatalog = {
     materials: {
       requestTerms: ['material', 'materiales', 'tela', 'acabado'],
       generalEvidenceTerms: ['material', 'materiales', 'tela', 'acabado'],
+      specificEvidenceTerms: [
+        'pvc',
+        'aluminio',
+        'madera',
+        'metal',
+        'acero',
+        'vinilo',
+        'poliester',
+        'poliéster',
+      ],
       unspecifiedLabel: 'los materiales exactos',
     },
     color_options: {
@@ -183,6 +203,11 @@ const spanishCatalog: GroundingLocaleCatalog = {
     'no se detalla',
     'no aparece',
     'no figura',
+    'no tengo confirmacion sobre',
+    'no tengo confirmado',
+    'no tengo confirmada',
+    'no tengo confirmados',
+    'no tengo confirmadas',
   ],
   exactnessCues: [
     'exacto',
@@ -203,7 +228,7 @@ const spanishCatalog: GroundingLocaleCatalog = {
     'quedo a tu disposición',
     'cualquier otra consulta',
   ],
-  unspecifiedDetailPrefix: 'No especifica',
+  unspecifiedDetailPrefix: 'Por ahora no tengo confirmación sobre',
   labelJoiner: 'ni',
   guardrail: sharedGuardrailConfig,
 };

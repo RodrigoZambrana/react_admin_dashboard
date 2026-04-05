@@ -39,6 +39,12 @@ describe('ChatResponsePolicyService', () => {
         return labels.default;
       },
     ),
+    startsWithGreeting: jest.fn(async (locale: string | undefined, value: string) => {
+      const normalized = value.trim().toLowerCase();
+      return buildCatalog(locale).greetingCues.some((cue) =>
+        normalized.startsWith(cue),
+      );
+    }),
   } as any, new ResponseGroundingService());
 
   it('returns a grounded booking confirmation after successful execution', async () => {
@@ -487,7 +493,73 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe(
-      'El documento indica que esta línea ofrece una variedad de colores. No especifica los colores exactos.',
+      'El documento indica que esta línea ofrece una variedad de colores. Por ahora no tengo confirmación sobre los colores exactos.',
+    );
+  });
+
+  it('uses a fluid detail-specific answer instead of repeating an off-axis list when the summary does not answer the requested detail', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: '¿Qué colores tienen las blackout?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.9,
+          entities: {
+            rawMessage: '¿Qué colores tienen las blackout?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'blackout colores',
+          groundedSummary: 'Roller Screen, Roller Blackout, Roller Doble',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'partial',
+            exactnessRequested: true,
+            requestedDetailTypes: ['color_options'],
+            supportedDetailTypes: [],
+            partialDetailTypes: ['color_options'],
+            unsupportedDetailTypes: [],
+            requiredUnspecifiedDetailTypes: ['color_options'],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Catálogo',
+              excerpt: 'Tipos principales: Roller Screen, Roller Blackout y Roller Doble.',
+              sequence: 0,
+              score: 3.2,
+            },
+          ],
+        },
+      }),
+    ).resolves.toBe(
+      'Por ahora no tengo confirmación sobre los colores exactos.',
     );
   });
 
@@ -553,7 +625,7 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe(
-      'Por ahora no tengo una confirmación clara sobre eso. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+      'Por ahora no tengo confirmación sobre si está cubierto. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
     );
   });
 
@@ -650,6 +722,63 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe("I don't have a clear confirmation on that right now.");
+  });
+
+  it('uses a fluid detail-specific unavailable response when the unsupported axis is known', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: '¿Qué colores tienen las blackout?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.82,
+          entities: {
+            rawMessage: '¿Qué colores tienen las blackout?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: [],
+        documentContext: {
+          source: 'document_origin',
+          query: 'colores blackout',
+          groundedSummary: '',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'unavailable',
+            exactnessRequested: false,
+            requestedDetailTypes: ['color_options'],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: ['color_options'],
+          },
+          matches: [],
+        },
+      }),
+    ).resolves.toBe(
+      'Por ahora no tengo confirmación sobre los colores exactos.',
+    );
   });
 
   it('uses a warmer basic response without becoming verbose', async () => {
@@ -767,12 +896,93 @@ describe('ChatResponsePolicyService', () => {
       'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
     );
   });
+
+  it('adds a contextual greeting and multiline layout on the first substantive document reply', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'Necesito información sobre cortinas roller',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.91,
+          entities: {
+            rawMessage: 'Necesito información sobre cortinas roller',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'cortinas roller',
+          groundedSummary: 'Sí, tenemos cortinas roller.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Catálogo',
+              excerpt: 'Sí, tenemos cortinas roller.',
+              sequence: 0,
+              score: 4.1,
+            },
+          ],
+        },
+        responseStyle: {
+          preferBrief: true,
+          incrementalFollowUp: false,
+          groundedKnowledgeOnly: false,
+          includeInitialGreeting: true,
+          preferMultiline: true,
+        },
+      }),
+    ).resolves.toBe(
+      'Hola, gracias por contactarnos.\n\nSí, tenemos cortinas roller.',
+    );
+  });
 });
 
 function buildCatalog(locale?: string) {
   if ((locale ?? '').toLowerCase().startsWith('es')) {
     return {
+      greetingCues: [
+        'hola',
+        'buenas',
+        'buen día',
+        'buen dia',
+        'buenas tardes',
+        'buenas noches',
+      ],
       templates: {
+        opening_greeting: 'Hola, gracias por contactarnos.',
         basic_response: 'Hola, contame en qué te puedo ayudar.',
         clarification_requested_date:
           'Para coordinar la visita, necesito la fecha y la hora que te sirven.',
@@ -800,6 +1010,9 @@ function buildCatalog(locale?: string) {
           'Perfecto, gracias por avisar. Lo doy por cerrado por ahora.',
       },
       templateVariants: {
+        opening_greeting: [
+          'Hola, gracias por contactarnos.',
+        ],
         basic_response: [
           'Hola, contame en qué te puedo ayudar.',
           'Decime qué necesitás y te doy una mano.',
@@ -846,7 +1059,15 @@ function buildCatalog(locale?: string) {
   }
 
   return {
+    greetingCues: [
+      'hello',
+      'hi',
+      'good morning',
+      'good afternoon',
+      'good evening',
+    ],
     templates: {
+      opening_greeting: 'Hello, thanks for reaching out.',
       basic_response: 'Hi, tell me how I can help.',
       clarification_requested_date: 'To schedule the visit, I need the requested date and time.',
       clarification_user_goal:
@@ -873,6 +1094,9 @@ function buildCatalog(locale?: string) {
         "Understood, thanks for letting me know. I'll treat this as closed for now.",
     },
     templateVariants: {
+      opening_greeting: [
+        'Hello, thanks for reaching out.',
+      ],
       basic_response: [
         'Hi, tell me how I can help.',
         "Tell me what you need and I'll take it from there.",

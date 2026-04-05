@@ -24,6 +24,7 @@ export class ResponseGroundingService {
     documentContext: DocumentRetrievalResult;
   }) {
     const catalog = resolveResponseGroundingCatalog(input.locale);
+    const questionLike = /[?¿]/u.test(input.userMessage);
     const queryText = normalizeText(
       `${input.userMessage} ${input.documentContext.query} ${input.documentContext.groundedSummary}`,
     );
@@ -67,14 +68,19 @@ export class ResponseGroundingService {
     const unsupportedDetailTypes = requestedDetailTypes.filter(
       (detailType) => supportByDetailType[detailType] === 'unsupported',
     );
-    const requiredUnspecifiedDetailTypes = [
-      ...(
-        exactnessRequested
-          ? partialDetailTypes
-          : []
-      ),
-      ...unsupportedDetailTypes,
-    ];
+    const questionQualifiedPartialDetailTypes = questionLike
+      ? partialDetailTypes.filter(
+          (detailType) =>
+            (catalog.detailTypes[detailType].specificEvidenceTerms ?? []).length === 0,
+        )
+      : [];
+    const requiredUnspecifiedDetailTypes = Array.from(
+      new Set([
+        ...(exactnessRequested ? partialDetailTypes : []),
+        ...questionQualifiedPartialDetailTypes,
+        ...unsupportedDetailTypes,
+      ]),
+    );
     const hasApprovedEvidence =
       input.documentContext.matches.length > 0 && evidenceText.length > 0;
 
@@ -127,6 +133,27 @@ export class ResponseGroundingService {
     return this.extractClaimedDetailTypes(input);
   }
 
+  summaryAddressesRequestedDetails(input: {
+    locale?: string | null;
+    summary: string;
+    detailTypes: ResponseGroundingDetailType[];
+  }) {
+    if (input.detailTypes.length === 0) {
+      return true;
+    }
+
+    const catalog = resolveResponseGroundingCatalog(input.locale);
+    const normalizedSummary = normalizeText(input.summary);
+
+    return input.detailTypes.some((detailType) =>
+      hasGroundingCatalogSignal(normalizedSummary, [
+        ...catalog.detailTypes[detailType].requestTerms,
+        ...(catalog.detailTypes[detailType].generalEvidenceTerms ?? []),
+        ...(catalog.detailTypes[detailType].specificEvidenceTerms ?? []),
+      ]),
+    );
+  }
+
   containsCloseTurnReopenCue(input: { locale?: string | null; message: string }) {
     const catalog = resolveResponseGroundingCatalog(input.locale);
     const normalized = normalizeText(input.message);
@@ -137,10 +164,7 @@ export class ResponseGroundingService {
   buildUnspecifiedDetailClause(
     input: Pick<ApprovedResponseContext, 'locale' | 'documentContext'>,
   ) {
-    if (
-      !input.documentContext ||
-      input.documentContext.grounding.supportLevel === 'unavailable'
-    ) {
+    if (!input.documentContext) {
       return null;
     }
 
