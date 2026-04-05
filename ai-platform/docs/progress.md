@@ -2641,3 +2641,41 @@
 - Keep recovery bounded: do not add new behavior on top of this hotfix until the restored conversational baseline is stable in exploratory testing
 - If another conversational pass is needed later, treat it as a separate scoped follow-up on retrieval continuity or governed wording, not as part of this stabilization hotfix
 - Keep Wave 9 out of scope
+
+## Iteration 79
+
+### Implemented
+- Applied a conversational response and continuity refinement pass without reopening platform architecture:
+  - close-turn fallback wording was updated in governed and bootstrap catalogs to remove cold “leave it here” phrasing
+  - response policy and governed response prompt now enforce source-oblivious customer voice for document-backed answers
+  - approved document summaries are sanitized before response generation so source lead-ins like “El documento indica…” do not leak into customer-facing drafts
+- Tightened follow-up answer behavior:
+  - document-aware response policy now prefers the requested detail axis when the follow-up asks for a narrower facet already supported by approved evidence
+  - broad document summaries are no longer allowed to dominate short follow-up answers when a more specific matched sentence is available
+- Improved nearby-topic replacement across document/advisory continuity and retrieval:
+  - bridge wording such as `también` no longer forces the previous product family to stay active by default
+  - topic replacement now requires real topical overlap instead of treating any short two-token question as a fresh subject
+  - request summaries can now refresh the active subject even when `productQuery` is absent
+- Added regression coverage for:
+  - warmer close-turn acknowledgements
+  - direct customer-facing voice instead of third-person company narration
+  - `roller -> enrollar` replacement without explicit `productQuery`
+  - delta-answer behavior for detail-specific follow-ups
+
+### Working
+- Close-turn responses are warmer and no longer use “Lo dejo por acá” style wording
+- Document-backed responses are less likely to sound like a document reader or a third-person narrator
+- Follow-up pivots such as `roller -> cortinas de enrollar` replace the active subject more reliably while compact axis-only follow-ups like `qué tipos tienen` still inherit the current subject
+- Detail-specific follow-ups use narrower approved evidence more often instead of repeating the whole previous explanation
+- Regression suites passed for the touched areas:
+  - `npm test --workspace backend -- --runInBand --runTestsByPath test/chat-response-policy.service.spec.ts test/document-retrieval.service.spec.ts test/conversation-continuity.service.spec.ts test/approved-response-context.service.spec.ts`
+
+### Technical Debt
+- Document retrieval is still primarily lexical/deterministic even after the better subject replacement and narrower summary selection
+- Response shaping is more source-oblivious now, but the response path is still not yet driven directly from structured document claims
+- The ingestion pipeline still needs its next step into semantic chunks, structured claims/entities, and provenance-aware storage
+
+### Next Steps
+- Extend the document ingestion pipeline with semantic chunking, structured claims/entities, and retrieval projections without replacing the current lexical path
+- Wire the richer ingestion artifacts into retrieval and approved response context incrementally
+- Keep Wave 9 out of scope and preserve catalog/booking/document stability while evolving the document knowledge model

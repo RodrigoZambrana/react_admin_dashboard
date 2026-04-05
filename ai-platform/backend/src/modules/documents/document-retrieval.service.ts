@@ -39,6 +39,9 @@ export class DocumentRetrievalService {
         conversationState: input.conversationState,
       });
     const previousTopic = this.resolveConversationTopic(input.conversationState);
+    const explicitSubjectTopic = resolveExplicitSubjectTopic(
+      input.interpretation.entities,
+    );
     const reason = this.resolveReason(signals);
 
     if (reason === 'not_requested') {
@@ -49,15 +52,18 @@ export class DocumentRetrievalService {
       };
     }
 
-    const query = this.resolveQuery(input, reason, signals, previousTopic);
+    const query = this.resolveQuery(
+      input,
+      reason,
+      signals,
+      previousTopic,
+      explicitSubjectTopic,
+    );
     const queryTokens = tokenizeQuery(query, input.interpretation.language);
     const preferredTopicText = resolvePreferredTopicText({
       currentTopic: signals.topicText || this.resolveRawMessage(input),
       previousTopic,
-      explicitSubjectTopic:
-        typeof input.interpretation.entities.productQuery === 'string'
-          ? input.interpretation.entities.productQuery
-          : null,
+      explicitSubjectTopic,
       locale: input.interpretation.language,
     });
     const preferredTopicTokens = preferredTopicText
@@ -209,6 +215,7 @@ export class DocumentRetrievalService {
     reason: DocumentRetrievalAttempt['reason'],
     signals: ConversationRoutingSignals,
     previousTopic: string | null,
+    explicitSubjectTopic: string | null,
   ) {
     const currentTopic = signals.topicText || input.message.trim();
     const currentRawMessage = this.resolveRawMessage(input);
@@ -245,14 +252,11 @@ export class DocumentRetrievalService {
         shouldPreferCurrentTopicOverPrevious({
           currentTopic,
           previousTopic,
-          explicitSubjectTopic:
-            typeof input.interpretation.entities.productQuery === 'string'
-              ? input.interpretation.entities.productQuery
-              : null,
+          explicitSubjectTopic,
           locale: input.interpretation.language,
         })
       ) {
-        return currentTopic;
+        return explicitSubjectTopic?.trim() || currentTopic;
       }
 
       if (incrementalFacet) {
@@ -688,7 +692,9 @@ function shouldPreferCurrentTopicOverPrevious(input: {
   explicitSubjectTopic: string | null;
   locale?: string | null;
 }) {
-  const preferredCurrentTopic = input.explicitSubjectTopic?.trim();
+  const preferredCurrentTopic =
+    input.explicitSubjectTopic?.trim() ||
+    extractSubjectRefreshCandidate(input.currentTopic, input.locale);
 
   if (!preferredCurrentTopic) {
     return false;
@@ -714,7 +720,48 @@ function shouldPreferCurrentTopicOverPrevious(input: {
   const overlapCount = currentTokens.filter((token) => previousTokens.has(token)).length;
   const novelTokenCount = currentTokens.length - overlapCount;
 
-  return novelTokenCount > 0 && overlapCount < currentTokens.length;
+  return overlapCount > 0 && novelTokenCount > 0 && overlapCount < currentTokens.length;
+}
+
+function extractSubjectRefreshCandidate(
+  value: string,
+  locale?: string | null,
+) {
+  const normalized = value.trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const tokens = tokenizeConversationSignalText(normalized, {
+    locale,
+    minimumTokenLength: 2,
+    stopWordSet: 'informative',
+  });
+
+  if (tokens.length < 2) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function resolveExplicitSubjectTopic(entities: Record<string, unknown>) {
+  if (
+    typeof entities.productQuery === 'string' &&
+    entities.productQuery.trim().length > 0
+  ) {
+    return entities.productQuery.trim();
+  }
+
+  if (
+    typeof entities.requestSummary === 'string' &&
+    entities.requestSummary.trim().length > 0
+  ) {
+    return entities.requestSummary.trim();
+  }
+
+  return null;
 }
 
 function scoreSummaryExcerpt(excerpt: string, queryTokens: string[]) {

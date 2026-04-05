@@ -23,8 +23,8 @@
     "execution_failure_not_found": "No encontré una coincidencia válida para {{actionLabel}} con la información disponible.",
     "execution_failure_generic": "No pude completar {{actionLabel}} por un error durante la ejecución.",
     "document_not_found": "Por ahora no tengo una confirmación clara sobre eso.",
-    "close_turn_acknowledgement": "Gracias por escribir. Lo dejo por acá por ahora.",
-    "close_turn_resolved": "Perfecto, gracias por avisar. Lo doy por cerrado por ahora."
+    "close_turn_acknowledgement": "Gracias por escribir. Quedamos a disposición por cualquier otra duda.",
+    "close_turn_resolved": "Perfecto, gracias por avisar. Si surge algo más, estamos a disposición."
   },
   "templateVariants": {
     "opening_greeting": [
@@ -58,14 +58,14 @@
       "Todavía no puedo darte una confirmación firme sobre eso."
     ],
     "close_turn_acknowledgement": [
-      "Gracias por escribir. Lo dejo por acá por ahora.",
-      "Perfecto, gracias. Lo dejo cerrado por ahora.",
-      "De acuerdo, lo dejo acá por ahora."
+      "Gracias por escribir. Quedamos a disposición por cualquier otra duda.",
+      "Muchas gracias por tu mensaje. Si necesitás algo más, estamos a disposición.",
+      "Gracias por escribirnos. Cualquier otra consulta, quedamos a disposición."
     ],
     "close_turn_resolved": [
-      "Perfecto, gracias por avisar. Lo doy por cerrado por ahora.",
-      "Entendido, gracias. Lo dejo resuelto por ahora.",
-      "Buenísimo, entonces lo dejo cerrado por ahora."
+      "Perfecto, gracias por avisar. Si surge algo más, estamos a disposición.",
+      "Entendido, muchas gracias. Cualquier otra consulta, quedamos a disposición.",
+      "Buenísimo, gracias por avisar. Si necesitás algo más, estamos a disposición."
     ]
   },
   "actionLabels": {

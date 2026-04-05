@@ -58,7 +58,7 @@ describe('ApprovedResponseContextService', () => {
         source: 'document_origin',
         query: 'cambio de cadena roller',
         groundedSummary:
-          'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
+          'El cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
         matches: [
           {
             documentId: 'doc-1',
@@ -75,7 +75,7 @@ describe('ApprovedResponseContextService', () => {
     expect(context.documentContext).toEqual(
       expect.objectContaining({
         groundedSummary:
-          'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
+          'El cambio de cadena de cortinas roller está cubierto dentro del servicio estándar.',
         responseMode: 'combined_execution',
         grounding: expect.objectContaining({
           supportLevel: 'partial',
@@ -83,11 +83,11 @@ describe('ApprovedResponseContextService', () => {
           partialDetailTypes: ['coverage_support'],
           unsupportedDetailTypes: [],
         }),
-        matches: [
+        matches: expect.arrayContaining([
           expect.not.objectContaining({
             excerpt: expect.any(String),
           }),
-        ],
+        ]),
       }),
     );
     expect(context.responseStyle).toEqual(

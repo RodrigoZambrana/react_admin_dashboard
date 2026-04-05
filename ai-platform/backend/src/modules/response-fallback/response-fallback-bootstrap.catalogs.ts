@@ -26,14 +26,16 @@ const bootstrapTemplateCatalog: BootstrapTemplateCatalog = {
     es: 'No encontré un resultado válido con la información disponible.',
   },
   close_turn_acknowledgement: {
-    default: 'Thanks for the message. I will leave it here for now.',
-    en: 'Thanks for the message. I will leave it here for now.',
-    es: 'Gracias por el mensaje. Lo dejamos por acá.',
+    default: 'Thanks for reaching out. We are here if you need anything else.',
+    en: 'Thanks for reaching out. We are here if you need anything else.',
+    es: 'Gracias por escribirnos. Si necesitás algo más, estamos a disposición.',
   },
   close_turn_resolved: {
-    default: 'Understood, thanks for letting me know. I will leave it here.',
-    en: 'Understood, thanks for letting me know. I will leave it here.',
-    es: 'Perfecto, gracias por avisar. Lo dejamos por acá.',
+    default:
+      'Understood, thanks for letting us know. If anything else comes up, we are here to help.',
+    en:
+      'Understood, thanks for letting us know. If anything else comes up, we are here to help.',
+    es: 'Perfecto, gracias por avisar. Si surge algo más, estamos a disposición.',
   },
 };
 

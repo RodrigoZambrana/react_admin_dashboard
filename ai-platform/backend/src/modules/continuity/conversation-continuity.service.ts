@@ -1167,6 +1167,10 @@ export class ConversationContinuityService {
       return explicitSubjectTopic;
     }
 
+    if (this.shouldReplacePreviousTopic(topic, previousTopic, explicitSubjectTopic)) {
+      return explicitSubjectTopic ?? topic;
+    }
+
     if (this.isDependentFollowUpTopic(topic, previousTopic)) {
       return previousTopic;
     }
@@ -1201,6 +1205,13 @@ export class ConversationContinuityService {
       previousTopic &&
       explicitSubjectTopic &&
       this.isExplicitSubjectRefresh(explicitSubjectTopic, previousTopic)
+    ) {
+      return normalizedTopic;
+    }
+
+    if (
+      previousTopic &&
+      this.shouldReplacePreviousTopic(normalizedTopic, previousTopic, explicitSubjectTopic)
     ) {
       return normalizedTopic;
     }
@@ -1266,6 +1277,10 @@ export class ConversationContinuityService {
       return true;
     }
 
+    if (this.shouldReplacePreviousTopic(normalizedCurrent, normalizedPrevious)) {
+      return false;
+    }
+
     return (
       normalizedCurrent.length <= 48 &&
       normalizedCurrent.split(/\s+/u).length <= 6 &&
@@ -1309,6 +1324,10 @@ export class ConversationContinuityService {
       return explicitSubjectTopic;
     }
 
+    if (this.shouldReplacePreviousTopic(topic, previousTopic, explicitSubjectTopic)) {
+      return explicitSubjectTopic ?? topic;
+    }
+
     if (this.isDependentFollowUpTopic(topic, previousTopic)) {
       return previousTopic;
     }
@@ -1321,7 +1340,9 @@ export class ConversationContinuityService {
   }
 
   private resolveExplicitSubjectTopic(interpretation: ParsedInterpretation) {
-    return this.normalizeOptionalString(interpretation.entities.productQuery);
+    return this.normalizeOptionalString(
+      interpretation.entities.productQuery ?? interpretation.entities.requestSummary,
+    );
   }
 
   private isExplicitSubjectRefresh(current: string, previous: string) {
@@ -1373,6 +1394,44 @@ export class ConversationContinuityService {
     }
 
     return false;
+  }
+
+  private shouldReplacePreviousTopic(
+    current: string,
+    previous: string,
+    explicitSubjectTopic?: string,
+  ) {
+    const candidate = this.normalizeOptionalString(explicitSubjectTopic ?? current);
+
+    if (!candidate) {
+      return false;
+    }
+
+    const candidateTokens = tokenizeConversationSignalText(candidate, {
+      minimumTokenLength: 2,
+      stopWordSet: 'informative',
+    });
+    const previousTokens = new Set(
+      tokenizeConversationSignalText(previous, {
+        minimumTokenLength: 2,
+        stopWordSet: 'informative',
+      }),
+    );
+
+    if (candidateTokens.length < 2 || previousTokens.size === 0) {
+      return false;
+    }
+
+    const overlapCount = candidateTokens.filter((token) =>
+      previousTokens.has(token),
+    ).length;
+    const novelTokenCount = candidateTokens.length - overlapCount;
+
+    return (
+      overlapCount > 0 &&
+      novelTokenCount > 0 &&
+      overlapCount < candidateTokens.length
+    );
   }
 
   private shouldInvalidatePreviousState(

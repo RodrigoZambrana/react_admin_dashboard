@@ -22,8 +22,8 @@
     "execution_failure_not_found": "I could not find a valid match for {{actionLabel}} with the available information.",
     "execution_failure_generic": "I could not complete {{actionLabel}} because of an execution error.",
     "document_not_found": "I don't have a clear confirmation on that right now.",
-    "close_turn_acknowledgement": "Thanks for reaching out. I'll leave it here for now.",
-    "close_turn_resolved": "Understood, thanks for letting me know. I'll treat this as closed for now."
+    "close_turn_acknowledgement": "Thanks for reaching out. We are here if you need anything else.",
+    "close_turn_resolved": "Understood, thanks for letting us know. If anything else comes up, we are here to help."
   },
   "templateVariants": {
     "opening_greeting": [
@@ -57,14 +57,14 @@
       "I can't give you a firm answer on that right now."
     ],
     "close_turn_acknowledgement": [
-      "Thanks for reaching out. I'll leave it here for now.",
-      "Thanks, I'll leave it here for now.",
-      "Understood. I'll leave it here for now."
+      "Thanks for reaching out. We are here if you need anything else.",
+      "Thanks for your message. If anything else comes up, we are here to help.",
+      "Thank you for writing. We are here if you need anything else."
     ],
     "close_turn_resolved": [
-      "Understood, thanks for letting me know. I'll treat this as closed for now.",
-      "Thanks for confirming. I'll treat this as resolved for now.",
-      "All right, I'll leave this closed for now."
+      "Understood, thanks for letting us know. If anything else comes up, we are here to help.",
+      "Thanks for confirming. We are here if you need anything else.",
+      "All right. If you need anything else later, we are here to help."
     ]
   },
   "actionLabels": {

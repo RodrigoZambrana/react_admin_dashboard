@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
 import { ResponseGroundingService } from './response-grounding.service';
-import { ApprovedResponseContext } from './response.types';
+import {
+  ApprovedResponseContext,
+  ResponseGroundingDetailType,
+} from './response.types';
 
 @Injectable()
 export class ChatResponsePolicyService {
@@ -305,7 +308,7 @@ export class ChatResponsePolicyService {
   }
 
   private buildConciseDocumentSummary(summary: string) {
-    const normalized = summary.trim().replace(/\s+/g, ' ');
+    const normalized = toCustomerFacingSummaryText(summary);
     const firstSentence = normalized.match(/^.*?[.!?](?:\s|$)/u)?.[0]?.trim();
     const maxLength = 220;
 
@@ -332,7 +335,7 @@ export class ChatResponsePolicyService {
     context: ApprovedResponseContext,
     summary: string,
   ) {
-    const normalizedSummary = this.buildConciseDocumentSummary(
+    let normalizedSummary = this.buildConciseDocumentSummary(
       context.responseStyle?.preferBrief
         ? this.trimToSingleSentence(summary)
         : summary,
@@ -350,11 +353,27 @@ export class ChatResponsePolicyService {
         detailTypes: context.documentContext.grounding.requestedDetailTypes,
       });
 
+    if (!summarySupportsRequestedDetail) {
+      const detailSpecificSummary = this.buildDetailSpecificSummary(context);
+
+      if (detailSpecificSummary) {
+        normalizedSummary = detailSpecificSummary;
+      }
+    }
+
+    const effectiveSummarySupportsRequestedDetail =
+      !context.documentContext?.grounding.requestedDetailTypes.length ||
+      this.responseGroundingService.summaryAddressesRequestedDetails({
+        locale: context.locale,
+        summary: normalizedSummary,
+        detailTypes: context.documentContext.grounding.requestedDetailTypes,
+      });
+
     if (!groundingClause) {
       return normalizedSummary;
     }
 
-    if (!summarySupportsRequestedDetail) {
+    if (!effectiveSummarySupportsRequestedDetail) {
       return groundingClause;
     }
 
@@ -517,4 +536,137 @@ export class ChatResponsePolicyService {
 
     return blocks.join('\n\n').trim();
   }
+
+  private buildDetailSpecificSummary(context: ApprovedResponseContext) {
+    const requestedDetailTypes =
+      context.documentContext?.grounding.requestedDetailTypes ?? [];
+
+    if (
+      !context.documentContext ||
+      requestedDetailTypes.length === 0 ||
+      context.documentContext.matches.length === 0
+    ) {
+      return null;
+    }
+
+    const queryTokens = tokenizeSummaryText(
+      `${context.userMessage} ${context.documentContext.query}`,
+    );
+    const candidates = context.documentContext.matches.flatMap((match) =>
+      splitSummarySentences(match.excerpt ?? '').map((sentence) => ({
+        sentence,
+        score: this.scoreDetailSentence({
+          locale: context.locale,
+          sentence,
+          requestedDetailTypes,
+          queryTokens,
+        }),
+      })),
+    );
+    const best = candidates
+      .filter((candidate) => candidate.score > 0)
+      .sort((left, right) => right.score - left.score)[0];
+
+    if (!best) {
+      return null;
+    }
+
+    return this.buildConciseDocumentSummary(best.sentence);
+  }
+
+  private scoreDetailSentence(input: {
+    locale: string;
+    sentence: string;
+    requestedDetailTypes: ResponseGroundingDetailType[];
+    queryTokens: string[];
+  }) {
+    let score = 0;
+
+    if (
+      this.responseGroundingService.summaryAddressesRequestedDetails({
+        locale: input.locale,
+        summary: input.sentence,
+        detailTypes: input.requestedDetailTypes,
+      })
+    ) {
+      score += 6;
+    }
+
+    const normalizedSentence = input.sentence.toLowerCase();
+
+    for (const token of input.queryTokens) {
+      if (normalizedSentence.includes(token)) {
+        score += 1;
+      }
+    }
+
+    return score;
+  }
+}
+
+function splitSummarySentences(value: string) {
+  return value
+    .split(/(?<=[.!?])\s+/u)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 0);
+}
+
+function tokenizeSummaryText(value: string) {
+  return value
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9\s]/gu, ' ')
+    .split(/\s+/u)
+    .map((token) => token.trim())
+    .filter((token) => token.length >= 3);
+}
+
+function toCustomerFacingSummaryText(value: string) {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+
+  if (!normalized) {
+    return '';
+  }
+
+  const withoutSourceLead = normalized
+    .replace(/^(seg[uú]n el (?:documento|cat[aá]logo),?\s*)/iu, '')
+    .replace(
+      /^(el (?:documento|cat[aá]logo)\s+(?:indica|menciona|dice|señala)\s+que\s+)/iu,
+      '',
+    );
+
+  const companyVoiceRewritten = withoutSourceLead.replace(
+    /^([A-ZÁÉÍÓÚÜÑ][\p{L}\d&'.-]*(?:\s+[A-ZÁÉÍÓÚÜÑa-záéíóúüñ][\p{L}\d&'.-]*){0,4})\s+(ofrece|cuenta con|dispone de|tiene|realiza|trabaja con)\b/iu,
+    (match, company: string, verb: string) => {
+      if (
+        /^(esta|este|estas|estos|esa|ese|esas|esos|la|el|las|los|this|these|that|those)\b/iu.test(
+          company,
+        )
+      ) {
+        return match;
+      }
+
+      const normalizedVerb = verb.toLowerCase();
+
+      if (
+        normalizedVerb === 'ofrece' ||
+        normalizedVerb === 'cuenta con' ||
+        normalizedVerb === 'dispone de' ||
+        normalizedVerb === 'tiene'
+      ) {
+        return 'Tenemos';
+      }
+
+      if (normalizedVerb === 'realiza') {
+        return 'Realizamos';
+      }
+
+      return 'Trabajamos con';
+    },
+  );
+
+  return companyVoiceRewritten.replace(/^./u, (character) =>
+    character.toUpperCase(),
+  );
 }

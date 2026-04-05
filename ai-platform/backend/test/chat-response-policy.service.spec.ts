@@ -427,7 +427,7 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe(
-      'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+      'El cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
     );
   });
 
@@ -493,7 +493,7 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe(
-      'El documento indica que esta línea ofrece una variedad de colores. Por ahora no tengo confirmación sobre los colores exactos.',
+      'Esta línea ofrece una variedad de colores. Por ahora no tengo confirmación sobre los colores exactos.',
     );
   });
 
@@ -561,6 +561,69 @@ describe('ChatResponsePolicyService', () => {
     ).resolves.toBe(
       'Por ahora no tengo confirmación sobre los colores exactos.',
     );
+  });
+
+  it('rewrites third-person company voice into direct customer-facing wording', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: '¿Tienen cortinas roller?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.9,
+          entities: {
+            rawMessage: '¿Tienen cortinas roller?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'cortinas roller',
+          groundedSummary: 'Urucortinas ofrece cortinas roller screen y blackout.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Catálogo',
+              excerpt: 'Urucortinas ofrece cortinas roller screen y blackout.',
+              sequence: 0,
+              score: 4,
+            },
+          ],
+        },
+      }),
+    ).resolves.toBe('Tenemos cortinas roller screen y blackout.');
   });
 
   it('keeps combined document plus booking answers concise when the document does not specify the requested detail', async () => {
@@ -666,7 +729,9 @@ describe('ChatResponsePolicyService', () => {
         approvedResultKeys: [],
         approvedDocumentIds: [],
       }),
-    ).resolves.toBe('Gracias por escribir. Lo dejo por acá por ahora.');
+    ).resolves.toBe(
+      'Gracias por escribir. Quedamos a disposición por cualquier otra duda.',
+    );
   });
 
   it('uses a governed natural unavailable response when approved knowledge does not support the question', async () => {
@@ -893,7 +958,7 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe(
-      'El documento indica que el cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
+      'El cambio de cadena de cortinas roller está cubierto dentro del servicio estándar. La reserva fue confirmada para 2026-04-05T11:00:00.000Z.',
     );
   });
 
@@ -1005,9 +1070,9 @@ function buildCatalog(locale?: string) {
         document_not_found:
           'Por ahora no tengo una confirmación clara sobre eso.',
         close_turn_acknowledgement:
-          'Gracias por escribir. Lo dejo por acá por ahora.',
+          'Gracias por escribir. Quedamos a disposición por cualquier otra duda.',
         close_turn_resolved:
-          'Perfecto, gracias por avisar. Lo doy por cerrado por ahora.',
+          'Perfecto, gracias por avisar. Si surge algo más, estamos a disposición.',
       },
       templateVariants: {
         opening_greeting: [
@@ -1037,10 +1102,10 @@ function buildCatalog(locale?: string) {
           'Por ahora no tengo una confirmación clara sobre eso.',
         ],
         close_turn_acknowledgement: [
-          'Gracias por escribir. Lo dejo por acá por ahora.',
+          'Gracias por escribir. Quedamos a disposición por cualquier otra duda.',
         ],
         close_turn_resolved: [
-          'Perfecto, gracias por avisar. Lo doy por cerrado por ahora.',
+          'Perfecto, gracias por avisar. Si surge algo más, estamos a disposición.',
         ],
       },
       actionLabels: {
@@ -1089,9 +1154,9 @@ function buildCatalog(locale?: string) {
       document_not_found:
         "I don't have a clear confirmation on that right now.",
       close_turn_acknowledgement:
-        "Thanks for reaching out. I'll leave it here for now.",
+        'Thanks for reaching out. We are here if you need anything else.',
       close_turn_resolved:
-        "Understood, thanks for letting me know. I'll treat this as closed for now.",
+        'Understood, thanks for letting us know. If anything else comes up, we are here to help.',
     },
     templateVariants: {
       opening_greeting: [
@@ -1121,10 +1186,10 @@ function buildCatalog(locale?: string) {
         "I don't have a clear confirmation on that right now.",
       ],
       close_turn_acknowledgement: [
-        "Thanks for reaching out. I'll leave it here for now.",
+        'Thanks for reaching out. We are here if you need anything else.',
       ],
       close_turn_resolved: [
-        "Understood, thanks for letting me know. I'll treat this as closed for now.",
+        'Understood, thanks for letting us know. If anything else comes up, we are here to help.',
       ],
     },
     actionLabels: {
