@@ -215,6 +215,94 @@ Important clarification:
   - response fallback catalogs
 - Critical config coverage now also includes tenant-operable capability activation through the managed `tenant_capabilities` resource key, preserving a compatibility bootstrap fallback without keeping static activation as the source of truth
 
+## Structured Document Knowledge Ownership
+
+The document knowledge path now distinguishes clearly between:
+
+- extraction
+- retrieval
+- response presentation
+
+### Extraction Owns
+
+- source-derived text parsing
+- semantic chunk boundaries
+- structural pattern detection
+- claim/entity classification
+- support class assignment
+- provenance metadata
+- extraction scope classification:
+  - `core`
+  - `tenant_only`
+
+Extraction may persist:
+
+- atomic values
+- normalized values
+- structured claim payloads
+- supported axes
+- unspecified axes
+
+Extraction must not persist customer-facing response prose.
+
+Examples of allowed persisted claim shape:
+
+- materials -> extracted values such as `PVC`, `aluminio`
+- operation modes -> extracted values such as `manuales`, `motorizadas`
+- color variety -> axis support plus unspecified exact color options
+- suitability -> bounded-inference relation target derived from source text
+
+Examples of disallowed extraction ownership:
+
+- `Trabajamos con PVC y aluminio`
+- `Tenemos variedad de colores`
+- `Puede ser una opción adecuada para exteriores`
+
+### Retrieval Owns
+
+- lexical retrieval compatibility over `searchText`
+- structural retrieval projections built from:
+  - topic
+  - supported axes
+  - unspecified axes
+  - normalized extracted values
+  - section signals
+- claim-backed neutral summaries derived from structured payloads
+
+Retrieval summaries are now structural, not customer-facing prose. Their purpose is:
+
+- ranking support
+- approved context shaping
+- deterministic fallback support when needed
+
+They are not the final user-facing answer.
+
+### Response / Presentation Owns
+
+- final customer-facing voice
+- source-oblivious phrasing
+- company-direct tone
+- governed transformation of structural approved context into user-facing prose
+
+This keeps the architecture aligned with the rule:
+
+- extraction is not presentation
+- retrieval is not presentation
+- AI response generation plus governed fallback/presentation layers own the final wording
+
+## Grounding Ownership After Structured-Claim Cleanup
+
+`ResponseGroundingService` no longer treats tenant/domain value lists such as exact materials as decisive core truth.
+
+Instead it now prefers:
+
+- structured axis support from retrieved document matches
+- unspecified axes from retrieved document matches
+- dynamic evidence terms derived from extracted document values
+- generic request/evidence terms for non-structured axes
+
+This keeps core grounding reusable while still allowing document-derived tenant facts to participate safely when they are actually present in approved context.
+
 ## Current Platform State
 
 - Live `/chat/message` flow on this branch:

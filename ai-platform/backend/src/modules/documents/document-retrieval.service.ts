@@ -14,6 +14,10 @@ import type { DecisionResult } from '../decision/decision.types';
 import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
 import { classifyDocumentChunkUsageBoundary } from './document-chunk-boundary';
 import {
+  buildStructuralKnowledgeSummary,
+  extractKnowledgeAxisSummaries,
+} from './document-knowledge-claims';
+import {
   DocumentRetrievalAttempt,
   DocumentRetrievalResult,
 } from './document.types';
@@ -98,7 +102,12 @@ export class DocumentRetrievalService {
         return {
           chunk,
           usageBoundary,
-          score: scoreChunk(query, queryTokens, chunk.searchText, {
+          claimSummary: buildClaimBackedSummary(
+            chunk,
+            queryTokens,
+            input.interpretation.language,
+          ),
+          score: scoreChunk(query, queryTokens, chunk.searchText, chunk.retrievalProjection, {
             activeDocumentIds,
             preferredTopicTokens,
             hasTopicCarryover:
@@ -142,6 +151,7 @@ export class DocumentRetrievalService {
       excerpt: buildExcerpt(entry.chunk.content, queryTokens),
       sequence: entry.chunk.sequence,
       score: Number(entry.score.toFixed(3)),
+      supportSummary: buildChunkSupportSummary(entry.chunk),
     }));
 
     return {
@@ -154,6 +164,9 @@ export class DocumentRetrievalService {
           incremental:
             signals.threading.incrementalFollowUp ||
             reason === 'active_document_continuation',
+          preferredSummaries: topMatched
+            .map((entry) => entry.claimSummary)
+            .filter((value): value is string => Boolean(value)),
         }),
         matches,
       },
@@ -398,6 +411,7 @@ function scoreChunk(
   query: string,
   queryTokens: string[],
   searchText: string,
+  retrievalProjection: string | null | undefined,
   input: {
     activeDocumentIds?: string[];
     preferredTopicTokens: string[];
@@ -406,7 +420,10 @@ function scoreChunk(
     usageBoundary: 'knowledge' | 'operational';
   },
 ) {
-  const tokenSet = new Set(searchText.split(/\s+/));
+  const effectiveSearchText = [searchText, retrievalProjection ?? '']
+    .join(' ')
+    .trim();
+  const tokenSet = new Set(effectiveSearchText.split(/\s+/));
   let score = 0;
 
   for (const token of queryTokens) {
@@ -417,12 +434,12 @@ function scoreChunk(
 
   const normalizedQuery = normalizeConversationSignalText(query);
 
-  if (normalizedQuery.length > 0 && searchText.includes(normalizedQuery)) {
+  if (normalizedQuery.length > 0 && effectiveSearchText.includes(normalizedQuery)) {
     score += 4;
   }
 
   for (const phrase of buildTokenPhrases(queryTokens)) {
-    if (searchText.includes(phrase)) {
+    if (effectiveSearchText.includes(phrase)) {
       score += 2;
     }
   }
@@ -503,8 +520,22 @@ function buildGroundedSummary(
   queryTokens: string[],
   options?: {
     incremental?: boolean;
+    preferredSummaries?: string[];
   },
 ) {
+  const preferredSummaries = (options?.preferredSummaries ?? [])
+    .map((summary) => normalizeSummaryExcerpt(summary))
+    .filter((summary): summary is string => Boolean(summary));
+  const preferredSummary = preferredSummaries[0];
+
+  if (preferredSummary) {
+    return preferredSummaries
+      .slice(0, options?.incremental ? 1 : 2)
+      .join(' ')
+      .slice(0, options?.incremental ? 220 : 320)
+      .trim();
+  }
+
   const rankedExcerpts = matches
     .slice(0, 3)
     .map((match) => ({
@@ -776,4 +807,113 @@ function scoreSummaryExcerpt(excerpt: string, queryTokens: string[]) {
   const broadListPenalty = itemCount >= 5 ? 1.25 : 0;
 
   return baseScore - broadListPenalty;
+}
+
+function buildClaimBackedSummary(
+  chunk: {
+    knowledgeItems?: Array<{
+      kind: string;
+      label: string;
+      valueText: string;
+      normalizedValue?: string | null;
+      supportClass: string;
+      metadata?: unknown;
+    }>;
+  },
+  queryTokens: string[],
+  locale?: string | null,
+) {
+  const claims = extractKnowledgeAxisSummaries(chunk.knowledgeItems ?? []);
+
+  if (claims.length === 0) {
+    return null;
+  }
+
+  const ranked = claims
+    .map((claim) => ({
+      summary: buildStructuralKnowledgeSummary({
+        locale,
+        claims: [claim],
+        limit: 1,
+      }),
+      score:
+        scoreExcerptSentence(
+          `${claim.axis} ${claim.values.join(' ')}`,
+          queryTokens,
+        ) + (claim.supportClass === 'explicit_fact' ? 2 : 1),
+    }))
+    .filter((claim) => claim.summary.length > 0)
+    .sort((left, right) => right.score - left.score);
+
+  return ranked[0]?.summary ?? null;
+}
+
+function buildChunkSupportSummary(chunk: {
+  metadata?: unknown;
+  knowledgeItems?: Array<{
+    kind: string;
+    label: string;
+    valueText: string;
+    normalizedValue?: string | null;
+    supportClass: string;
+    metadata?: unknown;
+  }>;
+}) {
+  const supportSummary = extractChunkSupportSummary(chunk.metadata);
+  const axisSummaries = extractKnowledgeAxisSummaries(chunk.knowledgeItems ?? []);
+
+  if (!supportSummary && axisSummaries.length === 0) {
+    return undefined;
+  }
+
+  const supportedAxes = Array.from(
+    new Set([
+      ...(supportSummary?.supportedAxes ?? []),
+      ...axisSummaries.map((summary) => summary.axis),
+    ]),
+  );
+  const unspecifiedAxes = Array.from(
+    new Set([
+      ...(supportSummary?.unspecifiedAxes ?? []),
+      ...axisSummaries.flatMap((summary) => summary.unspecifiedAxes ?? []),
+    ]),
+  );
+
+  return {
+    topic: supportSummary?.topic,
+    supportedAxes,
+    unspecifiedAxes,
+    axisSummaries: axisSummaries.length > 0 ? axisSummaries : undefined,
+  };
+}
+
+function extractChunkSupportSummary(metadata: unknown) {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+    return undefined;
+  }
+
+  const metadataRecord = metadata as Record<string, unknown>;
+  const supportSummary =
+    typeof metadataRecord.supportSummary === 'object' && metadataRecord.supportSummary
+      ? (metadataRecord.supportSummary as Record<string, unknown>)
+      : null;
+
+  if (!supportSummary) {
+    return undefined;
+  }
+
+  return {
+    topic:
+      typeof supportSummary.topic === 'string' ? supportSummary.topic : undefined,
+    supportedAxes: Array.isArray(supportSummary.supportedAxes)
+      ? supportSummary.supportedAxes.filter(
+          (value): value is string => typeof value === 'string',
+        )
+      : [],
+    unspecifiedAxes: Array.isArray(supportSummary.unspecifiedAxes)
+      ? supportSummary.unspecifiedAxes.filter(
+          (value): value is string => typeof value === 'string',
+        )
+      : [],
+  };
 }

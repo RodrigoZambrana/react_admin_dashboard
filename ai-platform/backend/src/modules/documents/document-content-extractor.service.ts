@@ -111,6 +111,10 @@ export class DocumentContentExtractorService {
       mimeType: extracted.mimeType ?? null,
       language: extracted.language ?? null,
       content: extracted.textContent.trim(),
+      metadata:
+        extracted.metadata && typeof extracted.metadata === 'object'
+          ? extracted.metadata
+          : null,
     };
   }
 }

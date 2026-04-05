@@ -163,6 +163,42 @@ describe('ResponseGroundingService', () => {
     ).toBe(false);
   });
 
+  it('derives material detail support from structured document claims instead of hardcoded material vocabularies', () => {
+    const detailTypes = service.extractClaimedDetailTypes({
+      locale: 'es',
+      message: 'Vienen en PVC y aluminio.',
+      documentContext: {
+        source: 'document_origin',
+        query: 'materiales enrollar',
+        groundedSummary: 'materiales: PVC, aluminio',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt: 'Disponibles en PVC y aluminio.',
+            sequence: 0,
+            score: 3.8,
+            supportSummary: {
+              topic: 'cortinas de enrollar',
+              supportedAxes: ['materials'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'materials',
+                  values: ['PVC', 'aluminio'],
+                  supportClass: 'explicit_fact',
+                  extractionScope: 'tenant_only',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(detailTypes).toContain('materials');
+  });
+
   it('recognizes natural unspecified-detail phrasing with reflexive wording', () => {
     expect(
       service.containsUnspecifiedCue({

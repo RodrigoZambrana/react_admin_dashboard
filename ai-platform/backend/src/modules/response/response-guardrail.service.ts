@@ -85,11 +85,13 @@ export class ResponseGuardrailService {
       const claimedDetailTypes = this.responseGroundingService.extractClaimedDetailTypes({
         locale: approvedContext.locale,
         message: generatedResponse.message,
+        documentContext: approvedContext.documentContext,
       });
       const unspecifiedDetailTypes =
         this.responseGroundingService.extractUnspecifiedDetailTypes({
           locale: approvedContext.locale,
           message: generatedResponse.message,
+          documentContext: approvedContext.documentContext,
         });
       const allowedUnspecifiedDetailTypes = new Set(
         documentGrounding.requiredUnspecifiedDetailTypes ??

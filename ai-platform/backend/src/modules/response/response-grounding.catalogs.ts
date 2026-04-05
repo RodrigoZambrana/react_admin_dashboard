@@ -3,7 +3,8 @@ import type { ResponseGroundingDetailType } from './response.types';
 type DetailCatalogEntry = {
   requestTerms: string[];
   generalEvidenceTerms?: string[];
-  specificEvidenceTerms?: string[];
+  supportedAxes?: string[];
+  unspecifiedAxes?: string[];
   unspecifiedLabel: string;
 };
 
@@ -43,7 +44,6 @@ const defaultCatalog: GroundingLocaleCatalog = {
     pricing: {
       requestTerms: ['price', 'pricing', 'cost', 'budget'],
       generalEvidenceTerms: ['price', 'pricing', 'cost', 'usd', '$'],
-      specificEvidenceTerms: ['usd', '$'],
       unspecifiedLabel: 'pricing details',
     },
     purchase_channel: {
@@ -59,22 +59,14 @@ const defaultCatalog: GroundingLocaleCatalog = {
     materials: {
       requestTerms: ['material', 'materials', 'fabric', 'finish'],
       generalEvidenceTerms: ['material', 'materials', 'fabric', 'finish'],
-      specificEvidenceTerms: [
-        'pvc',
-        'aluminum',
-        'aluminium',
-        'wood',
-        'metal',
-        'steel',
-        'vinyl',
-        'polyester',
-      ],
+      supportedAxes: ['materials'],
       unspecifiedLabel: 'exact material details',
     },
     color_options: {
       requestTerms: ['color', 'colors', 'tone', 'tones'],
       generalEvidenceTerms: ['color', 'colors', 'tone', 'tones', 'variety'],
-      specificEvidenceTerms: [],
+      supportedAxes: ['color_options'],
+      unspecifiedAxes: ['exact_color_options'],
       unspecifiedLabel: 'the exact color options',
     },
     specific_variants: {
@@ -88,7 +80,7 @@ const defaultCatalog: GroundingLocaleCatalog = {
         'options',
         'variety',
       ],
-      specificEvidenceTerms: [],
+      supportedAxes: ['specific_variants', 'product_types'],
       unspecifiedLabel: 'the exact variants',
     },
   },
@@ -144,7 +136,6 @@ const spanishCatalog: GroundingLocaleCatalog = {
     pricing: {
       requestTerms: ['precio', 'precios', 'costo', 'costos', 'valor'],
       generalEvidenceTerms: ['precio', 'precios', 'costo', 'costos', 'usd', '$'],
-      specificEvidenceTerms: ['usd', '$'],
       unspecifiedLabel: 'los precios',
     },
     purchase_channel: {
@@ -160,22 +151,14 @@ const spanishCatalog: GroundingLocaleCatalog = {
     materials: {
       requestTerms: ['material', 'materiales', 'tela', 'acabado'],
       generalEvidenceTerms: ['material', 'materiales', 'tela', 'acabado'],
-      specificEvidenceTerms: [
-        'pvc',
-        'aluminio',
-        'madera',
-        'metal',
-        'acero',
-        'vinilo',
-        'poliester',
-        'poliéster',
-      ],
+      supportedAxes: ['materials'],
       unspecifiedLabel: 'los materiales exactos',
     },
     color_options: {
       requestTerms: ['color', 'colores', 'tono', 'tonos'],
       generalEvidenceTerms: ['color', 'colores', 'tono', 'tonos', 'variedad'],
-      specificEvidenceTerms: [],
+      supportedAxes: ['color_options'],
+      unspecifiedAxes: ['exact_color_options'],
       unspecifiedLabel: 'los colores exactos',
     },
     specific_variants: {
@@ -189,7 +172,7 @@ const spanishCatalog: GroundingLocaleCatalog = {
         'opciones',
         'variedad',
       ],
-      specificEvidenceTerms: [],
+      supportedAxes: ['specific_variants', 'product_types'],
       unspecifiedLabel: 'las variantes exactas',
     },
   },

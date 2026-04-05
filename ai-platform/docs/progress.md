@@ -2679,3 +2679,48 @@
 - Extend the document ingestion pipeline with semantic chunking, structured claims/entities, and retrieval projections without replacing the current lexical path
 - Wire the richer ingestion artifacts into retrieval and approved response context incrementally
 - Keep Wave 9 out of scope and preserve catalog/booking/document stability while evolving the document knowledge model
+
+## Iteration 80
+
+### Implemented
+- Cleaned structured document extraction ownership so the extractor now persists structural claims instead of customer-facing prose
+- Added a dedicated document knowledge claim helper boundary for:
+  - claim payload parsing
+  - axis summaries
+  - structural retrieval projections
+  - neutral structural summaries
+- Refactored ingestion and retrieval so `retrievalProjection` and claim-backed summaries are built from:
+  - supported axes
+  - unspecified axes
+  - extracted values
+  - provenance-aware structured items
+  instead of extraction-emitted response phrases
+- Reduced decisive grounding vocabulary debt:
+  - `ResponseGroundingService` now derives dynamic detail evidence from retrieved structured axis summaries
+  - hardcoded material/product value vocabularies were removed from grounding catalogs
+- Strengthened architecture regression coverage so displaced debt is caught if it reappears in:
+  - extraction catalogs
+  - grounding catalogs
+  - helper boundaries
+
+### Working
+- Extraction now produces traceable structured knowledge without persisting response prose such as:
+  - `Trabajamos con ...`
+  - `Tenemos variedad de colores`
+  - `Tipos disponibles ...`
+- Retrieval still works with the current lexical path while using structural projections and claim summaries
+- Grounding still distinguishes supported / partial / unavailable detail axes while relying on document-derived values instead of hardcoded tenant facts
+- Backend validation for the touched areas passed:
+  - `npm run prisma:generate --workspace backend`
+  - `npm run build --workspace backend`
+  - targeted regression suites for extraction, retrieval, approved response context, and grounding
+
+### Technical Debt
+- Claim-aware ranking is still layered on top of lexical retrieval rather than replacing it with a full hybrid ranker
+- Structural summaries are now neutral and non-presentational, but response generation is still only partially claim-driven
+- A narrow presentation normalization layer still remains necessary to strip explicit source lead-ins before response generation
+
+### Next Steps
+- Finish the response voice ownership cleanup so direct company voice stays in governed response behavior instead of backend core rewrites
+- Run full backend/frontend validation after the remaining response-layer cleanup lands
+- Keep Wave 9 out of scope and avoid folding broader product work into this structural cleanup phase

@@ -4,14 +4,19 @@ import { ManagedResourceStatus, Prisma } from '@prisma/client';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
 import { DocumentRepository } from '../persistence/repositories/document.repository';
-import { buildDocumentChunkBoundaryMetadata } from './document-chunk-boundary';
+import {
+  buildStructuralKnowledgeSummary,
+  extractKnowledgeAxisSummaries,
+} from './document-knowledge-claims';
 import { DocumentChunkCandidate } from './document.types';
+import { DocumentKnowledgeExtractionService } from './document-knowledge-extraction.service';
 
 @Injectable()
 export class DocumentIngestionService {
   constructor(
     private readonly documentRepository: DocumentRepository,
     private readonly documentChunkRepository: DocumentChunkRepository,
+    private readonly documentKnowledgeExtractionService: DocumentKnowledgeExtractionService,
     private readonly logger: PipelineLoggerService,
   ) {}
 
@@ -23,7 +28,12 @@ export class DocumentIngestionService {
     const document = await this.documentRepository.markProcessing(input.documentId);
 
     try {
-      const chunks = this.buildChunks(document.sourceText);
+      const chunks = this.documentKnowledgeExtractionService.buildChunkCandidates({
+        sourceText: document.sourceText,
+        originKind: document.originKind,
+        language: document.language,
+        sourceMetadata: this.asRecord(document.metadata),
+      });
 
       if (chunks.length === 0) {
         throw new Error('No document chunks could be generated');
@@ -35,7 +45,18 @@ export class DocumentIngestionService {
           sequence: chunk.sequence,
           content: chunk.content,
           searchText: chunk.searchText,
+          retrievalProjection: chunk.retrievalProjection,
           metadata: (chunk.metadata ?? null) as Prisma.InputJsonValue | null,
+          structuredItems: (chunk.structuredItems ?? []).map((item) => ({
+            sequence: item.sequence,
+            kind: item.kind,
+            label: item.label,
+            valueText: item.valueText,
+            normalizedValue: item.normalizedValue,
+            supportClass: item.supportClass,
+            evidenceTextSpan: item.evidenceTextSpan,
+            metadata: (item.metadata ?? null) as Prisma.InputJsonValue | null,
+          })),
         })),
       });
 
@@ -79,81 +100,6 @@ export class DocumentIngestionService {
     }
   }
 
-  private buildChunks(sourceText: string): DocumentChunkCandidate[] {
-    const paragraphs = sourceText
-      .split(/\n{2,}/)
-      .map((paragraph) => paragraph.trim())
-      .filter((paragraph) => paragraph.length > 0);
-
-    const chunks: DocumentChunkCandidate[] = [];
-    let buffer = '';
-    let sequence = 0;
-
-    const pushChunk = (value: string) => {
-      const content = value.trim();
-
-      if (content.length === 0) {
-        return;
-      }
-
-      chunks.push({
-        sequence,
-        content,
-        searchText: normalizeSearchText(content),
-        metadata: {
-          characterLength: content.length,
-          ...buildDocumentChunkBoundaryMetadata(content),
-        },
-      });
-      sequence += 1;
-    };
-
-    for (const paragraph of paragraphs) {
-      const candidate = buffer.length > 0 ? `${buffer}\n\n${paragraph}` : paragraph;
-
-      if (candidate.length <= 900) {
-        buffer = candidate;
-        continue;
-      }
-
-      if (buffer.length > 0) {
-        pushChunk(buffer);
-        buffer = paragraph;
-        continue;
-      }
-
-      const sentences = paragraph
-        .split(/(?<=[.!?])\s+/)
-        .map((sentence) => sentence.trim())
-        .filter((sentence) => sentence.length > 0);
-
-      let sentenceBuffer = '';
-
-      for (const sentence of sentences) {
-        const nextSentenceBuffer =
-          sentenceBuffer.length > 0 ? `${sentenceBuffer} ${sentence}` : sentence;
-
-        if (nextSentenceBuffer.length <= 900) {
-          sentenceBuffer = nextSentenceBuffer;
-          continue;
-        }
-
-        pushChunk(sentenceBuffer);
-        sentenceBuffer = sentence;
-      }
-
-      if (sentenceBuffer.length > 0) {
-        buffer = sentenceBuffer;
-      }
-    }
-
-    if (buffer.length > 0) {
-      pushChunk(buffer);
-    }
-
-    return chunks;
-  }
-
   private buildSummary(chunks: DocumentChunkCandidate[]) {
     const preferredChunks =
       chunks.some((chunk) => chunk.metadata?.usageBoundary === 'knowledge')
@@ -162,7 +108,23 @@ export class DocumentIngestionService {
 
     return preferredChunks
       .slice(0, 2)
-      .map((chunk) => chunk.content)
+      .map((chunk) => {
+        const supportSummary =
+          typeof chunk.metadata?.supportSummary === 'object' &&
+          chunk.metadata?.supportSummary
+            ? (chunk.metadata.supportSummary as Record<string, unknown>)
+            : null;
+        const topic =
+          supportSummary && typeof supportSummary.topic === 'string'
+            ? supportSummary.topic
+            : null;
+        const claimSummary = buildStructuralKnowledgeSummary({
+          claims: extractKnowledgeAxisSummaries(chunk.structuredItems ?? []),
+          limit: 1,
+        });
+
+        return [topic, claimSummary].filter(Boolean).join('. ').trim() || chunk.content;
+      })
       .join(' ')
       .slice(0, 320)
       .trim();
@@ -175,14 +137,4 @@ export class DocumentIngestionService {
 
     return value as Record<string, unknown>;
   }
-}
-
-function normalizeSearchText(value: string) {
-  return value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
 }

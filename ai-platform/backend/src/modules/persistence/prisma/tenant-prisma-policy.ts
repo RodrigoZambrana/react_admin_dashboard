@@ -29,6 +29,7 @@ const TENANT_MODELS = new Set([
   'Knowledge',
   'DocumentRecord',
   'DocumentChunk',
+  'DocumentKnowledgeItem',
 ]);
 
 export function isTenantScopedModel(model?: string): boolean {

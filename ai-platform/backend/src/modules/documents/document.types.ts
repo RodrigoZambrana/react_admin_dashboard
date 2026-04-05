@@ -40,13 +40,58 @@ export type ExtractedDocumentSource = {
   mimeType?: string | null;
   language?: string | null;
   content: string;
+  metadata?: Record<string, unknown> | null;
+};
+
+export type DocumentKnowledgeItemKind = 'entity' | 'claim';
+export type DocumentKnowledgeSupportClass =
+  | 'explicit_fact'
+  | 'partial_fact'
+  | 'bounded_inference';
+
+export type DocumentKnowledgeExtractionScope = 'core' | 'tenant_only';
+
+export type DocumentKnowledgeClaimPayload = {
+  axis: string;
+  kind: 'value_list' | 'qualifier' | 'relation_target';
+  values: string[];
+};
+
+export type DocumentKnowledgeItemMetadata = {
+  section?: string;
+  page?: number;
+  sheet?: string;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  unspecifiedAxes?: string[];
+  claim?: DocumentKnowledgeClaimPayload;
+};
+
+export type DocumentKnowledgeAxisSummary = {
+  axis: string;
+  values: string[];
+  supportClass: DocumentKnowledgeSupportClass;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  unspecifiedAxes?: string[];
+};
+
+export type DocumentKnowledgeItemCandidate = {
+  sequence: number;
+  kind: DocumentKnowledgeItemKind;
+  label: string;
+  valueText: string;
+  normalizedValue?: string;
+  supportClass: DocumentKnowledgeSupportClass;
+  evidenceTextSpan: string;
+  metadata?: DocumentKnowledgeItemMetadata;
 };
 
 export type DocumentChunkCandidate = {
   sequence: number;
   content: string;
   searchText: string;
+  retrievalProjection: string;
   metadata?: Record<string, unknown>;
+  structuredItems?: DocumentKnowledgeItemCandidate[];
 };
 
 export type DocumentRetrievalMatch = {
@@ -55,6 +100,12 @@ export type DocumentRetrievalMatch = {
   excerpt: string;
   sequence: number;
   score: number;
+  supportSummary?: {
+    topic?: string;
+    supportedAxes: string[];
+    unspecifiedAxes: string[];
+    axisSummaries?: DocumentKnowledgeAxisSummary[];
+  };
 };
 
 export type DocumentRetrievalResult = {

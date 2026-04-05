@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ContinuityMetadata, ConversationStateSnapshot } from '../continuity/continuity.types';
 import type { DecisionResult } from '../decision/decision.types';
 import type { DocumentRetrievalResult } from '../documents/document.types';
+import type { DocumentKnowledgeAxisSummary } from '../documents/document.types';
 import type { CanonicalIntent } from '../interpretation/interpretation.schemas';
 import type { ParsedInterpretation } from '../parsing/parsing.service';
 import type { ToolExecutionAttempt } from '../tools/tool.types';
@@ -137,6 +138,12 @@ export type ApprovedResponseContext = {
       sequence: number;
       score: number;
       excerpt?: string;
+      supportSummary?: {
+        topic?: string;
+        supportedAxes: string[];
+        unspecifiedAxes: string[];
+        axisSummaries?: DocumentKnowledgeAxisSummary[];
+      };
     }>;
   };
   responseStyle?: {

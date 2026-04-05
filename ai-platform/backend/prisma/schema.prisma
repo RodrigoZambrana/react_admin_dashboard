@@ -50,6 +50,17 @@ enum DocumentIngestionStatus {
   FAILED
 }
 
+enum DocumentKnowledgeItemKind {
+  ENTITY
+  CLAIM
+}
+
+enum DocumentKnowledgeSupportClass {
+  EXPLICIT_FACT
+  PARTIAL_FACT
+  BOUNDED_INFERENCE
+}
+
 enum CatalogSourceKind {
   UPLOADED_STRUCTURED
   REST
@@ -237,6 +248,7 @@ model DocumentRecord {
   createdAt       DateTime                @default(now())
   updatedAt       DateTime                @updatedAt
   chunks          DocumentChunk[]
+  knowledgeItems  DocumentKnowledgeItem[]
 
   @@index([tenantId, status, createdAt])
   @@index([tenantId, ingestionStatus, createdAt])
@@ -249,12 +261,35 @@ model DocumentChunk {
   sequence   Int
   content    String
   searchText String
+  retrievalProjection String?
   metadata   Json?
   createdAt  DateTime       @default(now())
   document   DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  knowledgeItems DocumentKnowledgeItem[]
 
   @@unique([documentId, sequence])
   @@index([tenantId, documentId, sequence])
+}
+
+model DocumentKnowledgeItem {
+  id             String                       @id @default(cuid())
+  tenantId       String
+  documentId     String
+  chunkId        String
+  sequence       Int
+  kind           DocumentKnowledgeItemKind
+  label          String
+  valueText      String
+  normalizedValue String?
+  supportClass   DocumentKnowledgeSupportClass
+  evidenceTextSpan String
+  metadata       Json?
+  createdAt      DateTime                     @default(now())
+  document       DocumentRecord               @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunk          DocumentChunk                @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, documentId, chunkId, sequence])
+  @@index([tenantId, kind, label])
 }
 
 model CatalogSourceRecord {

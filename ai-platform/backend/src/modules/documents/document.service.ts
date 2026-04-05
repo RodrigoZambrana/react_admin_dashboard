@@ -177,6 +177,7 @@ export class DocumentService {
       metadata: {
         createdBy: input.createdBy ?? 'admin-ui',
         originKind: input.extractedSource.originKind,
+        ...(input.extractedSource.metadata ?? {}),
       },
     });
 

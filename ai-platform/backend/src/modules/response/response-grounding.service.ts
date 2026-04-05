@@ -1,6 +1,9 @@
 import { Injectable } from '@nestjs/common';
 
-import { DocumentRetrievalResult } from '../documents/document.types';
+import {
+  DocumentKnowledgeAxisSummary,
+  DocumentRetrievalResult,
+} from '../documents/document.types';
 import {
   ApprovedResponseContext,
   ResponseGroundingDetailType,
@@ -15,16 +18,35 @@ import {
 } from './response-grounding.catalogs';
 
 type DetailSupportLevel = 'supported' | 'partial' | 'unsupported';
+type DocumentGroundingLike = Pick<
+  DocumentRetrievalResult,
+  'source' | 'query' | 'groundedSummary'
+> & {
+  matches: Array<{
+    documentId?: string;
+    title?: string;
+    sequence?: number;
+    score?: number;
+    excerpt?: string;
+    supportSummary?: {
+      topic?: string;
+      supportedAxes: string[];
+      unspecifiedAxes: string[];
+      axisSummaries?: DocumentKnowledgeAxisSummary[];
+    };
+  }>;
+};
 
 @Injectable()
 export class ResponseGroundingService {
   assessDocumentContext(input: {
     locale?: string | null;
     userMessage: string;
-    documentContext: DocumentRetrievalResult;
+    documentContext: DocumentGroundingLike;
   }) {
     const catalog = resolveResponseGroundingCatalog(input.locale);
     const questionLike = /[?¿]/u.test(input.userMessage);
+    const axisState = collectDocumentAxisState(input.documentContext);
     const queryText = normalizeText(
       `${input.userMessage} ${input.documentContext.query} ${input.documentContext.groundedSummary}`,
     );
@@ -53,8 +75,14 @@ export class ResponseGroundingService {
           requested: requestedDetailTypes.includes(detailType),
           generalEvidenceTerms:
             catalog.detailTypes[detailType].generalEvidenceTerms ?? [],
-          specificEvidenceTerms:
-            catalog.detailTypes[detailType].specificEvidenceTerms ?? [],
+          dynamicEvidenceTerms: this.resolveDynamicEvidenceTerms({
+            detailType,
+            documentContext: input.documentContext,
+          }),
+          supportedAxes: catalog.detailTypes[detailType].supportedAxes ?? [],
+          unspecifiedAxes: catalog.detailTypes[detailType].unspecifiedAxes ?? [],
+          availableSupportedAxes: axisState.supportedAxes,
+          availableUnspecifiedAxes: axisState.unspecifiedAxes,
         }),
       ]),
     ) as Record<ResponseGroundingDetailType, DetailSupportLevel>;
@@ -71,7 +99,8 @@ export class ResponseGroundingService {
     const questionQualifiedPartialDetailTypes = questionLike
       ? partialDetailTypes.filter(
           (detailType) =>
-            (catalog.detailTypes[detailType].specificEvidenceTerms ?? []).length === 0,
+            (catalog.detailTypes[detailType].supportedAxes ?? []).length > 0 ||
+            (catalog.detailTypes[detailType].unspecifiedAxes ?? []).length > 0,
         )
       : [];
     const requiredUnspecifiedDetailTypes = Array.from(
@@ -99,7 +128,11 @@ export class ResponseGroundingService {
     };
   }
 
-  extractClaimedDetailTypes(input: { locale?: string | null; message: string }) {
+  extractClaimedDetailTypes(input: {
+    locale?: string | null;
+    message: string;
+    documentContext?: DocumentGroundingLike;
+  }) {
     const catalog = resolveResponseGroundingCatalog(input.locale);
     const normalized = normalizeText(input.message);
 
@@ -109,7 +142,10 @@ export class ResponseGroundingService {
         [
           ...catalog.detailTypes[detailType].requestTerms,
           ...(catalog.detailTypes[detailType].generalEvidenceTerms ?? []),
-          ...(catalog.detailTypes[detailType].specificEvidenceTerms ?? []),
+          ...this.resolveDynamicEvidenceTerms({
+            detailType,
+            documentContext: input.documentContext,
+          }),
         ],
       ),
     );
@@ -125,6 +161,7 @@ export class ResponseGroundingService {
   extractUnspecifiedDetailTypes(input: {
     locale?: string | null;
     message: string;
+    documentContext?: DocumentGroundingLike;
   }) {
     if (!this.containsUnspecifiedCue(input)) {
       return [];
@@ -137,6 +174,7 @@ export class ResponseGroundingService {
     locale?: string | null;
     summary: string;
     detailTypes: ResponseGroundingDetailType[];
+    documentContext?: DocumentGroundingLike;
   }) {
     if (input.detailTypes.length === 0) {
       return true;
@@ -149,7 +187,10 @@ export class ResponseGroundingService {
       hasGroundingCatalogSignal(normalizedSummary, [
         ...catalog.detailTypes[detailType].requestTerms,
         ...(catalog.detailTypes[detailType].generalEvidenceTerms ?? []),
-        ...(catalog.detailTypes[detailType].specificEvidenceTerms ?? []),
+        ...this.resolveDynamicEvidenceTerms({
+          detailType,
+          documentContext: input.documentContext,
+        }),
       ]),
     );
   }
@@ -258,18 +299,34 @@ export class ResponseGroundingService {
     evidenceText: string;
     requested: boolean;
     generalEvidenceTerms: string[];
-    specificEvidenceTerms: string[];
+    dynamicEvidenceTerms: string[];
+    supportedAxes: string[];
+    unspecifiedAxes: string[];
+    availableSupportedAxes: Set<string>;
+    availableUnspecifiedAxes: Set<string>;
   }): DetailSupportLevel {
     if (!input.requested) {
       return 'unsupported';
     }
 
+    const hasStructuredSupport = input.supportedAxes.some((axis) =>
+      input.availableSupportedAxes.has(axis),
+    );
+    const hasStructuredGap = input.unspecifiedAxes.some((axis) =>
+      input.availableUnspecifiedAxes.has(axis),
+    );
+
+    if (hasStructuredSupport && !hasStructuredGap) {
+      return 'supported';
+    }
+
+    if (hasStructuredSupport || hasStructuredGap) {
+      return 'partial';
+    }
+
     if (
-      input.specificEvidenceTerms.length > 0 &&
-      hasGroundingCatalogSignal(
-        input.evidenceText,
-        input.specificEvidenceTerms,
-      )
+      input.dynamicEvidenceTerms.length > 0 &&
+      hasGroundingCatalogSignal(input.evidenceText, input.dynamicEvidenceTerms)
     ) {
       return 'supported';
     }
@@ -285,6 +342,29 @@ export class ResponseGroundingService {
 
     return 'unsupported';
   }
+
+  private resolveDynamicEvidenceTerms(input: {
+    detailType: ResponseGroundingDetailType;
+    documentContext?: DocumentGroundingLike;
+  }) {
+    if (!input.documentContext) {
+      return [];
+    }
+
+    const axisState = collectDocumentAxisState(input.documentContext);
+    const catalog = resolveDetailTypeAxes(input.detailType);
+    const values = axisState.axisValues
+      .filter((axisSummary) => catalog.supportedAxes.has(axisSummary.axis))
+      .flatMap((axisSummary) => axisSummary.values);
+
+    return Array.from(
+      new Set(
+        values
+          .map((value) => normalizeText(value))
+          .filter((value) => value.length > 0),
+      ),
+    );
+  }
 }
 
 const detailTypes: ResponseGroundingDetailType[] = [
@@ -299,4 +379,48 @@ const detailTypes: ResponseGroundingDetailType[] = [
 
 function normalizeText(value: string) {
   return normalizeGroundingText(value);
+}
+
+function collectDocumentAxisState(documentContext: DocumentGroundingLike) {
+  const supportedAxes = new Set<string>();
+  const unspecifiedAxes = new Set<string>();
+  const axisValues: Array<{
+    axis: string;
+    values: string[];
+  }> = [];
+
+  for (const match of documentContext.matches) {
+    for (const axis of match.supportSummary?.supportedAxes ?? []) {
+      supportedAxes.add(axis);
+    }
+
+    for (const axis of match.supportSummary?.unspecifiedAxes ?? []) {
+      unspecifiedAxes.add(axis);
+    }
+
+    for (const summary of match.supportSummary?.axisSummaries ?? []) {
+      axisValues.push({
+        axis: summary.axis,
+        values: summary.values,
+      });
+    }
+  }
+
+  return {
+    supportedAxes,
+    unspecifiedAxes,
+    axisValues,
+  };
+}
+
+function resolveDetailTypeAxes(detailType: ResponseGroundingDetailType) {
+  if (detailType === 'specific_variants') {
+    return {
+      supportedAxes: new Set(['specific_variants', 'product_types']),
+    };
+  }
+
+  return {
+    supportedAxes: new Set([detailType]),
+  };
 }
