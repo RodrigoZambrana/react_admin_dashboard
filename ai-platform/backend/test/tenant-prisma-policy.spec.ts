@@ -261,7 +261,7 @@ describe('tenant prisma policy', () => {
       });
     });
 
-    it('forces tenant scope in upsert where and overwrites caller tenantId in create/update', () => {
+    it('keeps unique upsert where intact and overwrites caller tenantId in create/update', () => {
       expect(
         applyTenantScope(
           {
@@ -288,7 +288,7 @@ describe('tenant prisma policy', () => {
       ).toMatchObject({
         args: {
           where: {
-            AND: [{ key: 'interpretation' }, { tenantId: 'tenant-a' }],
+            key: 'interpretation',
           },
           create: {
             tenantId: 'tenant-a',

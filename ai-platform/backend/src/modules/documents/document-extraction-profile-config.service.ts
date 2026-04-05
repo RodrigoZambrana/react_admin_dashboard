@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Prisma } from '@prisma/client';
@@ -108,7 +108,8 @@ export class DocumentExtractionProfileConfigService {
   >();
 
   constructor(
-    private readonly repository: DocumentExtractionProfileConfigRepository | null = null,
+    @Optional()
+    private readonly repository?: DocumentExtractionProfileConfigRepository,
   ) {}
 
   resolveCompiledConfig(input: {

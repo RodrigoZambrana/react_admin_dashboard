@@ -126,9 +126,8 @@ export function applyTenantScope<T extends PrismaParams>(
       );
       break;
     case 'upsert':
-      nextArgs.where = mergeTenantWhere(
+      nextArgs.where = removeTenantIdFilter(
         nextArgs.where as Record<string, unknown> | undefined,
-        tenantId,
       );
       nextArgs.create = injectTenantIntoData(
         nextArgs.create as Record<string, unknown> | undefined,
