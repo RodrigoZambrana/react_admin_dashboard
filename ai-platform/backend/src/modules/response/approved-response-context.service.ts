@@ -217,6 +217,18 @@ export class ApprovedResponseContextService {
       this.isBriefQuestionLike(input.message) &&
       this.normalizeForComparison(input.message) !==
         this.normalizeForComparison(input.documentContext?.query ?? '');
+    const openingTurn =
+      !input.conversationState &&
+      !input.continuity.previousStateSummary &&
+      !input.continuity.applied;
+    const includeInitialGreeting =
+      openingTurn &&
+      (input.decisionAction === 'respond' || input.decisionAction === 'clarify');
+    const preferMultiline =
+      includeInitialGreeting ||
+      (Boolean(input.documentContext) &&
+        input.decisionAction === 'respond' &&
+        !incrementalFollowUp);
 
     return {
       preferBrief:
@@ -224,10 +236,9 @@ export class ApprovedResponseContextService {
         (input.documentContext !== undefined &&
           input.decisionAction === 'respond'),
       incrementalFollowUp,
-      groundedKnowledgeOnly:
-        input.decisionAction === 'respond' &&
-        input.documentContext?.responseMode === 'document_exploration' &&
-        input.documentContext.grounding.supportLevel === 'unavailable',
+      groundedKnowledgeOnly: false,
+      includeInitialGreeting,
+      preferMultiline,
     };
   }
 

@@ -359,7 +359,7 @@ describe('ChatResponseService', () => {
     );
   });
 
-  it('locks to the approved draft when grounded knowledge is unavailable and generic fill-in would be unsafe', async () => {
+  it('keeps the AI response path open for ordinary document turns even when support is unavailable', async () => {
     const service = new ChatResponseService(
       {
         build: jest.fn(() => ({
@@ -397,7 +397,7 @@ describe('ChatResponseService', () => {
           responseStyle: {
             preferBrief: true,
             incrementalFollowUp: true,
-            groundedKnowledgeOnly: true,
+            groundedKnowledgeOnly: false,
           },
         })),
       } as any,
@@ -405,18 +405,227 @@ describe('ChatResponseService', () => {
         resolve: jest.fn(() => 'Por ahora no tengo una confirmación clara sobre eso.'),
       } as any,
       {
-        generateResponse: jest.fn(),
+        generateResponse: jest.fn(async () => ({
+          ok: true,
+          rawResponse:
+            '{"message":"Por ahora no veo el detalle exacto, pero si querés lo revisamos sobre una opción puntual.","assertedOutcome":"respond","assertedExecutionStatus":"not_applicable","mentionedMissingFields":[],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":[],"mentionedDocumentIds":[]}',
+          parsedResponse: {
+            message:
+              'Por ahora no veo el detalle exacto, pero si querés lo revisamos sobre una opción puntual.',
+            assertedOutcome: 'respond',
+            assertedExecutionStatus: 'not_applicable',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [],
+            mentionedDocumentIds: [],
+          },
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+        })),
       } as any,
       {
-        evaluate: jest.fn(),
+        evaluate: jest.fn(() => ({
+          accepted: true,
+          reasons: [],
+        })),
       } as any,
     );
 
     await expect(service.generate(clarifyInput as any)).resolves.toEqual(
       expect.objectContaining({
-        response: 'Por ahora no tengo una confirmación clara sobre eso.',
-        usedFallback: true,
-        fallbackReason: 'policy_locked',
+        response:
+          'Por ahora no veo el detalle exacto, pero si querés lo revisamos sobre una opción puntual.',
+        usedFallback: false,
+        fallbackReason: null,
+      }),
+    );
+  });
+
+  it('keeps a contextual greeting and multiline layout when the approved draft requires an opening service tone', async () => {
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'document_grounded_exploration',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: false,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: true,
+            preferMultiline: true,
+          },
+          approvedDocumentIds: ['doc-1'],
+          approvedFactKeys: [],
+          approvedResultKeys: [],
+          documentContext: {
+            source: 'document_origin',
+            query: 'cortinas roller',
+            groundedSummary: 'Sí, tenemos cortinas roller.',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'explicit',
+              exactnessRequested: false,
+              requestedDetailTypes: [],
+              supportedDetailTypes: [],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: [],
+            },
+            matches: [],
+          },
+        })),
+      } as any,
+      {
+        resolve: jest.fn(
+          () =>
+            'Hola, gracias por contactarnos.\n\nSí, tenemos cortinas roller.\n\n¿Buscás algún tipo en particular?',
+        ),
+      } as any,
+      {
+        generateResponse: jest.fn(async () => ({
+          ok: true,
+          rawResponse:
+            '{"message":"Sí, tenemos cortinas roller. ¿Buscás algún tipo en particular?","assertedOutcome":"respond","assertedExecutionStatus":"not_applicable","mentionedMissingFields":[],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":[],"mentionedDocumentIds":["doc-1"]}',
+          parsedResponse: {
+            message: 'Sí, tenemos cortinas roller. ¿Buscás algún tipo en particular?',
+            assertedOutcome: 'respond',
+            assertedExecutionStatus: 'not_applicable',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [],
+            mentionedDocumentIds: ['doc-1'],
+          },
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+        })),
+      } as any,
+      {
+        evaluate: jest.fn(() => ({
+          accepted: true,
+          reasons: [],
+        })),
+      } as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        response:
+          'Hola, gracias por contactarnos.\n\nSí, tenemos cortinas roller.\n\n¿Buscás algún tipo en particular?',
+        usedFallback: false,
+      }),
+    );
+  });
+
+  it('normalizes unsupported provenance references before evaluating guardrails', async () => {
+    const evaluate = jest.fn(({ generatedResponse }) => {
+      expect(generatedResponse.mentionedApprovedFactKeys).toEqual([]);
+      expect(generatedResponse.mentionedDocumentIds).toEqual(['doc-1']);
+
+      return {
+        accepted: true,
+        reasons: [],
+      };
+    });
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'document_grounded_exploration',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: false,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: true,
+            preferMultiline: true,
+          },
+          approvedDocumentIds: ['doc-1'],
+          approvedFactKeys: ['lastGroundedSummary'],
+          approvedResultKeys: [],
+          documentContext: {
+            source: 'document_origin',
+            query: 'cortinas roller',
+            groundedSummary: 'Sí, tenemos cortinas roller.',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'explicit',
+              exactnessRequested: false,
+              requestedDetailTypes: [],
+              supportedDetailTypes: [],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: [],
+            },
+            matches: [],
+          },
+        })),
+      } as any,
+      {
+        resolve: jest.fn(
+          () =>
+            'Hola, gracias por contactarnos.\n\nSí, tenemos cortinas roller.\n\n¿Buscás algún tipo en particular?',
+        ),
+      } as any,
+      {
+        generateResponse: jest.fn(async () => ({
+          ok: true,
+          rawResponse: '{}',
+          parsedResponse: {
+            message:
+              'Hola, gracias por contactarnos. Sí, tenemos cortinas roller. ¿Buscás algún tipo en particular?',
+            assertedOutcome: 'respond',
+            assertedExecutionStatus: 'not_applicable',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: ['doc-1'],
+            mentionedApprovedResultKeys: [],
+            mentionedDocumentIds: ['doc-1'],
+          },
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+        })),
+      } as any,
+      {
+        evaluate,
+      } as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        usedFallback: false,
       }),
     );
   });

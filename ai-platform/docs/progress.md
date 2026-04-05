@@ -2604,3 +2604,40 @@
 - Run live exploratory smoke checks against the current active tenant documents to verify the refined follow-up retrieval on real catalog conversations
 - Keep follow-up grounding improvements bounded; do not reopen Wave 9 hardening or broaden this into generic retrieval redesign
 - Land any remaining prompt-content cleanup as a separate prompt-governance pass, not inside this regression fix
+
+## Iteration 78
+
+### Implemented
+- Applied a recovery-only hotfix to restore ordinary informative/document-backed conversation quality:
+  - removed the response-style `groundedKnowledgeOnly` lock for normal document/advisory respond turns so the runtime no longer short-circuits too early into sterile fallback wording
+  - softened document-aware response policy so matched excerpts can still back a concise approved summary instead of collapsing immediately to `document_not_found`
+- Softened retrieval recovery points without reopening architecture:
+  - document chunk boundary classification now keys off explicit headings/leading section markers instead of scanning the whole chunk body for operational labels
+  - document retrieval no longer drops all operationally-tagged matches when they still contain relevant product knowledge
+  - added a relaxed recovery threshold only for non-explicit knowledge/advisory retrieval paths so mixed chunks can still be used when they are the only valid approved evidence
+- Verified runtime-managed activation state as part of the hotfix:
+  - active governed prompts remain singular per key (`interpretation` v2, `response` v4)
+  - active response fallback catalogs remain singular per locale (`default`, `en`, `es`)
+
+### Working
+- Ordinary informative turns recover useful grounded answers again instead of defaulting too quickly to “no confirmation” wording
+- Document-backed questions such as:
+  - `necesito información de cortinas de enrollar`
+  - `y de cortinas roller?`
+  now return fluent grounded summaries against the live runtime
+- Follow-up retrieval on the same thread recovered practical usefulness:
+  - `en qué materiales` after `necesito información de cortinas de enrollar` now answers with `PVC` and `aluminio` on the same live conversation id
+- Full validation passed:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- Follow-up continuity is materially better again, but compact facet follow-ups still depend on deterministic retrieval scoring rather than semantic retrieval
+- Active response fallback catalogs still contain the conservative unavailable wording family; the hotfix reduced how often runtime falls into it, but did not redesign that catalog
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Keep recovery bounded: do not add new behavior on top of this hotfix until the restored conversational baseline is stable in exploratory testing
+- If another conversational pass is needed later, treat it as a separate scoped follow-up on retrieval continuity or governed wording, not as part of this stabilization hotfix
+- Keep Wave 9 out of scope

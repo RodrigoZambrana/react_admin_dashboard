@@ -12,6 +12,7 @@ import { ConversationSignalResolverService } from '../conversation-signals/conve
 import type { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import type { DecisionResult } from '../decision/decision.types';
 import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
+import { classifyDocumentChunkUsageBoundary } from './document-chunk-boundary';
 import {
   DocumentRetrievalAttempt,
   DocumentRetrievalResult,
@@ -50,6 +51,18 @@ export class DocumentRetrievalService {
 
     const query = this.resolveQuery(input, reason, signals, previousTopic);
     const queryTokens = tokenizeQuery(query, input.interpretation.language);
+    const preferredTopicText = resolvePreferredTopicText({
+      currentTopic: signals.topicText || this.resolveRawMessage(input),
+      previousTopic,
+      explicitSubjectTopic:
+        typeof input.interpretation.entities.productQuery === 'string'
+          ? input.interpretation.entities.productQuery
+          : null,
+      locale: input.interpretation.language,
+    });
+    const preferredTopicTokens = preferredTopicText
+      ? tokenizeQuery(preferredTopicText, input.interpretation.language)
+      : [];
 
     if (queryTokens.length === 0) {
       return {
@@ -67,16 +80,29 @@ export class DocumentRetrievalService {
       activeDocumentIds,
     );
     const scored = chunks
-      .map((chunk) => ({
-        chunk,
-        score: scoreChunk(query, queryTokens, chunk.searchText, {
-          activeDocumentIds,
-          hasTopicCarryover:
-            Boolean(previousTopic) && signals.threading.topicCarryoverEligible,
-          activeDocumentMatch:
-            Boolean(activeDocumentIds?.includes(chunk.documentId)),
-        }),
-      }))
+      .map((chunk) => {
+        const usageBoundary = classifyDocumentChunkUsageBoundary({
+          content: chunk.content,
+          metadata:
+            chunk.metadata && typeof chunk.metadata === 'object' && !Array.isArray(chunk.metadata)
+              ? (chunk.metadata as Record<string, unknown>)
+              : null,
+        });
+
+        return {
+          chunk,
+          usageBoundary,
+          score: scoreChunk(query, queryTokens, chunk.searchText, {
+            activeDocumentIds,
+            preferredTopicTokens,
+            hasTopicCarryover:
+              Boolean(previousTopic) && signals.threading.topicCarryoverEligible,
+            activeDocumentMatch:
+              Boolean(activeDocumentIds?.includes(chunk.documentId)),
+            usageBoundary,
+          }),
+        };
+      })
       .filter((entry) => entry.score > 0)
       .sort((left, right) => right.score - left.score);
     const minimumScore = resolveMinimumScore(queryTokens.length, {
@@ -84,9 +110,14 @@ export class DocumentRetrievalService {
         Boolean(previousTopic) && signals.threading.topicCarryoverEligible,
       hasActiveDocumentIds: Boolean(activeDocumentIds?.length),
     });
-    const matched = scored.filter((entry) => entry.score >= minimumScore).slice(0, 4);
+    const matched = scored.filter((entry) => entry.score >= minimumScore);
+    const relaxedMatched =
+      matched.length > 0 || reason === 'document_query'
+        ? matched
+        : scored.filter((entry) => entry.score >= Math.max(1, minimumScore - 1));
+    const topMatched = relaxedMatched.slice(0, 4);
 
-    if (matched.length === 0) {
+    if (topMatched.length === 0) {
       return {
         attempted: true,
         reason,
@@ -99,7 +130,7 @@ export class DocumentRetrievalService {
       };
     }
 
-    const matches = matched.map((entry) => ({
+    const matches = topMatched.map((entry) => ({
       documentId: entry.chunk.documentId,
       title: entry.chunk.document.title,
       excerpt: buildExcerpt(entry.chunk.content, queryTokens),
@@ -209,6 +240,21 @@ export class DocumentRetrievalService {
       (reason === 'active_document_continuation' || reason === 'knowledge_query') &&
       previousTopic
     ) {
+      if (
+        currentTopic &&
+        shouldPreferCurrentTopicOverPrevious({
+          currentTopic,
+          previousTopic,
+          explicitSubjectTopic:
+            typeof input.interpretation.entities.productQuery === 'string'
+              ? input.interpretation.entities.productQuery
+              : null,
+          locale: input.interpretation.language,
+        })
+      ) {
+        return currentTopic;
+      }
+
       if (incrementalFacet) {
         return `${previousTopic}. ${incrementalFacet}`.trim();
       }
@@ -350,8 +396,10 @@ function scoreChunk(
   searchText: string,
   input: {
     activeDocumentIds?: string[];
+    preferredTopicTokens: string[];
     hasTopicCarryover: boolean;
     activeDocumentMatch: boolean;
+    usageBoundary: 'knowledge' | 'operational';
   },
 ) {
   const tokenSet = new Set(searchText.split(/\s+/));
@@ -375,10 +423,28 @@ function scoreChunk(
     }
   }
 
+  const preferredTopicOverlapCount = input.preferredTopicTokens.filter((token) =>
+    tokenSet.has(token),
+  ).length;
+
+  score += preferredTopicOverlapCount * 1.5;
+
+  if (
+    input.hasTopicCarryover &&
+    input.preferredTopicTokens.length > 0 &&
+    preferredTopicOverlapCount === 0
+  ) {
+    score -= 1.5;
+  }
+
   if (input.activeDocumentMatch) {
     score += 2;
   } else if (input.hasTopicCarryover && input.activeDocumentIds?.length) {
     score += 0.5;
+  }
+
+  if (input.usageBoundary === 'operational') {
+    score -= 1;
   }
 
   return score;
@@ -396,7 +462,7 @@ function buildTokenPhrases(tokens: string[]) {
 
 function buildExcerpt(content: string, queryTokens: string[]) {
   const sentences = content
-    .split(/(?<=[.!?])\s+/)
+    .split(/\n{2,}|(?<=[.!?])\s+/u)
     .map((sentence) => sentence.trim())
     .filter((sentence) => sentence.length > 0);
 
@@ -435,18 +501,14 @@ function buildGroundedSummary(
     incremental?: boolean;
   },
 ) {
-  const rankedSentences = matches
+  const rankedExcerpts = matches
     .slice(0, 3)
-    .flatMap((match) =>
-      match.excerpt
-        .split(/(?<=[.!?])\s+/u)
-        .map((sentence, index) => ({
-          sentence: normalizeSummarySentence(sentence),
-          score: scoreExcerptSentence(sentence, queryTokens),
-          sequence: match.sequence,
-          index,
-        })),
-    )
+    .map((match) => ({
+      sentence: normalizeSummaryExcerpt(match.excerpt),
+      score: scoreSummaryExcerpt(match.excerpt, queryTokens),
+      sequence: match.sequence,
+      index: 0,
+    }))
     .filter(
       (entry): entry is {
         sentence: string;
@@ -466,10 +528,13 @@ function buildGroundedSummary(
 
       return left.index - right.index;
     });
+  const positiveRankedSentences = rankedExcerpts.filter((entry) => entry.score > 0);
+  const candidateSentences =
+    positiveRankedSentences.length > 0 ? positiveRankedSentences : rankedExcerpts;
 
   const selectedSentences: string[] = [];
 
-  for (const entry of rankedSentences) {
+  for (const entry of candidateSentences) {
     if (
       selectedSentences.some(
         (existing) =>
@@ -550,13 +615,39 @@ function normalizeSummarySentence(value: string) {
     return null;
   }
 
-  const headingSplit = normalized.match(/^([^:]{1,48}):\s+(.+)$/u);
+  const withoutHeadingDecorators = normalized
+    .replace(/^[A-ZÁÉÍÓÚÜÑ0-9\s]{8,}\s*[=:.-]{2,}\s*/u, '')
+    .replace(/^[=:_\-]{4,}\s*/u, '')
+    .trim();
 
-  if (headingSplit?.[2]) {
-    return headingSplit[2].trim();
+  if (!withoutHeadingDecorators) {
+    return null;
   }
 
-  return normalized;
+  const headingSplit = withoutHeadingDecorators.match(/^([^:]{1,48}):\s+(.+)$/u);
+
+  if (headingSplit?.[2]) {
+    return normalizeBulletSeries(headingSplit[2].trim());
+  }
+
+  return normalizeBulletSeries(withoutHeadingDecorators);
+}
+
+function normalizeSummaryExcerpt(value: string) {
+  return value
+    .split(/(?<=[.!?])\s+/u)
+    .map((sentence) => normalizeSummarySentence(sentence))
+    .filter((sentence): sentence is string => Boolean(sentence))
+    .join(' ')
+    .trim();
+}
+
+function normalizeBulletSeries(value: string) {
+  return value
+    .replace(/^-\s+/u, '')
+    .replace(/\s+-\s+/gu, ', ')
+    .replace(/\s*,\s*/gu, ', ')
+    .trim();
 }
 
 function tokenizeQuery(value: string, locale?: string | null) {
@@ -565,4 +656,77 @@ function tokenizeQuery(value: string, locale?: string | null) {
     minimumTokenLength: 3,
     stopWordSet: 'retrieval',
   });
+}
+
+function resolvePreferredTopicText(input: {
+  currentTopic: string;
+  previousTopic: string | null;
+  explicitSubjectTopic: string | null;
+  locale?: string | null;
+}) {
+  if (!input.previousTopic) {
+    return null;
+  }
+
+  if (
+    shouldPreferCurrentTopicOverPrevious({
+      currentTopic: input.currentTopic,
+      previousTopic: input.previousTopic,
+      explicitSubjectTopic: input.explicitSubjectTopic,
+      locale: input.locale,
+    })
+  ) {
+    return input.explicitSubjectTopic?.trim() || input.currentTopic;
+  }
+
+  return input.previousTopic;
+}
+
+function shouldPreferCurrentTopicOverPrevious(input: {
+  currentTopic: string;
+  previousTopic: string;
+  explicitSubjectTopic: string | null;
+  locale?: string | null;
+}) {
+  const preferredCurrentTopic = input.explicitSubjectTopic?.trim();
+
+  if (!preferredCurrentTopic) {
+    return false;
+  }
+
+  const currentTokens = tokenizeConversationSignalText(preferredCurrentTopic, {
+    locale: input.locale,
+    minimumTokenLength: 2,
+    stopWordSet: 'informative',
+  });
+  const previousTokens = new Set(
+    tokenizeConversationSignalText(input.previousTopic, {
+      locale: input.locale,
+      minimumTokenLength: 2,
+      stopWordSet: 'informative',
+    }),
+  );
+
+  if (currentTokens.length < 2 || previousTokens.size === 0) {
+    return false;
+  }
+
+  const overlapCount = currentTokens.filter((token) => previousTokens.has(token)).length;
+  const novelTokenCount = currentTokens.length - overlapCount;
+
+  return novelTokenCount > 0 && overlapCount < currentTokens.length;
+}
+
+function scoreSummaryExcerpt(excerpt: string, queryTokens: string[]) {
+  const baseScore = scoreExcerptSentence(excerpt, queryTokens);
+  const normalized = normalizeSummaryExcerpt(excerpt);
+
+  if (!normalized) {
+    return baseScore;
+  }
+
+  const itemCount = normalized.split(/\s*,\s*/u).filter(Boolean).length;
+  const broadListPenalty = itemCount >= 5 ? 1.25 : 0;
+
+  return baseScore - broadListPenalty;
 }

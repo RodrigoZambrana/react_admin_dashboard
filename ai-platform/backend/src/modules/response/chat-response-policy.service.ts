@@ -12,6 +12,12 @@ export class ChatResponsePolicyService {
   ) {}
 
   async resolve(context: ApprovedResponseContext) {
+    const baseResponse = await this.resolveBaseResponse(context);
+    const greetedResponse = await this.applyOpeningGreeting(context, baseResponse);
+    return this.applyMultilineLayout(context, greetedResponse);
+  }
+
+  private async resolveBaseResponse(context: ApprovedResponseContext) {
     if (context.outcome === 'close_turn') {
       return this.buildCloseTurnResponse(context);
     }
@@ -37,42 +43,47 @@ export class ChatResponsePolicyService {
 
   private async buildDocumentAwareResponse(context: ApprovedResponseContext) {
     const groundedSummary = context.documentContext?.groundedSummary?.trim();
+    const matchBackedSummary = this.buildMatchBackedDocumentSummary(context);
+    const effectiveSummary = groundedSummary || matchBackedSummary;
     const supportLevel = context.documentContext?.grounding.supportLevel;
+    const hasMatches = (context.documentContext?.matches.length ?? 0) > 0;
     const missingSummaryResponse = await this.responseFallbackService.render({
       locale: context.locale,
       templateKey: 'document_not_found',
       variationSeed: this.buildVariationSeed(context, 'document_not_found'),
     });
+    const unavailableKnowledgeResponse =
+      this.buildUnavailableKnowledgeResponse(context, missingSummaryResponse);
 
-    if (!groundedSummary || supportLevel === 'unavailable') {
+    if (!effectiveSummary && supportLevel === 'unavailable' && !hasMatches) {
       if (context.outcome === 'clarify') {
         return this.composeWithDocumentSummary(
-          missingSummaryResponse,
+          unavailableKnowledgeResponse,
           await this.buildClarificationResponse(context),
         );
       }
 
       if (context.outcome === 'execution_succeeded') {
         return this.composeWithDocumentSummary(
-          missingSummaryResponse,
+          unavailableKnowledgeResponse,
           await this.buildExecutionSuccessResponse(context),
         );
       }
 
       if (context.outcome === 'execution_failed') {
         return this.composeWithDocumentSummary(
-          missingSummaryResponse,
+          unavailableKnowledgeResponse,
           await this.buildExecutionFailureResponse(context),
         );
       }
 
-      return missingSummaryResponse;
+      return unavailableKnowledgeResponse;
     }
 
     const responseSummary =
       context.documentContext?.responseMode === 'combined_execution'
-        ? this.buildCombinedDocumentSummary(context, groundedSummary)
-        : this.buildDocumentGroundingSummary(context, groundedSummary);
+        ? this.buildCombinedDocumentSummary(context, effectiveSummary)
+        : this.buildDocumentGroundingSummary(context, effectiveSummary);
 
     if (context.outcome === 'clarify') {
       return this.composeWithDocumentSummary(
@@ -309,12 +320,20 @@ export class ChatResponsePolicyService {
     return `${normalized.slice(0, maxLength - 3).trimEnd()}...`;
   }
 
+  private buildMatchBackedDocumentSummary(context: ApprovedResponseContext) {
+    const excerpt = context.documentContext?.matches
+      .map((match) => match.excerpt?.trim() ?? '')
+      .find((value) => value.length > 0);
+
+    return excerpt ? this.buildConciseDocumentSummary(excerpt) : '';
+  }
+
   private buildDocumentGroundingSummary(
     context: ApprovedResponseContext,
     summary: string,
   ) {
     const normalizedSummary = this.buildConciseDocumentSummary(
-      context.responseStyle?.incrementalFollowUp
+      context.responseStyle?.preferBrief
         ? this.trimToSingleSentence(summary)
         : summary,
     );
@@ -323,9 +342,20 @@ export class ChatResponsePolicyService {
         locale: context.locale,
         documentContext: context.documentContext,
       }) ?? '';
+    const summarySupportsRequestedDetail =
+      !context.documentContext?.grounding.requestedDetailTypes.length ||
+      this.responseGroundingService.summaryAddressesRequestedDetails({
+        locale: context.locale,
+        summary: normalizedSummary,
+        detailTypes: context.documentContext.grounding.requestedDetailTypes,
+      });
 
     if (!groundingClause) {
       return normalizedSummary;
+    }
+
+    if (!summarySupportsRequestedDetail) {
+      return groundingClause;
     }
 
     if (normalizedSummary.endsWith(groundingClause)) {
@@ -340,7 +370,7 @@ export class ChatResponsePolicyService {
     summary: string,
   ) {
     const conciseSummary = this.buildConciseDocumentSummary(
-      context.responseStyle?.incrementalFollowUp
+      context.responseStyle?.preferBrief
         ? this.trimToSingleSentence(summary)
         : summary,
     );
@@ -377,5 +407,114 @@ export class ChatResponsePolicyService {
     const firstSentence = normalized.match(/^.*?[.!?](?:\s|$)/u)?.[0]?.trim();
 
     return firstSentence ?? normalized;
+  }
+
+  private buildUnavailableKnowledgeResponse(
+    context: ApprovedResponseContext,
+    fallback: string,
+  ) {
+    const groundingClause =
+      this.responseGroundingService.buildUnspecifiedDetailClause({
+        locale: context.locale,
+        documentContext: context.documentContext,
+      }) ?? '';
+
+    return groundingClause || fallback;
+  }
+
+  private async applyOpeningGreeting(
+    context: ApprovedResponseContext,
+    response: string,
+  ) {
+    if (!context.responseStyle?.includeInitialGreeting) {
+      return response;
+    }
+
+    const greeting = await this.responseFallbackService.render({
+      locale: context.locale,
+      templateKey: 'opening_greeting',
+      variationSeed: this.buildVariationSeed(context, 'opening_greeting'),
+    });
+
+    if (!greeting.trim()) {
+      return response;
+    }
+
+    const normalizedResponse = response.trim();
+
+    if (!normalizedResponse) {
+      return greeting;
+    }
+
+    const alreadyHasGreeting = await this.responseFallbackService.startsWithGreeting(
+      context.locale,
+      normalizedResponse,
+    );
+
+    if (
+      normalizedResponse.startsWith(greeting) ||
+      alreadyHasGreeting
+    ) {
+      return normalizedResponse;
+    }
+
+    return `${greeting}\n\n${normalizedResponse}`.trim();
+  }
+
+  private applyMultilineLayout(
+    context: ApprovedResponseContext,
+    response: string,
+  ) {
+    if (!context.responseStyle?.preferMultiline) {
+      return response.trim();
+    }
+
+    const paragraphs = response
+      .split(/\n{2,}/u)
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+
+    if (paragraphs.length >= 2) {
+      return paragraphs.join('\n\n');
+    }
+
+    const sentences = response
+      .trim()
+      .match(/[^.!?]+[.!?]+|[^.!?]+$/gu)
+      ?.map((sentence) => sentence.trim())
+      .filter((sentence) => sentence.length > 0);
+
+    if (!sentences || sentences.length <= 1) {
+      return response.trim();
+    }
+
+    const blocks: string[] = [];
+    const firstSentence = sentences[0];
+    const lastSentence = sentences[sentences.length - 1];
+    const hasQuestionTail =
+      sentences.length > 1 && /[?¿]\s*$/u.test(lastSentence);
+    let bodyStartIndex = 0;
+    let bodyEndIndex = sentences.length;
+
+    if (context.responseStyle.includeInitialGreeting) {
+      blocks.push(firstSentence);
+      bodyStartIndex = 1;
+    }
+
+    if (hasQuestionTail) {
+      bodyEndIndex -= 1;
+    }
+
+    const bodySentences = sentences.slice(bodyStartIndex, bodyEndIndex);
+
+    if (bodySentences.length > 0) {
+      blocks.push(bodySentences.join(' '));
+    }
+
+    if (hasQuestionTail) {
+      blocks.push(lastSentence);
+    }
+
+    return blocks.join('\n\n').trim();
   }
 }

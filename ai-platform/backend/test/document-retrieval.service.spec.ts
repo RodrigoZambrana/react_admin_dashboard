@@ -312,6 +312,206 @@ describe('DocumentRetrievalService', () => {
     );
   });
 
+  it('prefers a refreshed explicit subject over the previous follow-up topic when the user pivots to a nearby product family', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-guidance-1',
+          documentId: 'doc-enrollar',
+          sequence: 0,
+          content:
+            'Datos útiles para presupuesto: tipo de roller, ancho y alto aproximado, cantidad y ambiente.',
+          searchText:
+            'datos utiles para presupuesto tipo de roller ancho y alto aproximado cantidad y ambiente',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-enrollar',
+            title: 'Enrollar Operativo',
+          },
+        },
+        {
+          id: 'chunk-enrollar-1',
+          documentId: 'doc-enrollar',
+          sequence: 1,
+          content:
+            'Las cortinas de enrollar están disponibles en PVC y aluminio, y pueden ser manuales o motorizadas.',
+          searchText:
+            'las cortinas de enrollar estan disponibles en pvc y aluminio y pueden ser manuales o motorizadas',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-enrollar',
+            title: 'Enrollar',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'Y cortinas de enrollar?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'Y cortinas de enrollar?',
+          productQuery: 'cortinas de enrollar',
+          requestSummary: 'Consulta sobre cortinas de enrollar',
+        },
+        language: 'es',
+        confidence: 0.85,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-nearby-family',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          subjectSummary: 'cortinas roller blackout',
+          topicSummary: 'cortinas roller blackout',
+          activeDocumentIds: ['doc-enrollar'],
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        attempted: true,
+        reason: 'active_document_continuation',
+        result: expect.objectContaining({
+          query: 'cortinas de enrollar',
+          groundedSummary: expect.stringMatching(/PVC y aluminio/i),
+        }),
+      }),
+    );
+    expect(result.result?.groundedSummary).not.toMatch(/presupuesto/i);
+  });
+
+  it('keeps mixed knowledge chunks available when they contain real product facts alongside operational guidance', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-mixed-1',
+          documentId: 'doc-mixed',
+          sequence: 0,
+          content:
+            'Datos útiles para presupuesto: tipo de enrollar y medidas aproximadas. Las cortinas de enrollar están disponibles en materiales como PVC y aluminio.',
+          searchText:
+            'datos utiles para presupuesto tipo de enrollar y medidas aproximadas las cortinas de enrollar estan disponibles en materiales como pvc y aluminio',
+          metadata: {
+            heading: 'Datos útiles para presupuesto',
+          },
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-mixed',
+            title: 'Catalogo Mixto',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'en qué materiales vienen las cortinas de enrollar',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'en qué materiales vienen las cortinas de enrollar',
+        },
+        language: 'es',
+        confidence: 0.88,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        attempted: true,
+        reason: 'knowledge_query',
+        result: expect.objectContaining({
+          groundedSummary: expect.stringMatching(/PVC y aluminio/i),
+        }),
+      }),
+    );
+    expect(result.result?.groundedSummary).not.toMatch(/presupuesto/i);
+  });
+
+  it('prefers topic-relevant detail sentences over generic catalog introduction text in grounded summaries', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-intro-1',
+          documentId: 'doc-roller',
+          sequence: 0,
+          content:
+            'La informacion esta organizada para responder consultas de clientes sobre productos, diferencias, usos y beneficios.',
+          searchText:
+            'la informacion esta organizada para responder consultas de clientes sobre productos diferencias usos y beneficios',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-roller',
+            title: 'Catalogo Roller',
+          },
+        },
+        {
+          id: 'chunk-types-1',
+          documentId: 'doc-roller',
+          sequence: 1,
+          content: 'Tipos principales: - Roller Screen - Roller Blackout - Roller Doble',
+          searchText:
+            'tipos principales roller screen roller blackout roller doble',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-roller',
+            title: 'Catalogo Roller',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'necesito informacion sobre cortinas roller',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'necesito informacion sobre cortinas roller',
+        },
+        language: 'es',
+        confidence: 0.9,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(result.result?.groundedSummary).toContain(
+      'Roller Screen, Roller Blackout, Roller Doble',
+    );
+    expect(result.result?.groundedSummary).not.toContain(
+      'La informacion esta organizada',
+    );
+  });
+
   it('retags retrieval as combined booking context after decisioning confirms booking', async () => {
     const service = new DocumentRetrievalService({
       listActiveReadyChunks: jest.fn(async () => [
