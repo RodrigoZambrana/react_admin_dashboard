@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
 import { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
+import { tokenizeConversationSignalText } from '../conversation-signals/conversation-signal.catalogs';
 import { DecisionResult } from '../decision/decision.types';
 import { DocumentRetrievalAttempt } from '../documents/document.types';
 import { CanonicalIntent } from '../interpretation/interpretation.schemas';
@@ -446,11 +447,13 @@ export class ConversationContinuityService {
           : (mergedFacts as AdvisoryExplorationFacts);
 
       if (
-        typeof facts.topicSummary === 'string' &&
-        facts.topicSummary.trim().length > 0 &&
+        typeof (facts.topicSummary ?? facts.subjectSummary) === 'string' &&
+        String(facts.topicSummary ?? facts.subjectSummary).trim().length > 0 &&
         typeof entities.requestSummary !== 'string'
       ) {
-        entities.requestSummary = facts.topicSummary;
+        entities.requestSummary = String(
+          facts.topicSummary ?? facts.subjectSummary,
+        ).trim();
       }
     }
 
@@ -668,18 +671,22 @@ export class ConversationContinuityService {
     }
 
     if (lane === 'document_exploration') {
+      const subjectSummary = this.resolveSubjectSummary(interpretation, input);
       const topicSummary = this.resolveTopicSummary(interpretation, input);
 
       return this.cleanFacts({
+        subjectSummary,
         topicSummary,
       }) ?? {};
     }
 
     if (lane === 'advisory_exploration') {
+      const subjectSummary = this.resolveSubjectSummary(interpretation, input);
       const topicSummary = this.resolveTopicSummary(interpretation, input);
       const currentSignal = this.resolveTopicSignal(interpretation, input);
 
       return this.cleanFacts({
+        subjectSummary,
         topicSummary,
         criteriaSignals: currentSignal
           ? [currentSignal]
@@ -757,6 +764,10 @@ export class ConversationContinuityService {
       const current = currentFacts as DocumentExplorationFacts;
 
       return this.cleanFacts({
+        subjectSummary: this.preferMoreSpecificSummary(
+          base.subjectSummary,
+          current.subjectSummary,
+        ),
         topicSummary: this.preferMoreSpecificSummary(
           base.topicSummary,
           current.topicSummary,
@@ -788,6 +799,10 @@ export class ConversationContinuityService {
       const current = currentFacts as AdvisoryExplorationFacts;
 
       return this.cleanFacts({
+        subjectSummary: this.preferMoreSpecificSummary(
+          base.subjectSummary,
+          current.subjectSummary,
+        ),
         topicSummary: this.preferMoreSpecificSummary(
           base.topicSummary,
           current.topicSummary,
@@ -854,6 +869,10 @@ export class ConversationContinuityService {
     if (lane === 'document_exploration') {
       return this.cleanFacts({
         ...facts,
+        subjectSummary:
+          typeof payload.name === 'string'
+            ? payload.name
+            : (facts as DocumentExplorationFacts).subjectSummary,
         topicSummary:
           typeof payload.name === 'string'
             ? payload.name
@@ -876,6 +895,10 @@ export class ConversationContinuityService {
 
     const currentFacts = input.facts as DocumentExplorationFacts;
     const retrieval = input.documentRetrieval.result;
+    const subjectSummary =
+      typeof currentFacts.subjectSummary === 'string'
+        ? currentFacts.subjectSummary
+        : currentFacts.topicSummary;
     const topicSummary =
       typeof input.interpretation.entities.requestSummary === 'string'
         ? input.interpretation.entities.requestSummary
@@ -887,6 +910,10 @@ export class ConversationContinuityService {
 
     return this.cleanFacts({
       ...currentFacts,
+      subjectSummary: this.preferMoreSpecificSummary(
+        subjectSummary,
+        currentFacts.subjectSummary ?? currentFacts.topicSummary,
+      ),
       topicSummary: this.preferMoreSpecificSummary(
         currentFacts.topicSummary,
         topicSummary,
@@ -1200,7 +1227,9 @@ export class ConversationContinuityService {
         : {};
 
     return this.normalizeOptionalString(
-      typeof facts.topicSummary === 'string'
+      typeof facts.subjectSummary === 'string'
+        ? facts.subjectSummary
+        : typeof facts.topicSummary === 'string'
         ? facts.topicSummary
         : typeof facts.lastDocumentQuery === 'string'
           ? facts.lastDocumentQuery
@@ -1223,8 +1252,74 @@ export class ConversationContinuityService {
     return (
       normalizedCurrent.length <= 48 &&
       normalizedCurrent.split(/\s+/u).length <= 6 &&
-      normalizedCurrent.length < normalizedPrevious.length
+      (normalizedCurrent.length < normalizedPrevious.length ||
+        !this.hasTopicOverlap(normalizedCurrent, normalizedPrevious))
     );
+  }
+
+  private resolveSubjectSummary(
+    interpretation: ParsedInterpretation,
+    input?: {
+      previousState: ConversationStateSnapshot | null;
+      signals: ConversationRoutingSignals;
+    },
+  ) {
+    const topic = this.conversationSignalResolver.resolveTopicText({
+      message: this.resolveFallbackMessage(interpretation),
+      interpretation,
+    });
+    const previousTopic = input?.previousState
+      ? this.resolveStoredTopicSummary(input.previousState)
+      : undefined;
+
+    if (!previousTopic) {
+      return topic.length > 0 ? topic : undefined;
+    }
+
+    if (!input?.signals.threading.topicCarryoverEligible) {
+      return topic.length > 0 ? topic : previousTopic;
+    }
+
+    if (!topic.length) {
+      return previousTopic;
+    }
+
+    if (this.isDependentFollowUpTopic(topic, previousTopic)) {
+      return previousTopic;
+    }
+
+    if (this.hasTopicOverlap(topic, previousTopic)) {
+      return this.preferMoreSpecificSummary(previousTopic, topic);
+    }
+
+    return topic;
+  }
+
+  private hasTopicOverlap(current: string, previous: string) {
+    const currentTokens = new Set(
+      tokenizeConversationSignalText(current, {
+        minimumTokenLength: 3,
+        stopWordSet: 'retrieval',
+      }),
+    );
+    const previousTokens = new Set(
+      tokenizeConversationSignalText(previous, {
+        minimumTokenLength: 3,
+        stopWordSet: 'retrieval',
+      }),
+    );
+
+    if (currentTokens.size === 0 || previousTokens.size === 0) {
+      return false;
+    }
+
+    for (const token of currentTokens) {
+      if (previousTokens.has(token)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private shouldInvalidatePreviousState(

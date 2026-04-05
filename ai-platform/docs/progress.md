@@ -2569,3 +2569,38 @@
 - Validate backend and frontend after the tenant/runtime unification changes
 - Continue the real prompt-content upgrade only against the now-explicit runtime tenant context
 - Keep Wave 9 out of scope
+
+## Iteration 77
+
+### Implemented
+- Refined conversational topic carryover for short document/advisory follow-ups:
+  - lightweight bridge wording such as additive follow-ups no longer counts as an automatic topic switch
+  - continuity now preserves a stable `subjectSummary` alongside narrower topic summaries so short dependent turns can inherit the active subject before a lane is fully locked
+  - document retrieval now combines the current incremental facet with the preserved active subject instead of collapsing back to raw lexical overlap alone
+- Tightened backend-approved response behavior for weak document support:
+  - approved response context now exposes incremental follow-up style hints and a `groundedKnowledgeOnly` lock when the turn should not drift into generic domain knowledge
+  - chat response generation now short-circuits to the approved backend draft when weak or unavailable document support makes generative fill-in unsafe
+  - response guardrails now require the answer to address the correct unsupported detail axis instead of allowing vague evasive replies
+- Improved informational response shaping and typing pause behavior:
+  - response policy and governed response prompt now bias short follow-ups toward direct incremental answers with less repetition
+  - typing reports now fire immediately on composition start and the async intake boundary extends reply projection holds while the user resumes typing, including during `awaiting_reply`
+
+### Working
+- Short follow-ups such as additive product-family questions and compact material/type asks stay on the active subject more reliably and reuse approved document knowledge better
+- Weak or missed retrieval no longer falls through as easily to generic product-domain fill-in when the turn should remain document-grounded
+- Informational follow-up answers are shorter, more direct, and less extractive while preserving grounded support-mode behavior
+- Typing/presence now acts as a functional pause signal for response progression instead of decorative UI only
+- Backend and frontend validation passed:
+  - `npm run build --workspace backend`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- The local worktree still contains prior uncommitted prompt/admin boot fixes outside this phase; they remain intentionally separate
+- Retrieval ranking is still primarily deterministic/lexical under the hood even though topic carryover is now stronger for short follow-ups
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Run live exploratory smoke checks against the current active tenant documents to verify the refined follow-up retrieval on real catalog conversations
+- Keep follow-up grounding improvements bounded; do not reopen Wave 9 hardening or broaden this into generic retrieval redesign
+- Land any remaining prompt-content cleanup as a separate prompt-governance pass, not inside this regression fix

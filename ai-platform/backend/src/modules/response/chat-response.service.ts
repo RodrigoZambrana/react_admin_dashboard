@@ -50,6 +50,30 @@ export class ChatResponseService {
       conversationState: input.conversationState,
     });
     const approvedDraft = await this.policyService.resolve(approvedContext);
+
+    if (approvedContext.responseStyle?.groundedKnowledgeOnly) {
+      return {
+        response: approvedDraft,
+        approvedContext,
+        approvedDraft,
+        usedFallback: true,
+        fallbackReason: 'policy_locked',
+        generation: {
+          provider: 'policy',
+          model: null,
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse: null,
+          parsedJson: null,
+          error: null,
+          guardrails: {
+            accepted: true,
+            reasons: [],
+          },
+        },
+      };
+    }
+
     const generation = await this.aiGatewayService.generateResponse({
       approvedContext,
       approvedDraft,

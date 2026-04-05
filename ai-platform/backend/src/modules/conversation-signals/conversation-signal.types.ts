@@ -22,6 +22,7 @@ export type ConversationSignalCatalog = {
   textSupport: {
     informativeStopWords: string[];
     retrievalStopWords: string[];
+    bridgeTerms: string[];
   };
 };
 
@@ -66,9 +67,11 @@ export type ConversationRoutingSignals = {
   threading: ConversationSignalNamespaceMatch & {
     shortFollowUp: boolean;
     resume: boolean;
+    bridge: boolean;
     switchSuggested: boolean;
     activeContinuation: boolean;
     topicCarryoverEligible: boolean;
+    incrementalFollowUp: boolean;
   };
   noise: ConversationSignalNamespaceMatch & {
     channelInterference: boolean;

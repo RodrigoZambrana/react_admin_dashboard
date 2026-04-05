@@ -66,19 +66,24 @@ export class AsyncTurnTimingPolicyService {
     };
   }
 
-  async estimateTypingQuietPeriod(locale?: string | null) {
+  async estimateTypingQuietPeriod(input?: {
+    locale?: string | null;
+    responseProgressActive?: boolean;
+  }) {
     const config = await this.getConfig();
-    const lexicon = this.resolveLexicon(config, locale);
+    const lexicon = this.resolveLexicon(config, input?.locale);
     const baseQuietWindow = Math.max(
       config.stabilization.shortMessageDelayMs,
       Math.min(config.stabilization.fragmentContinuationDelayMs, 1600),
     );
+    const responsePauseFloor = input?.responseProgressActive ? 2200 : 0;
+    const quietWindowFloor = Math.max(baseQuietWindow, responsePauseFloor);
 
     if (lexicon.trailingTokens.length > 0 || lexicon.slotPatterns.length > 0) {
-      return baseQuietWindow;
+      return quietWindowFloor;
     }
 
-    return Math.max(baseQuietWindow, 900);
+    return Math.max(quietWindowFloor, 900);
   }
 
   private estimateStabilizationDelay(

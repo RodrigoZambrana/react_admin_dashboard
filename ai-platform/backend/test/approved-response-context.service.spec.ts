@@ -80,13 +80,20 @@ describe('ApprovedResponseContextService', () => {
         grounding: expect.objectContaining({
           supportLevel: 'partial',
           requestedDetailTypes: ['coverage_support'],
-          unsupportedDetailTypes: ['coverage_support'],
+          partialDetailTypes: ['coverage_support'],
+          unsupportedDetailTypes: [],
         }),
         matches: [
           expect.not.objectContaining({
             excerpt: expect.any(String),
           }),
         ],
+      }),
+    );
+    expect(context.responseStyle).toEqual(
+      expect.objectContaining({
+        preferBrief: false,
+        groundedKnowledgeOnly: false,
       }),
     );
   });

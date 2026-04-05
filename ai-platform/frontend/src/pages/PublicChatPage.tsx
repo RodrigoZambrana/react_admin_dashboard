@@ -67,6 +67,7 @@ function buildTranscript(
 
   if (
     session.activeTurn &&
+    !session.presence.typingActive &&
     (session.presence.state === 'processing' ||
       session.presence.state === 'awaiting_reply')
   ) {
@@ -237,9 +238,11 @@ export function PublicChatPage() {
   const typingSignalRef = useRef<{
     conversationId: string | null;
     active: boolean;
+    pending: boolean;
   }>({
     conversationId: null,
     active: false,
+    pending: false,
   });
 
   const conversationItems = useMemo(
@@ -422,7 +425,7 @@ export function PublicChatPage() {
     if (
       trackedConversationId &&
       trackedConversationId !== selectedConversationId &&
-      typingSignalRef.current.active
+      (typingSignalRef.current.active || typingSignalRef.current.pending)
     ) {
       void reportAsyncChatTyping({
         conversationId: trackedConversationId,
@@ -432,6 +435,7 @@ export function PublicChatPage() {
       typingSignalRef.current = {
         conversationId: selectedConversationId,
         active: false,
+        pending: false,
       };
     }
 
@@ -445,7 +449,7 @@ export function PublicChatPage() {
 
     if (!normalizedDraft) {
       if (
-        typingSignalRef.current.active &&
+        (typingSignalRef.current.active || typingSignalRef.current.pending) &&
         typingSignalRef.current.conversationId === selectedConversationId
       ) {
         void reportAsyncChatTyping({
@@ -464,11 +468,51 @@ export function PublicChatPage() {
       typingSignalRef.current = {
         conversationId: selectedConversationId,
         active: false,
+        pending: false,
       };
 
       return () => {
         cancelled = true;
       };
+    }
+
+    const hasImmediateTypingSignal =
+      typingSignalRef.current.conversationId === selectedConversationId &&
+      (typingSignalRef.current.active || typingSignalRef.current.pending);
+
+    if (!hasImmediateTypingSignal) {
+      typingSignalRef.current = {
+        conversationId: selectedConversationId,
+        active: false,
+        pending: true,
+      };
+
+      void reportAsyncChatTyping({
+        conversationId: selectedConversationId,
+        locale: navigator.language,
+        isTyping: true,
+      })
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+
+          typingSignalRef.current = {
+            conversationId: response.conversationId,
+            active: response.typingActive,
+            pending: false,
+          };
+          applyTypingPresence(response.conversationId, response.presence);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            typingSignalRef.current = {
+              conversationId: selectedConversationId,
+              active: false,
+              pending: false,
+            };
+          }
+        });
     }
 
     timeoutId = window.setTimeout(() => {
@@ -485,10 +529,19 @@ export function PublicChatPage() {
           typingSignalRef.current = {
             conversationId: selectedConversationId,
             active: response.typingActive,
+            pending: false,
           };
           applyTypingPresence(response.conversationId, response.presence);
         })
-        .catch(() => undefined);
+        .catch(() => {
+          if (!cancelled) {
+            typingSignalRef.current = {
+              conversationId: selectedConversationId,
+              active: false,
+              pending: false,
+            };
+          }
+        });
     }, TYPING_HEARTBEAT_DEBOUNCE_MS);
 
     return () => {
@@ -503,7 +556,10 @@ export function PublicChatPage() {
     () => () => {
       const activeTypingConversationId = typingSignalRef.current.conversationId;
 
-      if (activeTypingConversationId && typingSignalRef.current.active) {
+      if (
+        activeTypingConversationId &&
+        (typingSignalRef.current.active || typingSignalRef.current.pending)
+      ) {
         void reportAsyncChatTyping({
           conversationId: activeTypingConversationId,
           locale: navigator.language,
@@ -552,6 +608,7 @@ export function PublicChatPage() {
         typingSignalRef.current = {
           conversationId: selectedConversationId,
           active: false,
+          pending: false,
         };
 
         if (typingResponse) {

@@ -33,6 +33,7 @@ const sharedInformativeStopWords = [
 
 const sharedRetrievalStopWords = [
   ...sharedInformativeStopWords,
+  'also',
   'catalogo',
   'catalog',
   'conocer',
@@ -46,6 +47,8 @@ const sharedRetrievalStopWords = [
   'informacion',
   'information',
   'interesa',
+  'have',
+  'has',
   'know',
   'manual',
   'need',
@@ -54,7 +57,12 @@ const sharedRetrievalStopWords = [
   'productos',
   'quiero',
   'saber',
+  'tambien',
+  'tiene',
+  'tienen',
 ];
+
+const sharedBridgeTerms = ['also', 'tambien'];
 
 const defaultCatalog: ConversationSignalCatalog = {
   document: {
@@ -98,8 +106,11 @@ const defaultCatalog: ConversationSignalCatalog = {
       terms: ['ok', 'okay', 'yes', 'yep', 'sure'],
       phrases: ['sounds good', 'i am interested'],
     },
+    bridge: {
+      terms: ['also'],
+    },
     switch: {
-      terms: ['another', 'different', 'also', 'instead'],
+      terms: ['another', 'different', 'instead'],
       phrases: ['another question', 'different topic', 'something else', 'now i need'],
     },
   },
@@ -112,6 +123,7 @@ const defaultCatalog: ConversationSignalCatalog = {
   textSupport: {
     informativeStopWords: sharedInformativeStopWords,
     retrievalStopWords: sharedRetrievalStopWords,
+    bridgeTerms: sharedBridgeTerms,
   },
 };
 
@@ -180,8 +192,11 @@ const spanishCatalog: ConversationSignalCatalog = {
       terms: ['si', 'sí', 'dale', 'ok', 'genial', 'perfecto'],
       phrases: ['me sirve', 'esta bien', 'está bien'],
     },
+    bridge: {
+      terms: ['ademas', 'además', 'tambien', 'también'],
+    },
     switch: {
-      terms: ['otra', 'otro', 'ademas', 'además', 'tambien', 'también'],
+      terms: ['otra', 'otro'],
       phrases: [
         'otro tema',
         'otra consulta',
@@ -200,6 +215,7 @@ const spanishCatalog: ConversationSignalCatalog = {
   textSupport: {
     informativeStopWords: sharedInformativeStopWords,
     retrievalStopWords: sharedRetrievalStopWords,
+    bridgeTerms: sharedBridgeTerms,
   },
 };
 
@@ -245,8 +261,11 @@ const englishCatalog: ConversationSignalCatalog = {
       terms: ['yes', 'sure', 'okay', 'ok', 'great'],
       phrases: ['sounds good', 'i am interested', 'that works'],
     },
+    bridge: {
+      terms: ['also'],
+    },
     switch: {
-      terms: ['another', 'different', 'also', 'instead'],
+      terms: ['another', 'different', 'instead'],
       phrases: ['another question', 'different topic', 'something else', 'now i need'],
     },
   },
@@ -259,6 +278,7 @@ const englishCatalog: ConversationSignalCatalog = {
   textSupport: {
     informativeStopWords: sharedInformativeStopWords,
     retrievalStopWords: sharedRetrievalStopWords,
+    bridgeTerms: sharedBridgeTerms,
   },
 };
 
@@ -372,6 +392,7 @@ function mergeTextSupport(
       ...base.retrievalStopWords,
       ...override.retrievalStopWords,
     ]),
+    bridgeTerms: dedupe([...(base.bridgeTerms ?? []), ...(override.bridgeTerms ?? [])]),
   };
 }
 

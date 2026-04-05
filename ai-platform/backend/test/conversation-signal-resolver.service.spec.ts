@@ -91,6 +91,33 @@ describe('ConversationSignalResolverService', () => {
     expect(signals.document.continuationEligible).toBe(true);
   });
 
+  it('treats additive bridge wording as follow-up carryover instead of a hard topic switch', () => {
+    const signals = service.resolve({
+      message: 'También tienen cortinas de enrollar exteriores?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        entities: {
+          rawMessage: 'También tienen cortinas de enrollar exteriores?',
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-doc-follow-up',
+        lane: 'document_exploration',
+        updatedAt: '2026-04-04T10:00:00.000Z',
+        missingFields: [],
+        approvedFacts: {
+          subjectSummary: 'cortinas de enrollar',
+        },
+      } as any,
+    });
+
+    expect(signals.threading.bridge).toBe(true);
+    expect(signals.threading.switchSuggested).toBe(false);
+    expect(signals.threading.topicCarryoverEligible).toBe(true);
+    expect(signals.threading.incrementalFollowUp).toBe(true);
+  });
+
   it('marks topic-rich knowledge requests as implicitly eligible without requiring explicit document cue words', () => {
     const signals = service.resolve({
       message: 'Necesito información de cortinas de enrollar en aluminio',

@@ -167,31 +167,34 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     }
 
     const typingActive = input.isTyping !== false;
+    const activeTurn =
+      (await this.asyncTurnRepository.listActiveTurns(conversation.id)).at(-1) ??
+      null;
 
     if (typingActive) {
-      const quietPeriodMs = await this.timingPolicy.estimateTypingQuietPeriod(
-        input.locale ?? conversation.language,
-      );
+      const quietPeriodMs = await this.timingPolicy.estimateTypingQuietPeriod({
+        locale: input.locale ?? conversation.language,
+        responseProgressActive:
+          activeTurn?.status === AsyncConversationTurnStatus.PROCESSING ||
+          activeTurn?.status === AsyncConversationTurnStatus.AWAITING_REPLY,
+      });
       const expiresAt = new Date(Date.now() + quietPeriodMs);
       this.typingSignals.set(conversation.id, {
         expiresAt,
         locale: input.locale ?? conversation.language ?? null,
       });
 
-      const activeTurn =
-        (await this.asyncTurnRepository.listActiveTurns(conversation.id)).at(-1) ??
-        null;
-
       if (activeTurn?.status === AsyncConversationTurnStatus.STABILIZING) {
         await this.extendTypingHold(activeTurn, expiresAt);
+      } else if (
+        activeTurn?.status === AsyncConversationTurnStatus.AWAITING_REPLY
+      ) {
+        await this.extendReplyProjectionHold(activeTurn, expiresAt);
       }
     } else {
       this.clearTypingSignal(conversation.id);
     }
 
-    const activeTurn =
-      (await this.asyncTurnRepository.listActiveTurns(conversation.id)).at(-1) ??
-      null;
     const presence = this.buildPresence(activeTurn, conversation.id);
 
     return {
@@ -442,8 +445,17 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
 
       const processingCompletedAt = new Date();
       const replyDelayMs = await this.timingPolicy.estimateReplyDelay(result.response);
-      const replyDueAt = new Date(
+      const baseReplyDueAt = new Date(
         processingCompletedAt.getTime() + replyDelayMs,
+      );
+      const typingState = this.resolveTypingSignal(currentTurn.conversationId);
+      const replyDueAt =
+        typingState && typingState.expiresAt.getTime() > baseReplyDueAt.getTime()
+          ? typingState.expiresAt
+          : baseReplyDueAt;
+      const effectiveReplyDelayMs = Math.max(
+        0,
+        replyDueAt.getTime() - processingCompletedAt.getTime(),
       );
 
       const awaitingReplyTurn = await this.runWithTurnContext(currentTurn, async () => {
@@ -451,7 +463,7 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
           turnId: currentTurn.id,
           completedAt: processingCompletedAt,
           replyDueAt,
-          replyDelayMs,
+          replyDelayMs: effectiveReplyDelayMs,
           replyText: result.response,
           replyMessageMetadata: result.assistantMessageMetadata,
           resultSummary: {
@@ -475,7 +487,11 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
           payload: {
             turnId: currentTurn.id,
             replyDueAt: replyDueAt.toISOString(),
-            replyDelayMs,
+            replyDelayMs: effectiveReplyDelayMs,
+            typingHoldUntil:
+              typingState && typingState.expiresAt.getTime() > baseReplyDueAt.getTime()
+                ? typingState.expiresAt.toISOString()
+                : null,
           },
         });
 
@@ -540,6 +556,10 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
       turn.status !== AsyncConversationTurnStatus.AWAITING_REPLY ||
       !turn.replyText
     ) {
+      return;
+    }
+
+    if (await this.delayReplyProjectionForActiveTyping(turn)) {
       return;
     }
 
@@ -884,5 +904,52 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.scheduleStabilization(updatedTurn);
+  }
+
+  private async delayReplyProjectionForActiveTyping(turn: AsyncTurnRecord) {
+    const typingState = this.resolveTypingSignal(turn.conversationId);
+
+    if (!typingState) {
+      return false;
+    }
+
+    await this.extendReplyProjectionHold(turn, typingState.expiresAt);
+    return true;
+  }
+
+  private async extendReplyProjectionHold(turn: AsyncTurnRecord, holdUntil: Date) {
+    if ((turn.replyDueAt?.getTime() ?? 0) >= holdUntil.getTime()) {
+      this.scheduleReplyProjection(turn);
+      return;
+    }
+
+    const updatedTurn = await this.asyncTurnRepository.refreshReplyProjectionWindow({
+      turnId: turn.id,
+      replyDueAt: holdUntil,
+      replyDelayMs: turn.processingCompletedAt
+        ? Math.max(0, holdUntil.getTime() - turn.processingCompletedAt.getTime())
+        : turn.replyDelayMs,
+      metadata: {
+        ...(turn.metadata && typeof turn.metadata === 'object'
+          ? turn.metadata
+          : {}),
+        typingHoldUntil: holdUntil.toISOString(),
+      } as Prisma.InputJsonValue,
+    });
+
+    await this.runWithTurnContext(updatedTurn, async () => {
+      await this.traceLogService.recordStage({
+        conversationId: updatedTurn.conversationId,
+        stage: 'reply_projection',
+        status: 'typing_hold',
+        payload: {
+          turnId: updatedTurn.id,
+          replyDueAt: updatedTurn.replyDueAt?.toISOString() ?? null,
+          typingHoldUntil: holdUntil.toISOString(),
+        },
+      });
+    });
+
+    this.scheduleReplyProjection(updatedTurn);
   }
 }

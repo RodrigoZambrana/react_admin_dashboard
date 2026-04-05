@@ -171,6 +171,17 @@ function createInMemoryAsyncTurnRepository() {
         | null;
       return cloneTurn(turn);
     }),
+    refreshReplyProjectionWindow: jest.fn(async (input: any) => {
+      const turn = getTurnOrThrow(input.turnId);
+      turn.replyDueAt = input.replyDueAt;
+      if (typeof input.replyDelayMs === 'number') {
+        turn.replyDelayMs = input.replyDelayMs;
+      }
+      turn.metadata = (input.metadata ?? turn.metadata ?? null) as
+        | Record<string, unknown>
+        | null;
+      return cloneTurn(turn);
+    }),
     findById: jest.fn(async (turnId: string) => {
       const turn = turns.get(turnId);
       return turn ? cloneTurn(turn) : null;
@@ -729,6 +740,123 @@ describe('AsyncTurnIntakeService', () => {
         payload: expect.objectContaining({
           turnId: firstAccepted.turn.id,
           supersededByTurnId: secondAccepted.turn.id,
+        }),
+      }),
+    );
+  });
+
+  it('cuts system reply projection while the customer resumes typing during awaiting-reply', async () => {
+    const asyncTurnRepository = createInMemoryAsyncTurnRepository();
+    const traceLogService = {
+      recordStage: jest.fn(async () => undefined),
+    };
+    const semanticTurnExecutionService = {
+      executeClosedTurn: jest.fn(async () => ({
+        response: 'Respuesta con espera humana',
+        intent: 'GENERAL_CONVERSATION',
+        entities: {},
+        metadata: {
+          conversationId: 'conv-typing-reply',
+          traceId: 'trace-turn-typing-reply',
+        },
+        decision: {
+          action: 'respond',
+          toolName: null,
+        },
+        execution: null,
+        approvedResponse: {
+          fallbackReason: null,
+        },
+        assistantMessageMetadata: {
+          source: 'async',
+        },
+      })),
+      projectAssistantReply: jest.fn(async () => ({
+        id: 'msg-assistant-typing-reply',
+      })),
+    };
+    const service = new AsyncTurnIntakeService(
+      {
+        findById: jest.fn(async () => ({
+          id: 'conv-typing-reply',
+          language: 'es',
+          channel: 'webchat_async',
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+          messages: [],
+        })),
+        createConversation: jest.fn(async () => ({
+          id: 'conv-typing-reply',
+          language: 'es',
+          channel: 'webchat_async',
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          updatedAt: new Date('2026-04-04T10:00:00.000Z'),
+          messages: [],
+        })),
+      } as any,
+      asyncTurnRepository as any,
+      {
+        getTenantId: () => 'tenant-alpha',
+        getTraceId: () => 'trace-request',
+        run: (_context: any, callback: () => unknown) => callback(),
+      } as any,
+      traceLogService as any,
+      {
+        calculateFlushAt: jest.fn(({ acceptedAt }: { acceptedAt: Date }) => ({
+          stabilizationDelayMs: 1000,
+          flushAt: new Date(acceptedAt.getTime() + 1000),
+        })),
+        buildSemanticInput: jest.fn((messages: string[]) => messages.join('\n')),
+        estimateReplyDelay: jest.fn(() => 1000),
+        estimateTypingQuietPeriod: jest.fn(async () => 2000),
+      } as any,
+      new AsyncTurnExecutionControlService(),
+      semanticTurnExecutionService as any,
+    );
+
+    const accepted = await service.acceptMessage({
+      message: 'Necesito info de rollers',
+      locale: 'es',
+      channel: 'webchat_async',
+    });
+
+    await jest.advanceTimersByTimeAsync(1000);
+
+    const awaitingSession = await service.getSession(accepted.conversationId);
+    expect(awaitingSession.presence).toEqual(
+      expect.objectContaining({
+        state: 'awaiting_reply',
+        awaitingReply: true,
+        turnId: accepted.turn.id,
+      }),
+    );
+
+    const typingStatus = await service.reportTyping({
+      conversationId: accepted.conversationId,
+      locale: 'es',
+      isTyping: true,
+    });
+
+    expect(typingStatus.typingActive).toBe(true);
+    expect(typingStatus.presence.state).toBe('awaiting_reply');
+
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(semanticTurnExecutionService.projectAssistantReply).not.toHaveBeenCalled();
+
+    const heldSession = await service.getSession(accepted.conversationId);
+    expect(heldSession.presence.typingActive).toBe(true);
+    expect(
+      new Date(heldSession.presence.replyDueAt ?? 0).getTime(),
+    ).toBeGreaterThan(new Date(awaitingSession.presence.replyDueAt ?? 0).getTime());
+
+    await jest.advanceTimersByTimeAsync(1000);
+    expect(semanticTurnExecutionService.projectAssistantReply).toHaveBeenCalledTimes(1);
+    expect(traceLogService.recordStage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        stage: 'reply_projection',
+        status: 'typing_hold',
+        payload: expect.objectContaining({
+          turnId: accepted.turn.id,
         }),
       }),
     );

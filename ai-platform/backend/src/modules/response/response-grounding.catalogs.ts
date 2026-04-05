@@ -107,8 +107,28 @@ const defaultCatalog: GroundingLocaleCatalog = {
 const spanishCatalog: GroundingLocaleCatalog = {
   detailTypes: {
     coverage_support: {
-      requestTerms: ['cubre', 'cubren', 'cobertura', 'incluye', 'incluyen'],
-      generalEvidenceTerms: ['cubre', 'cubren', 'cobertura', 'incluye', 'incluyen'],
+      requestTerms: [
+        'cubre',
+        'cubren',
+        'cobertura',
+        'incluye',
+        'incluyen',
+        'cubierto',
+        'cubierta',
+        'cubiertos',
+        'cubiertas',
+      ],
+      generalEvidenceTerms: [
+        'cubre',
+        'cubren',
+        'cobertura',
+        'incluye',
+        'incluyen',
+        'cubierto',
+        'cubierta',
+        'cubiertos',
+        'cubiertas',
+      ],
       unspecifiedLabel: 'si está cubierto',
     },
     pricing: {

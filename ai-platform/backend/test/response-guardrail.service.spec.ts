@@ -214,6 +214,52 @@ describe('ResponseGuardrailService', () => {
     });
   });
 
+  it('rejects vague replies that avoid the required unsupported-detail axis', () => {
+    expect(
+      service.evaluate({
+        approvedContext: {
+          ...approvedContext,
+          outcome: 'respond',
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          documentContext: {
+            source: 'document_origin',
+            query: 'que colores exactos tiene',
+            groundedSummary: 'El documento indica variedad de colores para esa linea.',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'partial',
+              exactnessRequested: true,
+              requestedDetailTypes: ['color_options'],
+              supportedDetailTypes: [],
+              partialDetailTypes: ['color_options'],
+              unsupportedDetailTypes: [],
+              requiredUnspecifiedDetailTypes: ['color_options'],
+            },
+            matches: [],
+          },
+        },
+        generatedResponse: {
+          message: 'No tengo una confirmación clara sobre eso ahora mismo.',
+          assertedOutcome: 'respond',
+          assertedExecutionStatus: 'not_applicable',
+          mentionedMissingFields: [],
+          mentionedApprovedFactKeys: [],
+          mentionedApprovedResultKeys: [],
+          mentionedDocumentIds: [],
+        },
+      }),
+    ).toEqual({
+      accepted: false,
+      reasons: ['missing_required_detail_axis'],
+    });
+  });
+
   it('rejects presenting partially supported detail as explicit when exactness was requested', () => {
     expect(
       service.evaluate({

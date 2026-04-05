@@ -358,4 +358,66 @@ describe('ChatResponseService', () => {
       }),
     );
   });
+
+  it('locks to the approved draft when grounded knowledge is unavailable and generic fill-in would be unsafe', async () => {
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'document_grounded_exploration',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          documentContext: {
+            source: 'document_origin',
+            query: 'tipos de cortinas roller',
+            groundedSummary: '',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'unavailable',
+              exactnessRequested: false,
+              requestedDetailTypes: ['specific_variants'],
+              supportedDetailTypes: [],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: ['specific_variants'],
+            },
+            matches: [],
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: true,
+            groundedKnowledgeOnly: true,
+          },
+        })),
+      } as any,
+      {
+        resolve: jest.fn(() => 'Por ahora no tengo una confirmación clara sobre eso.'),
+      } as any,
+      {
+        generateResponse: jest.fn(),
+      } as any,
+      {
+        evaluate: jest.fn(),
+      } as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        response: 'Por ahora no tengo una confirmación clara sobre eso.',
+        usedFallback: true,
+        fallbackReason: 'policy_locked',
+      }),
+    );
+  });
 });

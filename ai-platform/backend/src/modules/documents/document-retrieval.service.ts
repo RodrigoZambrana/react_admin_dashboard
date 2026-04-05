@@ -48,7 +48,7 @@ export class DocumentRetrievalService {
       };
     }
 
-    const query = this.resolveQuery(input, reason, signals);
+    const query = this.resolveQuery(input, reason, signals, previousTopic);
     const queryTokens = tokenizeQuery(query, input.interpretation.language);
 
     if (queryTokens.length === 0) {
@@ -113,7 +113,11 @@ export class DocumentRetrievalService {
       result: {
         source: 'document_origin',
         query,
-        groundedSummary: buildGroundedSummary(matches),
+        groundedSummary: buildGroundedSummary(matches, queryTokens, {
+          incremental:
+            signals.threading.incrementalFollowUp ||
+            reason === 'active_document_continuation',
+        }),
         matches,
       },
     };
@@ -173,10 +177,15 @@ export class DocumentRetrievalService {
     },
     reason: DocumentRetrievalAttempt['reason'],
     signals: ConversationRoutingSignals,
+    previousTopic: string | null,
   ) {
     const currentTopic = signals.topicText || input.message.trim();
-    const previousTopic =
-      this.resolveConversationTopic(input.conversationState) ?? null;
+    const currentRawMessage = this.resolveRawMessage(input);
+    const incrementalFacet = this.resolveIncrementalFacet({
+      currentRawMessage,
+      previousTopic,
+      locale: input.interpretation.language,
+    });
 
     if (
       (reason === 'document_query' || reason === 'knowledge_query') &&
@@ -200,7 +209,15 @@ export class DocumentRetrievalService {
       (reason === 'active_document_continuation' || reason === 'knowledge_query') &&
       previousTopic
     ) {
-      if (!currentTopic || currentTopic === previousTopic) {
+      if (incrementalFacet) {
+        return `${previousTopic}. ${incrementalFacet}`.trim();
+      }
+
+      if (
+        !currentTopic ||
+        normalizeConversationSignalText(currentTopic) ===
+          normalizeConversationSignalText(previousTopic)
+      ) {
         return previousTopic;
       }
 
@@ -227,6 +244,13 @@ export class DocumentRetrievalService {
       state.approvedFacts && typeof state.approvedFacts === 'object'
         ? state.approvedFacts
         : {};
+
+    if (
+      typeof facts.subjectSummary === 'string' &&
+      facts.subjectSummary.trim().length > 0
+    ) {
+      return facts.subjectSummary.trim();
+    }
 
     if (
       typeof facts.topicSummary === 'string' &&
@@ -271,6 +295,52 @@ export class DocumentRetrievalService {
     );
 
     return ids.length > 0 ? ids : undefined;
+  }
+
+  private resolveRawMessage(input: {
+    message: string;
+    interpretation: ContinuityAwareInterpretation;
+  }) {
+    if (
+      typeof input.interpretation.entities.rawMessage === 'string' &&
+      input.interpretation.entities.rawMessage.trim().length > 0
+    ) {
+      return input.interpretation.entities.rawMessage.trim();
+    }
+
+    return input.message.trim();
+  }
+
+  private resolveIncrementalFacet(input: {
+    currentRawMessage: string;
+    previousTopic: string | null;
+    locale?: string | null;
+  }) {
+    if (!input.previousTopic || !input.currentRawMessage) {
+      return null;
+    }
+
+    const currentTokens = tokenizeConversationSignalText(input.currentRawMessage, {
+      locale: input.locale,
+      minimumTokenLength: 3,
+      stopWordSet: 'retrieval',
+    });
+    const previousTokens = new Set(
+      tokenizeConversationSignalText(input.previousTopic, {
+        locale: input.locale,
+        minimumTokenLength: 3,
+        stopWordSet: 'retrieval',
+      }),
+    );
+    const incrementalTokens = currentTokens.filter(
+      (token) => !previousTokens.has(token),
+    );
+
+    if (incrementalTokens.length === 0) {
+      return null;
+    }
+
+    return incrementalTokens.slice(0, 6).join(' ');
   }
 }
 
@@ -358,32 +428,69 @@ function buildExcerpt(content: string, queryTokens: string[]) {
   return excerpt.slice(0, 260).trim();
 }
 
-function buildGroundedSummary(matches: DocumentRetrievalResult['matches']) {
-  const summarySentences = new Set<string>();
-
-  for (const match of matches.slice(0, 3)) {
-    const sentences = match.excerpt
-      .split(/(?<=[.!?])\s+/u)
-      .map((sentence) => normalizeSummarySentence(sentence))
-      .filter((sentence): sentence is string => Boolean(sentence));
-
-    for (const sentence of sentences) {
-      summarySentences.add(sentence);
-
-      if (summarySentences.size >= 3) {
-        break;
+function buildGroundedSummary(
+  matches: DocumentRetrievalResult['matches'],
+  queryTokens: string[],
+  options?: {
+    incremental?: boolean;
+  },
+) {
+  const rankedSentences = matches
+    .slice(0, 3)
+    .flatMap((match) =>
+      match.excerpt
+        .split(/(?<=[.!?])\s+/u)
+        .map((sentence, index) => ({
+          sentence: normalizeSummarySentence(sentence),
+          score: scoreExcerptSentence(sentence, queryTokens),
+          sequence: match.sequence,
+          index,
+        })),
+    )
+    .filter(
+      (entry): entry is {
+        sentence: string;
+        score: number;
+        sequence: number;
+        index: number;
+      } => Boolean(entry.sentence),
+    )
+    .sort((left, right) => {
+      if (right.score !== left.score) {
+        return right.score - left.score;
       }
+
+      if (left.sequence !== right.sequence) {
+        return left.sequence - right.sequence;
+      }
+
+      return left.index - right.index;
+    });
+
+  const selectedSentences: string[] = [];
+
+  for (const entry of rankedSentences) {
+    if (
+      selectedSentences.some(
+        (existing) =>
+          existing === entry.sentence ||
+          existing.includes(entry.sentence) ||
+          entry.sentence.includes(existing),
+      )
+    ) {
+      continue;
     }
 
-    if (summarySentences.size >= 3) {
+    selectedSentences.push(entry.sentence);
+
+    if (selectedSentences.length >= (options?.incremental ? 1 : 2)) {
       break;
     }
   }
 
-  return Array.from(summarySentences.values())
-    .slice(0, 2)
+  return selectedSentences
     .join(' ')
-    .slice(0, 420)
+    .slice(0, options?.incremental ? 220 : 320)
     .trim();
 }
 

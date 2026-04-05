@@ -177,6 +177,141 @@ describe('DocumentRetrievalService', () => {
     );
   });
 
+  it('keeps the active subject when an additive follow-up refines the same product family', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-exterior-1',
+          documentId: 'doc-exterior',
+          sequence: 0,
+          content:
+            'Las cortinas de enrollar exteriores están disponibles en PVC y aluminio.',
+          searchText:
+            'las cortinas de enrollar exteriores estan disponibles en pvc y aluminio',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-exterior',
+            title: 'Enrollar Exteriores',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'también tienen cortinas de enrollar exteriores?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'también tienen cortinas de enrollar exteriores?',
+        },
+        language: 'es',
+        confidence: 0.84,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-exterior',
+        lane: 'advisory_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          subjectSummary: 'cortinas de enrollar',
+          topicSummary: 'cortinas de enrollar',
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        attempted: true,
+        reason: 'knowledge_query',
+        result: expect.objectContaining({
+          query: expect.stringMatching(/cortinas de enrollar/i),
+          groundedSummary: expect.stringMatching(/PVC y aluminio/i),
+        }),
+      }),
+    );
+  });
+
+  it('inherits the active subject for short material follow-ups without depending on lexical overlap alone', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-materials-1',
+          documentId: 'doc-materials',
+          sequence: 0,
+          content:
+            'Las cortinas de enrollar exteriores están disponibles en PVC y aluminio.',
+          searchText:
+            'las cortinas de enrollar exteriores estan disponibles en pvc y aluminio',
+          metadata: null,
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-materials',
+            title: 'Enrollar Exteriores',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'en qué materiales',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'en qué materiales',
+        },
+        language: 'es',
+        confidence: 0.8,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-materials',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          subjectSummary: 'cortinas de enrollar exteriores',
+          topicSummary: 'cortinas de enrollar exteriores',
+          activeDocumentIds: ['doc-materials'],
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        attempted: true,
+        reason: 'active_document_continuation',
+        result: expect.objectContaining({
+          query: expect.stringMatching(/cortinas de enrollar exteriores/i),
+          groundedSummary: expect.stringMatching(/PVC y aluminio/i),
+        }),
+      }),
+    );
+  });
+
   it('retags retrieval as combined booking context after decisioning confirms booking', async () => {
     const service = new DocumentRetrievalService({
       listActiveReadyChunks: jest.fn(async () => [

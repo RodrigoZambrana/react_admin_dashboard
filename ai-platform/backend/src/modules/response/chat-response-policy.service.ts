@@ -296,23 +296,28 @@ export class ChatResponsePolicyService {
   private buildConciseDocumentSummary(summary: string) {
     const normalized = summary.trim().replace(/\s+/g, ' ');
     const firstSentence = normalized.match(/^.*?[.!?](?:\s|$)/u)?.[0]?.trim();
+    const maxLength = 220;
 
-    if (firstSentence && firstSentence.length <= 220) {
+    if (firstSentence && firstSentence.length <= maxLength) {
       return firstSentence;
     }
 
-    if (normalized.length <= 220) {
+    if (normalized.length <= maxLength) {
       return normalized;
     }
 
-    return `${normalized.slice(0, 217).trimEnd()}...`;
+    return `${normalized.slice(0, maxLength - 3).trimEnd()}...`;
   }
 
   private buildDocumentGroundingSummary(
     context: ApprovedResponseContext,
     summary: string,
   ) {
-    const normalizedSummary = this.buildConciseDocumentSummary(summary);
+    const normalizedSummary = this.buildConciseDocumentSummary(
+      context.responseStyle?.incrementalFollowUp
+        ? this.trimToSingleSentence(summary)
+        : summary,
+    );
     const groundingClause =
       this.responseGroundingService.buildUnspecifiedDetailClause({
         locale: context.locale,
@@ -334,7 +339,11 @@ export class ChatResponsePolicyService {
     context: ApprovedResponseContext,
     summary: string,
   ) {
-    const conciseSummary = this.buildConciseDocumentSummary(summary);
+    const conciseSummary = this.buildConciseDocumentSummary(
+      context.responseStyle?.incrementalFollowUp
+        ? this.trimToSingleSentence(summary)
+        : summary,
+    );
     const groundingClause =
       this.responseGroundingService.buildUnspecifiedDetailClause({
         locale: context.locale,
@@ -361,5 +370,12 @@ export class ChatResponsePolicyService {
     }
 
     return `${conciseSummary} ${groundingClause}`.trim();
+  }
+
+  private trimToSingleSentence(value: string) {
+    const normalized = value.trim().replace(/\s+/g, ' ');
+    const firstSentence = normalized.match(/^.*?[.!?](?:\s|$)/u)?.[0]?.trim();
+
+    return firstSentence ?? normalized;
   }
 }

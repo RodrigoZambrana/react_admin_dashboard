@@ -85,6 +85,7 @@ export type ProductFacts = {
 };
 
 export type DocumentExplorationFacts = {
+  subjectSummary?: string;
   topicSummary?: string;
   activeDocumentIds?: string[];
   lastDocumentQuery?: string;
@@ -93,6 +94,7 @@ export type DocumentExplorationFacts = {
 };
 
 export type AdvisoryExplorationFacts = {
+  subjectSummary?: string;
   topicSummary?: string;
   criteriaSignals?: string[];
 };

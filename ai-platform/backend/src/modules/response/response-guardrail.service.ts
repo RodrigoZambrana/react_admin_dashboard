@@ -102,6 +102,20 @@ export class ResponseGuardrailService {
             ...documentGrounding.unsupportedDetailTypes,
           ],
       );
+      const addressedDetailTypes = new Set([
+        ...claimedDetailTypes,
+        ...unspecifiedDetailTypes,
+      ]);
+
+      if (
+        allowedUnspecifiedDetailTypes.size > 0 &&
+        unspecifiedDetailTypes.length === 0 &&
+        ![...allowedUnspecifiedDetailTypes].some((detailType) =>
+          addressedDetailTypes.has(detailType),
+        )
+      ) {
+        reasons.add('missing_required_detail_axis');
+      }
 
       if (
         unspecifiedDetailTypes.some(
@@ -140,8 +154,9 @@ export class ResponseGuardrailService {
       if (
         approvedContext.outcome === 'respond' &&
         !reasons.has('unsupported_document_detail') &&
-        !reasons.has('partial_document_detail_overclaim')
-        &&
+        !reasons.has('partial_document_detail_overclaim') &&
+        !reasons.has('missing_required_detail_axis') &&
+        !reasons.has('wrong_unspecified_detail_axis') &&
         this.responseGroundingService.hasDocumentContextOverreach({
           approvedContext,
           approvedDraft,

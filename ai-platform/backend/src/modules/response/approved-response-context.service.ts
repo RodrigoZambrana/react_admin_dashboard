@@ -23,6 +23,14 @@ export class ApprovedResponseContextService {
         ? input.execution.payload
         : input.conversationState?.lastApprovedResult,
     );
+    const approvedDocumentContext = this.buildApprovedDocumentContext(input);
+    const responseStyle = this.buildResponseStyle({
+      message: input.message,
+      decisionAction: input.decision.action,
+      continuity: input.continuity,
+      conversationState: input.conversationState,
+      documentContext: approvedDocumentContext,
+    });
 
     return this.pruneUndefined({
       locale: input.interpretation.language,
@@ -97,7 +105,8 @@ export class ApprovedResponseContextService {
         input.conversationState?.nextUsefulField ?? input.continuity.nextUsefulField,
       approvedFactKeys: Object.keys(approvedFacts ?? {}),
       approvedResultKeys: Object.keys(lastApprovedResult ?? {}),
-      documentContext: this.buildApprovedDocumentContext(input),
+      documentContext: approvedDocumentContext,
+      responseStyle,
       approvedDocumentIds: input.documentContext?.matches.map(
         (match) => match.documentId,
       ) ?? [],
@@ -193,6 +202,35 @@ export class ApprovedResponseContextService {
     };
   }
 
+  private buildResponseStyle(input: {
+    message: string;
+    decisionAction: ApprovedResponseContextInput['decision']['action'];
+    continuity: ApprovedResponseContextInput['continuity'];
+    conversationState: ApprovedResponseContextInput['conversationState'];
+    documentContext: ApprovedResponseContext['documentContext'] | undefined;
+  }) {
+    const lane =
+      input.continuity.activeLane ?? input.conversationState?.lane ?? null;
+    const incrementalFollowUp =
+      Boolean(input.documentContext) &&
+      (lane === 'document_exploration' || lane === 'advisory_exploration') &&
+      this.isBriefQuestionLike(input.message) &&
+      this.normalizeForComparison(input.message) !==
+        this.normalizeForComparison(input.documentContext?.query ?? '');
+
+    return {
+      preferBrief:
+        incrementalFollowUp ||
+        (input.documentContext !== undefined &&
+          input.decisionAction === 'respond'),
+      incrementalFollowUp,
+      groundedKnowledgeOnly:
+        input.decisionAction === 'respond' &&
+        input.documentContext?.responseMode === 'document_exploration' &&
+        input.documentContext.grounding.supportLevel === 'unavailable',
+    };
+  }
+
   private truncateExcerpt(value: string) {
     const normalized = value.trim().replace(/\s+/g, ' ');
 
@@ -221,5 +259,16 @@ export class ApprovedResponseContextService {
     }
 
     return this.truncateExcerpt(normalized);
+  }
+
+  private isBriefQuestionLike(value: string) {
+    const normalized = value.trim();
+    const tokenCount = normalized.split(/\s+/u).filter(Boolean).length;
+
+    return tokenCount > 0 && tokenCount <= 8;
+  }
+
+  private normalizeForComparison(value: string) {
+    return value.trim().toLowerCase().replace(/\s+/g, ' ');
   }
 }

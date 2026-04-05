@@ -47,6 +47,7 @@ export type ResponseGuardrailCode =
   | 'unsupported_result_keys'
   | 'unsupported_document_ids'
   | 'unsupported_document_detail'
+  | 'missing_required_detail_axis'
   | 'wrong_unspecified_detail_axis'
   | 'partial_document_detail_overclaim'
   | 'document_context_overreach'
@@ -138,6 +139,11 @@ export type ApprovedResponseContext = {
       excerpt?: string;
     }>;
   };
+  responseStyle?: {
+    preferBrief: boolean;
+    incrementalFollowUp: boolean;
+    groundedKnowledgeOnly: boolean;
+  };
   approvedDocumentIds: string[];
 };
 
@@ -156,7 +162,11 @@ export type GeneratedChatResponse = {
   approvedContext: ApprovedResponseContext;
   approvedDraft: string;
   usedFallback: boolean;
-  fallbackReason: 'generation_failed' | 'guardrail_rejected' | null;
+  fallbackReason:
+    | 'generation_failed'
+    | 'guardrail_rejected'
+    | 'policy_locked'
+    | null;
   generation: {
     provider: string;
     model: string | null;

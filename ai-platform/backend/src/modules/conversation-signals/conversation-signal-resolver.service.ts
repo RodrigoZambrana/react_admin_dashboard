@@ -20,6 +20,7 @@ export class ConversationSignalResolverService {
     const locale = this.normalizeLocale(input.interpretation.language);
     const topicText = this.resolveTopicText(input);
     const previousTopicText = this.resolveConversationTopic(input.conversationState);
+    const previousTopic = previousTopicText ?? '';
     const candidateTexts = this.resolveCandidateTexts(input);
     const catalog = resolveConversationSignalCatalog(locale);
     const normalizedTexts = candidateTexts.map((value) =>
@@ -49,6 +50,7 @@ export class ConversationSignalResolverService {
     const descriptive = primaryTokens.length >= 6 || primaryText.length >= 28;
     const briefQuestionLike =
       questionLike && primaryTokens.length > 0 && primaryTokens.length <= 6;
+    const bridge = threading.matchedCategories.includes('bridge');
     const shortFollowUp =
       threading.matchedCategories.includes('short_follow_up') ||
       (primaryTokens.length > 0 &&
@@ -56,25 +58,34 @@ export class ConversationSignalResolverService {
         primaryText.length <= 40 &&
         !questionLike);
     const resume = threading.matchedCategories.includes('resume');
-    const switchSuggested =
+    const hardSwitchSuggested =
       threading.matchedCategories.includes('switch') &&
       (primaryTokens.length >= 3 || primaryText.length >= 24);
     const channelInterference = noise.matchedCategories.includes('auto_reply');
-    const topicCarryoverEligible =
-      Boolean(previousTopicText) &&
-      !switchSuggested &&
+    const incrementalFollowUp =
+      previousTopic.length > 0 &&
+      !hardSwitchSuggested &&
       !channelInterference &&
       this.isKnowledgeEligibleIntent(input.interpretation.intent) &&
-      (shortFollowUp || briefQuestionLike || resume);
+      (shortFollowUp ||
+        briefQuestionLike ||
+        resume ||
+        (bridge && this.hasTopicOverlap(primaryText, previousTopic, locale ?? 'default')));
+    const topicCarryoverEligible =
+      previousTopic.length > 0 &&
+      !hardSwitchSuggested &&
+      !channelInterference &&
+      this.isKnowledgeEligibleIntent(input.interpretation.intent) &&
+      incrementalFollowUp;
     const activeContinuation =
       Boolean(input.conversationState) &&
       this.isExplorationFollowUpIntent(input.interpretation.intent) &&
-      !switchSuggested &&
+      !hardSwitchSuggested &&
       !channelInterference &&
       topicCarryoverEligible;
     const implicitKnowledgeEligible =
       !channelInterference &&
-      !switchSuggested &&
+      !hardSwitchSuggested &&
       !document.lexicalScore &&
       !closure.matchedCategories.includes('decline') &&
       !closure.matchedCategories.includes('farewell') &&
@@ -103,7 +114,7 @@ export class ConversationSignalResolverService {
         continuationEligible:
           input.conversationState?.lane === 'document_exploration' &&
           this.isExplorationFollowUpIntent(input.interpretation.intent) &&
-          !switchSuggested &&
+          !hardSwitchSuggested &&
           !channelInterference,
       },
       advisory: {
@@ -117,7 +128,7 @@ export class ConversationSignalResolverService {
         continuationEligible:
           input.conversationState?.lane === 'advisory_exploration' &&
           this.isExplorationFollowUpIntent(input.interpretation.intent) &&
-          !switchSuggested &&
+          !hardSwitchSuggested &&
           !channelInterference,
       },
       closure: {
@@ -131,9 +142,11 @@ export class ConversationSignalResolverService {
         ...threading,
         shortFollowUp,
         resume,
-        switchSuggested,
+        bridge,
+        switchSuggested: hardSwitchSuggested,
         activeContinuation,
         topicCarryoverEligible,
+        incrementalFollowUp,
       },
       noise: {
         ...noise,
@@ -335,6 +348,35 @@ export class ConversationSignalResolverService {
     );
   }
 
+  private hasTopicOverlap(current: string, previous: string, locale: string) {
+    const currentTokens = new Set(
+      tokenizeConversationSignalText(current, {
+        locale,
+        minimumTokenLength: 3,
+        stopWordSet: 'retrieval',
+      }),
+    );
+    const previousTokens = new Set(
+      tokenizeConversationSignalText(previous, {
+        locale,
+        minimumTokenLength: 3,
+        stopWordSet: 'retrieval',
+      }),
+    );
+
+    if (currentTokens.size === 0 || previousTokens.size === 0) {
+      return false;
+    }
+
+    for (const token of currentTokens) {
+      if (previousTokens.has(token)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   private resolveConversationTopic(
     conversationState?: ConversationStateSnapshot | null,
   ) {
@@ -347,6 +389,13 @@ export class ConversationSignalResolverService {
       typeof conversationState.approvedFacts === 'object'
         ? conversationState.approvedFacts
         : {};
+
+    if (
+      typeof facts.subjectSummary === 'string' &&
+      facts.subjectSummary.trim().length > 0
+    ) {
+      return facts.subjectSummary.trim();
+    }
 
     if (
       typeof facts.topicSummary === 'string' &&

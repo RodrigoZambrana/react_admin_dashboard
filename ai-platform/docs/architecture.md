@@ -677,6 +677,14 @@ The current runtime improvements derived from those artifacts are intentionally 
 - explicit thread switching invalidates stale thread facts without depending on tenant-specific business taxonomies
 - document retrieval and routing now consume structured signal support from the dedicated conversation-signal boundary instead of growing inline token lists in decisive services
 
+The latest correction pass tightened those same core mechanics without reopening tenant-specific routing:
+
+- continuity now preserves a stable subject summary separately from narrower topic text so short follow-ups can inherit the active subject before a lane is fully locked
+- bridge wording can keep an established subject active without becoming a hard topic-switch signal
+- document retrieval composes incremental follow-up facets over the active subject instead of depending only on lexical overlap with the newest short turn
+- approved response context can mark weak knowledge turns as backend-locked so the response layer stays inside approved grounded behavior instead of filling gaps with generic domain knowledge
+- short informational follow-ups now bias toward concise incremental answers rather than excerpt-heavy restatements
+
 ## Multi-Tenant Enforcement
 
 - Tenant id enters through HTTP middleware
@@ -713,6 +721,8 @@ Typing/presence is now also a backend-owned finalization signal inside the async
 - the public client can report active composition for an existing async conversation
 - the backend can extend the active stabilization window while the user is still typing
 - semantic-turn closure waits for the typing quiet period instead of treating presence as decorative UI only
+- reply projection can also be re-held when the user resumes typing after processing completed but before the assistant reply is emitted
+- the public chat client sends an immediate typing signal on composition start so the backend pause is not delayed by heartbeat debounce alone
 - `/chat/message` remains unchanged; this behavior is additive to the async public-chat contracts
 
 Each active stage emits structured records with trace id, tenant id, duration, outcome, and payload summary.
