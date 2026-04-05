@@ -607,6 +607,38 @@ export function DocumentsPage() {
                       </div>
                     </div>
                   ) : null}
+                  {activeKnowledgeView.extractionProfiles.length > 0 ? (
+                    <div className="mt-3">
+                      <span className="react-meta-label d-block mb-2">
+                        Active extraction profiles
+                      </span>
+                      <div className="react-meta-list">
+                        {activeKnowledgeView.extractionProfiles.map((profile) => (
+                          <div key={`${profile.profileId}:${profile.locale}`}>
+                            <span className="react-meta-label">
+                              {formatProfileId(profile.profileId)} ({profile.locale})
+                            </span>
+                            <strong>
+                              {profile.tenantDerivedApplied
+                                ? 'Using tenant-derived hints'
+                                : 'Using platform fallback defaults'}
+                            </strong>
+                            <div className="fs-12 text-muted mt-1">
+                              Axes: {Object.keys(profile.sources.axes).join(', ') || 'n/a'}
+                            </div>
+                            {profile.derivedFromDocuments.length > 0 ? (
+                              <div className="fs-12 text-muted">
+                                Derived from:{' '}
+                                {profile.derivedFromDocuments
+                                  .map((document) => document.title)
+                                  .join(', ')}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <EmptyState
@@ -703,6 +735,38 @@ export function DocumentsPage() {
                       body="Re-ingest the selected document if you expect extracted knowledge here."
                     />
                   )}
+                  {selectedKnowledgeView.extractionProfiles.length > 0 ? (
+                    <div className="react-meta-list mt-3">
+                      {selectedKnowledgeView.extractionProfiles.map((profile) => (
+                        <div key={`${profile.profileId}:${profile.locale}`}>
+                          <span className="react-meta-label">
+                            {formatProfileId(profile.profileId)} ({profile.locale})
+                          </span>
+                          <strong>
+                            {profile.tenantDerivedApplied
+                              ? 'Tenant-derived hints persisted'
+                              : 'Platform fallback defaults only'}
+                          </strong>
+                          {profile.derivedHints?.observedAxes?.length ? (
+                            <div className="fs-12 text-muted mt-1">
+                              Observed axes:{' '}
+                              {profile.derivedHints.observedAxes
+                                .map((axis) => formatAxisLabel(axis))
+                                .join(', ')}
+                            </div>
+                          ) : null}
+                          {profile.derivedFromDocuments.length > 0 ? (
+                            <div className="fs-12 text-muted">
+                              Source documents:{' '}
+                              {profile.derivedFromDocuments
+                                .map((document) => document.title)
+                                .join(', ')}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </>
               ) : (
                 <EmptyState
@@ -859,6 +923,10 @@ function formatAxisLabel(value: string) {
 }
 
 function formatSupportLabel(value: string) {
+  return value.replace(/_/g, ' ');
+}
+
+function formatProfileId(value: string) {
   return value.replace(/_/g, ' ');
 }
 

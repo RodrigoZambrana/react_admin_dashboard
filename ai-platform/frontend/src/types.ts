@@ -331,6 +331,31 @@ export type DocumentKnowledgeView = {
     supportedAxes: string[];
     unspecifiedAxes: string[];
   };
+  extractionProfiles: Array<{
+    profileId: string;
+    locale: string;
+    tenantDerivedApplied: boolean;
+    derivedHints: {
+      observedSections?: string[];
+      observedAxes?: string[];
+      observedValuesByAxis?: Record<string, string[]>;
+      supportCounts?: {
+        explicit?: number;
+        partial?: number;
+        boundedInference?: number;
+      };
+    } | null;
+    derivedFromDocuments: Array<{
+      documentId: string;
+      title: string;
+      updatedAt: string;
+    }>;
+    sources: {
+      axes: Record<string, 'platform_default' | 'tenant_derived' | 'mixed'>;
+      matchingHints: Record<string, 'platform_default' | 'tenant_derived' | 'mixed'>;
+      derivedHints: 'platform_default' | 'tenant_derived' | 'mixed';
+    };
+  }>;
   overviewLines: string[];
   claims: DocumentKnowledgeClaimView[];
   entities: DocumentKnowledgeEntityView[];

@@ -2889,3 +2889,26 @@
 - Expose the persisted extraction-profile visibility more clearly in the admin documents UI
 - Keep repo defaults minimal and avoid growing tenant/domain semantics back into TS or resource files
 - Continue evolving claim-aware retrieval/ranking later without starting Wave 9
+
+## Iteration 86
+
+### Implemented
+- Extended the admin documents UI to show persisted extraction-profile visibility alongside the grounded knowledge view
+- Added frontend typing for extraction profile resolution, derived hints, and profile-source metadata returned by the backend knowledge view
+
+### Working
+- Operators can now see, from the documents admin page:
+  - which extraction profile is active
+  - which locale was resolved
+  - whether tenant-derived hints are applied
+  - which active documents contributed those derived hints
+- The admin view still reads the grounded knowledge state from persisted backend data instead of repo resources
+- Frontend build remains green with the new visibility surface
+
+### Technical Debt
+- The admin UI currently exposes the effective profile state inline inside the documents page, not as a deeper dedicated diagnostics surface
+- The profile view is intentionally operator-friendly; it does not yet expose a diff/history view for changes in tenant-derived hints over time
+
+### Next Steps
+- Add richer comparison/history only if operators actually need it
+- Keep the visibility grounded in persisted extracted knowledge and avoid turning repo defaults into an operator-facing source of truth
