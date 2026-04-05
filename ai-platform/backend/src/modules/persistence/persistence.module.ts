@@ -10,6 +10,7 @@ import { ConversationRepository } from './repositories/conversation.repository';
 import { ConversationStateRepository } from './repositories/conversation-state.repository';
 import { CriticalConfigVersionRepository } from './repositories/critical-config-version.repository';
 import { DocumentChunkRepository } from './repositories/document-chunk.repository';
+import { DocumentExtractionProfileConfigRepository } from './repositories/document-extraction-profile-config.repository';
 import { DocumentRepository } from './repositories/document.repository';
 import { InfrastructureRepository } from './repositories/infrastructure.repository';
 import { KnowledgeRepository } from './repositories/knowledge.repository';
@@ -40,6 +41,7 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     CriticalConfigVersionRepository,
     DocumentRepository,
     DocumentChunkRepository,
+    DocumentExtractionProfileConfigRepository,
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,
@@ -61,6 +63,7 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     CriticalConfigVersionRepository,
     DocumentRepository,
     DocumentChunkRepository,
+    DocumentExtractionProfileConfigRepository,
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,

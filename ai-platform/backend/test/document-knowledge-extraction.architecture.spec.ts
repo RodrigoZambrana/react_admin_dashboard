@@ -1,38 +1,50 @@
-import { readFileSync } from 'node:fs';
+import { readAppFile, readBackendSource } from './support/project-paths';
 
 describe('Document knowledge extraction architecture', () => {
   it('keeps the base extractor neutral and routes product/catalog semantics through a dedicated profile boundary', () => {
-    const serviceSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/document-knowledge-extraction.service.ts',
-      'utf8',
+    const serviceSource = readBackendSource(
+      'modules',
+      'documents',
+      'document-knowledge-extraction.service.ts',
     );
-    const orchestratorSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/document-knowledge-extraction.orchestrator.ts',
-      'utf8',
+    const orchestratorSource = readBackendSource(
+      'modules',
+      'documents',
+      'document-knowledge-extraction.orchestrator.ts',
     );
-    const baseCatalogSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/document-knowledge-extraction.catalogs.ts',
-      'utf8',
+    const baseCatalogSource = readBackendSource(
+      'modules',
+      'documents',
+      'document-knowledge-extraction.catalogs.ts',
     );
-    const profileSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/profiles/product-catalog-document.profile.ts',
-      'utf8',
+    const profileSource = readBackendSource(
+      'modules',
+      'documents',
+      'profiles',
+      'product-catalog-document.profile.ts',
     );
-    const profileConfigSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/document-extraction-profile-config.service.ts',
-      'utf8',
+    const profileConfigSource = readBackendSource(
+      'modules',
+      'documents',
+      'document-extraction-profile-config.service.ts',
     );
-    const profileResourceSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/resources/document-extraction-profiles/product_catalog/es.json',
-      'utf8',
+    const profileResourceSource = readAppFile(
+      'backend',
+      'src',
+      'resources',
+      'document-extraction-profiles',
+      'product_catalog',
+      'es.json',
     );
-    const profileRegistrySource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/document-extraction-profile-registry.service.ts',
-      'utf8',
+    const profileRegistrySource = readBackendSource(
+      'modules',
+      'documents',
+      'document-extraction-profile-registry.service.ts',
     );
-    const profileResolverSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/document-extraction-profile-resolver.service.ts',
-      'utf8',
+    const profileResolverSource = readBackendSource(
+      'modules',
+      'documents',
+      'document-extraction-profile-resolver.service.ts',
     );
 
     expect(serviceSource).toContain('DocumentKnowledgeExtractionOrchestrator');
@@ -51,6 +63,8 @@ describe('Document knowledge extraction architecture', () => {
     expect(profileResolverSource).toContain('resolveProfiles');
     expect(profileConfigSource).toContain('document-extraction-profiles');
     expect(profileResourceSource).toContain('"product_types"');
+    expect(profileResourceSource).not.toContain('"PVC"');
+    expect(profileResourceSource).not.toContain('"aluminio"');
     expect(profileSource).toContain("axis: 'materials'");
     expect(profileSource).toContain("axis: 'product_types'");
     expect(profileSource).toContain('resolveCompiledConfig');

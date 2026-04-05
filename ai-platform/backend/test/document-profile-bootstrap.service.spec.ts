@@ -44,16 +44,23 @@ describe('DocumentProfileBootstrapService', () => {
         approvedByUpload: true,
         manualConfigRequired: false,
         activeProfileIds: ['product_catalog'],
-        observedSections: ['CORTINAS DE ENROLLAR'],
-        observedAxes: ['materials'],
-        observedValuesByAxis: {
-          materials: ['PVC', 'aluminio'],
-        },
-        supportCounts: {
-          explicit: 1,
-          partial: 0,
-          boundedInference: 0,
-        },
+        profiles: [
+          expect.objectContaining({
+            profileId: 'product_catalog',
+            hints: expect.objectContaining({
+              observedSections: ['CORTINAS DE ENROLLAR'],
+              observedAxes: ['materials'],
+              observedValuesByAxis: {
+                materials: ['PVC', 'aluminio'],
+              },
+              supportCounts: {
+                explicit: 1,
+                partial: 0,
+                boundedInference: 0,
+              },
+            }),
+          }),
+        ],
       }),
     );
   });

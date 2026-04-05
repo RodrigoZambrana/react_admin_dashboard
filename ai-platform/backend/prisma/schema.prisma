@@ -61,6 +61,10 @@ enum DocumentKnowledgeSupportClass {
   BOUNDED_INFERENCE
 }
 
+enum DocumentExtractionProfileConfigSource {
+  TENANT_DERIVED
+}
+
 enum CatalogSourceKind {
   UPLOADED_STRUCTURED
   REST
@@ -249,9 +253,28 @@ model DocumentRecord {
   updatedAt       DateTime                @updatedAt
   chunks          DocumentChunk[]
   knowledgeItems  DocumentKnowledgeItem[]
+  extractionProfileConfigs DocumentExtractionProfileConfigRecord[]
 
   @@index([tenantId, status, createdAt])
   @@index([tenantId, ingestionStatus, createdAt])
+}
+
+model DocumentExtractionProfileConfigRecord {
+  id         String                               @id @default(cuid())
+  tenantId   String
+  documentId String
+  profileId  String
+  locale     String
+  sourceKind DocumentExtractionProfileConfigSource @default(TENANT_DERIVED)
+  hints      Json
+  metadata   Json?
+  createdAt  DateTime                             @default(now())
+  updatedAt  DateTime                             @updatedAt
+  document   DocumentRecord                       @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, profileId, locale])
+  @@index([tenantId, profileId, locale, updatedAt])
+  @@index([tenantId, documentId, updatedAt])
 }
 
 model DocumentChunk {

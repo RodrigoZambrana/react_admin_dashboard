@@ -1,7 +1,6 @@
-import { readFileSync } from 'node:fs';
-
 import { ConversationSignalResolverService } from '../src/modules/conversation-signals/conversation-signal-resolver.service';
 import { DocumentRetrievalService } from '../src/modules/documents/document-retrieval.service';
+import { readBackendSource } from './support/project-paths';
 
 describe('DocumentRetrievalService', () => {
   it('retrieves document-origin knowledge from active uploaded chunks', async () => {
@@ -635,9 +634,10 @@ describe('DocumentRetrievalService', () => {
   });
 
   it('keeps runtime-learned knowledge out of the primary document retrieval path', () => {
-    const source = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/document-retrieval.service.ts',
-      'utf8',
+    const source = readBackendSource(
+      'modules',
+      'documents',
+      'document-retrieval.service.ts',
     );
 
     expect(source).not.toContain('KnowledgeService');

@@ -155,6 +155,10 @@ export function asKnowledgeMetadata(value: unknown) {
     record.extractionScope === 'tenant_only'
       ? (record.extractionScope as DocumentKnowledgeExtractionScope)
       : undefined;
+  const profileKey =
+    typeof record.profileKey === 'string' && record.profileKey.trim().length > 0
+      ? record.profileKey.trim()
+      : undefined;
 
   const metadata: DocumentKnowledgeItemMetadata = {};
 
@@ -172,6 +176,10 @@ export function asKnowledgeMetadata(value: unknown) {
 
   if (extractionScope) {
     metadata.extractionScope = extractionScope;
+  }
+
+  if (profileKey) {
+    metadata.profileKey = profileKey as DocumentKnowledgeItemMetadata['profileKey'];
   }
 
   if (unspecifiedAxes && unspecifiedAxes.length > 0) {

@@ -30,6 +30,7 @@ const TENANT_MODELS = new Set([
   'DocumentRecord',
   'DocumentChunk',
   'DocumentKnowledgeItem',
+  'DocumentExtractionProfileConfigRecord',
 ]);
 
 export function isTenantScopedModel(model?: string): boolean {

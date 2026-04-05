@@ -45,21 +45,41 @@ describe('DocumentIngestionService', () => {
         },
       })),
     };
+    const profileResolver = {
+      resolveProfileIds: jest.fn(() => ['product_catalog']),
+    };
+    const configService = {
+      resolveEffectiveConfigs: jest.fn(async () => ({
+        product_catalog: {
+          derivedHints: {
+            observedAxes: ['materials'],
+          },
+        },
+      })),
+      persistTenantDerivedHints: jest.fn(async () => null),
+    };
     const bootstrapService = {
       deriveHints: jest.fn(() => ({
         approvedByUpload: true,
         manualConfigRequired: false,
         activeProfileIds: ['product_catalog'],
-        observedSections: ['CORTINAS DE ENROLLAR'],
-        observedAxes: ['materials'],
-        observedValuesByAxis: {
-          materials: ['PVC', 'aluminio'],
-        },
-        supportCounts: {
-          explicit: 1,
-          partial: 0,
-          boundedInference: 0,
-        },
+        profiles: [
+          {
+            profileId: 'product_catalog',
+            hints: {
+              observedSections: ['CORTINAS DE ENROLLAR'],
+              observedAxes: ['materials'],
+              observedValuesByAxis: {
+                materials: ['PVC', 'aluminio'],
+              },
+              supportCounts: {
+                explicit: 1,
+                partial: 0,
+                boundedInference: 0,
+              },
+            },
+          },
+        ],
       })),
     };
     const service = new DocumentIngestionService(
@@ -71,6 +91,8 @@ describe('DocumentIngestionService', () => {
         error: jest.fn(),
       } as any,
       tenantCapabilityRegistry as any,
+      profileResolver as any,
+      configService as any,
       bootstrapService as any,
     );
 
@@ -85,16 +107,42 @@ describe('DocumentIngestionService', () => {
         extractionContext: expect.objectContaining({
           tenantId: 'tenant-alpha',
           activeCapabilities: ['product_catalog_lookup'],
+          profileConfigHints: {
+            product_catalog: {
+              observedAxes: ['materials'],
+            },
+          },
         }),
         sourceMetadata: expect.objectContaining({
           sourceName: 'catalogo.txt',
         }),
       }),
     );
+    expect(profileResolver.resolveProfileIds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 'tenant-alpha',
+        activeCapabilities: ['product_catalog_lookup'],
+      }),
+    );
+    expect(configService.resolveEffectiveConfigs).toHaveBeenCalledWith({
+      profileIds: ['product_catalog'],
+      locale: 'es',
+    });
     expect(bootstrapService.deriveHints).toHaveBeenCalledWith({
       chunks: expect.any(Array),
-      activeProfileIds: [],
+      activeProfileIds: ['product_catalog'],
     });
+    expect(configService.persistTenantDerivedHints).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'doc-1',
+        locale: 'es',
+        profiles: [
+          expect.objectContaining({
+            profileId: 'product_catalog',
+          }),
+        ],
+      }),
+    );
     expect(documentRepository.markReady).toHaveBeenCalledWith(
       expect.objectContaining({
         metadata: expect.objectContaining({

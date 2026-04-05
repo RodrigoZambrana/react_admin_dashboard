@@ -1,9 +1,9 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { backendPath, readAppFile } from '../support/project-paths';
 
 describe('Runtime-general corpus distillation', () => {
-  const fixtureDir =
-    '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/test/fixtures/real-corpus/runtime-general';
+  const fixtureDir = backendPath('test', 'fixtures', 'real-corpus', 'runtime-general');
   const fixtureFiles = readdirSync(fixtureDir)
     .filter((file) => file.endsWith('.json'))
     .sort();
@@ -48,10 +48,7 @@ describe('Runtime-general corpus distillation', () => {
   });
 
   it('documents corpus distillation as regression input rather than runtime knowledge', () => {
-    const report = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/corpus-distillation-report.md',
-      'utf8',
-    );
+    const report = readAppFile('docs', 'corpus-distillation-report.md');
 
     expect(report).toContain('The real corpus remains analysis and regression input only.');
     expect(report).toContain('approved tenant resources');

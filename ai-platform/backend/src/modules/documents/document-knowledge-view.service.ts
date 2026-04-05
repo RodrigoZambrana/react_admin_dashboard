@@ -4,6 +4,11 @@ import {
   asKnowledgeMetadata,
   buildStructuralKnowledgeSummary,
 } from './document-knowledge-claims';
+import { DocumentExtractionProfileConfigService } from './document-extraction-profile-config.service';
+import {
+  documentExtractionProfileIds,
+  DocumentExtractionProfileId,
+} from './document-extraction-profile.types';
 import {
   DocumentKnowledgeClaimView,
   DocumentKnowledgeEntityView,
@@ -54,6 +59,7 @@ export class DocumentKnowledgeViewService {
   constructor(
     private readonly documentRepository: DocumentRepository,
     private readonly documentChunkRepository: DocumentChunkRepository,
+    private readonly documentExtractionProfileConfigService: DocumentExtractionProfileConfigService,
   ) {}
 
   async getKnowledgeView(input?: {
@@ -68,6 +74,13 @@ export class DocumentKnowledgeViewService {
       }
 
       const chunks = await this.documentChunkRepository.listByDocumentId(document.id);
+      const profileViews = await this.resolveProfileViews({
+        chunks: chunks.map((chunk) => ({
+          ...chunk,
+          document,
+        })),
+        documentId: document.id,
+      });
 
       return this.buildKnowledgeView({
         scope: 'document',
@@ -76,6 +89,7 @@ export class DocumentKnowledgeViewService {
           ...chunk,
           document,
         })),
+        extractionProfiles: profileViews,
       });
     }
 
@@ -83,17 +97,22 @@ export class DocumentKnowledgeViewService {
       input?.limit ?? 500,
     );
     const documents = dedupeDocuments(chunks.map((chunk) => chunk.document));
+    const profileViews = await this.resolveProfileViews({
+      chunks,
+    });
 
     return this.buildKnowledgeView({
       scope: 'active_corpus',
       documents,
       chunks,
+      extractionProfiles: profileViews,
     });
   }
 
   private buildKnowledgeView(input: {
     scope: DocumentKnowledgeViewScope;
     documents: DocumentRecordLike[];
+    extractionProfiles: DocumentKnowledgeView['extractionProfiles'];
     chunks: Array<
       Pick<ChunkWithKnowledgeLike, 'sequence' | 'metadata' | 'knowledgeItems'> & {
         document: DocumentRecordLike;
@@ -232,10 +251,64 @@ export class DocumentKnowledgeViewService {
         supportedAxes: Array.from(supportedAxes.values()).sort(),
         unspecifiedAxes: Array.from(unspecifiedAxes.values()).sort(),
       },
+      extractionProfiles: input.extractionProfiles,
       overviewLines: buildOverviewLines(claims, input.documents[0]?.language),
       claims,
       entities,
     };
+  }
+
+  private async resolveProfileViews(input: {
+    chunks: Array<
+      Pick<ChunkWithKnowledgeLike, 'metadata' | 'knowledgeItems'> & {
+        document: DocumentRecordLike;
+      }
+    >;
+    documentId?: string;
+  }) {
+    const profileIdsByLocale = new Map<string, Set<DocumentExtractionProfileId>>();
+
+    for (const chunk of input.chunks) {
+      const locale = resolveViewLocale(chunk.document.language);
+      const current = profileIdsByLocale.get(locale) ?? new Set<DocumentExtractionProfileId>();
+
+      extractProfileIds(chunk).forEach((profileId) => current.add(profileId));
+      profileIdsByLocale.set(locale, current);
+    }
+
+    const views: DocumentKnowledgeView['extractionProfiles'] = [];
+
+    for (const [locale, profileIds] of profileIdsByLocale.entries()) {
+      const configs =
+        await this.documentExtractionProfileConfigService.resolveEffectiveConfigs({
+          profileIds: Array.from(profileIds.values()),
+          locale,
+          documentId: input.documentId,
+        });
+
+      for (const profileId of profileIds.values()) {
+        const config = configs[profileId];
+
+        if (!config) {
+          continue;
+        }
+
+        views.push({
+          profileId,
+          locale: config.locale,
+          tenantDerivedApplied: config.resolution.tenantDerivedApplied,
+          derivedHints: config.derivedHints,
+          derivedFromDocuments: config.resolution.derivedFromDocuments,
+          sources: config.resolution.sources,
+        });
+      }
+    }
+
+    return views.sort((left, right) =>
+      [left.locale, left.profileId].join('::').localeCompare(
+        [right.locale, right.profileId].join('::'),
+      ),
+    );
   }
 }
 
@@ -369,6 +442,43 @@ function dedupeDocuments(documents: DocumentRecordLike[]) {
     seen.add(document.id);
     return true;
   });
+}
+
+function extractProfileIds(
+  chunk: Pick<ChunkWithKnowledgeLike, 'metadata' | 'knowledgeItems'>,
+) {
+  const profileIds = new Set<DocumentExtractionProfileId>();
+  const metadata = asRecord(chunk.metadata);
+
+  if (Array.isArray(metadata?.extractionProfiles)) {
+    for (const value of metadata.extractionProfiles) {
+      if (
+        typeof value === 'string' &&
+        documentExtractionProfileIds.includes(value as DocumentExtractionProfileId)
+      ) {
+        profileIds.add(value as DocumentExtractionProfileId);
+      }
+    }
+  }
+
+  for (const item of chunk.knowledgeItems) {
+    const itemMetadata = asKnowledgeMetadata(item.metadata);
+
+    if (itemMetadata?.profileKey) {
+      profileIds.add(itemMetadata.profileKey);
+    }
+  }
+
+  return Array.from(profileIds.values());
+}
+
+function resolveViewLocale(locale?: string | null) {
+  const family = String(locale ?? '')
+    .toLowerCase()
+    .split(/[-_]/u)[0]
+    .trim();
+
+  return family === 'en' ? 'en' : 'es';
 }
 
 function asRecord(value: unknown) {

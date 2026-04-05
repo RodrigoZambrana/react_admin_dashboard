@@ -38,6 +38,7 @@ describe('DocumentKnowledgeViewService', () => {
                 evidenceTextSpan: 'Disponibles en PVC y aluminio.',
                 metadata: {
                   extractionScope: 'tenant_only',
+                  profileKey: 'product_catalog',
                   claim: {
                     axis: 'materials',
                     kind: 'value_list',
@@ -54,11 +55,42 @@ describe('DocumentKnowledgeViewService', () => {
                 evidenceTextSpan: 'Disponibles en PVC y aluminio.',
                 metadata: {
                   extractionScope: 'tenant_only',
+                  profileKey: 'product_catalog',
                 },
               },
             ],
           },
         ]),
+      } as any,
+      {
+        resolveEffectiveConfigs: jest.fn(async () => ({
+          product_catalog: {
+            profileId: 'product_catalog',
+            locale: 'es',
+            derivedHints: {
+              observedAxes: ['materials'],
+            },
+            resolution: {
+              tenantDerivedApplied: true,
+              derivedFromDocuments: [
+                {
+                  documentId: 'doc-1',
+                  title: 'Catalogo',
+                  updatedAt: '2026-04-05T01:00:00.000Z',
+                },
+              ],
+              sources: {
+                axes: {
+                  materials: 'mixed',
+                },
+                matchingHints: {
+                  listStopTerms: 'platform_default',
+                },
+                derivedHints: 'tenant_derived',
+              },
+            },
+          },
+        })),
       } as any,
     );
 
@@ -92,6 +124,12 @@ describe('DocumentKnowledgeViewService', () => {
         label: 'material',
         extractionScope: 'tenant_only',
         values: ['PVC'],
+      }),
+    ]);
+    expect(view.extractionProfiles).toEqual([
+      expect.objectContaining({
+        profileId: 'product_catalog',
+        tenantDerivedApplied: true,
       }),
     ]);
     expect(view.overviewLines[0]).toContain('materiales');
@@ -134,6 +172,7 @@ describe('DocumentKnowledgeViewService', () => {
                 evidenceTextSpan: `Disponible en ${axisValue}.`,
                 metadata: {
                   extractionScope: 'tenant_only',
+                  profileKey: 'product_catalog',
                   claim: {
                     axis: 'materials',
                     kind: 'value_list',
@@ -144,6 +183,36 @@ describe('DocumentKnowledgeViewService', () => {
             ],
           },
         ]),
+      } as any,
+      {
+        resolveEffectiveConfigs: jest.fn(async () => ({
+          product_catalog: {
+            profileId: 'product_catalog',
+            locale: 'es',
+            derivedHints: {
+              observedAxes: ['materials'],
+            },
+            resolution: {
+              tenantDerivedApplied: true,
+              derivedFromDocuments: [
+                {
+                  documentId: 'doc-1',
+                  title: 'Catalogo',
+                  updatedAt: '2026-04-05T01:00:00.000Z',
+                },
+              ],
+              sources: {
+                axes: {
+                  materials: 'mixed',
+                },
+                matchingHints: {
+                  listStopTerms: 'platform_default',
+                },
+                derivedHints: 'tenant_derived',
+              },
+            },
+          },
+        })),
       } as any,
     );
 

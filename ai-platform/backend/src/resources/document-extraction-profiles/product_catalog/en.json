@@ -2,16 +2,10 @@
   "locale": "en",
   "axes": {
     "product_types": {
-      "listLeadTerms": ["types", "main types", "models", "lines", "options"]
+      "listLeadTerms": ["types", "models"]
     },
     "materials": {
-      "listLeadPhrases": [
-        "available in",
-        "made in",
-        "made of",
-        "built in",
-        "built from"
-      ],
+      "listLeadPhrases": ["available in", "made of"],
       "listLeadTerms": ["material", "materials"]
     },
     "operation_modes": {
@@ -23,16 +17,16 @@
     },
     "color_options": {
       "listLeadTerms": ["color", "colors"],
-      "varietySignals": ["variety of colors", "variety of colours", "different colors", "different colours"],
+      "varietySignals": ["variety of colors", "different colours"],
       "unspecifiedAxes": ["exact_color_options"]
     },
     "suitability": {
-      "leadPhrases": ["ideal for", "recommended for", "suitable for", "appropriate for"]
+      "leadPhrases": ["ideal for", "recommended for"]
     }
   },
   "matchingHints": {
     "listStopTerms": ["with", "for"],
-    "oversizedClaimTailPhrases": ["can be", "with options", "manual options", "motorized options"],
+    "oversizedClaimTailPhrases": ["with options"],
     "conjunctionTerms": ["and"]
   }
 }

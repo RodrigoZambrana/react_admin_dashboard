@@ -1,14 +1,16 @@
-import { readFileSync } from 'node:fs';
+import { readBackendSource } from './support/project-paths';
 
 describe('Tenant capability architecture', () => {
   it('keeps tenant workflow activation behind a dedicated registry boundary', () => {
-    const decisionSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/decision/decision.service.ts',
-      'utf8',
+    const decisionSource = readBackendSource(
+      'modules',
+      'decision',
+      'decision.service.ts',
     );
-    const registrySource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/tenant-capabilities/tenant-capability-registry.service.ts',
-      'utf8',
+    const registrySource = readBackendSource(
+      'modules',
+      'tenant-capabilities',
+      'tenant-capability-registry.service.ts',
     );
 
     expect(decisionSource).toContain('TenantCapabilityRegistryService');

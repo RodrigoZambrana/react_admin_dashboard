@@ -43,6 +43,7 @@ export class ProductCatalogDocumentProfile implements DocumentExtractionProfile 
     const config = this.configService.resolveCompiledConfig({
       profileId: this.id,
       locale: input.context.locale,
+      derivedHints: input.context.profileConfigHints?.[this.id] ?? null,
     });
     const items: DocumentKnowledgeItemSeed[] = [];
 

@@ -1,10 +1,11 @@
-import { readFileSync } from 'node:fs';
+import { readBackendSource } from './support/project-paths';
 
 describe('AI gateway architecture', () => {
   it('keeps provider resolution and prompt protocol assembly outside AiGatewayService', () => {
-    const gatewaySource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/ai-gateway/ai-gateway.service.ts',
-      'utf8',
+    const gatewaySource = readBackendSource(
+      'modules',
+      'ai-gateway',
+      'ai-gateway.service.ts',
     );
 
     expect(gatewaySource).toContain('this.providerRegistry.resolve');

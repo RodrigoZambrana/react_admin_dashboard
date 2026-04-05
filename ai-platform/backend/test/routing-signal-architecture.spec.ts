@@ -1,18 +1,21 @@
-import { readFileSync } from 'node:fs';
+import { readBackendSource } from './support/project-paths';
 
 describe('Routing signal architecture', () => {
   it('keeps lexical cue ownership out of decisive services', () => {
-    const decisionSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/decision/decision.service.ts',
-      'utf8',
+    const decisionSource = readBackendSource(
+      'modules',
+      'decision',
+      'decision.service.ts',
     );
-    const retrievalSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/documents/document-retrieval.service.ts',
-      'utf8',
+    const retrievalSource = readBackendSource(
+      'modules',
+      'documents',
+      'document-retrieval.service.ts',
     );
-    const continuitySource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/continuity/conversation-continuity.service.ts',
-      'utf8',
+    const continuitySource = readBackendSource(
+      'modules',
+      'continuity',
+      'conversation-continuity.service.ts',
     );
 
     expect(decisionSource).toContain('ConversationSignalResolverService');

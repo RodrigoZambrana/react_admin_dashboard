@@ -1,14 +1,16 @@
-import { readFileSync } from 'node:fs';
+import { readBackendSource } from './support/project-paths';
 
 describe('Product catalog architecture', () => {
   it('keeps product lookup behind real source adapters instead of inline demo catalog data', () => {
-    const productCatalogSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/tools/product-catalog.service.ts',
-      'utf8',
+    const productCatalogSource = readBackendSource(
+      'modules',
+      'tools',
+      'product-catalog.service.ts',
     );
-    const catalogServiceSource = readFileSync(
-      '/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/backend/src/modules/catalog/catalog.service.ts',
-      'utf8',
+    const catalogServiceSource = readBackendSource(
+      'modules',
+      'catalog',
+      'catalog.service.ts',
     );
 
     expect(productCatalogSource).toContain('CatalogService');

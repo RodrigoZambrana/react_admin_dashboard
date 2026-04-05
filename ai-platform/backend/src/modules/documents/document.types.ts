@@ -5,6 +5,10 @@ import {
 } from '@prisma/client';
 import { z } from 'zod';
 import type { DocumentExtractionProfileId } from './document-extraction-profile.types';
+import type {
+  DocumentExtractionProfileConfigSource,
+  DocumentExtractionProfileDerivedHints,
+} from './document-extraction-profile-config.service';
 
 export const documentLifecycleStatusSchema = z.nativeEnum(ManagedResourceStatus);
 export const documentIngestionStatusSchema = z.nativeEnum(DocumentIngestionStatus);
@@ -198,6 +202,22 @@ export type DocumentKnowledgeView = {
     supportedAxes: string[];
     unspecifiedAxes: string[];
   };
+  extractionProfiles: Array<{
+    profileId: DocumentExtractionProfileId;
+    locale: string;
+    tenantDerivedApplied: boolean;
+    derivedHints: DocumentExtractionProfileDerivedHints | null;
+    derivedFromDocuments: Array<{
+      documentId: string;
+      title: string;
+      updatedAt: string;
+    }>;
+    sources: {
+      axes: Record<string, DocumentExtractionProfileConfigSource>;
+      matchingHints: Record<string, DocumentExtractionProfileConfigSource>;
+      derivedHints: DocumentExtractionProfileConfigSource;
+    };
+  }>;
   overviewLines: string[];
   claims: DocumentKnowledgeClaimView[];
   entities: DocumentKnowledgeEntityView[];

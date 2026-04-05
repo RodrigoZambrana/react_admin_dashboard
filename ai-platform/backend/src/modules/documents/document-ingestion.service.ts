@@ -9,6 +9,8 @@ import {
   buildStructuralKnowledgeSummary,
   extractKnowledgeAxisSummaries,
 } from './document-knowledge-claims';
+import { DocumentExtractionProfileConfigService } from './document-extraction-profile-config.service';
+import { DocumentExtractionProfileResolverService } from './document-extraction-profile-resolver.service';
 import { DocumentProfileBootstrapService } from './document-profile-bootstrap.service';
 import { DocumentChunkCandidate } from './document.types';
 import { DocumentKnowledgeExtractionService } from './document-knowledge-extraction.service';
@@ -21,6 +23,8 @@ export class DocumentIngestionService {
     private readonly documentKnowledgeExtractionService: DocumentKnowledgeExtractionService,
     private readonly logger: PipelineLoggerService,
     private readonly tenantCapabilityRegistry: TenantCapabilityRegistryService,
+    private readonly documentExtractionProfileResolver: DocumentExtractionProfileResolverService,
+    private readonly documentExtractionProfileConfigService: DocumentExtractionProfileConfigService,
     private readonly documentProfileBootstrapService: DocumentProfileBootstrapService,
   ) {}
 
@@ -35,28 +39,36 @@ export class DocumentIngestionService {
       const capabilities =
         await this.tenantCapabilityRegistry.resolveForCurrentTenant();
       const sourceMetadata = this.asRecord(document.metadata);
+      const baseExtractionContext = {
+        tenantId: capabilities.tenantId,
+        locale: document.language,
+        activeCapabilities: capabilities.enabledKeys,
+        sourceMetadata,
+        originKind: document.originKind,
+      } as const;
+      const activeProfileIds =
+        this.documentExtractionProfileResolver.resolveProfileIds(
+          baseExtractionContext,
+        );
+      const effectiveConfigs =
+        await this.documentExtractionProfileConfigService.resolveEffectiveConfigs({
+          profileIds: activeProfileIds,
+          locale: document.language,
+        });
       const chunks = this.documentKnowledgeExtractionService.buildChunkCandidates({
         sourceText: document.sourceText,
         originKind: document.originKind,
         language: document.language,
         sourceMetadata,
         extractionContext: {
-          tenantId: capabilities.tenantId,
-          locale: document.language,
-          activeCapabilities: capabilities.enabledKeys,
+          ...baseExtractionContext,
+          profileConfigHints: Object.fromEntries(
+            Object.entries(effectiveConfigs)
+              .filter(([, config]) => Boolean(config?.derivedHints))
+              .map(([profileId, config]) => [profileId, config?.derivedHints]),
+          ),
         },
       });
-      const activeProfileIds = Array.from(
-        new Set(
-          chunks.flatMap((chunk) =>
-            Array.isArray(chunk.metadata?.extractionProfiles)
-              ? chunk.metadata.extractionProfiles.filter(
-                  (value): value is string => typeof value === 'string',
-                )
-              : [],
-          ),
-        ),
-      );
       const bootstrapHints = this.documentProfileBootstrapService.deriveHints({
         chunks,
         activeProfileIds,
@@ -85,6 +97,17 @@ export class DocumentIngestionService {
             metadata: (item.metadata ?? null) as Prisma.InputJsonValue | null,
           })),
         })),
+      });
+      await this.documentExtractionProfileConfigService.persistTenantDerivedHints({
+        documentId: document.id,
+        locale: document.language,
+        profiles: bootstrapHints.profiles,
+        metadata: {
+          sourceDocumentId: document.id,
+          sourceDocumentTitle: document.title,
+          approvalMode: 'uploaded_document',
+          lastIngestedBy: input.createdBy ?? 'system',
+        },
       });
 
       const summary = this.buildSummary(chunks);

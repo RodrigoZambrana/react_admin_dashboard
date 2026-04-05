@@ -94,6 +94,7 @@ export class DocumentKnowledgeExtractionOrchestrator {
         resolveResourceType(input.sourceMetadata),
       activeCapabilities: input.extractionContext?.activeCapabilities ?? [],
       sourceMetadata: input.sourceMetadata ?? null,
+      profileConfigHints: input.extractionContext?.profileConfigHints ?? {},
     };
   }
 

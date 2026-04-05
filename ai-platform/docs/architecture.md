@@ -327,6 +327,28 @@ This keeps:
 - locale/domain config in resources
 - tenant truth only in uploaded document content
 
+Platform-owned repo resources are now intentionally minimal:
+
+- locale-aware structural cues
+- bounded reusable matching hints
+- safe fallback defaults for a profile when no tenant-derived hints have been persisted yet
+
+They are no longer the long-term storage for tenant semantics.
+Tenant-derived extraction hints now live in persistence and are resolved at runtime as:
+
+- minimal platform defaults from repo
+- plus persisted tenant-derived hints by:
+  - tenant
+  - profile
+  - locale
+  - document provenance
+
+The effective config resolution remains backend-owned and traceable, with source metadata indicating whether a signal comes from:
+
+- `platform_default`
+- `tenant_derived`
+- `mixed`
+
 ### System-Owned Bootstrap Assistance
 
 Uploaded documents are treated as approved tenant knowledge immediately.
@@ -346,6 +368,9 @@ These hints remain:
 - explainable
 - refreshable on re-ingest
 - non-authoritative compared with the source document itself
+
+Persisted bootstrap/extraction hints are now tenant-scoped runtime data, not repo state.
+This means operators only upload approved documents; the platform derives and persists bounded hints internally without asking users to author regexes or low-level extraction config.
 
 ### Retrieval Owns
 
@@ -376,12 +401,15 @@ This view is built from:
 - persisted entities
 - support summaries
 - provenance metadata
+- persisted extraction-profile usage
+- persisted tenant-derived extraction hints resolved into the effective profile config
 
 It does not rely on:
 
 - raw chunk dumps as the primary operator surface
 - free-form AI summaries disconnected from extracted evidence
 - hidden runtime-learned chat patterns
+- repo JSON resources as the source of truth for tenant knowledge
 
 The visibility model can show:
 
@@ -396,6 +424,9 @@ The visibility model can show:
   - section
   - page or sheet
   - chunk sequence
+- active extraction profile
+- whether tenant-derived hints are currently applied
+- which active documents contributed those derived hints
 
 Grounded summary lines for operators are composed only from extracted structured data and provenance-backed claims.
 
@@ -410,6 +441,23 @@ The knowledge visibility view reflects the current active document corpus and re
 - replace source content and ingest again
 
 The backend recomputes the view from current persisted chunk/knowledge-item state, so operators do not need to manually approve documents again or re-author extraction rules.
+
+### Path Portability
+
+Runtime code and tests must remain portable across:
+
+- local development
+- Docker
+- CI
+- alternate workstation paths
+
+That means:
+
+- no absolute machine-local filesystem paths in runtime code
+- no absolute machine-local filesystem paths in tests
+- resource resolution through project-relative roots, `__dirname`, or equivalent portable path handling
+
+Repo resources remain bootstrap inputs only; persisted tenant hints and persisted extracted knowledge remain the runtime source of truth.
 
 ### Response / Presentation Owns
 

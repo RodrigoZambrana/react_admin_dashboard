@@ -2857,3 +2857,35 @@
 - Strengthen claim-aware ranking for both retrieval and operator visibility
 - Add broader cross-document navigation only if operators actually need it
 - Keep Wave 9 out of scope and preserve the current retrieval/response architecture
+
+## Iteration 85
+
+### Implemented
+- Reduced repo-owned document extraction profile resources to minimal platform defaults by `profile + locale`
+- Added persistence for tenant-derived extraction hints/config outside repo through a tenant-scoped profile-config repository and runtime config resolution service
+- Updated ingest/bootstrap wiring so uploaded approved documents derive bounded internal hints and persist them per document/profile/locale
+- Extended the backend knowledge view so extraction profile visibility comes from persisted extracted knowledge plus persisted tenant-derived hints, not from repo files
+- Removed absolute local filesystem paths from runtime code/tests and added a portability architecture regression
+- Added and applied Prisma migration `20260405172947_persist_document_extraction_profile_config`
+
+### Working
+- Platform defaults now act only as fallback config; tenant-derived hints are persisted and merged at runtime
+- Extracted document knowledge remains the persisted source of truth for claims, entities, support summaries, provenance, and operator visibility
+- The backend knowledge view exposes active extraction profiles, derived-hint usage, and source documents from persisted state
+- Path portability is enforced in tests, so backend/frontend source and test files no longer depend on local `/Users/...` paths
+- Validation passed:
+  - `npm run prisma:generate --workspace backend`
+  - `npm run prisma:migrate:dev --workspace backend -- --name persist_document_extraction_profile_config`
+  - `npm test --workspace backend -- --runInBand`
+  - `npm run build --workspace backend`
+  - `npm run build --workspace frontend`
+
+### Technical Debt
+- Platform defaults are still filesystem bootstrap resources; there is not yet a managed admin editor for extraction-profile defaults
+- Effective config resolution is persisted and traceable, but there is not yet a separate versioned history surface for derived-hint changes beyond document provenance
+- Retrieval and response remain compatible, but they are still only partially claim-aware in ranking/composition
+
+### Next Steps
+- Expose the persisted extraction-profile visibility more clearly in the admin documents UI
+- Keep repo defaults minimal and avoid growing tenant/domain semantics back into TS or resource files
+- Continue evolving claim-aware retrieval/ranking later without starting Wave 9
