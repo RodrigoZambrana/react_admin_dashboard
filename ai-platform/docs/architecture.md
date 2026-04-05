@@ -295,8 +295,17 @@ Important clarification:
 ## Managed Prompt Runtime
 
 - Interpretation and response prompts now resolve through managed `PromptVersion` storage, not code-backed runtime defaults
-- Filesystem prompt files exist only as bootstrap seeds when a tenant has no managed prompt versions yet
-- Prompt retrieval is already wired into the live AI gateway path for interpretation and prepared for future response generation activation
+- Filesystem prompt files remain the recommended bootstrap/editorial baseline for each prompt key and are used as the backend fallback when no managed prompt version is active
+- Prompt retrieval is already wired into the live AI gateway path for both interpretation and response generation
+- The effective system prompt is now assembled from three explicit layers:
+  - fixed safety layer
+  - governed editorial policy layer
+  - backend-owned contract layer
+- Admin prompt operations must expose those layers separately so operators can distinguish:
+  - active managed wording
+  - current recommended baseline
+  - fixed backend contract/safety behavior
+- Provider/runtime failures such as rate limits degrade through backend fallback; they must not require operators to infer runtime safety from prompt text alone
 - Core prompt/policy defaults must remain tenant-neutral:
   - they may preserve raw user signals and backend-owned structural contracts
   - they must not embed tenant/domain overlays such as price-band shortcuts, room taxonomies, or business-specific attribute mappings

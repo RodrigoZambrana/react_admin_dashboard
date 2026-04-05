@@ -23,6 +23,12 @@ describe('PromptService', () => {
         list: jest.fn(async () => []),
       } as any,
       {
+        getSeed: jest.fn(async () => ({
+          key: 'interpretation',
+          value: 'Recommended interpretation policy.',
+        })),
+      } as any,
+      {
         debug: jest.fn(),
         log: jest.fn(),
       } as any,
@@ -52,6 +58,9 @@ describe('PromptService', () => {
       } as any,
       {
         list,
+      } as any,
+      {
+        getSeed: jest.fn(async () => null),
       } as any,
       {
         debug: jest.fn(),
@@ -93,6 +102,9 @@ describe('PromptService', () => {
         createVersion,
       } as any,
       {
+        getSeed: jest.fn(async () => null),
+      } as any,
+      {
         debug: jest.fn(),
         log: jest.fn(),
       } as any,
@@ -111,6 +123,53 @@ describe('PromptService', () => {
         key: 'response',
         activate: true,
         createdBy: 'admin-ui',
+      }),
+    );
+  });
+
+  it('archives a stored prompt version without deleting version history', async () => {
+    const archiveVersion = jest.fn(async () => ({
+      id: 'prompt-1',
+      key: 'response',
+      version: 3,
+      status: 'ARCHIVED',
+    }));
+    const service = new PromptService(
+      {
+        listActive: jest.fn(async () => []),
+      } as any,
+      {
+        list: jest.fn(async () => []),
+        findById: jest.fn(async () => ({
+          id: 'prompt-1',
+          key: 'response',
+          template: 'Approved response template',
+          version: 3,
+          status: 'ACTIVE',
+          metadata: {
+            origin: 'admin',
+          },
+        })),
+        archiveVersion,
+      } as any,
+      {
+        getSeed: jest.fn(async () => null),
+      } as any,
+      {
+        debug: jest.fn(),
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(service.archivePromptVersion('prompt-1', 'admin-ui')).resolves.toEqual(
+      expect.objectContaining({
+        id: 'prompt-1',
+        status: 'ARCHIVED',
+      }),
+    );
+    expect(archiveVersion).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'prompt-1',
       }),
     );
   });

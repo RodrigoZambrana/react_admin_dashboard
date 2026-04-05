@@ -17,7 +17,9 @@ describe('Core interpretation prompt policy', () => {
   });
 
   it('keeps tenant-specific semantic overlay ownership out of the backend-owned interpretation contract', () => {
-    const lines = new AiPromptContractService().buildInterpretationContract().join('\n');
+    const lines = new AiPromptContractService()
+      .buildInterpretationContractLines()
+      .join('\n');
 
     expect(lines).toContain(
       'Do not synthesize tenant-specific semantic overlays such as price bands, room taxonomies, or catalog-specific attributes',

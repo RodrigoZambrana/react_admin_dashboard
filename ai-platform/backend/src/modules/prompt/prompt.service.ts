@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { PromptVersionRepository } from '../persistence/repositories/prompt-version.repository';
+import { FileSystemPromptTemplateSeedSource } from './filesystem-prompt-template.seed-source';
 import { PromptTemplateProvider } from './prompt-template.provider';
 import { PromptTemplateKey } from './prompt.types';
 
@@ -12,6 +13,7 @@ export class PromptService {
     @Inject(PromptTemplateProvider)
     private readonly promptTemplateProvider: PromptTemplateProvider,
     private readonly promptVersionRepository: PromptVersionRepository,
+    private readonly seedSource: FileSystemPromptTemplateSeedSource,
     private readonly logger: PipelineLoggerService,
   ) {}
 
@@ -47,6 +49,10 @@ export class PromptService {
       createdAt: prompt.createdAt,
       createdBy: prompt.createdBy,
     }));
+  }
+
+  async getRecommendedPrompt(key: PromptTemplateKey) {
+    return this.seedSource.getSeed(key);
   }
 
   async createPromptVersion(input: {
@@ -104,5 +110,38 @@ export class PromptService {
     );
 
     return prompt;
+  }
+
+  async archivePromptVersion(versionId: string, createdBy?: string) {
+    const existing = await this.promptVersionRepository.findById(versionId);
+
+    if (!existing) {
+      throw new NotFoundException(`Prompt version ${versionId} was not found`);
+    }
+
+    if (existing.status === 'ARCHIVED') {
+      return existing;
+    }
+
+    const archived = await this.promptVersionRepository.archiveVersion({
+      id: versionId,
+      metadata: {
+        ...(existing.metadata as Record<string, unknown> | null | undefined),
+        archivedBy: createdBy ?? 'system',
+        archivedAt: new Date().toISOString(),
+        archivedFromStatus: existing.status,
+      } as Prisma.InputJsonValue,
+    });
+
+    this.logger.log(
+      JSON.stringify({
+        stage: 'prompt.archived',
+        key: archived.key,
+        version: archived.version,
+        status: archived.status,
+      }),
+    );
+
+    return archived;
   }
 }

@@ -320,6 +320,12 @@ export class AiGatewayService {
   }
 
   private stringifyError(error: unknown) {
+    const classifiedError = this.classifyProviderError(error);
+
+    if (classifiedError) {
+      return classifiedError;
+    }
+
     if (
       typeof error === 'object' &&
       error !== null &&
@@ -334,6 +340,45 @@ export class AiGatewayService {
     }
 
     return String(error);
+  }
+
+  private classifyProviderError(error: unknown) {
+    const candidate =
+      typeof error === 'object' && error !== null && 'error' in error
+        ? (error.error as unknown)
+        : error;
+
+    if (!candidate || typeof candidate !== 'object') {
+      return null;
+    }
+
+    const status =
+      'status' in candidate && typeof candidate.status === 'number'
+        ? candidate.status
+        : null;
+    const code =
+      'code' in candidate && typeof candidate.code === 'string'
+        ? candidate.code.toLowerCase()
+        : null;
+    const type =
+      'type' in candidate && typeof candidate.type === 'string'
+        ? candidate.type.toLowerCase()
+        : null;
+    const message =
+      'message' in candidate && typeof candidate.message === 'string'
+        ? candidate.message.toLowerCase()
+        : '';
+
+    if (
+      status === 429 ||
+      code === 'rate_limit_exceeded' ||
+      type === 'rate_limit_error' ||
+      message.includes('rate limit')
+    ) {
+      return 'AI provider is temporarily rate limited. Backend fallback should be used for this turn.';
+    }
+
+    return null;
   }
 
   private extractRawResponse(error: unknown) {

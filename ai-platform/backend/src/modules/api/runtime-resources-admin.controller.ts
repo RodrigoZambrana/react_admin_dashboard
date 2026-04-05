@@ -6,6 +6,7 @@ import { PromptService } from '../prompt/prompt.service';
 import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
 import { TemporalLocaleService } from '../temporal/temporal-locale.service';
 import { AiRuntimeDiagnosticsService } from '../runtime-config/ai-runtime-diagnostics.service';
+import { AiPromptVisibilityService } from '../ai-gateway/ai-prompt-visibility.service';
 import { CreateCriticalConfigVersionDto } from './dto/create-critical-config-version.dto';
 import { CreateKnowledgeMetadataVersionDto } from './dto/create-knowledge-metadata-version.dto';
 import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
@@ -22,6 +23,7 @@ export class RuntimeResourcesAdminController {
     private readonly knowledgeMetadataService: KnowledgeMetadataService,
     private readonly responseFallbackService: ResponseFallbackService,
     private readonly aiRuntimeDiagnosticsService: AiRuntimeDiagnosticsService,
+    private readonly aiPromptVisibilityService: AiPromptVisibilityService,
   ) {}
 
   @Get('prompts')
@@ -32,6 +34,11 @@ export class RuntimeResourcesAdminController {
   @Get('prompts/active')
   listActivePrompts() {
     return this.promptService.listActivePrompts();
+  }
+
+  @Get('prompts/effective')
+  listEffectivePromptViews() {
+    return this.aiPromptVisibilityService.listEffectivePromptViews();
   }
 
   @Post('prompts')
@@ -45,6 +52,14 @@ export class RuntimeResourcesAdminController {
     @Body() body: ActivateManagedResourceVersionDto,
   ) {
     return this.promptService.activatePromptVersion(versionId, body.createdBy);
+  }
+
+  @Post('prompts/:versionId/archive')
+  archivePromptVersion(
+    @Param('versionId') versionId: string,
+    @Body() body: ActivateManagedResourceVersionDto,
+  ) {
+    return this.promptService.archivePromptVersion(versionId, body.createdBy);
   }
 
   @Get('temporal-locales')

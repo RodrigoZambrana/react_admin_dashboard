@@ -78,6 +78,28 @@ export type AssembledPromptRequest<TRequest> = {
   request: TRequest;
 };
 
+export type PromptPolicySource =
+  | 'managed'
+  | 'recommended_default'
+  | 'caller_override';
+
+export type AssembledPromptView = {
+  key: 'interpretation' | 'response';
+  promptId: string | null;
+  promptVersion: number | null;
+  source: PromptPolicySource;
+  localeHint: string | null;
+  effectivePolicy: string;
+  recommendedPolicy: string;
+  differsFromRecommended: boolean;
+  managedPromptStatus: 'DRAFT' | 'ACTIVE' | 'ARCHIVED' | null;
+  managedPromptCreatedAt: string | null;
+  managedPromptCreatedBy: string | null;
+  safetyLines: string[];
+  contractLines: string[];
+  assembledSystemPrompt: string;
+};
+
 export interface LanguageModelProvider {
   readonly providerName: string;
   interpret(

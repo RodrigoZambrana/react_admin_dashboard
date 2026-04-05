@@ -5,6 +5,7 @@ import { TemporalModule } from '../temporal/temporal.module';
 import { AiPromptContractService } from './ai-prompt-contract.service';
 import { AiPromptPolicyService } from './ai-prompt-policy.service';
 import { AiPromptAssemblyService } from './ai-prompt-assembly.service';
+import { AiPromptVisibilityService } from './ai-prompt-visibility.service';
 import { AiGatewayService } from './ai-gateway.service';
 import { LanguageModelProviderRegistry } from './providers/language-model-provider.registry';
 import { LANGUAGE_MODEL_PROVIDERS } from './providers/language-model-provider.tokens';
@@ -27,9 +28,14 @@ import { OpenAiLanguageModelProvider } from './providers/openai-language-model.p
     AiPromptContractService,
     AiPromptPolicyService,
     AiPromptAssemblyService,
+    AiPromptVisibilityService,
     LanguageModelProviderRegistry,
     AiGatewayService,
   ],
-  exports: [AiGatewayService, LanguageModelProviderRegistry],
+  exports: [
+    AiGatewayService,
+    LanguageModelProviderRegistry,
+    AiPromptVisibilityService,
+  ],
 })
 export class AiGatewayModule {}

@@ -24,6 +24,7 @@ describe('RuntimeResourcesAdminController', () => {
       {
         listPrompts: jest.fn(async () => ['prompt-version']),
         listActivePrompts: jest.fn(async () => ['prompt-active']),
+        archivePromptVersion: jest.fn(async () => ({ id: 'prompt-archived' })),
         createPromptVersion: jest.fn(async () => ({ id: 'prompt-created' })),
         activatePromptVersion: jest.fn(async () => ({ id: 'prompt-activated' })),
       } as any,
@@ -45,6 +46,9 @@ describe('RuntimeResourcesAdminController', () => {
       {
         getDiagnostics: jest.fn(async () => ({ status: 'ready' })),
       } as any,
+      {
+        listEffectivePromptViews: jest.fn(async () => ['prompt-effective']),
+      } as any,
     );
 
     await expect(controller.listCriticalConfigVersions('learning')).resolves.toEqual([
@@ -61,6 +65,9 @@ describe('RuntimeResourcesAdminController', () => {
     ).resolves.toEqual(['knowledge-version']);
     await expect(controller.listActiveKnowledgeMetadata()).resolves.toEqual([
       'knowledge-active',
+    ]);
+    await expect(controller.listEffectivePromptViews()).resolves.toEqual([
+      'prompt-effective',
     ]);
     await expect(controller.listResponseFallbackVersions('es')).resolves.toEqual([
       'fallback-version',
@@ -102,6 +109,11 @@ describe('RuntimeResourcesAdminController', () => {
         createdBy: 'admin-ui',
       }),
     ).resolves.toEqual({ id: 'prompt-activated' });
+    await expect(
+      controller.archivePromptVersion('prompt-1', {
+        createdBy: 'admin-ui',
+      }),
+    ).resolves.toEqual({ id: 'prompt-archived' });
     await expect(
       controller.activateTemporalLocaleVersion('locale-1', {
         createdBy: 'admin-ui',

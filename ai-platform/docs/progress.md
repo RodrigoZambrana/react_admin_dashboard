@@ -2475,3 +2475,39 @@
   - timing-policy tuning
   - frontend harness work
   - governed prompt activation discipline where operators want newer response tone immediately live
+
+## Iteration 74
+
+### Implemented
+- Upgraded prompt governance and runtime alignment on the backend:
+  - `AiPromptPolicyService` now resolves the recommended prompt baseline from the real filesystem seed resources instead of relying on duplicate code defaults in the live path
+  - interpretation and response prompts now assemble through explicit layers:
+    - fixed safety
+    - governed editorial policy
+    - backend-owned contract
+- Added effective prompt visibility for operators:
+  - new effective prompt view backend surface exposes the live source, recommended baseline, fixed safety lines, fixed contract lines, and assembled system-prompt preview for `interpretation` and `response`
+  - active managed prompt drift relative to the current recommended baseline is now detectable without reading backend code
+- Expanded prompt ABM on the backend:
+  - prompt versions can now be archived explicitly through the admin runtime-resource boundary
+  - activation and archive both preserve version history instead of mutating records in place
+- Hardened prompt/runtime safety structurally:
+  - prompt assembly now injects fixed anti-injection safety instructions ahead of the governed policy layer
+  - gateway provider errors now normalize rate-limit scenarios into safe recoverable failures so backend fallback remains transparent and auditable
+
+### Working
+- Governed `interpretation` and `response` prompt behavior is aligned with the current runtime architecture:
+  - backend-owned source selection stays intact
+  - support modes remain explicit / partial / unavailable
+  - response prompts reinforce grounded, concise, customer-friendly synthesis without leaking retrieval mechanics
+- Operators now have truthful backend support for prompt lifecycle operations and effective runtime visibility instead of a policy-only view
+- Existing grounding, continuity, close-turn, and customer-facing tone behavior remain non-regressed in targeted backend coverage
+
+### Technical Debt
+- Admin prompt UI still needs to consume the new effective runtime view so `#prompts` stops being misleading in practice
+- Managed prompt activation still depends on explicit operator action when a recommended baseline changes
+- The frontend workspace still lacks a supported automated test harness
+
+### Next Steps
+- Wire the admin `#prompts` experience to the new effective prompt view and archive operation
+- Keep Wave 9 out of scope while closing prompt governance and operator usability cleanly

@@ -341,6 +341,42 @@ describe('AiGatewayService', () => {
       name: 'AbortError',
     });
   });
+
+  it('classifies provider rate limits into a safe recoverable gateway error', async () => {
+    const promptService = {
+      getActivePrompt: jest.fn(async () => ({
+        value: 'Return JSON only.',
+      })),
+    };
+    const service = new AiGatewayService(
+      {
+        getAiGatewayConfig: () => buildGatewayConfig(),
+      } as any,
+      buildPromptAssembly(promptService),
+      {
+        debug: jest.fn(),
+        error: jest.fn(),
+      } as any,
+      buildProviderRegistry({
+        mock: {
+          interpret: jest.fn(async () => {
+            const error = new Error('Rate limit exceeded');
+            (error as Error & { status?: number; code?: string }).status = 429;
+            throw error;
+          }),
+          generateResponse: jest.fn(),
+        },
+      }),
+    );
+
+    await expect(service.interpret({ message: 'hola' })).resolves.toEqual(
+      expect.objectContaining({
+        ok: false,
+        error:
+          'AI provider is temporarily rate limited. Backend fallback should be used for this turn.',
+      }),
+    );
+  });
 });
 
 function buildGatewayConfig(
@@ -411,9 +447,18 @@ function buildProviderRegistry(
 
 function buildPromptAssembly(promptService: {
   getActivePrompt: jest.Mock | ((key: string) => Promise<unknown>);
+  getRecommendedPrompt?: jest.Mock | ((key: string) => Promise<unknown>);
 }) {
   return new AiPromptAssemblyService(
-    new AiPromptPolicyService(promptService as any),
+    new AiPromptPolicyService({
+      getActivePrompt: promptService.getActivePrompt,
+      getRecommendedPrompt:
+        promptService.getRecommendedPrompt ??
+        (jest.fn(async () => ({
+          key: 'response',
+          value: 'Recommended prompt policy.',
+        })) as any),
+    } as any),
     new AiPromptContractService(),
   );
 }

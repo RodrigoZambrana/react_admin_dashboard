@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import type {
+  AssembledPromptView,
   AssembledPromptRequest,
   InterpretationInput,
   LanguageModelInterpretationRequest,
@@ -20,18 +21,16 @@ export class AiPromptAssemblyService {
   async buildInterpretationRequest(
     input: InterpretationInput,
   ): Promise<AssembledPromptRequest<LanguageModelInterpretationRequest>> {
-    const prompt = await this.promptPolicyService.resolveInterpretationPolicy(
-      input.promptTemplate,
-    );
+    const prompt = await this.describeInterpretationPrompt({
+      locale: input.locale,
+      promptTemplate: input.promptTemplate,
+    });
 
     return {
       promptId: prompt.promptId,
       promptVersion: prompt.promptVersion,
       request: {
-        systemPrompt: this.buildSystemPrompt(prompt.value, {
-          locale: input.locale,
-          contractLines: this.promptContractService.buildInterpretationContract(),
-        }),
+        systemPrompt: prompt.assembledSystemPrompt,
         message: input.message,
         locale: input.locale,
         previousMessages: input.previousMessages ?? [],
@@ -42,38 +41,103 @@ export class AiPromptAssemblyService {
   async buildResponseRequest(
     input: ResponseGenerationInput,
   ): Promise<AssembledPromptRequest<LanguageModelResponseGenerationRequest>> {
-    const prompt = await this.promptPolicyService.resolveResponsePolicy(
-      input.promptTemplate,
-    );
+    const prompt = await this.describeResponsePrompt({
+      locale: input.approvedContext.locale,
+      promptTemplate: input.promptTemplate,
+    });
 
     return {
       promptId: prompt.promptId,
       promptVersion: prompt.promptVersion,
       request: {
-        systemPrompt: this.buildSystemPrompt(prompt.value, {
-          locale: input.approvedContext.locale,
-          contractLines: this.promptContractService.buildResponseContract(),
-        }),
+        systemPrompt: prompt.assembledSystemPrompt,
         approvedContext: input.approvedContext,
         approvedDraft: input.approvedDraft,
       },
     };
   }
 
-  private buildSystemPrompt(
-    policyLayer: string,
+  async describeInterpretationPrompt(input: {
+    locale?: string;
+    promptTemplate?: string;
+  }): Promise<AssembledPromptView> {
+    const policy = await this.promptPolicyService.resolveInterpretationPolicy(
+      input.promptTemplate,
+    );
+
+    return this.buildPromptView('interpretation', policy, {
+      locale: input.locale,
+      safetyLines: this.promptContractService.buildInterpretationSafetyLines(),
+      contractLines: this.promptContractService.buildInterpretationContractLines(),
+    });
+  }
+
+  async describeResponsePrompt(input: {
+    locale?: string;
+    promptTemplate?: string;
+  }): Promise<AssembledPromptView> {
+    const policy = await this.promptPolicyService.resolveResponsePolicy(
+      input.promptTemplate,
+    );
+
+    return this.buildPromptView('response', policy, {
+      locale: input.locale,
+      safetyLines: this.promptContractService.buildResponseSafetyLines(),
+      contractLines: this.promptContractService.buildResponseContractLines(),
+    });
+  }
+
+  private buildPromptView(
+    key: 'interpretation' | 'response',
+    policyLayer: Awaited<
+      ReturnType<AiPromptPolicyService['resolveInterpretationPolicy']>
+    >,
     input: {
       locale?: string;
+      safetyLines: string[];
       contractLines: string[];
     },
-  ) {
+  ): AssembledPromptView {
+    return {
+      key,
+      promptId: policyLayer.promptId,
+      promptVersion: policyLayer.promptVersion,
+      source: policyLayer.source,
+      localeHint: input.locale ?? null,
+      effectivePolicy: policyLayer.value,
+      recommendedPolicy: policyLayer.recommendedValue,
+      differsFromRecommended: policyLayer.differsFromRecommended,
+      managedPromptStatus: policyLayer.managedPromptStatus,
+      managedPromptCreatedAt: policyLayer.managedPromptCreatedAt,
+      managedPromptCreatedBy: policyLayer.managedPromptCreatedBy,
+      safetyLines: input.safetyLines,
+      contractLines: input.contractLines,
+      assembledSystemPrompt: this.buildSystemPrompt({
+        policyLayer: policyLayer.value,
+        locale: input.locale,
+        safetyLines: input.safetyLines,
+        contractLines: input.contractLines,
+      }),
+    };
+  }
+
+  private buildSystemPrompt(input: {
+    policyLayer: string;
+    locale?: string;
+    safetyLines: string[];
+    contractLines: string[];
+  }) {
     return [
+      'Fixed safety layer:',
+      ...input.safetyLines.map((line) => this.formatLayerLine(line)),
+      '',
       'Governed editorial policy layer:',
-      policyLayer.trim(),
+      input.policyLayer.trim(),
       '',
       `Requested locale hint: ${input.locale ?? 'unknown'}`,
       '',
-      ...input.contractLines,
+      'Backend-owned contract layer:',
+      ...input.contractLines.map((line) => this.formatLayerLine(line)),
     ]
       .filter((line, index, lines) => {
         if (line.length > 0) {
@@ -84,5 +148,9 @@ export class AiPromptAssemblyService {
       })
       .join('\n')
       .trim();
+  }
+
+  private formatLayerLine(line: string) {
+    return line.startsWith('  -') ? line : `- ${line}`;
   }
 }

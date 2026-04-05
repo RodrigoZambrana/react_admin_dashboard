@@ -42,6 +42,19 @@ export class PromptVersionRepository {
     });
   }
 
+  archiveVersion(input: {
+    id: string;
+    metadata?: Prisma.InputJsonValue;
+  }) {
+    return this.prisma.promptVersion.update({
+      where: { id: input.id },
+      data: {
+        status: ManagedResourceStatus.ARCHIVED,
+        metadata: input.metadata,
+      },
+    });
+  }
+
   hasAnyVersions() {
     return this.prisma.promptVersion.count().then((count) => count > 0);
   }
