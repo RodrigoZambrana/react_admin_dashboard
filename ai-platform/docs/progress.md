@@ -2759,3 +2759,39 @@
 - Evolve ranking to use claim-aware signals more strongly without replacing the current lexical path abruptly
 - Expand response composition so structured claims participate more directly in approved drafts
 - Keep Wave 9 out of scope and avoid mixing unrelated product work into this cleanup branch
+
+## Iteration 82
+
+### Implemented
+- Neutralized the base document knowledge extractor so it now owns only universal document-processing behavior:
+  - parsing
+  - semantic chunking
+  - evidence spans
+  - provenance
+  - generic document structure
+- Introduced an explicit neutral extraction orchestrator plus backend-owned profile registry/resolver boundaries
+- Split domain extraction into modular extraction profiles and moved the current product/catalog semantics into a dedicated `product_catalog` profile
+- Added capability/context-driven profile activation so product/catalog semantics stay available for the current flow without remaining global extractor behavior
+- Extended extraction metadata to keep profile ownership traceable through structured items and chunk metadata
+- Strengthened regression coverage for:
+  - neutral base extractor behavior
+  - product/catalog profile activation
+  - absence of domain contamination in the global extractor boundary
+
+### Working
+- The base extractor no longer emits domain axes such as `materials`, `product_types`, `color_options`, `operation_modes`, or `suitability` by default
+- Product/catalog document extraction still works when the profile is active, and concrete values continue to come only from tenant document content
+- The current document ingestion/retrieval flow remains compatible because the product/catalog profile is activated through backend-owned resolver logic from tenant capability context where appropriate
+- Focused backend validation passed for the touched path:
+  - `npm test --workspace backend -- --runInBand --runTestsByPath test/document-knowledge-extraction.service.spec.ts test/document-knowledge-extraction.architecture.spec.ts test/document-ingestion.service.spec.ts`
+  - `npm run build --workspace backend`
+
+### Technical Debt
+- Profile activation is currently driven by tenant capability context plus optional document metadata, not yet by a richer document-type classifier
+- Retrieval ranking still remains partly lexical even though profile-owned structured claims are available
+- Broader claim-aware response composition is still only partial in the current response path
+
+### Next Steps
+- Add more domain extraction profiles only through explicit modular boundaries when a capability truly needs them
+- Evolve retrieval ranking to use structured claims more strongly without making the base extractor domain-aware again
+- Keep Wave 9 out of scope and preserve the separation between neutral extraction core and capability-scoped semantic profiles

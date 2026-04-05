@@ -225,6 +225,7 @@ The document knowledge path now distinguishes clearly between:
 
 ### Extraction Owns
 
+- neutral document parsing/chunking substrate
 - source-derived text parsing
 - semantic chunk boundaries
 - structural pattern detection
@@ -244,19 +245,66 @@ Extraction may persist:
 - unspecified axes
 
 Extraction must not persist customer-facing response prose.
+The base extractor must also remain domain-neutral:
+
+- it may own generic document structure such as page/sheet/heading detection
+- it may not own product/catalog semantic axes by default
+- domain extraction must run through explicit modular extraction profiles
 
 Examples of allowed persisted claim shape:
 
-- materials -> extracted values such as `PVC`, `aluminio`
-- operation modes -> extracted values such as `manuales`, `motorizadas`
-- color variety -> axis support plus unspecified exact color options
-- suitability -> bounded-inference relation target derived from source text
+- profile-owned product claims such as materials -> extracted values such as `PVC`, `aluminio`
+- profile-owned operation modes -> extracted values such as `manuales`, `motorizadas`
+- profile-owned color variety -> axis support plus unspecified exact color options
+- profile-owned suitability -> bounded-inference relation target derived from source text
 
 Examples of disallowed extraction ownership:
 
 - `Trabajamos con PVC y aluminio`
 - `Tenemos variedad de colores`
 - `Puede ser una opción adecuada para exteriores`
+
+### Extraction Profiles
+
+The document knowledge path now separates:
+
+- a neutral base extractor
+- a neutral extraction orchestrator
+- modular domain extraction profiles
+- a backend-owned profile registry
+- a backend-owned profile resolver
+
+Current modular profile:
+
+- `product_catalog`
+
+Profile activation is backend-owned and capability/context-aware:
+
+- the neutral orchestrator builds structural blocks, provenance metadata, support summaries, and retrieval projections
+- the profile registry owns the list of available extraction profiles
+- the profile resolver selects active profiles from:
+  - tenant capability context
+  - source/document metadata
+  - resource classification when available
+- the current product/catalog profile activates when the tenant capability context enables product catalog lookup, or when document metadata explicitly requests that profile
+- the base extractor still works without any domain profile
+- a tenant in another SaaS domain does not inherit product axes such as:
+  - `materials`
+  - `product_types`
+  - `color_options`
+  - `operation_modes`
+  - `suitability`
+
+This keeps:
+
+- parsing
+- chunking
+- provenance
+- support-class assignment
+- generic document structure
+- extraction orchestration
+
+inside core, while moving domain semantics into bounded, replaceable modules.
 
 ### Retrieval Owns
 

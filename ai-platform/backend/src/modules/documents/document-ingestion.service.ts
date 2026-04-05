@@ -4,6 +4,7 @@ import { ManagedResourceStatus, Prisma } from '@prisma/client';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
 import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
 import { DocumentRepository } from '../persistence/repositories/document.repository';
+import { TenantCapabilityRegistryService } from '../tenant-capabilities/tenant-capability-registry.service';
 import {
   buildStructuralKnowledgeSummary,
   extractKnowledgeAxisSummaries,
@@ -18,6 +19,7 @@ export class DocumentIngestionService {
     private readonly documentChunkRepository: DocumentChunkRepository,
     private readonly documentKnowledgeExtractionService: DocumentKnowledgeExtractionService,
     private readonly logger: PipelineLoggerService,
+    private readonly tenantCapabilityRegistry: TenantCapabilityRegistryService,
   ) {}
 
   async ingestDocument(input: {
@@ -28,11 +30,19 @@ export class DocumentIngestionService {
     const document = await this.documentRepository.markProcessing(input.documentId);
 
     try {
+      const capabilities =
+        await this.tenantCapabilityRegistry.resolveForCurrentTenant();
+      const sourceMetadata = this.asRecord(document.metadata);
       const chunks = this.documentKnowledgeExtractionService.buildChunkCandidates({
         sourceText: document.sourceText,
         originKind: document.originKind,
         language: document.language,
-        sourceMetadata: this.asRecord(document.metadata),
+        sourceMetadata,
+        extractionContext: {
+          tenantId: capabilities.tenantId,
+          locale: document.language,
+          activeCapabilities: capabilities.enabledKeys,
+        },
       });
 
       if (chunks.length === 0) {

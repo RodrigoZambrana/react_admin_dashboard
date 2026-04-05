@@ -4,6 +4,7 @@ import {
   ManagedResourceStatus,
 } from '@prisma/client';
 import { z } from 'zod';
+import type { DocumentExtractionProfileId } from './document-extraction-profile.types';
 
 export const documentLifecycleStatusSchema = z.nativeEnum(ManagedResourceStatus);
 export const documentIngestionStatusSchema = z.nativeEnum(DocumentIngestionStatus);
@@ -51,6 +52,13 @@ export type DocumentKnowledgeSupportClass =
 
 export type DocumentKnowledgeExtractionScope = 'core' | 'tenant_only';
 
+export type DocumentSemanticBlock = {
+  content: string;
+  section?: string;
+  page?: number;
+  sheet?: string;
+};
+
 export type DocumentKnowledgeClaimPayload = {
   axis: string;
   kind: 'value_list' | 'qualifier' | 'relation_target';
@@ -62,6 +70,7 @@ export type DocumentKnowledgeItemMetadata = {
   page?: number;
   sheet?: string;
   extractionScope?: DocumentKnowledgeExtractionScope;
+  profileKey?: DocumentExtractionProfileId;
   unspecifiedAxes?: string[];
   claim?: DocumentKnowledgeClaimPayload;
 };
@@ -84,6 +93,11 @@ export type DocumentKnowledgeItemCandidate = {
   evidenceTextSpan: string;
   metadata?: DocumentKnowledgeItemMetadata;
 };
+
+export type DocumentKnowledgeItemSeed = Omit<
+  DocumentKnowledgeItemCandidate,
+  'sequence'
+>;
 
 export type DocumentChunkCandidate = {
   sequence: number;

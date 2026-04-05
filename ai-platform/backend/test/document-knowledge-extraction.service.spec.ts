@@ -1,7 +1,7 @@
 import { DocumentKnowledgeExtractionService } from '../src/modules/documents/document-knowledge-extraction.service';
 
 describe('DocumentKnowledgeExtractionService', () => {
-  it('builds semantic chunks with structured claims, entities, and retrieval projections', () => {
+  it('keeps the base extractor neutral when no domain extraction profile is active', () => {
     const service = new DocumentKnowledgeExtractionService();
 
     const chunks = service.buildChunkCandidates({
@@ -23,10 +23,51 @@ describe('DocumentKnowledgeExtractionService', () => {
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toEqual(
       expect.objectContaining({
+        retrievalProjection: expect.stringContaining('cortinas de enrollar'),
+        metadata: expect.objectContaining({
+          section: 'CORTINAS DE ENROLLAR',
+          originKind: 'TEXT',
+          supportSummary: expect.objectContaining({
+            topic: 'CORTINAS DE ENROLLAR',
+            supportedAxes: [],
+            unspecifiedAxes: [],
+          }),
+        }),
+        structuredItems: [],
+      }),
+    );
+  });
+
+  it('builds product/catalog structured claims only when the profile is active', () => {
+    const service = new DocumentKnowledgeExtractionService();
+
+    const chunks = service.buildChunkCandidates({
+      sourceText: [
+        'CORTINAS DE ENROLLAR',
+        '',
+        'Disponibles en PVC y aluminio, con opciones manuales o motorizadas.',
+        'Variedad de colores.',
+        'Ideal para exteriores.',
+        '',
+        'Tipos: Roller Screen, Roller Blackout y Roller Doble.',
+      ].join('\n'),
+      originKind: 'TEXT',
+      sourceMetadata: {
+        sourceName: 'catalogo.txt',
+      },
+      extractionContext: {
+        activeCapabilities: ['product_catalog_lookup'],
+      },
+    });
+
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0]).toEqual(
+      expect.objectContaining({
         retrievalProjection: expect.stringContaining('pvc'),
         metadata: expect.objectContaining({
           section: 'CORTINAS DE ENROLLAR',
           originKind: 'TEXT',
+          extractionProfiles: ['product_catalog'],
           supportSummary: expect.objectContaining({
             topic: 'CORTINAS DE ENROLLAR',
             supportedAxes: expect.arrayContaining([
@@ -48,6 +89,7 @@ describe('DocumentKnowledgeExtractionService', () => {
             evidenceTextSpan: expect.stringContaining('PVC y aluminio'),
             metadata: expect.objectContaining({
               extractionScope: 'tenant_only',
+              profileKey: 'product_catalog',
               claim: expect.objectContaining({
                 axis: 'materials',
                 kind: 'value_list',
@@ -62,6 +104,7 @@ describe('DocumentKnowledgeExtractionService', () => {
             supportClass: 'explicit_fact',
             metadata: expect.objectContaining({
               extractionScope: 'tenant_only',
+              profileKey: 'product_catalog',
             }),
           }),
           expect.objectContaining({
@@ -71,6 +114,7 @@ describe('DocumentKnowledgeExtractionService', () => {
             supportClass: 'explicit_fact',
             metadata: expect.objectContaining({
               extractionScope: 'core',
+              profileKey: 'product_catalog',
               claim: expect.objectContaining({
                 axis: 'operation_modes',
                 kind: 'value_list',
@@ -85,6 +129,7 @@ describe('DocumentKnowledgeExtractionService', () => {
             supportClass: 'partial_fact',
             metadata: expect.objectContaining({
               extractionScope: 'core',
+              profileKey: 'product_catalog',
               unspecifiedAxes: ['exact_color_options'],
               claim: expect.objectContaining({
                 axis: 'color_options',
@@ -100,6 +145,7 @@ describe('DocumentKnowledgeExtractionService', () => {
             supportClass: 'bounded_inference',
             evidenceTextSpan: 'Ideal para exteriores.',
             metadata: expect.objectContaining({
+              profileKey: 'product_catalog',
               claim: expect.objectContaining({
                 axis: 'suitability',
                 kind: 'relation_target',
