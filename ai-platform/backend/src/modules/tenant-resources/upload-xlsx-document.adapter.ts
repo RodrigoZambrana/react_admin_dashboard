@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { extname } from 'node:path';
 
 import {
-  extractSpreadsheetRows,
-  stringifyStructuredRows,
+  extractSpreadsheetSheets,
+  stringifyStructuredSheets,
 } from './office-archive.utils';
 import {
   TenantResourceExtraction,
@@ -29,7 +29,8 @@ export class UploadXlsxDocumentAdapter implements TenantResourceUploadAdapter {
   async extractFromUpload(
     input: TenantResourceUploadInput,
   ): Promise<TenantResourceExtraction> {
-    const rows = extractSpreadsheetRows(input.buffer);
+    const sheets = extractSpreadsheetSheets(input.buffer);
+    const rows = sheets.flatMap((sheet) => sheet.rows);
 
     return {
       adapterKind: this.kind,
@@ -39,9 +40,11 @@ export class UploadXlsxDocumentAdapter implements TenantResourceUploadAdapter {
         input.mimeType ??
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       language: input.language ?? null,
-      textContent: stringifyStructuredRows(rows),
+      textContent: stringifyStructuredSheets(sheets),
       metadata: {
         rowCount: rows.length,
+        sheetCount: sheets.length,
+        sheetNames: sheets.map((sheet) => sheet.name),
       },
     };
   }

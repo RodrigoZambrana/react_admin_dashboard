@@ -9,7 +9,12 @@ import {
   buildStructuralKnowledgeSummary,
   extractKnowledgeAxisSummaries,
 } from './document-knowledge-claims';
-import { DocumentExtractionProfileConfigService } from './document-extraction-profile-config.service';
+import { buildDocumentCorpusMetadata } from './document-corpus';
+import {
+  DocumentExtractionProfileConfigService,
+  DocumentExtractionProfileDerivedHints,
+  mergeDocumentExtractionProfileDerivedHints,
+} from './document-extraction-profile-config.service';
 import { DocumentExtractionProfileResolverService } from './document-extraction-profile-resolver.service';
 import { DocumentProfileBootstrapService } from './document-profile-bootstrap.service';
 import { DocumentChunkCandidate } from './document.types';
@@ -55,6 +60,40 @@ export class DocumentIngestionService {
           profileIds: activeProfileIds,
           locale: document.language,
         });
+      const initialRuntimeHints = mapProfileHints(
+        activeProfileIds,
+        Object.fromEntries(
+          Object.entries(effectiveConfigs)
+            .filter(([, config]) => Boolean(config?.derivedHints))
+            .map(([profileId, config]) => [profileId, config?.derivedHints]),
+        ),
+      );
+      const initialChunks = this.documentKnowledgeExtractionService.buildChunkCandidates({
+        sourceText: document.sourceText,
+        originKind: document.originKind,
+        language: document.language,
+        sourceMetadata,
+        extractionContext: {
+          ...baseExtractionContext,
+          profileConfigHints: initialRuntimeHints,
+        },
+      });
+      const initialBootstrapHints = this.documentProfileBootstrapService.deriveHints({
+        chunks: initialChunks,
+        activeProfileIds,
+      });
+      const runtimeHints = mapProfileHints(
+        activeProfileIds,
+        Object.fromEntries(
+          initialBootstrapHints.profiles.map((profile) => [
+            profile.profileId,
+            mergeDocumentExtractionProfileDerivedHints([
+              initialRuntimeHints[profile.profileId],
+              profile.hints,
+            ]),
+          ]),
+        ),
+      );
       const chunks = this.documentKnowledgeExtractionService.buildChunkCandidates({
         sourceText: document.sourceText,
         originKind: document.originKind,
@@ -62,11 +101,7 @@ export class DocumentIngestionService {
         sourceMetadata,
         extractionContext: {
           ...baseExtractionContext,
-          profileConfigHints: Object.fromEntries(
-            Object.entries(effectiveConfigs)
-              .filter(([, config]) => Boolean(config?.derivedHints))
-              .map(([profileId, config]) => [profileId, config?.derivedHints]),
-          ),
+          profileConfigHints: runtimeHints,
         },
       });
       const bootstrapHints = this.documentProfileBootstrapService.deriveHints({
@@ -111,6 +146,27 @@ export class DocumentIngestionService {
       });
 
       const summary = this.buildSummary(chunks);
+      const corpusMetadata = buildDocumentCorpusMetadata(
+        chunks.map((chunk) => ({
+          documentId: document.id,
+          sequence: chunk.sequence,
+          metadata: chunk.metadata,
+          knowledgeItems: chunk.structuredItems?.map((item) => ({
+            kind: item.kind,
+            metadata: item.metadata,
+          })),
+          document: {
+            id: document.id,
+            title: document.title,
+            status: document.status,
+            ingestionStatus: document.ingestionStatus,
+            language: document.language,
+            sourceName: document.sourceName,
+            metadata: document.metadata,
+            updatedAt: document.updatedAt,
+          },
+        })),
+      );
       const saved = await this.documentRepository.markReady({
         documentId: document.id,
         summary,
@@ -118,6 +174,7 @@ export class DocumentIngestionService {
         status: input.activate === false ? ManagedResourceStatus.DRAFT : ManagedResourceStatus.ACTIVE,
         metadata: {
           ...(this.asRecord(document.metadata) ?? {}),
+          ...corpusMetadata,
           lastIngestedBy: input.createdBy ?? 'system',
           ingestOrigin: 'document_domain',
           approvalMode: 'uploaded_document',
@@ -189,4 +246,15 @@ export class DocumentIngestionService {
 
     return value as Record<string, unknown>;
   }
+}
+
+function mapProfileHints(
+  profileIds: readonly string[],
+  hintsByProfile: Record<string, DocumentExtractionProfileDerivedHints | null | undefined>,
+) {
+  return Object.fromEntries(
+    profileIds
+      .map((profileId) => [profileId, hintsByProfile[profileId] ?? null] as const)
+      .filter(([, hints]) => Boolean(hints)),
+  ) as Record<string, DocumentExtractionProfileDerivedHints>;
 }

@@ -22,6 +22,66 @@
     },
     "suitability": {
       "leadPhrases": ["ideal for", "recommended for"]
+    },
+    "payment_methods": {
+      "headingTerms": ["payment", "payments"],
+      "installmentTerms": ["installment", "installments"],
+      "scopeLeadTerms": ["by", "with", "via", "through"],
+      "scopeVerbTerms": ["offers"],
+      "cardLeadTerms": ["card", "cards"],
+      "brandListLeadTerms": ["like", "such as"]
+    },
+    "construction_components": {
+      "headingTerms": ["feature", "features", "confirmed material"]
+    },
+    "feature_support": {
+      "positiveLeadTerms": [
+        "supports",
+        "support",
+        "admits",
+        "allow",
+        "allows",
+        "works with",
+        "can include",
+        "can add",
+        "includes",
+        "include"
+      ],
+      "negativeLeadTerms": [
+        "does not support",
+        "do not support",
+        "does not admit",
+        "do not admit",
+        "does not allow",
+        "do not allow",
+        "does not work with",
+        "do not work with"
+      ],
+      "relatedLeadPhrases": [
+        "is more closely tied to",
+        "are more closely tied to"
+      ],
+      "alternativeConjunctionTerms": ["or"],
+      "trimTailTerms": ["according to", "especially", "when", "for"],
+      "removableLeadTerms": ["the", "a", "an"]
+    },
+    "prudence": {
+      "exact_hours": {
+        "axisTerms": ["hour", "hours", "schedule"],
+        "headingTerms": ["hour", "hours", "schedule"],
+        "cautionTerms": ["exact", "confirm"]
+      },
+      "exact_color_options": {
+        "axisTerms": ["color", "colors", "colour", "colours", "texture", "textures"],
+        "headingTerms": ["color", "colors", "colour", "colours", "texture", "textures"],
+        "cautionTerms": ["exact", "specific", "confirm"],
+        "unspecifiedAxes": ["exact_color_options"]
+      }
+    },
+    "workflow": {
+      "quote_fields": {
+        "headingTerms": ["quote", "budget", "quotation"]
+      }
     }
   },
   "matchingHints": {

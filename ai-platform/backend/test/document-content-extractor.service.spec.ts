@@ -46,8 +46,15 @@ describe('DocumentContentExtractorService', () => {
       buffer: buildXlsxBuffer(),
     });
 
+    expect(extracted.content).toContain('Sheet: Sheet1');
     expect(extracted.content).toContain('sku: B-77');
     expect(extracted.content).toContain('name: Beacon Desk Lamp');
+    expect(extracted.metadata).toEqual(
+      expect.objectContaining({
+        sheetCount: 1,
+        sheetNames: ['Sheet1'],
+      }),
+    );
   });
 
   it('extracts text from URL-backed documents through a governed adapter', async () => {
@@ -69,6 +76,32 @@ describe('DocumentContentExtractorService', () => {
       expect(extracted.originKind).toBe('URL');
       expect(extracted.content).toContain('Horarios');
       expect(extracted.content).toContain('Lunes a viernes');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('preserves headings and list structure from HTML-backed URL documents', async () => {
+    const server = createServer((_request, response) => {
+      response.setHeader('content-type', 'text/html');
+      response.end(
+        '<html><body><h1>Medios de pago</h1><ul><li>Transferencia</li><li>Mercado Pago</li></ul></body></html>',
+      );
+    });
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    const port = address && typeof address === 'object' ? address.port : 0;
+
+    try {
+      const service = createService();
+      const extracted = await service.extractFromUrl({
+        url: `http://127.0.0.1:${port}/payments`,
+      });
+
+      expect(extracted.content).toContain('Medios de pago');
+      expect(extracted.content).toContain('- Transferencia');
+      expect(extracted.content).toContain('- Mercado Pago');
     } finally {
       server.close();
     }

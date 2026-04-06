@@ -12,6 +12,17 @@ export function stripHtml(value: string) {
     value
       .replace(/<script[\s\S]*?<\/script>/gi, ' ')
       .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<(h[1-6]|p|div|section|article|header|footer|main|aside|nav)[^>]*>/gi, '\n')
+      .replace(/<\/(h[1-6]|p|div|section|article|header|footer|main|aside|nav)>/gi, '\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<li[^>]*>/gi, '\n- ')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<(ul|ol)[^>]*>/gi, '\n')
+      .replace(/<\/(ul|ol)>/gi, '\n')
+      .replace(/<tr[^>]*>/gi, '\n')
+      .replace(/<\/tr>/gi, '\n')
+      .replace(/<(td|th)[^>]*>/gi, ' ')
+      .replace(/<\/(td|th)>/gi, ' | ')
       .replace(/<[^>]+>/g, ' '),
   );
 }

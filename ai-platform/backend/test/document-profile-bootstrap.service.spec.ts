@@ -53,6 +53,9 @@ describe('DocumentProfileBootstrapService', () => {
               observedValuesByAxis: {
                 materials: ['PVC', 'aluminio'],
               },
+              sectionAliasesByAxis: {
+                materials: ['CORTINAS DE ENROLLAR'],
+              },
               supportCounts: {
                 explicit: 1,
                 partial: 0,

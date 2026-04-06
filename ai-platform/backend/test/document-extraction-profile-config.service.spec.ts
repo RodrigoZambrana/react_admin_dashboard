@@ -26,6 +26,13 @@ describe('DocumentExtractionProfileConfigService', () => {
       'exact_color_options',
     ]);
     expect(config.matchingHints.conjunctionTerms).toEqual(['y']);
+    expect(config.paymentMethods?.headingTerms).toEqual(['pago', 'pagos']);
+    expect(config.prudence?.exactHoursCautionTerms).toEqual(
+      expect.arrayContaining(['exact', 'confirm']),
+    );
+    expect(config.workflow?.quoteFieldsHeadingTerms).toEqual(
+      expect.arrayContaining(['presupuesto', 'cotizacion']),
+    );
   });
 
   it('falls back to the english profile resource when locale family is en', () => {
@@ -50,6 +57,9 @@ describe('DocumentExtractionProfileConfigService', () => {
           locale: 'es',
           hints: {
             observedAxes: ['materials'],
+            sectionAliasesByAxis: {
+              payment_methods: ['Opciones de cobro'],
+            },
             observedValuesByAxis: {
               materials: ['PVC', 'aluminio'],
             },
@@ -80,13 +90,48 @@ describe('DocumentExtractionProfileConfigService', () => {
     expect(configs.product_catalog?.derivedHints).toEqual(
       expect.objectContaining({
         observedAxes: ['materials'],
+        sectionAliasesByAxis: {
+          payment_methods: ['Opciones de cobro'],
+        },
         observedValuesByAxis: {
           materials: ['PVC', 'aluminio'],
         },
       }),
     );
+    expect(configs.product_catalog?.paymentMethods?.headingTerms).toEqual(
+      expect.arrayContaining(['pago', 'pagos', 'Opciones de cobro']),
+    );
+    expect(configs.product_catalog?.resolution.sources.axes.payment_methods).toBe(
+      'mixed',
+    );
     expect(configs.product_catalog?.resolution.sources.derivedHints).toBe(
       'tenant_derived',
+    );
+  });
+
+  it('uses tenant-derived section aliases as a bounded runtime extraction lever within the selected profile', () => {
+    const service = new DocumentExtractionProfileConfigService();
+
+    const config = service.resolveCompiledConfig({
+      profileId: 'product_catalog',
+      locale: 'es-UY',
+      derivedHints: {
+        sectionAliasesByAxis: {
+          payment_methods: ['Opciones de cobro'],
+          exact_hours: ['Horario de showroom'],
+          quote_fields: ['Datos para cotizar'],
+        },
+      },
+    });
+
+    expect(config.paymentMethods?.headingTerms).toEqual(
+      expect.arrayContaining(['Opciones de cobro']),
+    );
+    expect(config.prudence?.exactHoursHeadingTerms).toEqual(
+      expect.arrayContaining(['Horario de showroom']),
+    );
+    expect(config.workflow?.quoteFieldsHeadingTerms).toEqual(
+      expect.arrayContaining(['Datos para cotizar']),
     );
   });
 

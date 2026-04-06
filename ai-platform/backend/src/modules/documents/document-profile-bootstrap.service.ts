@@ -17,6 +17,7 @@ export class DocumentProfileBootstrapService {
         observedSections: Set<string>;
         observedAxes: Set<string>;
         observedValuesByAxis: Map<string, Set<string>>;
+        sectionAliasesByAxis: Map<string, Set<string>>;
         supportCounts: {
           explicit: number;
           partial: number;
@@ -31,9 +32,14 @@ export class DocumentProfileBootstrapService {
 
     for (const chunk of input.chunks) {
       const sections =
-        typeof chunk.metadata?.section === 'string' && chunk.metadata.section.trim()
-          ? [chunk.metadata.section.trim()]
-          : [];
+        [
+          typeof chunk.metadata?.section === 'string' ? chunk.metadata.section : null,
+          typeof chunk.metadata?.parentSection === 'string'
+            ? chunk.metadata.parentSection
+            : null,
+        ]
+          .map((section) => section?.trim())
+          .filter((section): section is string => Boolean(section));
 
       for (const claim of extractKnowledgeAxisSummaries(chunk.structuredItems ?? [])) {
         const profileId = claimProfileIdFromChunk(chunk);
@@ -48,6 +54,10 @@ export class DocumentProfileBootstrapService {
         const existing = accumulator.observedValuesByAxis.get(claim.axis) ?? new Set<string>();
         claim.values.forEach((value) => existing.add(value));
         accumulator.observedValuesByAxis.set(claim.axis, existing);
+        const aliasEntries =
+          accumulator.sectionAliasesByAxis.get(claim.axis) ?? new Set<string>();
+        sections.forEach((section) => aliasEntries.add(section));
+        accumulator.sectionAliasesByAxis.set(claim.axis, aliasEntries);
 
         if (claim.supportClass === 'explicit_fact') {
           accumulator.supportCounts.explicit += 1;
@@ -76,6 +86,11 @@ export class DocumentProfileBootstrapService {
               Array.from(entries.values()).slice(0, 8),
             ]),
           ),
+          sectionAliasesByAxis: Object.fromEntries(
+            Array.from(value.sectionAliasesByAxis.entries())
+              .map(([axis, entries]) => [axis, Array.from(entries.values()).slice(0, 6)])
+              .filter(([, entries]) => entries.length > 0),
+          ),
           supportCounts: value.supportCounts,
         } satisfies DocumentExtractionProfileDerivedHints,
       })),
@@ -88,6 +103,7 @@ function createHintAccumulator() {
     observedSections: new Set<string>(),
     observedAxes: new Set<string>(),
     observedValuesByAxis: new Map<string, Set<string>>(),
+    sectionAliasesByAxis: new Map<string, Set<string>>(),
     supportCounts: {
       explicit: 0,
       partial: 0,

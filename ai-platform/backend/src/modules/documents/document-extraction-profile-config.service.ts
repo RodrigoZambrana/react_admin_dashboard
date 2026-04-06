@@ -28,6 +28,43 @@ type RawDocumentExtractionProfileResource = {
     suitability?: {
       leadPhrases?: string[];
     };
+    payment_methods?: {
+      headingTerms?: string[];
+      installmentTerms?: string[];
+      scopeLeadTerms?: string[];
+      scopeVerbTerms?: string[];
+      cardLeadTerms?: string[];
+      brandListLeadTerms?: string[];
+    };
+    construction_components?: {
+      headingTerms?: string[];
+    };
+    feature_support?: {
+      positiveLeadTerms?: string[];
+      negativeLeadTerms?: string[];
+      relatedLeadPhrases?: string[];
+      alternativeConjunctionTerms?: string[];
+      trimTailTerms?: string[];
+      removableLeadTerms?: string[];
+    };
+    prudence?: {
+      exact_hours?: {
+        axisTerms?: string[];
+        headingTerms?: string[];
+        cautionTerms?: string[];
+      };
+      exact_color_options?: {
+        axisTerms?: string[];
+        headingTerms?: string[];
+        cautionTerms?: string[];
+        unspecifiedAxes?: string[];
+      };
+    };
+    workflow?: {
+      quote_fields?: {
+        headingTerms?: string[];
+      };
+    };
   };
   matchingHints?: {
     listStopTerms?: string[];
@@ -40,6 +77,7 @@ export type DocumentExtractionProfileDerivedHints = {
   observedSections?: string[];
   observedAxes?: string[];
   observedValuesByAxis?: Record<string, string[]>;
+  sectionAliasesByAxis?: Record<string, string[]>;
   supportCounts?: {
     explicit?: number;
     partial?: number;
@@ -73,9 +111,11 @@ export type CompiledDocumentExtractionProfileConfig = {
   locale: string;
   productTypes?: {
     listPattern: RegExp;
+    headingTerms: string[];
   };
   materials?: {
     listPatterns: RegExp[];
+    headingTerms: string[];
   };
   operationModes?: {
     normalizedTerms: Array<{
@@ -85,11 +125,43 @@ export type CompiledDocumentExtractionProfileConfig = {
   };
   colorOptions?: {
     listPattern: RegExp;
+    headingTerms: string[];
     varietySignals: string[];
     unspecifiedAxes: string[];
   };
   suitability?: {
     pattern: RegExp;
+  };
+  paymentMethods?: {
+    headingTerms: string[];
+    installmentTerms: string[];
+    scopeLeadTerms: string[];
+    scopeVerbTerms: string[];
+    cardLeadTerms: string[];
+    brandListLeadTerms: string[];
+  };
+  constructionComponents?: {
+    headingTerms: string[];
+  };
+  featureSupport?: {
+    positiveLeadTerms: string[];
+    negativeLeadTerms: string[];
+    relatedLeadPhrases: string[];
+    alternativeConjunctionTerms: string[];
+    trimTailTerms: string[];
+    removableLeadTerms: string[];
+  };
+  prudence?: {
+    exactHoursAxisTerms: string[];
+    exactHoursCautionTerms: string[];
+    exactHoursHeadingTerms: string[];
+    exactColorAxisTerms: string[];
+    exactColorCautionTerms: string[];
+    exactColorHeadingTerms: string[];
+    exactColorUnspecifiedAxes: string[];
+  };
+  workflow?: {
+    quoteFieldsHeadingTerms: string[];
   };
   matchingHints: {
     listStopTerms: string[];
@@ -99,6 +171,14 @@ export type CompiledDocumentExtractionProfileConfig = {
   derivedHints: DocumentExtractionProfileDerivedHints | null;
   resolution: DocumentExtractionProfileConfigResolution;
 };
+
+export function mergeDocumentExtractionProfileDerivedHints(
+  values: Array<DocumentExtractionProfileDerivedHints | null | undefined>,
+) {
+  return mergeDerivedHints(
+    values.map((value) => (value ? value : null)),
+  );
+}
 
 @Injectable()
 export class DocumentExtractionProfileConfigService {
@@ -217,6 +297,14 @@ export class DocumentExtractionProfileConfigService {
     }
   }
 
+  async clearTenantDerivedHints(documentId: string) {
+    if (!this.repository) {
+      return;
+    }
+
+    await this.repository.clearByDocument(documentId);
+  }
+
   private loadDefaultResource(input: {
     profileId: DocumentExtractionProfileId;
     locale: string;
@@ -264,6 +352,51 @@ function compileProfileResource(input: {
     input.raw.matchingHints?.oversizedClaimTailPhrases ?? [],
   );
   const observedAxes = new Set(input.derivedHints?.observedAxes ?? []);
+  const paymentMethodHeadingTerms = mergeHeadingTerms({
+    defaultTerms: input.raw.axes.payment_methods?.headingTerms ?? [],
+    derivedAliases: input.derivedHints?.sectionAliasesByAxis?.payment_methods ?? [],
+    anchorTerms: input.raw.axes.payment_methods?.headingTerms ?? [],
+    allowUnanchoredDerived: true,
+  });
+  const constructionComponentHeadingTerms = mergeHeadingTerms({
+    defaultTerms: input.raw.axes.construction_components?.headingTerms ?? [],
+    derivedAliases:
+      input.derivedHints?.sectionAliasesByAxis?.construction_components ?? [],
+    anchorTerms: input.raw.axes.construction_components?.headingTerms ?? [],
+    allowUnanchoredDerived: true,
+  });
+  const exactHoursAxisTerms =
+    input.raw.axes.prudence?.exact_hours?.axisTerms?.map((term) =>
+      normalizeDocumentKnowledgeText(term),
+    ) ?? [];
+  const exactHoursHeadingTerms = mergeHeadingTerms({
+    defaultTerms: input.raw.axes.prudence?.exact_hours?.headingTerms ?? [],
+    derivedAliases: input.derivedHints?.sectionAliasesByAxis?.exact_hours ?? [],
+    anchorTerms: [
+      ...(input.raw.axes.prudence?.exact_hours?.headingTerms ?? []),
+      ...(input.raw.axes.prudence?.exact_hours?.axisTerms ?? []),
+    ],
+    allowUnanchoredDerived: true,
+  });
+  const exactColorAxisTerms =
+    input.raw.axes.prudence?.exact_color_options?.axisTerms?.map((term) =>
+      normalizeDocumentKnowledgeText(term),
+    ) ?? [];
+  const exactColorHeadingTerms = mergeHeadingTerms({
+    defaultTerms: input.raw.axes.prudence?.exact_color_options?.headingTerms ?? [],
+    derivedAliases:
+      input.derivedHints?.sectionAliasesByAxis?.exact_color_options ?? [],
+    anchorTerms: [
+      ...(input.raw.axes.prudence?.exact_color_options?.headingTerms ?? []),
+      ...(input.raw.axes.prudence?.exact_color_options?.axisTerms ?? []),
+    ],
+  });
+  const quoteFieldHeadingTerms = mergeHeadingTerms({
+    defaultTerms: input.raw.axes.workflow?.quote_fields?.headingTerms ?? [],
+    derivedAliases: input.derivedHints?.sectionAliasesByAxis?.quote_fields ?? [],
+    anchorTerms: input.raw.axes.workflow?.quote_fields?.headingTerms ?? [],
+    allowUnanchoredDerived: true,
+  });
 
   return {
     profileId: input.profileId,
@@ -271,6 +404,7 @@ function compileProfileResource(input: {
     productTypes: input.raw.axes.product_types?.listLeadTerms?.length
       ? {
           listPattern: compileListLeadPattern(input.raw.axes.product_types.listLeadTerms),
+          headingTerms: input.raw.axes.product_types.listLeadTerms.map((term) => term.trim()),
         }
       : undefined,
     materials:
@@ -285,6 +419,8 @@ function compileProfileResource(input: {
               ),
               ...compileTermListPatterns(input.raw.axes.materials.listLeadTerms ?? []),
             ],
+            headingTerms:
+              input.raw.axes.materials.listLeadTerms?.map((term) => term.trim()) ?? [],
           }
         : undefined,
     operationModes:
@@ -306,6 +442,8 @@ function compileProfileResource(input: {
             listPattern: compileListLeadPattern(
               input.raw.axes.color_options?.listLeadTerms ?? ['color', 'colors'],
             ),
+            headingTerms:
+              input.raw.axes.color_options?.listLeadTerms?.map((term) => term.trim()) ?? [],
             varietySignals:
               input.raw.axes.color_options?.varietySignals?.map((signal) =>
                 normalizeDocumentKnowledgeText(signal),
@@ -320,6 +458,95 @@ function compileProfileResource(input: {
           ),
         }
       : undefined,
+    paymentMethods: paymentMethodHeadingTerms.length > 0
+      ? {
+          headingTerms: paymentMethodHeadingTerms,
+          installmentTerms:
+            input.raw.axes.payment_methods?.installmentTerms?.map((term) =>
+              normalizeDocumentKnowledgeText(term),
+            ) ?? [],
+          scopeLeadTerms:
+            input.raw.axes.payment_methods?.scopeLeadTerms?.map((term) =>
+              normalizeDocumentKnowledgeText(term),
+            ) ?? [],
+          scopeVerbTerms:
+            input.raw.axes.payment_methods?.scopeVerbTerms?.map((term) =>
+              normalizeDocumentKnowledgeText(term),
+            ) ?? [],
+          cardLeadTerms:
+            input.raw.axes.payment_methods?.cardLeadTerms?.map((term) =>
+              normalizeDocumentKnowledgeText(term),
+            ) ?? [],
+          brandListLeadTerms:
+            input.raw.axes.payment_methods?.brandListLeadTerms?.map((term) =>
+              normalizeDocumentKnowledgeText(term),
+            ) ?? [],
+        }
+      : undefined,
+    constructionComponents: constructionComponentHeadingTerms.length > 0
+      ? {
+          headingTerms: constructionComponentHeadingTerms,
+        }
+      : undefined,
+    featureSupport:
+      input.raw.axes.feature_support?.positiveLeadTerms?.length ||
+      input.raw.axes.feature_support?.negativeLeadTerms?.length ||
+      input.raw.axes.feature_support?.relatedLeadPhrases?.length
+        ? {
+            positiveLeadTerms:
+              input.raw.axes.feature_support?.positiveLeadTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            negativeLeadTerms:
+              input.raw.axes.feature_support?.negativeLeadTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            relatedLeadPhrases:
+              input.raw.axes.feature_support?.relatedLeadPhrases?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            alternativeConjunctionTerms:
+              input.raw.axes.feature_support?.alternativeConjunctionTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            trimTailTerms:
+              input.raw.axes.feature_support?.trimTailTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            removableLeadTerms:
+              input.raw.axes.feature_support?.removableLeadTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+          }
+        : undefined,
+    prudence:
+      input.raw.axes.prudence?.exact_hours?.axisTerms?.length ||
+      input.raw.axes.prudence?.exact_hours?.cautionTerms?.length ||
+      input.raw.axes.prudence?.exact_color_options?.axisTerms?.length ||
+      input.raw.axes.prudence?.exact_color_options?.cautionTerms?.length
+        ? {
+            exactHoursAxisTerms,
+            exactHoursCautionTerms:
+              input.raw.axes.prudence?.exact_hours?.cautionTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            exactHoursHeadingTerms,
+            exactColorAxisTerms,
+            exactColorCautionTerms:
+              input.raw.axes.prudence?.exact_color_options?.cautionTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            exactColorHeadingTerms,
+            exactColorUnspecifiedAxes:
+              input.raw.axes.prudence?.exact_color_options?.unspecifiedAxes ?? [],
+          }
+        : undefined,
+    workflow:
+      quoteFieldHeadingTerms.length > 0
+        ? {
+            quoteFieldsHeadingTerms: quoteFieldHeadingTerms,
+          }
+        : undefined,
     matchingHints: {
       listStopTerms:
         input.raw.matchingHints?.listStopTerms?.map((term) =>
@@ -352,6 +579,59 @@ function compileProfileResource(input: {
           suitability: observedAxes.has('suitability')
             ? 'mixed'
             : 'platform_default',
+          payment_methods: observedAxes.has('payment_methods')
+            || paymentMethodHeadingTerms.some(
+              (term) =>
+                !matchesNormalizedFallbackTerm(
+                  term,
+                  input.raw.axes.payment_methods?.headingTerms ?? [],
+                ),
+            )
+            ? 'mixed'
+            : 'platform_default',
+          construction_components: observedAxes.has('construction_components')
+            || constructionComponentHeadingTerms.some(
+              (term) =>
+                !matchesNormalizedFallbackTerm(
+                  term,
+                  input.raw.axes.construction_components?.headingTerms ?? [],
+                ),
+            )
+            ? 'mixed'
+            : 'platform_default',
+          feature_support: observedAxes.has('feature_support')
+            ? 'mixed'
+            : 'platform_default',
+          quote_fields: observedAxes.has('quote_fields')
+            || quoteFieldHeadingTerms.some(
+              (term) =>
+                !matchesNormalizedFallbackTerm(
+                  term,
+                  input.raw.axes.workflow?.quote_fields?.headingTerms ?? [],
+                ),
+            )
+            ? 'mixed'
+            : 'platform_default',
+          exact_hours: observedAxes.has('exact_hours')
+            || exactHoursHeadingTerms.some(
+              (term) =>
+                !matchesNormalizedFallbackTerm(
+                  term,
+                  input.raw.axes.prudence?.exact_hours?.headingTerms ?? [],
+                ),
+            )
+            ? 'mixed'
+            : 'platform_default',
+          exact_color_options: observedAxes.has('exact_color_options')
+            || exactColorHeadingTerms.some(
+              (term) =>
+                !matchesNormalizedFallbackTerm(
+                  term,
+                  input.raw.axes.prudence?.exact_color_options?.headingTerms ?? [],
+                ),
+            )
+            ? 'mixed'
+            : 'platform_default',
         },
         matchingHints: {
           listStopTerms: 'platform_default',
@@ -373,6 +653,7 @@ function asDerivedHints(value: unknown): DocumentExtractionProfileDerivedHints |
   const observedSections = asStringArray(record.observedSections);
   const observedAxes = asStringArray(record.observedAxes);
   const observedValuesByAxis = asStringRecordOfArrays(record.observedValuesByAxis);
+  const sectionAliasesByAxis = asStringRecordOfArrays(record.sectionAliasesByAxis);
   const supportCounts =
     record.supportCounts && typeof record.supportCounts === 'object'
       ? {
@@ -398,6 +679,10 @@ function asDerivedHints(value: unknown): DocumentExtractionProfileDerivedHints |
     hints.observedValuesByAxis = observedValuesByAxis;
   }
 
+  if (Object.keys(sectionAliasesByAxis).length > 0) {
+    hints.sectionAliasesByAxis = sectionAliasesByAxis;
+  }
+
   if (
     supportCounts &&
     (supportCounts.explicit || supportCounts.partial || supportCounts.boundedInference)
@@ -414,6 +699,7 @@ function mergeDerivedHints(
   const observedSections = new Set<string>();
   const observedAxes = new Set<string>();
   const observedValuesByAxis = new Map<string, Set<string>>();
+  const sectionAliasesByAxis = new Map<string, Set<string>>();
   const supportCounts = {
     explicit: 0,
     partial: 0,
@@ -437,6 +723,12 @@ function mergeDerivedHints(
       const existing = observedValuesByAxis.get(axis) ?? new Set<string>();
       entries.forEach((entry) => existing.add(entry));
       observedValuesByAxis.set(axis, existing);
+    }
+
+    for (const [axis, entries] of Object.entries(value.sectionAliasesByAxis ?? {})) {
+      const existing = sectionAliasesByAxis.get(axis) ?? new Set<string>();
+      entries.forEach((entry) => existing.add(entry));
+      sectionAliasesByAxis.set(axis, existing);
     }
 
     supportCounts.explicit += value.supportCounts?.explicit ?? 0;
@@ -463,6 +755,15 @@ function mergeDerivedHints(
     );
   }
 
+  if (sectionAliasesByAxis.size > 0) {
+    merged.sectionAliasesByAxis = Object.fromEntries(
+      Array.from(sectionAliasesByAxis.entries()).map(([axis, entries]) => [
+        axis,
+        Array.from(entries).slice(0, 12),
+      ]),
+    );
+  }
+
   if (
     supportCounts.explicit > 0 ||
     supportCounts.partial > 0 ||
@@ -472,6 +773,25 @@ function mergeDerivedHints(
   }
 
   return Object.keys(merged).length > 0 ? merged : null;
+}
+
+function mergeHeadingTerms(input: {
+  defaultTerms: string[];
+  derivedAliases: string[];
+  anchorTerms: string[];
+  allowUnanchoredDerived?: boolean;
+}) {
+  const defaults = dedupeTerms(input.defaultTerms);
+  const anchors = input.anchorTerms
+    .map((term) => normalizeDocumentKnowledgeText(term))
+    .filter(Boolean);
+  const derived = dedupeTerms(input.derivedAliases).filter(
+    (alias) =>
+      input.allowUnanchoredDerived === true ||
+      aliasMatchesAnchor(alias, anchors),
+  );
+
+  return dedupeTerms([...defaults, ...derived]);
 }
 
 function asStringArray(value: unknown) {
@@ -501,7 +821,7 @@ function asNumber(value: unknown) {
 
 function compileListLeadPattern(terms: string[]) {
   const escapedTerms = buildAlternation(terms);
-  return new RegExp(`(?:${escapedTerms})\\s*[:\\-]?\\s*(.+)$`, 'iu');
+  return new RegExp(`^(?:[-•]\\s*)?(?:${escapedTerms})\\s*[:\\-]?\\s*(.+)$`, 'iu');
 }
 
 function compilePhraseCapturePatterns(phrases: string[], stopTerms: string[]) {
@@ -520,7 +840,7 @@ function compilePhraseCapturePatterns(phrases: string[], stopTerms: string[]) {
 function compileTermListPatterns(terms: string[]) {
   return terms.map(
     (term) =>
-      new RegExp(`(?:${escapeRegExp(term)})\\s*[:\\-]?\\s*(.+)$`, 'iu'),
+      new RegExp(`^(?:[-•]\\s*)?(?:${escapeRegExp(term)})\\s*[:\\-]?\\s*(.+)$`, 'iu'),
   );
 }
 
@@ -538,6 +858,54 @@ function compileOptionalTailPattern(phrases: string[]) {
 
 function buildAlternation(values: string[]) {
   return values.map((value) => escapeRegExp(value)).join('|');
+}
+
+function dedupeTerms(values: string[]) {
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+
+  for (const value of values) {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      continue;
+    }
+
+    const normalized = normalizeDocumentKnowledgeText(trimmed);
+
+    if (!normalized || seen.has(normalized)) {
+      continue;
+    }
+
+    seen.add(normalized);
+    deduped.push(trimmed);
+  }
+
+  return deduped;
+}
+
+function aliasMatchesAnchor(alias: string, anchorTerms: string[]) {
+  const normalizedAlias = normalizeDocumentKnowledgeText(alias);
+
+  if (!normalizedAlias || anchorTerms.length === 0) {
+    return false;
+  }
+
+  return anchorTerms.some((anchor) =>
+    normalizedAlias === anchor ||
+    normalizedAlias.startsWith(`${anchor} `) ||
+    normalizedAlias.includes(` ${anchor} `) ||
+    normalizedAlias.endsWith(` ${anchor}`),
+  );
+}
+
+function matchesNormalizedFallbackTerm(value: string, fallbackTerms: string[]) {
+  const normalizedValue = normalizeDocumentKnowledgeText(value);
+
+  return fallbackTerms
+    .map((term) => normalizeDocumentKnowledgeText(term))
+    .filter(Boolean)
+    .includes(normalizedValue);
 }
 
 function escapeRegExp(value: string) {

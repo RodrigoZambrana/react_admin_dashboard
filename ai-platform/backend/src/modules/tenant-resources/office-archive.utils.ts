@@ -3,6 +3,11 @@ import AdmZip from 'adm-zip';
 import { decodeHtmlEntities, normalizeExtractedText } from './tenant-resource-text.utils';
 import { TenantResourceStructuredRow } from './tenant-resource.types';
 
+type SpreadsheetSheet = {
+  name: string;
+  rows: TenantResourceStructuredRow[];
+};
+
 export function extractDocxText(buffer: Buffer) {
   const zip = new AdmZip(buffer);
   const xml = zip.readAsText('word/document.xml');
@@ -25,24 +30,38 @@ export function extractDocxText(buffer: Buffer) {
 }
 
 export function extractSpreadsheetRows(buffer: Buffer): TenantResourceStructuredRow[] {
+  return extractSpreadsheetSheets(buffer).flatMap((sheet) => sheet.rows);
+}
+
+export function extractSpreadsheetSheets(buffer: Buffer): SpreadsheetSheet[] {
   const zip = new AdmZip(buffer);
   const sharedStrings = parseSharedStrings(zip.readAsText('xl/sharedStrings.xml'));
   const workbook = zip.readAsText('xl/workbook.xml');
   const relationships = zip.readAsText('xl/_rels/workbook.xml.rels');
   const sheetTargets = resolveSheetTargets(workbook, relationships);
-  const rows: string[][] = [];
+  const sheets: SpreadsheetSheet[] = [];
 
   for (const target of sheetTargets) {
-    const sheetXml = zip.readAsText(target);
+    const sheetXml = zip.readAsText(target.target);
 
     if (!sheetXml) {
       continue;
     }
 
-    rows.push(...parseWorksheetRows(sheetXml, sharedStrings));
+    const parsedRows = parseWorksheetRows(sheetXml, sharedStrings);
+    const normalizedRows = normalizeStructuredRows(parsedRows);
+
+    if (normalizedRows.length === 0) {
+      continue;
+    }
+
+    sheets.push({
+      name: target.name,
+      rows: normalizedRows,
+    });
   }
 
-  return normalizeStructuredRows(rows);
+  return sheets;
 }
 
 export function stringifyStructuredRows(rows: TenantResourceStructuredRow[]) {
@@ -54,6 +73,24 @@ export function stringifyStructuredRows(rows: TenantResourceStructuredRow[]) {
           .join(' | '),
       )
       .join('\n'),
+  );
+}
+
+export function stringifyStructuredSheets(sheets: SpreadsheetSheet[]) {
+  return normalizeExtractedText(
+    sheets
+      .map((sheet) => {
+        const body = sheet.rows
+          .map((row) =>
+            Object.entries(row)
+              .map(([key, value]) => `${key}: ${value}`)
+              .join(' | '),
+          )
+          .join('\n');
+
+        return `Sheet: ${sheet.name}\n${body}`;
+      })
+      .join('\n\n'),
   );
 }
 
@@ -85,20 +122,21 @@ function resolveSheetTargets(workbookXml: string, relationshipsXml: string) {
     relationshipById.set(relationshipId, `xl/${target.replace(/^\//, '')}`);
   }
 
-  const targets: string[] = [];
+  const targets: Array<{ name: string; target: string }> = [];
 
   for (const match of workbookXml.matchAll(
-    /<sheet[^>]+r:id="([^"]+)"/g,
+    /<sheet[^>]+name="([^"]+)"[^>]+r:id="([^"]+)"/g,
   )) {
-    const target = relationshipById.get(match[1]);
+    const name = decodeHtmlEntities(match[1] ?? '').trim() || 'Sheet1';
+    const target = relationshipById.get(match[2]);
 
     if (target) {
-      targets.push(target);
+      targets.push({ name, target });
     }
   }
 
   if (targets.length === 0) {
-    targets.push('xl/worksheets/sheet1.xml');
+    targets.push({ name: 'Sheet1', target: 'xl/worksheets/sheet1.xml' });
   }
 
   return targets;

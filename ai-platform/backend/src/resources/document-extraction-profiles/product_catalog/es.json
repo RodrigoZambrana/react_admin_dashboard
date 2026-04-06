@@ -22,6 +22,75 @@
     },
     "suitability": {
       "leadPhrases": ["ideal para", "recomendado para"]
+    },
+    "payment_methods": {
+      "headingTerms": ["pago", "pagos"],
+      "installmentTerms": ["cuota", "cuotas"],
+      "scopeLeadTerms": ["por", "con", "mediante", "via", "vía"],
+      "scopeVerbTerms": ["ofrece"],
+      "cardLeadTerms": ["tarjeta", "tarjetas"],
+      "brandListLeadTerms": ["como"]
+    },
+    "construction_components": {
+      "headingTerms": ["caracteristica", "caracteristicas", "material confirmado"]
+    },
+    "feature_support": {
+      "positiveLeadTerms": [
+        "admite",
+        "admiten",
+        "permite",
+        "permiten",
+        "soporta",
+        "soportan",
+        "trabaja con",
+        "trabajan con",
+        "puede incluir",
+        "pueden incluir",
+        "podemos incorporar",
+        "permite sumar",
+        "permiten sumar",
+        "incorpora",
+        "incorporan",
+        "incluye",
+        "incluyen"
+      ],
+      "negativeLeadTerms": [
+        "no soporta",
+        "no soportan",
+        "no admite",
+        "no admiten",
+        "no permite",
+        "no permiten",
+        "no trabaja con",
+        "no trabajan con"
+      ],
+      "relatedLeadPhrases": [
+        "aparece más ligada a",
+        "aparecen más ligadas a",
+        "está más ligada a",
+        "están más ligadas a"
+      ],
+      "alternativeConjunctionTerms": ["o"],
+      "trimTailTerms": ["segun", "según", "especialmente", "cuando", "para"],
+      "removableLeadTerms": ["el", "la", "los", "las", "un", "una"]
+    },
+    "prudence": {
+      "exact_hours": {
+        "axisTerms": ["horario", "horarios"],
+        "headingTerms": ["horario", "horarios"],
+        "cautionTerms": ["exact", "confirm"]
+      },
+      "exact_color_options": {
+        "axisTerms": ["color", "colores", "textura", "texturas"],
+        "headingTerms": ["color", "colores", "textura", "texturas"],
+        "cautionTerms": ["exact", "especific", "confirm"],
+        "unspecifiedAxes": ["exact_color_options"]
+      }
+    },
+    "workflow": {
+      "quote_fields": {
+        "headingTerms": ["presupuesto", "cotizacion", "cotización"]
+      }
     }
   },
   "matchingHints": {

@@ -47,6 +47,7 @@ export class AiPromptContractService {
       'When document grounding marks a detail type as unsupported, say it is not specified instead of inventing it.',
       'When document grounding marks a detail type as partial, preserve the supported general fact and avoid inventing exact specifics.',
       'When approved document context is present, use only that document-origin context for document-grounded claims.',
+      'When approved document context includes tenant workflow or conversational guidance extracted from the active document, use it only to shape phrasing, sequencing, and next-step guidance without overriding approved facts or execution truth.',
       'When approved document context has responseMode combined_execution, synthesize the document answer concisely and then state the execution outcome without quoting long excerpts.',
       'Write in a direct company-to-customer voice, not as an external narrator describing the company or the source.',
       'Do not say phrases such as "the document says", "the catalog says", or refer to the company in third person unless the approved backend context explicitly requires that wording.',

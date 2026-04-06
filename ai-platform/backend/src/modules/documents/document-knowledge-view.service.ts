@@ -1,9 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  DocumentOriginKind,
+  DocumentIngestionStatus,
+  ManagedResourceStatus,
+} from '@prisma/client';
 
 import {
   asKnowledgeMetadata,
   buildStructuralKnowledgeSummary,
 } from './document-knowledge-claims';
+import {
+  composeActiveCorpusByLayer,
+  resolveDocumentCorpusLayers,
+  resolveDocumentCorpusRole,
+} from './document-corpus';
 import { DocumentExtractionProfileConfigService } from './document-extraction-profile-config.service';
 import {
   documentExtractionProfileIds,
@@ -11,9 +21,13 @@ import {
 } from './document-extraction-profile.types';
 import {
   DocumentKnowledgeClaimView,
+  DocumentCorpusRole,
   DocumentKnowledgeEntityView,
   DocumentKnowledgeExtractionScope,
+  DocumentKnowledgeLayer,
+  DocumentKnowledgeMetadataView,
   DocumentKnowledgeProvenance,
+  DocumentKnowledgeScopedValue,
   DocumentKnowledgeSupportClass,
   DocumentKnowledgeView,
   DocumentKnowledgeViewScope,
@@ -29,7 +43,10 @@ type DocumentRecordLike = {
   language?: string | null;
   sourceName?: string | null;
   originKind: DocumentKnowledgeProvenance['originKind'];
-  updatedAt: Date;
+  metadata?: unknown;
+  corpusRole?: DocumentCorpusRole;
+  corpusLayers?: DocumentKnowledgeLayer[];
+  updatedAt: Date | string;
 };
 
 type ChunkWithKnowledgeLike = Awaited<
@@ -40,8 +57,25 @@ type DocumentKnowledgeItemLike = ChunkWithKnowledgeLike['knowledgeItems'][number
 
 type MutableClaimGroup = {
   axis: string;
+  facet?: string;
+  layer: 'factual';
   supportClass: DocumentKnowledgeSupportClass;
   extractionScope?: DocumentKnowledgeExtractionScope;
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo: DocumentKnowledgeScopedValue[];
+  values: Set<string>;
+  unspecifiedAxes: Set<string>;
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+type MutableMetadataGroup = {
+  axis: string;
+  facet?: string;
+  layer: 'prudence' | 'workflow' | 'guidance';
+  supportClass: DocumentKnowledgeSupportClass;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo: DocumentKnowledgeScopedValue[];
   values: Set<string>;
   unspecifiedAxes: Set<string>;
   provenance: DocumentKnowledgeProvenance[];
@@ -93,10 +127,24 @@ export class DocumentKnowledgeViewService {
       });
     }
 
-    const chunks = await this.documentChunkRepository.listActiveReadyChunks(
+    const allActiveChunks = await this.documentChunkRepository.listActiveReadyChunks(
       input?.limit ?? 500,
     );
-    const documents = dedupeDocuments(chunks.map((chunk) => chunk.document));
+    const composition = composeActiveCorpusByLayer(allActiveChunks);
+    const chunks = composition.chunks;
+    const documents = composition.documents.map((document) => ({
+      ...document,
+      status:
+        (document.status as ManagedResourceStatus | undefined) ??
+        ManagedResourceStatus.ACTIVE,
+      ingestionStatus:
+        (document.ingestionStatus as DocumentIngestionStatus | undefined) ??
+        DocumentIngestionStatus.READY,
+      originKind:
+        (document.originKind as DocumentOriginKind | undefined) ??
+        DocumentOriginKind.TEXT,
+      updatedAt: document.updatedAt ?? new Date(0),
+    }));
     const profileViews = await this.resolveProfileViews({
       chunks,
     });
@@ -120,6 +168,7 @@ export class DocumentKnowledgeViewService {
     >;
   }): DocumentKnowledgeView {
     const claimGroups = new Map<string, MutableClaimGroup>();
+    const metadataGroups = new Map<string, MutableMetadataGroup>();
     const entityGroups = new Map<string, MutableEntityGroup>();
     const supportedAxes = new Set<string>();
     const unspecifiedAxes = new Set<string>();
@@ -159,23 +208,54 @@ export class DocumentKnowledgeViewService {
         const metadata = asKnowledgeMetadata(item.metadata);
 
         if (normalizeKnowledgeItemKind(item.kind) === 'claim' && metadata?.claim) {
-          claimCount += 1;
           supportedAxes.add(metadata.claim.axis);
           for (const axis of metadata.unspecifiedAxes ?? []) {
             unspecifiedAxes.add(axis);
           }
 
-          const key = [
-            metadata.claim.axis,
-            normalizeSupportClass(item.supportClass),
-            metadata.extractionScope ?? '',
-            metadata.claim.values.join('|'),
-            (metadata.unspecifiedAxes ?? []).join('|'),
-          ].join('::');
-          const existing = claimGroups.get(key) ?? {
+          const layer = metadata.claim.layer ?? 'factual';
+          const supportClass = normalizeSupportClass(item.supportClass);
+          const key = buildKnowledgeGroupKey({
             axis: metadata.claim.axis,
-            supportClass: normalizeSupportClass(item.supportClass),
+            facet: metadata.claim.facet,
+            layer,
+            supportClass,
             extractionScope: metadata.extractionScope,
+            values: metadata.claim.values,
+            unspecifiedAxes: metadata.unspecifiedAxes ?? [],
+            subject: metadata.claim.subject,
+            appliesTo: metadata.claim.appliesTo ?? [],
+          });
+
+          if (layer === 'factual') {
+            claimCount += 1;
+            const existing = claimGroups.get(key) ?? {
+              axis: metadata.claim.axis,
+              facet: metadata.claim.facet,
+              layer: 'factual',
+              supportClass,
+              extractionScope: metadata.extractionScope,
+              subject: metadata.claim.subject,
+              appliesTo: metadata.claim.appliesTo ?? [],
+              values: new Set<string>(),
+              unspecifiedAxes: new Set<string>(metadata.unspecifiedAxes ?? []),
+              provenance: [],
+            };
+
+            metadata.claim.values.forEach((value) => existing.values.add(value));
+            pushProvenance(existing.provenance, provenance);
+            claimGroups.set(key, existing);
+            continue;
+          }
+
+          const existing = metadataGroups.get(key) ?? {
+            axis: metadata.claim.axis,
+            facet: metadata.claim.facet,
+            layer,
+            supportClass,
+            extractionScope: metadata.extractionScope,
+            subject: metadata.claim.subject,
+            appliesTo: metadata.claim.appliesTo ?? [],
             values: new Set<string>(),
             unspecifiedAxes: new Set<string>(metadata.unspecifiedAxes ?? []),
             provenance: [],
@@ -183,7 +263,7 @@ export class DocumentKnowledgeViewService {
 
           metadata.claim.values.forEach((value) => existing.values.add(value));
           pushProvenance(existing.provenance, provenance);
-          claimGroups.set(key, existing);
+          metadataGroups.set(key, existing);
           continue;
         }
 
@@ -212,13 +292,34 @@ export class DocumentKnowledgeViewService {
     const claims = Array.from(claimGroups.values())
       .map<DocumentKnowledgeClaimView>((claim) => ({
         axis: claim.axis,
+        facet: claim.facet,
+        layer: 'factual',
         supportClass: claim.supportClass,
         extractionScope: claim.extractionScope,
+        subject: claim.subject,
+        appliesTo: claim.appliesTo,
         values: Array.from(claim.values.values()),
         unspecifiedAxes: Array.from(claim.unspecifiedAxes.values()),
         provenance: sortProvenance(claim.provenance),
       }))
       .sort(compareClaims);
+    const metadataNotes = Array.from(metadataGroups.values())
+      .map<DocumentKnowledgeMetadataView>((note) => ({
+        axis: note.axis,
+        facet: note.facet,
+        layer: note.layer,
+        supportClass: note.supportClass,
+        extractionScope: note.extractionScope,
+        subject: note.subject,
+        appliesTo: note.appliesTo,
+        values: Array.from(note.values.values()),
+        unspecifiedAxes: Array.from(note.unspecifiedAxes.values()),
+        provenance: sortProvenance(note.provenance),
+      }))
+      .sort(compareMetadataNotes);
+    const prudenceNotes = metadataNotes.filter((note) => note.layer === 'prudence');
+    const workflowNotes = metadataNotes.filter((note) => note.layer === 'workflow');
+    const guidanceNotes = metadataNotes.filter((note) => note.layer === 'guidance');
     const entities = Array.from(entityGroups.values())
       .map<DocumentKnowledgeEntityView>((entity) => ({
         label: entity.label,
@@ -238,7 +339,17 @@ export class DocumentKnowledgeViewService {
         ingestionStatus: document.ingestionStatus,
         language: document.language,
         sourceName: document.sourceName,
-        updatedAt: document.updatedAt.toISOString(),
+        corpusRole:
+          document.corpusRole ??
+          resolveDocumentCorpusRole({
+            document,
+          }),
+        corpusLayers:
+          document.corpusLayers ??
+          resolveDocumentCorpusLayers({
+            document,
+          }),
+        updatedAt: new Date(document.updatedAt).toISOString(),
       })),
       counts: {
         documentCount: input.documents.length,
@@ -254,6 +365,9 @@ export class DocumentKnowledgeViewService {
       extractionProfiles: input.extractionProfiles,
       overviewLines: buildOverviewLines(claims, input.documents[0]?.language),
       claims,
+      prudenceNotes,
+      workflowNotes,
+      guidanceNotes,
       entities,
     };
   }
@@ -324,10 +438,14 @@ function buildOverviewLines(
         claims: [
           {
             axis: claim.axis,
+            facet: claim.facet,
+            layer: 'factual',
             values: claim.values,
             supportClass: claim.supportClass,
             extractionScope: claim.extractionScope,
             unspecifiedAxes: claim.unspecifiedAxes,
+            subject: claim.subject,
+            appliesTo: claim.appliesTo,
           },
         ],
         limit: 1,
@@ -384,9 +502,18 @@ function compareClaims(
   left: DocumentKnowledgeClaimView,
   right: DocumentKnowledgeClaimView,
 ) {
-  return [left.axis, left.supportClass].join('::').localeCompare(
-    [right.axis, right.supportClass].join('::'),
-  );
+  return compareKnowledgeGroupLike(left, right);
+}
+
+function compareMetadataNotes(
+  left: DocumentKnowledgeMetadataView,
+  right: DocumentKnowledgeMetadataView,
+) {
+  if (left.layer !== right.layer) {
+    return left.layer.localeCompare(right.layer);
+  }
+
+  return compareKnowledgeGroupLike(left, right);
 }
 
 function pushProvenance(
@@ -487,4 +614,63 @@ function asRecord(value: unknown) {
   }
 
   return value as Record<string, unknown>;
+}
+
+function buildKnowledgeGroupKey(input: {
+  axis: string;
+  facet?: string;
+  layer: 'factual' | 'prudence' | 'workflow' | 'guidance';
+  supportClass: DocumentKnowledgeSupportClass;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  values: string[];
+  unspecifiedAxes: string[];
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo: DocumentKnowledgeScopedValue[];
+}) {
+  return [
+    input.axis,
+    input.facet ?? '',
+    input.layer,
+    input.supportClass,
+    input.extractionScope ?? '',
+    input.subject?.axis ?? '',
+    input.subject?.normalizedValue ?? input.subject?.value ?? '',
+    input.appliesTo
+      .map(
+        (scope) =>
+          `${scope.axis}:${scope.normalizedValue ?? scope.value}`,
+      )
+      .join('|'),
+    input.values.join('|'),
+    input.unspecifiedAxes.join('|'),
+  ].join('::');
+}
+
+function compareKnowledgeGroupLike(
+  left: Pick<
+    DocumentKnowledgeClaimView | DocumentKnowledgeMetadataView,
+    'axis' | 'facet' | 'supportClass' | 'subject' | 'appliesTo'
+  >,
+  right: Pick<
+    DocumentKnowledgeClaimView | DocumentKnowledgeMetadataView,
+    'axis' | 'facet' | 'supportClass' | 'subject' | 'appliesTo'
+  >,
+) {
+  return [
+    left.axis,
+    left.facet ?? '',
+    left.supportClass,
+    left.subject?.value ?? '',
+    left.appliesTo.map((scope) => `${scope.axis}:${scope.value}`).join('|'),
+  ]
+    .join('::')
+    .localeCompare(
+      [
+        right.axis,
+        right.facet ?? '',
+        right.supportClass,
+        right.subject?.value ?? '',
+        right.appliesTo.map((scope) => `${scope.axis}:${scope.value}`).join('|'),
+      ].join('::'),
+    );
 }

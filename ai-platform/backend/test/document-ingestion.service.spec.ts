@@ -22,16 +22,32 @@ describe('DocumentIngestionService', () => {
       replaceForDocument: jest.fn(async () => []),
     };
     const extractionService = {
-      buildChunkCandidates: jest.fn(() => [
-        {
-          sequence: 0,
-          content: 'Disponibles en PVC y aluminio.',
-          searchText: 'disponibles en pvc y aluminio',
-          retrievalProjection: 'cortinas enrollar materials pvc aluminio',
-          metadata: null,
-          structuredItems: [],
-        },
-      ]),
+      buildChunkCandidates: jest
+        .fn()
+        .mockImplementationOnce(() => [
+          {
+            sequence: 0,
+            content: 'Disponibles en PVC y aluminio.',
+            searchText: 'disponibles en pvc y aluminio',
+            retrievalProjection: 'cortinas enrollar materials pvc aluminio',
+            metadata: {
+              section: 'CORTINAS DE ENROLLAR',
+            },
+            structuredItems: [],
+          },
+        ])
+        .mockImplementationOnce(() => [
+          {
+            sequence: 0,
+            content: 'Disponibles en PVC y aluminio.',
+            searchText: 'disponibles en pvc y aluminio',
+            retrievalProjection: 'cortinas enrollar materials pvc aluminio',
+            metadata: {
+              section: 'CORTINAS DE ENROLLAR',
+            },
+            structuredItems: [],
+          },
+        ]),
     };
     const tenantCapabilityRegistry = {
       resolveForCurrentTenant: jest.fn(async () => ({
@@ -59,28 +75,33 @@ describe('DocumentIngestionService', () => {
       persistTenantDerivedHints: jest.fn(async () => null),
     };
     const bootstrapService = {
-      deriveHints: jest.fn(() => ({
-        approvedByUpload: true,
-        manualConfigRequired: false,
-        activeProfileIds: ['product_catalog'],
-        profiles: [
-          {
-            profileId: 'product_catalog',
-            hints: {
-              observedSections: ['CORTINAS DE ENROLLAR'],
-              observedAxes: ['materials'],
-              observedValuesByAxis: {
-                materials: ['PVC', 'aluminio'],
-              },
-              supportCounts: {
-                explicit: 1,
-                partial: 0,
-                boundedInference: 0,
+      deriveHints: jest
+        .fn()
+        .mockImplementation(() => ({
+          approvedByUpload: true,
+          manualConfigRequired: false,
+          activeProfileIds: ['product_catalog'],
+          profiles: [
+            {
+              profileId: 'product_catalog',
+              hints: {
+                observedSections: ['CORTINAS DE ENROLLAR'],
+                observedAxes: ['materials'],
+                observedValuesByAxis: {
+                  materials: ['PVC', 'aluminio'],
+                },
+                sectionAliasesByAxis: {
+                  materials: ['CORTINAS DE ENROLLAR'],
+                },
+                supportCounts: {
+                  explicit: 1,
+                  partial: 0,
+                  boundedInference: 0,
+                },
               },
             },
-          },
-        ],
-      })),
+          ],
+        })),
     };
     const service = new DocumentIngestionService(
       documentRepository as any,
@@ -102,7 +123,8 @@ describe('DocumentIngestionService', () => {
       createdBy: 'test',
     });
 
-    expect(extractionService.buildChunkCandidates).toHaveBeenCalledWith(
+    expect(extractionService.buildChunkCandidates).toHaveBeenNthCalledWith(
+      1,
       expect.objectContaining({
         extractionContext: expect.objectContaining({
           tenantId: 'tenant-alpha',
@@ -118,6 +140,30 @@ describe('DocumentIngestionService', () => {
         }),
       }),
     );
+    expect(extractionService.buildChunkCandidates).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        extractionContext: expect.objectContaining({
+          profileConfigHints: {
+            product_catalog: {
+              observedAxes: ['materials'],
+              observedSections: ['CORTINAS DE ENROLLAR'],
+              observedValuesByAxis: {
+                materials: ['PVC', 'aluminio'],
+              },
+              sectionAliasesByAxis: {
+                materials: ['CORTINAS DE ENROLLAR'],
+              },
+              supportCounts: {
+                explicit: 1,
+                partial: 0,
+                boundedInference: 0,
+              },
+            },
+          },
+        }),
+      }),
+    );
     expect(profileResolver.resolveProfileIds).toHaveBeenCalledWith(
       expect.objectContaining({
         tenantId: 'tenant-alpha',
@@ -128,7 +174,12 @@ describe('DocumentIngestionService', () => {
       profileIds: ['product_catalog'],
       locale: 'es',
     });
-    expect(bootstrapService.deriveHints).toHaveBeenCalledWith({
+    expect(bootstrapService.deriveHints).toHaveBeenCalledTimes(2);
+    expect(bootstrapService.deriveHints).toHaveBeenNthCalledWith(1, {
+      chunks: expect.any(Array),
+      activeProfileIds: ['product_catalog'],
+    });
+    expect(bootstrapService.deriveHints).toHaveBeenNthCalledWith(2, {
       chunks: expect.any(Array),
       activeProfileIds: ['product_catalog'],
     });

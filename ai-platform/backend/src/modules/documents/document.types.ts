@@ -35,9 +35,27 @@ export const ingestDocumentOptionsSchema = z.object({
   createdBy: z.string().min(1).max(120).optional(),
 });
 
+export const updateDocumentSchema = z
+  .object({
+    title: z.string().min(1).max(200).optional(),
+    content: z.string().min(1).max(50000).optional(),
+    language: z.string().max(16).nullable().optional(),
+    createdBy: z.string().min(1).max(120).optional(),
+  })
+  .refine(
+    (value) =>
+      value.title !== undefined ||
+      value.content !== undefined ||
+      value.language !== undefined,
+    {
+      message: 'At least one document field must be provided',
+    },
+  );
+
 export type CreateTextDocumentInput = z.infer<typeof createTextDocumentSchema>;
 export type CreateUrlDocumentInput = z.infer<typeof createUrlDocumentSchema>;
 export type IngestDocumentOptions = z.infer<typeof ingestDocumentOptionsSchema>;
+export type UpdateDocumentInput = z.infer<typeof updateDocumentSchema>;
 
 export type ExtractedDocumentSource = {
   originKind: DocumentOriginKind;
@@ -59,21 +77,52 @@ export type DocumentKnowledgeExtractionScope =
   | 'domain_profile'
   | 'tenant_only';
 
+export type DocumentKnowledgeLayer =
+  | 'factual'
+  | 'prudence'
+  | 'workflow'
+  | 'guidance';
+
+export type DocumentCorpusRole =
+  | 'mixed_master'
+  | 'factual_master'
+  | 'operational_guide'
+  | 'prudence_policy';
+
+export type DocumentKnowledgeScopedValue = {
+  axis: string;
+  value: string;
+  normalizedValue?: string;
+};
+
 export type DocumentSemanticBlock = {
   content: string;
   section?: string;
+  parentSection?: string;
   page?: number;
   sheet?: string;
 };
 
 export type DocumentKnowledgeClaimPayload = {
   axis: string;
-  kind: 'value_list' | 'qualifier' | 'relation_target';
+  facet?: string;
+  kind:
+    | 'value_list'
+    | 'qualifier'
+    | 'relation_target'
+    | 'relational_fact'
+    | 'coverage_gap'
+    | 'workflow_signal'
+    | 'guidance_signal';
+  layer?: DocumentKnowledgeLayer;
   values: string[];
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo?: DocumentKnowledgeScopedValue[];
 };
 
 export type DocumentKnowledgeItemMetadata = {
   section?: string;
+  parentSection?: string;
   page?: number;
   sheet?: string;
   extractionScope?: DocumentKnowledgeExtractionScope;
@@ -84,10 +133,26 @@ export type DocumentKnowledgeItemMetadata = {
 
 export type DocumentKnowledgeAxisSummary = {
   axis: string;
+  facet?: string;
   values: string[];
   supportClass: DocumentKnowledgeSupportClass;
+  layer?: DocumentKnowledgeLayer;
   extractionScope?: DocumentKnowledgeExtractionScope;
   unspecifiedAxes?: string[];
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo?: DocumentKnowledgeScopedValue[];
+};
+
+export type DocumentKnowledgeMetadataSummary = {
+  axis: string;
+  facet?: string;
+  values: string[];
+  supportClass: DocumentKnowledgeSupportClass;
+  layer: 'prudence' | 'workflow' | 'guidance';
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  unspecifiedAxes?: string[];
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo?: DocumentKnowledgeScopedValue[];
 };
 
 export type DocumentKnowledgeItemCandidate = {
@@ -126,6 +191,7 @@ export type DocumentRetrievalMatch = {
     supportedAxes: string[];
     unspecifiedAxes: string[];
     axisSummaries?: DocumentKnowledgeAxisSummary[];
+    metadataNotes?: DocumentKnowledgeMetadataSummary[];
   };
 };
 
@@ -165,8 +231,25 @@ export type DocumentKnowledgeProvenance = {
 
 export type DocumentKnowledgeClaimView = {
   axis: string;
+  facet?: string;
+  layer: 'factual';
   supportClass: DocumentKnowledgeSupportClass;
   extractionScope?: DocumentKnowledgeExtractionScope;
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo: DocumentKnowledgeScopedValue[];
+  values: string[];
+  unspecifiedAxes: string[];
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+export type DocumentKnowledgeMetadataView = {
+  axis: string;
+  facet?: string;
+  layer: 'prudence' | 'workflow' | 'guidance';
+  supportClass: DocumentKnowledgeSupportClass;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo: DocumentKnowledgeScopedValue[];
   values: string[];
   unspecifiedAxes: string[];
   provenance: DocumentKnowledgeProvenance[];
@@ -189,6 +272,8 @@ export type DocumentKnowledgeView = {
     ingestionStatus: DocumentIngestionStatus;
     language?: string | null;
     sourceName?: string | null;
+    corpusRole?: DocumentCorpusRole;
+    corpusLayers?: DocumentKnowledgeLayer[];
     updatedAt: string;
   }>;
   counts: {
@@ -220,5 +305,8 @@ export type DocumentKnowledgeView = {
   }>;
   overviewLines: string[];
   claims: DocumentKnowledgeClaimView[];
+  prudenceNotes: DocumentKnowledgeMetadataView[];
+  workflowNotes: DocumentKnowledgeMetadataView[];
+  guidanceNotes: DocumentKnowledgeMetadataView[];
   entities: DocumentKnowledgeEntityView[];
 };

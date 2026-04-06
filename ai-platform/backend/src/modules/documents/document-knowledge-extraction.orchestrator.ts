@@ -27,6 +27,12 @@ type SupportSummary = {
   unspecifiedAxes: string[];
 };
 
+type SemanticHeading = {
+  heading: string;
+  depth: number;
+  kind: 'numbered' | 'suffix' | 'uppercase';
+};
+
 @Injectable()
 export class DocumentKnowledgeExtractionOrchestrator {
   constructor(
@@ -56,6 +62,7 @@ export class DocumentKnowledgeExtractionOrchestrator {
         ...boundaryMetadata,
         characterLength: block.content.length,
         section: block.section,
+        parentSection: block.parentSection,
         page: block.page,
         sheet: block.sheet,
         originKind: input.originKind,
@@ -172,7 +179,7 @@ function buildSemanticBlocks(
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph.length > 0);
   const blocks: DocumentSemanticBlock[] = [];
-  let currentSection: string | undefined;
+  const headingStack: SemanticHeading[] = [];
   let currentPage: number | undefined;
   let currentSheet: string | undefined =
     Array.isArray(sourceMetadata?.sheetNames) &&
@@ -193,14 +200,40 @@ function buildSemanticBlocks(
     blocks.push({
       content,
       section: bufferMeta.section,
+      parentSection: bufferMeta.parentSection,
       page: bufferMeta.page,
       sheet: bufferMeta.sheet,
     });
     buffer = '';
+    bufferMeta = {};
+  };
+
+  const resolveCurrentHeadingMeta = () => {
+    const current = headingStack[headingStack.length - 1];
+    const parent = headingStack.length > 1 ? headingStack[headingStack.length - 2] : undefined;
+
+    return {
+      section: current?.heading,
+      parentSection: parent?.heading,
+    };
   };
 
   for (const paragraph of paragraphs) {
-    const pageMatch = paragraph.match(documentKnowledgeExtractionCatalog.patterns.page);
+    const normalizedParagraph = stripDividerLines(paragraph).trim();
+
+    if (!normalizedParagraph) {
+      continue;
+    }
+
+    const firstMeaningfulLine = getMeaningfulLines(paragraph)[0];
+
+    if (!firstMeaningfulLine) {
+      continue;
+    }
+
+    const pageMatch = firstMeaningfulLine.match(
+      documentKnowledgeExtractionCatalog.patterns.page,
+    );
 
     if (pageMatch?.[1]) {
       flushBuffer();
@@ -208,28 +241,75 @@ function buildSemanticBlocks(
       continue;
     }
 
-    const sheetMatch = paragraph.match(
+    const sheetMatch = firstMeaningfulLine.match(
       documentKnowledgeExtractionCatalog.patterns.sheet,
     );
 
     if (sheetMatch?.[1]) {
       flushBuffer();
       currentSheet = sheetMatch[1].trim();
-      currentSection = currentSheet;
+      headingStack.splice(0, headingStack.length, {
+        heading: currentSheet,
+        depth: 1,
+        kind: 'uppercase',
+      });
       continue;
     }
 
-    const heading = resolveSemanticHeading(paragraph);
+    const heading = resolveSemanticHeading(
+      paragraph,
+      headingStack[headingStack.length - 1],
+    );
 
-    if (heading && paragraph.length <= 120) {
+    if (heading) {
+      const paragraphBody = removeHeadingLead(paragraph, heading.heading);
+
       flushBuffer();
-      currentSection = heading;
+      headingStack.splice(heading.depth - 1);
+      headingStack.push(heading);
+      const currentHeadingMeta = resolveCurrentHeadingMeta();
+
+      if (!paragraphBody) {
+        continue;
+      }
+
+      const nextMeta = {
+        section: currentHeadingMeta.section,
+        parentSection:
+          currentHeadingMeta.parentSection &&
+          currentHeadingMeta.parentSection !== currentHeadingMeta.section
+            ? currentHeadingMeta.parentSection
+            : undefined,
+        page: currentPage,
+        sheet: currentSheet,
+      };
+
+      if (paragraphBody.length <= 900) {
+        buffer = paragraphBody;
+        bufferMeta = nextMeta;
+        continue;
+      }
+
+      for (const sentenceChunk of splitOversizedParagraph(paragraphBody)) {
+        blocks.push({
+          content: sentenceChunk,
+          ...nextMeta,
+        });
+      }
+
       continue;
     }
 
-    const nextCandidate = buffer.length > 0 ? `${buffer}\n\n${paragraph}` : paragraph;
+    const currentHeadingMeta = resolveCurrentHeadingMeta();
+    const nextCandidate =
+      buffer.length > 0 ? `${buffer}\n\n${normalizedParagraph}` : normalizedParagraph;
     const nextMeta = {
-      section: currentSection,
+      section: currentHeadingMeta.section,
+      parentSection:
+        currentHeadingMeta.parentSection &&
+        currentHeadingMeta.parentSection !== currentHeadingMeta.section
+          ? currentHeadingMeta.parentSection
+          : undefined,
       page: currentPage,
       sheet: currentSheet,
     };
@@ -249,13 +329,13 @@ function buildSemanticBlocks(
       flushBuffer();
     }
 
-    if (paragraph.length <= 900) {
-      buffer = paragraph;
+    if (normalizedParagraph.length <= 900) {
+      buffer = normalizedParagraph;
       bufferMeta = nextMeta;
       continue;
     }
 
-    for (const sentenceChunk of splitOversizedParagraph(paragraph)) {
+    for (const sentenceChunk of splitOversizedParagraph(normalizedParagraph)) {
       blocks.push({
         content: sentenceChunk,
         ...nextMeta,
@@ -271,6 +351,7 @@ function buildSemanticBlocks(
 function buildSupportMetadata(block: DocumentSemanticBlock) {
   return cleanDocumentKnowledgeRecord({
     section: block.section,
+    parentSection: block.parentSection,
     page: block.page,
     sheet: block.sheet,
   }) ?? {};
@@ -291,6 +372,10 @@ function buildRetrievalProjection(input: {
 }
 
 function resolveSupportTopic(block: DocumentSemanticBlock) {
+  if (block.parentSection && block.section) {
+    return `${block.parentSection} / ${block.section}`;
+  }
+
   if (block.section) {
     return block.section;
   }
@@ -300,29 +385,98 @@ function resolveSupportTopic(block: DocumentSemanticBlock) {
   return firstSentence.slice(0, 120).trim();
 }
 
-function resolveSemanticHeading(paragraph: string) {
-  const firstLine = paragraph
-    .split('\n')
-    .map((line) => line.trim())
-    .find(Boolean);
+function resolveSemanticHeading(
+  paragraph: string,
+  currentHeading?: SemanticHeading,
+) {
+  const firstLine = getMeaningfulLines(paragraph)[0];
 
   if (!firstLine) {
     return undefined;
   }
 
+  if (/^\d+(?:\.\d+)*\.?\s+\S+/u.test(firstLine) && firstLine.length <= 120) {
+    return {
+      heading: firstLine.trim(),
+      depth: resolveNumberedHeadingDepth(firstLine),
+      kind: 'numbered',
+    } satisfies SemanticHeading;
+  }
+
   if (documentKnowledgeExtractionCatalog.patterns.headingSuffix.test(firstLine)) {
-    return firstLine.replace(/:$/u, '').trim();
+    const parentDepth = currentHeading?.depth ?? 0;
+    const depth =
+      currentHeading?.kind === 'suffix' ? Math.max(1, parentDepth) : Math.max(1, parentDepth + 1);
+
+    return {
+      heading: firstLine.replace(/:$/u, '').trim(),
+      depth,
+      kind: 'suffix',
+    } satisfies SemanticHeading;
   }
 
   if (
     firstLine.length <= 80 &&
     documentKnowledgeExtractionCatalog.patterns.headingUppercase.test(firstLine) &&
+    !documentKnowledgeExtractionCatalog.patterns.divider.test(firstLine) &&
     firstLine.split(/\s+/u).length <= 8
   ) {
-    return firstLine.trim();
+    return {
+      heading: firstLine.trim(),
+      depth: 1,
+      kind: 'uppercase',
+    } satisfies SemanticHeading;
   }
 
   return undefined;
+}
+
+function removeHeadingLead(paragraph: string, heading: string) {
+  const lines = paragraph
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line.length > 0 &&
+        !documentKnowledgeExtractionCatalog.patterns.divider.test(line),
+    );
+
+  const firstLine = lines[0]?.replace(/:$/u, '').trim();
+
+  if (firstLine !== heading) {
+    return '';
+  }
+
+  return lines.slice(1).join('\n').trim();
+}
+
+function getMeaningfulLines(paragraph: string) {
+  return paragraph
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(
+      (line) =>
+        line.length > 0 &&
+        !documentKnowledgeExtractionCatalog.patterns.divider.test(line),
+    );
+}
+
+function stripDividerLines(paragraph: string) {
+  return paragraph
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => !documentKnowledgeExtractionCatalog.patterns.divider.test(line))
+    .join('\n');
+}
+
+function resolveNumberedHeadingDepth(value: string) {
+  const match = value.match(/^(\d+(?:\.\d+)*)\.?\s+/u);
+
+  if (!match?.[1]) {
+    return 1;
+  }
+
+  return match[1].split('.').length;
 }
 
 function splitOversizedParagraph(paragraph: string) {
