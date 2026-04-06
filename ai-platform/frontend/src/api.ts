@@ -431,6 +431,31 @@ export async function createTextDocument(input: {
   });
 }
 
+export async function createUrlDocument(input: {
+  url: string;
+  title?: string;
+  language?: string;
+  createdBy?: string;
+  activate?: boolean;
+}) {
+  return apiRequest<DocumentRecord>('/admin/documents/url', {
+    method: 'POST',
+    body: input,
+  });
+}
+
+export async function updateDocument(documentId: string, input: {
+  title?: string;
+  content?: string;
+  language?: string | null;
+  createdBy?: string;
+}) {
+  return apiRequest<DocumentRecord>(`/admin/documents/${documentId}`, {
+    method: 'PATCH',
+    body: input,
+  });
+}
+
 export async function uploadDocument(input: {
   file: File;
   title?: string;

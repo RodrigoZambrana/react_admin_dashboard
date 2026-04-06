@@ -3,9 +3,11 @@ import {
   DocumentIngestionStatus,
   DocumentOriginKind,
   ManagedResourceStatus,
+  Prisma,
 } from '@prisma/client';
 
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
+import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
 import { DocumentRepository } from '../persistence/repositories/document.repository';
 import {
   CreateUrlDocumentInput,
@@ -15,8 +17,11 @@ import {
   ExtractedDocumentSource,
   ingestDocumentOptionsSchema,
   IngestDocumentOptions,
+  updateDocumentSchema,
+  UpdateDocumentInput,
 } from './document.types';
 import { DocumentContentExtractorService } from './document-content-extractor.service';
+import { DocumentExtractionProfileConfigService } from './document-extraction-profile-config.service';
 import { DocumentIngestionService } from './document-ingestion.service';
 import { DocumentKnowledgeViewService } from './document-knowledge-view.service';
 
@@ -24,9 +29,11 @@ import { DocumentKnowledgeViewService } from './document-knowledge-view.service'
 export class DocumentService {
   constructor(
     private readonly documentRepository: DocumentRepository,
+    private readonly documentChunkRepository: DocumentChunkRepository,
     private readonly contentExtractor: DocumentContentExtractorService,
     private readonly documentIngestionService: DocumentIngestionService,
     private readonly documentKnowledgeViewService: DocumentKnowledgeViewService,
+    private readonly documentExtractionProfileConfigService: DocumentExtractionProfileConfigService,
     private readonly logger: PipelineLoggerService,
   ) {}
 
@@ -129,6 +136,58 @@ export class DocumentService {
     });
   }
 
+  async updateDocument(documentId: string, input: UpdateDocumentInput) {
+    const parsed = updateDocumentSchema.parse(input);
+    const existing = await this.getDocument(documentId);
+    const title =
+      parsed.title !== undefined ? parsed.title.trim() : undefined;
+    const content =
+      parsed.content !== undefined ? parsed.content.trim() : undefined;
+    const language =
+      parsed.language !== undefined ? normalizeLanguage(parsed.language) : undefined;
+    const sourceChanged =
+      content !== undefined && content !== existing.sourceText;
+    const languageChanged =
+      language !== undefined && (language ?? null) !== (existing.language ?? null);
+    const invalidateIngestion = sourceChanged || languageChanged;
+
+    const updated = await this.documentRepository.update({
+      documentId,
+      ...(title !== undefined ? { title } : {}),
+      ...(content !== undefined ? { sourceText: content } : {}),
+      ...(language !== undefined ? { language } : {}),
+      metadata: this.buildUpdatedMetadata({
+        existing: this.asRecord(existing.metadata),
+        editedBy: parsed.createdBy ?? 'admin-ui',
+        invalidateIngestion,
+      }),
+      invalidateIngestion,
+      nextStatus:
+        existing.status === ManagedResourceStatus.ARCHIVED
+          ? ManagedResourceStatus.ARCHIVED
+          : ManagedResourceStatus.DRAFT,
+    });
+
+    if (invalidateIngestion) {
+      await this.documentChunkRepository.clearForDocument(documentId);
+      await this.documentExtractionProfileConfigService.clearTenantDerivedHints(
+        documentId,
+      );
+    }
+
+    this.logger.log(
+      JSON.stringify({
+        stage: 'document.updated',
+        documentId,
+        invalidateIngestion,
+        status: updated.status,
+        ingestionStatus: updated.ingestionStatus,
+      }),
+    );
+
+    return updated;
+  }
+
   async activateDocument(documentId: string) {
     const document = await this.getDocument(documentId);
 
@@ -165,6 +224,25 @@ export class DocumentService {
     return archived;
   }
 
+  async deleteDocument(documentId: string) {
+    const document = await this.getDocument(documentId);
+
+    await this.documentRepository.delete(documentId);
+
+    this.logger.log(
+      JSON.stringify({
+        stage: 'document.deleted',
+        documentId,
+        status: document.status,
+      }),
+    );
+
+    return {
+      deleted: true,
+      documentId,
+    };
+  }
+
   private async createAndIngest(input: {
     title: string;
     extractedSource: ExtractedDocumentSource;
@@ -193,6 +271,38 @@ export class DocumentService {
       createdBy: input.createdBy,
     });
   }
+
+  private buildUpdatedMetadata(input: {
+    existing?: Record<string, unknown>;
+    editedBy: string;
+    invalidateIngestion: boolean;
+  }): Prisma.InputJsonObject {
+    const nextMetadata: Record<string, unknown> = {
+      ...(input.existing ?? {}),
+      lastEditedBy: input.editedBy,
+      lastEditedAt: new Date().toISOString(),
+    };
+
+    if (input.invalidateIngestion) {
+      delete nextMetadata.extractionBootstrap;
+      delete nextMetadata.lastIngestedBy;
+    }
+
+    return nextMetadata as Prisma.InputJsonObject;
+  }
+
+  private asRecord(value: unknown) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return undefined;
+    }
+
+    return value as Record<string, unknown>;
+  }
+}
+
+function normalizeLanguage(value: string | null) {
+  const normalized = value?.trim();
+  return normalized ? normalized : null;
 }
 
 function deriveDocumentTitle(fileName: string) {

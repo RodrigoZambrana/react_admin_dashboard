@@ -28,6 +28,18 @@ export class AdminDocumentsService {
     return this.documentService.getDocument(documentId);
   }
 
+  updateDocument(
+    documentId: string,
+    input: {
+      title?: string;
+      content?: string;
+      language?: string | null;
+      createdBy?: string;
+    },
+  ) {
+    return this.documentService.updateDocument(documentId, input);
+  }
+
   getKnowledgeView(input?: { documentId?: string; limit?: number }) {
     return this.documentService.getKnowledgeView(input);
   }
@@ -85,6 +97,10 @@ export class AdminDocumentsService {
 
   archiveDocument(documentId: string) {
     return this.documentService.archiveDocument(documentId);
+  }
+
+  deleteDocument(documentId: string) {
+    return this.documentService.deleteDocument(documentId);
   }
 
   private parseStatus(value: string) {

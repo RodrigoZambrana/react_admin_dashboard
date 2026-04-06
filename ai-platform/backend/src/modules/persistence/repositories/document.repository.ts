@@ -21,6 +21,16 @@ type CreateDocumentRecordInput = {
   metadata?: Prisma.InputJsonValue | null;
 };
 
+type UpdateDocumentRecordInput = {
+  documentId: string;
+  title?: string;
+  sourceText?: string;
+  language?: string | null;
+  metadata?: Prisma.InputJsonValue | null;
+  invalidateIngestion?: boolean;
+  nextStatus?: ManagedResourceStatus;
+};
+
 @Injectable()
 export class DocumentRepository {
   constructor(
@@ -119,6 +129,37 @@ export class DocumentRepository {
     return this.findByIdOrThrow(documentId);
   }
 
+  async update(input: UpdateDocumentRecordInput) {
+    const data: Prisma.DocumentRecordUpdateManyMutationInput = {
+      ...(input.title !== undefined ? { title: input.title } : {}),
+      ...(input.sourceText !== undefined ? { sourceText: input.sourceText } : {}),
+      ...(input.language !== undefined ? { language: input.language } : {}),
+      ...(input.metadata !== undefined
+        ? {
+            metadata: this.toJsonValue(input.metadata),
+          }
+        : {}),
+    };
+
+    if (input.invalidateIngestion) {
+      data.ingestionStatus = DocumentIngestionStatus.PENDING;
+      data.status = input.nextStatus ?? ManagedResourceStatus.DRAFT;
+      data.summary = null;
+      data.chunkCount = 0;
+      data.lastIngestedAt = null;
+      data.lastError = null;
+    }
+
+    await this.prisma.documentRecord.updateMany({
+      where: {
+        id: input.documentId,
+      },
+      data,
+    });
+
+    return this.findByIdOrThrow(input.documentId);
+  }
+
   async markReady(input: {
     documentId: string;
     summary: string;
@@ -182,6 +223,14 @@ export class DocumentRepository {
     });
 
     return this.findByIdOrThrow(documentId);
+  }
+
+  async delete(documentId: string) {
+    return this.prisma.documentRecord.deleteMany({
+      where: {
+        id: documentId,
+      },
+    });
   }
 
   private async findByIdOrThrow(documentId: string) {

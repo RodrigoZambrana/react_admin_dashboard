@@ -7,12 +7,14 @@ describe('AdminDocumentsService', () => {
     const documentService = {
       listDocuments: jest.fn(async () => [{ id: 'doc-1' }]),
       getDocument: jest.fn(async () => ({ id: 'doc-1' })),
+      updateDocument: jest.fn(async () => ({ id: 'doc-1', title: 'Updated' })),
       getKnowledgeView: jest.fn(async () => ({ scope: 'active_corpus' })),
       createTextDocument: jest.fn(async () => ({ id: 'doc-text' })),
       createUploadedDocument: jest.fn(async () => ({ id: 'doc-upload' })),
       ingestDocument: jest.fn(async () => ({ id: 'doc-ingested' })),
       activateDocument: jest.fn(async () => ({ id: 'doc-active' })),
       archiveDocument: jest.fn(async () => ({ id: 'doc-archived' })),
+      deleteDocument: jest.fn(async () => ({ deleted: true, documentId: 'doc-1' })),
     };
     const service = new AdminDocumentsService(documentService as any);
 
@@ -30,6 +32,14 @@ describe('AdminDocumentsService', () => {
     });
 
     await expect(service.getDocument('doc-1')).resolves.toEqual({ id: 'doc-1' });
+    await expect(
+      service.updateDocument('doc-1', {
+        title: 'Updated',
+      }),
+    ).resolves.toEqual({ id: 'doc-1', title: 'Updated' });
+    expect(documentService.updateDocument).toHaveBeenCalledWith('doc-1', {
+      title: 'Updated',
+    });
     await expect(
       service.getKnowledgeView({
         documentId: 'doc-1',
@@ -67,6 +77,10 @@ describe('AdminDocumentsService', () => {
     });
     await expect(service.archiveDocument('doc-1')).resolves.toEqual({
       id: 'doc-archived',
+    });
+    await expect(service.deleteDocument('doc-1')).resolves.toEqual({
+      deleted: true,
+      documentId: 'doc-1',
     });
   });
 

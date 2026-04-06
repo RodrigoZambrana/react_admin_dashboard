@@ -115,6 +115,14 @@ export class DocumentExtractionProfileConfigRepository {
       ],
     });
   }
+
+  clearByDocument(documentId: string) {
+    return this.prisma.documentExtractionProfileConfigRecord.deleteMany({
+      where: {
+        documentId,
+      },
+    });
+  }
 }
 
 function toJsonValue(

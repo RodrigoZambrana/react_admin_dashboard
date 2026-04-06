@@ -292,10 +292,31 @@ export type DocumentKnowledgeProvenance = {
   evidenceTextSpan: string;
 };
 
+export type DocumentKnowledgeScopedValue = {
+  axis: string;
+  value: string;
+  normalizedValue?: string;
+};
+
 export type DocumentKnowledgeClaimView = {
   axis: string;
+  layer: 'factual';
   supportClass: 'explicit_fact' | 'partial_fact' | 'bounded_inference';
   extractionScope?: 'core_universal' | 'domain_profile' | 'tenant_only';
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo: DocumentKnowledgeScopedValue[];
+  values: string[];
+  unspecifiedAxes: string[];
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+export type DocumentKnowledgeMetadataView = {
+  axis: string;
+  layer: 'prudence' | 'workflow' | 'guidance';
+  supportClass: 'explicit_fact' | 'partial_fact' | 'bounded_inference';
+  extractionScope?: 'core_universal' | 'domain_profile' | 'tenant_only';
+  subject?: DocumentKnowledgeScopedValue;
+  appliesTo: DocumentKnowledgeScopedValue[];
   values: string[];
   unspecifiedAxes: string[];
   provenance: DocumentKnowledgeProvenance[];
@@ -358,6 +379,9 @@ export type DocumentKnowledgeView = {
   }>;
   overviewLines: string[];
   claims: DocumentKnowledgeClaimView[];
+  prudenceNotes: DocumentKnowledgeMetadataView[];
+  workflowNotes: DocumentKnowledgeMetadataView[];
+  guidanceNotes: DocumentKnowledgeMetadataView[];
   entities: DocumentKnowledgeEntityView[];
 };
 

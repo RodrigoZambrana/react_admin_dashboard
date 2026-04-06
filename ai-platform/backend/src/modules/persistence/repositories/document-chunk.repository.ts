@@ -113,6 +113,14 @@ export class DocumentChunkRepository {
     return this.listByDocumentId(input.documentId);
   }
 
+  clearForDocument(documentId: string) {
+    return this.prisma.documentChunk.deleteMany({
+      where: {
+        documentId,
+      },
+    });
+  }
+
   listByDocumentId(documentId: string) {
     return this.prisma.documentChunk.findMany({
       where: {

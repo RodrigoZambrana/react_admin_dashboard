@@ -2,7 +2,9 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
+  Patch,
   Param,
   Post,
   Query,
@@ -16,6 +18,7 @@ import { ActivateManagedResourceVersionDto } from './dto/activate-managed-resour
 import { CreateTextDocumentDto } from './dto/create-text-document.dto';
 import { CreateUrlDocumentDto } from './dto/create-url-document.dto';
 import { IngestDocumentDto } from './dto/ingest-document.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
 import { UploadDocumentDto } from './dto/upload-document.dto';
 
 @Controller('admin/documents')
@@ -49,6 +52,14 @@ export class AdminDocumentsController {
   @Get(':documentId')
   getDocument(@Param('documentId') documentId: string) {
     return this.adminDocumentsService.getDocument(documentId);
+  }
+
+  @Patch(':documentId')
+  updateDocument(
+    @Param('documentId') documentId: string,
+    @Body() body: UpdateDocumentDto,
+  ) {
+    return this.adminDocumentsService.updateDocument(documentId, body);
   }
 
   @Post('text')
@@ -121,6 +132,11 @@ export class AdminDocumentsController {
     @Body() _body: ActivateManagedResourceVersionDto,
   ) {
     return this.adminDocumentsService.archiveDocument(documentId);
+  }
+
+  @Delete(':documentId')
+  deleteDocument(@Param('documentId') documentId: string) {
+    return this.adminDocumentsService.deleteDocument(documentId);
   }
 }
 

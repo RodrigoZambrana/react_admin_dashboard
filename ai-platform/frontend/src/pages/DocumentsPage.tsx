@@ -1,13 +1,15 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, MouseEvent, useEffect, useMemo, useState } from 'react';
 
 import {
   activateDocument,
   archiveDocument,
   createTextDocument,
+  createUrlDocument,
   getDocument,
   getDocumentKnowledgeView,
   ingestDocument,
   listDocuments,
+  updateDocument,
   uploadDocument,
 } from '../api';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -27,11 +29,37 @@ type TextDocumentForm = {
   activate: boolean;
 };
 
+type UrlDocumentForm = {
+  url: string;
+  title: string;
+  language: string;
+  activate: boolean;
+};
+
+type EditDocumentForm = {
+  title: string;
+  content: string;
+  language: string;
+};
+
 const initialTextForm: TextDocumentForm = {
   title: '',
   content: '',
   language: 'es',
   activate: true,
+};
+
+const initialUrlForm: UrlDocumentForm = {
+  url: '',
+  title: '',
+  language: 'es',
+  activate: true,
+};
+
+const initialEditForm: EditDocumentForm = {
+  title: '',
+  content: '',
+  language: '',
 };
 
 export function DocumentsPage() {
@@ -47,6 +75,8 @@ export function DocumentsPage() {
   const [ingestionFilter, setIngestionFilter] =
     useState<(typeof ingestionStatuses)[number]>('ALL');
   const [textForm, setTextForm] = useState<TextDocumentForm>(initialTextForm);
+  const [urlForm, setUrlForm] = useState<UrlDocumentForm>(initialUrlForm);
+  const [editForm, setEditForm] = useState<EditDocumentForm>(initialEditForm);
   const [uploadTitle, setUploadTitle] = useState('');
   const [uploadLanguage, setUploadLanguage] = useState('es');
   const [uploadActivate, setUploadActivate] = useState(true);
@@ -60,6 +90,19 @@ export function DocumentsPage() {
   useEffect(() => {
     void refresh();
   }, [statusFilter, ingestionFilter]);
+
+  useEffect(() => {
+    if (!selectedDocument) {
+      setEditForm(initialEditForm);
+      return;
+    }
+
+    setEditForm({
+      title: selectedDocument.title,
+      content: selectedDocument.sourceText,
+      language: selectedDocument.language ?? '',
+    });
+  }, [selectedDocument]);
 
   const summary = useMemo(() => {
     const activeReady = documents.filter(
@@ -198,6 +241,68 @@ export function DocumentsPage() {
     }
   };
 
+  const handleCreateUrlDocument = async (event: FormEvent) => {
+    event.preventDefault();
+
+    try {
+      setSaving(true);
+      setError(null);
+      setNotice(null);
+      const created = await createUrlDocument({
+        url: urlForm.url,
+        title: urlForm.title || undefined,
+        language: urlForm.language,
+        activate: urlForm.activate,
+        createdBy: 'admin-ui',
+      });
+      setNotice(
+        `URL document "${created.title}" processed as ${created.ingestionStatus.toLowerCase()}.`,
+      );
+      setUrlForm(initialUrlForm);
+      await refresh(created.id);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveDocument = async (reingestAfterSave = false) => {
+    if (!selectedDocument) {
+      return;
+    }
+
+    try {
+      setSaving(true);
+      setError(null);
+      setNotice(null);
+
+      const updated = await updateDocument(selectedDocument.id, {
+        title: editForm.title,
+        content: editForm.content,
+        language: editForm.language.trim() || null,
+        createdBy: 'admin-ui',
+      });
+      const finalDocument = reingestAfterSave
+        ? await ingestDocument(updated.id, {
+            activate: selectedDocument.status === 'ACTIVE',
+            createdBy: 'admin-ui',
+          })
+        : updated;
+
+      setNotice(
+        reingestAfterSave
+          ? `Document "${finalDocument.title}" saved and force re-ingested.`
+          : `Document "${finalDocument.title}" saved.`,
+      );
+      await refresh(finalDocument.id);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleLifecycleAction = async (
     documentId: string,
     action: 'ingest' | 'activate' | 'archive',
@@ -226,6 +331,15 @@ export function DocumentsPage() {
     } finally {
       setActionDocumentId(undefined);
     }
+  };
+
+  const handleInventoryAction = async (
+    event: MouseEvent<HTMLButtonElement>,
+    documentId: string,
+    action: 'ingest' | 'activate' | 'archive',
+  ) => {
+    event.stopPropagation();
+    await handleLifecycleAction(documentId, action);
   };
 
   return (
@@ -388,6 +502,7 @@ export function DocumentsPage() {
                         <th>Lifecycle</th>
                         <th>Ingestion</th>
                         <th>Updated</th>
+                        <th className="text-end">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -419,6 +534,57 @@ export function DocumentsPage() {
                             </span>
                           </td>
                           <td>{formatDateTime(document.updatedAt)}</td>
+                          <td className="text-end">
+                            <div className="d-inline-flex gap-2">
+                              <button
+                                type="button"
+                                className="btn btn-light btn-sm"
+                                disabled={actionDocumentId === document.id}
+                                onClick={(event) =>
+                                  void handleInventoryAction(
+                                    event,
+                                    document.id,
+                                    'ingest',
+                                  )
+                                }
+                              >
+                                Force re-ingest
+                              </button>
+                              {document.status !== 'ACTIVE' &&
+                              document.ingestionStatus === 'READY' ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-dark btn-sm"
+                                  disabled={actionDocumentId === document.id}
+                                  onClick={(event) =>
+                                    void handleInventoryAction(
+                                      event,
+                                      document.id,
+                                      'activate',
+                                    )
+                                  }
+                                >
+                                  Activate
+                                </button>
+                              ) : null}
+                              {document.status !== 'ARCHIVED' ? (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-secondary btn-sm"
+                                  disabled={actionDocumentId === document.id}
+                                  onClick={(event) =>
+                                    void handleInventoryAction(
+                                      event,
+                                      document.id,
+                                      'archive',
+                                    )
+                                  }
+                                >
+                                  Archive
+                                </button>
+                              ) : null}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -443,7 +609,7 @@ export function DocumentsPage() {
                         void handleLifecycleAction(selectedDocument.id, 'ingest')
                       }
                     >
-                      Re-ingest
+                      Force re-ingest
                     </button>
                     {selectedDocument.status !== 'ACTIVE' &&
                     selectedDocument.ingestionStatus === 'READY' ? (
@@ -519,8 +685,63 @@ export function DocumentsPage() {
                     </div>
                   </div>
                   <div className="col-xl-7">
-                    <div className="react-rich-preview react-large-preview mb-3">
-                      {selectedDocument.sourceText}
+                    <div className="mb-3">
+                      <label className="form-label">Title</label>
+                      <input
+                        className="form-control"
+                        value={editForm.title}
+                        onChange={(event) =>
+                          setEditForm((current) => ({
+                            ...current,
+                            title: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Language</label>
+                      <input
+                        className="form-control"
+                        value={editForm.language}
+                        onChange={(event) =>
+                          setEditForm((current) => ({
+                            ...current,
+                            language: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="mb-3">
+                      <label className="form-label">Source text</label>
+                      <textarea
+                        className="form-control"
+                        rows={14}
+                        value={editForm.content}
+                        onChange={(event) =>
+                          setEditForm((current) => ({
+                            ...current,
+                            content: event.target.value,
+                          }))
+                        }
+                      />
+                    </div>
+                    <div className="d-flex flex-wrap gap-2 mb-3">
+                      <button
+                        className="btn btn-dark"
+                        type="button"
+                        disabled={saving || !selectedDocument}
+                        onClick={() => void handleSaveDocument(false)}
+                      >
+                        <i className="ti ti-device-floppy me-1"></i>Save changes
+                      </button>
+                      <button
+                        className="btn btn-outline-dark"
+                        type="button"
+                        disabled={saving || !selectedDocument}
+                        onClick={() => void handleSaveDocument(true)}
+                      >
+                        <i className="ti ti-refresh me-1"></i>Save and force re-ingest
+                      </button>
                     </div>
                     {selectedDocument.chunks.length > 0 ? (
                       <div className="react-meta-list">
@@ -687,11 +908,26 @@ export function DocumentsPage() {
                         </thead>
                         <tbody>
                           {selectedKnowledgeView.claims.slice(0, 8).map((claim) => (
-                            <tr key={`${claim.axis}:${claim.values.join('|')}`}>
+                            <tr
+                              key={`${claim.axis}:${claim.subject?.value ?? ''}:${claim.appliesTo
+                                .map((scope) => `${scope.axis}:${scope.value}`)
+                                .join('|')}:${claim.values.join('|')}`}
+                            >
                               <td>
                                 <span className="fw-semibold">
                                   {formatAxisLabel(claim.axis)}
                                 </span>
+                                {formatScopedKnowledgeContext(
+                                  claim.subject,
+                                  claim.appliesTo,
+                                ) ? (
+                                  <div className="fs-12 text-muted mt-1">
+                                    {formatScopedKnowledgeContext(
+                                      claim.subject,
+                                      claim.appliesTo,
+                                    )}
+                                  </div>
+                                ) : null}
                               </td>
                               <td>
                                 <span
@@ -735,6 +971,85 @@ export function DocumentsPage() {
                       body="Re-ingest the selected document if you expect extracted knowledge here."
                     />
                   )}
+                  {selectedKnowledgeView.prudenceNotes.length > 0 ? (
+                    <div className="react-meta-list mt-3">
+                      {selectedKnowledgeView.prudenceNotes.slice(0, 6).map((note) => (
+                        <div
+                          key={`prudence:${note.axis}:${note.values.join('|')}:${note.provenance[0]?.chunkSequence ?? 0}`}
+                        >
+                          <span className="react-meta-label">
+                            Prudence - {formatAxisLabel(note.axis)}
+                          </span>
+                          <strong>{note.values.join(', ')}</strong>
+                          {formatScopedKnowledgeContext(
+                            note.subject,
+                            note.appliesTo,
+                          ) ? (
+                            <div className="fs-12 text-muted mt-1">
+                              {formatScopedKnowledgeContext(
+                                note.subject,
+                                note.appliesTo,
+                              )}
+                            </div>
+                          ) : null}
+                          {note.provenance[0] ? (
+                            <div className="fs-12 text-muted">
+                              {formatProvenance(note.provenance[0])}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {selectedKnowledgeView.workflowNotes.length > 0 ? (
+                    <div className="react-meta-list mt-3">
+                      {selectedKnowledgeView.workflowNotes.slice(0, 6).map((note) => (
+                        <div
+                          key={`workflow:${note.axis}:${note.values.join('|')}:${note.provenance[0]?.chunkSequence ?? 0}`}
+                        >
+                          <span className="react-meta-label">
+                            Workflow - {formatAxisLabel(note.axis)}
+                          </span>
+                          <strong>{note.values.join(', ')}</strong>
+                          {note.provenance[0] ? (
+                            <div className="fs-12 text-muted">
+                              {formatProvenance(note.provenance[0])}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  {selectedKnowledgeView.guidanceNotes.length > 0 ? (
+                    <div className="react-meta-list mt-3">
+                      {selectedKnowledgeView.guidanceNotes.slice(0, 6).map((note) => (
+                        <div
+                          key={`guidance:${note.axis}:${note.values.join('|')}:${note.provenance[0]?.chunkSequence ?? 0}`}
+                        >
+                          <span className="react-meta-label">
+                            Guidance - {formatAxisLabel(note.axis)}
+                          </span>
+                          <strong>{note.values.join(', ')}</strong>
+                          {formatScopedKnowledgeContext(
+                            note.subject,
+                            note.appliesTo,
+                          ) ? (
+                            <div className="fs-12 text-muted mt-1">
+                              {formatScopedKnowledgeContext(
+                                note.subject,
+                                note.appliesTo,
+                              )}
+                            </div>
+                          ) : null}
+                          {note.provenance[0] ? (
+                            <div className="fs-12 text-muted">
+                              {formatProvenance(note.provenance[0])}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                   {selectedKnowledgeView.extractionProfiles.length > 0 ? (
                     <div className="react-meta-list mt-3">
                       {selectedKnowledgeView.extractionProfiles.map((profile) => (
@@ -780,7 +1095,7 @@ export function DocumentsPage() {
       </div>
 
       <div className="row">
-        <div className="col-xxl-6 d-flex">
+        <div className="col-xxl-4 d-flex">
           <div className="card flex-fill">
             <div className="card-header">
               <h5 className="mb-0">Create from text</h5>
@@ -854,7 +1169,80 @@ export function DocumentsPage() {
           </div>
         </div>
 
-        <div className="col-xxl-6 d-flex">
+        <div className="col-xxl-4 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header">
+              <h5 className="mb-0">Create from URL</h5>
+            </div>
+            <div className="card-body">
+              <form onSubmit={handleCreateUrlDocument}>
+                <div className="mb-3">
+                  <label className="form-label">URL</label>
+                  <input
+                    className="form-control"
+                    type="url"
+                    value={urlForm.url}
+                    onChange={(event) =>
+                      setUrlForm((current) => ({
+                        ...current,
+                        url: event.target.value,
+                      }))
+                    }
+                    required
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Optional title override</label>
+                  <input
+                    className="form-control"
+                    value={urlForm.title}
+                    onChange={(event) =>
+                      setUrlForm((current) => ({
+                        ...current,
+                        title: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Language</label>
+                  <input
+                    className="form-control"
+                    value={urlForm.language}
+                    onChange={(event) =>
+                      setUrlForm((current) => ({
+                        ...current,
+                        language: event.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="form-check form-switch mb-3">
+                  <input
+                    id="document-url-activate"
+                    className="form-check-input"
+                    type="checkbox"
+                    checked={urlForm.activate}
+                    onChange={(event) =>
+                      setUrlForm((current) => ({
+                        ...current,
+                        activate: event.target.checked,
+                      }))
+                    }
+                  />
+                  <label htmlFor="document-url-activate" className="form-check-label">
+                    Activate when ingestion succeeds
+                  </label>
+                </div>
+                <button className="btn btn-dark" type="submit" disabled={saving}>
+                  <i className="ti ti-world me-1"></i>Fetch and ingest URL
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div className="col-xxl-4 d-flex">
           <div className="card flex-fill">
             <div className="card-header">
               <h5 className="mb-0">Upload file</h5>
@@ -882,13 +1270,13 @@ export function DocumentsPage() {
                   <input
                     className="form-control"
                     type="file"
-                    accept=".txt,.md,.markdown,.json,.html,.htm,text/plain,text/markdown,application/json,text/html"
+                    accept=".txt,.md,.markdown,.json,.html,.htm,.pdf,.docx,.xlsx,text/plain,text/markdown,application/json,text/html,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     onChange={(event) =>
                       setUploadFile(event.target.files?.[0] ?? null)
                     }
                   />
                   <small className="text-muted d-block mt-2">
-                    Upload plain text, markdown, JSON, or HTML for document-origin ingestion.
+                    Upload text, markdown, JSON, HTML, PDF, DOCX, or XLSX for document-origin ingestion.
                   </small>
                 </div>
                 <div className="form-check form-switch mb-3">
@@ -956,4 +1344,18 @@ function formatProvenance(input: {
   return [input.documentTitle, location || `chunk ${input.chunkSequence + 1}`]
     .filter(Boolean)
     .join(' - ');
+}
+
+function formatScopedKnowledgeContext(
+  subject?: { value: string } | null,
+  appliesTo?: Array<{ axis: string; value: string }> | null,
+) {
+  const parts = [
+    subject?.value?.trim() ? `Tema: ${subject.value.trim()}` : null,
+    ...(appliesTo ?? [])
+      .filter((scope) => scope.axis.trim() && scope.value.trim())
+      .map((scope) => `${formatAxisLabel(scope.axis)}: ${scope.value}`),
+  ].filter((value): value is string => Boolean(value));
+
+  return parts.join(' | ');
 }
