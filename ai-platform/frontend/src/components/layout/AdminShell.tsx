@@ -211,24 +211,15 @@ export function AdminShell({
               <i className="fa fa-ellipsis-v"></i>
             </a>
             <div className="dropdown-menu dropdown-menu-end">
-              <a className="dropdown-item" href="#dashboard">
-                Dashboard
-              </a>
-              <a className="dropdown-item" href="#chat-test-center">
-                Chat Test Center
-              </a>
-              <a className="dropdown-item" href="#knowledge-center">
-                Knowledge Center
-              </a>
-              <a className="dropdown-item" href="#documents">
-                Documents
-              </a>
-              <a className="dropdown-item" href="#prompts">
-                Prompts
-              </a>
-              <a className="dropdown-item" href="#critical-configs">
-                Critical configs
-              </a>
+              {navigationItems.map((item) => (
+                <a
+                  key={`mobile-${item.key}`}
+                  className={`dropdown-item${item.key === activeKey ? ' active' : ''}`}
+                  href={item.href}
+                >
+                  {item.label}
+                </a>
+              ))}
             </div>
           </div>
         </div>
@@ -249,38 +240,15 @@ export function AdminShell({
                   </li>
                 ))}
               </ul>
-              <ul className="menu-bottom">
-                <li>
-                  <a href="#dashboard">
-                    <i className="ti ti-building-store"></i>
-                    <span>Tenant: {tenantDisplayName}</span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#chat-test-center">
-                    <i className="ti ti-flask-2"></i>
-                    <span>Wave 7 test center</span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#knowledge-center">
-                    <i className="ti ti-brain"></i>
-                    <span>Knowledge workflows</span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#documents">
-                    <i className="ti ti-file-search"></i>
-                    <span>Document corpus</span>
-                  </a>
-                </li>
-                <li>
-                  <a href="#knowledge-center">
-                    <i className="ti ti-clock-bolt"></i>
-                    <span>Wave 8 dependency noted</span>
-                  </a>
-                </li>
-              </ul>
+              <div className="menu-bottom px-3 pb-3 mt-auto">
+                <div className="card border-0 shadow-sm mb-0">
+                  <div className="card-body p-3">
+                    <p className="text-muted fs-12 mb-1">Active tenant</p>
+                    <h6 className="mb-1">{tenantDisplayName}</h6>
+                    <p className="text-muted fs-12 mb-0">{tenantModeLabel}</p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
