@@ -320,6 +320,90 @@ describe('DocumentRetrievalService', () => {
     );
   });
 
+  it('pivots thin focus follow-ups toward the current detail request instead of carrying the previous payment topic', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-local',
+          documentId: 'doc-master',
+          sequence: 0,
+          content:
+            'No contamos con local comercial. Brindamos asesoramiento personalizado y coordinación de visitas.',
+          searchText:
+            'no contamos con local comercial brindamos asesoramiento personalizado y coordinacion de visitas',
+          metadata: null,
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+            updatedAt: new Date('2026-04-06T10:00:00.000Z'),
+          },
+        },
+        {
+          id: 'chunk-payments',
+          documentId: 'doc-master',
+          sequence: 1,
+          content: 'Aceptamos transferencia bancaria, efectivo, Mercado Pago y tarjetas.',
+          searchText:
+            'aceptamos transferencia bancaria efectivo mercado pago y tarjetas',
+          metadata: null,
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+            updatedAt: new Date('2026-04-06T10:00:00.000Z'),
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'tiene local para ver el producto?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'tiene local para ver el producto?',
+          productQuery: 'cortina enrollar aluminio',
+          requestSummary: 'Consulta sobre local para ver cortina enrollar aluminio',
+        },
+        language: 'es',
+        confidence: 0.9,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-local-follow-up',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        approvedFacts: {
+          subjectSummary: 'cortina de enrollar de aluminio',
+          topicSummary: 'Consulta sobre formas de pago y garantía para cortinas de enrollar de aluminio',
+          lastDocumentQuery:
+            'Consulta sobre formas de pago y garantía para cortinas de enrollar de aluminio',
+          activeDocumentIds: ['doc-master'],
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-06T10:00:00.000Z',
+      },
+    });
+
+    expect(result.result?.query).toMatch(/local/i);
+    expect(result.result?.query).not.toMatch(/formas de pago|garant/i);
+    expect(result.result?.matches[0]).toEqual(
+      expect.objectContaining({
+        excerpt: expect.stringMatching(/no contamos con local comercial/i),
+      }),
+    );
+  });
+
   it('keeps the recent topic for short follow-up knowledge turns before the document lane is fully locked', async () => {
     const service = new DocumentRetrievalService({
       listActiveReadyChunks: jest.fn(async () => [

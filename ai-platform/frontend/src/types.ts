@@ -507,6 +507,7 @@ export type TestCenterRunSummary = {
   latestMessage?: string | null;
   latestRole?: string | null;
   traceCount: number;
+  evaluation?: TestCenterConversationEvaluation | null;
 };
 
 export type TestCenterRunDetail = {
@@ -521,6 +522,53 @@ export type TestCenterRunDetail = {
   state: ConversationStateSummary | null;
   traces: TraceSummary[];
   logs: ChatLog[];
+  evaluation?: TestCenterConversationEvaluation | null;
+};
+
+export type TestCenterScenario = {
+  id: string;
+  label: string;
+  description: string;
+  locale: string;
+  sourceKind: 'curated' | 'derived';
+  category: 'supported_information' | 'unsupported_information' | 'edge_case';
+  tags: string[];
+  documentTitle?: string | null;
+  documentId?: string | null;
+  turns: Array<{
+    message: string;
+    locale?: string;
+  }>;
+};
+
+export type TestCenterTurnEvaluation = {
+  turnIndex: number;
+  traceId?: string | null;
+  userMessage: string;
+  assistantMessage: string;
+  overallScore: number;
+  correctnessScore: number;
+  coherenceScore: number;
+  fluencyScore: number;
+  writingQualityScore: number;
+  status: 'pass' | 'warn' | 'fail';
+  issues: string[];
+  matchedSignals: string[];
+};
+
+export type TestCenterConversationEvaluation = {
+  scenarioId?: string | null;
+  scenarioLabel: string;
+  scenarioSourceKind: 'curated' | 'derived';
+  locale?: string | null;
+  overallScore: number;
+  correctnessScore: number;
+  coherenceScore: number;
+  fluencyScore: number;
+  writingQualityScore: number;
+  status: 'pass' | 'warn' | 'fail';
+  summaryLines: string[];
+  turns: TestCenterTurnEvaluation[];
 };
 
 export type TraceComparison = {
@@ -553,6 +601,8 @@ export type ReplayResponse = {
   conversationId: string;
   turns: ReplayTurnResult[];
   detail: TestCenterRunDetail;
+  scenario?: TestCenterScenario | null;
+  evaluation?: TestCenterConversationEvaluation | null;
 };
 
 export type AsyncPresenceState =

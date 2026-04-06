@@ -2,7 +2,7 @@ import { ChatResponsePolicyService } from '../src/modules/response/chat-response
 import { ResponseGroundingService } from '../src/modules/response/response-grounding.service';
 
 describe('ChatResponsePolicyService', () => {
-  const service = new ChatResponsePolicyService({
+  const service: any = new ChatResponsePolicyService({
     render: jest.fn(
       async (input: {
         locale?: string;
@@ -2144,6 +2144,122 @@ describe('ChatResponsePolicyService', () => {
     );
   });
 
+  it('renders payment terms in customer-facing prose and preserves a cautious warranty clause when mixed with an unsupported warranty request', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'que formas de pago aceptan? tiene garantia?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'que formas de pago aceptan? tiene garantia?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre formas de pago y garantía',
+          groundedSummary:
+            'Condiciones de pago (cuotas) (payment method Mercado Pago): 12',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'partial',
+            evidenceTier: 'typed_claim',
+            absenceReason: 'extraction_uncertain',
+            exactnessRequested: false,
+            requestedDetailTypes: ['payment_terms', 'warranty'],
+            supportedDetailTypes: ['payment_terms'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: ['warranty'],
+            requiredUnspecifiedDetailTypes: ['warranty'],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Mercado Pago ofrece hasta 12 cuotas y tarjetas como VISA, Mastercard, OCA y Creditel.',
+              sequence: 0,
+              score: 9.3,
+              supportSummary: {
+                topic: 'PAGOS',
+                supportedAxes: ['payment_terms', 'payment_methods', 'installment_count'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'payment_methods',
+                    layer: 'factual',
+                    values: [
+                      'transferencia bancaria',
+                      'efectivo',
+                      'Mercado Pago',
+                      'tarjetas',
+                    ],
+                    supportClass: 'explicit_fact',
+                  },
+                  {
+                    axis: 'payment_terms',
+                    facet: 'installment_count',
+                    layer: 'factual',
+                    values: ['12'],
+                    supportClass: 'explicit_fact',
+                    appliesTo: [
+                      {
+                        axis: 'payment_method',
+                        value: 'Mercado Pago',
+                        normalizedValue: 'mercado pago',
+                      },
+                    ],
+                  },
+                  {
+                    axis: 'payment_terms',
+                    facet: 'card_brands',
+                    layer: 'factual',
+                    values: ['VISA', 'Mastercard', 'OCA', 'Creditel'],
+                    supportClass: 'explicit_fact',
+                    appliesTo: [
+                      {
+                        axis: 'payment_method',
+                        value: 'Mercado Pago',
+                        normalizedValue: 'mercado pago',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Aceptamos transferencia bancaria, efectivo, Mercado Pago y tarjetas. Con Mercado Pago se puede pagar hasta en 12 cuotas y se aceptan VISA, Mastercard, OCA y Creditel. Por ahora no tengo una confirmación suficientemente clara sobre la garantía.',
+    );
+  });
+
   it('answers outside-location visit-cost follow-ups with the outside scoped fact instead of the inside one', async () => {
     await expect(
       service.resolve({
@@ -2183,7 +2299,8 @@ describe('ChatResponsePolicyService', () => {
         documentContext: {
           source: 'document_origin',
           query: 'Consulta sobre costo de visita para tomar medidas fuera de Montevideo',
-          groundedSummary: 'puede corresponder costo de traslado',
+          groundedSummary:
+            'Costo de visita (location Montevideo, location relation inside): sin costo',
           responseMode: 'document_exploration',
           grounding: {
             supportLevel: 'explicit',

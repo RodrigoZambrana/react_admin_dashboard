@@ -98,6 +98,17 @@ enum CatalogSyncStatus {
   FAILED
 }
 
+enum TestCenterScenarioSourceKind {
+  CURATED
+  DERIVED
+}
+
+enum TestCenterEvaluationStatus {
+  PASS
+  WARN
+  FAIL
+}
+
 model Conversation {
   id          String    @id @default(cuid())
   tenantId    String
@@ -109,6 +120,7 @@ model Conversation {
   logs        ChatLog[]
   state       ConversationState?
   asyncTurns  AsyncConversationTurn[]
+  testCenterEvaluation TestCenterConversationEvaluation?
 
   @@index([tenantId, createdAt])
 }
@@ -473,4 +485,50 @@ model AsyncConversationTurnInput {
 
   @@unique([turnId, sequence])
   @@index([tenantId, turnId, receivedAt])
+}
+
+model TestCenterConversationEvaluation {
+  id                  String                      @id @default(cuid())
+  tenantId            String
+  conversationId      String                      @unique
+  scenarioId          String?
+  scenarioLabel       String
+  scenarioSourceKind  TestCenterScenarioSourceKind
+  locale              String?
+  overallScore        Int
+  correctnessScore    Int
+  coherenceScore      Int
+  fluencyScore        Int
+  writingQualityScore Int
+  status              TestCenterEvaluationStatus
+  summary             Json?
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  conversation        Conversation                @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  turnEvaluations     TestCenterTurnEvaluation[]
+
+  @@index([tenantId, status, updatedAt])
+  @@index([tenantId, scenarioSourceKind, updatedAt])
+}
+
+model TestCenterTurnEvaluation {
+  id                  String                        @id @default(cuid())
+  tenantId            String
+  evaluationId        String
+  turnIndex           Int
+  traceId             String?
+  userMessage         String
+  assistantMessage    String
+  overallScore        Int
+  correctnessScore    Int
+  coherenceScore      Int
+  fluencyScore        Int
+  writingQualityScore Int
+  status              TestCenterEvaluationStatus
+  summary             Json?
+  createdAt           DateTime                      @default(now())
+  evaluation          TestCenterConversationEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluationId, turnIndex])
+  @@index([tenantId, evaluationId, turnIndex])
 }

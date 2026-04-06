@@ -539,6 +539,132 @@ describe('ChatResponseService', () => {
     expect(generateResponse).not.toHaveBeenCalled();
   });
 
+  it('does not policy-lock raw structural scoped drafts and still allows AI generation', async () => {
+    const generateResponse = jest.fn(async () => ({
+      ok: true,
+      rawResponse:
+        '{"message":"Fuera de Montevideo puede corresponder costo de traslado.","assertedOutcome":"respond","assertedExecutionStatus":"not_applicable","mentionedMissingFields":[],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":[],"mentionedDocumentIds":["doc-1"]}',
+      parsedResponse: {
+        message: 'Fuera de Montevideo puede corresponder costo de traslado.',
+        assertedOutcome: 'respond',
+        assertedExecutionStatus: 'not_applicable',
+        mentionedMissingFields: [],
+        mentionedApprovedFactKeys: [],
+        mentionedApprovedResultKeys: [],
+        mentionedDocumentIds: ['doc-1'],
+      },
+      error: null,
+      provider: 'mock',
+      model: 'mock-rule-engine',
+      promptId: null,
+      promptVersion: null,
+    }));
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          userMessage: 'fuera de montevideo la visita tiene costo?',
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'document_grounded_exploration',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: true,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: false,
+            preferMultiline: false,
+            hasPriorConversation: true,
+          },
+          documentContext: {
+            source: 'document_origin',
+            query: 'fuera de montevideo visita costo',
+            groundedSummary:
+              'Costo de visita (location Montevideo, location relation inside): sin costo',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'explicit',
+              exactnessRequested: false,
+              requestedDetailTypes: ['pricing'],
+              supportedDetailTypes: ['pricing'],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: [],
+            },
+            matches: [
+              {
+                documentId: 'doc-1',
+                title: 'Documento Maestro',
+                excerpt: 'Fuera de Montevideo puede corresponder costo de traslado.',
+                sequence: 0,
+                score: 8.2,
+                supportSummary: {
+                  topic: 'FORMA DE TRABAJO',
+                  axisSummaries: [
+                    {
+                      axis: 'commercial_visit_cost',
+                      layer: 'factual',
+                      values: ['sin costo'],
+                      subject: {
+                        axis: 'section_topic',
+                        value: 'FORMA DE TRABAJO',
+                        normalizedValue: 'forma de trabajo',
+                      },
+                      appliesTo: [
+                        {
+                          axis: 'location',
+                          value: 'Montevideo',
+                          normalizedValue: 'montevideo',
+                        },
+                      ],
+                      supportClass: 'explicit_fact',
+                      extractionScope: 'tenant_only',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          approvedDocumentIds: ['doc-1'],
+        })),
+      } as any,
+      {
+        resolve: jest.fn(
+          () => 'Costo de visita (location Montevideo, location relation inside): sin costo',
+        ),
+      } as any,
+      {
+        generateResponse,
+      } as any,
+      {
+        evaluate: jest.fn(async () => ({
+          accepted: true,
+          reasons: [],
+        })),
+      } as any,
+      responseFallbackService as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        response: 'Fuera de Montevideo puede corresponder costo de traslado.',
+        usedFallback: false,
+        fallbackReason: null,
+      }),
+    );
+    expect(generateResponse).toHaveBeenCalled();
+  });
+
   it('keeps the AI response path open for ordinary document turns even when support is unavailable', async () => {
     const service = new ChatResponseService(
       {

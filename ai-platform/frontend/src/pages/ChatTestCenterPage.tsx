@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react';
 
 import {
   compareTraces,
+  evaluateTestCenterConversation,
   getTestCenterRun,
   getTraceDetail,
   listActiveDateTimeLocales,
@@ -9,19 +10,21 @@ import {
   listActivePrompts,
   listActiveResponseFallbacks,
   listRecentTraceSummaries,
+  listTestCenterScenarios,
   listTestCenterRuns,
   replayConversation,
 } from '../api';
 import { EmptyState } from '../components/shared/EmptyState';
 import { JsonBlock } from '../components/shared/JsonBlock';
 import { PageHeader } from '../components/shared/PageHeader';
-import { StatusBadge } from '../components/shared/StatusBadge';
 import type {
   KnowledgeMetadataVersion,
   PromptVersion,
   ReplayResponse,
   ResponseFallbackVersion,
   TemporalLocaleVersion,
+  TestCenterConversationEvaluation,
+  TestCenterScenario,
   TestCenterRunDetail,
   TestCenterRunSummary,
   TraceComparison,
@@ -39,6 +42,7 @@ type InvestigationResources = {
 
 export function ChatTestCenterPage() {
   const [runs, setRuns] = useState<TestCenterRunSummary[]>([]);
+  const [scenarios, setScenarios] = useState<TestCenterScenario[]>([]);
   const [traces, setTraces] = useState<TraceSummary[]>([]);
   const [resources, setResources] = useState<InvestigationResources>({
     prompts: [],
@@ -48,6 +52,7 @@ export function ChatTestCenterPage() {
   });
   const [selectedRunId, setSelectedRunId] = useState<string>();
   const [selectedRun, setSelectedRun] = useState<TestCenterRunDetail | null>(null);
+  const [selectedScenarioId, setSelectedScenarioId] = useState<string>('');
   const [selectedTraceId, setSelectedTraceId] = useState<string>();
   const [selectedTrace, setSelectedTrace] = useState<TraceDetail | null>(null);
   const [leftTraceId, setLeftTraceId] = useState<string>('');
@@ -60,6 +65,7 @@ export function ChatTestCenterPage() {
   const [lastReplay, setLastReplay] = useState<ReplayResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [replaying, setReplaying] = useState(false);
+  const [evaluatingRun, setEvaluatingRun] = useState(false);
   const [comparing, setComparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -94,7 +100,15 @@ export function ChatTestCenterPage() {
     try {
       setLoading(true);
       setError(null);
-      const [runData, traceData, prompts, locales, fallbacks, knowledgeMetadata] =
+      const [
+        runData,
+        traceData,
+        prompts,
+        locales,
+        fallbacks,
+        knowledgeMetadata,
+        scenarioData,
+      ] =
         await Promise.all([
           listTestCenterRuns(20),
           listRecentTraceSummaries(20),
@@ -102,10 +116,12 @@ export function ChatTestCenterPage() {
           listActiveDateTimeLocales(),
           listActiveResponseFallbacks(),
           listActiveKnowledgeMetadata(),
+          listTestCenterScenarios(replayLocale),
         ]);
 
       setRuns(runData);
       setTraces(traceData);
+      setScenarios(scenarioData);
       setResources({
         prompts,
         locales,
@@ -121,6 +137,11 @@ export function ChatTestCenterPage() {
         : traceData[0]?.traceId;
       setSelectedRunId(nextRunId);
       setSelectedTraceId(nextTraceId);
+      setSelectedScenarioId((current) =>
+        scenarioData.some((scenario) => scenario.id === current)
+          ? current
+          : (scenarioData[0]?.id ?? ''),
+      );
       setLeftTraceId((current) => current || traceData[0]?.traceId || '');
       setRightTraceId((current) => current || traceData[1]?.traceId || '');
     } catch (requestError) {
@@ -153,6 +174,8 @@ export function ChatTestCenterPage() {
       const result = await replayConversation({
         locale: replayLocale,
         turns,
+        scenarioId: selectedScenarioId || undefined,
+        autoEvaluate: true,
       });
       setLastReplay(result);
       setNotice(
@@ -165,6 +188,44 @@ export function ChatTestCenterPage() {
       setError((requestError as Error).message);
     } finally {
       setReplaying(false);
+    }
+  };
+
+  const handleScenarioSelect = (scenarioId: string) => {
+    setSelectedScenarioId(scenarioId);
+    const scenario = scenarios.find((entry) => entry.id === scenarioId);
+
+    if (!scenario) {
+      return;
+    }
+
+    setReplayLocale(scenario.locale);
+    setReplayDraft(scenario.turns.map((turn) => turn.message).join('\n'));
+    setNotice(`Scenario loaded: ${scenario.label}`);
+  };
+
+  const handleEvaluateSelectedRun = async () => {
+    if (!selectedRunId || !selectedScenarioId) {
+      return;
+    }
+
+    try {
+      setEvaluatingRun(true);
+      setError(null);
+      const result = await evaluateTestCenterConversation({
+        conversationId: selectedRunId,
+        scenarioId: selectedScenarioId,
+        locale: replayLocale,
+      });
+      setNotice(
+        `Evaluation completed for ${result.scenario.label} on conversation ${selectedRunId}.`,
+      );
+      await refresh();
+      setSelectedRunId(selectedRunId);
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setEvaluatingRun(false);
     }
   };
 
@@ -195,6 +256,11 @@ export function ChatTestCenterPage() {
 
     return Array.from(map.values());
   }, [selectedRun?.traces, traces]);
+
+  const selectedScenario = useMemo(
+    () => scenarios.find((scenario) => scenario.id === selectedScenarioId) ?? null,
+    [scenarios, selectedScenarioId],
+  );
 
   return (
     <>
@@ -299,6 +365,68 @@ export function ChatTestCenterPage() {
       </div>
 
       <div className="row">
+        <div className="col-xxl-4 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header">
+              <h5 className="mb-0">Scenario Library</h5>
+            </div>
+            <div className="card-body p-0">
+              {scenarios.length === 0 && !loading ? (
+                <div className="p-4">
+                  <EmptyState
+                    title="No scenarios available"
+                    body="Curated and document-derived scenarios will appear here when the active corpus can support them."
+                  />
+                </div>
+              ) : (
+                <div className="table-responsive">
+                  <table className="table datanew react-resource-table mb-0">
+                    <thead>
+                      <tr>
+                        <th>Scenario</th>
+                        <th>Source</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {scenarios.map((scenario) => (
+                        <tr
+                          key={scenario.id}
+                          className={
+                            selectedScenarioId === scenario.id ? 'react-row-selected' : undefined
+                          }
+                        >
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-link react-row-button p-0"
+                              onClick={() => handleScenarioSelect(scenario.id)}
+                            >
+                              <span className="d-block fw-semibold">{scenario.label}</span>
+                              <span className="text-muted fs-12">
+                                {scenario.description}
+                              </span>
+                            </button>
+                          </td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                scenario.sourceKind === 'derived'
+                                  ? 'badge-soft-info'
+                                  : 'badge-soft-dark'
+                              }`}
+                            >
+                              {scenario.sourceKind}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         <div className="col-xxl-5 d-flex">
           <div className="card flex-fill">
             <div className="card-header">
@@ -313,6 +441,27 @@ export function ChatTestCenterPage() {
                     value={replayLocale}
                     onChange={(event) => setReplayLocale(event.target.value)}
                   />
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Selected scenario</label>
+                  <select
+                    className="form-select"
+                    value={selectedScenarioId}
+                    onChange={(event) => handleScenarioSelect(event.target.value)}
+                  >
+                    <option value="">Free replay</option>
+                    {scenarios.map((scenario) => (
+                      <option key={scenario.id} value={scenario.id}>
+                        {scenario.label}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedScenario ? (
+                    <small className="text-muted">
+                      {selectedScenario.sourceKind} · {selectedScenario.category} ·{' '}
+                      {selectedScenario.documentTitle ?? 'manual'}
+                    </small>
+                  ) : null}
                 </div>
                 <div className="mb-3">
                   <label className="form-label">Turns</label>
@@ -348,6 +497,19 @@ export function ChatTestCenterPage() {
             <div className="card-body">
               {lastReplay ? (
                 <div className="react-conversation-stack">
+                  {lastReplay.evaluation ? (
+                    <div className="alert alert-secondary custom-react-alert" role="alert">
+                      <strong>
+                        Evaluation {lastReplay.evaluation.status.toUpperCase()} ·{' '}
+                        {lastReplay.evaluation.overallScore}/100
+                      </strong>
+                      <div className="mt-2">
+                        {lastReplay.evaluation.summaryLines.map((line) => (
+                          <div key={line}>{line}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {lastReplay.turns.map((turn) => (
                     <div key={turn.traceId} className="react-conversation-item">
                       <div className="d-flex align-items-center justify-content-between gap-2 mb-2">
@@ -359,6 +521,15 @@ export function ChatTestCenterPage() {
                         Trace {turn.traceId.slice(0, 12)} · conversation{' '}
                         {turn.metadata.conversationId.slice(0, 12)}
                       </small>
+                      {lastReplay.evaluation?.turns[turnsIndex(lastReplay.turns, turn.traceId)] ? (
+                        <div className="mt-2">
+                          {renderEvaluationBadge(
+                            lastReplay.evaluation.turns[
+                              turnsIndex(lastReplay.turns, turn.traceId)
+                            ],
+                          )}
+                        </div>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -462,6 +633,24 @@ export function ChatTestCenterPage() {
                                 {selectedRun.state?.missingFields?.join(', ') || 'none'}
                               </strong>
                             </div>
+                            <div>
+                              <span className="react-meta-label">Evaluation</span>
+                              <strong>
+                                {selectedRun.evaluation
+                                  ? `${selectedRun.evaluation.status} · ${selectedRun.evaluation.overallScore}/100`
+                                  : 'not evaluated'}
+                              </strong>
+                            </div>
+                          </div>
+                          <div className="mt-3 d-flex flex-wrap gap-2">
+                            <button
+                              className="btn btn-dark btn-sm"
+                              onClick={() => void handleEvaluateSelectedRun()}
+                              disabled={!selectedScenarioId || evaluatingRun}
+                            >
+                              <i className="ti ti-checkup-list me-1"></i>
+                              {evaluatingRun ? 'Evaluating...' : 'Evaluate selected run'}
+                            </button>
                           </div>
                         </div>
                       </div>
@@ -505,6 +694,49 @@ export function ChatTestCenterPage() {
                   <div className="col-xl-6">
                     <div className="react-resource-summary h-100">
                       <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
+                        <h6 className="mb-0">Evaluation</h6>
+                        <span className="badge badge-soft-info">
+                          {selectedRun.evaluation?.status ?? 'not evaluated'}
+                        </span>
+                      </div>
+                      {selectedRun.evaluation ? (
+                        <div className="react-meta-list">
+                          <div>
+                            <span className="react-meta-label">Scenario</span>
+                            <strong>{selectedRun.evaluation.scenarioLabel}</strong>
+                          </div>
+                          <div>
+                            <span className="react-meta-label">Overall</span>
+                            <strong>{selectedRun.evaluation.overallScore}/100</strong>
+                          </div>
+                          <div>
+                            <span className="react-meta-label">Correctness</span>
+                            <strong>{selectedRun.evaluation.correctnessScore}/100</strong>
+                          </div>
+                          <div>
+                            <span className="react-meta-label">Coherence</span>
+                            <strong>{selectedRun.evaluation.coherenceScore}/100</strong>
+                          </div>
+                          <div>
+                            <span className="react-meta-label">Fluency</span>
+                            <strong>{selectedRun.evaluation.fluencyScore}/100</strong>
+                          </div>
+                          <div>
+                            <span className="react-meta-label">Writing</span>
+                            <strong>{selectedRun.evaluation.writingQualityScore}/100</strong>
+                          </div>
+                        </div>
+                      ) : (
+                        <EmptyState
+                          title="No evaluation yet"
+                          body="Select a scenario and evaluate this run to score correctness, coherence, fluency, and writing quality."
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div className="col-xl-12">
+                    <div className="react-resource-summary h-100">
+                      <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
                         <h6 className="mb-0">Run logs</h6>
                         <span className="badge badge-soft-dark">
                           {selectedRun.logs.length} stages
@@ -532,6 +764,63 @@ export function ChatTestCenterPage() {
                       </div>
                     </div>
                   </div>
+                  {selectedRun.evaluation?.turns?.length ? (
+                    <div className="col-12">
+                      <div className="react-resource-summary h-100">
+                        <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
+                          <h6 className="mb-0">Turn evaluation</h6>
+                          <span className="badge badge-soft-secondary">
+                            {selectedRun.evaluation.turns.length} turns
+                          </span>
+                        </div>
+                        <div className="table-responsive">
+                          <table className="table datanew react-resource-table mb-0">
+                            <thead>
+                              <tr>
+                                <th>Turn</th>
+                                <th>Status</th>
+                                <th>Overall</th>
+                                <th>Correctness</th>
+                                <th>Coherence</th>
+                                <th>Fluency</th>
+                                <th>Writing</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {selectedRun.evaluation.turns.map((turn) => (
+                                <tr key={`${turn.turnIndex}-${turn.traceId ?? 'none'}`}>
+                                  <td>
+                                    <div className="fw-semibold">#{turn.turnIndex + 1}</div>
+                                    <div className="text-muted fs-12">
+                                      {turn.userMessage}
+                                    </div>
+                                  </td>
+                                  <td>
+                                    <span
+                                      className={`badge ${
+                                        turn.status === 'pass'
+                                          ? 'badge-soft-success'
+                                          : turn.status === 'warn'
+                                            ? 'badge-soft-warning'
+                                            : 'badge-soft-danger'
+                                      }`}
+                                    >
+                                      {turn.status}
+                                    </span>
+                                  </td>
+                                  <td>{turn.overallScore}</td>
+                                  <td>{turn.correctnessScore}</td>
+                                  <td>{turn.coherenceScore}</td>
+                                  <td>{turn.fluencyScore}</td>
+                                  <td>{turn.writingQualityScore}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ) : (
                 <EmptyState
@@ -815,5 +1104,27 @@ export function ChatTestCenterPage() {
         </div>
       </div>
     </>
+  );
+}
+
+function turnsIndex(turns: ReplayResponse['turns'], traceId: string) {
+  return turns.findIndex((turn) => turn.traceId === traceId);
+}
+
+function renderEvaluationBadge(
+  evaluation: TestCenterConversationEvaluation['turns'][number],
+) {
+  return (
+    <span
+      className={`badge ${
+        evaluation.status === 'pass'
+          ? 'badge-soft-success'
+          : evaluation.status === 'warn'
+            ? 'badge-soft-warning'
+            : 'badge-soft-danger'
+      }`}
+    >
+      {evaluation.status} · {evaluation.overallScore}/100
+    </span>
   );
 }

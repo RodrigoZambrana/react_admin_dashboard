@@ -19,6 +19,7 @@ import { KnowledgeMetadataVersionRepository } from './repositories/knowledge-met
 import { MessageRepository } from './repositories/message.repository';
 import { PromptVersionRepository } from './repositories/prompt-version.repository';
 import { TemporalLocaleVersionRepository } from './repositories/temporal-locale-version.repository';
+import { TestCenterEvaluationRepository } from './repositories/test-center-evaluation.repository';
 import { PrismaService } from './prisma/prisma.service';
 import { TenantContextService } from './tenant/tenant-context.service';
 import { TenantMiddleware } from './tenant/tenant.middleware';
@@ -48,6 +49,7 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     ChatLogRepository,
     PromptVersionRepository,
     TemporalLocaleVersionRepository,
+    TestCenterEvaluationRepository,
     KnowledgeRepository,
     KnowledgeMetadataVersionRepository,
   ],
@@ -71,6 +73,7 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     ChatLogRepository,
     PromptVersionRepository,
     TemporalLocaleVersionRepository,
+    TestCenterEvaluationRepository,
     KnowledgeRepository,
     KnowledgeMetadataVersionRepository,
   ],

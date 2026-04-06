@@ -3,6 +3,7 @@ import { AdminTestCenterService } from '../src/modules/api/admin-test-center.ser
 describe('AdminTestCenterService', () => {
   it('replays turns through the real orchestrator contract with admin_test_center channel', async () => {
     const seenContexts: Array<{ tenantId: string; traceId: string }> = [];
+    const findEvaluationByConversationId = jest.fn(async () => null);
     const service = new AdminTestCenterService(
       {
         getTenantId: jest.fn(() => 'tenant-alpha'),
@@ -73,6 +74,10 @@ describe('AdminTestCenterService', () => {
         listRecent: jest.fn(),
       } as any,
       {
+        findByConversationId: findEvaluationByConversationId,
+        upsertConversationEvaluation: jest.fn(),
+      } as any,
+      {
         listActivePrompts: jest.fn(),
       } as any,
       {
@@ -83,6 +88,13 @@ describe('AdminTestCenterService', () => {
       } as any,
       {
         listActiveResources: jest.fn(),
+      } as any,
+      {
+        listScenarios: jest.fn(),
+        getScenario: jest.fn(),
+      } as any,
+      {
+        evaluateScenarioRun: jest.fn(),
       } as any,
     );
 
@@ -188,11 +200,123 @@ describe('AdminTestCenterService', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
     );
 
     const comparison = await service.compareTraces('trace-a', 'trace-b');
 
     expect(comparison.comparison.sameIntent).toBe(true);
     expect(comparison.comparison.sameResponse).toBe(false);
+  });
+
+  it('replays a selected scenario and persists an automatic evaluation', async () => {
+    const upsertConversationEvaluation = jest.fn();
+    const evaluateScenarioRun = jest.fn(() => ({
+      scenarioId: 'scenario-1',
+      scenarioLabel: 'Escenario',
+      scenarioSourceKind: 'curated',
+      locale: 'es',
+      overallScore: 91,
+      correctnessScore: 92,
+      coherenceScore: 90,
+      fluencyScore: 89,
+      writingQualityScore: 93,
+      status: 'pass',
+      summaryLines: ['ok'],
+      turns: [],
+    }));
+    const service = new AdminTestCenterService(
+      {
+        getTenantId: jest.fn(() => 'tenant-alpha'),
+        run: jest.fn((_context, callback) => callback()),
+      } as any,
+      {
+        handleMessage: jest.fn(async () => ({
+          response: 'Aceptamos transferencia bancaria, efectivo, Mercado Pago y tarjetas.',
+          intent: 'GENERAL_CONVERSATION',
+          metadata: {
+            conversationId: 'conv-scenario',
+            traceId: 'trace-scenario',
+          },
+        })),
+      } as any,
+      {
+        findById: jest.fn(async () => ({
+          id: 'conv-scenario',
+          language: 'es',
+          channel: 'admin_test_center',
+          createdAt: new Date('2026-04-04T00:00:00.000Z'),
+          updatedAt: new Date('2026-04-04T00:10:00.000Z'),
+          messages: [
+            {
+              id: 'msg-1',
+              role: 'USER',
+              content: 'que formas de pago aceptan?',
+            },
+          ],
+        })),
+      } as any,
+      {
+        findByConversationId: jest.fn(async () => null),
+      } as any,
+      {
+        listByConversationId: jest.fn(async () => [
+          {
+            id: 'log-1',
+            traceId: 'trace-scenario',
+            stage: 'response',
+            status: 'completed',
+            payload: {
+              response: 'Aceptamos transferencia bancaria, efectivo, Mercado Pago y tarjetas.',
+            },
+            createdAt: new Date('2026-04-04T00:00:10.000Z'),
+            conversationId: 'conv-scenario',
+          },
+        ]),
+        getTrace: jest.fn(),
+        listRecent: jest.fn(),
+      } as any,
+      {
+        findByConversationId: jest.fn(async () => null),
+        upsertConversationEvaluation,
+      } as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {
+        listScenarios: jest.fn(async () => []),
+        getScenario: jest.fn(async () => ({
+          id: 'scenario-1',
+          label: 'Escenario',
+          description: 'desc',
+          locale: 'es',
+          sourceKind: 'curated',
+          category: 'supported_information',
+          tags: [],
+          turns: [{ message: 'que formas de pago aceptan?', locale: 'es' }],
+        })),
+      } as any,
+      {
+        evaluateScenarioRun,
+      } as any,
+    );
+
+    const result = await service.replayConversation({
+      locale: 'es',
+      scenarioId: 'scenario-1',
+    });
+
+    expect(result.scenario?.id).toBe('scenario-1');
+    expect(result.evaluation?.overallScore).toBe(91);
+    expect(upsertConversationEvaluation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 'conv-scenario',
+        scenarioId: 'scenario-1',
+      }),
+    );
+    expect(evaluateScenarioRun).toHaveBeenCalled();
   });
 });

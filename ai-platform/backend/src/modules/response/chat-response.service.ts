@@ -450,6 +450,14 @@ function shouldLockScopedKnowledgeDraft(
     return false;
   }
 
+  if (
+    /:\s+/u.test(approvedDraft) ||
+    /location relation/iu.test(approvedDraft) ||
+    /payment method/iu.test(approvedDraft)
+  ) {
+    return false;
+  }
+
   return approvedDraft.includes(scopedCostLocation);
 }
 

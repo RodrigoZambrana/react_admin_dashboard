@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
 import { AdminTestCenterService } from './admin-test-center.service';
+import { AdminTestCenterEvaluateDto } from './dto/admin-test-center-evaluate.dto';
 import { AdminTestCenterReplayDto } from './dto/admin-test-center-replay.dto';
 import { CompareTracesDto } from './dto/compare-traces.dto';
 
@@ -13,9 +14,26 @@ export class AdminTestCenterController {
     return this.adminTestCenterService.listTestRuns(Number(limit ?? 20));
   }
 
+  @Get('scenarios')
+  listScenarios(@Query('locale') locale?: string) {
+    return this.adminTestCenterService.listScenarios(locale);
+  }
+
   @Get('conversations/:conversationId')
   getTestRun(@Param('conversationId') conversationId: string) {
     return this.adminTestCenterService.getTestRun(conversationId);
+  }
+
+  @Post('conversations/:conversationId/evaluate')
+  evaluateConversation(
+    @Param('conversationId') conversationId: string,
+    @Body() body: AdminTestCenterEvaluateDto,
+  ) {
+    return this.adminTestCenterService.evaluateConversation({
+      conversationId,
+      scenarioId: body.scenarioId,
+      locale: body.locale,
+    });
   }
 
   @Get('traces')

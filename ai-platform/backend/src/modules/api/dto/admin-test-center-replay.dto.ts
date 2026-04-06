@@ -1,11 +1,13 @@
 import {
   ArrayMinSize,
   IsArray,
-  MinLength,
+  IsBoolean,
   IsOptional,
   IsString,
   MaxLength,
+  MinLength,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -25,9 +27,19 @@ export class AdminTestCenterReplayDto {
   @IsString()
   locale?: string;
 
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  scenarioId?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  autoEvaluate?: boolean;
+
+  @ValidateIf((value) => !value.scenarioId)
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => ReplayTurnDto)
-  turns!: ReplayTurnDto[];
+  turns?: ReplayTurnDto[];
 }

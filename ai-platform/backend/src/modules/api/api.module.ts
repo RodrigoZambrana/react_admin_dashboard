@@ -21,6 +21,8 @@ import { AdminCatalogController } from './admin-catalog.controller';
 import { AdminCatalogService } from './admin-catalog.service';
 import { AdminDocumentsController } from './admin-documents.controller';
 import { AdminDocumentsService } from './admin-documents.service';
+import { AdminTestCenterEvaluationService } from './admin-test-center-evaluation.service';
+import { AdminTestCenterScenarioCatalogService } from './admin-test-center-scenario-catalog.service';
 import { AdminKnowledgeController } from './admin-knowledge.controller';
 import { AdminKnowledgeService } from './admin-knowledge.service';
 import { AdminTestCenterController } from './admin-test-center.controller';
@@ -72,6 +74,8 @@ import { TraceLogService } from './trace-log.service';
     AdminCatalogService,
     AdminDocumentsService,
     AdminKnowledgeService,
+    AdminTestCenterScenarioCatalogService,
+    AdminTestCenterEvaluationService,
     AdminTestCenterService,
   ],
 })

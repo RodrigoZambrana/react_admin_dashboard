@@ -266,7 +266,9 @@ export class ResponseGroundingService {
     }
 
     const uniqueLabels = Array.from(new Set(labels));
-    const absenceReason = input.documentContext.grounding.absenceReason;
+    const absenceReason =
+      input.documentContext.grounding.absenceReason ??
+      this.resolveFallbackAbsenceReason(input.documentContext);
 
     if (absenceReason === 'extraction_uncertain') {
       return renderExtractionUncertainDetailClause({
@@ -283,6 +285,50 @@ export class ResponseGroundingService {
     }
 
     return null;
+  }
+
+  private resolveFallbackAbsenceReason(
+    documentContext: DocumentGroundingLike & {
+      grounding?: {
+        supportLevel?: 'explicit' | 'partial' | 'unavailable';
+        evidenceTier?: DocumentKnowledgeEvidenceTier;
+        exactnessRequested?: boolean;
+        partialDetailTypes?: ResponseGroundingDetailType[];
+        unsupportedDetailTypes?: ResponseGroundingDetailType[];
+        requiredUnspecifiedDetailTypes?: ResponseGroundingDetailType[];
+      };
+    },
+  ) {
+    const grounding = documentContext.grounding;
+
+    if (!grounding) {
+      return null;
+    }
+
+    const requiredDetailTypes =
+      grounding.requiredUnspecifiedDetailTypes ??
+      [
+        ...((grounding.exactnessRequested
+          ? grounding.partialDetailTypes ?? []
+          : []) as ResponseGroundingDetailType[]),
+        ...((grounding.unsupportedDetailTypes ?? []) as ResponseGroundingDetailType[]),
+      ];
+
+    if (
+      grounding.supportLevel === 'explicit' ||
+      requiredDetailTypes.length === 0
+    ) {
+      return null;
+    }
+
+    if (
+      grounding.evidenceTier === 'normalized_proposition' ||
+      grounding.evidenceTier === 'excerpt_only'
+    ) {
+      return 'extraction_uncertain' as const;
+    }
+
+    return 'document_gap' as const;
   }
 
   hasDocumentContextOverreach(input: {

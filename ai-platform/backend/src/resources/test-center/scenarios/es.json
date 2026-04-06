@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "locale": "es",
+  "scenarios": [
+    {
+      "id": "curated-payment-and-close",
+      "label": "Pagos, cuotas y cierre",
+      "description": "Valida medios de pago, cuotas por Mercado Pago y cierre correcto ante gratitud.",
+      "category": "supported_information",
+      "tags": ["pagos", "cuotas", "cierre"],
+      "turns": [
+        {
+          "message": "perfecto y que formas de pago aceptan?",
+          "expectation": {
+            "topicTerms": ["pago", "mercado pago", "transferencia", "efectivo", "tarjetas"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["transferencia", "efectivo", "mercado pago", "tarjetas"],
+                "count": 3,
+                "label": "medios de pago"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "con mercado pago en cuantas cuotas se puede pagar?",
+          "expectation": {
+            "topicTerms": ["mercado pago", "cuotas", "12"],
+            "mustMentionAll": ["mercado pago", "12"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["cuota", "cuotas"],
+                "count": 1,
+                "label": "cuotas"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "te agradezco. muy amable",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldNotMention": ["fecha", "hora", "reserva", "mercado pago"],
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-visit-inside-outside",
+      "label": "Visita, Montevideo e interior",
+      "description": "Valida toma de medidas, costo dentro de Montevideo y caveat fuera de Montevideo.",
+      "category": "supported_information",
+      "tags": ["visita", "medidas", "montevideo", "interior"],
+      "turns": [
+        {
+          "message": "hacen visita para tomar medidas?",
+          "expectation": {
+            "topicTerms": ["visita", "medidas", "domicilio"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["visita", "medidas", "domicilio"],
+                "count": 2,
+                "label": "servicio de visita"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "me encuentro en montevideo",
+          "expectation": {
+            "topicTerms": ["montevideo", "sin costo", "visita"],
+            "mustMentionAll": ["montevideo"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["sin costo", "sin cargo", "no tiene costo"],
+                "count": 1,
+                "label": "visita sin costo"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "y fuera de montevideo la visita tiene costo?",
+          "expectation": {
+            "topicTerms": ["fuera de montevideo", "costo", "traslado"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["traslado", "costo", "puede corresponder", "puede tener costo"],
+                "count": 2,
+                "label": "costo fuera de montevideo"
+              }
+            ],
+            "shouldNotMention": ["sin costo en montevideo"],
+            "allowPrudentUnknown": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "gracias por la informacion",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldNotMention": ["fecha", "hora", "reserva"],
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-local-commercial",
+      "label": "Local comercial y alternativa de atención",
+      "description": "Valida ausencia de local comercial y continuación informativa correcta.",
+      "category": "supported_information",
+      "tags": ["local", "montevideo", "visita"],
+      "turns": [
+        {
+          "message": "podrian decirme donde se encuentran y si tienen local?",
+          "expectation": {
+            "topicTerms": ["local", "comercial"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["no contamos con local", "no tenemos local", "sin local comercial"],
+                "count": 1,
+                "label": "sin local comercial"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "como puedo hacer para ver sus productos? me encuentro en montevideo",
+          "expectation": {
+            "topicTerms": ["montevideo", "visita", "mostrar productos"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["visita", "domicilio", "mostrar", "productos"],
+                "count": 2,
+                "label": "alternativa a local"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "perfecto muchas gracias por su ayuda",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldNotMention": ["local", "visita", "fecha", "hora"],
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-replacement-pvc-aluminio",
+      "label": "Reemplazo enrollar PVC o aluminio",
+      "description": "Valida respuesta informativa sobre reemplazo, colores y garantías sin exposición estructural cruda.",
+      "category": "supported_information",
+      "tags": ["reemplazo", "enrollar", "pvc", "aluminio", "garantia"],
+      "turns": [
+        {
+          "message": "hola busco reemplazar una cortina de enrollar de madera por una de pvc",
+          "expectation": {
+            "topicTerms": ["reemplazo", "cortina de enrollar", "pvc"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["reemplazo", "instalación", "pvc", "enrollar"],
+                "count": 2,
+                "label": "trabajo de reemplazo"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "que colores tienen?",
+          "expectation": {
+            "topicTerms": ["pvc", "blanco"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["blanco"],
+                "count": 1,
+                "label": "color pvc"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "y que garantia tiene el producto?",
+          "expectation": {
+            "topicTerms": ["garantía", "años"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["2 años", "2 ano", "dos años"],
+                "count": 1,
+                "label": "garantía"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-unsupported-edge",
+      "label": "Dato no confirmado sin degradación",
+      "description": "Valida que el sistema use prudencia customer-facing ante un detalle no soportado, sin crudos estructurales.",
+      "category": "edge_case",
+      "tags": ["prudencia", "detalle exacto", "unsupported"],
+      "turns": [
+        {
+          "message": "que textura exacta tienen disponible hoy?",
+          "expectation": {
+            "topicTerms": ["textura", "disponible"],
+            "allowPrudentUnknown": true,
+            "preferredResponseMode": "prudent",
+            "shouldAvoidStructuralSummary": true,
+            "shouldNotMention": ["axis", "layer", "material", "metadata"]
+          }
+        },
+        {
+          "message": "perfecto, gracias",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    }
+  ]
+}

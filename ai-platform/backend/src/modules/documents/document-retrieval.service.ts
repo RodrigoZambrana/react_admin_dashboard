@@ -440,15 +440,33 @@ export class DocumentRetrievalService {
       signals.document.focusText.trim().length > 0
     ) {
       const focusedQuery = signals.document.focusText.trim();
+      const preferCurrentTopicForThinFocus = shouldPreferCurrentTopicForThinFocus({
+        focusedQuery,
+        currentTopic,
+        explicitSubjectTopic,
+        previousTopic,
+        locale: input.interpretation.language,
+      });
+      const effectiveFocusedQuery = preferCurrentTopicForThinFocus
+        ? resolvePivotQuery({
+            currentTopic,
+            explicitSubjectTopic,
+            locale: input.interpretation.language,
+          })
+        : focusedQuery;
+
+      if (preferCurrentTopicForThinFocus) {
+        return effectiveFocusedQuery;
+      }
 
       if (
         previousTopic &&
         signals.threading.activeContinuation &&
-        focusedQuery !== previousTopic
+        effectiveFocusedQuery !== previousTopic
       ) {
         if (
           shouldPivotToCurrentTopic({
-            currentTopic: focusedQuery,
+            currentTopic: effectiveFocusedQuery,
             previousTopic,
             explicitSubjectTopic,
             locale: input.interpretation.language,
@@ -461,17 +479,44 @@ export class DocumentRetrievalService {
           });
         }
 
-        return `${previousTopic}. ${focusedQuery}`.trim();
+        return `${previousTopic}. ${effectiveFocusedQuery}`.trim();
       }
 
-      return focusedQuery;
+      return effectiveFocusedQuery;
     }
 
     if (
       (reason === 'active_document_continuation' || reason === 'knowledge_query') &&
       previousTopic
     ) {
+      if (briefFollowUp && !explicitSubjectTopic) {
+        if (previousDocumentQuery) {
+          if (incrementalFacet) {
+            return `${previousDocumentQuery}. ${incrementalFacet}`.trim();
+          }
+
+          return previousDocumentQuery;
+        }
+
+        if (incrementalFacet) {
+          const incrementalTokenCount = tokenizeConversationSignalText(incrementalFacet, {
+            locale: input.interpretation.language,
+            minimumTokenLength: 2,
+            stopWordSet: 'informative',
+          }).length;
+
+          if (incrementalTokenCount <= 1) {
+            return previousTopic;
+          }
+
+          return `${previousTopic}. ${incrementalFacet}`.trim();
+        }
+
+        return previousTopic;
+      }
+
       if (
+        explicitSubjectTopic &&
         currentTopic &&
         shouldPivotToCurrentTopic({
           currentTopic,
@@ -487,15 +532,8 @@ export class DocumentRetrievalService {
         });
       }
 
-      if (briefFollowUp && previousDocumentQuery) {
-        if (incrementalFacet) {
-          return `${previousDocumentQuery}. ${incrementalFacet}`.trim();
-        }
-
-        return previousDocumentQuery;
-      }
-
       if (
+        explicitSubjectTopic &&
         currentTopic &&
         shouldPreferCurrentTopicOverPrevious({
           currentTopic,
@@ -1073,11 +1111,18 @@ function countDelimitedSegments(value: string) {
 }
 
 function tokenizeQuery(value: string, locale?: string | null) {
-  return tokenizeConversationSignalText(value, {
+  const baseTokens = tokenizeConversationSignalText(value, {
     locale,
     minimumTokenLength: 3,
     stopWordSet: 'retrieval',
   });
+
+  return Array.from(
+    new Set([
+      ...baseTokens,
+      ...expandRetrievalEquivalentTokens(baseTokens),
+    ]),
+  );
 }
 
 function tokenizeSubjectQuery(value: string, locale?: string | null) {
@@ -1086,6 +1131,21 @@ function tokenizeSubjectQuery(value: string, locale?: string | null) {
     minimumTokenLength: 2,
     stopWordSet: 'informative',
   });
+}
+
+function expandRetrievalEquivalentTokens(tokens: string[]) {
+  const tokenSet = new Set(tokens);
+  const expanded: string[] = [];
+
+  if (tokenSet.has('cotizacion') || tokenSet.has('quotation') || tokenSet.has('quote')) {
+    expanded.push('presupuesto', 'budget');
+  }
+
+  if (tokenSet.has('presupuesto') || tokenSet.has('budget')) {
+    expanded.push('cotizacion', 'quotation', 'quote');
+  }
+
+  return expanded;
 }
 
 function resolvePreferredTopicText(input: {
@@ -1128,37 +1188,14 @@ function shouldPivotToCurrentTopic(input: {
   explicitSubjectTopic: string | null;
   locale?: string | null;
 }) {
-  const candidate = input.explicitSubjectTopic?.trim();
-
-  if (!candidate) {
-    return false;
-  }
-
-  const currentTokens = tokenizeConversationSignalText(candidate, {
-    locale: input.locale,
-    minimumTokenLength: 2,
-    stopWordSet: 'informative',
-  });
-  const previousTokens = new Set(
-    tokenizeConversationSignalText(input.previousTopic, {
+  return (
+    resolveTopicShiftCandidate({
+      currentTopic: input.currentTopic,
+      previousTopic: input.previousTopic,
+      explicitSubjectTopic: input.explicitSubjectTopic,
       locale: input.locale,
-      minimumTokenLength: 2,
-      stopWordSet: 'informative',
-    }),
+    }) !== null
   );
-
-  if (currentTokens.length < 2 || previousTokens.size === 0) {
-    return false;
-  }
-
-  const overlapCount = currentTokens.filter((token) => previousTokens.has(token)).length;
-  const novelTokenCount = currentTokens.length - overlapCount;
-
-  if (overlapCount === 0) {
-    return true;
-  }
-
-  return novelTokenCount > 0 && overlapCount < currentTokens.length;
 }
 
 function resolvePivotQuery(input: {
@@ -1200,19 +1237,79 @@ function shouldPreferCurrentTopicOverPrevious(input: {
   explicitSubjectTopic: string | null;
   locale?: string | null;
 }) {
-  const preferredCurrentTopic =
-    input.explicitSubjectTopic?.trim() ||
-    extractSubjectRefreshCandidate(input.currentTopic, input.locale);
+  return (
+    resolveTopicShiftCandidate({
+      currentTopic: input.currentTopic,
+      previousTopic: input.previousTopic,
+      explicitSubjectTopic: input.explicitSubjectTopic,
+      locale: input.locale,
+    }) !== null
+  );
+}
 
-  if (!preferredCurrentTopic) {
+function shouldPreferCurrentTopicForThinFocus(input: {
+  focusedQuery: string;
+  currentTopic: string;
+  explicitSubjectTopic: string | null;
+  previousTopic: string | null;
+  locale?: string | null;
+}) {
+  if (!input.explicitSubjectTopic) {
     return false;
   }
 
-  const currentTokens = tokenizeConversationSignalText(preferredCurrentTopic, {
+  const focusTokens = tokenizeConversationSignalText(input.focusedQuery, {
     locale: input.locale,
     minimumTokenLength: 2,
     stopWordSet: 'informative',
   });
+
+  if (focusTokens.length > 2) {
+    return false;
+  }
+
+  const pivotQuery = resolvePivotQuery({
+    currentTopic: input.currentTopic,
+    explicitSubjectTopic: input.explicitSubjectTopic,
+    locale: input.locale,
+  });
+  const pivotTokens = tokenizeConversationSignalText(pivotQuery, {
+    locale: input.locale,
+    minimumTokenLength: 2,
+    stopWordSet: 'informative',
+  });
+
+  if (pivotTokens.length <= focusTokens.length) {
+    return false;
+  }
+
+  const focusTokenSet = new Set(focusTokens);
+  const containsFocusedSignal =
+    focusTokens.length === 0 ||
+    focusTokens.every((token) => pivotTokens.includes(token));
+
+  if (!containsFocusedSignal) {
+    return false;
+  }
+
+  if (!input.previousTopic) {
+    return true;
+  }
+
+  return shouldPreferCurrentTopicOverPrevious({
+    currentTopic: pivotQuery,
+    previousTopic: input.previousTopic,
+    explicitSubjectTopic: input.explicitSubjectTopic,
+    locale: input.locale,
+  });
+}
+
+function resolveTopicShiftCandidate(input: {
+  currentTopic: string;
+  previousTopic: string;
+  explicitSubjectTopic: string | null;
+  locale?: string | null;
+}) {
   const previousTokens = new Set(
     tokenizeConversationSignalText(input.previousTopic, {
       locale: input.locale,
@@ -1221,14 +1318,39 @@ function shouldPreferCurrentTopicOverPrevious(input: {
     }),
   );
 
-  if (currentTokens.length < 2 || previousTokens.size === 0) {
-    return false;
+  if (previousTokens.size === 0) {
+    return null;
   }
 
-  const overlapCount = currentTokens.filter((token) => previousTokens.has(token)).length;
-  const novelTokenCount = currentTokens.length - overlapCount;
+  const candidates = [
+    extractSubjectRefreshCandidate(input.currentTopic, input.locale),
+    input.explicitSubjectTopic?.trim() || null,
+  ].filter((candidate): candidate is string => Boolean(candidate));
 
-  return overlapCount > 0 && novelTokenCount > 0 && overlapCount < currentTokens.length;
+  for (const candidate of candidates) {
+    const currentTokens = tokenizeConversationSignalText(candidate, {
+      locale: input.locale,
+      minimumTokenLength: 2,
+      stopWordSet: 'informative',
+    });
+
+    if (currentTokens.length < 2) {
+      continue;
+    }
+
+    const overlapCount = currentTokens.filter((token) => previousTokens.has(token)).length;
+    const novelTokenCount = currentTokens.length - overlapCount;
+
+    if (overlapCount === 0) {
+      return candidate;
+    }
+
+    if (novelTokenCount > 0 && overlapCount < currentTokens.length) {
+      return candidate;
+    }
+  }
+
+  return null;
 }
 
 function extractSubjectRefreshCandidate(
@@ -1591,7 +1713,12 @@ function scoreActionCapabilityRelevance(
   );
   const metadataCandidates = extractKnowledgeMetadataSummaries(knowledgeItems, {
     layers: ['workflow', 'guidance'],
-  }).filter((note) => note.axis === 'organic_response_pattern');
+  }).filter(
+    (note) =>
+      note.axis === 'organic_response_pattern' ||
+      note.axis === 'quote_fields' ||
+      note.axis === 'quote_transition',
+  );
   const queryTokenSet = new Set(queryTokens);
   const candidates = [
     ...factualCandidates.map((claim) => ({

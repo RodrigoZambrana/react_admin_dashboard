@@ -9,8 +9,15 @@ import { TemporalLocaleService } from '../temporal/temporal-locale.service';
 import { ChatLogRepository } from '../persistence/repositories/chat-log.repository';
 import { ConversationRepository } from '../persistence/repositories/conversation.repository';
 import { ConversationStateRepository } from '../persistence/repositories/conversation-state.repository';
+import { TestCenterEvaluationRepository } from '../persistence/repositories/test-center-evaluation.repository';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
+import { AdminTestCenterEvaluationService } from './admin-test-center-evaluation.service';
+import { AdminTestCenterScenarioCatalogService } from './admin-test-center-scenario-catalog.service';
 import { ChatOrchestratorService } from './chat-orchestrator.service';
+import type {
+  TestCenterReplayTurnResult,
+  TestCenterScenario,
+} from './test-center.types';
 
 const TEST_CENTER_CHANNEL = 'admin_test_center';
 
@@ -27,10 +34,13 @@ export class AdminTestCenterService {
     private readonly conversationRepository: ConversationRepository,
     private readonly conversationStateRepository: ConversationStateRepository,
     private readonly chatLogRepository: ChatLogRepository,
+    private readonly testCenterEvaluationRepository: TestCenterEvaluationRepository,
     private readonly promptService: PromptService,
     private readonly temporalLocaleService: TemporalLocaleService,
     private readonly responseFallbackService: ResponseFallbackService,
     private readonly knowledgeMetadataService: KnowledgeMetadataService,
+    private readonly scenarioCatalogService: AdminTestCenterScenarioCatalogService,
+    private readonly evaluationService: AdminTestCenterEvaluationService,
   ) {}
 
   async listTestRuns(limit = 20) {
@@ -41,9 +51,10 @@ export class AdminTestCenterService {
 
     return Promise.all(
       conversations.map(async (conversation) => {
-        const traceLogs = await this.chatLogRepository.listByConversationId(
-          conversation.id,
-        );
+        const [traceLogs, evaluation] = await Promise.all([
+          this.chatLogRepository.listByConversationId(conversation.id),
+          this.testCenterEvaluationRepository.findByConversationId(conversation.id),
+        ]);
 
         return {
           id: conversation.id,
@@ -54,6 +65,7 @@ export class AdminTestCenterService {
           latestMessage: conversation.messages[0]?.content ?? null,
           latestRole: conversation.messages[0]?.role ?? null,
           traceCount: this.collectTraceIds(traceLogs).length,
+          evaluation,
         };
       }),
     );
@@ -68,10 +80,11 @@ export class AdminTestCenterService {
       );
     }
 
-    const state = await this.conversationStateRepository.findByConversationId(
-      conversationId,
-    );
-    const traceLogs = await this.chatLogRepository.listByConversationId(conversationId);
+    const [state, traceLogs, evaluation] = await Promise.all([
+      this.conversationStateRepository.findByConversationId(conversationId),
+      this.chatLogRepository.listByConversationId(conversationId),
+      this.testCenterEvaluationRepository.findByConversationId(conversationId),
+    ]);
     const traceIds = this.collectTraceIds(traceLogs);
 
     return {
@@ -88,7 +101,12 @@ export class AdminTestCenterService {
         this.buildTraceSummary(traceLogs.filter((log) => log.traceId === traceId)),
       ),
       logs: traceLogs,
+      evaluation,
     };
+  }
+
+  listScenarios(locale?: string) {
+    return this.scenarioCatalogService.listScenarios(locale ?? 'es');
   }
 
   async listRecentTraceSummaries(limit = 20) {
@@ -172,12 +190,30 @@ export class AdminTestCenterService {
     };
   }
 
-  async replayConversation(input: { locale?: string; turns: ReplayTurnInput[] }) {
+  async replayConversation(input: {
+    locale?: string;
+    turns?: ReplayTurnInput[];
+    scenarioId?: string;
+    autoEvaluate?: boolean;
+  }) {
     const tenantId = this.tenantContext.getTenantId();
-    let conversationId: string | undefined;
-    const turns = [];
+    const scenario = input.scenarioId
+      ? await this.resolveScenarioOrThrow(input.scenarioId, input.locale)
+      : null;
+    const replayTurns =
+      scenario?.turns.map((turn) => ({
+        message: turn.message,
+        locale: turn.locale,
+      })) ?? input.turns ?? [];
 
-    for (const turn of input.turns) {
+    if (replayTurns.length === 0) {
+      throw new NotFoundException('Replay requires at least one turn');
+    }
+
+    let conversationId: string | undefined;
+    const turns: TestCenterReplayTurnResult[] = [];
+
+    for (const turn of replayTurns) {
       const traceId = randomUUID();
       const result = await this.tenantContext.run({ tenantId, traceId }, () =>
         this.chatOrchestratorService.handleMessage({
@@ -203,12 +239,71 @@ export class AdminTestCenterService {
       throw new NotFoundException('Replay did not produce a conversation');
     }
 
+    const evaluation =
+      scenario && input.autoEvaluate !== false
+        ? await this.evaluatePersistedConversation({
+            conversationId,
+            scenario,
+            turns,
+            tenantId,
+          })
+        : null;
     const detail = await this.getTestRun(conversationId);
 
     return {
       conversationId,
       turns,
       detail,
+      scenario,
+      evaluation,
+    };
+  }
+
+  async evaluateConversation(input: {
+    conversationId: string;
+    scenarioId: string;
+    locale?: string;
+  }) {
+    const scenario = await this.resolveScenarioOrThrow(
+      input.scenarioId,
+      input.locale,
+    );
+    const run = await this.getTestRun(input.conversationId);
+    const turns = run.traces
+      .map<TestCenterReplayTurnResult | null>((trace, index) => {
+        const userMessage = run.messages.filter((message) => message.role === 'USER')[index];
+        const response = trace.response?.text ?? '';
+
+        if (!userMessage || !response) {
+          return null;
+        }
+
+        return {
+          input: userMessage.content,
+          locale: run.conversation.language ?? scenario.locale,
+          traceId: trace.traceId,
+          response,
+          intent: trace.interpretation?.intent ?? 'GENERAL_CONVERSATION',
+          metadata: {
+            conversationId: run.conversation.id,
+            traceId: trace.traceId,
+          },
+        };
+      })
+      .filter((turn): turn is TestCenterReplayTurnResult => Boolean(turn));
+
+    const tenantId = this.tenantContext.getTenantId();
+    const evaluation = await this.evaluatePersistedConversation({
+      conversationId: input.conversationId,
+      scenario,
+      turns,
+      tenantId,
+    });
+
+    return {
+      conversationId: input.conversationId,
+      scenario,
+      evaluation,
     };
   }
 
@@ -226,6 +321,43 @@ export class AdminTestCenterService {
       responseFallbackCatalogs: fallbacks,
       knowledgeMetadata,
     };
+  }
+
+  private async resolveScenarioOrThrow(scenarioId: string, locale?: string) {
+    const scenario = await this.scenarioCatalogService.getScenario(
+      scenarioId,
+      locale ?? 'es',
+    );
+
+    if (!scenario) {
+      throw new NotFoundException(`Test-center scenario ${scenarioId} was not found`);
+    }
+
+    return scenario;
+  }
+
+  private async evaluatePersistedConversation(input: {
+    conversationId: string;
+    scenario: TestCenterScenario;
+    turns: TestCenterReplayTurnResult[];
+    tenantId: string;
+  }) {
+    const evaluation = this.evaluationService.evaluateScenarioRun({
+      scenario: input.scenario,
+      turns: input.turns,
+    });
+
+    await this.testCenterEvaluationRepository.upsertConversationEvaluation({
+      conversationId: input.conversationId,
+      scenarioId: input.scenario.id,
+      scenarioLabel: input.scenario.label,
+      scenarioSourceKind: input.scenario.sourceKind,
+      locale: input.scenario.locale,
+      tenantId: input.tenantId,
+      evaluation,
+    });
+
+    return evaluation;
   }
 
   private collectTraceIds(logs: ChatLog[]) {

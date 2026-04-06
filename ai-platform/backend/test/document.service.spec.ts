@@ -37,6 +37,7 @@ describe('DocumentService', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
       documentExtractionProfileConfigService as any,
       {
         log: jest.fn(),
@@ -101,6 +102,7 @@ describe('DocumentService', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
       documentExtractionProfileConfigService as any,
       {
         log: jest.fn(),
@@ -144,6 +146,7 @@ describe('DocumentService', () => {
     };
     const service = new DocumentService(
       documentRepository as any,
+      {} as any,
       {} as any,
       {} as any,
       {} as any,

@@ -71,6 +71,14 @@ export class ChatResponsePolicyService {
       this.buildUnavailableKnowledgeResponse(context, missingSummaryResponse);
     const scopedUnavailableDetailResponse =
       this.buildScopedUnavailableDetailResponse(context, effectiveSummary);
+    const effectiveSummarySupportsRequestedDetail =
+      !context.documentContext?.grounding.requestedDetailTypes.length ||
+      this.responseGroundingService.summaryAddressesRequestedDetails({
+        locale: context.locale,
+        summary: effectiveSummary,
+        detailTypes: context.documentContext.grounding.requestedDetailTypes,
+        documentContext: context.documentContext,
+      });
 
     if (!effectiveSummary && supportLevel === 'unavailable' && !hasMatches) {
       if (context.outcome === 'clarify') {
@@ -98,6 +106,31 @@ export class ChatResponsePolicyService {
     }
 
     if (!effectiveSummary && scopedUnavailableDetailResponse) {
+      if (context.outcome === 'clarify') {
+        return this.composeWithDocumentSummary(
+          scopedUnavailableDetailResponse,
+          await this.buildClarificationResponse(context),
+        );
+      }
+
+      if (context.outcome === 'execution_succeeded') {
+        return this.composeWithDocumentSummary(
+          scopedUnavailableDetailResponse,
+          await this.buildExecutionSuccessResponse(context),
+        );
+      }
+
+      if (context.outcome === 'execution_failed') {
+        return this.composeWithDocumentSummary(
+          scopedUnavailableDetailResponse,
+          await this.buildExecutionFailureResponse(context),
+        );
+      }
+
+      return scopedUnavailableDetailResponse;
+    }
+
+    if (scopedUnavailableDetailResponse && !effectiveSummarySupportsRequestedDetail) {
       if (context.outcome === 'clarify') {
         return this.composeWithDocumentSummary(
           scopedUnavailableDetailResponse,
@@ -636,6 +669,24 @@ export class ChatResponsePolicyService {
     const requestedDetailTypes =
       context.documentContext?.grounding.requestedDetailTypes ?? [];
 
+    if (requestedDetailTypes.includes('payment_terms')) {
+      const paymentSummary = buildNaturalPaymentSummary(
+        context.locale,
+        aggregateAxisSummaries([
+          ...claims,
+          ...this.collectRelevantAxisSummaries(context, [
+            'payment_methods',
+            'payment_terms',
+            'installment_count',
+          ]),
+        ]),
+      );
+
+      if (paymentSummary) {
+        return paymentSummary;
+      }
+    }
+
     if (requestedDetailTypes.includes('color_options')) {
       const colorSummary = buildNaturalColorSummary(
         context.locale,
@@ -833,6 +884,15 @@ export class ChatResponsePolicyService {
           !matchBackedSupportsRequestedDetail))
     ) {
       return '';
+    }
+
+    if (
+      requestedDetailTypes.length > 0 &&
+      looksStructuralSummary(groundedSummary) &&
+      !looksStructuralSummary(matchBackedSummary) &&
+      matchBackedSupportsRequestedDetail
+    ) {
+      return matchBackedSummary;
     }
 
     if (
@@ -2052,6 +2112,97 @@ function buildNaturalColorSummary(
     locale,
     'conjunction',
   )}.`;
+}
+
+function buildNaturalPaymentSummary(
+  locale: string,
+  claims: DocumentKnowledgeAxisSummary[],
+) {
+  const paymentMethodValues = Array.from(
+    new Set(
+      claims
+        .filter(
+          (claim) =>
+            claim.axis === 'payment_methods' &&
+            claim.supportClass === 'explicit_fact',
+        )
+        .flatMap((claim) =>
+          claim.values
+            .map((value) => formatInlineResponseValue(value))
+            .filter(Boolean),
+        ),
+    ),
+  );
+  const installmentClaims = claims.filter(
+    (claim) =>
+      (claim.axis === 'payment_terms' && claim.facet === 'installment_count') ||
+      claim.axis === 'installment_count',
+  );
+  const cardBrandClaims = claims.filter(
+    (claim) => claim.axis === 'payment_terms' && claim.facet === 'card_brands',
+  );
+  const sentences: string[] = [];
+
+  if (paymentMethodValues.length > 0) {
+    sentences.push(
+      `Aceptamos ${formatLocalizedList(
+        paymentMethodValues,
+        locale,
+        'conjunction',
+      )}.`,
+    );
+  }
+
+  const mercadoPagoInstallmentClaim = installmentClaims.find((claim) =>
+    (claim.appliesTo ?? []).some(
+      (scope) =>
+        scope.axis === 'payment_method' &&
+        (scope.normalizedValue ?? scope.value).toLowerCase() === 'mercado pago',
+    ),
+  );
+  const mercadoPagoCardClaim = cardBrandClaims.find((claim) =>
+    (claim.appliesTo ?? []).some(
+      (scope) =>
+        scope.axis === 'payment_method' &&
+        (scope.normalizedValue ?? scope.value).toLowerCase() === 'mercado pago',
+    ),
+  );
+  const installmentValue = mercadoPagoInstallmentClaim?.values[0]?.trim() ?? '';
+  const cardValues = Array.from(
+    new Set(
+      (mercadoPagoCardClaim?.values ?? [])
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+
+  if (installmentValue && cardValues.length > 0) {
+    sentences.push(
+      `Con Mercado Pago se puede pagar hasta en ${installmentValue} cuotas y se aceptan ${formatLocalizedList(
+        cardValues,
+        locale,
+        'conjunction',
+      )}.`,
+    );
+  } else if (installmentValue) {
+    sentences.push(
+      `Con Mercado Pago se puede pagar hasta en ${installmentValue} cuotas.`,
+    );
+  } else if (cardValues.length > 0) {
+    sentences.push(
+      `Con Mercado Pago se aceptan ${formatLocalizedList(
+        cardValues,
+        locale,
+        'conjunction',
+      )}.`,
+    );
+  }
+
+  if (sentences.length === 0) {
+    return '';
+  }
+
+  return sentences.join(' ');
 }
 
 function buildNaturalWarrantySummary(

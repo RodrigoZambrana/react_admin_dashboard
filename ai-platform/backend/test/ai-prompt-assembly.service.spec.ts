@@ -313,6 +313,8 @@ describe('AiPromptAssemblyService', () => {
           responseMode: 'document_exploration',
           grounding: {
             supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
             exactnessRequested: false,
             requestedDetailTypes: [],
             supportedDetailTypes: [],

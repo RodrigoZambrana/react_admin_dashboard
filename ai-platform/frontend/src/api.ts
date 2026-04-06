@@ -19,6 +19,8 @@ import type {
   PromptEffectiveView,
   ReplayResponse,
   ResponseFallbackVersion,
+  TestCenterConversationEvaluation,
+  TestCenterScenario,
   TestCenterRunDetail,
   TestCenterRunSummary,
   TraceComparison,
@@ -552,10 +554,34 @@ export async function listTestCenterRuns(limit = 20) {
   );
 }
 
+export async function listTestCenterScenarios(locale = 'es') {
+  return apiRequest<TestCenterScenario[]>(
+    `/admin/test-center/scenarios?locale=${encodeURIComponent(locale)}`,
+  );
+}
+
 export async function getTestCenterRun(conversationId: string) {
   return apiRequest<TestCenterRunDetail>(
     `/admin/test-center/conversations/${conversationId}`,
   );
+}
+
+export async function evaluateTestCenterConversation(input: {
+  conversationId: string;
+  scenarioId: string;
+  locale?: string;
+}) {
+  return apiRequest<{
+    conversationId: string;
+    scenario: TestCenterScenario;
+    evaluation: TestCenterConversationEvaluation;
+  }>(`/admin/test-center/conversations/${input.conversationId}/evaluate`, {
+    method: 'POST',
+    body: {
+      scenarioId: input.scenarioId,
+      locale: input.locale,
+    },
+  });
 }
 
 export async function listRecentTraceSummaries(limit = 20) {
@@ -578,7 +604,9 @@ export async function compareTraces(leftTraceId: string, rightTraceId: string) {
 
 export async function replayConversation(input: {
   locale?: string;
-  turns: Array<{ message: string; locale?: string }>;
+  turns?: Array<{ message: string; locale?: string }>;
+  scenarioId?: string;
+  autoEvaluate?: boolean;
 }) {
   return apiRequest<ReplayResponse>('/admin/test-center/replays', {
     method: 'POST',

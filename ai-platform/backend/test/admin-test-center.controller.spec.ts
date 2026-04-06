@@ -4,7 +4,9 @@ describe('AdminTestCenterController', () => {
   it('exposes replay, trace exploration, and comparison contracts', async () => {
     const service = {
       listTestRuns: jest.fn(async () => ['run-1']),
+      listScenarios: jest.fn(async () => ['scenario-1']),
       getTestRun: jest.fn(async () => ({ id: 'conv-1' })),
+      evaluateConversation: jest.fn(async () => ({ evaluation: { overallScore: 92 } })),
       listRecentTraceSummaries: jest.fn(async () => ['trace-1']),
       getTraceDetail: jest.fn(async () => ({ summary: { traceId: 'trace-1' } })),
       compareTraces: jest.fn(async () => ({ comparison: {} })),
@@ -13,9 +15,16 @@ describe('AdminTestCenterController', () => {
     const controller = new AdminTestCenterController(service as any);
 
     await expect(controller.listTestRuns('10')).resolves.toEqual(['run-1']);
+    await expect(controller.listScenarios('es')).resolves.toEqual(['scenario-1']);
     await expect(controller.getTestRun('conv-1')).resolves.toEqual({
       id: 'conv-1',
     });
+    await expect(
+      controller.evaluateConversation('conv-1', {
+        scenarioId: 'scenario-1',
+        locale: 'es',
+      } as any),
+    ).resolves.toEqual({ evaluation: { overallScore: 92 } });
     await expect(controller.listRecentTraces('5')).resolves.toEqual(['trace-1']);
     await expect(controller.getTraceDetail('trace-1')).resolves.toEqual({
       summary: { traceId: 'trace-1' },
