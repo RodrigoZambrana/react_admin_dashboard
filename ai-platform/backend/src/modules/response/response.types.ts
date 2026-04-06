@@ -5,6 +5,8 @@ import type { DecisionResult } from '../decision/decision.types';
 import type { DocumentRetrievalResult } from '../documents/document.types';
 import type { DocumentKnowledgeAxisSummary } from '../documents/document.types';
 import type { DocumentKnowledgeMetadataSummary } from '../documents/document.types';
+import type { DocumentKnowledgeEvidenceTier } from '../documents/document.types';
+import type { DocumentKnowledgePropositionSummary } from '../documents/document.types';
 import type { CanonicalIntent } from '../interpretation/interpretation.schemas';
 import type { ParsedInterpretation } from '../parsing/parsing.service';
 import type { ToolExecutionAttempt } from '../tools/tool.types';
@@ -51,6 +53,7 @@ export type ResponseGuardrailCode =
   | 'unsupported_document_detail'
   | 'missing_required_detail_axis'
   | 'wrong_unspecified_detail_axis'
+  | 'unsupported_document_absence_claim'
   | 'partial_document_detail_overclaim'
   | 'document_context_overreach'
   | 'close_turn_reopen'
@@ -67,6 +70,7 @@ export const responseGroundingDetailTypeSchema = z.enum([
   'materials',
   'color_options',
   'specific_variants',
+  'feature_support',
 ]);
 
 export type ResponseGroundingDetailType = z.infer<
@@ -130,6 +134,8 @@ export type ApprovedResponseContext = {
     responseMode: 'document_exploration' | 'combined_execution';
     grounding: {
       supportLevel: 'explicit' | 'partial' | 'unavailable';
+      evidenceTier: DocumentKnowledgeEvidenceTier;
+      absenceReason: 'document_gap' | 'extraction_uncertain' | null;
       exactnessRequested: boolean;
       requestedDetailTypes: ResponseGroundingDetailType[];
       supportedDetailTypes: ResponseGroundingDetailType[];
@@ -149,6 +155,8 @@ export type ApprovedResponseContext = {
         unspecifiedAxes: string[];
         axisSummaries?: DocumentKnowledgeAxisSummary[];
         metadataNotes?: DocumentKnowledgeMetadataSummary[];
+        propositionSummaries?: DocumentKnowledgePropositionSummary[];
+        evidenceTier?: Exclude<DocumentKnowledgeEvidenceTier, 'none'>;
       };
     }>;
   };

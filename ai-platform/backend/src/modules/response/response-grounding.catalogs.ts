@@ -19,6 +19,11 @@ type GroundingQuestionSignals = {
   detailCueTerms: string[];
 };
 
+type CoverageScopeSignals = {
+  insideLocationTerms: string[];
+  outsideLocationTerms: string[];
+};
+
 type RawGroundingLocaleCatalog = {
   locale: string;
   detailTypes: DetailCatalog;
@@ -26,7 +31,9 @@ type RawGroundingLocaleCatalog = {
   exactnessCues: string[];
   closeTurnReopenCues: string[];
   questionSignals: GroundingQuestionSignals;
+  coverageScopeSignals?: CoverageScopeSignals;
   unspecifiedDetailPrefix: string;
+  extractionUncertainDetailPrefix: string;
   labelJoiner: string;
   guardrail: {
     minimumTokenLength: number;
@@ -43,7 +50,9 @@ type GroundingLocaleCatalog = {
   exactnessCues: string[];
   closeTurnReopenCues: string[];
   questionSignals: GroundingQuestionSignals;
+  coverageScopeSignals: CoverageScopeSignals;
   unspecifiedDetailPrefix: string;
+  extractionUncertainDetailPrefix: string;
   labelJoiner: string;
   guardrail: {
     minimumTokenLength: number;
@@ -145,6 +154,22 @@ export function renderUnspecifiedDetailClause(input: {
   )}.`;
 }
 
+export function renderExtractionUncertainDetailClause(input: {
+  locale?: string | null;
+  labels: string[];
+}) {
+  const catalog = resolveResponseGroundingCatalog(input.locale);
+
+  if (input.labels.length === 0) {
+    return null;
+  }
+
+  return `${catalog.extractionUncertainDetailPrefix} ${joinLabels(
+    input.labels,
+    catalog.labelJoiner,
+  )}.`;
+}
+
 function loadGroundingCatalogResource(
   family: ResponseGroundingLocaleFamily,
 ): RawGroundingLocaleCatalog {
@@ -190,7 +215,16 @@ function compileGroundingCatalog(
       ),
       detailCueTerms: normalizeTerms(raw.questionSignals?.detailCueTerms ?? []),
     },
+    coverageScopeSignals: {
+      insideLocationTerms: normalizeTerms(
+        raw.coverageScopeSignals?.insideLocationTerms ?? [],
+      ),
+      outsideLocationTerms: normalizeTerms(
+        raw.coverageScopeSignals?.outsideLocationTerms ?? [],
+      ),
+    },
     unspecifiedDetailPrefix: raw.unspecifiedDetailPrefix,
+    extractionUncertainDetailPrefix: raw.extractionUncertainDetailPrefix,
     labelJoiner: raw.labelJoiner,
     guardrail: {
       minimumTokenLength:

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
+import { splitGroundingSentences } from './response-grounding.catalogs';
 import {
   AiGeneratedResponse,
   ApprovedResponseContext,
@@ -110,11 +111,32 @@ export class ResponseGuardrailService {
         message: generatedResponse.message,
         documentContext: approvedContext.documentContext,
       });
-      const unspecifiedDetailTypes =
-        this.responseGroundingService.extractUnspecifiedDetailTypes({
+      const sentenceAnalyses = splitGroundingSentences(
+        generatedResponse.message,
+      ).map((sentence) => {
+        const hasUnspecifiedCue =
+          this.responseGroundingService.containsUnspecifiedCue({
+            locale: approvedContext.locale,
+            message: sentence,
+          });
+
+        return {
+          sentence,
+          hasUnspecifiedCue,
+          claimedDetailTypes: this.responseGroundingService.extractClaimedDetailTypes({
+            locale: approvedContext.locale,
+            message: sentence,
+            documentContext: approvedContext.documentContext,
+          }),
+        };
+      });
+      const unspecifiedDetailTypes = sentenceAnalyses
+        .filter((analysis) => analysis.hasUnspecifiedCue)
+        .flatMap((analysis) => analysis.claimedDetailTypes);
+      const messageContainsUnspecifiedCue =
+        this.responseGroundingService.containsUnspecifiedCue({
           locale: approvedContext.locale,
           message: generatedResponse.message,
-          documentContext: approvedContext.documentContext,
         });
       const allowedUnspecifiedDetailTypes = new Set(
         documentGrounding.requiredUnspecifiedDetailTypes ??
@@ -127,10 +149,11 @@ export class ResponseGuardrailService {
             ...documentGrounding.unsupportedDetailTypes,
           ],
       );
-      const addressedDetailTypes = new Set([
-        ...claimedDetailTypes,
-        ...unspecifiedDetailTypes,
-      ]);
+      const addressedDetailTypes = new Set<string>(claimedDetailTypes);
+
+      for (const detailType of unspecifiedDetailTypes) {
+        addressedDetailTypes.add(detailType);
+      }
 
       if (
         allowedUnspecifiedDetailTypes.size > 0 &&
@@ -151,13 +174,39 @@ export class ResponseGuardrailService {
       }
 
       if (
-        claimedDetailTypes.some((detailType) =>
-          documentGrounding.unsupportedDetailTypes.includes(detailType),
-        ) &&
-        !this.responseGroundingService.containsUnspecifiedCue({
-          locale: approvedContext.locale,
-          message: generatedResponse.message,
-        })
+        documentGrounding.absenceReason === 'extraction_uncertain' &&
+        messageContainsUnspecifiedCue &&
+        unspecifiedDetailTypes.some((detailType) =>
+          allowedUnspecifiedDetailTypes.has(detailType),
+        )
+      ) {
+        reasons.add('unsupported_document_absence_claim');
+      }
+
+      if (
+        sentenceAnalyses.some((analysis) => {
+          if (analysis.hasUnspecifiedCue) {
+            return false;
+          }
+
+          const hasUnsupportedDetail = analysis.claimedDetailTypes.some((detailType) =>
+            documentGrounding.unsupportedDetailTypes.includes(detailType),
+          );
+
+          if (!hasUnsupportedDetail) {
+            return false;
+          }
+
+          return !documentGrounding.supportedDetailTypes.some((detailType) =>
+            this.responseGroundingService.summaryContainsConcreteDetail({
+              locale: approvedContext.locale,
+              detailType,
+              summary: analysis.sentence,
+              documentContext: approvedContext.documentContext,
+            }),
+          );
+        }) &&
+        !messageContainsUnspecifiedCue
       ) {
         reasons.add('unsupported_document_detail');
       }
@@ -168,10 +217,7 @@ export class ResponseGuardrailService {
         claimedDetailTypes.some((detailType) =>
           documentGrounding.partialDetailTypes.includes(detailType),
         ) &&
-        !this.responseGroundingService.containsUnspecifiedCue({
-          locale: approvedContext.locale,
-          message: generatedResponse.message,
-        })
+        !messageContainsUnspecifiedCue
       ) {
         reasons.add('partial_document_detail_overclaim');
       }

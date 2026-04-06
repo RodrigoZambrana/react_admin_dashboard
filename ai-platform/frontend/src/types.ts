@@ -298,6 +298,13 @@ export type DocumentKnowledgeScopedValue = {
   normalizedValue?: string;
 };
 
+export type DocumentKnowledgePropositionScope = {
+  axis: string;
+  value: string;
+  normalizedValue?: string;
+  relation?: string;
+};
+
 export type DocumentKnowledgeClaimView = {
   axis: string;
   layer: 'factual';
@@ -329,6 +336,57 @@ export type DocumentKnowledgeEntityView = {
   provenance: DocumentKnowledgeProvenance[];
 };
 
+export type DocumentKnowledgePropositionView = {
+  predicate: string;
+  facet?: string;
+  layer?: 'factual' | 'prudence' | 'workflow' | 'guidance';
+  supportClass: 'explicit_fact' | 'partial_fact' | 'bounded_inference';
+  evidenceTier: 'typed_claim' | 'normalized_proposition' | 'excerpt_only';
+  polarity: 'affirmed' | 'negated' | 'conditional' | 'comparative' | 'unknown';
+  confidence: number;
+  extractionScope?: 'core_universal' | 'domain_profile' | 'tenant_only';
+  subject?: DocumentKnowledgeScopedValue;
+  relationScope: DocumentKnowledgePropositionScope[];
+  objectValue: string;
+  objectNormalizedValue?: string;
+  canonicalKey: string;
+  patternKey: string;
+  promotionState: 'unclassified' | 'candidate' | 'promoted' | 'rejected';
+  promotedAxis?: string;
+  promotedFacet?: string;
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+export type DocumentKnowledgePromotionCandidate = {
+  patternKey: string;
+  predicate: string;
+  facet?: string;
+  layer?: 'factual' | 'prudence' | 'workflow' | 'guidance';
+  profileKey?: string;
+  promotionState: 'unclassified' | 'candidate' | 'promoted' | 'rejected';
+  promotedAxis?: string;
+  promotedFacet?: string;
+  occurrenceCount: number;
+  documentCount: number;
+  averageConfidence: number;
+  supportClasses: Array<'explicit_fact' | 'partial_fact' | 'bounded_inference'>;
+  polarities: Array<'affirmed' | 'negated' | 'conditional' | 'comparative' | 'unknown'>;
+  evidenceTiers: Array<'typed_claim' | 'normalized_proposition' | 'excerpt_only'>;
+  subjects: DocumentKnowledgeScopedValue[];
+  exampleValues: string[];
+  examples: Array<{
+    documentId: string;
+    documentTitle: string;
+    documentUpdatedAt: string;
+    evidenceTextSpan: string;
+    objectValue: string;
+    objectNormalizedValue?: string;
+    confidence: number;
+    subject?: DocumentKnowledgeScopedValue;
+    relationScope: DocumentKnowledgePropositionScope[];
+  }>;
+};
+
 export type DocumentKnowledgeView = {
   scope: 'active_corpus' | 'document';
   generatedAt: string;
@@ -345,6 +403,7 @@ export type DocumentKnowledgeView = {
     documentCount: number;
     chunkCount: number;
     claimCount: number;
+    propositionCount: number;
     entityCount: number;
   };
   support: {
@@ -382,6 +441,7 @@ export type DocumentKnowledgeView = {
   prudenceNotes: DocumentKnowledgeMetadataView[];
   workflowNotes: DocumentKnowledgeMetadataView[];
   guidanceNotes: DocumentKnowledgeMetadataView[];
+  propositions: DocumentKnowledgePropositionView[];
   entities: DocumentKnowledgeEntityView[];
 };
 

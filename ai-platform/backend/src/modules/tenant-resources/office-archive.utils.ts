@@ -16,17 +16,32 @@ export function extractDocxText(buffer: Buffer) {
     return '';
   }
 
-  const withParagraphBreaks = xml
-    .replace(/<\/w:p>/g, '\n')
-    .replace(/<\/w:tr>/g, '\n')
-    .replace(/<w:tab\/>/g, '\t')
-    .replace(/<w:br\/>/g, '\n');
+  const paragraphs =
+    xml.match(/<w:p[\s\S]*?<\/w:p>/g) ??
+    xml.match(/<w:tr[\s\S]*?<\/w:tr>/g) ??
+    [xml];
+  const lines = paragraphs
+    .map((paragraph: string) => extractDocxParagraphText(paragraph))
+    .filter((value: string) => value.length > 0);
 
-  const text = withParagraphBreaks
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+\n/g, '\n');
+  return normalizeExtractedText(lines.join('\n\n'));
+}
 
-  return normalizeExtractedText(decodeHtmlEntities(text));
+function extractDocxParagraphText(value: string) {
+  const withInlineBreaks = value
+    .replace(/<w:tab\s*\/>/g, '\t')
+    .replace(/<w:br\s*\/>/g, '\n');
+  const textNodes = Array.from(
+    withInlineBreaks.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g),
+    (match) => decodeHtmlEntities(match[1] ?? ''),
+  );
+  const fallbackText = withInlineBreaks.replace(/<[^>]+>/g, ' ');
+  const rawText = textNodes.length > 0 ? textNodes.join(' ') : fallbackText;
+
+  return decodeHtmlEntities(rawText)
+    .replace(/\s*\n\s*/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
 }
 
 export function extractSpreadsheetRows(buffer: Buffer): TenantResourceStructuredRow[] {

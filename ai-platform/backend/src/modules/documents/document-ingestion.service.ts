@@ -131,6 +131,34 @@ export class DocumentIngestionService {
             evidenceTextSpan: item.evidenceTextSpan,
             metadata: (item.metadata ?? null) as Prisma.InputJsonValue | null,
           })),
+          structuredPropositions: (chunk.structuredPropositions ?? []).map(
+            (proposition) => ({
+              sequence: proposition.sequence,
+              label: proposition.label,
+              normalizedValue: proposition.normalizedValue,
+              supportClass: proposition.supportClass,
+              evidenceTextSpan: proposition.evidenceTextSpan,
+              metadata: (proposition.metadata ?? null) as Prisma.InputJsonValue | null,
+              proposition: {
+                predicate: proposition.proposition.predicate,
+                facet: proposition.proposition.facet,
+                objectValue: proposition.proposition.objectValue,
+                objectNormalizedValue:
+                  proposition.proposition.objectNormalizedValue,
+                polarity: proposition.proposition.polarity,
+                relationScope:
+                  (proposition.proposition.relationScope ??
+                    null) as Prisma.InputJsonValue | null,
+                confidence: proposition.proposition.confidence,
+                canonicalKey: proposition.proposition.canonicalKey,
+                patternKey: proposition.proposition.patternKey,
+                evidenceTier: proposition.proposition.evidenceTier,
+                promotionState: proposition.proposition.promotionState,
+                promotedAxis: proposition.proposition.promotedAxis,
+                promotedFacet: proposition.proposition.promotedFacet,
+              },
+            }),
+          ),
         })),
       });
       await this.documentExtractionProfileConfigService.persistTenantDerivedHints({

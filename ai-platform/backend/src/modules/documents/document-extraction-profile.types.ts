@@ -1,5 +1,9 @@
 import { DocumentOriginKind } from '@prisma/client';
-import type { DocumentKnowledgeItemSeed, DocumentSemanticBlock } from './document.types';
+import type {
+  DocumentKnowledgeItemSeed,
+  DocumentKnowledgePropositionSeed,
+  DocumentSemanticBlock,
+} from './document.types';
 import type { DocumentExtractionProfileDerivedHints } from './document-extraction-profile-config.service';
 
 export const documentExtractionProfileIds = ['product_catalog'] as const;
@@ -24,8 +28,13 @@ export type DocumentExtractionProfileInput = {
   context: DocumentExtractionContext;
 };
 
+export type DocumentExtractionProfileOutput = {
+  items: DocumentKnowledgeItemSeed[];
+  propositions?: DocumentKnowledgePropositionSeed[];
+};
+
 export interface DocumentExtractionProfile {
   id: DocumentExtractionProfileId;
   supports(context: DocumentExtractionContext): boolean;
-  extractChunk(input: DocumentExtractionProfileInput): DocumentKnowledgeItemSeed[];
+  extractChunk(input: DocumentExtractionProfileInput): DocumentExtractionProfileOutput;
 }

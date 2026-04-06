@@ -31,6 +31,21 @@
       "cardLeadTerms": ["card", "cards"],
       "brandListLeadTerms": ["like", "such as"]
     },
+    "service_offers": {
+      "termFamilies": {
+        "installation": ["installation", "install"],
+        "visit": ["visit", "visits", "home visit"],
+        "measurement": ["measurements", "measurement taking", "measure taking"],
+        "samples": ["sample", "samples", "swatch"]
+      },
+      "affirmativeLeadPhrases": [
+        "we provide",
+        "we offer",
+        "we can arrange",
+        "we arrange",
+        "there can be"
+      ]
+    },
     "construction_components": {
       "headingTerms": ["feature", "features", "confirmed material"]
     },
@@ -82,6 +97,14 @@
       "quote_fields": {
         "headingTerms": ["quote", "budget", "quotation"]
       }
+    },
+    "coverage": {
+      "visitTerms": ["visit", "visits"],
+      "freeCostTerms": ["no cost", "free of charge"],
+      "travelCostTerms": ["travel cost", "travel charge"],
+      "insideLocationLeadTerms": ["in", "within"],
+      "outsideLocationLeadTerms": ["outside", "for"],
+      "locationStopTerms": ["are", "is", "can", "may", "there", "also"]
     }
   },
   "matchingHints": {

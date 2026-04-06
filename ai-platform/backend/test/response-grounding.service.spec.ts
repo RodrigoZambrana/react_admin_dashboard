@@ -2,6 +2,88 @@ import { ResponseGroundingService } from '../src/modules/response/response-groun
 
 describe('ResponseGroundingService', () => {
   const service = new ResponseGroundingService();
+  const buildGrounding = (
+    overrides: Partial<{
+      supportLevel: 'explicit' | 'partial' | 'unavailable';
+      evidenceTier:
+        | 'typed_claim'
+        | 'normalized_proposition'
+        | 'excerpt_only'
+        | 'none';
+      absenceReason: 'document_gap' | 'extraction_uncertain' | null;
+      exactnessRequested: boolean;
+      requestedDetailTypes: Array<
+        | 'coverage_support'
+        | 'pricing'
+        | 'payment_terms'
+        | 'purchase_channel'
+        | 'availability'
+        | 'warranty'
+        | 'materials'
+        | 'color_options'
+        | 'specific_variants'
+        | 'feature_support'
+      >;
+      supportedDetailTypes: Array<
+        | 'coverage_support'
+        | 'pricing'
+        | 'payment_terms'
+        | 'purchase_channel'
+        | 'availability'
+        | 'warranty'
+        | 'materials'
+        | 'color_options'
+        | 'specific_variants'
+        | 'feature_support'
+      >;
+      partialDetailTypes: Array<
+        | 'coverage_support'
+        | 'pricing'
+        | 'payment_terms'
+        | 'purchase_channel'
+        | 'availability'
+        | 'warranty'
+        | 'materials'
+        | 'color_options'
+        | 'specific_variants'
+        | 'feature_support'
+      >;
+      unsupportedDetailTypes: Array<
+        | 'coverage_support'
+        | 'pricing'
+        | 'payment_terms'
+        | 'purchase_channel'
+        | 'availability'
+        | 'warranty'
+        | 'materials'
+        | 'color_options'
+        | 'specific_variants'
+        | 'feature_support'
+      >;
+      requiredUnspecifiedDetailTypes: Array<
+        | 'coverage_support'
+        | 'pricing'
+        | 'payment_terms'
+        | 'purchase_channel'
+        | 'availability'
+        | 'warranty'
+        | 'materials'
+        | 'color_options'
+        | 'specific_variants'
+        | 'feature_support'
+      >;
+    }> = {},
+  ) => ({
+    supportLevel: 'explicit' as const,
+    evidenceTier: 'typed_claim' as const,
+    absenceReason: null,
+    exactnessRequested: false,
+    requestedDetailTypes: [],
+    supportedDetailTypes: [],
+    partialDetailTypes: [],
+    unsupportedDetailTypes: [],
+    ...overrides,
+  });
 
   it('marks general document color evidence as partial when exact options are requested', () => {
     const assessment = service.assessDocumentContext({
@@ -26,6 +108,8 @@ describe('ResponseGroundingService', () => {
     expect(assessment).toEqual(
       expect.objectContaining({
         supportLevel: 'partial',
+        evidenceTier: 'excerpt_only',
+        absenceReason: 'extraction_uncertain',
         exactnessRequested: true,
         partialDetailTypes: ['color_options'],
       }),
@@ -55,10 +139,58 @@ describe('ResponseGroundingService', () => {
     expect(assessment).toEqual(
       expect.objectContaining({
         supportLevel: 'partial',
+        evidenceTier: 'excerpt_only',
+        absenceReason: 'extraction_uncertain',
         partialDetailTypes: ['color_options'],
         requiredUnspecifiedDetailTypes: ['color_options'],
       }),
     );
+  });
+
+  it('prefers detail types inferred from the user turn over broader paraphrases introduced by the retrieval query', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage:
+        'Perfecto entonces en PVC solo blanco y en aluminio que colores tienen?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre colores disponibles para cortinas enrollar de aluminio y PVC',
+        groundedSummary:
+          'En PVC el color disponible es blanco. En aluminio, los colores disponibles son blanco, negro, marron, color madera, gris y verde.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'En PVC el color disponible es blanco. En aluminio, los colores disponibles son blanco, negro, marron, color madera, gris y verde.',
+            sequence: 0,
+            score: 4.9,
+            supportSummary: {
+              topic: 'CORTINAS DE ENROLLAR',
+              supportedAxes: ['color_options'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'color_options',
+                  values: ['blanco'],
+                  supportClass: 'explicit_fact',
+                  appliesTo: [{ axis: 'material', value: 'PVC' }],
+                },
+                {
+                  axis: 'color_options',
+                  values: ['blanco', 'negro', 'marron', 'color madera', 'gris', 'verde'],
+                  supportClass: 'explicit_fact',
+                  appliesTo: [{ axis: 'material', value: 'ALUMINIO' }],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.requestedDetailTypes).toEqual(['color_options']);
+    expect(assessment.unsupportedDetailTypes).toEqual([]);
   });
 
   it('marks unsupported commercial detail requests when the approved context does not back them', () => {
@@ -172,6 +304,8 @@ describe('ResponseGroundingService', () => {
     expect(assessment).toEqual(
       expect.objectContaining({
         supportLevel: 'explicit',
+        evidenceTier: 'typed_claim',
+        absenceReason: null,
         requestedDetailTypes: ['warranty'],
         supportedDetailTypes: ['warranty'],
       }),
@@ -193,6 +327,62 @@ describe('ResponseGroundingService', () => {
     expect(assessment).toEqual(
       expect.objectContaining({
         supportLevel: 'unavailable',
+        evidenceTier: 'none',
+        absenceReason: 'extraction_uncertain',
+      }),
+    );
+  });
+
+  it('treats proposition-only support as extraction-safe partial evidence instead of document absence', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'la serie 25 soporta dvh?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'serie 25 dvh',
+        groundedSummary: 'Compatibilidad (SERIE 25): no soporta DVH',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Aberturas',
+            excerpt: 'Serie 25. No soporta DVH.',
+            sequence: 0,
+            score: 4.3,
+            supportSummary: {
+              topic: 'SERIE 25',
+              supportedAxes: [],
+              unspecifiedAxes: [],
+              propositionSummaries: [
+                {
+                  predicate: 'feature_support',
+                  supportClass: 'explicit_fact',
+                  evidenceTier: 'normalized_proposition',
+                  polarity: 'negated',
+                  confidence: 0.92,
+                  subject: {
+                    axis: 'product_type',
+                    value: 'SERIE 25',
+                    normalizedValue: 'serie 25',
+                  },
+                  relationScope: [],
+                  objectValue: 'DVH',
+                  patternKey: 'feature_support||negated|subject:product_type|scopes:',
+                },
+              ],
+              evidenceTier: 'normalized_proposition',
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment).toEqual(
+      expect.objectContaining({
+        supportLevel: 'partial',
+        evidenceTier: 'normalized_proposition',
+        absenceReason: 'extraction_uncertain',
+        requestedDetailTypes: ['feature_support'],
+        partialDetailTypes: ['feature_support'],
       }),
     );
   });
@@ -267,6 +457,8 @@ describe('ResponseGroundingService', () => {
         responseMode: 'document_exploration',
         grounding: {
           supportLevel: 'partial',
+          evidenceTier: 'typed_claim',
+          absenceReason: 'document_gap',
           exactnessRequested: true,
           requestedDetailTypes: ['color_options'],
           supportedDetailTypes: [],
@@ -282,6 +474,34 @@ describe('ResponseGroundingService', () => {
     );
   });
 
+  it('uses extraction-uncertainty wording instead of document-gap wording when support is excerpt-based only', () => {
+    const clause = service.buildUnspecifiedDetailClause({
+      locale: 'es',
+      documentContext: {
+        source: 'document_origin',
+        query: 'tarjetas mercado pago',
+        groundedSummary: 'Aceptamos pagos con tarjeta a través de Mercado Pago.',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'partial',
+          evidenceTier: 'excerpt_only',
+          absenceReason: 'extraction_uncertain',
+          exactnessRequested: true,
+          requestedDetailTypes: ['payment_terms'],
+          supportedDetailTypes: [],
+          partialDetailTypes: ['payment_terms'],
+          unsupportedDetailTypes: [],
+          requiredUnspecifiedDetailTypes: ['payment_terms'],
+        },
+        matches: [],
+      },
+    } as any);
+
+    expect(clause).toBe(
+      'Por ahora no tengo una confirmación suficientemente clara sobre las condiciones de pago.',
+    );
+  });
+
   it('omits the unspecified-detail clause when the summary already includes the concrete grounded values', () => {
     const clause = service.buildUnspecifiedDetailClause({
       locale: 'es',
@@ -293,6 +513,8 @@ describe('ResponseGroundingService', () => {
         responseMode: 'document_exploration',
         grounding: {
           supportLevel: 'partial',
+          evidenceTier: 'typed_claim',
+          absenceReason: 'document_gap',
           exactnessRequested: true,
           requestedDetailTypes: ['color_options'],
           supportedDetailTypes: [],
@@ -420,14 +642,7 @@ describe('ResponseGroundingService', () => {
             groundedSummary:
               'La tela screen permite el paso de luz y mejora la privacidad.',
             responseMode: 'document_exploration',
-            grounding: {
-              supportLevel: 'explicit',
-              exactnessRequested: false,
-              requestedDetailTypes: [],
-              supportedDetailTypes: [],
-              partialDetailTypes: [],
-              unsupportedDetailTypes: [],
-            },
+            grounding: buildGrounding(),
             matches: [
               {
                 documentId: 'doc-1',
@@ -460,14 +675,7 @@ describe('ResponseGroundingService', () => {
             groundedSummary:
               'La tela screen permite el paso de luz y mejora la privacidad.',
             responseMode: 'document_exploration',
-            grounding: {
-              supportLevel: 'explicit',
-              exactnessRequested: false,
-              requestedDetailTypes: [],
-              supportedDetailTypes: [],
-              partialDetailTypes: [],
-              unsupportedDetailTypes: [],
-            },
+            grounding: buildGrounding(),
             matches: [
               {
                 documentId: 'doc-1',

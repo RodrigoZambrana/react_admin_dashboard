@@ -52,6 +52,12 @@
       "generalEvidenceTerms": ["variant", "variants", "model", "models", "option", "options", "variety"],
       "supportedAxes": ["specific_variants", "product_types"],
       "unspecifiedLabel": "the exact variants"
+    },
+    "feature_support": {
+      "requestTerms": ["dvh", "double glazing", "double glass", "single glass", "monoblock", "mosquito screen", "integrated shutter", "supports", "support", "allows", "compatible"],
+      "generalEvidenceTerms": ["dvh", "double glazing", "double glass", "single glass", "monoblock", "mosquito screen", "integrated shutter", "supports", "support", "allows", "compatible"],
+      "supportedAxes": ["feature_support"],
+      "unspecifiedLabel": "the exact compatibility"
     }
   },
   "unspecifiedCues": [
@@ -76,7 +82,12 @@
     "availabilityIntentTerms": ["have", "has", "do", "does", "work", "works", "offer", "offers"],
     "detailCueTerms": ["color", "colors", "material", "materials", "type", "types", "line", "lines", "series", "measurements", "installment", "installments", "card", "cards", "warranty", "payment", "payments", "price", "prices", "dvh", "visit", "installation", "hours", "schedule"]
   },
+  "coverageScopeSignals": {
+    "insideLocationTerms": ["inside", "within"],
+    "outsideLocationTerms": ["outside", "outside of"]
+  },
   "unspecifiedDetailPrefix": "I don't have confirmation on",
+  "extractionUncertainDetailPrefix": "I do not have sufficiently clear confirmation on",
   "labelJoiner": "or",
   "guardrail": {
     "minimumTokenLength": 4,

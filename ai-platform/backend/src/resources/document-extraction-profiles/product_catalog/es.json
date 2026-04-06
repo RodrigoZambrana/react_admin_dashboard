@@ -31,6 +31,36 @@
       "cardLeadTerms": ["tarjeta", "tarjetas"],
       "brandListLeadTerms": ["como"]
     },
+    "service_offers": {
+      "termFamilies": {
+        "instalacion": ["instalacion", "instalación", "colocacion", "colocación"],
+        "visita a domicilio": [
+          "visita previa",
+          "visitas a domicilio",
+          "visitas comerciales",
+          "visitas tecnicas",
+          "visitas técnicas",
+          "visita",
+          "visitas"
+        ],
+        "toma de medidas": [
+          "rectificacion",
+          "rectificación",
+          "rectificar medidas",
+          "toma de medidas",
+          "relevamiento"
+        ],
+        "muestras": ["muestra", "muestras", "muestrario"]
+      },
+      "affirmativeLeadPhrases": [
+        "realizamos",
+        "ofrecemos",
+        "podemos coordinar",
+        "coordinamos",
+        "puede haber",
+        "pueden coordinarse"
+      ]
+    },
     "construction_components": {
       "headingTerms": ["caracteristica", "caracteristicas", "material confirmado"]
     },
@@ -91,6 +121,24 @@
       "quote_fields": {
         "headingTerms": ["presupuesto", "cotizacion", "cotización"]
       }
+    },
+    "coverage": {
+      "visitTerms": ["visita", "visitas"],
+      "freeCostTerms": ["sin costo"],
+      "travelCostTerms": ["costo de traslado", "traslado"],
+      "insideLocationLeadTerms": ["en", "dentro de"],
+      "outsideLocationLeadTerms": ["fuera de", "para el", "para la"],
+      "locationStopTerms": [
+        "son",
+        "se",
+        "puede",
+        "pueden",
+        "hay",
+        "corresponde",
+        "corresponder",
+        "tambien",
+        "también"
+      ]
     }
   },
   "matchingHints": {

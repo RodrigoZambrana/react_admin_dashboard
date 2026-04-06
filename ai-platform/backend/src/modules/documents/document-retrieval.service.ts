@@ -22,6 +22,11 @@ import {
   resolveStructuralKnowledgeAxisLabel,
 } from './document-knowledge-claims';
 import {
+  buildKnowledgePropositionSummary,
+  buildStructuralKnowledgePropositionSummary,
+  extractStructuredKnowledgePropositions,
+} from './document-knowledge-propositions';
+import {
   DocumentRetrievalAttempt,
   DocumentRetrievalResult,
 } from './document.types';
@@ -159,6 +164,11 @@ export class DocumentRetrievalService {
             focusTokens.length > 0 ? focusTokens : queryTokens,
             input.interpretation.language,
           ),
+          propositionSummary: buildPropositionBackedSummary(
+            chunk,
+            focusTokens.length > 0 ? focusTokens : queryTokens,
+            input.interpretation.language,
+          ),
           score: scoreChunk(
             query,
             queryTokens,
@@ -260,7 +270,7 @@ export class DocumentRetrievalService {
             signals.threading.incrementalFollowUp ||
             reason === 'active_document_continuation',
           preferredSummaries: topMatched
-            .map((entry) => entry.claimSummary)
+            .map((entry) => entry.claimSummary || entry.propositionSummary)
             .filter((value): value is string => Boolean(value)),
         }),
         matches,
@@ -1373,6 +1383,55 @@ function buildClaimBackedSummary(
   return ranked[0]?.summary ?? null;
 }
 
+function buildPropositionBackedSummary(
+  chunk: {
+    propositions?: Array<{
+      predicate: string;
+      facet?: string | null;
+      objectValue: string;
+      objectNormalized?: string | null;
+      polarity: string;
+      supportClass: string;
+      evidenceTier: string;
+      confidence: number;
+      relationScope?: unknown;
+      metadata?: unknown;
+      patternKey: string;
+      canonicalKey?: string | null;
+      promotionState?: string | null;
+      promotedAxis?: string | null;
+      promotedFacet?: string | null;
+    }>;
+  },
+  queryTokens: string[],
+  locale?: string | null,
+) {
+  const propositions = extractStructuredKnowledgePropositions(
+    chunk.propositions ?? [],
+    {
+      layers: ['factual'],
+    },
+  );
+
+  if (propositions.length === 0 || queryTokens.length === 0) {
+    return null;
+  }
+
+  const ranked = propositions
+    .map((proposition) => ({
+      summary: buildStructuralKnowledgePropositionSummary({
+        locale,
+        propositions: [proposition],
+        limit: 1,
+      }),
+      score: scoreStructuredPropositionQueryAlignment(proposition, queryTokens, locale),
+    }))
+    .filter((entry) => entry.summary.length > 0 && entry.score > 0)
+    .sort((left, right) => right.score - left.score);
+
+  return ranked[0]?.summary ?? null;
+}
+
 function selectBroadOverviewClaimsForQuery(
   claims: ReturnType<typeof mergeAxisSummaries>,
   queryTokens: string[],
@@ -1686,15 +1745,43 @@ function buildChunkSupportSummary(chunk: {
     label: string;
     valueText: string;
     normalizedValue?: string | null;
+      supportClass: string;
+      metadata?: unknown;
+    }>;
+  propositions?: Array<{
+    predicate: string;
+    facet?: string | null;
+    objectValue: string;
+    objectNormalized?: string | null;
+    polarity: string;
     supportClass: string;
+    evidenceTier: string;
+    confidence: number;
+    relationScope?: unknown;
     metadata?: unknown;
+    patternKey: string;
+    canonicalKey?: string | null;
+    promotionState?: string | null;
+    promotedAxis?: string | null;
+    promotedFacet?: string | null;
   }>;
 }) {
   const supportSummary = extractChunkSupportSummary(chunk.metadata);
   const axisSummaries = extractKnowledgeAxisSummaries(chunk.knowledgeItems ?? []);
   const metadataNotes = extractKnowledgeMetadataSummaries(chunk.knowledgeItems ?? []);
+  const propositionSummaries = extractStructuredKnowledgePropositions(
+    chunk.propositions ?? [],
+    {
+      layers: ['factual'],
+    },
+  ).map(buildKnowledgePropositionSummary);
 
-  if (!supportSummary && axisSummaries.length === 0 && metadataNotes.length === 0) {
+  if (
+    !supportSummary &&
+    axisSummaries.length === 0 &&
+    metadataNotes.length === 0 &&
+    propositionSummaries.length === 0
+  ) {
     return undefined;
   }
 
@@ -1717,11 +1804,37 @@ function buildChunkSupportSummary(chunk: {
     unspecifiedAxes,
     axisSummaries: axisSummaries.length > 0 ? axisSummaries : undefined,
     metadataNotes: metadataNotes.length > 0 ? metadataNotes : undefined,
+    propositionSummaries:
+      propositionSummaries.length > 0 ? propositionSummaries : undefined,
+    evidenceTier: (
+      axisSummaries.length > 0
+        ? 'typed_claim'
+        : propositionSummaries.length > 0
+          ? 'normalized_proposition'
+          : undefined
+    ) as 'typed_claim' | 'normalized_proposition' | undefined,
   };
 }
 
 function buildChunkStructuralText(chunk: {
   metadata?: unknown;
+  propositions?: Array<{
+    predicate: string;
+    facet?: string | null;
+    objectValue: string;
+    objectNormalized?: string | null;
+    polarity: string;
+    supportClass: string;
+    evidenceTier: string;
+    confidence: number;
+    relationScope?: unknown;
+    metadata?: unknown;
+    patternKey: string;
+    canonicalKey?: string | null;
+    promotionState?: string | null;
+    promotedAxis?: string | null;
+    promotedFacet?: string | null;
+  }>;
   document?: { title?: string | null };
 }) {
   if (!chunk.metadata || typeof chunk.metadata !== 'object' || Array.isArray(chunk.metadata)) {
@@ -1739,6 +1852,12 @@ function buildChunkStructuralText(chunk: {
     typeof metadata.section === 'string' ? metadata.section : '',
     typeof metadata.parentSection === 'string' ? metadata.parentSection : '',
     typeof supportSummary?.topic === 'string' ? supportSummary.topic : '',
+    buildStructuralKnowledgePropositionSummary({
+      propositions: extractStructuredKnowledgePropositions(chunk.propositions ?? [], {
+        layers: ['factual'],
+      }),
+      limit: 2,
+    }),
     typeof chunk.document?.title === 'string' ? chunk.document.title : '',
   ].filter((value) => value.trim().length > 0);
 
@@ -1899,12 +2018,32 @@ function computeChunkRichness(chunk: {
     label: string;
     valueText: string;
     normalizedValue?: string | null;
+      supportClass: string;
+      metadata?: unknown;
+    }>;
+  propositions?: Array<{
+    predicate: string;
+    facet?: string | null;
+    objectValue: string;
+    objectNormalized?: string | null;
+    polarity: string;
     supportClass: string;
+    evidenceTier: string;
+    confidence: number;
+    relationScope?: unknown;
     metadata?: unknown;
+    patternKey: string;
+    canonicalKey?: string | null;
+    promotionState?: string | null;
+    promotedAxis?: string | null;
+    promotedFacet?: string | null;
   }>;
   metadata?: unknown;
 }) {
   const axisSummaries = extractKnowledgeAxisSummaries(chunk.knowledgeItems ?? []);
+  const propositions = extractStructuredKnowledgePropositions(chunk.propositions ?? [], {
+    layers: ['factual'],
+  });
   const supportSummary = extractChunkSupportSummary(chunk.metadata);
   const valueCount = axisSummaries.reduce(
     (total, summary) => total + summary.values.length,
@@ -1917,6 +2056,7 @@ function computeChunkRichness(chunk: {
 
   return (
     axisSummaries.length * 2 +
+    propositions.length +
     valueCount +
     scopeCount +
     (supportSummary?.supportedAxes.length ?? 0)
@@ -1933,6 +2073,23 @@ function extractChunkSubjectTokens(
       supportClass: string;
       metadata?: unknown;
     }>;
+    propositions?: Array<{
+      predicate: string;
+      facet?: string | null;
+      objectValue: string;
+      objectNormalized?: string | null;
+      polarity: string;
+      supportClass: string;
+      evidenceTier: string;
+      confidence: number;
+      relationScope?: unknown;
+      metadata?: unknown;
+      patternKey: string;
+      canonicalKey?: string | null;
+      promotionState?: string | null;
+      promotedAxis?: string | null;
+      promotedFacet?: string | null;
+    }>;
     metadata?: unknown;
   },
   locale?: string | null,
@@ -1948,13 +2105,84 @@ function extractChunkSubjectTokens(
     )
     .filter((value) => value.length > 0);
   const metadataSubjectValues = extractMetadataSubjectValues(chunk.metadata);
+  const propositionSubjectValues = extractStructuredKnowledgePropositions(
+    chunk.propositions ?? [],
+    {
+      layers: ['factual'],
+    },
+  )
+    .flatMap((proposition) => [
+      [
+        proposition.subject?.axis ?? '',
+        proposition.subject?.normalizedValue ?? proposition.subject?.value ?? '',
+      ]
+        .join(' ')
+        .trim(),
+      ...proposition.relationScope.map((scope) =>
+        [scope.axis, scope.relation ?? '', scope.normalizedValue ?? scope.value]
+          .join(' ')
+          .trim(),
+      ),
+    ])
+    .filter((value) => value.length > 0);
 
   return Array.from(
     new Set(
-      [...subjectValues, ...metadataSubjectValues].flatMap((value) =>
+      [...subjectValues, ...metadataSubjectValues, ...propositionSubjectValues].flatMap((value) =>
         tokenizeSubjectQuery(value, locale),
       ),
     ),
+  );
+}
+
+function scoreStructuredPropositionQueryAlignment(
+  proposition: ReturnType<typeof extractStructuredKnowledgePropositions>[number],
+  queryTokens: string[],
+  locale?: string | null,
+) {
+  const summary = buildStructuralKnowledgePropositionSummary({
+    locale,
+    propositions: [proposition],
+    limit: 1,
+  });
+  const axisTokens = tokenizeQuery(
+    [
+      resolveStructuralKnowledgeAxisLabel(proposition.predicate, locale),
+      proposition.facet ?? '',
+    ].join(' '),
+    locale,
+  );
+  const summaryTokens = tokenizeQuery(summary, locale);
+  const objectTokens = tokenizeQuery(
+    proposition.objectNormalizedValue ?? proposition.objectValue,
+    locale,
+  );
+  const subjectTokens = tokenizeQuery(
+    `${proposition.subject?.axis ?? ''} ${proposition.subject?.normalizedValue ?? proposition.subject?.value ?? ''}`,
+    locale,
+  );
+  const scopeTokens = tokenizeQuery(
+    proposition.relationScope
+      .map(
+        (scope) =>
+          `${scope.axis} ${scope.relation ?? ''} ${scope.normalizedValue ?? scope.value}`,
+      )
+      .join(' '),
+    locale,
+  );
+  const queryTokenSet = new Set(queryTokens);
+  const axisOverlap = axisTokens.filter((token) => queryTokenSet.has(token)).length;
+  const summaryOverlap = summaryTokens.filter((token) => queryTokenSet.has(token)).length;
+  const objectOverlap = objectTokens.filter((token) => queryTokenSet.has(token)).length;
+  const subjectOverlap = subjectTokens.filter((token) => queryTokenSet.has(token)).length;
+  const scopeOverlap = scopeTokens.filter((token) => queryTokenSet.has(token)).length;
+
+  return (
+    axisOverlap * 3 +
+    summaryOverlap +
+    objectOverlap * 2 +
+    subjectOverlap * 2 +
+    scopeOverlap * 2
   );
 }
 

@@ -23,6 +23,7 @@ import {
 import { DocumentContentExtractorService } from './document-content-extractor.service';
 import { DocumentExtractionProfileConfigService } from './document-extraction-profile-config.service';
 import { DocumentIngestionService } from './document-ingestion.service';
+import { DocumentKnowledgePromotionService } from './document-knowledge-promotion.service';
 import { DocumentKnowledgeViewService } from './document-knowledge-view.service';
 
 @Injectable()
@@ -32,6 +33,7 @@ export class DocumentService {
     private readonly documentChunkRepository: DocumentChunkRepository,
     private readonly contentExtractor: DocumentContentExtractorService,
     private readonly documentIngestionService: DocumentIngestionService,
+    private readonly documentKnowledgePromotionService: DocumentKnowledgePromotionService,
     private readonly documentKnowledgeViewService: DocumentKnowledgeViewService,
     private readonly documentExtractionProfileConfigService: DocumentExtractionProfileConfigService,
     private readonly logger: PipelineLoggerService,
@@ -57,6 +59,19 @@ export class DocumentService {
 
   getKnowledgeView(input?: { documentId?: string; limit?: number }) {
     return this.documentKnowledgeViewService.getKnowledgeView(input);
+  }
+
+  listPropositionCandidates(input?: {
+    profileKey?: string;
+    predicate?: string;
+    promotionStates?: Array<
+      'unclassified' | 'candidate' | 'promoted' | 'rejected'
+    >;
+    minOccurrences?: number;
+    limit?: number;
+    activeOnly?: boolean;
+  }) {
+    return this.documentKnowledgePromotionService.listPromotionCandidates(input);
   }
 
   async createTextDocument(input: CreateTextDocumentInput) {

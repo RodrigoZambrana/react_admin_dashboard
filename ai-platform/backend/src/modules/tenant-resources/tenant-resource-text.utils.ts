@@ -2,9 +2,26 @@ export function normalizeExtractedText(value: string) {
   return value
     .replace(/\r\n/g, '\n')
     .replace(/\u0000/g, ' ')
+    .split('\n')
+    .map((line) => normalizeExtractedLine(line))
+    .join('\n')
     .replace(/[ \t]+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+function normalizeExtractedLine(value: string) {
+  const collapsed = value
+    .replace(/\u00a0/g, ' ')
+    .replace(/\t+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!collapsed) {
+    return '';
+  }
+
+  return collapsed.replace(/^[•◦▪■]\s*/u, '- ');
 }
 
 export function stripHtml(value: string) {

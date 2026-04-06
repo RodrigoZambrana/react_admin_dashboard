@@ -436,6 +436,109 @@ describe('ChatResponseService', () => {
     expect(generateResponse).not.toHaveBeenCalled();
   });
 
+  it('locks scoped explicit visit-cost follow-ups to the approved draft and skips AI generation', async () => {
+    const generateResponse = jest.fn();
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          userMessage: 'me encuentro en montevideo',
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'document_grounded_exploration',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: true,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: false,
+            preferMultiline: false,
+            hasPriorConversation: true,
+          },
+          documentContext: {
+            source: 'document_origin',
+            query: 'El usuario indica que se encuentra en Montevideo.',
+            groundedSummary: 'sin costo',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'explicit',
+              exactnessRequested: false,
+              requestedDetailTypes: [],
+              supportedDetailTypes: [],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: [],
+            },
+            matches: [
+              {
+                documentId: 'doc-1',
+                title: 'Documento Maestro',
+                excerpt:
+                  'Fuera de Montevideo puede corresponder costo de traslado.',
+                sequence: 0,
+                score: 4.8,
+                supportSummary: {
+                  topic: '2. FORMA DE TRABAJO / La forma habitual de avanzar es',
+                  axisSummaries: [
+                    {
+                      axis: 'commercial_visit_cost',
+                      layer: 'factual',
+                      values: ['sin costo'],
+                      subject: {
+                        axis: 'section_topic',
+                        value: 'FORMA DE TRABAJO',
+                        normalizedValue: 'forma de trabajo',
+                      },
+                      appliesTo: [
+                        {
+                          axis: 'location',
+                          value: 'Montevideo',
+                          normalizedValue: 'montevideo',
+                        },
+                      ],
+                      supportClass: 'explicit_fact',
+                      extractionScope: 'tenant_only',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          approvedDocumentIds: ['doc-1'],
+        })),
+      } as any,
+      {
+        resolve: jest.fn(() => 'En Montevideo, la visita a domicilio no tiene costo.'),
+      } as any,
+      {
+        generateResponse,
+      } as any,
+      {
+        evaluate: jest.fn(),
+      } as any,
+      responseFallbackService as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        response: 'En Montevideo, la visita a domicilio no tiene costo.',
+        usedFallback: true,
+        fallbackReason: 'policy_locked',
+      }),
+    );
+    expect(generateResponse).not.toHaveBeenCalled();
+  });
+
   it('keeps the AI response path open for ordinary document turns even when support is unavailable', async () => {
     const service = new ChatResponseService(
       {

@@ -72,6 +72,25 @@ export type DocumentKnowledgeSupportClass =
   | 'partial_fact'
   | 'bounded_inference';
 
+export type DocumentKnowledgeEvidenceTier =
+  | 'typed_claim'
+  | 'normalized_proposition'
+  | 'excerpt_only'
+  | 'none';
+
+export type DocumentKnowledgePolarity =
+  | 'affirmed'
+  | 'negated'
+  | 'conditional'
+  | 'comparative'
+  | 'unknown';
+
+export type DocumentKnowledgePromotionState =
+  | 'unclassified'
+  | 'candidate'
+  | 'promoted'
+  | 'rejected';
+
 export type DocumentKnowledgeExtractionScope =
   | 'core_universal'
   | 'domain_profile'
@@ -93,6 +112,13 @@ export type DocumentKnowledgeScopedValue = {
   axis: string;
   value: string;
   normalizedValue?: string;
+};
+
+export type DocumentKnowledgePropositionScope = {
+  axis: string;
+  value: string;
+  normalizedValue?: string;
+  relation?: string;
 };
 
 export type DocumentSemanticBlock = {
@@ -129,6 +155,22 @@ export type DocumentKnowledgeItemMetadata = {
   profileKey?: DocumentExtractionProfileId;
   unspecifiedAxes?: string[];
   claim?: DocumentKnowledgeClaimPayload;
+};
+
+export type DocumentKnowledgePropositionPayload = {
+  predicate: string;
+  facet?: string;
+  objectValue: string;
+  objectNormalizedValue?: string;
+  polarity: DocumentKnowledgePolarity;
+  relationScope?: DocumentKnowledgePropositionScope[];
+  confidence: number;
+  canonicalKey: string;
+  patternKey: string;
+  evidenceTier?: Exclude<DocumentKnowledgeEvidenceTier, 'none'>;
+  promotionState?: DocumentKnowledgePromotionState;
+  promotedAxis?: string;
+  promotedFacet?: string;
 };
 
 export type DocumentKnowledgeAxisSummary = {
@@ -171,6 +213,21 @@ export type DocumentKnowledgeItemSeed = Omit<
   'sequence'
 >;
 
+export type DocumentKnowledgePropositionCandidate = {
+  sequence: number;
+  label: string;
+  normalizedValue?: string;
+  supportClass: DocumentKnowledgeSupportClass;
+  evidenceTextSpan: string;
+  metadata?: DocumentKnowledgeItemMetadata;
+  proposition: DocumentKnowledgePropositionPayload;
+};
+
+export type DocumentKnowledgePropositionSeed = Omit<
+  DocumentKnowledgePropositionCandidate,
+  'sequence'
+>;
+
 export type DocumentChunkCandidate = {
   sequence: number;
   content: string;
@@ -178,6 +235,7 @@ export type DocumentChunkCandidate = {
   retrievalProjection: string;
   metadata?: Record<string, unknown>;
   structuredItems?: DocumentKnowledgeItemCandidate[];
+  structuredPropositions?: DocumentKnowledgePropositionCandidate[];
 };
 
 export type DocumentRetrievalMatch = {
@@ -192,6 +250,8 @@ export type DocumentRetrievalMatch = {
     unspecifiedAxes: string[];
     axisSummaries?: DocumentKnowledgeAxisSummary[];
     metadataNotes?: DocumentKnowledgeMetadataSummary[];
+    propositionSummaries?: DocumentKnowledgePropositionSummary[];
+    evidenceTier?: Exclude<DocumentKnowledgeEvidenceTier, 'none'>;
   };
 };
 
@@ -242,6 +302,74 @@ export type DocumentKnowledgeClaimView = {
   provenance: DocumentKnowledgeProvenance[];
 };
 
+export type DocumentKnowledgePropositionSummary = {
+  predicate: string;
+  facet?: string;
+  layer?: DocumentKnowledgeLayer;
+  supportClass: DocumentKnowledgeSupportClass;
+  evidenceTier: Exclude<DocumentKnowledgeEvidenceTier, 'none'>;
+  polarity: DocumentKnowledgePolarity;
+  confidence: number;
+  subject?: DocumentKnowledgeScopedValue;
+  relationScope: DocumentKnowledgePropositionScope[];
+  objectValue: string;
+  objectNormalizedValue?: string;
+  patternKey: string;
+};
+
+export type DocumentKnowledgePropositionView = {
+  predicate: string;
+  facet?: string;
+  layer?: DocumentKnowledgeLayer;
+  supportClass: DocumentKnowledgeSupportClass;
+  evidenceTier: Exclude<DocumentKnowledgeEvidenceTier, 'none'>;
+  polarity: DocumentKnowledgePolarity;
+  confidence: number;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  subject?: DocumentKnowledgeScopedValue;
+  relationScope: DocumentKnowledgePropositionScope[];
+  objectValue: string;
+  objectNormalizedValue?: string;
+  canonicalKey: string;
+  patternKey: string;
+  promotionState: DocumentKnowledgePromotionState;
+  promotedAxis?: string;
+  promotedFacet?: string;
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+export type DocumentKnowledgePromotionCandidateExample = {
+  documentId: string;
+  documentTitle: string;
+  documentUpdatedAt: string;
+  evidenceTextSpan: string;
+  objectValue: string;
+  objectNormalizedValue?: string;
+  confidence: number;
+  subject?: DocumentKnowledgeScopedValue;
+  relationScope: DocumentKnowledgePropositionScope[];
+};
+
+export type DocumentKnowledgePromotionCandidate = {
+  patternKey: string;
+  predicate: string;
+  facet?: string;
+  layer?: DocumentKnowledgeLayer;
+  profileKey?: string;
+  promotionState: DocumentKnowledgePromotionState;
+  promotedAxis?: string;
+  promotedFacet?: string;
+  occurrenceCount: number;
+  documentCount: number;
+  averageConfidence: number;
+  supportClasses: DocumentKnowledgeSupportClass[];
+  polarities: DocumentKnowledgePolarity[];
+  evidenceTiers: Exclude<DocumentKnowledgeEvidenceTier, 'none'>[];
+  subjects: DocumentKnowledgeScopedValue[];
+  exampleValues: string[];
+  examples: DocumentKnowledgePromotionCandidateExample[];
+};
+
 export type DocumentKnowledgeMetadataView = {
   axis: string;
   facet?: string;
@@ -280,6 +408,7 @@ export type DocumentKnowledgeView = {
     documentCount: number;
     chunkCount: number;
     claimCount: number;
+    propositionCount: number;
     entityCount: number;
   };
   support: {
@@ -308,5 +437,6 @@ export type DocumentKnowledgeView = {
   prudenceNotes: DocumentKnowledgeMetadataView[];
   workflowNotes: DocumentKnowledgeMetadataView[];
   guidanceNotes: DocumentKnowledgeMetadataView[];
+  propositions: DocumentKnowledgePropositionView[];
   entities: DocumentKnowledgeEntityView[];
 };

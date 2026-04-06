@@ -1826,6 +1826,429 @@ describe('ChatResponsePolicyService', () => {
       'Hola, gracias por contactarnos.\n\nSí, tenemos cortinas roller.',
     );
   });
+
+  it('prefers explicit scoped visit-cost facts over adjacent partial travel-cost caveats', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'me encuentro en montevideo',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.94,
+          entities: {
+            rawMessage: 'me encuentro en montevideo',
+            requestSummary: 'El usuario indica que se encuentra en Montevideo.',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'El usuario indica que se encuentra en Montevideo.',
+          groundedSummary: 'sin costo',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Fuera de Montevideo puede corresponder costo de traslado.',
+              sequence: 0,
+              score: 4.8,
+              supportSummary: {
+                topic: '2. FORMA DE TRABAJO / La forma habitual de avanzar es',
+                supportedAxes: [
+                  'service_offers',
+                  'commercial_visit_cost',
+                  'travel_cost_responsibility',
+                ],
+                axisSummaries: [
+                  {
+                    axis: 'commercial_visit_cost',
+                    layer: 'factual',
+                    values: ['sin costo'],
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'FORMA DE TRABAJO',
+                      normalizedValue: 'forma de trabajo',
+                    },
+                    appliesTo: [
+                      {
+                        axis: 'location',
+                        value: 'Montevideo',
+                        normalizedValue: 'montevideo',
+                      },
+                    ],
+                    supportClass: 'explicit_fact',
+                    extractionScope: 'tenant_only',
+                  },
+                  {
+                    axis: 'travel_cost_responsibility',
+                    layer: 'factual',
+                    values: ['puede corresponder costo de traslado'],
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'FORMA DE TRABAJO',
+                      normalizedValue: 'forma de trabajo',
+                    },
+                    appliesTo: [
+                      {
+                        axis: 'location',
+                        value: 'Montevideo',
+                        normalizedValue: 'montevideo',
+                      },
+                    ],
+                    supportClass: 'partial_fact',
+                    extractionScope: 'tenant_only',
+                  },
+                ],
+                unspecifiedAxes: [],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(expect.not.stringMatching(/traslado/i));
+  });
+
+  it('renders scoped color answers in customer-facing prose instead of structural labels', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage:
+          'Perfecto entonces en PVC solo blanco y en aluminio que colores tienen?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage:
+              'Perfecto entonces en PVC solo blanco y en aluminio que colores tienen?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query:
+            'Consulta sobre colores disponibles para cortinas enrollar de aluminio y PVC',
+          groundedSummary:
+            'En PVC el color disponible es blanco. En aluminio, los colores disponibles son blanco, negro, marron, color madera, gris y verde.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: ['color_options'],
+            supportedDetailTypes: ['color_options'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                '- color blanco\n- variedad de colores(blanco negro marron color madera gris verde)',
+              sequence: 0,
+              score: 8.1,
+              supportSummary: {
+                topic: '7. CORTINAS DE ENROLLAR',
+                supportedAxes: ['color_options'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'color_options',
+                    layer: 'factual',
+                    values: ['blanco'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PERSIANA O CORTINA DE ENROLLAR',
+                      normalizedValue: 'persiana o cortina de enrollar',
+                    },
+                    appliesTo: [
+                      { axis: 'material', value: 'PVC', normalizedValue: 'pvc' },
+                    ],
+                  },
+                  {
+                    axis: 'color_options',
+                    layer: 'factual',
+                    values: ['blanco', 'negro', 'marron', 'color madera', 'gris', 'verde'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PERSIANA O CORTINA DE ENROLLAR',
+                      normalizedValue: 'persiana o cortina de enrollar',
+                    },
+                    appliesTo: [
+                      {
+                        axis: 'material',
+                        value: 'ALUMINIO',
+                        normalizedValue: 'aluminio',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'En PVC el color disponible es blanco. En aluminio, los colores disponibles son blanco, negro, marron, color madera, gris y verde.',
+    );
+  });
+
+  it('renders scoped warranty answers in customer-facing prose', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'que garantia tiene el producto?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'que garantia tiene el producto?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre garantía del producto',
+          groundedSummary: '2 años',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: ['warranty'],
+            supportedDetailTypes: ['warranty'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt: '- 2 años en PVC\n- 2 años en aluminio',
+              sequence: 0,
+              score: 7.5,
+              supportSummary: {
+                topic: 'GARANTIA',
+                supportedAxes: ['warranty_terms'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'warranty_terms',
+                    layer: 'factual',
+                    values: ['2 años'],
+                    supportClass: 'explicit_fact',
+                    appliesTo: [
+                      { axis: 'material', value: 'PVC', normalizedValue: 'pvc' },
+                    ],
+                  },
+                  {
+                    axis: 'warranty_terms',
+                    layer: 'factual',
+                    values: ['2 años'],
+                    supportClass: 'explicit_fact',
+                    appliesTo: [
+                      {
+                        axis: 'material',
+                        value: 'ALUMINIO',
+                        normalizedValue: 'aluminio',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'La garantía de referencia es de 2 años tanto en PVC como en aluminio.',
+    );
+  });
+
+  it('answers outside-location visit-cost follow-ups with the outside scoped fact instead of the inside one', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'fuera de montevideo la visita tiene costo?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'fuera de montevideo la visita tiene costo?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre costo de visita para tomar medidas fuera de Montevideo',
+          groundedSummary: 'puede corresponder costo de traslado',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: ['pricing'],
+            supportedDetailTypes: ['pricing'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt: 'Fuera de Montevideo puede corresponder costo de traslado.',
+              sequence: 0,
+              score: 8.4,
+              supportSummary: {
+                topic: 'FORMA DE TRABAJO',
+                supportedAxes: ['commercial_visit_cost', 'travel_cost_responsibility'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'commercial_visit_cost',
+                    layer: 'factual',
+                    values: ['sin costo'],
+                    supportClass: 'explicit_fact',
+                    appliesTo: [
+                      {
+                        axis: 'location',
+                        value: 'Montevideo',
+                        normalizedValue: 'montevideo',
+                      },
+                      {
+                        axis: 'location_relation',
+                        value: 'inside',
+                        normalizedValue: 'inside',
+                      },
+                    ],
+                  },
+                  {
+                    axis: 'travel_cost_responsibility',
+                    layer: 'factual',
+                    values: ['puede corresponder costo de traslado'],
+                    supportClass: 'partial_fact',
+                    appliesTo: [
+                      {
+                        axis: 'location',
+                        value: 'Montevideo',
+                        normalizedValue: 'montevideo',
+                      },
+                      {
+                        axis: 'location_relation',
+                        value: 'outside',
+                        normalizedValue: 'outside',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual('Fuera de Montevideo, puede corresponder costo de traslado.');
+  });
 });
 
 function buildCatalog(locale?: string) {

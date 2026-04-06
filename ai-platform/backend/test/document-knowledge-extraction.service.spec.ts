@@ -274,6 +274,88 @@ describe('DocumentKnowledgeExtractionService', () => {
         }),
       }),
     );
+    const paymentTermProposition = chunks
+      .flatMap((chunk) => chunk.structuredPropositions ?? [])
+      .find(
+        (proposition) =>
+          proposition.proposition.predicate === 'payment_terms' &&
+          proposition.proposition.facet === 'installment_count' &&
+          proposition.proposition.objectValue === '6',
+      );
+
+    expect(paymentTermProposition).toEqual(
+      expect.objectContaining({
+        label: 'payment_terms',
+        supportClass: 'explicit_fact',
+        proposition: expect.objectContaining({
+          predicate: 'payment_terms',
+          facet: 'installment_count',
+          objectValue: '6',
+          polarity: 'affirmed',
+          evidenceTier: 'normalized_proposition',
+          patternKey: expect.stringContaining('payment_terms'),
+          canonicalKey: expect.any(String),
+        }),
+      }),
+    );
+  });
+
+  it('persists normalized propositions for negative feature support without discarding the claim evidence', () => {
+    const service = new DocumentKnowledgeExtractionService();
+
+    const chunks = service.buildChunkCandidates({
+      sourceText: [
+        'ABERTURAS EN ALUMINIO',
+        '',
+        'SERIE 25',
+        '',
+        'No soporta DVH.',
+        '',
+        'SERIE PROBBA',
+        '',
+        'Admite vidrio simple o DVH.',
+      ].join('\n'),
+      originKind: 'TEXT',
+      sourceMetadata: {
+        sourceName: 'aberturas.txt',
+      },
+      extractionContext: {
+        activeCapabilities: ['product_catalog_lookup'],
+      },
+    });
+
+    const propositions = chunks.flatMap((chunk) => chunk.structuredPropositions ?? []);
+    const negatedSupport = propositions.find(
+      (proposition) =>
+        proposition.proposition.predicate === 'feature_support' &&
+        proposition.proposition.polarity === 'negated' &&
+        proposition.proposition.objectValue === 'DVH',
+    );
+    const affirmedSupport = propositions.find(
+      (proposition) =>
+        proposition.proposition.predicate === 'feature_support' &&
+        proposition.proposition.polarity === 'affirmed' &&
+        proposition.proposition.objectValue === 'DVH',
+    );
+
+    expect(negatedSupport).toEqual(
+      expect.objectContaining({
+        proposition: expect.objectContaining({
+          predicate: 'feature_support',
+          polarity: 'negated',
+          objectValue: 'DVH',
+        }),
+      }),
+    );
+    expect(affirmedSupport).toEqual(
+      expect.objectContaining({
+        proposition: expect.objectContaining({
+          predicate: 'feature_support',
+          polarity: 'affirmed',
+          objectValue: 'DVH',
+        }),
+      }),
+    );
   });
 
   it('lets tenant-derived section aliases refine extraction within the selected profile without changing core defaults', () => {
@@ -731,6 +813,117 @@ describe('DocumentKnowledgeExtractionService', () => {
             axis: 'feature_support',
             layer: 'factual',
             values: expect.arrayContaining(['DVH', 'doble vidrio', 'vidrio simple']),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('extracts visit, rectification, installation, and visit-cost facts from service-oriented document prose', () => {
+    const service = new DocumentKnowledgeExtractionService();
+
+    const chunks = service.buildChunkCandidates({
+      sourceText: [
+        '3. INSTALACION Y COBERTURA',
+        '',
+        'En Montevideo podemos coordinar visitas comerciales y técnicas según el tipo de trabajo.',
+        'Las visitas dentro de Montevideo son sin costo.',
+        'Fuera de Montevideo puede corresponder costo de traslado.',
+        '',
+        '15. RESPUESTAS ORGANICAS PARA SITUACIONES FRECUENTES',
+        '',
+        'Visita previa:',
+        'Sí, podemos coordinar una primera visita para mostrarte el producto y rectificar medidas antes de definir el trabajo final.',
+        '',
+        'Instalación:',
+        'Sí, realizamos instalación con nuestro equipo.',
+      ].join('\n'),
+      originKind: 'TEXT',
+      language: 'es',
+      extractionContext: {
+        activeCapabilities: ['product_catalog_lookup'],
+        locale: 'es',
+      },
+    });
+
+    const allItems = chunks.flatMap((chunk) => chunk.structuredItems ?? []);
+    const serviceClaim = allItems.find(
+      (item) =>
+        item.kind === 'claim' &&
+        item.label === 'service_offers' &&
+        item.metadata?.claim?.values?.includes('visita a domicilio') &&
+        item.metadata?.claim?.values?.includes('toma de medidas'),
+    );
+    const installationClaim = allItems.find(
+      (item) =>
+        item.kind === 'claim' &&
+        item.label === 'service_offers' &&
+        item.metadata?.claim?.values?.includes('instalacion'),
+    );
+    const visitCostClaim = allItems.find(
+      (item) =>
+        item.kind === 'claim' &&
+        item.label === 'commercial_visit_cost' &&
+        item.metadata?.claim?.appliesTo?.some(
+          (scope) =>
+            scope.axis === 'location' &&
+            scope.normalizedValue === 'montevideo',
+        ),
+    );
+    const travelCostClaim = allItems.find(
+      (item) =>
+        item.kind === 'claim' &&
+        item.label === 'travel_cost_responsibility' &&
+        item.metadata?.claim?.appliesTo?.some(
+          (scope) =>
+            scope.axis === 'location' &&
+            scope.normalizedValue === 'montevideo',
+        ) &&
+        item.metadata?.claim?.appliesTo?.some(
+          (scope) =>
+            scope.axis === 'location_relation' &&
+            scope.normalizedValue === 'outside',
+        ) &&
+        item.metadata?.claim?.values?.includes('puede corresponder costo de traslado'),
+    );
+
+    expect(serviceClaim).toEqual(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          claim: expect.objectContaining({
+            axis: 'service_offers',
+            layer: 'factual',
+            values: expect.arrayContaining(['visita a domicilio', 'toma de medidas']),
+          }),
+        }),
+      }),
+    );
+    expect(installationClaim).toEqual(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          claim: expect.objectContaining({
+            axis: 'service_offers',
+            values: expect.arrayContaining(['instalacion']),
+          }),
+        }),
+      }),
+    );
+    expect(visitCostClaim).toEqual(
+      expect.objectContaining({
+        valueText: 'sin costo',
+        metadata: expect.objectContaining({
+          claim: expect.objectContaining({
+            axis: 'commercial_visit_cost',
+          }),
+        }),
+      }),
+    );
+    expect(travelCostClaim).toEqual(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          claim: expect.objectContaining({
+            axis: 'travel_cost_responsibility',
+            values: ['puede corresponder costo de traslado'],
           }),
         }),
       }),

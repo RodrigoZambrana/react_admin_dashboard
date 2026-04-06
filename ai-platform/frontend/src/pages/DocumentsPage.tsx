@@ -6,6 +6,7 @@ import {
   createTextDocument,
   createUrlDocument,
   getDocument,
+  getDocumentPropositionCandidates,
   getDocumentKnowledgeView,
   ingestDocument,
   listDocuments,
@@ -16,7 +17,11 @@ import { EmptyState } from '../components/shared/EmptyState';
 import { JsonBlock } from '../components/shared/JsonBlock';
 import { PageHeader } from '../components/shared/PageHeader';
 import { StatusBadge } from '../components/shared/StatusBadge';
-import type { DocumentKnowledgeView, DocumentRecord } from '../types';
+import type {
+  DocumentKnowledgePromotionCandidate,
+  DocumentKnowledgeView,
+  DocumentRecord,
+} from '../types';
 import { formatDateTime } from '../utils';
 
 const documentStatuses = ['ALL', 'ACTIVE', 'DRAFT', 'ARCHIVED'] as const;
@@ -70,6 +75,9 @@ export function DocumentsPage() {
     useState<DocumentKnowledgeView | null>(null);
   const [selectedKnowledgeView, setSelectedKnowledgeView] =
     useState<DocumentKnowledgeView | null>(null);
+  const [promotionCandidates, setPromotionCandidates] = useState<
+    DocumentKnowledgePromotionCandidate[]
+  >([]);
   const [statusFilter, setStatusFilter] =
     useState<(typeof documentStatuses)[number]>('ALL');
   const [ingestionFilter, setIngestionFilter] =
@@ -130,6 +138,10 @@ export function DocumentsPage() {
         limit: 60,
       });
       const activeKnowledgePromise = getDocumentKnowledgeView();
+      const propositionCandidatesPromise = getDocumentPropositionCandidates({
+        limit: 8,
+        minOccurrences: 2,
+      });
       const inventory = await inventoryPromise;
       setDocuments(inventory);
       const selected =
@@ -139,7 +151,7 @@ export function DocumentsPage() {
           : inventory[0]?.id);
       setSelectedId(selected);
 
-      const [activeKnowledge, selectedDetail, selectedKnowledge] = await Promise.all([
+      const [activeKnowledge, selectedDetail, selectedKnowledge, candidates] = await Promise.all([
         activeKnowledgePromise,
         selected ? getDocument(selected) : Promise.resolve(null),
         selected
@@ -147,8 +159,10 @@ export function DocumentsPage() {
               documentId: selected,
             })
           : Promise.resolve(null),
+        propositionCandidatesPromise,
       ]);
       setActiveKnowledgeView(activeKnowledge);
+      setPromotionCandidates(candidates);
 
       if (selected) {
         setSelectedDocument(selectedDetail);
@@ -853,6 +867,36 @@ export function DocumentsPage() {
                                 {profile.derivedFromDocuments
                                   .map((document) => document.title)
                                   .join(', ')}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  {promotionCandidates.length > 0 ? (
+                    <div className="mt-3">
+                      <span className="react-meta-label d-block mb-2">
+                        Proposition candidates
+                      </span>
+                      <div className="react-meta-list">
+                        {promotionCandidates.map((candidate) => (
+                          <div key={candidate.patternKey}>
+                            <span className="react-meta-label">
+                              {formatAxisLabel(candidate.predicate)}
+                              {candidate.facet ? ` / ${candidate.facet}` : ''}
+                            </span>
+                            <strong>
+                              {candidate.occurrenceCount} occurrences in{' '}
+                              {candidate.documentCount} documents
+                            </strong>
+                            <div className="fs-12 text-muted mt-1">
+                              Polarity: {candidate.polarities.join(', ')} | Evidence:{' '}
+                              {candidate.evidenceTiers.join(', ')}
+                            </div>
+                            {candidate.exampleValues.length > 0 ? (
+                              <div className="fs-12 text-muted">
+                                Values: {candidate.exampleValues.join(', ')}
                               </div>
                             ) : null}
                           </div>

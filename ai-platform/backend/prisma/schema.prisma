@@ -61,6 +61,27 @@ enum DocumentKnowledgeSupportClass {
   BOUNDED_INFERENCE
 }
 
+enum DocumentKnowledgeEvidenceTier {
+  TYPED_CLAIM
+  NORMALIZED_PROPOSITION
+  EXCERPT_ONLY
+}
+
+enum DocumentKnowledgePolarity {
+  AFFIRMED
+  NEGATED
+  CONDITIONAL
+  COMPARATIVE
+  UNKNOWN
+}
+
+enum DocumentKnowledgePromotionState {
+  UNCLASSIFIED
+  CANDIDATE
+  PROMOTED
+  REJECTED
+}
+
 enum DocumentExtractionProfileConfigSource {
   TENANT_DERIVED
 }
@@ -253,6 +274,7 @@ model DocumentRecord {
   updatedAt       DateTime                @updatedAt
   chunks          DocumentChunk[]
   knowledgeItems  DocumentKnowledgeItem[]
+  propositions    DocumentKnowledgeProposition[]
   extractionProfileConfigs DocumentExtractionProfileConfigRecord[]
 
   @@index([tenantId, status, createdAt])
@@ -289,6 +311,7 @@ model DocumentChunk {
   createdAt  DateTime       @default(now())
   document   DocumentRecord @relation(fields: [documentId], references: [id], onDelete: Cascade)
   knowledgeItems DocumentKnowledgeItem[]
+  propositions DocumentKnowledgeProposition[]
 
   @@unique([documentId, sequence])
   @@index([tenantId, documentId, sequence])
@@ -313,6 +336,45 @@ model DocumentKnowledgeItem {
 
   @@index([tenantId, documentId, chunkId, sequence])
   @@index([tenantId, kind, label])
+}
+
+model DocumentKnowledgeProposition {
+  id                String                         @id @default(cuid())
+  tenantId          String
+  documentId        String
+  chunkId           String
+  sequence          Int
+  layer             String?
+  extractionScope   String?
+  profileKey        String?
+  subjectAxis       String?
+  subjectValue      String?
+  subjectNormalized String?
+  predicate         String
+  facet             String?
+  objectValue       String
+  objectNormalized  String?
+  polarity          DocumentKnowledgePolarity
+  supportClass      DocumentKnowledgeSupportClass
+  evidenceTier      DocumentKnowledgeEvidenceTier @default(NORMALIZED_PROPOSITION)
+  confidence        Float
+  relationScope     Json?
+  canonicalKey      String
+  patternKey        String
+  evidenceTextSpan  String
+  metadata          Json?
+  promotionState    DocumentKnowledgePromotionState @default(UNCLASSIFIED)
+  promotedAxis      String?
+  promotedFacet     String?
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+  document          DocumentRecord                 @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunk             DocumentChunk                  @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, documentId, chunkId, sequence])
+  @@index([tenantId, predicate, facet])
+  @@index([tenantId, patternKey])
+  @@index([tenantId, promotionState, updatedAt])
 }
 
 model CatalogSourceRecord {

@@ -52,6 +52,12 @@
       "generalEvidenceTerms": ["variante", "variantes", "modelo", "modelos", "opcion", "opciones", "variedad"],
       "supportedAxes": ["specific_variants", "product_types"],
       "unspecifiedLabel": "las variantes exactas"
+    },
+    "feature_support": {
+      "requestTerms": ["dvh", "doble vidrio", "vidrio simple", "monoblock", "mosquitero", "cortina integrada", "soporta", "admite", "permite", "compatibilidad"],
+      "generalEvidenceTerms": ["dvh", "doble vidrio", "vidrio simple", "monoblock", "mosquitero", "cortina integrada", "soporta", "admite", "permite", "compatibilidad"],
+      "supportedAxes": ["feature_support"],
+      "unspecifiedLabel": "la compatibilidad exacta"
     }
   },
   "unspecifiedCues": [
@@ -85,7 +91,12 @@
     "availabilityIntentTerms": ["tienen", "tiene", "hacen", "hace", "trabajan", "trabaja", "ofrecen", "ofrece"],
     "detailCueTerms": ["color", "colores", "material", "materiales", "tipo", "tipos", "linea", "lineas", "serie", "series", "medidas", "cuotas", "tarjeta", "tarjetas", "garantia", "pago", "pagos", "precio", "precios", "dvh", "visita", "instalacion", "horario", "horarios"]
   },
+  "coverageScopeSignals": {
+    "insideLocationTerms": ["dentro de"],
+    "outsideLocationTerms": ["fuera de", "interior"]
+  },
   "unspecifiedDetailPrefix": "Por ahora no tengo confirmación sobre",
+  "extractionUncertainDetailPrefix": "Por ahora no tengo una confirmación suficientemente clara sobre",
   "labelJoiner": "ni",
   "guardrail": {
     "minimumTokenLength": 4,

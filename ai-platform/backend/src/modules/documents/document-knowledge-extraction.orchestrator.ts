@@ -3,6 +3,7 @@ import { DocumentOriginKind } from '@prisma/client';
 
 import { buildDocumentChunkBoundaryMetadata } from './document-chunk-boundary';
 import { buildKnowledgeRetrievalProjection } from './document-knowledge-claims';
+import { buildKnowledgePropositionRetrievalProjection } from './document-knowledge-propositions';
 import { documentKnowledgeExtractionCatalog } from './document-knowledge-extraction.catalogs';
 import {
   DocumentExtractionContext,
@@ -18,6 +19,8 @@ import {
   DocumentChunkCandidate,
   DocumentKnowledgeItemCandidate,
   DocumentKnowledgeItemSeed,
+  DocumentKnowledgePropositionCandidate,
+  DocumentKnowledgePropositionSeed,
   DocumentSemanticBlock,
 } from './document.types';
 
@@ -30,7 +33,7 @@ type SupportSummary = {
 type SemanticHeading = {
   heading: string;
   depth: number;
-  kind: 'numbered' | 'suffix' | 'uppercase';
+  kind: 'numbered' | 'suffix' | 'uppercase' | 'standalone';
 };
 
 @Injectable()
@@ -52,10 +55,12 @@ export class DocumentKnowledgeExtractionOrchestrator {
     const blocks = buildSemanticBlocks(input.sourceText, input.sourceMetadata);
 
     return blocks.map((block, index) => {
-      const structuredItems = this.extractStructuredItems(block, {
+      const structuredOutput = this.extractStructuredItems(block, {
         profiles: activeProfiles,
         context,
       });
+      const structuredItems = structuredOutput.items;
+      const structuredPropositions = structuredOutput.propositions;
       const supportSummary = this.buildSupportSummary(block, structuredItems);
       const boundaryMetadata = buildDocumentChunkBoundaryMetadata(block.content);
       const metadata = cleanDocumentKnowledgeRecord({
@@ -79,9 +84,11 @@ export class DocumentKnowledgeExtractionOrchestrator {
           block,
           supportSummary,
           structuredItems,
+          structuredPropositions,
         }),
         metadata: metadata ?? undefined,
         structuredItems,
+        structuredPropositions,
       };
     });
   }
@@ -113,28 +120,46 @@ export class DocumentKnowledgeExtractionOrchestrator {
     },
   ) {
     if (input.profiles.length === 0) {
-      return [];
+      return {
+        items: [],
+        propositions: [],
+      };
     }
 
     const sentences = splitDocumentSemanticSentences(block.content);
     const supportMetadata = buildSupportMetadata(block);
-    const items = input.profiles.flatMap((profile) =>
+    const outputs = input.profiles.map((profile) =>
       profile.extractChunk({
         chunk: block,
         sentences,
         context: input.context,
       }),
     );
+    const items = outputs.flatMap((output) => output.items);
+    const propositions = outputs.flatMap((output) => output.propositions ?? []);
 
-    return dedupeStructuredItems(items).map((item, sequence) => ({
-      ...item,
-      sequence,
-      metadata:
-        cleanDocumentKnowledgeRecord({
-          ...supportMetadata,
-          ...(item.metadata ?? {}),
-        }) ?? undefined,
-    }));
+    return {
+      items: dedupeStructuredItems(items).map((item, sequence) => ({
+        ...item,
+        sequence,
+        metadata:
+          cleanDocumentKnowledgeRecord({
+            ...supportMetadata,
+            ...(item.metadata ?? {}),
+          }) ?? undefined,
+      })),
+      propositions: dedupeStructuredPropositions(propositions).map(
+        (proposition, sequence) => ({
+          ...proposition,
+          sequence,
+          metadata:
+            cleanDocumentKnowledgeRecord({
+              ...supportMetadata,
+              ...(proposition.metadata ?? {}),
+            }) ?? undefined,
+        }),
+      ),
+    };
   }
 
   private buildSupportSummary(
@@ -361,14 +386,30 @@ function buildRetrievalProjection(input: {
   block: DocumentSemanticBlock;
   supportSummary: SupportSummary;
   structuredItems: DocumentKnowledgeItemCandidate[];
+  structuredPropositions?: DocumentKnowledgePropositionCandidate[];
 }) {
-  return buildKnowledgeRetrievalProjection({
-    topic: input.supportSummary.topic,
-    supportedAxes: input.supportSummary.supportedAxes,
-    unspecifiedAxes: input.supportSummary.unspecifiedAxes,
-    section: input.block.section,
-    items: input.structuredItems,
-  });
+  return [
+    buildKnowledgeRetrievalProjection({
+      topic: input.supportSummary.topic,
+      supportedAxes: input.supportSummary.supportedAxes,
+      unspecifiedAxes: input.supportSummary.unspecifiedAxes,
+      section: input.block.section,
+      items: input.structuredItems,
+    }),
+    buildKnowledgePropositionRetrievalProjection({
+      propositions: (input.structuredPropositions ?? []).map((item) => ({
+        predicate: item.proposition.predicate,
+        facet: item.proposition.facet,
+        objectValue: item.proposition.objectValue,
+        objectNormalized: item.proposition.objectNormalizedValue,
+        relationScope: item.proposition.relationScope,
+        metadata: item.metadata,
+      })),
+    }),
+  ]
+    .filter((value) => value.trim().length > 0)
+    .join(' ')
+    .trim();
 }
 
 function resolveSupportTopic(block: DocumentSemanticBlock) {
@@ -428,6 +469,20 @@ function resolveSemanticHeading(
     } satisfies SemanticHeading;
   }
 
+  if (looksLikeStandaloneHeading(paragraph, firstLine)) {
+    const parentDepth = currentHeading?.depth ?? 0;
+    const depth =
+      currentHeading?.kind === 'suffix' || currentHeading?.kind === 'standalone'
+        ? Math.max(1, parentDepth)
+        : Math.max(1, parentDepth + 1);
+
+    return {
+      heading: firstLine.trim(),
+      depth,
+      kind: 'standalone',
+    } satisfies SemanticHeading;
+  }
+
   return undefined;
 }
 
@@ -477,6 +532,48 @@ function resolveNumberedHeadingDepth(value: string) {
   }
 
   return match[1].split('.').length;
+}
+
+function looksLikeStandaloneHeading(paragraph: string, firstLine: string) {
+  const meaningfulLines = getMeaningfulLines(paragraph);
+  const normalizedLine = firstLine.trim();
+
+  if (meaningfulLines.length !== 1) {
+    return false;
+  }
+
+  if (
+    !normalizedLine ||
+    normalizedLine.length > 90 ||
+    documentKnowledgeExtractionCatalog.patterns.divider.test(normalizedLine) ||
+    /^\s*[-•]/u.test(normalizedLine) ||
+    /:\s+\S+/u.test(normalizedLine) ||
+    /[.;!?]$/u.test(normalizedLine)
+  ) {
+    return false;
+  }
+
+  const tokenCount = normalizedLine
+    .split(/\s+/u)
+    .map((token) => token.trim())
+    .filter(Boolean).length;
+
+  if (tokenCount === 0 || tokenCount > 8) {
+    return false;
+  }
+
+  const lowerCased = normalizedLine.toLocaleLowerCase();
+
+  if (
+    lowerCased.startsWith('si ') ||
+    lowerCased.startsWith('cuando ') ||
+    lowerCased.startsWith('para ') ||
+    lowerCased.startsWith('por ')
+  ) {
+    return false;
+  }
+
+  return /^[\p{L}\p{N}][\p{L}\p{N}\s\-\/()+,:]+$/u.test(normalizedLine);
 }
 
 function splitOversizedParagraph(paragraph: string) {
@@ -535,6 +632,29 @@ function dedupeStructuredItems(items: DocumentKnowledgeItemSeed[]) {
       item.normalizedValue ?? normalizeSearchText(item.valueText),
       item.supportClass,
       item.metadata?.profileKey ?? '',
+    ].join('|');
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function dedupeStructuredPropositions(
+  propositions: DocumentKnowledgePropositionSeed[],
+) {
+  const seen = new Set<string>();
+
+  return propositions.filter((proposition) => {
+    const key = [
+      proposition.proposition.canonicalKey,
+      proposition.label,
+      proposition.supportClass,
+      proposition.metadata?.profileKey ?? '',
+      proposition.metadata?.section ?? '',
     ].join('|');
 
     if (seen.has(key)) {

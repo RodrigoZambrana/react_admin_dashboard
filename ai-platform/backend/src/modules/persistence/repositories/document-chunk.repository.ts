@@ -22,6 +22,29 @@ type ReplaceDocumentChunksInput = {
       evidenceTextSpan: string;
       metadata?: Prisma.InputJsonValue | null;
     }>;
+    structuredPropositions?: Array<{
+      sequence: number;
+      label: string;
+      normalizedValue?: string;
+      supportClass: 'explicit_fact' | 'partial_fact' | 'bounded_inference';
+      evidenceTextSpan: string;
+      metadata?: Prisma.InputJsonValue | null;
+      proposition: {
+        predicate: string;
+        facet?: string;
+        objectValue: string;
+        objectNormalizedValue?: string;
+        polarity: 'affirmed' | 'negated' | 'conditional' | 'comparative' | 'unknown';
+        relationScope?: Prisma.InputJsonValue | null;
+        confidence: number;
+        canonicalKey: string;
+        patternKey: string;
+        evidenceTier?: 'typed_claim' | 'normalized_proposition' | 'excerpt_only';
+        promotionState?: 'unclassified' | 'candidate' | 'promoted' | 'rejected';
+        promotedAxis?: string;
+        promotedFacet?: string;
+      };
+    }>;
   }>;
 };
 
@@ -108,6 +131,70 @@ export class DocumentChunkRepository {
             })),
         });
       }
+
+      const structuredPropositions = input.chunks.flatMap((chunk) =>
+        (chunk.structuredPropositions ?? []).map((proposition) => ({
+          chunkId: chunkIdBySequence.get(chunk.sequence),
+          sequence: proposition.sequence,
+          label: proposition.label,
+          normalizedValue: proposition.normalizedValue ?? null,
+          supportClass: proposition.supportClass,
+          evidenceTextSpan: proposition.evidenceTextSpan,
+          metadata: proposition.metadata ?? null,
+          proposition: proposition.proposition,
+        })),
+      );
+
+      if (structuredPropositions.length > 0) {
+        await tx.documentKnowledgeProposition.createMany({
+          data: structuredPropositions
+            .filter(
+              (
+                proposition,
+              ): proposition is typeof proposition & {
+                chunkId: string;
+              } =>
+                typeof proposition.chunkId === 'string' &&
+                proposition.chunkId.length > 0,
+            )
+            .map((proposition) => ({
+              tenantId,
+              documentId: input.documentId,
+              chunkId: proposition.chunkId,
+              sequence: proposition.sequence,
+              layer: extractPropositionLayer(proposition.metadata),
+              extractionScope: extractExtractionScope(proposition.metadata),
+              profileKey: extractProfileKey(proposition.metadata),
+              subjectAxis: extractSubjectValue(proposition.metadata)?.axis ?? null,
+              subjectValue: extractSubjectValue(proposition.metadata)?.value ?? null,
+              subjectNormalized:
+                extractSubjectValue(proposition.metadata)?.normalizedValue ?? null,
+              predicate: proposition.proposition.predicate,
+              facet: proposition.proposition.facet ?? null,
+              objectValue: proposition.proposition.objectValue,
+              objectNormalized:
+                proposition.proposition.objectNormalizedValue ?? null,
+              polarity: mapKnowledgePolarity(proposition.proposition.polarity),
+              supportClass: mapKnowledgeSupportClass(proposition.supportClass),
+              evidenceTier: mapKnowledgeEvidenceTier(
+                proposition.proposition.evidenceTier ?? 'normalized_proposition',
+              ),
+              confidence: proposition.proposition.confidence,
+              relationScope: this.toJsonValue(
+                (proposition.proposition.relationScope ?? null) as Prisma.InputJsonValue | null,
+              ),
+              canonicalKey: proposition.proposition.canonicalKey,
+              patternKey: proposition.proposition.patternKey,
+              evidenceTextSpan: proposition.evidenceTextSpan,
+              metadata: this.toJsonValue(proposition.metadata),
+              promotionState: mapKnowledgePromotionState(
+                proposition.proposition.promotionState ?? 'unclassified',
+              ),
+              promotedAxis: proposition.proposition.promotedAxis ?? null,
+              promotedFacet: proposition.proposition.promotedFacet ?? null,
+            })),
+        });
+      }
     });
 
     return this.listByDocumentId(input.documentId);
@@ -131,6 +218,16 @@ export class DocumentChunkRepository {
       },
       include: {
         knowledgeItems: {
+          orderBy: [
+            {
+              sequence: 'asc',
+            },
+            {
+              createdAt: 'asc',
+            },
+          ],
+        },
+        propositions: {
           orderBy: [
             {
               sequence: 'asc',
@@ -182,6 +279,16 @@ export class DocumentChunkRepository {
             },
           ],
         },
+        propositions: {
+          orderBy: [
+            {
+              sequence: 'asc',
+            },
+            {
+              createdAt: 'asc',
+            },
+          ],
+        },
       },
     });
   }
@@ -217,4 +324,105 @@ function mapKnowledgeSupportClass(
   }
 
   return 'EXPLICIT_FACT';
+}
+
+function mapKnowledgePolarity(
+  value: 'affirmed' | 'negated' | 'conditional' | 'comparative' | 'unknown',
+) {
+  switch (value) {
+    case 'negated':
+      return 'NEGATED';
+    case 'conditional':
+      return 'CONDITIONAL';
+    case 'comparative':
+      return 'COMPARATIVE';
+    case 'unknown':
+      return 'UNKNOWN';
+    default:
+      return 'AFFIRMED';
+  }
+}
+
+function mapKnowledgeEvidenceTier(
+  value: 'typed_claim' | 'normalized_proposition' | 'excerpt_only',
+) {
+  switch (value) {
+    case 'typed_claim':
+      return 'TYPED_CLAIM';
+    case 'excerpt_only':
+      return 'EXCERPT_ONLY';
+    default:
+      return 'NORMALIZED_PROPOSITION';
+  }
+}
+
+function mapKnowledgePromotionState(
+  value: 'unclassified' | 'candidate' | 'promoted' | 'rejected',
+) {
+  switch (value) {
+    case 'candidate':
+      return 'CANDIDATE';
+    case 'promoted':
+      return 'PROMOTED';
+    case 'rejected':
+      return 'REJECTED';
+    default:
+      return 'UNCLASSIFIED';
+  }
+}
+
+function extractExtractionScope(metadata: Prisma.InputJsonValue | null | undefined) {
+  const record = asMetadataRecord(metadata);
+  return typeof record?.extractionScope === 'string'
+    ? record.extractionScope
+    : null;
+}
+
+function extractProfileKey(metadata: Prisma.InputJsonValue | null | undefined) {
+  const record = asMetadataRecord(metadata);
+  return typeof record?.profileKey === 'string' ? record.profileKey : null;
+}
+
+function extractPropositionLayer(metadata: Prisma.InputJsonValue | null | undefined) {
+  const record = asMetadataRecord(metadata);
+  const claim =
+    record?.claim && typeof record.claim === 'object' && !Array.isArray(record.claim)
+      ? (record.claim as Record<string, unknown>)
+      : null;
+  return typeof claim?.layer === 'string' ? claim.layer : null;
+}
+
+function extractSubjectValue(metadata: Prisma.InputJsonValue | null | undefined) {
+  const record = asMetadataRecord(metadata);
+  const claim =
+    record?.claim && typeof record.claim === 'object' && !Array.isArray(record.claim)
+      ? (record.claim as Record<string, unknown>)
+      : null;
+  const subject =
+    claim?.subject && typeof claim.subject === 'object' && !Array.isArray(claim.subject)
+      ? (claim.subject as Record<string, unknown>)
+      : null;
+
+  if (typeof subject?.axis !== 'string' || typeof subject?.value !== 'string') {
+    return null;
+  }
+
+  return {
+    axis: subject.axis,
+    value: subject.value,
+    normalizedValue:
+      typeof subject.normalizedValue === 'string'
+        ? subject.normalizedValue
+        : null,
+  };
+}
+
+function asMetadataRecord(
+  value: Prisma.InputJsonValue | null | undefined,
+): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
 }

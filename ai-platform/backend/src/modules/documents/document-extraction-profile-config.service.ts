@@ -36,6 +36,10 @@ type RawDocumentExtractionProfileResource = {
       cardLeadTerms?: string[];
       brandListLeadTerms?: string[];
     };
+    service_offers?: {
+      termFamilies?: Record<string, string[]>;
+      affirmativeLeadPhrases?: string[];
+    };
     construction_components?: {
       headingTerms?: string[];
     };
@@ -64,6 +68,14 @@ type RawDocumentExtractionProfileResource = {
       quote_fields?: {
         headingTerms?: string[];
       };
+    };
+    coverage?: {
+      visitTerms?: string[];
+      freeCostTerms?: string[];
+      travelCostTerms?: string[];
+      insideLocationLeadTerms?: string[];
+      outsideLocationLeadTerms?: string[];
+      locationStopTerms?: string[];
     };
   };
   matchingHints?: {
@@ -140,6 +152,13 @@ export type CompiledDocumentExtractionProfileConfig = {
     cardLeadTerms: string[];
     brandListLeadTerms: string[];
   };
+  serviceOffers?: {
+    normalizedTerms: Array<{
+      normalizedValue: string;
+      sourceTerms: string[];
+    }>;
+    affirmativeLeadPhrases: string[];
+  };
   constructionComponents?: {
     headingTerms: string[];
   };
@@ -162,6 +181,14 @@ export type CompiledDocumentExtractionProfileConfig = {
   };
   workflow?: {
     quoteFieldsHeadingTerms: string[];
+  };
+  coverage?: {
+    visitTerms: string[];
+    freeCostTerms: string[];
+    travelCostTerms: string[];
+    insideLocationLeadTerms: string[];
+    outsideLocationLeadTerms: string[];
+    locationStopTerms: string[];
   };
   matchingHints: {
     listStopTerms: string[];
@@ -483,6 +510,22 @@ function compileProfileResource(input: {
             ) ?? [],
         }
       : undefined,
+    serviceOffers:
+      input.raw.axes.service_offers?.termFamilies &&
+      Object.keys(input.raw.axes.service_offers.termFamilies).length > 0
+        ? {
+            normalizedTerms: Object.entries(
+              input.raw.axes.service_offers.termFamilies,
+            ).map(([normalizedValue, sourceTerms]) => ({
+              normalizedValue,
+              sourceTerms: sourceTerms.map((term) => term.trim()).filter(Boolean),
+            })),
+            affirmativeLeadPhrases:
+              input.raw.axes.service_offers.affirmativeLeadPhrases?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+          }
+        : undefined,
     constructionComponents: constructionComponentHeadingTerms.length > 0
       ? {
           headingTerms: constructionComponentHeadingTerms,
@@ -545,6 +588,37 @@ function compileProfileResource(input: {
       quoteFieldHeadingTerms.length > 0
         ? {
             quoteFieldsHeadingTerms: quoteFieldHeadingTerms,
+          }
+        : undefined,
+    coverage:
+      input.raw.axes.coverage?.visitTerms?.length ||
+      input.raw.axes.coverage?.freeCostTerms?.length ||
+      input.raw.axes.coverage?.travelCostTerms?.length
+        ? {
+            visitTerms:
+              input.raw.axes.coverage?.visitTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            freeCostTerms:
+              input.raw.axes.coverage?.freeCostTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            travelCostTerms:
+              input.raw.axes.coverage?.travelCostTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            insideLocationLeadTerms:
+              input.raw.axes.coverage?.insideLocationLeadTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            outsideLocationLeadTerms:
+              input.raw.axes.coverage?.outsideLocationLeadTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
+            locationStopTerms:
+              input.raw.axes.coverage?.locationStopTerms?.map((term) =>
+                normalizeDocumentKnowledgeText(term),
+              ) ?? [],
           }
         : undefined,
     matchingHints: {

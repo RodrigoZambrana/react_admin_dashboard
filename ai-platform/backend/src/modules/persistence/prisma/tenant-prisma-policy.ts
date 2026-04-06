@@ -30,6 +30,7 @@ const TENANT_MODELS = new Set([
   'DocumentRecord',
   'DocumentChunk',
   'DocumentKnowledgeItem',
+  'DocumentKnowledgeProposition',
   'DocumentExtractionProfileConfigRecord',
 ]);
 

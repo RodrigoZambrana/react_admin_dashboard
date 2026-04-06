@@ -20,6 +20,21 @@ describe('ResponseGuardrailService', () => {
     new ResponseGroundingService(),
     responseFallbackService as any,
   );
+  const buildGrounding = (
+    overrides: Partial<
+      NonNullable<ApprovedResponseContext['documentContext']>['grounding']
+    > = {},
+  ) => ({
+    supportLevel: 'explicit' as const,
+    evidenceTier: 'typed_claim' as const,
+    absenceReason: null,
+    exactnessRequested: false,
+    requestedDetailTypes: [],
+    supportedDetailTypes: [],
+    partialDetailTypes: [],
+    unsupportedDetailTypes: [],
+    ...overrides,
+  });
 
   const approvedContext: ApprovedResponseContext = {
     locale: 'es',
@@ -73,14 +88,7 @@ describe('ResponseGuardrailService', () => {
       query: 'reserva de visita',
       groundedSummary: 'El documento describe la cobertura del servicio.',
       responseMode: 'combined_execution',
-      grounding: {
-        supportLevel: 'explicit',
-        exactnessRequested: false,
-        requestedDetailTypes: [],
-        supportedDetailTypes: [],
-        partialDetailTypes: [],
-        unsupportedDetailTypes: [],
-      },
+      grounding: buildGrounding(),
       matches: [],
     },
   };
@@ -164,14 +172,11 @@ describe('ResponseGuardrailService', () => {
             query: 'que dice sobre la tela screen',
             groundedSummary: 'El documento describe filtrado de luz y privacidad.',
             responseMode: 'document_exploration',
-            grounding: {
+            grounding: buildGrounding({
               supportLevel: 'partial',
-              exactnessRequested: false,
               requestedDetailTypes: ['pricing'],
-              supportedDetailTypes: [],
-              partialDetailTypes: [],
               unsupportedDetailTypes: ['pricing'],
-            },
+            }),
             matches: [],
           },
         },
@@ -202,14 +207,12 @@ describe('ResponseGuardrailService', () => {
             query: 'si cubre cambio de cadena',
             groundedSummary: '',
             responseMode: 'combined_execution',
-            grounding: {
+            grounding: buildGrounding({
               supportLevel: 'partial',
-              exactnessRequested: false,
+              absenceReason: 'document_gap',
               requestedDetailTypes: ['coverage_support'],
-              supportedDetailTypes: [],
-              partialDetailTypes: [],
               unsupportedDetailTypes: ['coverage_support'],
-            },
+            }),
             matches: [],
           },
         },
@@ -221,6 +224,70 @@ describe('ResponseGuardrailService', () => {
           mentionedMissingFields: [],
           mentionedApprovedFactKeys: [],
           mentionedApprovedResultKeys: ['scheduledFor', 'status'],
+          mentionedDocumentIds: [],
+        },
+      }),
+    ).resolves.toEqual({
+      accepted: true,
+      reasons: [],
+    });
+  });
+
+  it('allows incidental unsupported framing when the same sentence concretely answers a supported requested detail', async () => {
+    await expect(
+      service.evaluate({
+        approvedContext: {
+          ...approvedContext,
+          outcome: 'respond',
+          documentContext: {
+            source: 'document_origin',
+            query: 'Consulta sobre colores para PVC y aluminio',
+            groundedSummary:
+              'En PVC el color disponible es blanco. En aluminio, los colores disponibles son blanco, negro y gris.',
+            responseMode: 'document_exploration',
+            grounding: buildGrounding({
+              requestedDetailTypes: ['color_options'],
+              supportedDetailTypes: ['color_options'],
+            }),
+            matches: [
+              {
+                documentId: 'doc-1',
+                title: 'Catálogo',
+                excerpt:
+                  'En PVC el color disponible es blanco. En aluminio, los colores disponibles son blanco, negro y gris.',
+                sequence: 0,
+                score: 4.3,
+                supportSummary: {
+                  topic: 'CORTINAS DE ENROLLAR',
+                  supportedAxes: ['color_options'],
+                  unspecifiedAxes: [],
+                  axisSummaries: [
+                    {
+                      axis: 'color_options',
+                      values: ['blanco'],
+                      supportClass: 'explicit_fact',
+                      appliesTo: [{ axis: 'material', value: 'PVC' }],
+                    },
+                    {
+                      axis: 'color_options',
+                      values: ['blanco', 'negro', 'gris'],
+                      supportClass: 'explicit_fact',
+                      appliesTo: [{ axis: 'material', value: 'ALUMINIO' }],
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+        generatedResponse: {
+          message:
+            'En PVC, el color disponible es blanco. En aluminio, las cortinas de enrollar están disponibles en blanco, negro y gris.',
+          assertedOutcome: 'respond',
+          assertedExecutionStatus: 'not_applicable',
+          mentionedMissingFields: [],
+          mentionedApprovedFactKeys: [],
+          mentionedApprovedResultKeys: [],
           mentionedDocumentIds: [],
         },
       }),
@@ -248,15 +315,14 @@ describe('ResponseGuardrailService', () => {
             query: 'que colores exactos tiene',
             groundedSummary: 'El documento indica variedad de colores para esa linea.',
             responseMode: 'document_exploration',
-            grounding: {
+            grounding: buildGrounding({
               supportLevel: 'partial',
+              absenceReason: 'document_gap',
               exactnessRequested: true,
               requestedDetailTypes: ['color_options'],
-              supportedDetailTypes: [],
               partialDetailTypes: ['color_options'],
-              unsupportedDetailTypes: [],
               requiredUnspecifiedDetailTypes: ['color_options'],
-            },
+            }),
             matches: [],
           },
         },
@@ -294,14 +360,13 @@ describe('ResponseGuardrailService', () => {
             query: 'que colores exactos tiene',
             groundedSummary: 'El documento indica variedad de colores para esa linea.',
             responseMode: 'document_exploration',
-            grounding: {
+            grounding: buildGrounding({
               supportLevel: 'partial',
+              absenceReason: 'document_gap',
               exactnessRequested: true,
               requestedDetailTypes: ['color_options'],
-              supportedDetailTypes: [],
               partialDetailTypes: ['color_options'],
-              unsupportedDetailTypes: [],
-            },
+            }),
             matches: [],
           },
         },
@@ -339,14 +404,13 @@ describe('ResponseGuardrailService', () => {
             query: 'que colores exactos tiene',
             groundedSummary: 'El documento indica variedad de colores para esa linea.',
             responseMode: 'document_exploration',
-            grounding: {
+            grounding: buildGrounding({
               supportLevel: 'partial',
+              absenceReason: 'document_gap',
               exactnessRequested: true,
               requestedDetailTypes: ['color_options'],
-              supportedDetailTypes: [],
               partialDetailTypes: ['color_options'],
-              unsupportedDetailTypes: [],
-            },
+            }),
             matches: [],
           },
         },
@@ -384,14 +448,7 @@ describe('ResponseGuardrailService', () => {
             query: 'privacy and light filtering',
             groundedSummary: 'The document says screen fabric filters light and improves privacy.',
             responseMode: 'document_exploration',
-            grounding: {
-              supportLevel: 'explicit',
-              exactnessRequested: false,
-              requestedDetailTypes: [],
-              supportedDetailTypes: [],
-              partialDetailTypes: [],
-              unsupportedDetailTypes: [],
-            },
+            grounding: buildGrounding(),
             matches: [],
           },
         },
@@ -432,14 +489,7 @@ describe('ResponseGuardrailService', () => {
             groundedSummary:
               'La tela screen permite paso de luz y visibilidad unidireccional.',
             responseMode: 'document_exploration',
-            grounding: {
-              supportLevel: 'explicit',
-              exactnessRequested: false,
-              requestedDetailTypes: [],
-              supportedDetailTypes: [],
-              partialDetailTypes: [],
-              unsupportedDetailTypes: [],
-            },
+            grounding: buildGrounding(),
             matches: [
               {
                 documentId: 'doc-1',
@@ -530,14 +580,7 @@ describe('ResponseGuardrailService', () => {
             query: 'cortinas de enrollar',
             groundedSummary: 'Sí, tenemos cortinas de enrollar manuales y motorizadas.',
             responseMode: 'document_exploration',
-            grounding: {
-              supportLevel: 'explicit',
-              exactnessRequested: false,
-              requestedDetailTypes: [],
-              supportedDetailTypes: [],
-              partialDetailTypes: [],
-              unsupportedDetailTypes: [],
-            },
+            grounding: buildGrounding(),
             matches: [],
           },
         },
@@ -583,14 +626,7 @@ describe('ResponseGuardrailService', () => {
             query: 'coordinar visita',
             groundedSummary: 'Indicame cuándo te queda bien la visita y sigo con eso.',
             responseMode: 'document_exploration',
-            grounding: {
-              supportLevel: 'explicit',
-              exactnessRequested: false,
-              requestedDetailTypes: [],
-              supportedDetailTypes: [],
-              partialDetailTypes: [],
-              unsupportedDetailTypes: [],
-            },
+            grounding: buildGrounding(),
             matches: [],
           },
         },

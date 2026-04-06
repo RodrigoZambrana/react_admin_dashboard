@@ -49,6 +49,25 @@ export class AdminDocumentsController {
     });
   }
 
+  @Get('proposition-candidates')
+  listPropositionCandidates(
+    @Query('profileKey') profileKey?: string,
+    @Query('predicate') predicate?: string,
+    @Query('promotionStates') promotionStates?: string,
+    @Query('minOccurrences') minOccurrences?: string,
+    @Query('limit') limit?: string,
+    @Query('activeOnly') activeOnly?: string,
+  ) {
+    return this.adminDocumentsService.listPropositionCandidates({
+      profileKey,
+      predicate,
+      promotionStates: normalizePromotionStates(promotionStates),
+      minOccurrences: Number(minOccurrences ?? 2),
+      limit: Number(limit ?? 50),
+      activeOnly: normalizeBoolean(activeOnly, true),
+    });
+  }
+
   @Get(':documentId')
   getDocument(@Param('documentId') documentId: string) {
     return this.adminDocumentsService.getDocument(documentId);
@@ -158,4 +177,23 @@ function normalizeBoolean(value: unknown, fallback: boolean) {
   }
 
   return fallback;
+}
+
+function normalizePromotionStates(value?: string) {
+  if (!value?.trim()) {
+    return undefined;
+  }
+
+  const states = value
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean)
+    .filter((entry): entry is 'unclassified' | 'candidate' | 'promoted' | 'rejected' =>
+      entry === 'unclassified' ||
+      entry === 'candidate' ||
+      entry === 'promoted' ||
+      entry === 'rejected',
+    );
+
+  return states.length > 0 ? states : undefined;
 }

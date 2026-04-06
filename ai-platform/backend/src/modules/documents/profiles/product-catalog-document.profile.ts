@@ -11,9 +11,17 @@ import {
   DocumentKnowledgeItemMetadata,
   DocumentKnowledgeItemSeed,
   DocumentKnowledgeLayer,
+  DocumentKnowledgePolarity,
+  DocumentKnowledgePromotionState,
+  DocumentKnowledgePropositionScope,
+  DocumentKnowledgePropositionSeed,
   DocumentKnowledgeScopedValue,
 } from '../document.types';
 import { buildClaimValueText } from '../document-knowledge-claims';
+import {
+  buildKnowledgePropositionCanonicalKey,
+  buildKnowledgePropositionPatternKey,
+} from '../document-knowledge-propositions';
 import {
   captureDocumentKnowledgeLabeledValue,
   cleanDocumentKnowledgeRecord,
@@ -82,6 +90,7 @@ export class ProductCatalogDocumentProfile implements DocumentExtractionProfile 
     });
     const chunkContext = buildChunkContext(input, config);
     const items: DocumentKnowledgeItemSeed[] = [];
+    const directPropositions: DocumentKnowledgePropositionSeed[] = [];
 
     items.push(...extractSectionScopeSeeds(chunkContext));
 
@@ -96,15 +105,25 @@ export class ProductCatalogDocumentProfile implements DocumentExtractionProfile 
       items.push(...extractFeatureSupportSeeds(sentence, chunkContext, config));
       items.push(...extractInstallmentSeeds(sentence, chunkContext, config));
       items.push(...extractWarrantySeeds(sentence, chunkContext));
-      items.push(...extractCoverageSeeds(sentence, chunkContext));
+      items.push(...extractCoverageSeeds(sentence, chunkContext, config));
       items.push(...extractServiceOfferSeeds(sentence, chunkContext, config));
       items.push(...extractPrudenceSeeds(sentence, chunkContext, config));
       items.push(...extractWorkflowSeeds(sentence, chunkContext, config));
+      directPropositions.push(
+        ...extractIndependentPropositionSeeds(sentence, chunkContext, config),
+      );
     }
 
     items.push(...extractGuidanceSeeds(input, chunkContext));
+    const dedupedItems = dedupeStructuredItemSeeds(items);
+    const propositions = dedupeStructuredPropositionSeeds(
+      [...directPropositions, ...extractPropositionSeeds(dedupedItems)],
+    );
 
-    return dedupeStructuredItemSeeds(items);
+    return {
+      items: dedupedItems,
+      propositions,
+    };
   }
 }
 
@@ -894,6 +913,7 @@ function extractFeatureSupportSeeds(
 function extractCoverageSeeds(
   sentence: string,
   chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
 ) {
   const items: DocumentKnowledgeItemSeed[] = [];
   const normalizedSentence = normalizeDocumentKnowledgeText(sentence);
@@ -914,11 +934,16 @@ function extractCoverageSeeds(
     );
   }
 
-  const montevideoVisitMatch = sentence.match(
-    /en\s+([A-ZÁÉÍÓÚÜÑa-záéíóúüñ\s]+?)\s+se mencionan visitas?\s+sin costo/iu,
-  );
+  const visitCostLocation =
+    hasNormalizedPhrase(normalizedSentence, config.coverage?.visitTerms ?? []) &&
+    hasNormalizedPhrase(normalizedSentence, config.coverage?.freeCostTerms ?? [])
+      ? captureScopedLocation(sentence, {
+          leadTerms: config.coverage?.insideLocationLeadTerms ?? [],
+          stopTerms: config.coverage?.locationStopTerms ?? [],
+        })
+      : null;
 
-  if (montevideoVisitMatch?.[1]) {
+  if (visitCostLocation) {
     items.push(
       buildRelationalClaimSeed({
         axis: 'commercial_visit_cost',
@@ -931,22 +956,30 @@ function extractCoverageSeeds(
         }),
         claimContext: buildClaimContext('factual', chunkContext, [
           ...chunkContext.appliesTo,
-          buildScopedValue('location', montevideoVisitMatch[1]),
+          buildScopedValue('location', visitCostLocation),
+          buildScopedValue('location_relation', 'inside'),
         ]),
       }),
     );
   }
 
-  const interiorCostMatch = sentence.match(
-    /para el\s+([A-ZÁÉÍÓÚÜÑa-záéíóúüñ\s]+?)\s+puede haber costo(?: de traslado)?\s+a cargo del cliente/iu,
-  );
+  const outsideLocation =
+    hasNormalizedPhrase(
+      normalizedSentence,
+      config.coverage?.travelCostTerms ?? [],
+    )
+      ? captureScopedLocation(sentence, {
+          leadTerms: config.coverage?.outsideLocationLeadTerms ?? [],
+          stopTerms: config.coverage?.locationStopTerms ?? [],
+        })
+      : null;
 
-  if (interiorCostMatch?.[1]) {
+  if (outsideLocation) {
     items.push(
       buildRelationalClaimSeed({
         axis: 'travel_cost_responsibility',
         claimKind: 'coverage_gap',
-        claimValues: ['a cargo del cliente'],
+        claimValues: ['puede corresponder costo de traslado'],
         supportClass: 'partial_fact',
         evidenceTextSpan: sentence,
         metadata: buildProfileMetadata({
@@ -954,7 +987,8 @@ function extractCoverageSeeds(
         }),
         claimContext: buildClaimContext('factual', chunkContext, [
           ...chunkContext.appliesTo,
-          buildScopedValue('location', interiorCostMatch[1]),
+          buildScopedValue('location', outsideLocation),
+          buildScopedValue('location_relation', 'outside'),
         ]),
       }),
     );
@@ -1174,45 +1208,100 @@ function extractServiceOfferSeeds(
   chunkContext: ChunkExtractionContext,
   config: ProductCatalogProfileConfig,
 ) {
+  const values = new Set<string>();
   const combinedMatch = sentence.match(/(?:combina|incluye)\s+([^.]+)/iu);
 
   if (combinedMatch?.[1]) {
-    const values = splitListValues(combinedMatch[1], config);
-
-    if (values.length > 0) {
-      return buildRelationalClaimWithEntities({
-        axis: 'service_offers',
-        claimKind: 'relational_fact',
-        claimValues: values,
-        entityLabel: 'service_offer',
-        entities: values,
-        supportClass: 'explicit_fact',
-        evidenceTextSpan: sentence,
-        metadata: buildProfileMetadata({
-          scope: 'tenant_only',
-        }),
-        claimContext: buildClaimContext('factual', chunkContext),
-      });
-    }
+    splitListValues(combinedMatch[1], config).forEach((value) => values.add(value));
   }
 
-  if (normalizeDocumentKnowledgeText(sentence).includes('ofrece instalacion')) {
-    return [
-      buildRelationalClaimSeed({
-        axis: 'service_offers',
-        claimKind: 'relational_fact',
-        claimValues: ['instalacion'],
-        supportClass: 'explicit_fact',
-        evidenceTextSpan: sentence,
-        metadata: buildProfileMetadata({
-          scope: 'tenant_only',
-        }),
-        claimContext: buildClaimContext('factual', chunkContext),
+  const normalizedSentence = normalizeDocumentKnowledgeText(sentence);
+  const affirmativeServiceSentence = hasNormalizedPhrase(
+    normalizedSentence,
+    config.serviceOffers?.affirmativeLeadPhrases ?? [],
+  );
+
+  if (affirmativeServiceSentence) {
+    resolveMatchedServiceOfferValues(sentence, config).forEach((value) => values.add(value));
+    resolveMatchedServiceOfferValues(chunkContext.sectionHeading ?? '', config).forEach((value) =>
+      values.add(value),
+    );
+  }
+
+  const serviceValues = Array.from(values.values());
+
+  if (serviceValues.length > 0) {
+    return buildRelationalClaimWithEntities({
+      axis: 'service_offers',
+      claimKind: 'relational_fact',
+      claimValues: serviceValues,
+      entityLabel: 'service_offer',
+      entities: serviceValues,
+      supportClass: 'explicit_fact',
+      evidenceTextSpan: sentence,
+      metadata: buildProfileMetadata({
+        scope: 'tenant_only',
       }),
-    ];
+      claimContext: buildClaimContext('factual', chunkContext),
+    });
   }
 
   return [];
+}
+
+function resolveMatchedServiceOfferValues(
+  value: string,
+  config: ProductCatalogProfileConfig,
+) {
+  const normalizedValue = normalizeDocumentKnowledgeText(value);
+
+  if (!normalizedValue) {
+    return [];
+  }
+
+  const matchedValues =
+    config.serviceOffers?.normalizedTerms
+      ?.filter(({ sourceTerms }) =>
+        sourceTerms.some((term) =>
+          normalizedValue.includes(normalizeDocumentKnowledgeText(term)),
+        ),
+      )
+      .map(({ normalizedValue }) => normalizedValue) ?? [];
+
+  return dedupeValues(matchedValues);
+}
+
+function hasNormalizedPhrase(value: string, phrases: readonly string[]) {
+  return phrases.some((phrase) => value.includes(phrase));
+}
+
+function captureScopedLocation(
+  sentence: string,
+  input: {
+    leadTerms: readonly string[];
+    stopTerms: readonly string[];
+  },
+) {
+  if (input.leadTerms.length === 0) {
+    return null;
+  }
+
+  const alternation = input.leadTerms
+    .map((term) => escapeGuidanceRegExp(term))
+    .join('|');
+  const stopAlternation = input.stopTerms
+    .map((term) => escapeGuidanceRegExp(term))
+    .join('|');
+  const stopClause = stopAlternation.length > 0
+    ? `(?=\\s+(?:${stopAlternation})\\b|[.,;]|$)`
+    : `(?=[.,;]|$)`;
+  const pattern = new RegExp(
+    `\\b(?:${alternation})\\b\\s+([\\p{L}\\p{N}\\s]+?)${stopClause}`,
+    'iu',
+  );
+  const match = sentence.match(pattern)?.[1]?.trim();
+
+  return match && match.length > 0 ? match : null;
 }
 
 function extractPrudenceSeeds(
@@ -1994,6 +2083,515 @@ function dedupeScopedValues(values: DocumentKnowledgeScopedValue[]) {
   });
 }
 
+function extractPropositionSeeds(
+  items: DocumentKnowledgeItemSeed[],
+): DocumentKnowledgePropositionSeed[] {
+  const propositions: DocumentKnowledgePropositionSeed[] = [];
+
+  for (const item of items) {
+    if (item.kind !== 'claim' || !item.metadata?.claim) {
+      continue;
+    }
+
+    const claim = item.metadata.claim;
+
+    if ((claim.layer ?? 'factual') !== 'factual') {
+      continue;
+    }
+
+    const subject = claim.subject;
+    const relationScope = mapClaimScopesToPropositionScope(
+      claim.appliesTo ?? [],
+    );
+    const polarity = resolveClaimPolarity({
+      axis: claim.axis,
+      appliesTo: claim.appliesTo ?? [],
+      supportClass: item.supportClass,
+    });
+    const confidence = resolvePropositionConfidence(item.supportClass);
+
+    for (const value of claim.values) {
+      const trimmedValue = value.trim();
+
+      if (!trimmedValue) {
+        continue;
+      }
+
+      const canonicalKey = buildKnowledgePropositionCanonicalKey({
+        predicate: claim.axis,
+        facet: claim.facet,
+        objectValue: trimmedValue,
+        objectNormalizedValue: normalizeDocumentKnowledgeText(trimmedValue),
+        polarity,
+        subject,
+        relationScope,
+      });
+      const patternKey = buildKnowledgePropositionPatternKey({
+        predicate: claim.axis,
+        facet: claim.facet,
+        polarity,
+        subject,
+        relationScope,
+      });
+
+      propositions.push({
+        label: claim.axis,
+        normalizedValue: normalizeDocumentKnowledgeText(trimmedValue),
+        supportClass: item.supportClass,
+        evidenceTextSpan: item.evidenceTextSpan,
+        metadata: item.metadata,
+        proposition: {
+          predicate: claim.axis,
+          facet: claim.facet,
+          objectValue: trimmedValue,
+          objectNormalizedValue: normalizeDocumentKnowledgeText(trimmedValue),
+          polarity,
+          relationScope,
+          confidence,
+          canonicalKey,
+          patternKey,
+          evidenceTier: 'normalized_proposition',
+          promotionState: 'unclassified' satisfies DocumentKnowledgePromotionState,
+        },
+      });
+    }
+  }
+
+  return propositions;
+}
+
+function extractIndependentPropositionSeeds(
+  sentence: string,
+  chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
+): DocumentKnowledgePropositionSeed[] {
+  return [
+    ...extractFeatureSupportPropositionSeeds(sentence, chunkContext, config),
+    ...extractPaymentTermPropositionSeeds(sentence, chunkContext, config),
+    ...extractCoveragePropositionSeeds(sentence, chunkContext, config),
+    ...extractServiceOfferPropositionSeeds(sentence, chunkContext, config),
+  ];
+}
+
+function extractFeatureSupportPropositionSeeds(
+  sentence: string,
+  chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
+) {
+  const statement = resolveFeatureSupportStatement(sentence, config);
+
+  if (!statement || statement.features.length === 0) {
+    return [];
+  }
+
+  const supportStateScope = buildScopedValue('support_state', statement.state);
+  const propositionContext = buildClaimContext('factual', chunkContext, [
+    ...chunkContext.appliesTo,
+    supportStateScope,
+  ]);
+
+  return statement.features.map((feature) =>
+    buildDirectPropositionSeed({
+      predicate: 'feature_support',
+      objectValue: feature,
+      polarity:
+        statement.state === 'does_not_support'
+          ? 'negated'
+          : statement.state === 'related_to'
+            ? 'comparative'
+            : 'affirmed',
+      supportClass: 'explicit_fact',
+      evidenceTextSpan: sentence,
+      metadata: buildPropositionMetadata({
+        scope: 'tenant_only',
+        claimContext: propositionContext,
+      }),
+      relationScope: buildPropositionRelationScope(
+        propositionContext.appliesTo ?? [],
+      ),
+      subject: propositionContext.subject,
+    }),
+  );
+}
+
+function extractPaymentTermPropositionSeeds(
+  sentence: string,
+  chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
+) {
+  const strippedSentence = stripBulletLead(sentence);
+  const paymentMethod = resolvePaymentMethodScope(
+    strippedSentence,
+    chunkContext,
+    config,
+  );
+  const count = extractInstallmentCount(strippedSentence, config);
+  const cardBrands = extractPaymentCardBrands(strippedSentence, config);
+
+  if (!paymentMethod || (!count && cardBrands.length === 0)) {
+    return [];
+  }
+
+  const claimContext = buildClaimContext('factual', chunkContext, [
+    ...chunkContext.appliesTo,
+    buildScopedValue('payment_method', paymentMethod),
+  ]);
+  const relationScope = buildPropositionRelationScope(
+    claimContext.appliesTo ?? [],
+  );
+  const metadata = buildPropositionMetadata({
+    scope: 'tenant_only',
+    claimContext,
+  });
+  const propositions: DocumentKnowledgePropositionSeed[] = [];
+
+  if (count) {
+    propositions.push(
+      buildDirectPropositionSeed({
+        predicate: 'payment_terms',
+        facet: 'installment_count',
+        objectValue: count,
+        polarity: 'affirmed',
+        supportClass: 'explicit_fact',
+        evidenceTextSpan: sentence,
+        metadata,
+        relationScope,
+        subject: claimContext.subject,
+      }),
+    );
+  }
+
+  for (const brand of cardBrands) {
+    propositions.push(
+      buildDirectPropositionSeed({
+        predicate: 'payment_terms',
+        facet: 'card_brands',
+        objectValue: brand,
+        polarity: 'affirmed',
+        supportClass: 'explicit_fact',
+        evidenceTextSpan: sentence,
+        metadata,
+        relationScope,
+        subject: claimContext.subject,
+      }),
+    );
+  }
+
+  return propositions;
+}
+
+function extractCoveragePropositionSeeds(
+  sentence: string,
+  chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
+) {
+  const propositions: DocumentKnowledgePropositionSeed[] = [];
+  const normalizedSentence = normalizeDocumentKnowledgeText(sentence);
+  const visitCostLocation =
+    hasNormalizedPhrase(normalizedSentence, config.coverage?.visitTerms ?? []) &&
+    hasNormalizedPhrase(normalizedSentence, config.coverage?.freeCostTerms ?? [])
+      ? captureScopedLocation(sentence, {
+          leadTerms: config.coverage?.insideLocationLeadTerms ?? [],
+          stopTerms: config.coverage?.locationStopTerms ?? [],
+        })
+      : null;
+
+  if (visitCostLocation) {
+    const claimContext = buildClaimContext('factual', chunkContext, [
+      ...chunkContext.appliesTo,
+      buildScopedValue('location', visitCostLocation),
+      buildScopedValue('location_relation', 'inside'),
+    ]);
+
+    propositions.push(
+      buildDirectPropositionSeed({
+        predicate: 'commercial_visit_cost',
+        objectValue: 'sin costo',
+        polarity: 'affirmed',
+        supportClass: 'explicit_fact',
+        evidenceTextSpan: sentence,
+        metadata: buildPropositionMetadata({
+          scope: 'tenant_only',
+          claimContext,
+        }),
+        relationScope: buildPropositionRelationScope(
+          claimContext.appliesTo ?? [],
+        ),
+        subject: claimContext.subject,
+      }),
+    );
+  }
+
+  const outsideLocation =
+    hasNormalizedPhrase(
+      normalizedSentence,
+      config.coverage?.travelCostTerms ?? [],
+    )
+      ? captureScopedLocation(sentence, {
+          leadTerms: config.coverage?.outsideLocationLeadTerms ?? [],
+          stopTerms: config.coverage?.locationStopTerms ?? [],
+        })
+      : null;
+
+  if (outsideLocation) {
+    const claimContext = buildClaimContext('factual', chunkContext, [
+      ...chunkContext.appliesTo,
+      buildScopedValue('location', outsideLocation),
+      buildScopedValue('location_relation', 'outside'),
+    ]);
+
+    propositions.push(
+      buildDirectPropositionSeed({
+        predicate: 'travel_cost_responsibility',
+        objectValue: 'puede corresponder costo de traslado',
+        polarity: 'conditional',
+        supportClass: 'partial_fact',
+        evidenceTextSpan: sentence,
+        metadata: buildPropositionMetadata({
+          scope: 'tenant_only',
+          claimContext,
+        }),
+        relationScope: buildPropositionRelationScope(
+          claimContext.appliesTo ?? [],
+        ),
+        subject: claimContext.subject,
+      }),
+    );
+  }
+
+  return propositions;
+}
+
+function extractServiceOfferPropositionSeeds(
+  sentence: string,
+  chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
+) {
+  const normalizedSentence = normalizeDocumentKnowledgeText(sentence);
+  const serviceValues = new Set<string>();
+  const combinedMatch = sentence.match(/(?:combina|incluye)\s+([^.]+)/iu);
+
+  if (combinedMatch?.[1]) {
+    splitListValues(combinedMatch[1], config).forEach((value) =>
+      serviceValues.add(value),
+    );
+  }
+
+  if (
+    hasNormalizedPhrase(
+      normalizedSentence,
+      config.serviceOffers?.affirmativeLeadPhrases ?? [],
+    )
+  ) {
+    resolveMatchedServiceOfferValues(sentence, config).forEach((value) =>
+      serviceValues.add(value),
+    );
+  }
+
+  const claimContext = buildClaimContext('factual', chunkContext);
+  const metadata = buildPropositionMetadata({
+    scope: 'tenant_only',
+    claimContext,
+  });
+  const relationScope = buildPropositionRelationScope(
+    claimContext.appliesTo ?? [],
+  );
+
+  return Array.from(serviceValues.values()).map((value) =>
+    buildDirectPropositionSeed({
+      predicate: 'service_offers',
+      objectValue: value,
+      polarity: 'affirmed',
+      supportClass: 'explicit_fact',
+      evidenceTextSpan: sentence,
+      metadata,
+      relationScope,
+      subject: claimContext.subject,
+    }),
+  );
+}
+
+function mapClaimScopesToPropositionScope(
+  appliesTo: DocumentKnowledgeScopedValue[],
+): DocumentKnowledgePropositionScope[] {
+  if (appliesTo.length === 0) {
+    return [];
+  }
+
+  const supportState = appliesTo.find((scope) => scope.axis === 'support_state');
+  const locationRelation = appliesTo.find(
+    (scope) => scope.axis === 'location_relation',
+  );
+  const scopes = appliesTo.filter(
+    (scope) => scope.axis !== 'support_state' && scope.axis !== 'location_relation',
+  );
+
+  return dedupePropositionScopes(
+    scopes.map((scope) => ({
+      axis: scope.axis,
+      value: scope.value,
+      normalizedValue: scope.normalizedValue,
+      relation:
+        scope.axis === 'location' && locationRelation
+          ? locationRelation.normalizedValue ?? locationRelation.value
+          : scope.axis === 'support_state' && supportState
+            ? supportState.normalizedValue ?? supportState.value
+            : undefined,
+    })),
+  );
+}
+
+function buildPropositionRelationScope(
+  appliesTo: DocumentKnowledgeScopedValue[],
+): DocumentKnowledgePropositionScope[] {
+  return mapClaimScopesToPropositionScope(appliesTo);
+}
+
+function buildDirectPropositionSeed(input: {
+  predicate: string;
+  facet?: string;
+  objectValue: string;
+  polarity: DocumentKnowledgePolarity;
+  supportClass: DocumentKnowledgeItemSeed['supportClass'];
+  evidenceTextSpan: string;
+  metadata: DocumentKnowledgeItemMetadata;
+  relationScope: DocumentKnowledgePropositionScope[];
+  subject?: DocumentKnowledgeScopedValue;
+}) {
+  const normalizedValue = normalizeDocumentKnowledgeText(input.objectValue);
+
+  return {
+    label: input.predicate,
+    normalizedValue,
+    supportClass: input.supportClass,
+    evidenceTextSpan: input.evidenceTextSpan,
+    metadata: input.metadata,
+    proposition: {
+      predicate: input.predicate,
+      facet: input.facet,
+      objectValue: input.objectValue,
+      objectNormalizedValue: normalizedValue,
+      polarity: input.polarity,
+      relationScope: input.relationScope,
+      confidence: resolvePropositionConfidence(input.supportClass),
+      canonicalKey: buildKnowledgePropositionCanonicalKey({
+        predicate: input.predicate,
+        facet: input.facet,
+        objectValue: input.objectValue,
+        objectNormalizedValue: normalizedValue,
+        polarity: input.polarity,
+        subject: input.subject,
+        relationScope: input.relationScope,
+      }),
+      patternKey: buildKnowledgePropositionPatternKey({
+        predicate: input.predicate,
+        facet: input.facet,
+        polarity: input.polarity,
+        subject: input.subject,
+        relationScope: input.relationScope,
+      }),
+      evidenceTier: 'normalized_proposition',
+      promotionState: 'unclassified',
+    },
+  } satisfies DocumentKnowledgePropositionSeed;
+}
+
+function buildPropositionMetadata(input: {
+  scope: DocumentKnowledgeExtractionScope;
+  claimContext: ProfileClaimContext;
+}) {
+  return cleanDocumentKnowledgeRecord({
+    ...buildProfileMetadata({
+      scope: input.scope,
+    }),
+    claim: {
+      axis: 'proposition_context',
+      kind: 'relational_fact',
+      layer: input.claimContext.layer,
+      values: [],
+      subject: input.claimContext.subject,
+      appliesTo:
+        input.claimContext.appliesTo && input.claimContext.appliesTo.length > 0
+          ? input.claimContext.appliesTo
+          : undefined,
+    },
+  }) as DocumentKnowledgeItemMetadata;
+}
+
+function resolveClaimPolarity(input: {
+  axis: string;
+  appliesTo: DocumentKnowledgeScopedValue[];
+  supportClass: DocumentKnowledgeItemSeed['supportClass'];
+}): DocumentKnowledgePolarity {
+  const supportState = input.appliesTo.find((scope) => scope.axis === 'support_state');
+  const normalizedSupportState = normalizeDocumentKnowledgeText(
+    supportState?.normalizedValue ?? supportState?.value ?? '',
+  );
+
+  if (input.axis === 'feature_support') {
+    if (
+      normalizedSupportState === 'does_not_support' ||
+      normalizedSupportState === 'does not support'
+    ) {
+      return 'negated';
+    }
+
+    if (
+      normalizedSupportState === 'related_to' ||
+      normalizedSupportState === 'related to'
+    ) {
+      return 'comparative';
+    }
+
+    if (normalizedSupportState === 'supports') {
+      return 'affirmed';
+    }
+  }
+
+  if (input.supportClass === 'partial_fact') {
+    return 'conditional';
+  }
+
+  if (input.supportClass === 'bounded_inference') {
+    return 'unknown';
+  }
+
+  return 'affirmed';
+}
+
+function resolvePropositionConfidence(
+  supportClass: DocumentKnowledgeItemSeed['supportClass'],
+) {
+  if (supportClass === 'partial_fact') {
+    return 0.68;
+  }
+
+  if (supportClass === 'bounded_inference') {
+    return 0.56;
+  }
+
+  return 0.92;
+}
+
+function dedupePropositionScopes(values: DocumentKnowledgePropositionScope[]) {
+  const seen = new Set<string>();
+
+  return values.filter((value) => {
+    const key = [
+      value.axis,
+      value.relation ?? '',
+      value.normalizedValue ?? normalizeDocumentKnowledgeText(value.value),
+    ].join('|');
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
 function escapeGuidanceRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
@@ -2014,6 +2612,28 @@ function dedupeStructuredItemSeeds(items: DocumentKnowledgeItemSeed[]) {
         .map((scope) => `${scope.axis}:${scope.normalizedValue ?? normalizeDocumentKnowledgeText(scope.value)}`)
         .join('|'),
       item.metadata?.profileKey ?? '',
+    ].join('|');
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function dedupeStructuredPropositionSeeds(
+  propositions: DocumentKnowledgePropositionSeed[],
+) {
+  const seen = new Set<string>();
+
+  return propositions.filter((proposition) => {
+    const key = [
+      proposition.label,
+      proposition.proposition.canonicalKey,
+      proposition.metadata?.profileKey ?? '',
+      proposition.metadata?.section ?? '',
     ].join('|');
 
     if (seen.has(key)) {

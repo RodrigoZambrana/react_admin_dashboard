@@ -101,6 +101,29 @@ export class ChatResponseService {
       };
     }
 
+    if (shouldLockScopedKnowledgeDraft(approvedContext, approvedDraft)) {
+      return {
+        response: approvedDraft,
+        approvedContext,
+        approvedDraft,
+        usedFallback: true,
+        fallbackReason: 'policy_locked',
+        generation: {
+          provider: 'policy',
+          model: null,
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse: null,
+          parsedJson: null,
+          error: null,
+          guardrails: {
+            accepted: true,
+            reasons: [],
+          },
+        },
+      };
+    }
+
     const generation = await this.aiGatewayService.generateResponse({
       approvedContext,
       approvedDraft,
@@ -398,6 +421,36 @@ export class ChatResponseService {
     const allowed = new Set(approved);
     return candidate.filter((value) => allowed.has(value));
   }
+}
+
+function shouldLockScopedKnowledgeDraft(
+  context: ReturnType<ApprovedResponseContextService['build']>,
+  approvedDraft: string,
+) {
+  if (
+    context.outcome !== 'respond' ||
+    !context.responseStyle?.incrementalFollowUp ||
+    context.documentContext?.grounding.supportLevel !== 'explicit' ||
+    (context.documentContext?.grounding.unsupportedDetailTypes.length ?? 0) > 0
+  ) {
+    return false;
+  }
+
+  const scopedCostLocation = (context.documentContext?.matches ?? [])
+    .flatMap((match) => match.supportSummary?.axisSummaries ?? [])
+    .find(
+      (claim) =>
+        claim.axis === 'commercial_visit_cost' &&
+        claim.supportClass === 'explicit_fact' &&
+        (claim.appliesTo ?? []).some((scope) => scope.axis === 'location'),
+    )
+    ?.appliesTo?.find((scope) => scope.axis === 'location')?.value;
+
+  if (!scopedCostLocation) {
+    return false;
+  }
+
+  return approvedDraft.includes(scopedCostLocation);
 }
 
 async function stripStandaloneGreeting(input: {

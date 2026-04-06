@@ -373,6 +373,24 @@ export class ChatResponsePolicyService {
       return availabilityNarrativeSummary;
     }
 
+    const scopedVisitCostSummary = this.buildScopedVisitCostSummary(
+      context,
+      aggregatedClaims,
+    );
+
+    if (scopedVisitCostSummary) {
+      return scopedVisitCostSummary;
+    }
+
+    const requestedDetailSummary = this.buildRequestedDetailSummary(
+      context,
+      aggregatedClaims,
+    );
+
+    if (requestedDetailSummary) {
+      return requestedDetailSummary;
+    }
+
     const broadOverviewSummary = this.buildBroadOverviewSummary(
       context,
       aggregatedClaims,
@@ -403,6 +421,15 @@ export class ChatResponsePolicyService {
     if (structuredSummary) {
       const conciseStructuredSummary =
         this.buildConciseDocumentSummary(structuredSummary);
+      if (
+        conciseExcerpt &&
+        shouldPreferStructuredScopedSummary({
+          selectedClaims: aggregatedClaims,
+          matches: context.documentContext?.matches ?? [],
+        })
+      ) {
+        return conciseStructuredSummary;
+      }
       const structuredCandidateScore = scoreDocumentSummaryCandidate({
         locale: context.locale,
         summary: conciseStructuredSummary,
@@ -534,6 +561,124 @@ export class ChatResponsePolicyService {
     }
 
     return '';
+  }
+
+  private buildScopedVisitCostSummary(
+    context: ApprovedResponseContext,
+    claims: DocumentKnowledgeAxisSummary[],
+  ) {
+    const relevantClaims = aggregateAxisSummaries([
+      ...claims,
+      ...this.collectRelevantAxisSummaries(context, [
+        'commercial_visit_cost',
+        'travel_cost_responsibility',
+        'service_offers',
+      ]),
+    ]);
+    const requestedRelation = resolveRequestedCoverageRelation(context);
+    const visitCostClaim =
+      requestedRelation === 'outside'
+        ? relevantClaims.find(
+            (claim) =>
+              claim.axis === 'travel_cost_responsibility' &&
+              (claim.appliesTo ?? []).some(
+                (scope) =>
+                  scope.axis === 'location_relation' &&
+                  scope.normalizedValue === 'outside',
+              ),
+          ) ??
+          relevantClaims.find((claim) => claim.axis === 'travel_cost_responsibility')
+        : relevantClaims.find(
+            (claim) =>
+              claim.axis === 'commercial_visit_cost' &&
+              claim.supportClass === 'explicit_fact' &&
+              (claim.appliesTo ?? []).some((scope) => scope.axis === 'location'),
+          );
+
+    if (!visitCostClaim) {
+      return '';
+    }
+
+    const location = visitCostClaim.appliesTo?.find(
+      (scope) => scope.axis === 'location',
+    )?.value;
+    const normalizedValues = visitCostClaim.values.map((value) =>
+      tokenizeSummaryText(value).join(' '),
+    );
+    const hasHomeVisitService = relevantClaims.some(
+      (claim) =>
+        claim.axis === 'service_offers' &&
+        claim.values.some((value) =>
+          tokenizeSummaryText(value).includes('visita'),
+        ),
+    );
+    const visitLabel = hasHomeVisitService ? 'la visita a domicilio' : 'la visita';
+
+    if (visitCostClaim.axis === 'travel_cost_responsibility' && location) {
+      return `Fuera de ${location}, puede corresponder costo de traslado.`;
+    }
+
+    if (!location) {
+      return '';
+    }
+
+    if (normalizedValues.includes('sin costo')) {
+      return `En ${location}, ${visitLabel} no tiene costo.`;
+    }
+
+    return `En ${location}, ${visitLabel} tiene costo.`;
+  }
+
+  private buildRequestedDetailSummary(
+    context: ApprovedResponseContext,
+    claims: DocumentKnowledgeAxisSummary[],
+  ) {
+    const requestedDetailTypes =
+      context.documentContext?.grounding.requestedDetailTypes ?? [];
+
+    if (requestedDetailTypes.includes('color_options')) {
+      const colorSummary = buildNaturalColorSummary(
+        context.locale,
+        aggregateAxisSummaries([
+          ...claims,
+          ...this.collectRelevantAxisSummaries(context, ['color_options']),
+        ]),
+      );
+
+      if (colorSummary) {
+        return colorSummary;
+      }
+    }
+
+    if (requestedDetailTypes.includes('warranty')) {
+      const warrantySummary = buildNaturalWarrantySummary(
+        context.locale,
+        aggregateAxisSummaries([
+          ...claims,
+          ...this.collectRelevantAxisSummaries(context, ['warranty_terms']),
+        ]),
+      );
+
+      if (warrantySummary) {
+        return warrantySummary;
+      }
+    }
+
+    return '';
+  }
+
+  private collectRelevantAxisSummaries(
+    context: ApprovedResponseContext,
+    axes: string[],
+  ) {
+    const allowedAxes = new Set(axes);
+
+    return (context.documentContext?.matches ?? []).flatMap(
+      (match) =>
+        (match.supportSummary?.axisSummaries ?? []).filter((summary) =>
+          allowedAxes.has(summary.axis),
+        ),
+    );
   }
 
   private buildAvailabilityNarrativeSummary(
@@ -750,11 +895,19 @@ export class ChatResponsePolicyService {
     context: ApprovedResponseContext,
     summary: string,
   ) {
-    let normalizedSummary = this.buildConciseDocumentSummary(
-      context.responseStyle?.preferBrief
-        ? this.trimToSingleSentence(summary)
-        : summary,
-    );
+    const requestedDetailTypes =
+      context.documentContext?.grounding.requestedDetailTypes ?? [];
+    const preserveNarrativeDetailSummary =
+      requestedDetailTypes.length > 0 &&
+      looksNarrativeSummary(summary) &&
+      splitSummarySentences(summary).length > 1;
+    let normalizedSummary = preserveNarrativeDetailSummary
+      ? summary.trim()
+      : this.buildConciseDocumentSummary(
+          context.responseStyle?.preferBrief
+            ? this.trimToSingleSentence(summary)
+            : summary,
+        );
     const groundingClause =
       this.responseGroundingService.buildUnspecifiedDetailClause({
         locale: context.locale,
@@ -1104,6 +1257,17 @@ export class ChatResponsePolicyService {
       ) {
         continue;
       }
+      if (
+        selected.some((existing) =>
+          this.shouldSkipLowerConfidenceAdjacentAxisSummary({
+            selected: existing,
+            candidate: entry.axisSummary,
+            queryTokens,
+          }),
+        )
+      ) {
+        continue;
+      }
       selected.push(entry.axisSummary);
 
       if (selected.length >= 6) {
@@ -1253,6 +1417,51 @@ export class ChatResponsePolicyService {
 
     return anchorSignature !== candidateSignature;
   }
+
+  private shouldSkipLowerConfidenceAdjacentAxisSummary(input: {
+    selected: DocumentKnowledgeAxisSummary;
+    candidate: DocumentKnowledgeAxisSummary;
+    queryTokens: string[];
+  }) {
+    if (
+      input.selected.supportClass !== 'explicit_fact' ||
+      input.candidate.supportClass === 'explicit_fact'
+    ) {
+      return false;
+    }
+
+    if (
+      !isScopedCostAxis(input.selected.axis) ||
+      !isScopedCostAxis(input.candidate.axis)
+    ) {
+      return false;
+    }
+
+    const selectedSubject =
+      input.selected.subject?.normalizedValue ?? input.selected.subject?.value ?? '';
+    const candidateSubject =
+      input.candidate.subject?.normalizedValue ?? input.candidate.subject?.value ?? '';
+
+    if (
+      selectedSubject.length > 0 &&
+      candidateSubject.length > 0 &&
+      selectedSubject !== candidateSubject
+    ) {
+      return false;
+    }
+
+    const queryTokenSet = new Set(input.queryTokens);
+    const selectedScopeOverlap = countQueryTokenOverlap(
+      summarizeAxisSummaryScope(input.selected),
+      queryTokenSet,
+    );
+    const candidateScopeOverlap = countQueryTokenOverlap(
+      summarizeAxisSummaryScope(input.candidate),
+      queryTokenSet,
+    );
+
+    return selectedScopeOverlap > 0 && candidateScopeOverlap > 0;
+  }
 }
 
 function splitSummarySentences(value: string) {
@@ -1297,6 +1506,63 @@ function tokenizeSummaryText(value: string) {
 function countQueryTokenOverlap(value: string, queryTokenSet: Set<string>) {
   return tokenizeSummaryText(value).filter((token) => queryTokenSet.has(token))
     .length;
+}
+
+function summarizeAxisSummaryScope(axisSummary: DocumentKnowledgeAxisSummary) {
+  return (axisSummary.appliesTo ?? [])
+    .map((scope) => `${scope.axis} ${scope.normalizedValue ?? scope.value}`)
+    .join(' ');
+}
+
+function isScopedCostAxis(axis: string) {
+  return axis === 'commercial_visit_cost' || axis === 'travel_cost_responsibility';
+}
+
+function shouldPreferStructuredScopedSummary(input: {
+  selectedClaims: DocumentKnowledgeAxisSummary[];
+  matches: Array<
+    NonNullable<ApprovedResponseContext['documentContext']>['matches'][number]
+  >;
+}) {
+  const selectedExplicitCostClaims = input.selectedClaims.filter(
+    (claim) => isScopedCostAxis(claim.axis) && claim.supportClass === 'explicit_fact',
+  );
+
+  if (selectedExplicitCostClaims.length === 0) {
+    return false;
+  }
+
+  const partialAdjacentCostClaims = input.matches.flatMap(
+    (match) =>
+      (match.supportSummary?.axisSummaries ?? []).filter(
+        (claim) => isScopedCostAxis(claim.axis) && claim.supportClass !== 'explicit_fact',
+      ),
+  );
+
+  return partialAdjacentCostClaims.some((candidate) =>
+    selectedExplicitCostClaims.some(
+      (selected) =>
+        sameAxisSummarySubject(selected, candidate) &&
+        sameAxisSummaryScope(selected, candidate),
+    ),
+  );
+}
+
+function sameAxisSummarySubject(
+  left: DocumentKnowledgeAxisSummary,
+  right: DocumentKnowledgeAxisSummary,
+) {
+  const leftSubject = left.subject?.normalizedValue ?? left.subject?.value ?? '';
+  const rightSubject = right.subject?.normalizedValue ?? right.subject?.value ?? '';
+
+  return leftSubject.length > 0 && leftSubject === rightSubject;
+}
+
+function sameAxisSummaryScope(
+  left: DocumentKnowledgeAxisSummary,
+  right: DocumentKnowledgeAxisSummary,
+) {
+  return summarizeAxisSummaryScope(left) === summarizeAxisSummaryScope(right);
 }
 
 function extractAxisSummaryFamilyKey(
@@ -1606,6 +1872,38 @@ function resolveScopedDetailSubject(context: ApprovedResponseContext) {
   return parsedSubject ? extractDisplayTopicLabel(parsedSubject) : '';
 }
 
+function resolveRequestedCoverageRelation(context: ApprovedResponseContext) {
+  const normalized = normalizeDocumentKnowledgeText(
+    `${context.userMessage} ${context.documentContext?.query ?? ''}`,
+  );
+
+  if (!normalized) {
+    return '';
+  }
+
+  const catalog = resolveResponseGroundingCatalog(context.locale);
+
+  if (
+    hasGroundingCatalogSignal(
+      normalized,
+      catalog.coverageScopeSignals.outsideLocationTerms,
+    )
+  ) {
+    return 'outside';
+  }
+
+  if (
+    hasGroundingCatalogSignal(
+      normalized,
+      catalog.coverageScopeSignals.insideLocationTerms,
+    )
+  ) {
+    return 'inside';
+  }
+
+  return '';
+}
+
 function requiresAxisBackedVariantFallback(context: ApprovedResponseContext) {
   const requestedDetailTypes =
     context.documentContext?.grounding.requestedDetailTypes ?? [];
@@ -1679,6 +1977,185 @@ function normalizeOverviewValuesForSubject(values: string[], subjectLabel: strin
 
     return withoutSubjectPrefix;
   });
+}
+
+function buildNaturalColorSummary(
+  locale: string,
+  claims: DocumentKnowledgeAxisSummary[],
+) {
+  const colorClaims = claims.filter(
+    (claim) =>
+      claim.axis === 'color_options' &&
+      claim.supportClass === 'explicit_fact' &&
+      claim.values.length > 0,
+  );
+
+  if (colorClaims.length === 0) {
+    return '';
+  }
+
+  const scopedSummaries = colorClaims
+    .map((claim) => {
+      const material = claim.appliesTo?.find(
+        (scope) => scope.axis === 'material',
+      )?.value;
+      const values = Array.from(
+        new Set(
+          claim.values
+            .map((value) => formatInlineResponseValue(value))
+            .filter(Boolean),
+        ),
+      );
+
+      if (!material || values.length === 0) {
+        return null;
+      }
+
+      const materialLabel = formatScopeDisplayValue(material);
+
+      if (values.length === 1) {
+        return `En ${materialLabel}, el color disponible es ${values[0]}.`;
+      }
+
+      return `En ${materialLabel}, los colores disponibles son ${formatLocalizedList(
+        values,
+        locale,
+        'conjunction',
+      )}.`;
+    })
+    .filter((value): value is string => Boolean(value));
+
+  if (scopedSummaries.length > 0) {
+    return scopedSummaries.join(' ');
+  }
+
+  const values = Array.from(
+    new Set(
+      colorClaims.flatMap((claim) =>
+        claim.values
+          .map((value) => formatInlineResponseValue(value))
+          .filter(Boolean),
+      ),
+    ),
+  );
+
+  if (values.length === 0) {
+    return '';
+  }
+
+  if (values.length === 1) {
+    return `El color disponible es ${values[0]}.`;
+  }
+
+  return `Los colores disponibles son ${formatLocalizedList(
+    values,
+    locale,
+    'conjunction',
+  )}.`;
+}
+
+function buildNaturalWarrantySummary(
+  locale: string,
+  claims: DocumentKnowledgeAxisSummary[],
+) {
+  const warrantyClaims = claims.filter(
+    (claim) =>
+      claim.axis === 'warranty_terms' &&
+      claim.supportClass === 'explicit_fact' &&
+      claim.values.length > 0,
+  );
+
+  if (warrantyClaims.length === 0) {
+    return '';
+  }
+
+  const scopedClaims = warrantyClaims
+    .map((claim) => {
+      const material = claim.appliesTo?.find(
+        (scope) => scope.axis === 'material',
+      )?.value;
+      const value = claim.values[0]?.trim();
+
+      if (!material || !value) {
+        return null;
+      }
+
+      return {
+        material: formatScopeDisplayValue(material),
+        value,
+      };
+    })
+    .filter(
+      (
+        value,
+      ): value is {
+        material: string;
+        value: string;
+      } => Boolean(value),
+    );
+
+  if (scopedClaims.length > 0) {
+    const uniqueValues = Array.from(
+      new Set(scopedClaims.map((claim) => claim.value)),
+    );
+
+    if (uniqueValues.length === 1) {
+      const materials = scopedClaims.map((claim) => claim.material);
+
+      if (materials.length === 2) {
+        return `La garantía de referencia es de ${uniqueValues[0]} tanto en ${materials[0]} como en ${materials[1]}.`;
+      }
+
+      return `La garantía de referencia es de ${uniqueValues[0]} en ${formatLocalizedList(
+        materials,
+        locale,
+        'conjunction',
+      )}.`;
+    }
+
+    return scopedClaims
+      .map(
+        (claim) =>
+          `En ${claim.material}, la garantía de referencia es de ${claim.value}.`,
+      )
+      .join(' ');
+  }
+
+  const values = Array.from(
+    new Set(warrantyClaims.flatMap((claim) => claim.values.map((value) => value.trim()))),
+  ).filter(Boolean);
+
+  if (values.length === 0) {
+    return '';
+  }
+
+  if (values.length === 1) {
+    return `La garantía de referencia es de ${values[0]}.`;
+  }
+
+  return `La garantía de referencia varía entre ${formatLocalizedList(
+    values,
+    locale,
+    'conjunction',
+  )}.`;
+}
+
+function formatScopeDisplayValue(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  if (/^[A-Z0-9]+$/u.test(trimmed) && trimmed.length <= 5) {
+    return trimmed;
+  }
+
+  if (/^[A-ZÁÉÍÓÚÜÑ\s]+$/u.test(trimmed)) {
+    return trimmed.toLocaleLowerCase();
+  }
+
+  return trimmed;
 }
 
 function lowercaseFirst(value: string) {

@@ -121,6 +121,33 @@ describe('DocumentKnowledgeViewService', () => {
                 },
               },
             ],
+            propositions: [
+              {
+                predicate: 'materials',
+                facet: null,
+                objectValue: 'PVC',
+                objectNormalized: 'pvc',
+                polarity: 'AFFIRMED',
+                supportClass: 'EXPLICIT_FACT',
+                evidenceTier: 'NORMALIZED_PROPOSITION',
+                confidence: 0.92,
+                relationScope: [],
+                metadata: {
+                  extractionScope: 'tenant_only',
+                  profileKey: 'product_catalog',
+                  claim: {
+                    axis: 'materials',
+                    layer: 'factual',
+                  },
+                },
+                patternKey: 'materials||affirmed|subject:none|scopes:',
+                canonicalKey: 'materials-pvc',
+                promotionState: 'UNCLASSIFIED',
+                promotedAxis: null,
+                promotedFacet: null,
+                evidenceTextSpan: 'Disponibles en PVC y aluminio.',
+              },
+            ],
           },
         ]),
       } as any,
@@ -159,6 +186,7 @@ describe('DocumentKnowledgeViewService', () => {
     const view = await service.getKnowledgeView();
 
     expect(view.scope).toBe('active_corpus');
+    expect(view.counts.propositionCount).toBe(1);
     expect(view.support).toEqual(
       expect.objectContaining({
         topics: ['CORTINAS DE ENROLLAR'],
@@ -192,6 +220,14 @@ describe('DocumentKnowledgeViewService', () => {
         label: 'material',
         extractionScope: 'tenant_only',
         values: ['PVC'],
+      }),
+    ]);
+    expect(view.propositions).toEqual([
+      expect.objectContaining({
+        predicate: 'materials',
+        evidenceTier: 'normalized_proposition',
+        polarity: 'affirmed',
+        objectValue: 'PVC',
       }),
     ]);
     expect(view.prudenceNotes).toEqual([

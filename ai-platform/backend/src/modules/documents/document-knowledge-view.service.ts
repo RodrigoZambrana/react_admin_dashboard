@@ -10,6 +10,9 @@ import {
   buildStructuralKnowledgeSummary,
 } from './document-knowledge-claims';
 import {
+  extractStructuredKnowledgePropositions,
+} from './document-knowledge-propositions';
+import {
   composeActiveCorpusByLayer,
   resolveDocumentCorpusLayers,
   resolveDocumentCorpusRole,
@@ -27,6 +30,7 @@ import {
   DocumentKnowledgeLayer,
   DocumentKnowledgeMetadataView,
   DocumentKnowledgeProvenance,
+  DocumentKnowledgePropositionView,
   DocumentKnowledgeScopedValue,
   DocumentKnowledgeSupportClass,
   DocumentKnowledgeView,
@@ -85,6 +89,32 @@ type MutableEntityGroup = {
   label: string;
   extractionScope?: DocumentKnowledgeExtractionScope;
   values: Set<string>;
+  provenance: DocumentKnowledgeProvenance[];
+};
+
+type MutablePropositionGroup = {
+  predicate: string;
+  facet?: string;
+  layer?: DocumentKnowledgeLayer;
+  supportClass: DocumentKnowledgeSupportClass;
+  evidenceTier: 'typed_claim' | 'normalized_proposition' | 'excerpt_only';
+  polarity: 'affirmed' | 'negated' | 'conditional' | 'comparative' | 'unknown';
+  confidence: number;
+  extractionScope?: DocumentKnowledgeExtractionScope;
+  subject?: DocumentKnowledgeScopedValue;
+  relationScope: Array<{
+    axis: string;
+    value: string;
+    normalizedValue?: string;
+    relation?: string;
+  }>;
+  objectValue: string;
+  objectNormalizedValue?: string;
+  canonicalKey: string;
+  patternKey: string;
+  promotionState: 'unclassified' | 'candidate' | 'promoted' | 'rejected';
+  promotedAxis?: string;
+  promotedFacet?: string;
   provenance: DocumentKnowledgeProvenance[];
 };
 
@@ -162,7 +192,10 @@ export class DocumentKnowledgeViewService {
     documents: DocumentRecordLike[];
     extractionProfiles: DocumentKnowledgeView['extractionProfiles'];
     chunks: Array<
-      Pick<ChunkWithKnowledgeLike, 'sequence' | 'metadata' | 'knowledgeItems'> & {
+      Pick<
+        ChunkWithKnowledgeLike,
+        'sequence' | 'metadata' | 'knowledgeItems' | 'propositions'
+      > & {
         document: DocumentRecordLike;
       }
     >;
@@ -170,10 +203,12 @@ export class DocumentKnowledgeViewService {
     const claimGroups = new Map<string, MutableClaimGroup>();
     const metadataGroups = new Map<string, MutableMetadataGroup>();
     const entityGroups = new Map<string, MutableEntityGroup>();
+    const propositionGroups = new Map<string, MutablePropositionGroup>();
     const supportedAxes = new Set<string>();
     const unspecifiedAxes = new Set<string>();
     const topics = new Set<string>();
     let claimCount = 0;
+    let propositionCount = 0;
     let entityCount = 0;
 
     for (const chunk of input.chunks) {
@@ -287,6 +322,53 @@ export class DocumentKnowledgeViewService {
           entityGroups.set(key, existing);
         }
       }
+
+      for (const proposition of chunk.propositions ?? []) {
+        const provenance = buildProvenance({
+          chunk,
+          item: {
+            evidenceTextSpan: proposition.evidenceTextSpan,
+            metadata: proposition.metadata,
+          },
+        });
+        const normalized = extractStructuredKnowledgePropositions([proposition])[0];
+
+        if (!normalized) {
+          continue;
+        }
+
+        propositionCount += 1;
+        const key = [
+          normalized.canonicalKey,
+          normalized.patternKey,
+          normalized.polarity,
+          normalized.supportClass,
+        ].join('::');
+        const existing = propositionGroups.get(key) ?? {
+          predicate: normalized.predicate,
+          facet: normalized.facet,
+          layer: normalized.layer,
+          supportClass: normalized.supportClass,
+          evidenceTier: normalized.evidenceTier,
+          polarity: normalized.polarity,
+          confidence: normalized.confidence,
+          extractionScope: normalized.extractionScope,
+          subject: normalized.subject,
+          relationScope: normalized.relationScope,
+          objectValue: normalized.objectValue,
+          objectNormalizedValue: normalized.objectNormalizedValue,
+          canonicalKey: normalized.canonicalKey,
+          patternKey: normalized.patternKey,
+          promotionState: normalized.promotionState,
+          promotedAxis: normalized.promotedAxis,
+          promotedFacet: normalized.promotedFacet,
+          provenance: [],
+        };
+
+        existing.confidence = Math.max(existing.confidence, normalized.confidence);
+        pushProvenance(existing.provenance, provenance);
+        propositionGroups.set(key, existing);
+      }
     }
 
     const claims = Array.from(claimGroups.values())
@@ -328,6 +410,32 @@ export class DocumentKnowledgeViewService {
         provenance: sortProvenance(entity.provenance),
       }))
       .sort((left, right) => left.label.localeCompare(right.label));
+    const propositions = Array.from(propositionGroups.values())
+      .map<DocumentKnowledgePropositionView>((proposition) => ({
+        predicate: proposition.predicate,
+        facet: proposition.facet,
+        layer: proposition.layer,
+        supportClass: proposition.supportClass,
+        evidenceTier: proposition.evidenceTier,
+        polarity: proposition.polarity,
+        confidence: proposition.confidence,
+        extractionScope: proposition.extractionScope,
+        subject: proposition.subject,
+        relationScope: proposition.relationScope,
+        objectValue: proposition.objectValue,
+        objectNormalizedValue: proposition.objectNormalizedValue,
+        canonicalKey: proposition.canonicalKey,
+        patternKey: proposition.patternKey,
+        promotionState: proposition.promotionState,
+        promotedAxis: proposition.promotedAxis,
+        promotedFacet: proposition.promotedFacet,
+        provenance: sortProvenance(proposition.provenance),
+      }))
+      .sort((left, right) =>
+        [left.predicate, left.facet ?? '', left.objectValue].join('::').localeCompare(
+          [right.predicate, right.facet ?? '', right.objectValue].join('::'),
+        ),
+      );
 
     return {
       scope: input.scope,
@@ -355,6 +463,7 @@ export class DocumentKnowledgeViewService {
         documentCount: input.documents.length,
         chunkCount: input.chunks.length,
         claimCount,
+        propositionCount,
         entityCount,
       },
       support: {
@@ -368,13 +477,14 @@ export class DocumentKnowledgeViewService {
       prudenceNotes,
       workflowNotes,
       guidanceNotes,
+      propositions,
       entities,
     };
   }
 
   private async resolveProfileViews(input: {
     chunks: Array<
-      Pick<ChunkWithKnowledgeLike, 'metadata' | 'knowledgeItems'> & {
+      Pick<ChunkWithKnowledgeLike, 'metadata' | 'knowledgeItems' | 'propositions'> & {
         document: DocumentRecordLike;
       }
     >;

@@ -3163,3 +3163,101 @@
 - Start implementing `LegacyIntegrationModule` as the only sync surface from legacy into standalone
 - Move runtime response toggles and channel-effective config out of legacy AI config and into standalone-managed resources
 - Build standalone suggestion lifecycle and approved-chat ingestion boundaries before cutting legacy chat logic
+
+## Iteration 92
+
+### Implemented
+- Added a concrete repo-level design for a loss-minimizing intermediate knowledge layer in:
+  - [loss-minimizing-knowledge-layer.md](./loss-minimizing-knowledge-layer.md)
+- Updated `architecture.md` so the main architecture narrative now states explicitly that the platform needs a normalized proposition layer between raw chunks and typed claims
+- Locked the absence-handling rule in architecture:
+  - `no especificado` is valid only for justified document absence
+  - it must not be used as a synonym for extraction failure or weak structural coverage
+
+### Working
+- The repo now has an explicit structural design for evolving from:
+  - raw text
+  - chunks
+  - typed claims
+  into:
+  - raw text
+  - chunks
+  - normalized propositions
+  - typed claims
+- The design is concrete at the level of:
+  - proposed Prisma enums and models
+  - proposed TypeScript contracts
+  - retrieval ordering
+  - response-grounding changes
+  - guardrail changes
+  - promotion strategy from propositions to reusable claims
+- The proposal stays aligned with the locked agreements:
+  - no per-document rules
+  - no tenant truth in core
+  - no lexical heuristics inline in policy services
+  - profile and locale resources remain the bounded linguistic layer
+
+### Technical Debt
+- The proposition layer is still a design target, not a shipped runtime path
+- Retrieval still reasons mainly over typed claims plus excerpts; proposition-aware scoring is not implemented yet
+- Response grounding still collapses some "not specified" cases that should eventually be represented as extraction uncertainty
+- Promotion analytics for repeated proposition patterns do not exist yet
+
+### Next Steps
+- Add proposition persistence to Prisma and repositories without breaking existing `DocumentKnowledgeItem` contracts
+- Persist propositions during extraction whenever a structurally valid relation cannot yet be typed safely
+- Extend retrieval and knowledge-view surfaces so typed claims, propositions, and excerpt-only evidence are separate tiers
+- Update response grounding and guardrails so absence wording distinguishes:
+  - document gap
+  - extraction uncertainty
+
+## Iteration 93
+
+### Implemented
+- Shipped the first runtime version of the loss-minimizing knowledge layer:
+  - `DocumentKnowledgeProposition` persisted in Prisma
+  - proposition-aware extraction, chunk persistence, retrieval, and knowledge view
+- Added response-grounding evidence tiers:
+  - `typed_claim`
+  - `normalized_proposition`
+  - `excerpt_only`
+- Added explicit absence semantics in runtime:
+  - `document_gap`
+  - `extraction_uncertain`
+- Guardrails now block replies that claim `the document does not specify` when the evidence only supports extraction uncertainty
+- Added a promotion-analysis boundary:
+  - `DocumentKnowledgePropositionRepository`
+  - `DocumentKnowledgePromotionService`
+  - admin endpoint `GET /admin/documents/proposition-candidates`
+
+### Working
+- Retrieval now prefers:
+  - typed claims first
+  - normalized propositions second
+  - excerpt-only fallback last
+- Product extraction now persists proposition-backed compatibility/negation facts such as:
+  - `supports`
+  - `does_not_support`
+  - scoped relations
+- Runtime can now distinguish:
+  - real structured document gap
+  - evidence that exists only as excerpt
+  - evidence that exists as normalized proposition but is not yet promoted to a stable claim axis
+- Promotion candidates are inspectable by `patternKey` without promoting tenant facts into core
+
+### Technical Debt
+- Current proposition extraction is still mostly claim-backed; truly novel relation mining remains intentionally bounded
+- Promotion is inspectable and stateful, but still manual/admin-driven
+- No frontend UI exists yet for proposition candidates; the surface is API-only
+- Some profiles still need proposition-first extraction for relation classes that today only degrade to excerpts
+
+### Next Steps
+- Extend proposition extraction beyond claim-backed derivation where repeated relation classes still collapse to excerpt-only evidence
+- Add admin curation flows for:
+  - mark candidate
+  - promote pattern to typed claim axis/facet
+  - reject pattern
+- Re-run manual chat probes on cases where:
+  - the document contains the fact
+  - typed claim support is missing
+  - proposition or excerpt evidence should still prevent a false `not specified`

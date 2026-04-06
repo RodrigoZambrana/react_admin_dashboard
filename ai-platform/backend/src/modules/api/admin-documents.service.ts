@@ -44,6 +44,19 @@ export class AdminDocumentsService {
     return this.documentService.getKnowledgeView(input);
   }
 
+  listPropositionCandidates(input?: {
+    profileKey?: string;
+    predicate?: string;
+    promotionStates?: Array<
+      'unclassified' | 'candidate' | 'promoted' | 'rejected'
+    >;
+    minOccurrences?: number;
+    limit?: number;
+    activeOnly?: boolean;
+  }) {
+    return this.documentService.listPropositionCandidates(input);
+  }
+
   createTextDocument(input: {
     title: string;
     content: string;

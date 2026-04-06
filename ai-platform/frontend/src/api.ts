@@ -10,6 +10,7 @@ import type {
   ConversationSummary,
   CriticalConfigVersion,
   DocumentRecord,
+  DocumentKnowledgePromotionCandidate,
   DocumentKnowledgeView,
   KnowledgeEntry,
   KnowledgeMetadataVersion,
@@ -415,6 +416,37 @@ export async function getDocumentKnowledgeView(input?: {
 
   return apiRequest<DocumentKnowledgeView>(
     `/admin/documents/knowledge-view?${search.toString()}`,
+  );
+}
+
+export async function getDocumentPropositionCandidates(input?: {
+  profileKey?: string;
+  predicate?: string;
+  promotionStates?: Array<'unclassified' | 'candidate' | 'promoted' | 'rejected'>;
+  minOccurrences?: number;
+  limit?: number;
+  activeOnly?: boolean;
+}) {
+  const search = new URLSearchParams();
+
+  if (input?.profileKey) {
+    search.set('profileKey', input.profileKey);
+  }
+
+  if (input?.predicate) {
+    search.set('predicate', input.predicate);
+  }
+
+  if (input?.promotionStates?.length) {
+    search.set('promotionStates', input.promotionStates.join(','));
+  }
+
+  search.set('minOccurrences', String(input?.minOccurrences ?? 2));
+  search.set('limit', String(input?.limit ?? 12));
+  search.set('activeOnly', String(input?.activeOnly ?? true));
+
+  return apiRequest<DocumentKnowledgePromotionCandidate[]>(
+    `/admin/documents/proposition-candidates?${search.toString()}`,
   );
 }
 

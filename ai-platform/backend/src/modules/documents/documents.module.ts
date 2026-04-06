@@ -11,6 +11,7 @@ import { DocumentExtractionProfileResolverService } from './document-extraction-
 import { DocumentIngestionService } from './document-ingestion.service';
 import { DocumentKnowledgeExtractionOrchestrator } from './document-knowledge-extraction.orchestrator';
 import { DocumentKnowledgeExtractionService } from './document-knowledge-extraction.service';
+import { DocumentKnowledgePromotionService } from './document-knowledge-promotion.service';
 import { DocumentKnowledgeViewService } from './document-knowledge-view.service';
 import { DocumentProfileBootstrapService } from './document-profile-bootstrap.service';
 import { DocumentRetrievalService } from './document-retrieval.service';
@@ -31,6 +32,7 @@ import { ProductCatalogDocumentProfile } from './profiles/product-catalog-docume
     DocumentExtractionProfileRegistryService,
     DocumentExtractionProfileResolverService,
     DocumentKnowledgeExtractionOrchestrator,
+    DocumentKnowledgePromotionService,
     DocumentProfileBootstrapService,
     DocumentKnowledgeViewService,
     DocumentIngestionService,
@@ -44,6 +46,7 @@ import { ProductCatalogDocumentProfile } from './profiles/product-catalog-docume
     DocumentExtractionProfileRegistryService,
     DocumentExtractionProfileResolverService,
     DocumentKnowledgeExtractionOrchestrator,
+    DocumentKnowledgePromotionService,
     DocumentProfileBootstrapService,
     DocumentKnowledgeViewService,
     DocumentIngestionService,

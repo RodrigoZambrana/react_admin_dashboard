@@ -563,6 +563,54 @@ The knowledge visibility view reflects the current active document corpus and re
 
 The backend recomputes the view from current persisted chunk/knowledge-item state, so operators do not need to manually approve documents again or re-author extraction rules.
 
+### Loss-Minimizing Intermediate Knowledge Layer
+
+The current structured-claim path is not enough on its own because some document relations are structurally valid but not yet safely representable as final typed claims.
+
+The platform therefore needs a loss-minimizing intermediate layer between:
+
+- raw chunk text
+- typed claims
+
+That intermediate layer is normalized propositions.
+
+Its purpose is:
+
+- preserve relations the current claim model cannot yet type cleanly
+- reduce information loss when extraction encounters a reusable but not-yet-promoted relation
+- let retrieval and response operate on stronger evidence than raw excerpts alone
+- separate true document absence from extraction uncertainty
+
+This layer must be implemented with these rules:
+
+- unknown relations are not discarded
+- typed claims remain the highest-confidence structured surface
+- propositions are reusable normalized relation candidates, not customer-facing summaries
+- excerpts remain the lowest evidence tier
+- promotion from proposition to claim happens only when a structural relation class recurs enough to justify a reusable axis/facet/scope model
+
+Runtime precedence must become:
+
+1. typed claims
+2. normalized propositions
+3. excerpt-only evidence
+
+This is especially important for absence phrasing.
+
+The platform must not say a detail is "not specified" only because no typed claim exists.
+That wording is valid only when:
+
+- typed claims do not support the detail
+- propositions do not support the detail
+- excerpt retrieval does not support the detail
+- extraction confidence is high enough that absence is meaningful
+
+Otherwise the runtime must treat the case as extraction uncertainty, not document absence.
+
+The concrete repo-aligned design for this layer lives in:
+
+- [loss-minimizing-knowledge-layer.md](./loss-minimizing-knowledge-layer.md)
+
 ### Path Portability
 
 Runtime code and tests must remain portable across:
@@ -1275,6 +1323,57 @@ The bridge must remain an anti-corruption layer that:
 - enforces idempotency and version ordering
 - translates legacy payloads into standalone-native modules
 - prevents legacy contracts from leaking into runtime decisioning, retrieval, or response composition
+
+## Loss-Minimizing Knowledge Layer
+
+The document runtime now has four distinct evidence tiers:
+
+1. raw corpus and chunks
+2. normalized propositions
+3. typed claims
+4. response synthesis over the strongest available tier
+
+This is an explicit architectural boundary, not a temporary heuristic.
+
+Current runtime shape:
+
+- extraction may emit both:
+  - `DocumentKnowledgeItem`
+  - `DocumentKnowledgeProposition`
+- retrieval resolves evidence in this order:
+  - typed claims
+  - normalized propositions
+  - excerpt-only support
+- response grounding records:
+  - `evidenceTier`
+  - `absenceReason`
+
+This is important because `not specified` is no longer allowed to mean "the extractor did not find it".
+
+The runtime must distinguish:
+
+- `document_gap`
+  - the document genuinely does not provide structured support for the requested detail
+- `extraction_uncertain`
+  - the corpus contains relevant evidence, but only at proposition or excerpt level, or the current extractor/model cannot promote it safely yet
+
+Unknown relation classes must therefore degrade to propositions or excerpts, not disappear.
+
+### Promotion Boundary
+
+Promotion from proposition to typed claim is now a separate bounded workflow:
+
+- persisted propositions carry:
+  - `patternKey`
+  - `promotionState`
+  - optional promoted target axis/facet
+- admin/runtime analysis can list promotion candidates grouped by `patternKey`
+- promotion must remain:
+  - reusable
+  - profile-aware
+  - non-tenant-hardcoded
+
+This keeps the system from solving repeated relation classes with ad-hoc wording fixes or per-document extraction rules.
 
 ## Security Preparation
 

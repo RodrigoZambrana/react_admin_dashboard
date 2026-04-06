@@ -110,6 +110,102 @@ describe('DocumentRetrievalService', () => {
     );
   });
 
+  it('can ground a response from normalized propositions when no typed claim is available', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-prop-1',
+          documentId: 'doc-prop',
+          sequence: 0,
+          content: 'Serie 25. No soporta DVH.',
+          searchText: 'serie 25 no soporta dvh',
+          retrievalProjection: 'serie 25 feature support dvh no soporta',
+          metadata: {
+            section: 'SERIE 25',
+            supportSummary: {
+              topic: 'SERIE 25',
+              supportedAxes: [],
+              unspecifiedAxes: [],
+            },
+          },
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-prop',
+            title: 'Aberturas',
+            updatedAt: new Date('2026-04-06T10:00:00.000Z'),
+          },
+          knowledgeItems: [],
+          propositions: [
+            {
+              predicate: 'feature_support',
+              facet: null,
+              objectValue: 'DVH',
+              objectNormalized: 'dvh',
+              polarity: 'NEGATED',
+              supportClass: 'EXPLICIT_FACT',
+              evidenceTier: 'NORMALIZED_PROPOSITION',
+              confidence: 0.92,
+              relationScope: [],
+              metadata: {
+                extractionScope: 'tenant_only',
+                profileKey: 'product_catalog',
+                claim: {
+                  axis: 'feature_support',
+                  layer: 'factual',
+                  subject: {
+                    axis: 'product_type',
+                    value: 'SERIE 25',
+                    normalizedValue: 'serie 25',
+                  },
+                },
+              },
+              patternKey: 'feature_support||negated|subject:product_type|scopes:',
+              canonicalKey: 'feature-support-serie-25-dvh',
+              promotionState: 'UNCLASSIFIED',
+              promotedAxis: null,
+              promotedFacet: null,
+              evidenceTextSpan: 'No soporta DVH.',
+            },
+          ],
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'la serie 25 soporta dvh?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'la serie 25 soporta dvh?',
+        },
+        language: 'es',
+        confidence: 0.92,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(result.result?.groundedSummary).toMatch(/dvh/i);
+    expect(result.result?.matches[0]?.supportSummary?.evidenceTier).toBe(
+      'normalized_proposition',
+    );
+    expect(
+      result.result?.matches[0]?.supportSummary?.propositionSummaries,
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          predicate: 'feature_support',
+          polarity: 'negated',
+          objectValue: 'DVH',
+        }),
+      ]),
+    );
+  });
+
   it('prefers factual master chunks over a newer operational guide for factual queries', async () => {
     const service = new DocumentRetrievalService({
       listActiveReadyChunks: jest.fn(async () => [
