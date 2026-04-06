@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import type { ResponseGroundingDetailType } from './response.types';
 
 type DetailCatalogEntry = {
@@ -10,11 +13,36 @@ type DetailCatalogEntry = {
 
 type DetailCatalog = Record<ResponseGroundingDetailType, DetailCatalogEntry>;
 
-type GroundingLocaleCatalog = {
+type GroundingQuestionSignals = {
+  broadOverviewIntentTerms: string[];
+  availabilityIntentTerms: string[];
+  detailCueTerms: string[];
+};
+
+type RawGroundingLocaleCatalog = {
+  locale: string;
   detailTypes: DetailCatalog;
   unspecifiedCues: string[];
   exactnessCues: string[];
   closeTurnReopenCues: string[];
+  questionSignals: GroundingQuestionSignals;
+  unspecifiedDetailPrefix: string;
+  labelJoiner: string;
+  guardrail: {
+    minimumTokenLength: number;
+    minimumSentenceTokenCount: number;
+    minimumOverlapCount: number;
+    maximumNovelRatio: number;
+  };
+};
+
+type GroundingLocaleCatalog = {
+  locale: string;
+  detailTypes: DetailCatalog;
+  unspecifiedCues: string[];
+  exactnessCues: string[];
+  closeTurnReopenCues: string[];
+  questionSignals: GroundingQuestionSignals;
   unspecifiedDetailPrefix: string;
   labelJoiner: string;
   guardrail: {
@@ -27,200 +55,14 @@ type GroundingLocaleCatalog = {
 
 type ResponseGroundingLocaleFamily = 'default' | 'en' | 'es';
 
-const sharedGuardrailConfig = {
+const defaultGuardrailConfig = {
   minimumTokenLength: 4,
   minimumSentenceTokenCount: 4,
   minimumOverlapCount: 2,
   maximumNovelRatio: 0.7,
 };
 
-const defaultCatalog: GroundingLocaleCatalog = {
-  detailTypes: {
-    coverage_support: {
-      requestTerms: ['covered', 'coverage', 'include', 'included'],
-      generalEvidenceTerms: ['covered', 'coverage', 'include', 'included'],
-      unspecifiedLabel: 'whether it is covered',
-    },
-    pricing: {
-      requestTerms: ['price', 'pricing', 'cost', 'budget'],
-      generalEvidenceTerms: ['price', 'pricing', 'cost', 'usd', '$'],
-      unspecifiedLabel: 'pricing details',
-    },
-    purchase_channel: {
-      requestTerms: ['buy', 'purchase', 'order', 'shop', 'store'],
-      generalEvidenceTerms: ['buy', 'purchase', 'order', 'store', 'shop'],
-      unspecifiedLabel: 'where to buy it',
-    },
-    availability: {
-      requestTerms: ['availability', 'available', 'stock', 'delivery'],
-      generalEvidenceTerms: ['available', 'availability', 'stock', 'delivery'],
-      unspecifiedLabel: 'exact availability',
-    },
-    materials: {
-      requestTerms: ['material', 'materials', 'fabric', 'finish'],
-      generalEvidenceTerms: ['material', 'materials', 'fabric', 'finish'],
-      supportedAxes: ['materials'],
-      unspecifiedLabel: 'exact material details',
-    },
-    color_options: {
-      requestTerms: ['color', 'colors', 'tone', 'tones'],
-      generalEvidenceTerms: ['color', 'colors', 'tone', 'tones', 'variety'],
-      supportedAxes: ['color_options'],
-      unspecifiedAxes: ['exact_color_options'],
-      unspecifiedLabel: 'the exact color options',
-    },
-    specific_variants: {
-      requestTerms: ['variant', 'variants', 'model', 'models', 'option', 'options'],
-      generalEvidenceTerms: [
-        'variant',
-        'variants',
-        'model',
-        'models',
-        'option',
-        'options',
-        'variety',
-      ],
-      supportedAxes: ['specific_variants', 'product_types'],
-      unspecifiedLabel: 'the exact variants',
-    },
-  },
-  unspecifiedCues: [
-    'not specified',
-    'does not specify',
-    'does not say',
-    'not specified in the document',
-    'not provided',
-    'not detailed',
-    'not listed',
-  ],
-  exactnessCues: ['exact', 'exactly', 'specific', 'specifically', 'which'],
-  closeTurnReopenCues: [
-    'if you have more questions',
-    'if you need anything else',
-    'feel free to ask',
-    'i am here to help',
-    'let me know if you need',
-  ],
-  unspecifiedDetailPrefix: "I don't have confirmation on",
-  labelJoiner: 'or',
-  guardrail: sharedGuardrailConfig,
-};
-
-const spanishCatalog: GroundingLocaleCatalog = {
-  detailTypes: {
-    coverage_support: {
-      requestTerms: [
-        'cubre',
-        'cubren',
-        'cobertura',
-        'incluye',
-        'incluyen',
-        'cubierto',
-        'cubierta',
-        'cubiertos',
-        'cubiertas',
-      ],
-      generalEvidenceTerms: [
-        'cubre',
-        'cubren',
-        'cobertura',
-        'incluye',
-        'incluyen',
-        'cubierto',
-        'cubierta',
-        'cubiertos',
-        'cubiertas',
-      ],
-      unspecifiedLabel: 'si está cubierto',
-    },
-    pricing: {
-      requestTerms: ['precio', 'precios', 'costo', 'costos', 'valor'],
-      generalEvidenceTerms: ['precio', 'precios', 'costo', 'costos', 'usd', '$'],
-      unspecifiedLabel: 'los precios',
-    },
-    purchase_channel: {
-      requestTerms: ['comprar', 'compra', 'adquirir', 'pedido', 'tienda', 'local'],
-      generalEvidenceTerms: ['comprar', 'compra', 'pedido', 'tienda', 'local'],
-      unspecifiedLabel: 'dónde comprarlo',
-    },
-    availability: {
-      requestTerms: ['disponibilidad', 'disponible', 'stock', 'entrega'],
-      generalEvidenceTerms: ['disponibilidad', 'disponible', 'stock', 'entrega'],
-      unspecifiedLabel: 'la disponibilidad exacta',
-    },
-    materials: {
-      requestTerms: ['material', 'materiales', 'tela', 'acabado'],
-      generalEvidenceTerms: ['material', 'materiales', 'tela', 'acabado'],
-      supportedAxes: ['materials'],
-      unspecifiedLabel: 'los materiales exactos',
-    },
-    color_options: {
-      requestTerms: ['color', 'colores', 'tono', 'tonos'],
-      generalEvidenceTerms: ['color', 'colores', 'tono', 'tonos', 'variedad'],
-      supportedAxes: ['color_options'],
-      unspecifiedAxes: ['exact_color_options'],
-      unspecifiedLabel: 'los colores exactos',
-    },
-    specific_variants: {
-      requestTerms: ['variante', 'variantes', 'modelo', 'modelos', 'opcion', 'opciones'],
-      generalEvidenceTerms: [
-        'variante',
-        'variantes',
-        'modelo',
-        'modelos',
-        'opcion',
-        'opciones',
-        'variedad',
-      ],
-      supportedAxes: ['specific_variants', 'product_types'],
-      unspecifiedLabel: 'las variantes exactas',
-    },
-  },
-  unspecifiedCues: [
-    'no especifica',
-    'no se especifica',
-    'no se especifican',
-    'no indica',
-    'no se indica',
-    'no detalla',
-    'no se detalla',
-    'no aparece',
-    'no figura',
-    'no tengo confirmacion sobre',
-    'no tengo confirmado',
-    'no tengo confirmada',
-    'no tengo confirmados',
-    'no tengo confirmadas',
-  ],
-  exactnessCues: [
-    'exacto',
-    'exacta',
-    'exactos',
-    'exactas',
-    'especifico',
-    'específico',
-    'cuales',
-    'cuáles',
-  ],
-  closeTurnReopenCues: [
-    'si tienes mas preguntas',
-    'si tienes más preguntas',
-    'si necesitas algo mas',
-    'si necesitas algo más',
-    'quedo a tu disposicion',
-    'quedo a tu disposición',
-    'cualquier otra consulta',
-  ],
-  unspecifiedDetailPrefix: 'Por ahora no tengo confirmación sobre',
-  labelJoiner: 'ni',
-  guardrail: sharedGuardrailConfig,
-};
-
-const localeCatalogs: Record<ResponseGroundingLocaleFamily, GroundingLocaleCatalog> = {
-  default: defaultCatalog,
-  en: defaultCatalog,
-  es: spanishCatalog,
-};
+const localeCatalogCache = new Map<ResponseGroundingLocaleFamily, GroundingLocaleCatalog>();
 
 export function resolveResponseGroundingLocaleFamily(locale?: string | null) {
   const family = String(locale ?? '')
@@ -236,7 +78,16 @@ export function resolveResponseGroundingLocaleFamily(locale?: string | null) {
 }
 
 export function resolveResponseGroundingCatalog(locale?: string | null) {
-  return localeCatalogs[resolveResponseGroundingLocaleFamily(locale)];
+  const family = resolveResponseGroundingLocaleFamily(locale);
+  const cached = localeCatalogCache.get(family);
+
+  if (cached) {
+    return cached;
+  }
+
+  const catalog = compileGroundingCatalog(loadGroundingCatalogResource(family));
+  localeCatalogCache.set(family, catalog);
+  return catalog;
 }
 
 export function normalizeGroundingText(value: string) {
@@ -244,34 +95,31 @@ export function normalizeGroundingText(value: string) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/[^a-z0-9\s]/gu, ' ')
+    .replace(/\s+/gu, ' ')
     .trim();
 }
 
-export function hasGroundingCatalogSignal(normalizedText: string, terms: string[]) {
+export function hasGroundingCatalogSignal(
+  normalizedText: string,
+  terms: readonly string[],
+) {
   return terms.some((term) => {
-    const normalizedTerm = normalizeGroundingText(term);
-
-    if (!normalizedTerm) {
+    if (!term) {
       return false;
     }
 
-    return normalizedText.includes(normalizedTerm);
+    return normalizedText.includes(term);
   });
 }
 
 export function extractGroundingTokens(
   value: string,
-  minimumTokenLength = sharedGuardrailConfig.minimumTokenLength,
+  minimumTokenLength = defaultGuardrailConfig.minimumTokenLength,
 ) {
   return normalizeGroundingText(value)
     .split(/\s+/u)
-    .filter(
-      (token) =>
-        token.length >= minimumTokenLength &&
-        !/^\d+$/u.test(token),
-    );
+    .filter((token) => token.length >= minimumTokenLength && !/^\d+$/u.test(token));
 }
 
 export function splitGroundingSentences(value: string) {
@@ -295,6 +143,80 @@ export function renderUnspecifiedDetailClause(input: {
     input.labels,
     catalog.labelJoiner,
   )}.`;
+}
+
+function loadGroundingCatalogResource(
+  family: ResponseGroundingLocaleFamily,
+): RawGroundingLocaleCatalog {
+  const candidatePath = join(
+    __dirname,
+    '../../resources/response-grounding/locales',
+    `${family}.json`,
+  );
+  const fallbackPath = join(
+    __dirname,
+    '../../resources/response-grounding/locales',
+    'default.json',
+  );
+  const resolvedPath = existsSync(candidatePath) ? candidatePath : fallbackPath;
+
+  return JSON.parse(readFileSync(resolvedPath, 'utf8')) as RawGroundingLocaleCatalog;
+}
+
+function compileGroundingCatalog(
+  raw: RawGroundingLocaleCatalog,
+): GroundingLocaleCatalog {
+  return {
+    locale: raw.locale,
+    detailTypes: Object.fromEntries(
+      Object.entries(raw.detailTypes).map(([detailType, config]) => [
+        detailType,
+        {
+          ...config,
+          requestTerms: normalizeTerms(config.requestTerms),
+          generalEvidenceTerms: normalizeTerms(config.generalEvidenceTerms ?? []),
+        },
+      ]),
+    ) as DetailCatalog,
+    unspecifiedCues: normalizeTerms(raw.unspecifiedCues),
+    exactnessCues: normalizeTerms(raw.exactnessCues),
+    closeTurnReopenCues: normalizeTerms(raw.closeTurnReopenCues),
+    questionSignals: {
+      broadOverviewIntentTerms: normalizeTerms(
+        raw.questionSignals?.broadOverviewIntentTerms ?? [],
+      ),
+      availabilityIntentTerms: normalizeTerms(
+        raw.questionSignals?.availabilityIntentTerms ?? [],
+      ),
+      detailCueTerms: normalizeTerms(raw.questionSignals?.detailCueTerms ?? []),
+    },
+    unspecifiedDetailPrefix: raw.unspecifiedDetailPrefix,
+    labelJoiner: raw.labelJoiner,
+    guardrail: {
+      minimumTokenLength:
+        raw.guardrail?.minimumTokenLength ??
+        defaultGuardrailConfig.minimumTokenLength,
+      minimumSentenceTokenCount:
+        raw.guardrail?.minimumSentenceTokenCount ??
+        defaultGuardrailConfig.minimumSentenceTokenCount,
+      minimumOverlapCount:
+        raw.guardrail?.minimumOverlapCount ??
+        defaultGuardrailConfig.minimumOverlapCount,
+      maximumNovelRatio:
+        raw.guardrail?.maximumNovelRatio ??
+        defaultGuardrailConfig.maximumNovelRatio,
+    },
+  };
+}
+
+function normalizeTerms(terms: readonly string[]) {
+  return Array.from(
+    new Set(
+      terms
+        .map((term) => normalizeGroundingText(term))
+        .filter((term) => term.length > 0),
+    ),
+  );
 }
 
 function joinLabels(values: string[], joinWord: string) {

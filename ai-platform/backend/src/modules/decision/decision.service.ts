@@ -75,7 +75,33 @@ export class DecisionService {
       capabilities,
     } = input;
 
-    if (interpretation.intent === 'CREATE_BOOKING') {
+    const informationalTransactionalTurn =
+      this.shouldTreatTransactionalIntentAsInformational(
+        normalizedInput,
+        signals,
+      );
+
+    if (
+      this.shouldCloseTurn(
+        normalizedInput,
+        signals,
+        productCatalogMatch.matched,
+        continuityMissingFields,
+        informationalTransactionalTurn,
+      )
+    ) {
+      return {
+        domain: 'core',
+        action: 'close_turn',
+        reasonCode: signals.closure.decline
+          ? 'contextual_close_declined'
+          : 'contextual_close_acknowledged',
+        missingFields: [],
+        responseTemplateKey: 'core.close_turn',
+      };
+    }
+
+    if (interpretation.intent === 'CREATE_BOOKING' && !informationalTransactionalTurn) {
       if (!capabilities.capabilities.booking.enabled) {
         return this.buildRespondDecision('booking_capability_disabled');
       }
@@ -104,7 +130,7 @@ export class DecisionService {
       };
     }
 
-    if (interpretation.intent === 'CREATE_QUOTE') {
+    if (interpretation.intent === 'CREATE_QUOTE' && !informationalTransactionalTurn) {
       if (!capabilities.capabilities.quote.enabled) {
         return this.buildRespondDecision('quote_capability_disabled');
       }
@@ -116,25 +142,6 @@ export class DecisionService {
         reasonCode: 'quote_requested',
         missingFields: [],
         responseTemplateKey: 'tenant.quote.confirmation',
-      };
-    }
-
-    if (
-      this.shouldCloseTurn(
-        normalizedInput,
-        signals,
-        productCatalogMatch.matched,
-        continuityMissingFields,
-      )
-    ) {
-      return {
-        domain: 'core',
-        action: 'close_turn',
-        reasonCode: signals.closure.decline
-          ? 'contextual_close_declined'
-          : 'contextual_close_acknowledged',
-        missingFields: [],
-        responseTemplateKey: 'core.close_turn',
       };
     }
 
@@ -213,17 +220,52 @@ export class DecisionService {
     signals: ConversationRoutingSignals,
     hasGroundedProductMatch: boolean,
     continuityMissingFields: string[],
+    informationalTransactionalTurn = false,
   ) {
     if (!signals.closure.supported) {
       return false;
     }
 
+    if (this.isPureClosureTurn(input, signals)) {
+      const lastApprovedAction =
+        input.conversationState?.lastApprovedAction ??
+        input.interpretation.continuity?.previousStateSummary?.lastApprovedAction;
+      const priorFlowComplete = Boolean(
+        input.conversationState &&
+          input.conversationState.missingFields.length === 0 &&
+          (lastApprovedAction === 'invoke_tool' ||
+            lastApprovedAction === 'respond' ||
+            lastApprovedAction === 'close_turn'),
+      );
+
+      return (
+        priorFlowComplete ||
+        this.isStaleTransactionalClarificationLoop(
+          input,
+          continuityMissingFields,
+          informationalTransactionalTurn,
+        )
+      );
+    }
+
     if (
-      input.interpretation.intent === 'CREATE_BOOKING' ||
-      input.interpretation.intent === 'CREATE_QUOTE'
+      (input.interpretation.intent === 'CREATE_BOOKING' ||
+        input.interpretation.intent === 'CREATE_QUOTE') &&
+      !informationalTransactionalTurn
     ) {
       return false;
     }
+
+    const lastApprovedAction =
+      input.conversationState?.lastApprovedAction ??
+      input.interpretation.continuity?.previousStateSummary?.lastApprovedAction;
+    const priorFlowComplete = Boolean(
+      input.conversationState &&
+        input.conversationState.missingFields.length === 0 &&
+        (lastApprovedAction === 'invoke_tool' ||
+          lastApprovedAction === 'respond' ||
+          lastApprovedAction === 'close_turn'),
+    );
 
     if (
       continuityMissingFields.length > 0 ||
@@ -245,22 +287,148 @@ export class DecisionService {
       return false;
     }
 
-    const lastApprovedAction =
-      input.conversationState?.lastApprovedAction ??
-      input.interpretation.continuity?.previousStateSummary?.lastApprovedAction;
-    const priorFlowComplete = Boolean(
-      input.conversationState &&
-        input.conversationState.missingFields.length === 0 &&
-        (lastApprovedAction === 'invoke_tool' ||
-          lastApprovedAction === 'respond' ||
-          lastApprovedAction === 'close_turn'),
-    );
-
     if (signals.closure.decline || signals.closure.farewell) {
       return priorFlowComplete;
     }
 
     return signals.closure.gratitude && priorFlowComplete;
+  }
+
+  private shouldTreatTransactionalIntentAsInformational(
+    input: DecisionInput,
+    signals: ConversationRoutingSignals,
+  ) {
+    const transactionalIntent =
+      input.interpretation.intent === 'CREATE_BOOKING' ||
+      input.interpretation.intent === 'CREATE_QUOTE';
+    const activeLane = this.resolveActiveLane(input);
+    const transactionalLane =
+      input.interpretation.intent === 'CREATE_BOOKING'
+        ? 'booking'
+        : input.interpretation.intent === 'CREATE_QUOTE'
+          ? 'quote'
+          : activeLane === 'booking' || activeLane === 'quote'
+            ? activeLane
+            : null;
+    const hasExplorationContext =
+      activeLane === 'document_exploration' ||
+      activeLane === 'advisory_exploration' ||
+      input.conversationState?.lane === 'document_exploration' ||
+      input.conversationState?.lane === 'advisory_exploration';
+    const hasThreadedContext =
+      hasExplorationContext ||
+      Boolean(input.conversationState) ||
+      Boolean(input.interpretation.continuity?.previousStateSummary);
+
+    if (!transactionalIntent && !transactionalLane) {
+      return false;
+    }
+
+    if (this.hasConcreteTransactionalProgression(input)) {
+      return false;
+    }
+
+    if (this.isPureClosureTurn(input, signals)) {
+      return true;
+    }
+
+    if (input.documentRetrieval?.result) {
+      return true;
+    }
+
+    return (
+      signals.document.explicitRequest ||
+      signals.document.implicitEligible ||
+      signals.document.continuationEligible ||
+      signals.advisory.supported ||
+      signals.advisory.questionLike ||
+      (hasThreadedContext &&
+        (signals.threading.topicCarryoverEligible ||
+          signals.threading.activeContinuation ||
+          signals.threading.shortFollowUp ||
+          signals.threading.incrementalFollowUp))
+    );
+  }
+
+  private hasConcreteTransactionalProgression(input: DecisionInput) {
+    return (
+      input.interpretation.normalizedEntities.dates.length > 0 ||
+      input.interpretation.normalizedEntities.measurements.length > 0 ||
+      input.interpretation.normalizedEntities.dimensions.length > 0
+    );
+  }
+
+  private isPureClosureTurn(
+    input: DecisionInput,
+    signals: ConversationRoutingSignals,
+  ) {
+    const rawMessage =
+      typeof input.interpretation.entities.rawMessage === 'string'
+        ? input.interpretation.entities.rawMessage.trim()
+        : '';
+    const tokenCount = rawMessage
+      .split(/\s+/u)
+      .map((token) => token.trim())
+      .filter((token) => token.length > 0).length;
+
+    if (!rawMessage || /[?¿]/u.test(rawMessage)) {
+      return false;
+    }
+
+    if (tokenCount > 6) {
+      return false;
+    }
+
+    if (
+      input.interpretation.normalizedEntities.dates.length > 0 ||
+      input.interpretation.normalizedEntities.measurements.length > 0 ||
+      input.interpretation.normalizedEntities.dimensions.length > 0
+    ) {
+      return false;
+    }
+
+    if (signals.document.explicitRequest) {
+      return false;
+    }
+
+    if (signals.advisory.questionLike) {
+      return false;
+    }
+
+    return (
+      signals.closure.decline ||
+      signals.closure.farewell ||
+      signals.closure.gratitude
+    );
+  }
+
+  private isStaleTransactionalClarificationLoop(
+    input: DecisionInput,
+    continuityMissingFields: string[],
+    informationalTransactionalTurn: boolean,
+  ) {
+    if (!this.resolveActiveLane(input)) {
+      return false;
+    }
+
+    if (
+      continuityMissingFields.length === 0 &&
+      (input.conversationState?.missingFields.length ?? 0) === 0 &&
+      !input.conversationState?.nextUsefulField
+    ) {
+      return false;
+    }
+
+    const lastApprovedAction =
+      input.conversationState?.lastApprovedAction ??
+      input.interpretation.continuity?.previousStateSummary?.lastApprovedAction;
+
+    return (
+      informationalTransactionalTurn ||
+      lastApprovedAction === 'clarify' ||
+      lastApprovedAction === null ||
+      lastApprovedAction === undefined
+    );
   }
 
   private shouldStayInDocumentExploration(

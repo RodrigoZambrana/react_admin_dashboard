@@ -38,8 +38,19 @@ describe('Wave 4 response architecture guardrails', () => {
       join(repoRoot, 'src/modules/response/response-guardrail.service.ts'),
       'utf8',
     );
+    const policyContent = readFileSync(
+      join(repoRoot, 'src/modules/response/chat-response-policy.service.ts'),
+      'utf8',
+    );
     const groundingCatalogContent = readFileSync(
       join(repoRoot, 'src/modules/response/response-grounding.catalogs.ts'),
+      'utf8',
+    );
+    const groundingResourceContent = readFileSync(
+      join(
+        repoRoot,
+        'src/resources/response-grounding/locales/es.json',
+      ),
       'utf8',
     );
     const approvedContextContent = readFileSync(
@@ -57,9 +68,16 @@ describe('Wave 4 response architecture guardrails', () => {
 
     expect(guardrailContent).not.toMatch(/guardrailStopWords/);
     expect(guardrailContent).not.toMatch(/extractInformativeTokens/);
+    expect(policyContent).not.toContain('broadIntentPattern');
+    expect(policyContent).not.toContain('detailCuePattern');
+    expect(policyContent).not.toContain('tienen|tiene|hacen|hace');
+    expect(groundingCatalogContent).toContain('response-grounding/locales');
     expect(groundingCatalogContent).not.toContain("'pvc'");
     expect(groundingCatalogContent).not.toContain("'aluminio'");
     expect(groundingCatalogContent).not.toContain("'vinilo'");
+    expect(groundingCatalogContent).not.toContain('mercado pago');
+    expect(groundingCatalogContent).not.toContain('tarjetas');
+    expect(groundingResourceContent).toContain('"payment_terms"');
     expect(approvedContextContent).not.toContain("return 'Tenemos'");
     expect(approvedContextContent).not.toContain("return 'Realizamos'");
     expect(approvedContextContent).not.toContain("return 'Trabajamos con'");

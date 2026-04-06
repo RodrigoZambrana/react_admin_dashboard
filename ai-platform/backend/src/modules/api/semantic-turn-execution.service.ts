@@ -49,10 +49,12 @@ export class SemanticTurnExecutionService {
     },
   ): Promise<SemanticTurnExecutionResult> {
     const projectReplyImmediately = options?.projectReplyImmediately ?? true;
-    const previousMessages = await this.memoryService.getRecent(
-      input.conversationId,
-      10,
-    );
+    const [previousMessages, priorPersistentMessageCount] = await Promise.all([
+      this.memoryService.getRecent(input.conversationId, 10),
+      this.conversationRepository.countMessages(input.conversationId),
+    ]);
+    const hasPriorMessages =
+      previousMessages.length > 0 || priorPersistentMessageCount > 0;
     const metadata = {
       conversationId: input.conversationId,
       traceId: this.tenantContext.getTraceId(),
@@ -166,6 +168,7 @@ export class SemanticTurnExecutionService {
       documentContext: documentRetrieval.result,
       continuity: preparedTurn.continuity,
       conversationState: preparedTurn.activeState,
+      hasPriorMessages,
       abortSignal: options?.abortSignal,
     });
     throwIfAborted(options?.abortSignal);

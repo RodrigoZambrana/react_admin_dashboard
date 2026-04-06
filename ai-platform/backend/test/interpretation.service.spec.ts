@@ -174,4 +174,46 @@ describe('InterpretationService', () => {
       }),
     );
   });
+
+  it('preserves productQuery and requestSummary on general conversation turns for downstream retrieval and continuity', async () => {
+    const service = new InterpretationService(
+      {
+        interpret: jest.fn(async () => ({
+          ok: true,
+          rawResponse:
+            '{"intent":"GENERAL_CONVERSATION","entities":{"productQuery":"cortinas roller","requestSummary":"consulta sobre opciones de roller"},"language":"es","confidence":0.88}',
+          parsedResponse: {
+            intent: 'GENERAL_CONVERSATION',
+            entities: {
+              productQuery: 'cortinas roller',
+              requestSummary: 'consulta sobre opciones de roller',
+            },
+            language: 'es',
+            confidence: 0.88,
+          },
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+        })),
+      } as any,
+      {
+        log: jest.fn(),
+      } as any,
+    );
+
+    await expect(
+      service.interpret('necesito informacion de cortinas roller', 'es'),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        interpretation: expect.objectContaining({
+          intent: 'GENERAL_CONVERSATION',
+          entities: expect.objectContaining({
+            rawMessage: 'necesito informacion de cortinas roller',
+            productQuery: 'cortinas roller',
+            requestSummary: 'consulta sobre opciones de roller',
+          }),
+        }),
+      }),
+    );
+  });
 });

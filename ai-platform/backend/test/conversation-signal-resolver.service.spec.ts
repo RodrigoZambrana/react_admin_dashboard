@@ -135,6 +135,44 @@ describe('ConversationSignalResolverService', () => {
     expect(signals.document.implicitEligible).toBe(true);
   });
 
+  it('keeps broad GET_PRODUCT questions implicitly eligible when a product subject entity was parsed', () => {
+    const signals = service.resolve({
+      message: 'tienen cortinas roller?',
+      interpretation: {
+        intent: 'GET_PRODUCT',
+        language: 'es',
+        entities: {
+          rawMessage: 'tienen cortinas roller?',
+          productQuery: 'cortinas roller',
+          requestSummary: 'Consulta sobre disponibilidad de cortinas roller',
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(signals.document.explicitRequest).toBe(false);
+    expect(signals.document.implicitEligible).toBe(true);
+  });
+
+  it('does not force a hard switch on polite re-openers when there is no active thread to switch away from', () => {
+    const signals = service.resolve({
+      message: 'disculpe otra consulta, tienen cortina de enrollar? en aluminio',
+      interpretation: {
+        intent: 'GET_PRODUCT',
+        language: 'es',
+        entities: {
+          rawMessage: 'disculpe otra consulta, tienen cortina de enrollar? en aluminio',
+          productQuery: 'cortina de enrollar en aluminio',
+          requestSummary: 'Consulta sobre disponibilidad de cortina de enrollar en aluminio',
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    expect(signals.threading.switchSuggested).toBe(false);
+    expect(signals.document.implicitEligible).toBe(true);
+  });
+
   it('detects gratitude and decline signals for contextual close-turn decisions', () => {
     const signals = service.resolve({
       message: 'No gracias, ya resolví',

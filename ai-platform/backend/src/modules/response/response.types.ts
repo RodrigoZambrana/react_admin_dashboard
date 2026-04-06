@@ -4,6 +4,7 @@ import type { ContinuityMetadata, ConversationStateSnapshot } from '../continuit
 import type { DecisionResult } from '../decision/decision.types';
 import type { DocumentRetrievalResult } from '../documents/document.types';
 import type { DocumentKnowledgeAxisSummary } from '../documents/document.types';
+import type { DocumentKnowledgeMetadataSummary } from '../documents/document.types';
 import type { CanonicalIntent } from '../interpretation/interpretation.schemas';
 import type { ParsedInterpretation } from '../parsing/parsing.service';
 import type { ToolExecutionAttempt } from '../tools/tool.types';
@@ -52,13 +53,17 @@ export type ResponseGuardrailCode =
   | 'wrong_unspecified_detail_axis'
   | 'partial_document_detail_overclaim'
   | 'document_context_overreach'
-  | 'close_turn_reopen';
+  | 'close_turn_reopen'
+  | 'duplicate_opening_greeting'
+  | 'unexpected_followup_greeting';
 
 export const responseGroundingDetailTypeSchema = z.enum([
   'coverage_support',
   'pricing',
+  'payment_terms',
   'purchase_channel',
   'availability',
+  'warranty',
   'materials',
   'color_options',
   'specific_variants',
@@ -143,6 +148,7 @@ export type ApprovedResponseContext = {
         supportedAxes: string[];
         unspecifiedAxes: string[];
         axisSummaries?: DocumentKnowledgeAxisSummary[];
+        metadataNotes?: DocumentKnowledgeMetadataSummary[];
       };
     }>;
   };
@@ -152,6 +158,7 @@ export type ApprovedResponseContext = {
     groundedKnowledgeOnly: boolean;
     includeInitialGreeting: boolean;
     preferMultiline: boolean;
+    hasPriorConversation: boolean;
   };
   approvedDocumentIds: string[];
 };
@@ -164,6 +171,7 @@ export type ApprovedResponseContextInput = {
   continuity: ContinuityMetadata;
   conversationState: ConversationStateSnapshot | null;
   documentContext: DocumentRetrievalResult | null;
+  hasPriorMessages?: boolean;
 };
 
 export type GeneratedChatResponse = {

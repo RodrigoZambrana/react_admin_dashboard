@@ -89,8 +89,14 @@ export class ConversationContinuityService {
     const shouldPromoteLane =
       Boolean(effectiveCarryLane) &&
       !explicitLane &&
-      this.isImplicitContinuationCandidate(input.interpretation, signals) &&
-      carriedFactKeys.length + Object.keys(currentFacts ?? {}).length > 0;
+      this.shouldPromoteImplicitLane({
+        lane: effectiveCarryLane!,
+        interpretation: input.interpretation,
+        currentFacts: currentFacts ?? {},
+        carriedFactKeys,
+        activeState,
+        signals,
+      });
     const effectiveInterpretation = mergedFacts
       ? this.applyLaneFacts(input.interpretation, effectiveCarryLane!, mergedFacts, {
           promoteLane: shouldPromoteLane,
@@ -190,9 +196,17 @@ export class ConversationContinuityService {
       return null;
     }
 
+    const persistenceSignals = this.resolveSignals(
+      input.preparedTurn.effectiveInterpretation,
+      input.preparedTurn.activeState,
+    );
     const effectiveFacts = this.extractLaneFacts(
       lane,
       input.preparedTurn.effectiveInterpretation,
+      {
+        previousState: input.preparedTurn.activeState,
+        signals: persistenceSignals,
+      },
     );
     const previousApprovedFacts = this.getCarryableFacts(
       input.preparedTurn.activeState,
@@ -592,6 +606,117 @@ export class ConversationContinuityService {
     );
   }
 
+  private shouldPromoteImplicitLane(input: {
+    lane: ConversationLane;
+    interpretation: ParsedInterpretation;
+    currentFacts: ContinuityFacts;
+    carriedFactKeys: string[];
+    activeState: ConversationStateSnapshot | null;
+    signals: ConversationRoutingSignals;
+  }) {
+    if (!this.isImplicitContinuationCandidate(input.interpretation, input.signals)) {
+      return false;
+    }
+
+    if (input.lane === 'booking') {
+      return this.hasBookingProgressionSignal(
+        input.currentFacts as BookingFacts,
+        input.activeState,
+      );
+    }
+
+    if (input.lane === 'quote') {
+      return (
+        this.hasQuoteProgressionSignal(
+          input.currentFacts as QuoteFacts,
+          input.activeState,
+        ) ||
+        input.carriedFactKeys.length + Object.keys(input.currentFacts).length > 0
+      );
+    }
+
+    return (
+      input.carriedFactKeys.length + Object.keys(input.currentFacts).length > 0
+    );
+  }
+
+  private hasBookingProgressionSignal(
+    facts: BookingFacts,
+    state: ConversationStateSnapshot | null,
+  ) {
+    if (this.hasMeaningfulValue(facts.requestedDate)) {
+      return true;
+    }
+
+    const awaitsAttendees = state?.missingFields.includes('attendees') ?? false;
+
+    if (
+      typeof facts.attendees === 'number' &&
+      (awaitsAttendees ||
+        (!state && this.isExplicitAttendeeProgression(facts.attendees, undefined)) ||
+        this.isExplicitAttendeeProgression(
+          facts.attendees,
+          typeof state?.approvedFacts?.attendees === 'number'
+            ? state.approvedFacts.attendees
+            : typeof state?.pendingFacts?.attendees === 'number'
+              ? state.pendingFacts.attendees
+              : undefined,
+        ))
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private hasQuoteProgressionSignal(
+    facts: QuoteFacts,
+    state: ConversationStateSnapshot | null,
+  ) {
+    if (Array.isArray(facts.measurements) && facts.measurements.length > 0) {
+      return true;
+    }
+
+    if (Array.isArray(facts.dimensions) && facts.dimensions.length > 0) {
+      return true;
+    }
+
+    const awaitsAttendees = state?.missingFields.includes('attendees') ?? false;
+
+    if (
+      typeof facts.attendees === 'number' &&
+      (awaitsAttendees ||
+        (!state && this.isExplicitAttendeeProgression(facts.attendees, undefined)) ||
+        this.isExplicitAttendeeProgression(
+          facts.attendees,
+          typeof state?.approvedFacts?.attendees === 'number'
+            ? state.approvedFacts.attendees
+            : typeof state?.pendingFacts?.attendees === 'number'
+              ? state.pendingFacts.attendees
+              : undefined,
+        ))
+    ) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private isExplicitAttendeeProgression(
+    currentAttendees: number,
+    previousAttendees?: number,
+  ) {
+    if (!Number.isFinite(currentAttendees)) {
+      return false;
+    }
+
+    if (typeof previousAttendees === 'number' && Number.isFinite(previousAttendees)) {
+      return currentAttendees !== previousAttendees;
+    }
+
+    return currentAttendees > 1;
+  }
+
   private getCarryableFacts(
     state: ConversationStateSnapshot | null,
     lane: ConversationLane,
@@ -764,10 +889,11 @@ export class ConversationContinuityService {
       const current = currentFacts as DocumentExplorationFacts;
 
       return this.cleanFacts({
-        subjectSummary: this.preferMoreSpecificSummary(
-          base.subjectSummary,
-          current.subjectSummary,
-        ),
+        subjectSummary:
+          this.normalizeOptionalString(current.subjectSummary) ??
+          this.normalizeOptionalString(base.subjectSummary) ??
+          this.normalizeOptionalString(current.topicSummary) ??
+          this.normalizeOptionalString(base.topicSummary),
         topicSummary: this.preferMoreSpecificSummary(
           base.topicSummary,
           current.topicSummary,
@@ -799,10 +925,11 @@ export class ConversationContinuityService {
       const current = currentFacts as AdvisoryExplorationFacts;
 
       return this.cleanFacts({
-        subjectSummary: this.preferMoreSpecificSummary(
-          base.subjectSummary,
-          current.subjectSummary,
-        ),
+        subjectSummary:
+          this.normalizeOptionalString(current.subjectSummary) ??
+          this.normalizeOptionalString(base.subjectSummary) ??
+          this.normalizeOptionalString(current.topicSummary) ??
+          this.normalizeOptionalString(base.topicSummary),
         topicSummary: this.preferMoreSpecificSummary(
           base.topicSummary,
           current.topicSummary,
@@ -896,25 +1023,28 @@ export class ConversationContinuityService {
     const currentFacts = input.facts as DocumentExplorationFacts;
     const retrieval = input.documentRetrieval.result;
     const subjectSummary =
-      typeof currentFacts.subjectSummary === 'string'
-        ? currentFacts.subjectSummary
-        : currentFacts.topicSummary;
+      typeof input.interpretation.entities.productQuery === 'string'
+        ? input.interpretation.entities.productQuery
+        : typeof currentFacts.subjectSummary === 'string'
+          ? currentFacts.subjectSummary
+          : currentFacts.topicSummary;
     const topicSummary =
-      typeof input.interpretation.entities.requestSummary === 'string'
-        ? input.interpretation.entities.requestSummary
+      typeof retrieval?.query === 'string'
+        ? retrieval.query
         : typeof input.interpretation.entities.productQuery === 'string'
-          ? input.interpretation.entities.productQuery
+        ? input.interpretation.entities.productQuery
+        : typeof input.interpretation.entities.requestSummary === 'string'
+          ? input.interpretation.entities.requestSummary
           : typeof input.interpretation.entities.rawMessage === 'string'
             ? input.interpretation.entities.rawMessage
             : currentFacts.topicSummary;
 
     return this.cleanFacts({
       ...currentFacts,
-      subjectSummary: this.preferMoreSpecificSummary(
-        subjectSummary,
-        currentFacts.subjectSummary ?? currentFacts.topicSummary,
-      ),
-      topicSummary: this.preferMoreSpecificSummary(
+      subjectSummary:
+        this.normalizeOptionalString(subjectSummary) ??
+        this.normalizeOptionalString(currentFacts.subjectSummary),
+      topicSummary: this.resolveExplorationTopicSummary(
         currentFacts.topicSummary,
         topicSummary,
       ),
@@ -928,6 +1058,27 @@ export class ConversationContinuityService {
         retrieval?.matches.map((match) => match.title) ??
         currentFacts.lastDocumentTitles,
     }) ?? {};
+  }
+
+  private resolveStoredSubjectSummary(state: ConversationStateSnapshot | null) {
+    if (!state) {
+      return undefined;
+    }
+
+    const facts =
+      state.approvedFacts && typeof state.approvedFacts === 'object'
+        ? state.approvedFacts
+        : {};
+
+    return this.normalizeOptionalString(
+      typeof facts.subjectSummary === 'string'
+        ? facts.subjectSummary
+        : typeof facts.topicSummary === 'string'
+          ? facts.topicSummary
+          : typeof facts.lastDocumentQuery === 'string'
+            ? facts.lastDocumentQuery
+            : undefined,
+    );
   }
 
   private filterResolvedFields(
@@ -1014,6 +1165,36 @@ export class ConversationContinuityService {
     return normalizedCurrent.length > normalizedBase.length
       ? normalizedCurrent
       : normalizedBase;
+  }
+
+  private resolveExplorationTopicSummary(
+    previous: string | undefined,
+    current: string | undefined,
+  ) {
+    const normalizedPrevious = this.normalizeOptionalString(previous);
+    const normalizedCurrent = this.normalizeOptionalString(current);
+
+    if (!normalizedCurrent) {
+      return normalizedPrevious;
+    }
+
+    if (!normalizedPrevious) {
+      return normalizedCurrent;
+    }
+
+    if (normalizedCurrent === normalizedPrevious) {
+      return normalizedCurrent;
+    }
+
+    if (!this.hasTopicOverlap(normalizedCurrent, normalizedPrevious)) {
+      return normalizedCurrent;
+    }
+
+    if (this.shouldReplacePreviousTopic(normalizedCurrent, normalizedPrevious)) {
+      return normalizedCurrent;
+    }
+
+    return this.preferMoreSpecificSummary(normalizedPrevious, normalizedCurrent);
   }
 
   private mergeSignals(
@@ -1255,13 +1436,13 @@ export class ConversationContinuityService {
         : {};
 
     return this.normalizeOptionalString(
-      typeof facts.subjectSummary === 'string'
-        ? facts.subjectSummary
-        : typeof facts.topicSummary === 'string'
+      typeof facts.topicSummary === 'string'
         ? facts.topicSummary
-        : typeof facts.lastDocumentQuery === 'string'
-          ? facts.lastDocumentQuery
-          : undefined,
+        : typeof facts.subjectSummary === 'string'
+          ? facts.subjectSummary
+          : typeof facts.lastDocumentQuery === 'string'
+            ? facts.lastDocumentQuery
+            : undefined,
     );
   }
 
@@ -1300,49 +1481,59 @@ export class ConversationContinuityService {
       message: this.resolveFallbackMessage(interpretation),
       interpretation,
     });
-    const previousTopic = input?.previousState
-      ? this.resolveStoredTopicSummary(input.previousState)
+    const previousSubject = input?.previousState
+      ? this.resolveStoredSubjectSummary(input.previousState)
       : undefined;
     const explicitSubjectTopic = this.resolveExplicitSubjectTopic(interpretation);
 
-    if (!previousTopic) {
+    if (explicitSubjectTopic) {
+      return explicitSubjectTopic;
+    }
+
+    if (!previousSubject) {
       return topic.length > 0 ? topic : undefined;
     }
 
     if (!input?.signals.threading.topicCarryoverEligible) {
-      return topic.length > 0 ? topic : previousTopic;
+      if (!topic.length) {
+        return previousSubject;
+      }
+
+      if (this.shouldReplacePreviousTopic(topic, previousSubject, explicitSubjectTopic)) {
+        return topic;
+      }
+
+      if (
+        this.isDependentFollowUpTopic(topic, previousSubject) ||
+        !this.hasTopicOverlap(topic, previousSubject)
+      ) {
+        return previousSubject;
+      }
+
+      return topic;
     }
 
     if (!topic.length) {
-      return previousTopic;
+      return previousSubject;
     }
 
-    if (
-      explicitSubjectTopic &&
-      this.isExplicitSubjectRefresh(explicitSubjectTopic, previousTopic)
-    ) {
-      return explicitSubjectTopic;
+    if (this.shouldReplacePreviousTopic(topic, previousSubject, explicitSubjectTopic)) {
+      return topic;
     }
 
-    if (this.shouldReplacePreviousTopic(topic, previousTopic, explicitSubjectTopic)) {
-      return explicitSubjectTopic ?? topic;
+    if (this.isDependentFollowUpTopic(topic, previousSubject)) {
+      return previousSubject;
     }
 
-    if (this.isDependentFollowUpTopic(topic, previousTopic)) {
-      return previousTopic;
+    if (!this.hasTopicOverlap(topic, previousSubject)) {
+      return previousSubject;
     }
 
-    if (this.hasTopicOverlap(topic, previousTopic)) {
-      return this.preferMoreSpecificSummary(previousTopic, topic);
-    }
-
-    return topic;
+    return previousSubject;
   }
 
   private resolveExplicitSubjectTopic(interpretation: ParsedInterpretation) {
-    return this.normalizeOptionalString(
-      interpretation.entities.productQuery ?? interpretation.entities.requestSummary,
-    );
+    return this.normalizeOptionalString(interpretation.entities.productQuery);
   }
 
   private isExplicitSubjectRefresh(current: string, previous: string) {

@@ -86,6 +86,98 @@ describe('ResponseGroundingService', () => {
     );
   });
 
+  it('treats visit-cost questions as structurally supported when the document exposes visit cost axes', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'dentro de montevideo la visita tiene costo?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'visita montevideo costo',
+        groundedSummary:
+          'Las visitas dentro de Montevideo son sin costo. Fuera de Montevideo puede corresponder costo de traslado.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'Las visitas dentro de Montevideo son sin costo. Fuera de Montevideo puede corresponder costo de traslado.',
+            sequence: 0,
+            score: 4.4,
+            supportSummary: {
+              topic: 'VISITAS, RECTIFICACION Y MUESTRAS',
+              supportedAxes: ['commercial_visit_cost', 'travel_cost_responsibility'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'commercial_visit_cost',
+                  values: ['sin costo'],
+                  supportClass: 'explicit_fact',
+                  appliesTo: [
+                    {
+                      axis: 'location',
+                      value: 'Montevideo',
+                      normalizedValue: 'montevideo',
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment).toEqual(
+      expect.objectContaining({
+        supportLevel: 'explicit',
+        supportedDetailTypes: ['pricing'],
+      }),
+    );
+  });
+
+  it('treats warranty questions as structurally supported when warranty claims are present', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'que garantia tienen las cortinas de enrollar?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'garantía cortinas de enrollar',
+        groundedSummary:
+          'La garantía depende del producto. En varias líneas de aluminio y roller trabajamos con 2 años, y en distintas opciones de PVC la referencia habitual es 1 año.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'La garantía depende del producto. En varias líneas de aluminio y roller trabajamos con 2 años, y en distintas opciones de PVC la referencia habitual es 1 año.',
+            sequence: 0,
+            score: 4.1,
+            supportSummary: {
+              topic: 'GARANTIAS',
+              supportedAxes: ['warranty_terms'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'warranty_terms',
+                  values: ['2 años', '1 año'],
+                  supportClass: 'explicit_fact',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment).toEqual(
+      expect.objectContaining({
+        supportLevel: 'explicit',
+        requestedDetailTypes: ['warranty'],
+        supportedDetailTypes: ['warranty'],
+      }),
+    );
+  });
+
   it('marks missing approved evidence as unavailable instead of pretending support exists', () => {
     const assessment = service.assessDocumentContext({
       locale: 'es',
@@ -128,6 +220,43 @@ describe('ResponseGroundingService', () => {
     expect(assessment.unsupportedDetailTypes).toContain('coverage_support');
   });
 
+  it('does not infer a requested material-detail axis only because the grounded summary mentions telas or materials', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'hacen cortinas roller a medida?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'cortinas roller a medida',
+        groundedSummary:
+          'Roller Screen, Roller Blackout y Roller Doble, que combina una tela screen y una tela blackout en una misma instalación.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'Roller Doble combina una tela screen y una tela blackout en una misma instalación.',
+            sequence: 0,
+            score: 3.4,
+            supportSummary: {
+              topic: 'cortinas roller',
+              supportedAxes: ['product_types'],
+              unspecifiedAxes: ['materials'],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment).toEqual(
+      expect.objectContaining({
+        supportLevel: 'explicit',
+        requestedDetailTypes: [],
+        partialDetailTypes: [],
+        unsupportedDetailTypes: [],
+      }),
+    );
+  });
+
   it('builds a concise unspecified-detail clause for partial document grounding', () => {
     const clause = service.buildUnspecifiedDetailClause({
       locale: 'es',
@@ -151,6 +280,58 @@ describe('ResponseGroundingService', () => {
     expect(clause).toBe(
       'Por ahora no tengo confirmación sobre los colores exactos.',
     );
+  });
+
+  it('omits the unspecified-detail clause when the summary already includes the concrete grounded values', () => {
+    const clause = service.buildUnspecifiedDetailClause({
+      locale: 'es',
+      summary: 'Las cortinas de enrollar en aluminio están disponibles en blanco, negro y gris.',
+      documentContext: {
+        source: 'document_origin',
+        query: 'colores aluminio',
+        groundedSummary: 'Variedad de colores.',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'partial',
+          exactnessRequested: true,
+          requestedDetailTypes: ['color_options'],
+          supportedDetailTypes: [],
+          partialDetailTypes: ['color_options'],
+          unsupportedDetailTypes: [],
+          requiredUnspecifiedDetailTypes: ['color_options'],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt: 'Disponible en variedad de colores.',
+            sequence: 0,
+            score: 4.2,
+            supportSummary: {
+              topic: 'cortinas de enrollar en aluminio',
+              supportedAxes: ['color_options'],
+              unspecifiedAxes: ['exact_color_options'],
+              axisSummaries: [
+                {
+                  axis: 'color_options',
+                  values: ['blanco', 'negro', 'gris'],
+                  supportClass: 'explicit_fact',
+                  appliesTo: [
+                    {
+                      axis: 'material',
+                      value: 'aluminio',
+                      normalizedValue: 'aluminio',
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    } as any);
+
+    expect(clause).toBeNull();
   });
 
   it('detects when a grounded summary does not address the requested detail axis', () => {

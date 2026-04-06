@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 
 import { buildStructuralKnowledgeSummary } from '../documents/document-knowledge-claims';
+import { normalizeDocumentKnowledgeText } from '../documents/document-knowledge-extraction.utils';
+import type { DocumentKnowledgeAxisSummary } from '../documents/document.types';
 import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
+import {
+  hasGroundingCatalogSignal,
+  resolveResponseGroundingCatalog,
+} from './response-grounding.catalogs';
 import { ResponseGroundingService } from './response-grounding.service';
 import { normalizeSourceObliviousSummary } from './response-source-normalization';
 import {
@@ -49,7 +55,11 @@ export class ChatResponsePolicyService {
   private async buildDocumentAwareResponse(context: ApprovedResponseContext) {
     const groundedSummary = context.documentContext?.groundedSummary?.trim();
     const matchBackedSummary = this.buildMatchBackedDocumentSummary(context);
-    const effectiveSummary = groundedSummary || matchBackedSummary;
+    const effectiveSummary = this.selectPreferredDocumentSummary({
+      context,
+      groundedSummary,
+      matchBackedSummary,
+    });
     const supportLevel = context.documentContext?.grounding.supportLevel;
     const hasMatches = (context.documentContext?.matches.length ?? 0) > 0;
     const missingSummaryResponse = await this.responseFallbackService.render({
@@ -59,6 +69,8 @@ export class ChatResponsePolicyService {
     });
     const unavailableKnowledgeResponse =
       this.buildUnavailableKnowledgeResponse(context, missingSummaryResponse);
+    const scopedUnavailableDetailResponse =
+      this.buildScopedUnavailableDetailResponse(context, effectiveSummary);
 
     if (!effectiveSummary && supportLevel === 'unavailable' && !hasMatches) {
       if (context.outcome === 'clarify') {
@@ -83,6 +95,31 @@ export class ChatResponsePolicyService {
       }
 
       return unavailableKnowledgeResponse;
+    }
+
+    if (!effectiveSummary && scopedUnavailableDetailResponse) {
+      if (context.outcome === 'clarify') {
+        return this.composeWithDocumentSummary(
+          scopedUnavailableDetailResponse,
+          await this.buildClarificationResponse(context),
+        );
+      }
+
+      if (context.outcome === 'execution_succeeded') {
+        return this.composeWithDocumentSummary(
+          scopedUnavailableDetailResponse,
+          await this.buildExecutionSuccessResponse(context),
+        );
+      }
+
+      if (context.outcome === 'execution_failed') {
+        return this.composeWithDocumentSummary(
+          scopedUnavailableDetailResponse,
+          await this.buildExecutionFailureResponse(context),
+        );
+      }
+
+      return scopedUnavailableDetailResponse;
     }
 
     const responseSummary =
@@ -326,23 +363,387 @@ export class ChatResponsePolicyService {
   }
 
   private buildMatchBackedDocumentSummary(context: ApprovedResponseContext) {
-    const structuredSummary = buildStructuralKnowledgeSummary({
-      locale: context.locale,
-      claims: context.documentContext?.matches.flatMap(
-        (match) => match.supportSummary?.axisSummaries ?? [],
-      ) ?? [],
-      limit: 2,
-    });
+    const aggregatedClaims = this.selectMatchBackedAxisSummaries(context);
+    const availabilityNarrativeSummary = this.buildAvailabilityNarrativeSummary(
+      context,
+      aggregatedClaims,
+    );
 
-    if (structuredSummary) {
-      return this.buildConciseDocumentSummary(structuredSummary);
+    if (availabilityNarrativeSummary) {
+      return availabilityNarrativeSummary;
     }
 
+    const broadOverviewSummary = this.buildBroadOverviewSummary(
+      context,
+      aggregatedClaims,
+    );
+
+    if (broadOverviewSummary) {
+      return broadOverviewSummary;
+    }
+
+    const subjectAvailabilitySummary = this.buildSubjectAvailabilitySummary(
+      context,
+    );
+
+    if (subjectAvailabilitySummary) {
+      return subjectAvailabilitySummary;
+    }
+
+    const structuredSummary = buildStructuralKnowledgeSummary({
+      locale: context.locale,
+      claims: aggregatedClaims,
+      limit: aggregatedClaims.length > 1 ? 2 : 1,
+    });
     const excerpt = context.documentContext?.matches
       .map((match) => match.excerpt?.trim() ?? '')
       .find((value) => value.length > 0);
+    const conciseExcerpt = excerpt ? this.buildConciseDocumentSummary(excerpt) : '';
 
-    return excerpt ? this.buildConciseDocumentSummary(excerpt) : '';
+    if (structuredSummary) {
+      const conciseStructuredSummary =
+        this.buildConciseDocumentSummary(structuredSummary);
+      const structuredCandidateScore = scoreDocumentSummaryCandidate({
+        locale: context.locale,
+        summary: conciseStructuredSummary,
+        query: `${context.userMessage} ${context.documentContext?.query ?? ''}`,
+        requestedDetailTypes:
+          context.documentContext?.grounding.requestedDetailTypes ?? [],
+        responseGroundingService: this.responseGroundingService,
+        documentContext: context.documentContext,
+      });
+
+      if (
+        conciseExcerpt &&
+        looksStructuralSummary(conciseStructuredSummary) &&
+        !looksLowSignalSummary(conciseExcerpt) &&
+        scoreDocumentSummaryCandidate({
+          locale: context.locale,
+          summary: conciseExcerpt,
+          query: `${context.userMessage} ${context.documentContext?.query ?? ''}`,
+          requestedDetailTypes:
+            context.documentContext?.grounding.requestedDetailTypes ?? [],
+          responseGroundingService: this.responseGroundingService,
+          documentContext: context.documentContext,
+        }) >= structuredCandidateScore - 1
+      ) {
+        return conciseExcerpt;
+      }
+
+      if (
+        conciseExcerpt &&
+        shouldPreferNarrativeOverviewSummary({
+          context,
+          candidateSummary: conciseExcerpt,
+          competingSummary: conciseStructuredSummary,
+        })
+      ) {
+        return conciseExcerpt;
+      }
+
+      if (
+        conciseExcerpt &&
+        scoreDocumentSummaryCandidate({
+          locale: context.locale,
+          summary: conciseExcerpt,
+          query: `${context.userMessage} ${context.documentContext?.query ?? ''}`,
+          requestedDetailTypes:
+            context.documentContext?.grounding.requestedDetailTypes ?? [],
+          responseGroundingService: this.responseGroundingService,
+          documentContext: context.documentContext,
+        }) >=
+          structuredCandidateScore + 2
+      ) {
+        return conciseExcerpt;
+      }
+
+      return conciseStructuredSummary;
+    }
+
+    return conciseExcerpt;
+  }
+
+  private buildBroadOverviewSummary(
+    context: ApprovedResponseContext,
+    claims: DocumentKnowledgeAxisSummary[],
+  ) {
+    if (!isBroadOverviewDocumentQuestion(context) || claims.length === 0) {
+      return '';
+    }
+
+    const factualClaims = claims.filter((claim) => claim.layer === 'factual');
+
+    if (factualClaims.length === 0) {
+      return '';
+    }
+
+    const primaryClaims = selectPrimaryOverviewClaims(factualClaims);
+    const anchorClaim = primaryClaims[0];
+
+    if (!anchorClaim) {
+      return '';
+    }
+
+    const subjectLabel = extractDisplayTopicLabel(
+      anchorClaim.subject?.value ?? anchorClaim.subject?.normalizedValue,
+    );
+
+    if (!subjectLabel) {
+      return '';
+    }
+
+    const productTypesClaim = primaryClaims.find(
+      (claim) => claim.axis === 'product_types' && claim.values.length > 0,
+    );
+    const materialsClaim = primaryClaims.find(
+      (claim) => claim.axis === 'materials' && claim.values.length > 0,
+    );
+    const operationModesClaim = primaryClaims.find(
+      (claim) => claim.axis === 'operation_modes' && claim.values.length > 0,
+    );
+
+    if (productTypesClaim) {
+      return `Sí, trabajamos con ${subjectLabel}, incluyendo ${joinResponseValues(
+        normalizeOverviewValuesForSubject(productTypesClaim.values, subjectLabel),
+        context.locale,
+      )}.`;
+    }
+
+    if (materialsClaim && operationModesClaim) {
+      return `Sí, trabajamos con ${subjectLabel} en ${joinResponseValues(
+        materialsClaim.values,
+        context.locale,
+      )}, con opciones ${joinAlternativeValues(
+        operationModesClaim.values,
+        context.locale,
+      )}.`;
+    }
+
+    if (materialsClaim) {
+      return `Sí, trabajamos con ${subjectLabel} en ${joinResponseValues(
+        materialsClaim.values,
+        context.locale,
+      )}.`;
+    }
+
+    if (operationModesClaim) {
+      return `Sí, trabajamos con ${subjectLabel}, con opciones ${joinResponseValues(
+        operationModesClaim.values,
+        context.locale,
+      )}.`;
+    }
+
+    return '';
+  }
+
+  private buildAvailabilityNarrativeSummary(
+    context: ApprovedResponseContext,
+    claims: DocumentKnowledgeAxisSummary[],
+  ) {
+    if (!isAvailabilityStyleQuestion(context) || claims.length !== 1) {
+      return '';
+    }
+
+    const claim = claims[0];
+
+    if (claim.supportClass !== 'explicit_fact') {
+      return '';
+    }
+
+    const subjectLabel = extractDisplayTopicLabel(
+      claim.subject?.value ?? claim.subject?.normalizedValue,
+    );
+
+    if (!subjectLabel) {
+      return '';
+    }
+
+    if (claim.axis === 'materials' && claim.values.length === 1) {
+      return `Sí, tenemos ${subjectLabel} en ${formatInlineResponseValue(
+        claim.values[0],
+      )}.`;
+    }
+
+    if (claim.axis === 'product_types' && claim.values.length > 0) {
+      return `Sí, trabajamos con ${subjectLabel}, incluyendo ${joinResponseValues(
+        normalizeOverviewValuesForSubject(claim.values, subjectLabel),
+        context.locale,
+      )}.`;
+    }
+
+    return '';
+  }
+
+  private buildSubjectAvailabilitySummary(context: ApprovedResponseContext) {
+    if (
+      !isAvailabilityStyleQuestion(context) ||
+      (context.documentContext?.matches.length ?? 0) === 0
+    ) {
+      return '';
+    }
+
+    const subjectLabel = extractDisplayTopicLabel(
+      resolveParsedProductSubject(context),
+    );
+
+    if (!subjectLabel) {
+      return '';
+    }
+
+    return `Sí, trabajamos con ${subjectLabel}.`;
+  }
+
+  private buildScopedUnavailableDetailResponse(
+    context: ApprovedResponseContext,
+    effectiveSummary?: string,
+  ) {
+    const requestedDetailTypes =
+      context.documentContext?.grounding.requestedDetailTypes ?? [];
+    const requiredUnspecifiedDetailTypes =
+      context.documentContext?.grounding.requiredUnspecifiedDetailTypes ?? [];
+
+    if (
+      requestedDetailTypes.length === 0 ||
+      requiredUnspecifiedDetailTypes.length === 0
+    ) {
+      return '';
+    }
+
+    if (
+      !requiresAxisBackedVariantFallback(context) &&
+      effectiveSummary &&
+      this.responseGroundingService.summaryAddressesRequestedDetails({
+        locale: context.locale,
+        summary: effectiveSummary,
+        detailTypes: requestedDetailTypes,
+        documentContext: context.documentContext,
+      })
+    ) {
+      return '';
+    }
+
+    const unspecifiedClause =
+      this.responseGroundingService.buildUnspecifiedDetailClause({
+        locale: context.locale,
+        documentContext: context.documentContext,
+        summary: '',
+      }) ?? '';
+
+    if (!unspecifiedClause) {
+      return '';
+    }
+
+    const scopedSubject = resolveScopedDetailSubject(context);
+
+    if (!scopedSubject) {
+      return unspecifiedClause;
+    }
+
+    return `En ${scopedSubject}, ${lowercaseFirst(unspecifiedClause)}`;
+  }
+
+  private selectPreferredDocumentSummary(input: {
+    context: ApprovedResponseContext;
+    groundedSummary?: string;
+    matchBackedSummary?: string;
+  }) {
+    const groundedSummary = input.groundedSummary?.trim() ?? '';
+    const matchBackedSummary = input.matchBackedSummary?.trim() ?? '';
+
+    if (!groundedSummary) {
+      return matchBackedSummary;
+    }
+
+    if (!matchBackedSummary) {
+      return groundedSummary;
+    }
+
+    const requestedDetailTypes =
+      input.context.documentContext?.grounding.requestedDetailTypes ?? [];
+    const groundedSupportsRequestedDetail =
+      requestedDetailTypes.length === 0 ||
+      this.responseGroundingService.summaryAddressesRequestedDetails({
+        locale: input.context.locale,
+        summary: groundedSummary,
+        detailTypes: requestedDetailTypes,
+        documentContext: input.context.documentContext,
+      });
+    const matchBackedSupportsRequestedDetail =
+      requestedDetailTypes.length === 0 ||
+      this.responseGroundingService.summaryAddressesRequestedDetails({
+        locale: input.context.locale,
+        summary: matchBackedSummary,
+        detailTypes: requestedDetailTypes,
+        documentContext: input.context.documentContext,
+      });
+
+    if (matchBackedSupportsRequestedDetail && !groundedSupportsRequestedDetail) {
+      return matchBackedSummary;
+    }
+
+    if (
+      requestedDetailTypes.length > 0 &&
+      (requiresAxisBackedVariantFallback(input.context) ||
+        (!groundedSupportsRequestedDetail &&
+          !matchBackedSupportsRequestedDetail))
+    ) {
+      return '';
+    }
+
+    if (
+      isBroadOverviewDocumentQuestion(input.context) &&
+      looksNarrativeSummary(matchBackedSummary) &&
+      countSummaryFacts(matchBackedSummary) <= countSummaryFacts(groundedSummary)
+    ) {
+      return matchBackedSummary;
+    }
+
+    if (
+      shouldPreferNarrativeOverviewSummary({
+        context: input.context,
+        candidateSummary: matchBackedSummary,
+        competingSummary: groundedSummary,
+      })
+    ) {
+      return matchBackedSummary;
+    }
+
+    if (
+      looksLowSignalSummary(groundedSummary) &&
+      !looksLowSignalSummary(matchBackedSummary)
+    ) {
+      return matchBackedSummary;
+    }
+
+    const groundedCandidateScore = scoreDocumentSummaryCandidate({
+      locale: input.context.locale,
+      summary: groundedSummary,
+      query: `${input.context.userMessage} ${input.context.documentContext?.query ?? ''}`,
+      requestedDetailTypes,
+      responseGroundingService: this.responseGroundingService,
+      documentContext: input.context.documentContext,
+    });
+    const matchBackedCandidateScore = scoreDocumentSummaryCandidate({
+      locale: input.context.locale,
+      summary: matchBackedSummary,
+      query: `${input.context.userMessage} ${input.context.documentContext?.query ?? ''}`,
+      requestedDetailTypes,
+      responseGroundingService: this.responseGroundingService,
+      documentContext: input.context.documentContext,
+    });
+
+    if (matchBackedCandidateScore >= groundedCandidateScore + 2) {
+      return matchBackedSummary;
+    }
+
+    if (
+      countSummaryFacts(matchBackedSummary) >
+      countSummaryFacts(groundedSummary) + 1
+    ) {
+      return matchBackedSummary;
+    }
+
+    return groundedSummary;
   }
 
   private buildDocumentGroundingSummary(
@@ -358,6 +759,7 @@ export class ChatResponsePolicyService {
       this.responseGroundingService.buildUnspecifiedDetailClause({
         locale: context.locale,
         documentContext: context.documentContext,
+        summary: normalizedSummary,
       }) ?? '';
     const summarySupportsRequestedDetail =
       !context.documentContext?.grounding.requestedDetailTypes.length ||
@@ -413,6 +815,7 @@ export class ChatResponsePolicyService {
       this.responseGroundingService.buildUnspecifiedDetailClause({
         locale: context.locale,
         documentContext: context.documentContext,
+        summary: conciseSummary,
       }) ?? '';
     const hasUnsupportedDetails =
       (context.documentContext?.grounding.unsupportedDetailTypes.length ?? 0) > 0;
@@ -452,6 +855,7 @@ export class ChatResponsePolicyService {
       this.responseGroundingService.buildUnspecifiedDetailClause({
         locale: context.locale,
         documentContext: context.documentContext,
+        summary: '',
       }) ?? '';
 
     return groundingClause || fallback;
@@ -636,6 +1040,219 @@ export class ChatResponsePolicyService {
 
     return score;
   }
+
+  private selectMatchBackedAxisSummaries(context: ApprovedResponseContext) {
+    const matches = context.documentContext?.matches ?? [];
+    const axisSummaryEntries = matches.flatMap((match) =>
+      (match.supportSummary?.axisSummaries ?? []).map((axisSummary) => ({
+        axisSummary,
+        matchScore: match.score ?? 0,
+        sequence: match.sequence ?? 0,
+        topic: match.supportSummary?.topic ?? '',
+      })),
+    );
+
+    if (axisSummaryEntries.length === 0) {
+      return [];
+    }
+
+    const queryTokens = tokenizeSummaryText(
+      `${context.userMessage} ${context.documentContext?.query ?? ''}`,
+    );
+    const requestedDetailTypes =
+      context.documentContext?.grounding.requestedDetailTypes ?? [];
+    const rankedEntries = axisSummaryEntries
+      .map((entry) => ({
+        ...entry,
+        score: this.scoreMatchBackedAxisSummary({
+          locale: context.locale,
+          axisSummary: entry.axisSummary,
+          queryTokens,
+          requestedDetailTypes,
+          matchScore: entry.matchScore,
+          documentContext: context.documentContext,
+        }),
+      }))
+      .sort((left, right) => {
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+
+        if (right.matchScore !== left.matchScore) {
+          return right.matchScore - left.matchScore;
+        }
+
+        return left.sequence - right.sequence;
+      });
+    const positiveRankedEntries = rankedEntries.filter((entry) => entry.score > 0);
+    const candidateEntries =
+      positiveRankedEntries.length > 0 ? positiveRankedEntries : rankedEntries;
+    const selected: DocumentKnowledgeAxisSummary[] = [];
+    const anchor = candidateEntries[0];
+
+    for (const entry of candidateEntries) {
+      if (
+        anchor &&
+        entry !== anchor &&
+        this.shouldSkipOffTopicAxisSummary({
+          anchor: anchor.axisSummary,
+          candidate: entry.axisSummary,
+          anchorTopic: anchor.topic,
+          candidateTopic: entry.topic,
+          queryTokens,
+        })
+      ) {
+        continue;
+      }
+      selected.push(entry.axisSummary);
+
+      if (selected.length >= 6) {
+        break;
+      }
+    }
+
+    return aggregateAxisSummaries(selected);
+  }
+
+  private scoreMatchBackedAxisSummary(input: {
+    locale: string;
+    axisSummary: DocumentKnowledgeAxisSummary;
+    queryTokens: string[];
+    requestedDetailTypes: ResponseGroundingDetailType[];
+    matchScore: number;
+    documentContext?: ApprovedResponseContext['documentContext'];
+  }) {
+    const summary = buildStructuralKnowledgeSummary({
+      locale: input.locale,
+      claims: [input.axisSummary],
+      limit: 1,
+    });
+    const axisTokens = tokenizeSummaryText(input.axisSummary.axis);
+    const facetTokens = tokenizeSummaryText(input.axisSummary.facet ?? '');
+    const valueTokens = tokenizeSummaryText(input.axisSummary.values.join(' '));
+    const subjectTokens = tokenizeSummaryText(
+      [
+        input.axisSummary.subject?.axis ?? '',
+        input.axisSummary.subject?.normalizedValue ??
+          input.axisSummary.subject?.value ??
+          '',
+      ].join(' '),
+    );
+    const scopeTokens = tokenizeSummaryText(
+      (input.axisSummary.appliesTo ?? [])
+        .map(
+          (scope) => `${scope.axis} ${scope.normalizedValue ?? scope.value}`,
+        )
+        .join(' '),
+    );
+    const summaryTokens = tokenizeSummaryText(summary);
+    const queryTokenSet = new Set(input.queryTokens);
+    const axisOverlap = axisTokens.filter((token) => queryTokenSet.has(token)).length;
+    const facetOverlap = facetTokens.filter((token) => queryTokenSet.has(token)).length;
+    const valueOverlap = valueTokens.filter((token) => queryTokenSet.has(token)).length;
+    const subjectOverlap = subjectTokens.filter((token) => queryTokenSet.has(token)).length;
+    const scopeOverlap = scopeTokens.filter((token) => queryTokenSet.has(token)).length;
+    const summaryOverlap = summaryTokens.filter((token) => queryTokenSet.has(token)).length;
+
+    let score =
+      axisOverlap * 4 +
+      facetOverlap * 4 +
+      valueOverlap * 2 +
+      subjectOverlap * 2.5 +
+      scopeOverlap * 3 +
+      summaryOverlap +
+      input.matchScore * 0.25;
+
+    if (
+      input.requestedDetailTypes.length > 0 &&
+      this.responseGroundingService.summaryAddressesRequestedDetails({
+        locale: input.locale,
+        summary,
+        detailTypes: input.requestedDetailTypes,
+        documentContext: input.documentContext,
+      })
+    ) {
+      score += 6;
+    }
+
+    if (input.axisSummary.supportClass === 'explicit_fact') {
+      score += 1;
+    }
+
+    return score;
+  }
+
+  private shouldSkipOffTopicAxisSummary(input: {
+    anchor: DocumentKnowledgeAxisSummary;
+    candidate: DocumentKnowledgeAxisSummary;
+    anchorTopic?: string;
+    candidateTopic?: string;
+    queryTokens: string[];
+  }) {
+    const queryTokenSet = new Set(input.queryTokens);
+    const anchorTopicFamily = extractAxisSummaryFamilyKey(
+      input.anchor,
+      input.anchorTopic,
+    );
+    const candidateTopicFamily = extractAxisSummaryFamilyKey(
+      input.candidate,
+      input.candidateTopic,
+    );
+
+    if (
+      anchorTopicFamily &&
+      candidateTopicFamily &&
+      anchorTopicFamily !== candidateTopicFamily
+    ) {
+      const anchorTopicOverlap = countQueryTokenOverlap(
+        anchorTopicFamily,
+        queryTokenSet,
+      );
+      const candidateTopicOverlap = countQueryTokenOverlap(
+        candidateTopicFamily,
+        queryTokenSet,
+      );
+
+      if (anchorTopicOverlap > candidateTopicOverlap) {
+        return true;
+      }
+    }
+
+    const anchorSubjectTokens = tokenizeSummaryText(
+      [
+        input.anchor.subject?.axis ?? '',
+        input.anchor.subject?.normalizedValue ?? input.anchor.subject?.value ?? '',
+      ].join(' '),
+    );
+    const candidateSubjectTokens = tokenizeSummaryText(
+      [
+        input.candidate.subject?.axis ?? '',
+        input.candidate.subject?.normalizedValue ??
+          input.candidate.subject?.value ??
+          '',
+      ].join(' '),
+    );
+
+    if (anchorSubjectTokens.length === 0 || candidateSubjectTokens.length === 0) {
+      return false;
+    }
+
+    const anchorOverlap = anchorSubjectTokens.filter((token) =>
+      queryTokenSet.has(token),
+    ).length;
+    const candidateOverlap = candidateSubjectTokens.filter((token) =>
+      queryTokenSet.has(token),
+    ).length;
+
+    if (anchorOverlap === 0 || candidateOverlap > 0) {
+      return false;
+    }
+
+    const anchorSignature = anchorSubjectTokens.join('|');
+    const candidateSignature = candidateSubjectTokens.join('|');
+
+    return anchorSignature !== candidateSignature;
+  }
 }
 
 function splitSummarySentences(value: string) {
@@ -677,6 +1294,462 @@ function tokenizeSummaryText(value: string) {
     .filter((token) => token.length >= 3);
 }
 
+function countQueryTokenOverlap(value: string, queryTokenSet: Set<string>) {
+  return tokenizeSummaryText(value).filter((token) => queryTokenSet.has(token))
+    .length;
+}
+
+function extractAxisSummaryFamilyKey(
+  axisSummary: DocumentKnowledgeAxisSummary,
+  topic?: string,
+) {
+  const topicFamily = extractTopicFamilyKey(topic);
+
+  if (topicFamily) {
+    return topicFamily;
+  }
+
+  return extractTopicFamilyKey(
+    axisSummary.subject?.normalizedValue ?? axisSummary.subject?.value,
+  );
+}
+
+function extractTopicFamilyKey(value?: string) {
+  const topic = value?.trim();
+
+  if (!topic) {
+    return '';
+  }
+
+  const rootSegment = topic
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)[0];
+
+  if (!rootSegment) {
+    return '';
+  }
+
+  const withoutNumericPrefix = rootSegment
+    .replace(/^\d+(?:\.\d+)*\.?\s*/u, '')
+    .trim();
+  const familySegment =
+    withoutNumericPrefix.split(/\s+-\s+/u).map((segment) => segment.trim())[0] ??
+    withoutNumericPrefix;
+
+  return normalizeDocumentKnowledgeText(familySegment);
+}
+
 function toCustomerFacingSummaryText(value: string) {
   return normalizeSourceObliviousSummary(value);
+}
+
+function aggregateAxisSummaries(claims: DocumentKnowledgeAxisSummary[]) {
+  const grouped = new Map<string, DocumentKnowledgeAxisSummary>();
+
+  for (const claim of claims) {
+    const key = JSON.stringify({
+      axis: claim.axis,
+      facet: claim.facet ?? null,
+      layer: claim.layer,
+      subject: claim.subject ?? null,
+      appliesTo: claim.appliesTo ?? [],
+      unspecifiedAxes: claim.unspecifiedAxes ?? [],
+    });
+    const existing = grouped.get(key);
+
+    if (!existing) {
+      grouped.set(key, {
+        ...claim,
+        values: [...claim.values],
+      });
+      continue;
+    }
+
+    existing.values = Array.from(new Set([...existing.values, ...claim.values]));
+  }
+
+  return Array.from(grouped.values());
+}
+
+function selectPrimaryOverviewClaims(claims: DocumentKnowledgeAxisSummary[]) {
+  const axisPriority = new Map<string, number>([
+    ['product_types', 5],
+    ['materials', 4],
+    ['operation_modes', 3],
+    ['service_offers', 2],
+  ]);
+
+  return claims
+    .filter(
+      (claim) =>
+        claim.supportClass === 'explicit_fact' &&
+        claim.values.length > 0 &&
+        axisPriority.has(claim.axis),
+    )
+    .sort((left, right) => {
+      const rightPriority = axisPriority.get(right.axis) ?? 0;
+      const leftPriority = axisPriority.get(left.axis) ?? 0;
+
+      if (rightPriority !== leftPriority) {
+        return rightPriority - leftPriority;
+      }
+
+      return right.values.length - left.values.length;
+    })
+    .slice(0, 2);
+}
+
+function countSummaryFacts(value: string) {
+  return value
+    .split(/[;,]/u)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0).length;
+}
+
+function scoreDocumentSummaryCandidate(input: {
+  locale: string;
+  summary: string;
+  query: string;
+  requestedDetailTypes: ResponseGroundingDetailType[];
+  responseGroundingService: ResponseGroundingService;
+  documentContext?: ApprovedResponseContext['documentContext'];
+}) {
+  const queryTokens = tokenizeSummaryText(input.query);
+  const summaryTokens = tokenizeSummaryText(input.summary);
+  const queryTokenSet = new Set(queryTokens);
+  const overlapCount = summaryTokens.filter((token) =>
+    queryTokenSet.has(token),
+  ).length;
+  const uniqueSummaryTokens = new Set(summaryTokens).size;
+  let score = overlapCount + uniqueSummaryTokens * 0.25 + countSummaryFacts(input.summary);
+
+  if (
+    input.requestedDetailTypes.length > 0 &&
+    input.responseGroundingService.summaryAddressesRequestedDetails({
+      locale: input.locale,
+      summary: input.summary,
+      detailTypes: input.requestedDetailTypes,
+      documentContext: input.documentContext,
+    })
+  ) {
+    score += 4;
+  }
+
+  return score;
+}
+
+function shouldPreferNarrativeOverviewSummary(input: {
+  context: ApprovedResponseContext;
+  candidateSummary: string;
+  competingSummary: string;
+}) {
+  if (!isBroadOverviewDocumentQuestion(input.context)) {
+    return false;
+  }
+
+  if (!input.candidateSummary.trim() || !input.competingSummary.trim()) {
+    return false;
+  }
+
+  return (
+    looksNarrativeSummary(input.candidateSummary) &&
+    looksStructuralSummary(input.competingSummary)
+  );
+}
+
+function isBroadOverviewDocumentQuestion(context: ApprovedResponseContext) {
+  const requestedDetailTypes =
+    context.documentContext?.grounding.requestedDetailTypes ?? [];
+
+  if (requestedDetailTypes.length > 0) {
+    return false;
+  }
+
+  const normalized = normalizeDocumentKnowledgeText(
+    `${context.userMessage} ${context.documentContext?.query ?? ''}`,
+  );
+
+  if (!normalized) {
+    return false;
+  }
+
+  const catalog = resolveResponseGroundingCatalog(context.locale);
+
+  return (
+    hasGroundingCatalogSignal(
+      normalized,
+      catalog.questionSignals.broadOverviewIntentTerms,
+    ) &&
+    !hasGroundingCatalogSignal(normalized, catalog.questionSignals.detailCueTerms)
+  );
+}
+
+function isAvailabilityStyleQuestion(context: ApprovedResponseContext) {
+  const requestedDetailTypes =
+    context.documentContext?.grounding.requestedDetailTypes ?? [];
+
+  if (requestedDetailTypes.length > 0) {
+    return false;
+  }
+
+  const normalized = normalizeDocumentKnowledgeText(
+    `${context.userMessage} ${context.documentContext?.query ?? ''}`,
+  );
+
+  if (!normalized) {
+    return false;
+  }
+
+  const catalog = resolveResponseGroundingCatalog(context.locale);
+
+  return (
+    hasGroundingCatalogSignal(
+      normalized,
+      catalog.questionSignals.availabilityIntentTerms,
+    ) &&
+    !hasGroundingCatalogSignal(normalized, catalog.questionSignals.detailCueTerms)
+  );
+}
+
+function looksStructuralSummary(summary: string) {
+  const normalized = summary.trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return (
+    /:\s+/u.test(normalized) ||
+    /;\s+/u.test(normalized) ||
+    /\|\s*/u.test(normalized) ||
+    (countSummaryFacts(normalized) >= 3 && !/[.!?]$/u.test(normalized))
+  );
+}
+
+function looksNarrativeSummary(summary: string) {
+  const normalized = summary.trim();
+
+  if (!normalized) {
+    return false;
+  }
+
+  return !looksStructuralSummary(normalized) && /[.!?]$/u.test(normalized);
+}
+
+function looksLowSignalSummary(summary: string) {
+  const tokens = tokenizeSummaryText(summary);
+
+  if (tokens.length === 0) {
+    return true;
+  }
+
+  return new Set(tokens).size <= 1;
+}
+
+function extractDisplayTopicLabel(value?: string) {
+  const normalizedTopic = extractTopicFamilyKey(value);
+
+  if (!normalizedTopic) {
+    return '';
+  }
+
+  return normalizedTopic;
+}
+
+function resolveParsedProductSubject(context: ApprovedResponseContext) {
+  const entities = context.interpretation.entities;
+
+  if (
+    typeof entities.productQuery === 'string' &&
+    entities.productQuery.trim().length > 0
+  ) {
+    return entities.productQuery.trim();
+  }
+
+  if (
+    typeof entities.requestSummary === 'string' &&
+    entities.requestSummary.trim().length > 0
+  ) {
+    return entities.requestSummary.trim();
+  }
+
+  return context.documentContext?.query ?? context.userMessage;
+}
+
+function resolveScopedDetailSubject(context: ApprovedResponseContext) {
+  const requestedDetailTypes =
+    context.documentContext?.grounding.requestedDetailTypes ?? [];
+
+  if (!requestedDetailTypes.includes('specific_variants')) {
+    return '';
+  }
+
+  const storedFacts =
+    context.conversationState?.approvedFacts &&
+    typeof context.conversationState.approvedFacts === 'object'
+      ? (context.conversationState.approvedFacts as Record<string, unknown>)
+      : null;
+
+  const storedSubject =
+    typeof storedFacts?.subjectSummary === 'string'
+      ? storedFacts.subjectSummary
+      : typeof storedFacts?.topicSummary === 'string'
+        ? storedFacts.topicSummary
+        : '';
+
+  if (storedSubject.trim()) {
+    return extractDisplayTopicLabel(storedSubject);
+  }
+
+  const parsedSubject = resolveParsedProductSubject(context);
+  return parsedSubject ? extractDisplayTopicLabel(parsedSubject) : '';
+}
+
+function requiresAxisBackedVariantFallback(context: ApprovedResponseContext) {
+  const requestedDetailTypes =
+    context.documentContext?.grounding.requestedDetailTypes ?? [];
+
+  if (!requestedDetailTypes.includes('specific_variants')) {
+    return false;
+  }
+
+  return !(
+    context.documentContext?.matches.some((match) => {
+      const supportedAxes = new Set(match.supportSummary?.supportedAxes ?? []);
+      const axisSummaries = match.supportSummary?.axisSummaries ?? [];
+
+      if (
+        supportedAxes.has('specific_variants') ||
+        supportedAxes.has('product_types')
+      ) {
+        return true;
+      }
+
+      return axisSummaries.some(
+        (summary) =>
+          summary.axis === 'specific_variants' || summary.axis === 'product_types',
+      );
+    }) ?? false
+  );
+}
+
+function normalizeOverviewValuesForSubject(values: string[], subjectLabel: string) {
+  const normalizedSubject = normalizeDocumentKnowledgeText(subjectLabel);
+  const subjectTokens = normalizedSubject.split(/\s+/u).filter(Boolean);
+  const subjectTail = subjectTokens[subjectTokens.length - 1] ?? '';
+
+  if (!normalizedSubject) {
+    return values;
+  }
+
+  return values.map((value) => {
+    const trimmed = value.trim();
+    const normalizedValue = normalizeDocumentKnowledgeText(trimmed);
+
+    if (!normalizedValue) {
+      return trimmed;
+    }
+
+    let withoutSubjectPrefix = normalizedValue.startsWith(normalizedSubject)
+      ? normalizedValue.slice(normalizedSubject.length).trim()
+      : normalizedValue.replace(
+          new RegExp(`^${escapeRegExp(normalizedSubject)}\\s+`, 'u'),
+          '',
+        );
+
+    if (!withoutSubjectPrefix && subjectTail) {
+      withoutSubjectPrefix = normalizedValue.replace(
+        new RegExp(`^${escapeRegExp(subjectTail)}\\s+`, 'u'),
+        '',
+      );
+    }
+
+    if (
+      withoutSubjectPrefix === normalizedValue &&
+      subjectTail &&
+      normalizedValue.startsWith(`${subjectTail} `)
+    ) {
+      withoutSubjectPrefix = normalizedValue.slice(subjectTail.length).trim();
+    }
+
+    if (!withoutSubjectPrefix) {
+      return trimmed;
+    }
+
+    return withoutSubjectPrefix;
+  });
+}
+
+function lowercaseFirst(value: string) {
+  if (!value) {
+    return value;
+  }
+
+  return value.charAt(0).toLocaleLowerCase() + value.slice(1);
+}
+
+function joinResponseValues(values: string[], locale: string) {
+  const dedupedValues = Array.from(
+    new Set(
+      values
+        .map((value) => formatInlineResponseValue(value))
+        .filter(Boolean),
+    ),
+  );
+
+  if (dedupedValues.length <= 1) {
+    return dedupedValues[0] ?? '';
+  }
+
+  return formatLocalizedList(dedupedValues, locale, 'conjunction');
+}
+
+function joinAlternativeValues(values: string[], locale: string) {
+  const dedupedValues = Array.from(
+    new Set(
+      values
+        .map((value) => formatInlineResponseValue(value))
+        .filter(Boolean),
+    ),
+  );
+
+  if (dedupedValues.length <= 1) {
+    return dedupedValues[0] ?? '';
+  }
+
+  return formatLocalizedList(dedupedValues, locale, 'disjunction');
+}
+
+function formatInlineResponseValue(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  if (/^[A-Z0-9]+$/u.test(trimmed) && trimmed.length <= 5) {
+    return trimmed;
+  }
+
+  if (/^[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ]+(?:\s+[a-záéíóúüñ]+)*$/u.test(trimmed)) {
+    return trimmed.toLowerCase();
+  }
+
+  return trimmed;
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+}
+
+function formatLocalizedList(
+  values: string[],
+  locale: string,
+  type: 'conjunction' | 'disjunction',
+) {
+  return new Intl.ListFormat(locale, {
+    style: 'long',
+    type,
+  }).format(values);
 }

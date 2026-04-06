@@ -1,0 +1,87 @@
+{
+  "locale": "default",
+  "detailTypes": {
+    "coverage_support": {
+      "requestTerms": ["covered", "coverage", "include", "included"],
+      "generalEvidenceTerms": ["covered", "coverage", "include", "included"],
+      "unspecifiedLabel": "whether it is covered"
+    },
+    "pricing": {
+      "requestTerms": ["price", "pricing", "cost", "budget"],
+      "generalEvidenceTerms": ["price", "pricing", "cost", "usd", "$"],
+      "supportedAxes": ["commercial_visit_cost", "travel_cost_responsibility"],
+      "unspecifiedLabel": "pricing details"
+    },
+    "payment_terms": {
+      "requestTerms": ["payment", "payments", "installment", "installments", "card", "cards"],
+      "generalEvidenceTerms": ["payment", "payments", "installment", "installments", "card", "cards", "mercado pago"],
+      "supportedAxes": ["payment_methods", "payment_terms", "installment_count"],
+      "unspecifiedLabel": "the payment terms"
+    },
+    "purchase_channel": {
+      "requestTerms": ["buy", "purchase", "order", "shop", "store"],
+      "generalEvidenceTerms": ["buy", "purchase", "order", "store", "shop"],
+      "unspecifiedLabel": "where to buy it"
+    },
+    "availability": {
+      "requestTerms": ["availability", "available", "stock", "delivery"],
+      "generalEvidenceTerms": ["available", "availability", "stock", "delivery"],
+      "unspecifiedLabel": "exact availability"
+    },
+    "warranty": {
+      "requestTerms": ["warranty", "guarantee"],
+      "generalEvidenceTerms": ["warranty", "guarantee", "years", "year"],
+      "supportedAxes": ["warranty_terms"],
+      "unspecifiedLabel": "the warranty details"
+    },
+    "materials": {
+      "requestTerms": ["material", "materials", "fabric", "finish"],
+      "generalEvidenceTerms": ["material", "materials", "fabric", "finish"],
+      "supportedAxes": ["materials"],
+      "unspecifiedLabel": "exact material details"
+    },
+    "color_options": {
+      "requestTerms": ["color", "colors", "tone", "tones"],
+      "generalEvidenceTerms": ["color", "colors", "tone", "tones", "variety"],
+      "supportedAxes": ["color_options"],
+      "unspecifiedAxes": ["exact_color_options"],
+      "unspecifiedLabel": "the exact color options"
+    },
+    "specific_variants": {
+      "requestTerms": ["variant", "variants", "model", "models", "option", "options"],
+      "generalEvidenceTerms": ["variant", "variants", "model", "models", "option", "options", "variety"],
+      "supportedAxes": ["specific_variants", "product_types"],
+      "unspecifiedLabel": "the exact variants"
+    }
+  },
+  "unspecifiedCues": [
+    "not specified",
+    "does not specify",
+    "does not say",
+    "not specified in the document",
+    "not provided",
+    "not detailed",
+    "not listed"
+  ],
+  "exactnessCues": ["exact", "exactly", "specific", "specifically", "which"],
+  "closeTurnReopenCues": [
+    "if you have more questions",
+    "if you need anything else",
+    "feel free to ask",
+    "i am here to help",
+    "let me know if you need"
+  ],
+  "questionSignals": {
+    "broadOverviewIntentTerms": ["have", "has", "do", "does", "work", "works", "offer", "offers", "information", "info", "options", "looking", "need", "want"],
+    "availabilityIntentTerms": ["have", "has", "do", "does", "work", "works", "offer", "offers"],
+    "detailCueTerms": ["color", "colors", "material", "materials", "type", "types", "line", "lines", "series", "measurements", "installment", "installments", "card", "cards", "warranty", "payment", "payments", "price", "prices", "dvh", "visit", "installation", "hours", "schedule"]
+  },
+  "unspecifiedDetailPrefix": "I don't have confirmation on",
+  "labelJoiner": "or",
+  "guardrail": {
+    "minimumTokenLength": 4,
+    "minimumSentenceTokenCount": 4,
+    "minimumOverlapCount": 2,
+    "maximumNovelRatio": 0.7
+  }
+}

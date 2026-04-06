@@ -97,4 +97,53 @@ describe('ApprovedResponseContextService', () => {
       }),
     );
   });
+
+  it('does not mark a turn as opening just because continuity invalidated the previous lane when prior messages exist', () => {
+    const service = new ApprovedResponseContextService(
+      new ResponseGroundingService(),
+    );
+
+    const context = service.build({
+      message: 'Cómo se hace para coordinar visita?',
+      interpretation: {
+        intent: 'CREATE_BOOKING',
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'Cómo se hace para coordinar visita?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      decision: {
+        domain: 'core',
+        action: 'clarify',
+        reasonCode: 'booking_missing_fields',
+        missingFields: ['requested_date'],
+        responseTemplateKey: 'core.clarification',
+      },
+      execution: null,
+      continuity: {
+        applied: false,
+        activeLane: 'booking',
+        carriedFactKeys: [],
+        invalidatedFactKeys: ['topicSummary'],
+        missingFields: [],
+        previousStateSummary: null,
+      },
+      conversationState: null,
+      documentContext: null,
+      hasPriorMessages: true,
+    });
+
+    expect(context.responseStyle).toEqual(
+      expect.objectContaining({
+        includeInitialGreeting: false,
+        hasPriorConversation: true,
+      }),
+    );
+  });
 });

@@ -474,6 +474,100 @@ describe('ConversationContinuityService', () => {
     );
   });
 
+  it('does not promote an informational visit question into CREATE_BOOKING when the booking lane is still missing a date', async () => {
+    const { service } = createService({
+      conversationId: 'conv-booking-info',
+      lane: 'booking',
+      lastIntent: 'CREATE_BOOKING',
+      lastApprovedAction: null,
+      lastApprovedToolName: null,
+      approvedFacts: {
+        requestSummary: 'Quiero coordinar una visita.',
+      },
+      pendingFacts: {
+        requestSummary: 'Quiero coordinar una visita.',
+      },
+      missingFields: ['requested_date'],
+      nextUsefulField: 'requested_date',
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-03T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-booking-info',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'dentro de montevideo tiene costo la visita?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    expect(prepared.continuity).toEqual(
+      expect.objectContaining({
+        activeLane: 'booking',
+        missingFields: ['requested_date'],
+        nextUsefulField: 'requested_date',
+      }),
+    );
+    expect(prepared.effectiveInterpretation.intent).toBe('GENERAL_CONVERSATION');
+    expect(prepared.effectiveInterpretation.entities.rawMessage).toBe(
+      'dentro de montevideo tiene costo la visita?',
+    );
+  });
+
+  it('does not promote a gratitude-only follow-up into CREATE_BOOKING when booking is missing only the date', async () => {
+    const { service } = createService({
+      conversationId: 'conv-booking-thanks',
+      lane: 'booking',
+      lastIntent: 'CREATE_BOOKING',
+      lastApprovedAction: 'clarify',
+      lastApprovedToolName: null,
+      approvedFacts: {
+        attendees: 1,
+        requestSummary: 'Consulta sobre toma de medidas a domicilio.',
+      },
+      pendingFacts: {
+        attendees: 1,
+        requestSummary: 'Consulta sobre toma de medidas a domicilio.',
+      },
+      missingFields: ['requested_date'],
+      nextUsefulField: 'requested_date',
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-03T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-booking-thanks',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'muchas gracias muy amable',
+          attendees: 1,
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    expect(prepared.continuity.activeLane).toBe('booking');
+    expect(prepared.effectiveInterpretation.intent).toBe('GENERAL_CONVERSATION');
+  });
+
   it('carries the most specific booking summary forward for fragmented scheduling turns', async () => {
     const { service } = createService({
       conversationId: 'conv-booking-summary',
@@ -686,6 +780,183 @@ describe('ConversationContinuityService', () => {
         lastApprovedAction: 'respond',
         approvedFacts: expect.objectContaining({
           activeDocumentIds: ['doc-1'],
+        }),
+      }),
+    );
+  });
+
+  it('keeps a stable document subject while allowing the topic to refine around the current facet', async () => {
+    const { service } = createService({
+      conversationId: 'conv-doc-subject',
+      lane: 'document_exploration',
+      lastIntent: 'GENERAL_CONVERSATION',
+      lastApprovedAction: 'respond',
+      lastApprovedToolName: null,
+      approvedFacts: {
+        activeDocumentIds: ['doc-aberturas'],
+        subjectSummary: 'aberturas',
+        topicSummary: 'aberturas',
+        lastDocumentQuery:
+          'aberturas en aluminio. serie gala alguna soporte dvh. cual proceso coordinar relevamiento',
+      },
+      pendingFacts: null,
+      missingFields: [],
+      nextUsefulField: null,
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-05T20:00:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-doc-subject',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.93,
+        entities: {
+          rawMessage: 'que datos necesitan para pasarme una cotizacion?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    const state = await service.persistTurnState({
+      conversationId: 'conv-doc-subject',
+      preparedTurn: prepared,
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      execution: null,
+      documentRetrieval: {
+        attempted: true,
+        reason: 'active_document_continuation',
+        result: {
+          source: 'document_origin',
+          query: 'aberturas. que datos necesitan para pasarme una cotizacion?',
+          groundedSummary:
+            'Para poder cotizar aberturas necesitamos medidas aproximadas y definir si quiere DVH.',
+          matches: [
+            {
+              documentId: 'doc-aberturas',
+              title: 'Documento Maestro',
+              excerpt:
+                'Para poder cotizar aberturas necesitamos medidas aproximadas y definir si quiere DVH.',
+              sequence: 0,
+              score: 4.2,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(state).toEqual(
+      expect.objectContaining({
+        lane: 'document_exploration',
+        approvedFacts: expect.objectContaining({
+          subjectSummary: 'aberturas',
+          topicSummary: expect.stringContaining('aberturas'),
+          lastDocumentQuery: expect.stringContaining('cotizacion'),
+        }),
+      }),
+    );
+    expect(state?.approvedFacts).not.toEqual(
+      expect.objectContaining({
+        topicSummary:
+          'aberturas en aluminio. serie gala alguna soporte dvh. cual proceso coordinar relevamiento',
+      }),
+    );
+  });
+
+  it('updates the stored document subject when the conversation pivots to a new explicit product subject', async () => {
+    const { service } = createService({
+      conversationId: 'conv-doc-pivot',
+      lane: 'document_exploration',
+      lastIntent: 'GENERAL_CONVERSATION',
+      lastApprovedAction: 'respond',
+      lastApprovedToolName: null,
+      approvedFacts: {
+        activeDocumentIds: ['doc-maestro'],
+        subjectSummary: 'costo visita a domicilio Montevideo',
+        topicSummary: 'costo visita a domicilio Montevideo',
+        lastDocumentQuery: 'costo visita a domicilio Montevideo',
+        lastGroundedSummary:
+          'Las visitas dentro de Montevideo son sin costo. Fuera de Montevideo puede corresponder costo de traslado.',
+      },
+      pendingFacts: null,
+      missingFields: [],
+      nextUsefulField: null,
+      lastApprovedResult: null,
+      metadata: null,
+      updatedAt: new Date('2026-04-05T23:20:00.000Z'),
+    });
+
+    const prepared = await service.prepareTurn({
+      conversationId: 'conv-doc-pivot',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.94,
+        entities: {
+          rawMessage: 'que garantia tienen las cortinas de enrollar?',
+          productQuery: 'cortinas de enrollar',
+          requestSummary: 'Consulta sobre garantía de cortinas de enrollar',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+    });
+
+    const state = await service.persistTurnState({
+      conversationId: 'conv-doc-pivot',
+      preparedTurn: prepared,
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      execution: null,
+      documentRetrieval: {
+        attempted: true,
+        reason: 'active_document_continuation',
+        result: {
+          source: 'document_origin',
+          query: 'garantía cortinas de enrollar',
+          groundedSummary:
+            'La garantía depende del producto. En varias líneas de aluminio y roller trabajamos con 2 años, y en distintas opciones de PVC la referencia habitual es 1 año.',
+          matches: [
+            {
+              documentId: 'doc-maestro',
+              title: 'Documento Maestro',
+              excerpt:
+                'La garantía depende del producto. En varias líneas de aluminio y roller trabajamos con 2 años, y en distintas opciones de PVC la referencia habitual es 1 año.',
+              sequence: 0,
+              score: 6.2,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(state).toEqual(
+      expect.objectContaining({
+        lane: 'document_exploration',
+        approvedFacts: expect.objectContaining({
+          subjectSummary: 'cortinas de enrollar',
+          topicSummary: expect.stringContaining('garantía'),
+          lastDocumentQuery: 'garantía cortinas de enrollar',
         }),
       }),
     );

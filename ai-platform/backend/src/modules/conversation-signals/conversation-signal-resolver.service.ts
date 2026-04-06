@@ -36,6 +36,9 @@ export class ConversationSignalResolverService {
         ? this.resolveFocusText(catalog.document, candidateTexts, locale)
         : null;
     const primaryText = topicText || candidateTexts[0] || '';
+    const hasStructuredProductSubject = hasStructuredSubjectEntity(
+      input.interpretation.entities,
+    );
     const primaryTokens = tokenizeConversationSignalText(primaryText, {
       locale,
       minimumTokenLength: 2,
@@ -57,8 +60,11 @@ export class ConversationSignalResolverService {
         primaryTokens.length <= 4 &&
         primaryText.length <= 40 &&
         !questionLike);
+    const canSwitchActiveThread =
+      Boolean(input.conversationState) || previousTopic.length > 0;
     const resume = threading.matchedCategories.includes('resume');
     const hardSwitchSuggested =
+      canSwitchActiveThread &&
       threading.matchedCategories.includes('switch') &&
       (primaryTokens.length >= 3 || primaryText.length >= 24);
     const channelInterference = noise.matchedCategories.includes('auto_reply');
@@ -100,6 +106,7 @@ export class ConversationSignalResolverService {
           topicCarryoverEligible,
         activeLane: input.conversationState?.lane ?? null,
         topicCarryoverEligible,
+        hasStructuredSubject: hasStructuredProductSubject,
       });
 
     return {
@@ -320,8 +327,13 @@ export class ConversationSignalResolverService {
     advisorySupported: boolean;
     activeLane: string | null;
     topicCarryoverEligible: boolean;
+    hasStructuredSubject: boolean;
   }) {
     if (input.topicCarryoverEligible) {
+      return true;
+    }
+
+    if (input.hasStructuredSubject && input.retrievalTokenCount > 0) {
       return true;
     }
 
@@ -391,6 +403,13 @@ export class ConversationSignalResolverService {
         : {};
 
     if (
+      typeof facts.lastDocumentQuery === 'string' &&
+      facts.lastDocumentQuery.trim().length > 0
+    ) {
+      return facts.lastDocumentQuery.trim();
+    }
+
+    if (
       typeof facts.subjectSummary === 'string' &&
       facts.subjectSummary.trim().length > 0
     ) {
@@ -405,13 +424,6 @@ export class ConversationSignalResolverService {
     }
 
     if (
-      typeof facts.lastDocumentQuery === 'string' &&
-      facts.lastDocumentQuery.trim().length > 0
-    ) {
-      return facts.lastDocumentQuery.trim();
-    }
-
-    if (
       typeof facts.requestSummary === 'string' &&
       facts.requestSummary.trim().length > 0
     ) {
@@ -420,6 +432,15 @@ export class ConversationSignalResolverService {
 
     return null;
   }
+}
+
+function hasStructuredSubjectEntity(entities: Record<string, unknown>) {
+  return (
+    (typeof entities.productQuery === 'string' &&
+      entities.productQuery.trim().length > 0) ||
+    (typeof entities.requestSummary === 'string' &&
+      entities.requestSummary.trim().length > 0)
+  );
 }
 
 function dedupe(values: string[]) {

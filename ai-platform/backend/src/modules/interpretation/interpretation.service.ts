@@ -133,11 +133,11 @@ export class InterpretationService {
       normalized.sku = sku;
     }
 
-    if (productQuery && intent === 'GET_PRODUCT') {
+    if (productQuery) {
       normalized.productQuery = productQuery;
     }
 
-    if (requestSummary && (intent === 'CREATE_BOOKING' || intent === 'CREATE_QUOTE')) {
+    if (requestSummary) {
       normalized.requestSummary = requestSummary;
     }
 

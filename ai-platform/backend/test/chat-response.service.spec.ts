@@ -1,6 +1,20 @@
 import { ChatResponseService } from '../src/modules/response/chat-response.service';
 
 describe('ChatResponseService', () => {
+  const responseFallbackService = {
+    startsWithGreeting: jest.fn(
+      async (_locale: string | null | undefined, value: string) => {
+        const normalized = value.trim().toLowerCase();
+        return (
+          normalized.startsWith('hola') ||
+          normalized.startsWith('buenas') ||
+          normalized.startsWith('hello') ||
+          normalized.startsWith('hi')
+        );
+      },
+    ),
+  };
+
   const clarifyInput = {
     message: 'Reservar',
     interpretation: {
@@ -215,6 +229,7 @@ describe('ChatResponseService', () => {
           reasons: [],
         })),
       } as any,
+      responseFallbackService as any,
     );
 
     await expect(service.generate(executionInput as any)).resolves.toEqual(
@@ -260,6 +275,7 @@ describe('ChatResponseService', () => {
           reasons: [],
         })),
       } as any,
+      responseFallbackService as any,
     );
 
     await expect(service.generate(clarifyInput as any)).resolves.toEqual(
@@ -294,6 +310,7 @@ describe('ChatResponseService', () => {
       {
         evaluate: jest.fn(),
       } as any,
+      responseFallbackService as any,
     );
 
     await expect(service.generate(clarifyInput as any)).resolves.toEqual(
@@ -342,6 +359,7 @@ describe('ChatResponseService', () => {
           reasons: ['outcome_mismatch', 'unsupported_result_keys'],
         })),
       } as any,
+      responseFallbackService as any,
     );
 
     await expect(service.generate(clarifyInput as any)).resolves.toEqual(
@@ -357,6 +375,65 @@ describe('ChatResponseService', () => {
         }),
       }),
     );
+  });
+
+  it('locks close_turn responses to the approved draft and skips AI generation', async () => {
+    const generateResponse = jest.fn();
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          userMessage: 'Perfecto muchas gracias por su ayuda',
+          outcome: 'close_turn',
+          decision: {
+            domain: 'core',
+            action: 'close_turn',
+            reasonCode: 'contextual_close_acknowledged',
+            missingFields: [],
+            responseTemplateKey: 'core.close_turn',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: false,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: false,
+            preferMultiline: false,
+            hasPriorConversation: true,
+          },
+          documentContext: undefined,
+          approvedDocumentIds: [],
+        })),
+      } as any,
+      {
+        resolve: jest.fn(
+          () => 'Gracias por escribir. Quedamos a disposición por cualquier otra duda.',
+        ),
+      } as any,
+      {
+        generateResponse,
+      } as any,
+      {
+        evaluate: jest.fn(),
+      } as any,
+      responseFallbackService as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        response:
+          'Gracias por escribir. Quedamos a disposición por cualquier otra duda.',
+        usedFallback: true,
+        fallbackReason: 'policy_locked',
+      }),
+    );
+    expect(generateResponse).not.toHaveBeenCalled();
   });
 
   it('keeps the AI response path open for ordinary document turns even when support is unavailable', async () => {
@@ -398,6 +475,7 @@ describe('ChatResponseService', () => {
             preferBrief: true,
             incrementalFollowUp: true,
             groundedKnowledgeOnly: false,
+            hasPriorConversation: true,
           },
         })),
       } as any,
@@ -432,6 +510,7 @@ describe('ChatResponseService', () => {
           reasons: [],
         })),
       } as any,
+      responseFallbackService as any,
     );
 
     await expect(service.generate(clarifyInput as any)).resolves.toEqual(
@@ -470,6 +549,7 @@ describe('ChatResponseService', () => {
             groundedKnowledgeOnly: false,
             includeInitialGreeting: true,
             preferMultiline: true,
+            hasPriorConversation: false,
           },
           approvedDocumentIds: ['doc-1'],
           approvedFactKeys: [],
@@ -524,6 +604,7 @@ describe('ChatResponseService', () => {
           reasons: [],
         })),
       } as any,
+      responseFallbackService as any,
     );
 
     await expect(service.generate(clarifyInput as any)).resolves.toEqual(
@@ -533,6 +614,297 @@ describe('ChatResponseService', () => {
         usedFallback: false,
       }),
     );
+  });
+
+  it('falls back to the approved draft when a follow-up turn adds a fresh greeting', async () => {
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          userMessage: 'buenismo te agradezco la ayuda. Como se hace para coordinar visita?',
+          outcome: 'clarify',
+          decision: {
+            domain: 'core',
+            action: 'clarify',
+            reasonCode: 'booking_missing_fields',
+            missingFields: ['requested_date'],
+            responseTemplateKey: 'core.clarification',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: false,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: false,
+            preferMultiline: false,
+            hasPriorConversation: true,
+          },
+          approvedDocumentIds: [],
+          approvedFactKeys: [],
+          approvedResultKeys: [],
+        })),
+      } as any,
+      {
+        resolve: jest.fn(() => 'Indicame cuándo te queda bien la visita y sigo con eso.'),
+      } as any,
+      {
+        generateResponse: jest.fn(async () => ({
+          ok: true,
+          rawResponse:
+            '{"message":"Hola, gracias por contactarnos. Indicame cuándo te queda bien la visita y sigo con eso.","assertedOutcome":"clarify","assertedExecutionStatus":"not_applicable","mentionedMissingFields":["requested_date"],"mentionedApprovedFactKeys":[],"mentionedApprovedResultKeys":[],"mentionedDocumentIds":[]}',
+          parsedResponse: {
+            message:
+              'Hola, gracias por contactarnos. Indicame cuándo te queda bien la visita y sigo con eso.',
+            assertedOutcome: 'clarify',
+            assertedExecutionStatus: 'not_applicable',
+            mentionedMissingFields: ['requested_date'],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [],
+            mentionedDocumentIds: [],
+          },
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+        })),
+      } as any,
+      {
+        evaluate: jest.fn(() => ({
+          accepted: false,
+          reasons: ['unexpected_followup_greeting'],
+        })),
+      } as any,
+      responseFallbackService as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        response: 'Indicame cuándo te queda bien la visita y sigo con eso.',
+        usedFallback: true,
+        fallbackReason: 'guardrail_rejected',
+      }),
+    );
+  });
+
+  it('salvages a grounded AI response by stripping only the duplicate opening greeting', async () => {
+    const evaluate = jest.fn(({ generatedResponse }) => {
+      if (generatedResponse.message.startsWith('Hola, gracias por contactarnos.')) {
+        return {
+          accepted: false,
+          reasons: ['duplicate_opening_greeting'],
+        };
+      }
+
+      return {
+        accepted: true,
+        reasons: [],
+      };
+    });
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          userMessage: 'Que medios de pago aceptan?',
+          intent: 'GENERAL_CONVERSATION',
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'document_grounded_exploration',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: false,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: true,
+            preferMultiline: true,
+            hasPriorConversation: false,
+          },
+          approvedDocumentIds: ['doc-1'],
+          approvedFactKeys: [],
+          approvedResultKeys: [],
+          documentContext: {
+            source: 'document_origin',
+            query: 'medios de pago',
+            groundedSummary: 'Medios de pago: Mercado Pago',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'explicit',
+              exactnessRequested: false,
+              requestedDetailTypes: [],
+              supportedDetailTypes: [],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: [],
+            },
+            matches: [],
+          },
+        })),
+      } as any,
+      {
+        resolve: jest.fn(
+          () =>
+            'Hola, gracias por contactarnos.\n\nMedios de pago: Mercado Pago.',
+        ),
+      } as any,
+      {
+        generateResponse: jest.fn(async () => ({
+          ok: true,
+          rawResponse: '{}',
+          parsedResponse: {
+            message:
+              'Hola, gracias por contactarnos. Aceptamos transferencia bancaria, efectivo, Mercado Pago y tarjetas.',
+            assertedOutcome: 'respond',
+            assertedExecutionStatus: 'not_applicable',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [],
+            mentionedDocumentIds: ['doc-1'],
+          },
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+        })),
+      } as any,
+      {
+        evaluate,
+      } as any,
+      responseFallbackService as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        response:
+          'Hola, gracias por contactarnos.\n\nAceptamos transferencia bancaria, efectivo, Mercado Pago y tarjetas.',
+        usedFallback: false,
+        fallbackReason: null,
+      }),
+    );
+    expect(evaluate).toHaveBeenCalledTimes(2);
+  });
+
+  it('salvages a grounded AI response when the duplicate greeting is inline with the answer sentence', async () => {
+    const evaluate = jest.fn(({ generatedResponse }) => {
+      if (generatedResponse.message.startsWith('Hola, sí')) {
+        return {
+          accepted: false,
+          reasons: ['duplicate_opening_greeting'],
+        };
+      }
+
+      return {
+        accepted: true,
+        reasons: [],
+      };
+    });
+    const service = new ChatResponseService(
+      {
+        build: jest.fn(() => ({
+          ...buildClarifyContext(),
+          userMessage: 'tienen cortina de enrollar en aluminio?',
+          intent: 'GENERAL_CONVERSATION',
+          outcome: 'respond',
+          decision: {
+            domain: 'core',
+            action: 'respond',
+            reasonCode: 'document_grounded_exploration',
+            missingFields: [],
+            responseTemplateKey: 'core.general_response',
+          },
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: false,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: true,
+            preferMultiline: true,
+            hasPriorConversation: false,
+          },
+          approvedDocumentIds: ['doc-1'],
+          approvedFactKeys: [],
+          approvedResultKeys: [],
+          documentContext: {
+            source: 'document_origin',
+            query: 'cortina de enrollar en aluminio',
+            groundedSummary:
+              'Materiales (cortinas de enrollar): aluminio',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'explicit',
+              exactnessRequested: false,
+              requestedDetailTypes: [],
+              supportedDetailTypes: [],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: [],
+            },
+            matches: [],
+          },
+        })),
+      } as any,
+      {
+        resolve: jest.fn(
+          () => 'Hola, gracias por contactarnos.\n\nSí, trabajamos con cortina de enrollar en aluminio.',
+        ),
+      } as any,
+      {
+        generateResponse: jest.fn(async () => ({
+          ok: true,
+          rawResponse: '{}',
+          parsedResponse: {
+            message:
+              'Hola, sí contamos con cortina de enrollar en aluminio, que es una opción robusta y durable.',
+            assertedOutcome: 'respond',
+            assertedExecutionStatus: 'not_applicable',
+            mentionedMissingFields: [],
+            mentionedApprovedFactKeys: [],
+            mentionedApprovedResultKeys: [],
+            mentionedDocumentIds: ['doc-1'],
+          },
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+        })),
+      } as any,
+      {
+        evaluate,
+      } as any,
+      responseFallbackService as any,
+    );
+
+    await expect(service.generate(clarifyInput as any)).resolves.toEqual(
+      expect.objectContaining({
+        response:
+          'Hola, gracias por contactarnos.\n\nSí contamos con cortina de enrollar en aluminio, que es una opción robusta y durable.',
+        usedFallback: false,
+        fallbackReason: null,
+      }),
+    );
+    expect(evaluate).toHaveBeenCalledTimes(2);
   });
 
   it('normalizes unsupported provenance references before evaluating guardrails', async () => {
@@ -570,6 +942,7 @@ describe('ChatResponseService', () => {
             groundedKnowledgeOnly: false,
             includeInitialGreeting: true,
             preferMultiline: true,
+            hasPriorConversation: false,
           },
           approvedDocumentIds: ['doc-1'],
           approvedFactKeys: ['lastGroundedSummary'],
@@ -621,6 +994,7 @@ describe('ChatResponseService', () => {
       {
         evaluate,
       } as any,
+      responseFallbackService as any,
     );
 
     await expect(service.generate(clarifyInput as any)).resolves.toEqual(

@@ -6,6 +6,7 @@ When useful, preserve neutral summaries or direct query text in entities.request
 For broad informational or advisory questions about a product family, category, feature, material, color, type, coverage, or suitability, prefer a conversational/knowledge intent over GET_PRODUCT unless the user is clearly asking for a specific catalog item or grounded transactional lookup.
 Do not classify a turn as GET_PRODUCT only because the message mentions a product line, generic category, or common material without a grounded item request.
 When the user clearly wants to schedule a visit or appointment, prefer CREATE_BOOKING instead of a generic conversation label.
+If the user is only asking how scheduling works, whether a visit has cost, what area is covered, or another informational question around a visit without actually asking to book now, prefer a conversational/knowledge intent over CREATE_BOOKING.
 If the user asks about approved knowledge and also explicitly asks to schedule, still prefer CREATE_BOOKING and preserve the original request details for backend processing.
 Keep date/time phrases, measurements, dimensions, and the service or product detail available for backend capability processing when present.
 Do not map tenant-specific commercial preferences, room taxonomies, price bands, or catalog-specific overlays into synthetic normalized entities in the core policy base.

@@ -8,6 +8,7 @@ import {
 import { DecisionResult } from '../decision/decision.types';
 import { DocumentRetrievalResult } from '../documents/document.types';
 import { ParsedInterpretation } from '../parsing/parsing.service';
+import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
 import { ToolExecutionAttempt } from '../tools/tool.types';
 import { ApprovedResponseContextService } from './approved-response-context.service';
 import { ChatResponsePolicyService } from './chat-response-policy.service';
@@ -21,6 +22,7 @@ export class ChatResponseService {
     private readonly policyService: ChatResponsePolicyService,
     private readonly aiGatewayService: AiGatewayService,
     private readonly responseGuardrailService: ResponseGuardrailService,
+    private readonly responseFallbackService: ResponseFallbackService,
   ) {}
 
   async generate(input: {
@@ -31,6 +33,7 @@ export class ChatResponseService {
     documentContext: DocumentRetrievalResult | null;
     continuity: ContinuityMetadata;
     conversationState: ConversationStateSnapshot | null;
+    hasPriorMessages?: boolean;
     abortSignal?: AbortSignal;
   }): Promise<GeneratedChatResponse> {
     const approvedContext = this.approvedResponseContextService.build({
@@ -48,8 +51,32 @@ export class ChatResponseService {
         previousStateSummary: null,
       },
       conversationState: input.conversationState,
+      hasPriorMessages: input.hasPriorMessages,
     });
     const approvedDraft = await this.policyService.resolve(approvedContext);
+
+    if (approvedContext.outcome === 'close_turn') {
+      return {
+        response: approvedDraft,
+        approvedContext,
+        approvedDraft,
+        usedFallback: true,
+        fallbackReason: 'policy_locked',
+        generation: {
+          provider: 'policy',
+          model: null,
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse: null,
+          parsedJson: null,
+          error: null,
+          guardrails: {
+            accepted: true,
+            reasons: [],
+          },
+        },
+      };
+    }
 
     if (approvedContext.responseStyle?.groundedKnowledgeOnly) {
       return {
@@ -88,7 +115,7 @@ export class ChatResponseService {
         : generation.parsedResponse;
     const guardrails =
       generation.ok && normalizedParsedResponse
-        ? this.responseGuardrailService.evaluate({
+        ? await this.responseGuardrailService.evaluate({
             approvedContext,
             approvedDraft,
             generatedResponse: normalizedParsedResponse,
@@ -97,10 +124,26 @@ export class ChatResponseService {
             accepted: false,
             reasons: [],
           };
+    const repairedGeneration =
+      generation.ok && normalizedParsedResponse
+        ? await this.tryRepairGuardrailRejection({
+            approvedContext,
+            approvedDraft,
+            generatedResponse: normalizedParsedResponse,
+            guardrails,
+          })
+        : null;
+    const effectiveGeneratedResponse =
+      repairedGeneration?.generatedResponse ?? normalizedParsedResponse;
+    const effectiveGuardrails = repairedGeneration?.guardrails ?? guardrails;
 
-    if (generation.ok && normalizedParsedResponse && guardrails.accepted) {
+    if (
+      generation.ok &&
+      effectiveGeneratedResponse &&
+      effectiveGuardrails.accepted
+    ) {
       const response = await this.formatFinalResponse({
-        message: normalizedParsedResponse.message,
+        message: effectiveGeneratedResponse.message,
         approvedContext,
         approvedDraft,
       });
@@ -117,9 +160,9 @@ export class ChatResponseService {
           promptId: generation.promptId,
           promptVersion: generation.promptVersion,
           rawAiResponse: generation.rawResponse,
-          parsedJson: normalizedParsedResponse,
+          parsedJson: effectiveGeneratedResponse,
           error: generation.error,
-          guardrails,
+          guardrails: effectiveGuardrails,
         },
       };
     }
@@ -143,10 +186,63 @@ export class ChatResponseService {
         promptId: generation.promptId,
         promptVersion: generation.promptVersion,
         rawAiResponse: generation.rawResponse,
-        parsedJson: normalizedParsedResponse,
+        parsedJson: effectiveGeneratedResponse,
         error: generation.error,
-        guardrails,
+        guardrails: effectiveGuardrails,
       },
+    };
+  }
+
+  private async tryRepairGuardrailRejection(input: {
+    approvedContext: GeneratedChatResponse['approvedContext'];
+    approvedDraft: string;
+    generatedResponse: AiGeneratedResponse;
+    guardrails: GeneratedChatResponse['generation']['guardrails'];
+  }) {
+    if (input.guardrails.accepted) {
+      return null;
+    }
+
+    let candidateMessage = input.generatedResponse.message;
+    let changed = false;
+    const greetingRelatedReasons = new Set<string>([
+      'duplicate_opening_greeting',
+      'unexpected_followup_greeting',
+    ]);
+
+    if (
+      input.guardrails.reasons.some((reason) => greetingRelatedReasons.has(reason))
+    ) {
+      const strippedGreeting = await stripStandaloneGreeting({
+        locale: input.approvedContext.locale,
+        value: candidateMessage,
+        approvedDraft: input.approvedDraft,
+        responseFallbackService: this.responseFallbackService,
+      });
+
+      if (strippedGreeting && strippedGreeting !== candidateMessage.trim()) {
+        candidateMessage = strippedGreeting;
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      return null;
+    }
+
+    const generatedResponse = {
+      ...input.generatedResponse,
+      message: candidateMessage,
+    };
+    const guardrails = await this.responseGuardrailService.evaluate({
+      approvedContext: input.approvedContext,
+      approvedDraft: input.approvedDraft,
+      generatedResponse,
+    });
+
+    return {
+      generatedResponse,
+      guardrails,
     };
   }
 
@@ -302,4 +398,157 @@ export class ChatResponseService {
     const allowed = new Set(approved);
     return candidate.filter((value) => allowed.has(value));
   }
+}
+
+async function stripStandaloneGreeting(input: {
+  locale: string | null | undefined;
+  value: string;
+  approvedDraft: string;
+  responseFallbackService: ResponseFallbackService;
+}) {
+  const trimmed = input.value.trim();
+  const greetingCue = extractGreetingCue(input.approvedDraft);
+
+  if (
+    !trimmed ||
+    !greetingCue ||
+    !(await startsWithGreetingCue({
+      locale: input.locale,
+      value: trimmed,
+      greetingCue,
+      responseFallbackService: input.responseFallbackService,
+    }))
+  ) {
+    return trimmed;
+  }
+
+  const paragraphs = trimmed
+    .split(/\n{2,}/u)
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (
+    paragraphs.length >= 2 &&
+    (await startsWithGreetingCue({
+      locale: input.locale,
+      value: paragraphs[0],
+      greetingCue,
+      responseFallbackService: input.responseFallbackService,
+    }))
+  ) {
+    return paragraphs.slice(1).join('\n\n').trim();
+  }
+
+  const sentences = trimmed
+    .match(/[^.!?]+[.!?]+|[^.!?]+$/gu)
+    ?.map((sentence) => sentence.trim())
+    .filter((sentence) => sentence.length > 0);
+
+  if (sentences && sentences.length > 1) {
+    if (
+      await startsWithGreetingCue({
+        locale: input.locale,
+        value: sentences[0],
+        greetingCue,
+        responseFallbackService: input.responseFallbackService,
+      })
+    ) {
+      return sentences.slice(1).join(' ').trim();
+    }
+  }
+
+  const inlineGreetingStripped = stripGreetingLeadSegment(trimmed, greetingCue);
+
+  if (inlineGreetingStripped && inlineGreetingStripped !== trimmed) {
+    return inlineGreetingStripped;
+  }
+
+  return trimmed;
+}
+
+async function startsWithGreetingCue(input: {
+  locale: string | null | undefined;
+  value: string;
+  greetingCue: string;
+  responseFallbackService: ResponseFallbackService;
+}) {
+  const normalizedValue = input.value.trim();
+
+  if (!normalizedValue) {
+    return false;
+  }
+
+  if (
+    await input.responseFallbackService.startsWithGreeting(
+      input.locale,
+      normalizedValue,
+    )
+  ) {
+    return true;
+  }
+
+  return normalizeCue(normalizedValue).startsWith(normalizeCue(input.greetingCue));
+}
+
+function extractGreetingCue(approvedDraft: string) {
+  const firstParagraph = approvedDraft
+    .split(/\n{2,}/u)
+    .map((part) => part.trim())
+    .find((part) => part.length > 0);
+
+  if (!firstParagraph) {
+    return '';
+  }
+
+  const separatorIndex = findLeadingSeparatorIndex(firstParagraph);
+
+  if (separatorIndex > 0) {
+    return firstParagraph.slice(0, separatorIndex).trim();
+  }
+
+  return firstParagraph.split(/\s+/u).slice(0, 2).join(' ').trim();
+}
+
+function stripGreetingLeadSegment(value: string, greetingCue: string) {
+  const separatorIndex = findLeadingSeparatorIndex(value);
+
+  if (separatorIndex <= 0) {
+    return value;
+  }
+
+  const leadSegment = value.slice(0, separatorIndex).trim();
+
+  if (!normalizeCue(leadSegment).startsWith(normalizeCue(greetingCue))) {
+    return value;
+  }
+
+  return normalizeSentenceStart(value.slice(separatorIndex + 1).trim());
+}
+
+function findLeadingSeparatorIndex(value: string) {
+  const limit = Math.min(value.length, 48);
+
+  for (let index = 0; index < limit; index += 1) {
+    if (',.:;-!?'.includes(value[index])) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function normalizeCue(value: string) {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}+/gu, '')
+    .toLowerCase()
+    .trim();
+}
+
+function normalizeSentenceStart(value: string) {
+  if (!value) {
+    return value;
+  }
+
+  return value.charAt(0).toLocaleUpperCase() + value.slice(1);
 }

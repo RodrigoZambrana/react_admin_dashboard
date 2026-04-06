@@ -31,6 +31,7 @@ export class ApprovedResponseContextService {
       continuity: input.continuity,
       conversationState: input.conversationState,
       documentContext: approvedDocumentContext,
+      hasPriorMessages: input.hasPriorMessages,
     });
 
     return this.pruneUndefined({
@@ -210,19 +211,24 @@ export class ApprovedResponseContextService {
     continuity: ApprovedResponseContextInput['continuity'];
     conversationState: ApprovedResponseContextInput['conversationState'];
     documentContext: ApprovedResponseContext['documentContext'] | undefined;
+    hasPriorMessages?: boolean;
   }) {
     const lane =
       input.continuity.activeLane ?? input.conversationState?.lane ?? null;
+    const hasPriorConversation =
+      input.hasPriorMessages ??
+      Boolean(
+        input.conversationState ||
+          input.continuity.previousStateSummary ||
+          input.continuity.applied,
+      );
     const incrementalFollowUp =
       Boolean(input.documentContext) &&
       (lane === 'document_exploration' || lane === 'advisory_exploration') &&
       this.isBriefQuestionLike(input.message) &&
       this.normalizeForComparison(input.message) !==
         this.normalizeForComparison(input.documentContext?.query ?? '');
-    const openingTurn =
-      !input.conversationState &&
-      !input.continuity.previousStateSummary &&
-      !input.continuity.applied;
+    const openingTurn = !hasPriorConversation;
     const includeInitialGreeting =
       openingTurn &&
       (input.decisionAction === 'respond' || input.decisionAction === 'clarify');
@@ -241,6 +247,7 @@ export class ApprovedResponseContextService {
       groundedKnowledgeOnly: false,
       includeInitialGreeting,
       preferMultiline,
+      hasPriorConversation,
     };
   }
 

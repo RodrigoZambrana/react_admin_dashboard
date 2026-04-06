@@ -79,4 +79,15 @@ export class ConversationRepository {
       },
     });
   }
+
+  countMessages(conversationId: string) {
+    const tenantId = this.tenantContext.getTenantId();
+
+    return this.prisma.message.count({
+      where: {
+        tenantId,
+        conversationId,
+      },
+    });
+  }
 }

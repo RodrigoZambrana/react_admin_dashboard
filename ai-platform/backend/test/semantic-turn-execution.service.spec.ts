@@ -141,6 +141,7 @@ describe('SemanticTurnExecutionService', () => {
       append: jest.fn(async () => undefined),
     };
     const conversationRepository = {
+      countMessages: jest.fn(async () => 0),
       appendMessage: jest
         .fn()
         .mockResolvedValueOnce({ id: 'msg-user-1' })
@@ -207,6 +208,7 @@ describe('SemanticTurnExecutionService', () => {
 
   it('can defer assistant reply projection for async turn handling', async () => {
     const conversationRepository = {
+      countMessages: jest.fn(async () => 0),
       appendMessage: jest.fn(async () => ({ id: 'msg-user-1' })),
     };
     const service = new SemanticTurnExecutionService(
@@ -332,6 +334,128 @@ describe('SemanticTurnExecutionService', () => {
     );
   });
 
+  it('treats durable stored messages as prior conversation even when volatile memory is empty', async () => {
+    const chatResponseService = {
+      generate: jest.fn(async () => ({
+        response: 'Seguimos con el mismo hilo.',
+        approvedContext: {} as any,
+        approvedDraft: 'Seguimos con el mismo hilo.',
+        usedFallback: false,
+        fallbackReason: null,
+        generation: {
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          promptId: null,
+          promptVersion: null,
+          rawAiResponse: null,
+          parsedJson: null,
+          error: null,
+          guardrails: {
+            accepted: true,
+            issues: [],
+          },
+        },
+      })),
+    };
+    const conversationRepository = {
+      countMessages: jest.fn(async () => 4),
+      appendMessage: jest
+        .fn()
+        .mockResolvedValueOnce({ id: 'msg-user-1' })
+        .mockResolvedValueOnce({ id: 'msg-assistant-1' }),
+    };
+    const service = new SemanticTurnExecutionService(
+      {
+        getTraceId: () => 'trace-history',
+      } as any,
+      conversationRepository as any,
+      {
+        interpret: jest.fn(async () => ({
+          interpretation: {
+            intent: 'GENERAL_CONVERSATION',
+            entities: {
+              rawMessage: 'disculpe otra consulta',
+            },
+            language: 'es',
+            confidence: 0.91,
+          },
+          rawAiResponse: null,
+          parsedJson: null,
+          error: null,
+          provider: 'mock',
+          model: 'mock-rule-engine',
+          usedFallback: false,
+        })),
+      } as any,
+      {
+        normalize: jest.fn(async (interpretation: any) => ({
+          ...interpretation,
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        })),
+      } as any,
+      {
+        prepareTurn: jest.fn(async ({ interpretation }: any) => ({
+          previousState: null,
+          activeState: null,
+          effectiveInterpretation: interpretation,
+          continuity: {
+            applied: false,
+            activeLane: null,
+            carriedFactKeys: [],
+            invalidatedFactKeys: [],
+            missingFields: [],
+            previousStateSummary: null,
+          },
+        })),
+        persistTurnState: jest.fn(async () => null),
+      } as any,
+      {
+        decide: jest.fn(() => ({
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'general_conversation',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        })),
+      } as any,
+      {
+        executeApprovedAction: jest.fn(async () => null),
+      } as any,
+      {
+        retrieveForConversation: jest.fn(async () => ({
+          attempted: false,
+          reason: 'not_requested',
+          result: null,
+        })),
+        withDecisionContext: jest.fn((attempt: any) => attempt),
+      } as any,
+      chatResponseService as any,
+      {
+        getRecent: jest.fn(async () => []),
+        append: jest.fn(async () => undefined),
+      } as any,
+      {
+        recordStage: jest.fn(async () => undefined),
+      } as any,
+    );
+
+    await service.executeClosedTurn({
+      conversationId: 'conv-history',
+      message: 'disculpe otra consulta',
+      locale: 'es',
+    });
+
+    expect(chatResponseService.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hasPriorMessages: true,
+      }),
+    );
+  });
+
   it('passes approved document retrieval context into the response layer and traces retrieval separately', async () => {
     const traceLogService = {
       recordStage: jest.fn(async () => undefined),
@@ -384,6 +508,7 @@ describe('SemanticTurnExecutionService', () => {
         getTraceId: () => 'trace-doc-booking',
       } as any,
       {
+        countMessages: jest.fn(async () => 0),
         appendMessage: jest
           .fn()
           .mockResolvedValueOnce({ id: 'msg-user-1' })

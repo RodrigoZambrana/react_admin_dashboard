@@ -3,7 +3,23 @@ import { ResponseGroundingService } from '../src/modules/response/response-groun
 import { ApprovedResponseContext } from '../src/modules/response/response.types';
 
 describe('ResponseGuardrailService', () => {
-  const service = new ResponseGuardrailService(new ResponseGroundingService());
+  const responseFallbackService = {
+    startsWithGreeting: jest.fn(
+      async (_locale: string | null | undefined, value: string) => {
+        const normalized = value.trim().toLowerCase();
+        return (
+          normalized.startsWith('hola') ||
+          normalized.startsWith('buenas') ||
+          normalized.startsWith('hello') ||
+          normalized.startsWith('hi')
+        );
+      },
+    ),
+  };
+  const service = new ResponseGuardrailService(
+    new ResponseGroundingService(),
+    responseFallbackService as any,
+  );
 
   const approvedContext: ApprovedResponseContext = {
     locale: 'es',
@@ -69,8 +85,8 @@ describe('ResponseGuardrailService', () => {
     },
   };
 
-  it('accepts grounded AI output that matches backend-approved execution truth', () => {
-    expect(
+  it('accepts grounded AI output that matches backend-approved execution truth', async () => {
+    await expect(
       service.evaluate({
         approvedContext,
         generatedResponse: {
@@ -83,14 +99,14 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: ['doc-1'],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: true,
       reasons: [],
     });
   });
 
-  it('rejects fabricated success and unsupported result keys', () => {
-    expect(
+  it('rejects fabricated success and unsupported result keys', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -120,7 +136,7 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: ['doc-1'],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: false,
       reasons: [
         'outcome_mismatch',
@@ -130,8 +146,8 @@ describe('ResponseGuardrailService', () => {
     });
   });
 
-  it('rejects unsupported document pricing claims that are not backed by approved context', () => {
-    expect(
+  it('rejects unsupported document pricing claims that are not backed by approved context', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -169,14 +185,14 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: [],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: false,
       reasons: ['unsupported_document_detail'],
     });
   });
 
-  it('allows unsupported detail references when the reply explicitly says the detail is not specified', () => {
-    expect(
+  it('allows unsupported detail references when the reply explicitly says the detail is not specified', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -208,14 +224,14 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: [],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: true,
       reasons: [],
     });
   });
 
-  it('rejects vague replies that avoid the required unsupported-detail axis', () => {
-    expect(
+  it('rejects vague replies that avoid the required unsupported-detail axis', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -254,14 +270,14 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: [],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: false,
       reasons: ['missing_required_detail_axis'],
     });
   });
 
-  it('rejects presenting partially supported detail as explicit when exactness was requested', () => {
-    expect(
+  it('rejects presenting partially supported detail as explicit when exactness was requested', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -299,14 +315,14 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: [],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: false,
       reasons: ['partial_document_detail_overclaim'],
     });
   });
 
-  it('rejects unspecified-detail replies that dodge into the wrong detail axis', () => {
-    expect(
+  it('rejects unspecified-detail replies that dodge into the wrong detail axis', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -344,14 +360,14 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: [],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: false,
       reasons: ['wrong_unspecified_detail_axis'],
     });
   });
 
-  it('rejects document-grounded overreach when the reply introduces several unsupported option terms', () => {
-    expect(
+  it('rejects document-grounded overreach when the reply introduces several unsupported option terms', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -390,14 +406,14 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: [],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: false,
       reasons: ['document_context_overreach'],
     });
   });
 
-  it('does not reject a respond outcome only because the model echoed a non-applicable execution status incorrectly', () => {
-    expect(
+  it('does not reject a respond outcome only because the model echoed a non-applicable execution status incorrectly', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -449,14 +465,14 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: ['doc-1'],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: true,
       reasons: [],
     });
   });
 
-  it('rejects close_turn messages that reopen the conversation with a fresh help offer', () => {
-    expect(
+  it('rejects close_turn messages that reopen the conversation with a fresh help offer', async () => {
+    await expect(
       service.evaluate({
         approvedContext: {
           ...approvedContext,
@@ -482,9 +498,116 @@ describe('ResponseGuardrailService', () => {
           mentionedDocumentIds: [],
         },
       }),
-    ).toEqual({
+    ).resolves.toEqual({
       accepted: false,
       reasons: ['close_turn_reopen'],
+    });
+  });
+
+  it('rejects generated responses that add a second greeting when the opening is backend-owned', async () => {
+    await expect(
+      service.evaluate({
+        approvedContext: {
+          ...approvedContext,
+          outcome: 'respond',
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: false,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: true,
+            preferMultiline: true,
+            hasPriorConversation: false,
+          },
+          documentContext: {
+            source: 'document_origin',
+            query: 'cortinas de enrollar',
+            groundedSummary: 'Sí, tenemos cortinas de enrollar manuales y motorizadas.',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'explicit',
+              exactnessRequested: false,
+              requestedDetailTypes: [],
+              supportedDetailTypes: [],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: [],
+            },
+            matches: [],
+          },
+        },
+        generatedResponse: {
+          message: 'Hola, sí, tenemos cortinas de enrollar manuales y motorizadas.',
+          assertedOutcome: 'respond',
+          assertedExecutionStatus: 'not_applicable',
+          mentionedMissingFields: [],
+          mentionedApprovedFactKeys: [],
+          mentionedApprovedResultKeys: [],
+          mentionedDocumentIds: [],
+        },
+      }),
+    ).resolves.toEqual({
+      accepted: false,
+      reasons: ['duplicate_opening_greeting'],
+    });
+  });
+
+  it('rejects standalone greetings on follow-up turns even when the approved draft does not own an opening', async () => {
+    await expect(
+      service.evaluate({
+        approvedContext: {
+          ...approvedContext,
+          outcome: 'respond',
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          responseStyle: {
+            preferBrief: true,
+            incrementalFollowUp: true,
+            groundedKnowledgeOnly: false,
+            includeInitialGreeting: false,
+            preferMultiline: false,
+            hasPriorConversation: true,
+          },
+          documentContext: {
+            source: 'document_origin',
+            query: 'coordinar visita',
+            groundedSummary: 'Indicame cuándo te queda bien la visita y sigo con eso.',
+            responseMode: 'document_exploration',
+            grounding: {
+              supportLevel: 'explicit',
+              exactnessRequested: false,
+              requestedDetailTypes: [],
+              supportedDetailTypes: [],
+              partialDetailTypes: [],
+              unsupportedDetailTypes: [],
+            },
+            matches: [],
+          },
+        },
+        generatedResponse: {
+          message:
+            'Hola, gracias por contactarnos. Indicame cuándo te queda bien la visita y sigo con eso.',
+          assertedOutcome: 'respond',
+          assertedExecutionStatus: 'not_applicable',
+          mentionedMissingFields: [],
+          mentionedApprovedFactKeys: [],
+          mentionedApprovedResultKeys: [],
+          mentionedDocumentIds: [],
+        },
+      }),
+    ).resolves.toEqual({
+      accepted: false,
+      reasons: ['unexpected_followup_greeting'],
     });
   });
 });

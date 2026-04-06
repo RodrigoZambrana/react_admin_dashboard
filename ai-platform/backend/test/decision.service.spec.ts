@@ -583,6 +583,60 @@ describe('DecisionService', () => {
     );
   });
 
+  it('closes the turn for short gratitude-only follow-ups without dragging the previous document context', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.79,
+        entities: {
+          rawMessage: 'te agradezco. muy amable',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-thanks-only',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          topicSummary: 'medios de pago',
+          lastDocumentQuery: 'mercado pago cuotas',
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+      documentRetrieval: {
+        attempted: true,
+        reason: 'active_document_continuation',
+        result: {
+          source: 'document_origin',
+          query: 'mercado pago cuotas',
+          groundedSummary: 'Mercado Pago ofrece hasta 12 cuotas.',
+          matches: [],
+        },
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'close_turn',
+        reasonCode: 'contextual_close_acknowledged',
+      }),
+    );
+  });
+
   it('does not close the turn when gratitude also contains a fresh request', async () => {
     const service = createService();
 
@@ -621,6 +675,310 @@ describe('DecisionService', () => {
       expect.objectContaining({
         action: 'invoke_tool',
         toolName: 'create_booking',
+      }),
+    );
+  });
+
+  it('prefers a grounded informational response over booking clarification when a booking lane follow-up asks for visit facts', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'dentro de montevideo tiene costo la visita?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+        continuity: {
+          applied: false,
+          activeLane: 'booking',
+          carriedFactKeys: [],
+          invalidatedFactKeys: [],
+          missingFields: ['requested_date'],
+          nextUsefulField: 'requested_date',
+          previousStateSummary: {
+            lane: 'booking',
+            missingFields: ['requested_date'],
+            nextUsefulField: 'requested_date',
+            lastApprovedAction: 'clarify',
+          },
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-booking-info',
+        lane: 'booking',
+        lastIntent: 'CREATE_BOOKING',
+        lastApprovedAction: 'clarify',
+        missingFields: ['requested_date'],
+        nextUsefulField: 'requested_date',
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      } as any,
+      documentRetrieval: {
+        attempted: true,
+        reason: 'knowledge_query',
+        result: {
+          source: 'document_origin',
+          query: 'visita montevideo costo',
+          groundedSummary: 'Dentro de Montevideo la visita no tiene costo.',
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Operativa comercial',
+              excerpt: 'Dentro de Montevideo la visita no tiene costo.',
+              sequence: 1,
+              score: 4.6,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+      }),
+    );
+  });
+
+  it('treats an informational visit question as grounded exploration even when interpretation labeled it CREATE_BOOKING', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      interpretation: {
+        intent: 'CREATE_BOOKING',
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'toman medidas a domicilio? me encuentro en montevideo',
+          requestSummary:
+            'Consulta sobre toma de medidas a domicilio para reemplazo en Montevideo',
+          productQuery: 'reemplazo de cortina de enrollar de madera por una de pvc',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-booking-coalesced-info',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        approvedFacts: {
+          subjectSummary: 'cortina de enrollar de pvc',
+          topicSummary: 'reemplazo cortina enrollar pvc',
+        },
+        missingFields: [],
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      } as any,
+      documentRetrieval: {
+        attempted: true,
+        reason: 'knowledge_query',
+        result: {
+          source: 'document_origin',
+          query: 'toma de medidas a domicilio montevideo',
+          groundedSummary:
+            'Sí, podemos coordinar visitas a domicilio en Montevideo para tomar medidas.',
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Sí, podemos coordinar visitas a domicilio en Montevideo para tomar medidas.',
+              sequence: 1,
+              score: 4.8,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+      }),
+    );
+  });
+
+  it('treats a short location follow-up as informational even when interpretation labeled it CREATE_BOOKING', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      interpretation: {
+        intent: 'CREATE_BOOKING',
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'me encuentro en montevideo',
+          requestSummary:
+            'Consulta sobre toma de medidas a domicilio para reemplazo en Montevideo',
+          productQuery: 'reemplazo de cortina de enrollar de madera por una de pvc',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-booking-location-follow-up',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        approvedFacts: {
+          subjectSummary: 'cortina de enrollar de pvc',
+          topicSummary: 'toman medidas a domicilio',
+        },
+        missingFields: [],
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      } as any,
+      documentRetrieval: {
+        attempted: true,
+        reason: 'knowledge_query',
+        result: {
+          source: 'document_origin',
+          query: 'toman medidas a domicilio montevideo',
+          groundedSummary:
+            'Sí, coordinamos visitas a domicilio para tomar medidas y dentro de Montevideo son sin costo.',
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Sí, coordinamos visitas a domicilio para tomar medidas y dentro de Montevideo son sin costo.',
+              sequence: 1,
+              score: 4.9,
+            },
+          ],
+        },
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+      }),
+    );
+  });
+
+  it('closes a gratitude-only turn even if the previous booking clarification is still missing a date', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'muchas gracias muy amable',
+          productQuery: 'reemplazo cortina enrollar madera por pvc',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+        continuity: {
+          applied: false,
+          activeLane: 'booking',
+          carriedFactKeys: [],
+          invalidatedFactKeys: [],
+          missingFields: ['requested_date'],
+          nextUsefulField: 'requested_date',
+          previousStateSummary: {
+            lane: 'booking',
+            missingFields: ['requested_date'],
+            nextUsefulField: 'requested_date',
+            lastApprovedAction: 'clarify',
+          },
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-booking-thanks',
+        lane: 'booking',
+        lastIntent: 'CREATE_BOOKING',
+        lastApprovedAction: 'clarify',
+        missingFields: ['requested_date'],
+        nextUsefulField: 'requested_date',
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      } as any,
+      documentRetrieval: {
+        attempted: false,
+        reason: 'not_requested',
+        result: null,
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'close_turn',
+        reasonCode: 'contextual_close_acknowledged',
+      }),
+    );
+  });
+
+  it('closes a gratitude-only turn even when interpretation was dragged to CREATE_BOOKING by a stale booking lane', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      interpretation: {
+        intent: 'CREATE_BOOKING',
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'muchas gracias muy amable',
+          productQuery: 'reemplazo cortina enrollar madera por pvc',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+        continuity: {
+          applied: true,
+          activeLane: 'booking',
+          carriedFactKeys: [],
+          invalidatedFactKeys: [],
+          missingFields: ['requested_date'],
+          nextUsefulField: 'requested_date',
+          previousStateSummary: {
+            lane: 'booking',
+            missingFields: ['requested_date'],
+            nextUsefulField: 'requested_date',
+            lastApprovedAction: 'clarify',
+          },
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-booking-thanks-dragged-intent',
+        lane: 'booking',
+        lastIntent: 'CREATE_BOOKING',
+        lastApprovedAction: 'clarify',
+        missingFields: ['requested_date'],
+        nextUsefulField: 'requested_date',
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      } as any,
+      documentRetrieval: {
+        attempted: false,
+        reason: 'not_requested',
+        result: null,
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'close_turn',
+        reasonCode: 'contextual_close_acknowledged',
       }),
     );
   });

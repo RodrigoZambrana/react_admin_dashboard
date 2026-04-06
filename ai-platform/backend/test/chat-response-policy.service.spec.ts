@@ -626,6 +626,798 @@ describe('ChatResponsePolicyService', () => {
     ).resolves.toBe('Tenemos cortinas roller screen y blackout.');
   });
 
+  it('keeps broad product openings focused on the asked product instead of spilling extra details', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'tienen cortinas roller?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.92,
+          entities: {
+            rawMessage: 'tienen cortinas roller?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'cortinas roller',
+          groundedSummary:
+            'Sí, trabajamos con cortinas roller y ofrecemos una garantía habitual de 2 años en estas líneas, incluyendo trabajos de motorización. Para rollers anchos, a veces es conveniente dividir la cortina en dos tramos.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Sí, trabajamos con cortinas roller y ofrecemos una garantía habitual de 2 años en estas líneas, incluyendo trabajos de motorización. Para rollers anchos, a veces es conveniente dividir la cortina en dos tramos.',
+              sequence: 0,
+              score: 9,
+              supportSummary: {
+                topic: 'CORTINAS ROLLER',
+                supportedAxes: ['product_types'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'product_types',
+                    layer: 'factual',
+                    values: ['Roller Screen', 'Roller Blackout', 'Roller Doble'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'CORTINAS ROLLER',
+                      normalizedValue: 'cortinas roller',
+                    },
+                    appliesTo: [],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toBe(
+      'Sí, trabajamos con cortinas roller, incluyendo screen, blackout y doble.',
+    );
+  });
+
+  it('prefers richer structured factual summaries over a narrower grounded summary', async () => {
+    const response = await service.resolve({
+        locale: 'es',
+        userMessage: 'Que medios de pago aceptan?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.92,
+          entities: {
+            rawMessage: 'Que medios de pago aceptan?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Que medios de pago aceptan?',
+          groundedSummary: 'Medios de pago (PRESUPUESTO, PAGOS Y CONFIRMACION): Mercado Pago',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                '- transferencia bancaria - efectivo - Mercado Pago - tarjetas',
+              sequence: 0,
+              score: 6,
+              supportSummary: {
+                topic: '3. PRESUPUESTO, PAGOS Y CONFIRMACION / Medios de pago',
+                supportedAxes: ['payment_methods'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'payment_methods',
+                    layer: 'factual',
+                    values: ['transferencia bancaria'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PRESUPUESTO, PAGOS Y CONFIRMACION',
+                      normalizedValue: 'presupuesto pagos y confirmacion',
+                    },
+                  },
+                  {
+                    axis: 'payment_methods',
+                    layer: 'factual',
+                    values: ['efectivo'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PRESUPUESTO, PAGOS Y CONFIRMACION',
+                      normalizedValue: 'presupuesto pagos y confirmacion',
+                    },
+                  },
+                  {
+                    axis: 'payment_methods',
+                    layer: 'factual',
+                    values: ['Mercado Pago'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PRESUPUESTO, PAGOS Y CONFIRMACION',
+                      normalizedValue: 'presupuesto pagos y confirmacion',
+                    },
+                  },
+                  {
+                    axis: 'payment_methods',
+                    layer: 'factual',
+                    values: ['tarjetas'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PRESUPUESTO, PAGOS Y CONFIRMACION',
+                      normalizedValue: 'presupuesto pagos y confirmacion',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+    expect(response).toContain('Medios de pago (PRESUPUESTO, PAGOS Y CONFIRMACION):');
+    expect(response).toContain('transferencia bancaria');
+    expect(response).toContain('efectivo');
+    expect(response).toContain('Mercado Pago');
+    expect(response).toContain('tarjetas');
+  });
+
+  it('keeps the response anchored to the active family instead of mixing sibling aluminum topics', async () => {
+    const response = await service.resolve({
+        locale: 'es',
+        userMessage: 'Trabajan aberturas en aluminio? Que lineas tienen?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.93,
+          entities: {
+            rawMessage: 'Trabajan aberturas en aluminio? Que lineas tienen?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'aberturas en aluminio lineas',
+          groundedSummary:
+            'Trabajamos aberturas en aluminio tanto en líneas estándar como en líneas de alta prestación.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            exactnessRequested: false,
+            requestedDetailTypes: ['specific_variants'],
+            supportedDetailTypes: ['specific_variants'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Trabajamos aberturas en aluminio tanto en líneas estándar como en líneas de alta prestación.',
+              sequence: 0,
+              score: 8,
+              supportSummary: {
+                topic: '12. ABERTURAS EN ALUMINIO',
+                supportedAxes: ['specific_variants'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'specific_variants',
+                    layer: 'factual',
+                    values: ['líneas estándar', 'líneas de alta prestación'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'ABERTURAS EN ALUMINIO',
+                      normalizedValue: 'aberturas en aluminio',
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'También ofrecemos persianas o cortinas de enrollar en aluminio, con varios colores disponibles.',
+              sequence: 1,
+              score: 7,
+              supportSummary: {
+                topic: '7.2. PERSIANA O CORTINA DE ENROLLAR EN ALUMINIO',
+                supportedAxes: ['color_options'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'color_options',
+                    layer: 'factual',
+                    values: ['blanco', 'negro', 'gris'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PERSIANA O CORTINA DE ENROLLAR',
+                      normalizedValue: 'persiana o cortina de enrollar',
+                    },
+                    appliesTo: [
+                      {
+                        axis: 'material',
+                        value: 'aluminio',
+                        normalizedValue: 'aluminio',
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+    expect(response).toContain('aberturas en aluminio');
+    expect(response).toContain('líneas estándar');
+    expect(response).toContain('líneas de alta prestación');
+    expect(response).not.toMatch(/persianas|cortinas de enrollar|blanco|negro|gris/i);
+  });
+
+  it('prefers a richer excerpt over a low-signal structural summary', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage: 'Trabajan aberturas en aluminio? Que lineas tienen?',
+      intent: 'GENERAL_CONVERSATION',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.93,
+        entities: {
+          rawMessage: 'Trabajan aberturas en aluminio? Que lineas tienen?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'Trabajan aberturas en aluminio? Que lineas tienen?',
+        groundedSummary: 'ALUMINIO ALUMINIO',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'explicit',
+          exactnessRequested: false,
+          requestedDetailTypes: [],
+          supportedDetailTypes: [],
+          partialDetailTypes: [],
+          unsupportedDetailTypes: [],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'Trabajamos aberturas en aluminio tanto en líneas estándar como en líneas de alta prestación.',
+            sequence: 0,
+            score: 10,
+            supportSummary: {
+              topic: '12. ABERTURAS EN ALUMINIO',
+              supportedAxes: ['materials'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'materials',
+                  layer: 'factual',
+                  values: ['ALUMINIO'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'ABERTURAS',
+                    normalizedValue: 'aberturas',
+                  },
+                  appliesTo: [
+                    {
+                      axis: 'material',
+                      value: 'ALUMINIO',
+                      normalizedValue: 'aluminio',
+                    },
+                  ],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).toBe(
+      'Trabajamos aberturas en aluminio tanto en líneas estándar como en líneas de alta prestación.',
+    );
+  });
+
+  it('prefers a narrative overview excerpt for broad family questions over structural summaries', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage: 'Tienen cortinas de enrollar?',
+      intent: 'GENERAL_CONVERSATION',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.92,
+        entities: {
+          rawMessage: 'Tienen cortinas de enrollar?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'cortinas de enrollar',
+        groundedSummary:
+          'materiales: PVC, aluminio; accionamiento: manuales, motorizadas',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'explicit',
+          exactnessRequested: false,
+          requestedDetailTypes: [],
+          supportedDetailTypes: [],
+          partialDetailTypes: [],
+          unsupportedDetailTypes: [],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'Sí, trabajamos cortinas de enrollar en PVC y aluminio, con opciones manuales o motorizadas.',
+            sequence: 0,
+            score: 9,
+            supportSummary: {
+              topic: 'CORTINAS DE ENROLLAR',
+              supportedAxes: ['materials', 'operation_modes'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'materials',
+                  layer: 'factual',
+                  values: ['PVC', 'aluminio'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS DE ENROLLAR',
+                    normalizedValue: 'cortinas de enrollar',
+                  },
+                  appliesTo: [],
+                },
+                {
+                  axis: 'operation_modes',
+                  layer: 'factual',
+                  values: ['manuales', 'motorizadas'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS DE ENROLLAR',
+                    normalizedValue: 'cortinas de enrollar',
+                  },
+                  appliesTo: [],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).toBe(
+      'Sí, trabajamos con cortinas de enrollar en PVC y aluminio, con opciones manuales o motorizadas.',
+    );
+  });
+
+  it('falls back to a short subject availability answer for broad family questions when only lateral details are matched', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage: 'Tienen cortinas roller?',
+      intent: 'GENERAL_CONVERSATION',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.92,
+        entities: {
+          rawMessage: 'Tienen cortinas roller?',
+          productQuery: 'cortinas roller',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'cortinas roller',
+        groundedSummary:
+          'En distintas lineas de aluminio, roller y trabajos de motorizacion trabajamos habitualmente con 2 años.',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'explicit',
+          exactnessRequested: false,
+          requestedDetailTypes: [],
+          supportedDetailTypes: [],
+          partialDetailTypes: [],
+          unsupportedDetailTypes: [],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'En distintas lineas de aluminio, roller y trabajos de motorizacion trabajamos habitualmente con 2 años.',
+            sequence: 0,
+            score: 9,
+            supportSummary: {
+              topic: '5. GARANTIAS',
+              supportedAxes: ['guarantee'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'guarantee',
+                  layer: 'factual',
+                  values: ['2 años'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'ROLLER',
+                    normalizedValue: 'roller',
+                  },
+                  appliesTo: [],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).toBe('Sí, trabajamos con cortinas roller.');
+  });
+
+  it('does not answer a variants question with operational guidance when the document lacks factual variant support', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage: 'en cortinas roller que opciones tiene?',
+      intent: 'GENERAL_CONVERSATION',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.85,
+        entities: {
+          rawMessage: 'en cortinas roller que opciones tiene?',
+          productQuery: 'cortinas roller',
+          requestSummary: 'consulta sobre opciones disponibles de cortinas roller',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      conversationState: {
+        lane: 'document_exploration',
+        approvedFacts: {
+          subjectSummary: 'cortinas roller',
+          topicSummary: 'cortinas roller',
+        },
+      } as any,
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'cortinas roller. opciones',
+        groundedSummary:
+          'Para roller y otras cortinas interiores conviene mantener una atencion mas consultiva: mostrar diferencia entre opciones, ofrecer muestrario cuando hace falta y rectificar medidas antes de cerrar el trabajo.',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'partial',
+          exactnessRequested: false,
+          requestedDetailTypes: ['specific_variants'],
+          supportedDetailTypes: [],
+          partialDetailTypes: ['specific_variants'],
+          unsupportedDetailTypes: [],
+          requiredUnspecifiedDetailTypes: ['specific_variants'],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'Para roller y otras cortinas interiores conviene mantener una atencion mas consultiva: mostrar diferencia entre opciones, ofrecer muestrario cuando hace falta y rectificar medidas antes de cerrar el trabajo.',
+            sequence: 0,
+            score: 8,
+            supportSummary: {
+              topic: '8. ROLLER Y CORTINAS INTERIORES - CRITERIOS DE ATENCION',
+              supportedAxes: [],
+              unspecifiedAxes: [],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).toBe(
+      'En cortinas roller, por ahora no tengo confirmación sobre las variantes exactas.',
+    );
+  });
+
+  it('does not mix nearby families when a shared token like aluminio appears in another subject', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage: 'tienen cortinas de enrollar en aluminio?',
+      intent: 'GENERAL_CONVERSATION',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.92,
+        entities: {
+          rawMessage: 'tienen cortinas de enrollar en aluminio?',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'cortinas de enrollar aluminio',
+        groundedSummary:
+          'materiales (CORTINAS DE ENROLLAR - CRITERIOS DE ATENCION): Aluminio, PVC; tipos (ABERTURAS EN ALUMINIO - CRITERIOS DE ATENCION): DVH',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'explicit',
+          exactnessRequested: false,
+          requestedDetailTypes: [],
+          supportedDetailTypes: [],
+          partialDetailTypes: [],
+          unsupportedDetailTypes: [],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Guía',
+            excerpt:
+              'En cortinas de enrollar la comparación entre PVC y aluminio es una consulta muy frecuente.',
+            sequence: 16,
+            score: 9,
+            supportSummary: {
+              topic: '7. CORTINAS DE ENROLLAR - CRITERIOS DE ATENCION / Aluminio',
+              supportedAxes: ['materials'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'materials',
+                  layer: 'factual',
+                  values: ['Aluminio'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS DE ENROLLAR - CRITERIOS DE ATENCION',
+                    normalizedValue: 'cortinas de enrollar criterios de atencion',
+                  },
+                  appliesTo: [],
+                },
+              ],
+            },
+          },
+          {
+            documentId: 'doc-1',
+            title: 'Guía',
+            excerpt: 'Cuando el cliente prioriza aislamiento térmico, conviene orientar hacia DVH.',
+            sequence: 9,
+            score: 6,
+            supportSummary: {
+              topic: '6. ABERTURAS EN ALUMINIO - CRITERIOS DE ATENCION / DVH',
+              supportedAxes: ['product_types'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'product_types',
+                  layer: 'factual',
+                  values: ['DVH'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'ABERTURAS EN ALUMINIO - CRITERIOS DE ATENCION',
+                    normalizedValue: 'aberturas en aluminio criterios de atencion',
+                  },
+                  appliesTo: [],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).toBe('Sí, tenemos cortinas de enrollar en aluminio.');
+    expect(response).not.toContain('DVH');
+    expect(response).not.toContain('ABERTURAS');
+  });
+
   it('keeps combined document plus booking answers concise when the document does not specify the requested detail', async () => {
     await expect(
       service.resolve({
@@ -1027,6 +1819,7 @@ describe('ChatResponsePolicyService', () => {
           groundedKnowledgeOnly: false,
           includeInitialGreeting: true,
           preferMultiline: true,
+          hasPriorConversation: false,
         },
       }),
     ).resolves.toBe(

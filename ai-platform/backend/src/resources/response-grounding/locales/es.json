@@ -1,0 +1,96 @@
+{
+  "locale": "es",
+  "detailTypes": {
+    "coverage_support": {
+      "requestTerms": ["cubre", "cubren", "cobertura", "incluye", "incluyen", "cubierto", "cubierta", "cubiertos", "cubiertas"],
+      "generalEvidenceTerms": ["cubre", "cubren", "cobertura", "incluye", "incluyen", "cubierto", "cubierta", "cubiertos", "cubiertas"],
+      "unspecifiedLabel": "si está cubierto"
+    },
+    "pricing": {
+      "requestTerms": ["precio", "precios", "costo", "costos", "valor"],
+      "generalEvidenceTerms": ["precio", "precios", "costo", "costos", "usd", "$"],
+      "supportedAxes": ["commercial_visit_cost", "travel_cost_responsibility"],
+      "unspecifiedLabel": "los precios"
+    },
+    "payment_terms": {
+      "requestTerms": ["pago", "pagos", "cuota", "cuotas", "tarjeta", "tarjetas", "mercado pago"],
+      "generalEvidenceTerms": ["pago", "pagos", "cuota", "cuotas", "tarjeta", "tarjetas", "mercado pago"],
+      "supportedAxes": ["payment_methods", "payment_terms", "installment_count"],
+      "unspecifiedLabel": "las condiciones de pago"
+    },
+    "purchase_channel": {
+      "requestTerms": ["comprar", "compra", "adquirir", "pedido", "tienda", "local"],
+      "generalEvidenceTerms": ["comprar", "compra", "pedido", "tienda", "local"],
+      "unspecifiedLabel": "dónde comprarlo"
+    },
+    "availability": {
+      "requestTerms": ["disponibilidad", "disponible", "stock", "entrega"],
+      "generalEvidenceTerms": ["disponibilidad", "disponible", "stock", "entrega"],
+      "unspecifiedLabel": "la disponibilidad exacta"
+    },
+    "warranty": {
+      "requestTerms": ["garantia", "garantía"],
+      "generalEvidenceTerms": ["garantia", "garantía", "ano", "años", "anos"],
+      "supportedAxes": ["warranty_terms"],
+      "unspecifiedLabel": "la garantía"
+    },
+    "materials": {
+      "requestTerms": ["material", "materiales", "tela", "acabado"],
+      "generalEvidenceTerms": ["material", "materiales", "tela", "acabado"],
+      "supportedAxes": ["materials"],
+      "unspecifiedLabel": "los materiales exactos"
+    },
+    "color_options": {
+      "requestTerms": ["color", "colores", "tono", "tonos"],
+      "generalEvidenceTerms": ["color", "colores", "tono", "tonos", "variedad"],
+      "supportedAxes": ["color_options"],
+      "unspecifiedAxes": ["exact_color_options"],
+      "unspecifiedLabel": "los colores exactos"
+    },
+    "specific_variants": {
+      "requestTerms": ["variante", "variantes", "modelo", "modelos", "opcion", "opciones"],
+      "generalEvidenceTerms": ["variante", "variantes", "modelo", "modelos", "opcion", "opciones", "variedad"],
+      "supportedAxes": ["specific_variants", "product_types"],
+      "unspecifiedLabel": "las variantes exactas"
+    }
+  },
+  "unspecifiedCues": [
+    "no especifica",
+    "no se especifica",
+    "no se especifican",
+    "no indica",
+    "no se indica",
+    "no detalla",
+    "no se detalla",
+    "no aparece",
+    "no figura",
+    "no tengo confirmacion sobre",
+    "no tengo confirmado",
+    "no tengo confirmada",
+    "no tengo confirmados",
+    "no tengo confirmadas"
+  ],
+  "exactnessCues": ["exacto", "exacta", "exactos", "exactas", "especifico", "específico", "cuales", "cuáles"],
+  "closeTurnReopenCues": [
+    "si tienes mas preguntas",
+    "si tienes más preguntas",
+    "si necesitas algo mas",
+    "si necesitas algo más",
+    "quedo a tu disposicion",
+    "quedo a tu disposición",
+    "cualquier otra consulta"
+  ],
+  "questionSignals": {
+    "broadOverviewIntentTerms": ["tienen", "tiene", "hacen", "hace", "trabajan", "trabaja", "ofrecen", "ofrece", "informacion", "info", "opciones", "busco", "necesito", "quiero"],
+    "availabilityIntentTerms": ["tienen", "tiene", "hacen", "hace", "trabajan", "trabaja", "ofrecen", "ofrece"],
+    "detailCueTerms": ["color", "colores", "material", "materiales", "tipo", "tipos", "linea", "lineas", "serie", "series", "medidas", "cuotas", "tarjeta", "tarjetas", "garantia", "pago", "pagos", "precio", "precios", "dvh", "visita", "instalacion", "horario", "horarios"]
+  },
+  "unspecifiedDetailPrefix": "Por ahora no tengo confirmación sobre",
+  "labelJoiner": "ni",
+  "guardrail": {
+    "minimumTokenLength": 4,
+    "minimumSentenceTokenCount": 4,
+    "minimumOverlapCount": 2,
+    "maximumNovelRatio": 0.7
+  }
+}

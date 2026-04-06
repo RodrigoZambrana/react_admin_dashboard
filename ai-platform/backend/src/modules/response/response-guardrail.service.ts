@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 
+import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
 import {
   AiGeneratedResponse,
   ApprovedResponseContext,
@@ -12,13 +13,14 @@ import { ResponseGroundingService } from './response-grounding.service';
 export class ResponseGuardrailService {
   constructor(
     private readonly responseGroundingService: ResponseGroundingService,
+    private readonly responseFallbackService: ResponseFallbackService,
   ) {}
 
-  evaluate(input: {
+  async evaluate(input: {
     approvedContext: ApprovedResponseContext;
     approvedDraft?: string;
     generatedResponse: AiGeneratedResponse;
-  }): ResponseGuardrailResult {
+  }): Promise<ResponseGuardrailResult> {
     const reasons = new Set<ResponseGuardrailCode>();
     const { approvedContext, approvedDraft, generatedResponse } = input;
 
@@ -41,6 +43,27 @@ export class ResponseGuardrailService {
       generatedResponse.assertedExecutionStatus !== approvedContext.execution.status
     ) {
       reasons.add('execution_status_mismatch');
+    }
+
+    if (
+      approvedContext.responseStyle?.includeInitialGreeting &&
+      (await this.startsWithStandaloneGreeting(
+        approvedContext.locale,
+        generatedResponse.message,
+      ))
+    ) {
+      reasons.add('duplicate_opening_greeting');
+    }
+
+    if (
+      !approvedContext.responseStyle?.includeInitialGreeting &&
+      approvedContext.responseStyle?.hasPriorConversation &&
+      (await this.startsWithStandaloneGreeting(
+        approvedContext.locale,
+        generatedResponse.message,
+      ))
+    ) {
+      reasons.add('unexpected_followup_greeting');
     }
 
     if (
@@ -185,5 +208,27 @@ export class ResponseGuardrailService {
       approvedContext.outcome === 'execution_succeeded' ||
       approvedContext.outcome === 'execution_failed'
     );
+  }
+
+  private async startsWithStandaloneGreeting(
+    locale: string | null | undefined,
+    value: string,
+  ) {
+    const normalized = value.trim();
+
+    if (!normalized) {
+      return false;
+    }
+
+    const firstSentence = normalized
+      .split(/(?<=[.!?])\s+/u)
+      .map((sentence) => sentence.trim())
+      .find((sentence) => sentence.length > 0);
+
+    if (!firstSentence) {
+      return false;
+    }
+
+    return this.responseFallbackService.startsWithGreeting(locale, firstSentence);
   }
 }

@@ -48,7 +48,7 @@ export class ResponseGroundingService {
     const questionLike = /[?¿]/u.test(input.userMessage);
     const axisState = collectDocumentAxisState(input.documentContext);
     const queryText = normalizeText(
-      `${input.userMessage} ${input.documentContext.query} ${input.documentContext.groundedSummary}`,
+      `${input.userMessage} ${input.documentContext.query}`,
     );
     const evidenceText = normalizeText(
       [
@@ -203,7 +203,9 @@ export class ResponseGroundingService {
   }
 
   buildUnspecifiedDetailClause(
-    input: Pick<ApprovedResponseContext, 'locale' | 'documentContext'>,
+    input: Pick<ApprovedResponseContext, 'locale' | 'documentContext'> & {
+      summary?: string | null;
+    },
   ) {
     if (!input.documentContext) {
       return null;
@@ -216,11 +218,20 @@ export class ResponseGroundingService {
         ...(
           input.documentContext.grounding.exactnessRequested
             ? input.documentContext.grounding.partialDetailTypes
-            : []
+          : []
         ),
         ...input.documentContext.grounding.unsupportedDetailTypes,
       ];
-    const labels = [...requiredDetailTypes].map(
+    const outstandingDetailTypes = requiredDetailTypes.filter(
+      (detailType) =>
+        !this.summaryContainsConcreteDynamicDetail({
+          locale: input.locale,
+          detailType,
+          summary: input.summary,
+          documentContext: input.documentContext,
+        }),
+    );
+    const labels = [...outstandingDetailTypes].map(
       (detailType) => catalog.detailTypes[detailType].unspecifiedLabel,
     );
 
@@ -262,6 +273,25 @@ export class ResponseGroundingService {
         catalog.guardrail.minimumTokenLength,
       ),
     );
+    const messageTokens = extractGroundingTokens(
+      input.message,
+      catalog.guardrail.minimumTokenLength,
+    );
+
+    if (messageTokens.length >= catalog.guardrail.minimumSentenceTokenCount) {
+      const overlapCount = messageTokens.filter((token) =>
+        allowedTokens.has(token),
+      ).length;
+      const novelRatio =
+        (messageTokens.length - overlapCount) / messageTokens.length;
+
+      if (
+        overlapCount >= catalog.guardrail.minimumOverlapCount + 2 &&
+        novelRatio <= catalog.guardrail.maximumNovelRatio + 0.1
+      ) {
+        return false;
+      }
+    }
 
     return splitGroundingSentences(input.message).some((sentence) => {
       if (
@@ -365,13 +395,52 @@ export class ResponseGroundingService {
       ),
     );
   }
+
+  private summaryContainsConcreteDynamicDetail(input: {
+    locale?: string | null;
+    detailType: ResponseGroundingDetailType;
+    summary?: string | null;
+    documentContext?: DocumentGroundingLike;
+  }) {
+    const summary = input.summary?.trim();
+
+    if (!summary || !input.documentContext) {
+      return false;
+    }
+
+    const dynamicEvidenceTerms = this.resolveDynamicEvidenceTerms({
+      detailType: input.detailType,
+      documentContext: input.documentContext,
+    }).filter((value) => value.length >= 3);
+
+    if (dynamicEvidenceTerms.length === 0) {
+      return false;
+    }
+
+    if (
+      !this.summaryAddressesRequestedDetails({
+        locale: input.locale,
+        summary,
+        detailTypes: [input.detailType],
+        documentContext: input.documentContext,
+      })
+    ) {
+      return false;
+    }
+
+    const normalizedSummary = normalizeText(summary);
+
+    return hasGroundingCatalogSignal(normalizedSummary, dynamicEvidenceTerms);
+  }
 }
 
 const detailTypes: ResponseGroundingDetailType[] = [
   'coverage_support',
   'pricing',
+  'payment_terms',
   'purchase_channel',
   'availability',
+  'warranty',
   'materials',
   'color_options',
   'specific_variants',
@@ -414,6 +483,13 @@ function collectDocumentAxisState(documentContext: DocumentGroundingLike) {
 }
 
 function resolveDetailTypeAxes(detailType: ResponseGroundingDetailType) {
+  if (detailType === 'payment_terms') {
+    return {
+      supportedAxes: new Set(['payment_methods', 'payment_terms', 'installment_count']),
+      unspecifiedAxes: new Set<string>(),
+    };
+  }
+
   if (detailType === 'specific_variants') {
     return {
       supportedAxes: new Set(['specific_variants', 'product_types']),
