@@ -259,6 +259,104 @@ Examples of allowed persisted claim shape:
 - profile-owned color variety -> axis support plus unspecified exact color options
 - profile-owned suitability -> bounded-inference relation target derived from source text
 
+### Tenant Conversational Guidance Layer
+
+Approved tenant documents may also contribute a separate tenant-scoped guidance layer.
+
+This layer is distinct from factual claims and from quote-field workflow notes:
+
+- factual claims
+  - document facts and scoped relations used as business truth
+- workflow notes
+  - tenant-scoped intake and quote-field signals
+- guidance notes
+  - tenant-scoped conversational orientation such as:
+    - informative-flow guidance
+    - quote-transition guidance
+    - confirmation guidance
+    - organic response patterns
+    - comparison guidance
+
+Guidance notes must:
+
+- be extracted from approved tenant documents
+- be persisted as structured metadata, not hardcoded in prompts
+- refresh automatically on re-ingestion of the active document
+- shape wording, sequencing, and next-step suggestions only
+- never override factual claims, support mode, or execution truth
+
+Response generation now composes:
+
+- base prompt / safety / contract layers
+- tenant-grounded factual layer from persisted claims
+- tenant-grounded workflow layer from persisted workflow notes
+- tenant-grounded conversational guidance layer from persisted guidance notes
+
+## Relational Approved Document Knowledge
+
+The approved document path now supports a relational claim shape for cases where flat axis summaries lose important scope.
+
+Current relational direction:
+
+- `subject`
+- `axis`
+- `value`
+- `applies_to`
+- `support_class`
+- `evidence`
+- `provenance`
+
+This is explicitly meant to improve scoped questions such as:
+
+- colors for one material but not another
+- installments for one payment method
+- visit cost for one location
+- service/coverage facts for one family or branch of the document
+
+### Knowledge Layers
+
+The extractor must not flatten all approved document content into one claim bucket.
+
+Three layers are now distinguished:
+
+1. Factual relational claims
+   - product families/types
+   - material-scoped options
+   - payment methods
+   - installment counts
+   - location/coverage facts
+   - service-offer facts
+2. Prudence / coverage metadata
+   - exact values not fully specified
+   - known unsupported-detail boundaries
+   - caution conditions for overclaim-sensitive axes
+3. Workflow metadata
+   - fields required to move from informative conversation into quote/next-step flow
+   - safe operational prompts such as approximate measures, quantity, or variant
+
+The runtime knowledge view and persistence model must keep those layers separate.
+
+### Ownership Rules
+
+- Extraction owns structure, classification, support class, evidence, provenance, and relational packaging
+- Extraction does not own customer-facing response phrasing
+- Profiles may own reusable domain semantics
+- Tenant values must still come only from document content
+- Prudence/workflow metadata must not be flattened into factual product/location/payment claims
+
+### Structural Parsing Expectations
+
+Relational extraction depends on structural document parsing rather than document-specific phrase coupling.
+
+The parser must recognize, generically:
+
+- numbered headings such as `4.` or `4.1.`
+- heading-plus-body paragraphs where a heading line is followed by content in the same paragraph block
+- list/bullet entries under the active section
+- parent/child section boundaries that allow subject replacement and scoped extraction
+
+This keeps the platform oriented toward reusable document extraction behavior instead of solving one tenant document with literal wording rules.
+
 Examples of disallowed extraction ownership:
 
 - `Trabajamos con PVC y aluminio`
@@ -332,6 +430,7 @@ Platform-owned repo resources are now intentionally minimal:
 - locale-aware structural cues
 - bounded reusable matching hints
 - safe fallback defaults for a profile when no tenant-derived hints have been persisted yet
+- minimal heading/axis anchors for profile-level semantics that must bootstrap the first extractable pass
 
 They are no longer the long-term storage for tenant semantics.
 Tenant-derived extraction hints now live in persistence and are resolved at runtime as:
@@ -342,6 +441,19 @@ Tenant-derived extraction hints now live in persistence and are resolved at runt
   - profile
   - locale
   - document provenance
+
+The runtime ownership model is now explicit:
+
+- platform defaults:
+  - fallback-only
+  - repo-owned
+  - intentionally smaller than the effective runtime config
+- tenant-derived hints:
+  - persisted outside repo
+  - derived internally from approved uploaded documents
+  - used as real runtime extraction input
+- extracted knowledge:
+  - persisted source of truth for operator visibility and downstream retrieval/response use
 
 The effective config resolution remains backend-owned and traceable, with source metadata indicating whether a signal comes from:
 
@@ -360,6 +472,7 @@ Instead, ingestion now derives bounded internal bootstrap hints from extracted c
 - observed sections
 - observed axes
 - observed values by axis
+- section aliases by axis when they are useful for later extraction passes
 - support-class counts
 
 These hints remain:
@@ -371,6 +484,14 @@ These hints remain:
 
 Persisted bootstrap/extraction hints are now tenant-scoped runtime data, not repo state.
 This means operators only upload approved documents; the platform derives and persists bounded hints internally without asking users to author regexes or low-level extraction config.
+
+The ingest path now uses those hints in a bounded bootstrap loop:
+
+- first extraction pass with currently effective persisted hints
+- hint derivation from the approved uploaded document
+- second extraction pass with merged runtime hints
+
+This keeps the adaptation explainable and document-grounded while allowing tenant-derived section aliases to influence extraction without moving tenant phrasing into repo defaults or TS constants.
 
 ### Retrieval Owns
 
@@ -1118,6 +1239,42 @@ This keeps the platform multi-tenant-safe while also making local/single-tenant 
 
 - `demo-tenant` is the current backend default runtime tenant in local exploratory mode
 - historical rows under other tenants (for example `tenant-alpha`) do not become the active runtime truth unless a request explicitly resolves into that tenant
+
+## Legacy Coexistence Boundary
+
+The legacy application and `/ai-platform` may coexist during migration, but they must not act as peer chat runtimes.
+
+Target shape:
+
+- legacy remains temporary:
+  - channel connector host
+  - operator shell for still-unmigrated controls
+- `/ai-platform` becomes the only owner of:
+  - conversational runtime
+  - response generation
+  - document grounding
+  - suggestion lifecycle
+  - learning / approved-chat knowledge ingestion
+  - debug truth
+
+Important constraints:
+
+- legacy must integrate through a dedicated bridge boundary, not through deep admin endpoints and not through direct DB writes
+- same PostgreSQL infrastructure is allowed, but same PostgreSQL schema is not
+- if both apps share one database instance, they must use separate schemas because both Prisma apps define overlapping runtime tables and migrations
+
+Recommended split:
+
+- legacy schema: `public`
+- standalone schema: `ai_platform`
+- optional future bridge schema: `integration_bridge`
+
+The bridge must remain an anti-corruption layer that:
+
+- authenticates legacy-origin sync traffic
+- enforces idempotency and version ordering
+- translates legacy payloads into standalone-native modules
+- prevents legacy contracts from leaking into runtime decisioning, retrieval, or response composition
 
 ## Security Preparation
 

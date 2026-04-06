@@ -2912,3 +2912,254 @@
 ### Next Steps
 - Add richer comparison/history only if operators actually need it
 - Keep the visibility grounded in persisted extracted knowledge and avoid turning repo defaults into an operator-facing source of truth
+
+## Iteration 87
+
+### Implemented
+- Analyzed the convertibility of `urucortinas-catalogo-chat-ingestion-v2-2026-04-04.txt` before changing the model
+- Evolved document knowledge extraction from flat axis lists toward relational claims carrying:
+  - subject
+  - axis
+  - value
+  - applies_to
+  - support class
+  - evidence/provenance
+- Split extracted knowledge into explicit layers:
+  - factual relational claims
+  - prudence / coverage metadata
+  - workflow metadata
+- Updated product-document extraction so scoped facts such as material-specific color support are represented structurally instead of being flattened into broad axis buckets
+- Updated the persisted knowledge view and admin UI so factual claims, prudence notes, and workflow notes are visible as separate grounded outputs
+- Hardened the structural parser so numbered headings and heading-plus-body paragraphs are split correctly before extraction
+- Corrected the profile implementation so it consumes generic profile semantics and structural cues instead of embedding document-specific phrase constants inline in TS code
+
+### Convertibility Analysis
+- The target document is not one homogeneous corpus. It contains three different knowledge layers.
+- Parts that should become relational claims:
+  - product families and product types
+  - material-specific variants
+  - scoped color support
+  - payment methods
+  - installment counts scoped to a payment method
+  - installation / coverage facts scoped to location
+  - service-offer facts
+- Parts that should remain prudence / coverage metadata:
+  - exact colors not always specified
+  - exact hours should not be asserted from non-unified material
+  - other “do not overclaim” boundaries
+- Parts that should remain workflow metadata:
+  - information needed to move from informative conversation into quote intake
+  - safe next-step fields such as approximate measures, quantity, variant, or installation context
+- The document is sufficiently structured for relational extraction without major re-authoring, but only if the parser recognizes:
+  - numbered headings like `4.` / `4.1.`
+  - heading-plus-body paragraphs
+  - bullet/list content under a semantic section
+- Previous chat failures would be answered more clearly under the new model because scoped questions no longer depend on a flat axis summary only. Examples:
+  - `¿En PVC qué colores tienen?` can resolve to `color_options` with `applies_to material=pvc`
+  - `¿Y en aluminio?` can resolve to partial `color_options` plus prudence on exact colors
+  - `¿Hasta cuántas cuotas?` can be tied to `payment_method=mercado_pago`
+- Information is still lost if modeled too flatly in cases like:
+  - material-specific colors
+  - payment-method-specific installment rules
+  - location-scoped visit or travel-cost conditions
+
+### Working
+- Extraction now persists structured, traceable relational claims instead of only flat axis/value summaries where scoped detail matters
+- Factual claims, prudence metadata, and workflow metadata are no longer flattened into one bucket in the knowledge view
+- The extraction flow remains compatible with:
+  - `structuredItems`
+  - `supportSummary`
+  - `retrievalProjection`
+  - current document retrieval
+  - approved response context
+- Numbered document sections now preserve better subject boundaries, which reduces information loss when the same family branches into PVC, aluminio, payment, or quote subtopics
+- The current model answers previous document-backed questions with better clarity:
+  - `Necesito información sobre cortinas de enrollar`
+  - `¿Qué tipos tienen?`
+  - `¿En PVC qué colores tienen?`
+  - `¿Y en aluminio?`
+  - `¿Tienen instalación en Montevideo?`
+  - `¿Qué medios de pago aceptan?`
+  - `¿Hasta cuántas cuotas?`
+  - `¿Las cuotas aplican para cualquier medio de pago o para Mercado Pago?`
+  - `¿Trabajan en el interior?`
+  - `¿Los horarios cuáles son?`
+
+### Technical Debt
+- Claim-aware retrieval ranking is still only partial; lexical retrieval remains the primary ranking spine
+- Product-domain profile semantics are now structurally cleaner, but some profile logic still uses bounded textual cues and should keep evolving toward stronger section/list classification over time
+- The response path is now better positioned to consume scoped claims, but answer composition is still not fully claim-driven in every path
+- Payment / workflow extraction from mixed heading-plus-list blocks is improved structurally, but broader multi-domain section typing is still future work
+
+### Manual QA Question Base
+- Roller
+  - `Necesito información sobre cortinas roller`
+  - `¿Qué tipos tienen?`
+  - `¿Cuál sirve mejor para dormitorio?`
+  - `¿Y la doble para qué caso conviene?`
+- Cortinas de enrollar PVC vs aluminio
+  - `Necesito información sobre cortinas de enrollar`
+  - `¿Qué tipos o variantes tienen?`
+  - `¿En PVC qué colores tienen?`
+  - `¿Y en aluminio?`
+  - `¿El aluminio viene con poliuretano?`
+  - `¿Cuál recomiendan para exterior?`
+- Medios de pago
+  - `¿Qué medios de pago aceptan?`
+  - `¿Hasta cuántas cuotas?`
+  - `¿Las cuotas aplican para cualquier medio de pago o para Mercado Pago?`
+- Instalación y cobertura
+  - `¿Trabajan en Montevideo?`
+  - `¿Tienen instalación en el interior?`
+  - `¿La visita comercial tiene costo?`
+  - `¿Y para el interior hay costo de traslado?`
+- Aberturas
+  - `¿Trabajan con aberturas?`
+  - `¿Son de aluminio o también de PVC?`
+  - `¿Qué líneas manejan?`
+- Prudence-sensitive cases
+  - `¿Qué colores exactos tienen en aluminio?`
+  - `¿Qué horario tienen?`
+  - `¿Me confirma el stock exacto?`
+  - `¿Cuál sublínea recomiendan si no está detallada en el documento?`
+
+### Next Steps
+- Strengthen claim-aware retrieval ranking so scoped relational claims influence match ordering more directly
+- Evolve approved response context to consume scoped claims before broad chunk summaries where available
+- Add additional domain profiles later without moving tenant truth or customer-facing prose into the base extractor
+
+## Iteration 88
+
+### Implemented
+- Reduced `product_catalog` repo resources to smaller fallback-only defaults for:
+  - payment headings
+  - prudence cues
+  - workflow quote headings
+- Refactored effective extraction config compilation so persisted tenant-derived hints now materially affect runtime matcher behavior instead of remaining mostly visibility metadata
+- Added tenant-derived `sectionAliasesByAxis` as a bounded runtime extraction input
+- Updated ingestion to run a bounded bootstrap-assisted second pass so newly derived hints can refine extraction during the same ingest cycle
+- Hardened profile extraction so multiline list headings resolved through tenant-derived aliases are normalized cleanly before becoming claims
+
+### Working
+- Platform defaults now remain small fallback anchors, while tenant-derived hints refine heading/section detection inside the selected profile at runtime
+- Tenant-derived hints now influence compiled extraction config in observable ways for heading-driven axes such as:
+  - payment methods
+  - exact-hours prudence
+  - quote/workflow fields
+- The influence remains bounded and explainable:
+  - only inside the selected profile
+  - only from persisted tenant-derived hints
+  - without inventing business truth or overriding document evidence
+- Document ingestion now benefits from a bootstrap-assisted refinement loop:
+  - initial extraction using persisted effective hints
+  - bounded hint derivation from approved uploaded content
+  - second extraction pass using merged runtime hints
+- Retrieval and response compatibility remain intact because persisted `structuredItems`, `supportSummary`, and `retrievalProjection` are unchanged as public contracts
+
+### Technical Debt
+- Runtime refinement is currently strongest for heading-driven axes; broader claim-aware influence over ranking is still future work
+- Some product-profile extraction still depends on bounded textual cues, even though config ownership is now cleaner and tenant adaptation is runtime-driven
+- Repo defaults are smaller, but they are still bootstrap resources rather than admin-managed runtime resources
+
+### Next Steps
+- Keep shrinking platform defaults if future profiles show reusable ways to derive more of the behavior from persisted hints
+- Extend tenant-derived refinement carefully to additional profiles later without pushing tenant semantics back into repo defaults
+- Continue toward claim-aware retrieval/ranking without starting Wave 9
+
+## Iteration 89
+
+### Implemented
+- Added tenant-scoped conversational guidance extraction persisted from approved documents
+- Introduced persisted guidance note types:
+  - `informative_flow`
+  - `quote_transition`
+  - `confirmation_policy`
+  - `organic_response_pattern`
+  - `comparison_guidance`
+- Extended document knowledge view with `guidanceNotes`
+- Composed the response prompt from persisted tenant-grounded layers:
+  - factual claims
+  - workflow notes
+  - guidance notes
+- Improved broad informational family openings so narrative overview excerpts can beat low-signal structural summaries
+
+### Working
+- Guidance is extracted from the active approved document and refreshes on re-ingestion
+- The active Urucortinas master document now persists tenant guidance and exposes it through `/admin/documents/knowledge-view`
+- The response system now uses a base prompt plus tenant-grounded factual/workflow/guidance layers without hardcoding that tenant behavior in prompts
+- Backend focused tests for extraction, knowledge view, prompt assembly, and response policy pass
+- Backend and frontend builds pass
+
+### Technical Debt
+- The current product profile still mines some useful comparison guidance from non-section-15 comparison blocks when they are document-structured and clearly comparative
+- Quote execution and booking execution flows remain intentionally outside this phase
+
+### Next Steps
+- Use the persisted tenant guidance layer to tighten more informational response shapes before broadening quote-intake behavior
+- Keep improving retrieval and response planning against the informative subset without converting corpus examples into hardcoded regression logic
+
+## Iteration 90
+
+### Implemented
+- Replaced the off-topic response-family filter with a structural topic-family comparison derived from extracted `topic`/`subject` hierarchy instead of lexical noise tokens
+- Improved document response composition so single explicit availability facts can render as natural customer-facing answers instead of raw structural labels
+- Added a dedicated senior-level migration analysis for legacy -> standalone coexistence:
+  - `ai-platform/docs/legacy-standalone-integration-analysis.md`
+
+### Working
+- Nearby document families such as `cortinas de enrollar` vs `aberturas en aluminio` no longer need ad hoc noise-token filtering to avoid response contamination
+- Low-signal summaries like repeated tokens are now treated as composition debt and can lose against richer match-backed summaries
+- Availability-style questions backed by a single explicit claim can now produce natural replies such as `Si, tenemos ... en aluminio` instead of `Materiales (...): Aluminio`
+- The migration analysis now documents:
+  - legacy responsibilities worth migrating
+  - standalone gaps
+  - bridge-endpoint strategy
+  - same-database coexistence constraints
+  - recommended migration order
+
+### Technical Debt
+- The response layer still needs broader naturalization beyond single-claim availability cases; other structural summaries can still surface when the best excerpt is weak
+- Standalone still lacks first-class modules for:
+  - channel config sync from legacy
+  - standalone-owned suggestion lifecycle
+  - approved conversation bundle ingestion/review
+  - legacy-facing bridge endpoints
+- Shared database coexistence is only safe with schema isolation; this is now documented but not yet implemented
+
+### Next Steps
+- Introduce a `LegacyIntegrationModule` in `/ai-platform` instead of letting legacy call deep admin endpoints directly
+- Add standalone-managed channel/runtime control resources so response toggles stop living in legacy AI runtime config
+- Build standalone suggestion + approved-conversation ingestion boundaries before retiring legacy chat logic
+
+## Iteration 91
+
+### Implemented
+- Tightened document-response phrasing so natural availability replies no longer override richer excerpts when the user also asks for detail
+- Expanded the legacy -> standalone migration analysis with concrete bridge-contract recommendations for:
+  - channel config sync
+  - runtime control sync
+  - inbound message intake
+  - suggestion feedback
+  - approved conversation bundle promotion
+- Documented the coexistence boundary in architecture with explicit same-database / separate-schema constraints
+
+### Working
+- Response composition now distinguishes better between:
+  - pure broad availability questions
+  - mixed availability + detail questions
+- Focused response suites and backend build are green after the phrasing adjustment
+- The migration analysis now has enough detail to drive implementation of:
+  - `LegacyIntegrationModule`
+  - standalone runtime-control sync
+  - standalone suggestion ownership
+  - standalone approved-chat ingestion
+
+### Technical Debt
+- Some broad informational openings can still answer with a recommendation before an explicit yes/no confirmation when the retrieved document emphasis is skewed
+- Legacy integration is still analysis/documentation only; no bridge endpoints or standalone control-plane modules exist yet
+- Shared database coexistence remains unsafe until schema isolation is applied in deployment configuration
+
+### Next Steps
+- Start implementing `LegacyIntegrationModule` as the only sync surface from legacy into standalone
+- Move runtime response toggles and channel-effective config out of legacy AI config and into standalone-managed resources
+- Build standalone suggestion lifecycle and approved-chat ingestion boundaries before cutting legacy chat logic
