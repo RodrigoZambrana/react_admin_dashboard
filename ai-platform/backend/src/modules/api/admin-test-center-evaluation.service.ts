@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
+import { summarySeeksProductContext } from '../response/response-grounding.catalogs';
+
 import type {
   TestCenterConversationEvaluation,
   TestCenterReplayTurnResult,
@@ -134,6 +136,18 @@ export class AdminTestCenterEvaluationService {
         }
       }
 
+      if (expectation.shouldAskFollowUpQuestion) {
+        if (looksFollowUpClarification(response, input.turn.locale)) {
+          matchedSignals.push('Pide contexto adicional de forma explícita');
+        } else {
+          correctnessScore -= 18;
+          coherenceScore -= 12;
+          issues.push(
+            'Faltó una pregunta de seguimiento para obtener contexto antes de responder con precisión.',
+          );
+        }
+      }
+
       if (expectation.expectedClose) {
         if (looksCloseResponse(response)) {
           matchedSignals.push('Cierre conversacional correcto');
@@ -165,6 +179,16 @@ export class AdminTestCenterEvaluationService {
     if (!looksWellWritten(response)) {
       writingQualityScore -= 18;
       issues.push('La redacción quedó pobre o demasiado telegráfica.');
+    }
+
+    if (expectation?.shouldPreferMultiline) {
+      if (looksPreferredMultiline(response)) {
+        matchedSignals.push('Usa multilinea cuando el turno lo amerita');
+      } else {
+        fluencyScore -= 10;
+        writingQualityScore -= 10;
+        issues.push('La respuesta debió separarse mejor en bloques o párrafos.');
+      }
     }
 
     if (looksMidThreadGreeting(response) && input.turnIndex > 0) {
@@ -330,11 +354,63 @@ function looksWellWritten(value: string) {
     return false;
   }
 
-  return !/\s{2,}/u.test(trimmed);
+  return !/[ \t]{2,}/u.test(trimmed);
 }
 
 function looksMidThreadGreeting(value: string) {
   return /^(hola|buenas|buen dia|buenos dias|buenas tardes)\b/iu.test(value.trim());
+}
+
+function looksFollowUpClarification(
+  value: string,
+  locale?: string | null,
+) {
+  const trimmed = value.trim();
+  const normalized = normalizeForCheck(trimmed);
+
+  if (summarySeeksProductContext(locale, value)) {
+    return true;
+  }
+
+  const hasFollowUpPrompt =
+    trimmed.includes('?') ||
+    trimmed.includes('¿') ||
+    normalized.includes('si me indicas') ||
+    normalized.includes('si me decis') ||
+    normalized.includes('si me decís') ||
+    normalized.includes('contame') ||
+    normalized.includes('decime') ||
+    normalized.includes('podrias indicarme') ||
+    normalized.includes('podrías indicarme');
+
+  if (!hasFollowUpPrompt) {
+    return false;
+  }
+
+  return (
+    normalized.includes('que producto') ||
+    normalized.includes('qué producto') ||
+    normalized.includes('que variante') ||
+    normalized.includes('qué variante') ||
+    normalized.includes('que linea') ||
+    normalized.includes('qué linea') ||
+    normalized.includes('que linea') ||
+    normalized.includes('qué línea') ||
+    normalized.includes('que material') ||
+    normalized.includes('qué material') ||
+    normalized.includes('cual de') ||
+    normalized.includes('cuál de')
+  );
+}
+
+function looksPreferredMultiline(value: string) {
+  const trimmed = value.trim();
+
+  if (trimmed.length < 90) {
+    return true;
+  }
+
+  return /\n\s*\n/u.test(trimmed);
 }
 
 function clampScore(value: number) {

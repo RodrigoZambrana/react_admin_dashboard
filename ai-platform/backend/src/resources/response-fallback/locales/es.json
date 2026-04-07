@@ -12,6 +12,7 @@
     "opening_greeting": "Hola, gracias por contactarnos.",
     "basic_response": "Hola, contame en qué te puedo ayudar.",
     "clarification_requested_date": "Para coordinar la visita, necesito la fecha y la hora que te sirven.",
+    "clarification_quote_scope": "Para orientarte con un presupuesto, primero necesito saber qué producto o línea estás evaluando.",
     "clarification_user_goal": "Decime qué necesitás y lo seguimos desde ahí.",
     "clarification_generic": "Contame un poco más y sigo con eso.",
     "execution_success_booking": "La reserva fue confirmada para {{scheduledFor}}.",
@@ -41,6 +42,11 @@
       "Para coordinar la visita, necesito la fecha y la hora que te sirven.",
       "Decime qué día y horario querés para poder agendar la visita.",
       "Indicame cuándo te queda bien la visita y sigo con eso."
+    ],
+    "clarification_quote_scope": [
+      "Para orientarte con un presupuesto, primero necesito saber qué producto o línea estás evaluando.",
+      "Antes de cotizar, decime qué producto, línea o trabajo estás buscando y te guío con lo necesario.",
+      "Para avanzar con un presupuesto, primero necesito ubicar qué producto o solución querés cotizar."
     ],
     "clarification_user_goal": [
       "Decime qué necesitás y lo seguimos desde ahí.",

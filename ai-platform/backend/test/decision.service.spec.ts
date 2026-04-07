@@ -158,6 +158,138 @@ describe('DecisionService', () => {
     );
   });
 
+  it('keeps quote requests in clarification until the product or solution scope is known', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      intent: 'CREATE_QUOTE',
+      language: 'es',
+      confidence: 0.92,
+      entities: {
+        rawMessage: 'necesito un presupuesto',
+        requestSummary: 'Solicitud de presupuesto',
+        productQuery: 'presupuesto',
+      },
+      normalizedEntities: {
+        dates: [],
+        measurements: [],
+        dimensions: [],
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'clarify',
+        reasonCode: 'quote_missing_scope',
+        missingFields: ['quote_scope'],
+      }),
+    );
+  });
+
+  it('allows quote creation when the quote request already carries meaningful product scope', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      intent: 'CREATE_QUOTE',
+      language: 'es',
+      confidence: 0.94,
+      entities: {
+        rawMessage: 'necesito un presupuesto para cortinas roller blackout',
+        requestSummary: 'Solicitud de presupuesto para cortinas roller blackout',
+        productQuery: 'cortinas roller blackout',
+      },
+      normalizedEntities: {
+        dates: [],
+        measurements: [],
+        dimensions: [],
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'invoke_tool',
+        toolName: 'create_quote',
+      }),
+    );
+  });
+
+  it('does not treat bare measurements as sufficient quote scope without a product or solution', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      intent: 'CREATE_QUOTE',
+      language: 'es',
+      confidence: 0.93,
+      entities: {
+        rawMessage: 'es de 120x120 y quiero presupuesto',
+        requestSummary: 'Solicitud de presupuesto',
+        productQuery: 'presupuesto',
+      },
+      normalizedEntities: {
+        dates: [],
+        measurements: [],
+        dimensions: [
+          {
+            source: '120x120',
+            unitSource: 'inferred',
+            values: [
+              {
+                position: 1,
+                rawValue: 120,
+                rawUnit: null,
+                normalizedValue: 1200,
+                normalizedUnit: 'mm',
+              },
+              {
+                position: 2,
+                rawValue: 120,
+                rawUnit: null,
+                normalizedValue: 1200,
+                normalizedUnit: 'mm',
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'clarify',
+        reasonCode: 'quote_missing_scope',
+        missingFields: ['quote_scope'],
+      }),
+    );
+  });
+
+  it('keeps quote requests in clarification when the user only provides a generic family context like ventanas', async () => {
+    const service = createService();
+
+    const decision = await service.decide({
+      intent: 'CREATE_QUOTE',
+      language: 'es',
+      confidence: 0.93,
+      entities: {
+        rawMessage: 'es para unas ventanas del living',
+        requestSummary: 'Solicitud de presupuesto para ventanas del living',
+        productQuery: 'ventanas del living',
+      },
+      normalizedEntities: {
+        dates: [],
+        measurements: [],
+        dimensions: [],
+      },
+    });
+
+    expect(decision).toEqual(
+      expect.objectContaining({
+        action: 'clarify',
+        reasonCode: 'quote_missing_scope',
+        missingFields: ['quote_scope'],
+      }),
+    );
+  });
+
   it('continues continuity-prepared booking follow-ups without falling back to low-confidence clarification', async () => {
     const service = createService();
 

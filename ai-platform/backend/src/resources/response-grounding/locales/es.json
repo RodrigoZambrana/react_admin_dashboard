@@ -19,13 +19,42 @@
       "unspecifiedLabel": "las condiciones de pago"
     },
     "purchase_channel": {
-      "requestTerms": ["comprar", "compra", "adquirir", "pedido", "tienda", "local"],
-      "generalEvidenceTerms": ["comprar", "compra", "pedido", "tienda", "local"],
-      "unspecifiedLabel": "dónde comprarlo"
+      "requestTerms": ["comprar", "compra", "adquirir", "pedido", "tienda", "local", "ubicacion", "ubicación", "presencial", "ver sus productos"],
+      "generalEvidenceTerms": ["comprar", "compra", "pedido", "tienda", "local", "ubicacion", "ubicación", "presencial"],
+      "supportedAxes": ["commercial_presence", "service_offers", "coverage_locations"],
+      "unspecifiedLabel": "la modalidad de atención presencial"
+    },
+    "service_capability": {
+      "requestTerms": ["instalan", "reparan", "mantienen", "automatizan", "motorizan", "toman medidas", "medidas a domicilio", "arreglan"],
+      "contextualRequestTerms": ["instalacion", "instalación", "reparación", "reparacion", "mantenimiento", "automatización", "automatizacion", "motorización", "motorizacion", "visita", "visitas", "relevamiento", "rectificacion", "rectificación", "colocacion", "colocación", "servicio tecnico", "servicio técnico", "medidas"],
+      "contextualFrameTerms": ["hacen", "hace", "realizan", "realizamos", "realiza", "trabajan", "trabaja", "ofrecen", "ofrece", "pueden", "puedo", "se encargan", "dan", "brindan", "ustedes"],
+      "generalEvidenceTerms": ["instalacion", "instalación", "reparacion", "reparación", "mantenimiento", "automatización", "automatizacion", "motorización", "motorizacion", "visita", "visitas", "medidas", "relevamiento", "rectificacion", "rectificación", "servicio tecnico", "servicio técnico"],
+      "supportedAxes": ["service_offers", "organic_response_pattern", "coverage_locations", "commercial_visit_cost"],
+      "unspecifiedLabel": "si realizan ese trabajo"
+    },
+    "quote_requirements": {
+      "requestTerms": ["cotizar", "cotizacion", "cotización", "presupuesto", "presupuestar", "datos necesitan", "que datos necesitan", "qué datos necesitan", "medidas necesitan"],
+      "generalEvidenceTerms": ["cotizar", "cotizacion", "cotización", "presupuesto", "medidas", "ancho", "alto", "cantidad", "variante", "configuracion", "configuración"],
+      "supportedAxes": ["quote_fields", "quote_transition"],
+      "requiresProductContext": true,
+      "preferFamilyChoiceWhenContextLimited": false,
+      "unspecifiedLabel": "los datos para presupuestar"
+    },
+    "recommendation": {
+      "requestTerms": ["recomiendas", "recomienda", "recomendás", "conviene", "mejor", "ideal", "sugeris", "sugerís"],
+      "contextualRequestTerms": ["opcion", "opciones", "alternativa", "alternativas", "moderno", "moderna", "modernizar", "renovar", "recambio", "reemplazo"],
+      "contextualFrameTerms": ["quiero", "busco", "estoy viendo", "me interesa", "necesito", "evaluando"],
+      "weakRequestTerms": ["exterior", "interior", "dormitorio", "bajo mantenimiento", "privacidad", "aislamiento", "confort", "oscurecer", "entrada de luz"],
+      "weakMatchThreshold": 2,
+      "generalEvidenceTerms": ["recomendado", "conviene", "mejor", "ideal", "recomendacion", "recomendación", "economico", "económica", "económico", "accesible", "estandar", "estándar", "premium", "alta prestacion", "alta prestación"],
+      "supportedAxes": ["comparison_guidance", "suitability", "feature_support", "materials", "product_types"],
+      "requiresProductContext": true,
+      "unspecifiedLabel": "qué alternativa te conviene más"
     },
     "availability": {
       "requestTerms": ["disponibilidad", "disponible", "stock", "entrega"],
       "generalEvidenceTerms": ["disponibilidad", "disponible", "stock", "entrega"],
+      "supportedAxes": ["product_types", "materials"],
       "unspecifiedLabel": "la disponibilidad exacta"
     },
     "warranty": {
@@ -38,6 +67,7 @@
       "requestTerms": ["material", "materiales", "tela", "acabado"],
       "generalEvidenceTerms": ["material", "materiales", "tela", "acabado"],
       "supportedAxes": ["materials"],
+      "requiresProductContext": true,
       "unspecifiedLabel": "los materiales exactos"
     },
     "color_options": {
@@ -45,18 +75,24 @@
       "generalEvidenceTerms": ["color", "colores", "tono", "tonos", "variedad"],
       "supportedAxes": ["color_options"],
       "unspecifiedAxes": ["exact_color_options"],
+      "requiresProductContext": true,
       "unspecifiedLabel": "los colores exactos"
     },
     "specific_variants": {
-      "requestTerms": ["variante", "variantes", "modelo", "modelos", "opcion", "opciones"],
-      "generalEvidenceTerms": ["variante", "variantes", "modelo", "modelos", "opcion", "opciones", "variedad"],
+      "requestTerms": ["variante", "variantes", "modelo", "modelos", "series", "lineas", "líneas"],
+      "weakRequestTerms": ["opcion", "opciones"],
+      "contextualRequestTerms": ["serie", "series", "linea", "lineas", "línea", "líneas"],
+      "contextualFrameTerms": ["que", "qué", "cual", "cuál", "cuales", "cuáles", "tienen", "tiene", "trabajan", "trabaja", "disponibles", "manejan"],
+      "generalEvidenceTerms": ["variante", "variantes", "modelo", "modelos", "series", "lineas", "líneas", "opcion", "opciones", "variedad"],
       "supportedAxes": ["specific_variants", "product_types"],
+      "requiresProductContext": true,
       "unspecifiedLabel": "las variantes exactas"
     },
     "feature_support": {
-      "requestTerms": ["dvh", "doble vidrio", "vidrio simple", "monoblock", "mosquitero", "cortina integrada", "soporta", "admite", "permite", "compatibilidad"],
-      "generalEvidenceTerms": ["dvh", "doble vidrio", "vidrio simple", "monoblock", "mosquitero", "cortina integrada", "soporta", "admite", "permite", "compatibilidad"],
+      "requestTerms": ["dvh", "doble vidrio", "vidrio simple", "monoblock", "mosquitero", "cortina integrada", "soporta", "admite", "permite", "compatibilidad", "albañileria", "albañilería"],
+      "generalEvidenceTerms": ["dvh", "doble vidrio", "vidrio simple", "monoblock", "mosquitero", "cortina integrada", "soporta", "admite", "permite", "compatibilidad", "albañileria", "albañilería"],
       "supportedAxes": ["feature_support"],
+      "requiresProductContext": true,
       "unspecifiedLabel": "la compatibilidad exacta"
     }
   },
@@ -74,7 +110,11 @@
     "no tengo confirmado",
     "no tengo confirmada",
     "no tengo confirmados",
-    "no tengo confirmadas"
+    "no tengo confirmadas",
+    "no contamos con una confirmacion",
+    "no contamos con una confirmación",
+    "no contamos con informacion clara",
+    "no contamos con información clara"
   ],
   "exactnessCues": ["exacto", "exacta", "exactos", "exactas", "especifico", "específico", "cuales", "cuáles"],
   "closeTurnReopenCues": [
@@ -89,11 +129,96 @@
   "questionSignals": {
     "broadOverviewIntentTerms": ["tienen", "tiene", "hacen", "hace", "trabajan", "trabaja", "ofrecen", "ofrece", "informacion", "info", "opciones", "busco", "necesito", "quiero"],
     "availabilityIntentTerms": ["tienen", "tiene", "hacen", "hace", "trabajan", "trabaja", "ofrecen", "ofrece"],
-    "detailCueTerms": ["color", "colores", "material", "materiales", "tipo", "tipos", "linea", "lineas", "serie", "series", "medidas", "cuotas", "tarjeta", "tarjetas", "garantia", "pago", "pagos", "precio", "precios", "dvh", "visita", "instalacion", "horario", "horarios"]
+    "detailCueTerms": ["color", "colores", "material", "materiales", "tipo", "tipos", "linea", "lineas", "serie", "series", "medidas", "cuotas", "tarjeta", "tarjetas", "garantia", "pago", "pagos", "precio", "precios", "dvh", "visita", "instalacion", "horario", "horarios", "cotizar", "presupuesto", "recomiendas", "conviene", "mejor", "reparacion", "mantenimiento"]
+  },
+  "productContextSignals": {
+    "promptTerms": ["que producto", "qué producto", "que linea", "qué línea", "que variante", "qué variante", "que familia", "qué familia", "estas viendo", "estás viendo", "estas evaluando", "estás evaluando"]
+  },
+  "subjectEquivalenceSignals": {
+    "groups": [
+      ["ventana", "ventanas", "abertura", "aberturas"],
+      ["persiana", "persianas", "enrollar", "enrollable"]
+    ]
+  },
+  "subjectAlignmentSignals": {
+    "stopTerms": [
+      "trabajo",
+      "trabajos",
+      "servicio",
+      "servicios",
+      "opcion",
+      "opciones",
+      "moderno",
+      "moderna",
+      "modernos",
+      "modernas",
+      "mantenimiento",
+      "consulta",
+      "solicitud",
+      "presupuesto",
+      "cotizacion",
+      "cotización",
+      "living"
+    ]
   },
   "coverageScopeSignals": {
     "insideLocationTerms": ["dentro de"],
     "outsideLocationTerms": ["fuera de", "interior"]
+  },
+  "policyTemplates": {
+    "visitCostOutsideLocation": "Fuera de {{location}}, puede corresponder costo de traslado.",
+    "visitCostInsideNoCost": "En {{location}}, {{visitLabel}} no tiene costo.",
+    "visitCostInsideHasCost": "En {{location}}, {{visitLabel}} tiene costo.",
+    "mixedFamilyPartition": "Sí, te puedo orientar con {{families}}. Si te parece, arrancamos por una primero y después vemos la otra: ¿querés empezar por {{firstFamily}} o por {{secondFamily}}?",
+    "contextLimitedDetailGeneric": "Depende del producto o línea. Si me indicás qué producto estás evaluando, te digo {{detailLabel}}.",
+    "contextLimitedDetailFamilyChoice": "Depende del producto o línea. Si me indicás si estás viendo {{families}}, te digo {{detailLabel}}.",
+    "colorSingleScoped": "En {{scope}}, el color disponible es {{values}}.",
+    "colorMultipleScoped": "En {{scope}}, los colores disponibles son {{values}}.",
+    "colorSingleGeneric": "El color disponible es {{values}}.",
+    "colorMultipleGeneric": "Los colores disponibles son {{values}}.",
+    "paymentMethods": "Aceptamos {{values}}.",
+    "paymentMercadoPagoInstallmentsAndCards": "Con Mercado Pago se puede pagar hasta en {{installments}} cuotas y se aceptan {{cards}}.",
+    "paymentMercadoPagoInstallments": "Con Mercado Pago se puede pagar hasta en {{installments}} cuotas.",
+    "paymentMercadoPagoCards": "Con Mercado Pago se aceptan {{cards}}.",
+    "purchaseChannelHasStore": "Sí, contamos con local comercial.",
+    "purchaseChannelNoStore": "No contamos con local comercial.",
+    "purchaseChannelOnlineAttention": "Trabajamos principalmente de forma online.",
+    "purchaseChannelVisitWithLocation": "Si estás en {{location}}, podemos coordinar una visita a domicilio{{actionText}}.",
+    "purchaseChannelVisitGeneric": "Podemos coordinar una visita a domicilio{{actionText}}.",
+    "serviceCapabilityClauseVisitAndMeasurements": "podemos coordinar una visita a domicilio para tomar medidas",
+    "serviceCapabilityClauseVisitOnly": "podemos coordinar una visita a domicilio",
+    "serviceCapabilityClauseMeasurementsOnly": "tomamos medidas",
+    "serviceCapabilityClauseInstallation": "realizamos instalación",
+    "serviceCapabilityClauseAutomationAndMotorization": "también realizamos automatización y motorización",
+    "serviceCapabilityClauseAutomation": "también realizamos automatización",
+    "serviceCapabilityClauseMotorization": "también realizamos motorización",
+    "serviceCapabilityClauseRepairAndMaintenance": "realizamos reparación y mantenimiento",
+    "serviceCapabilityClauseRepair": "también realizamos reparación",
+    "serviceCapabilityClauseMaintenance": "también realizamos mantenimiento",
+    "serviceCapabilityYesSingle": "Sí, {{clauses}}.",
+    "serviceCapabilityYesMultiple": "Sí, {{clauses}}.",
+    "mixedServiceRecommendationClarificationGeneric": "{{capabilitySummary}} Si además estás evaluando una alternativa más moderna o conveniente, decime qué producto o línea estás viendo y te oriento.",
+    "mixedServiceRecommendationClarificationFamilyChoice": "{{capabilitySummary}} Si además estás evaluando una alternativa más moderna o conveniente, decime si estás viendo {{families}} y te oriento.",
+    "broadOverviewProductTypes": "Sí, trabajamos con {{subject}}, incluyendo {{values}}.",
+    "broadOverviewMaterialsAndModes": "Sí, trabajamos con {{subject}} en {{materials}}, con opciones {{modes}}.",
+    "broadOverviewMaterials": "Sí, trabajamos con {{subject}} en {{materials}}.",
+    "broadOverviewModes": "Sí, trabajamos con {{subject}}, con opciones {{modes}}.",
+    "availabilityMaterials": "Sí, tenemos {{subject}} en {{values}}.",
+    "availabilityProductTypes": "Sí, trabajamos con {{subject}}, incluyendo {{values}}.",
+    "availabilitySubject": "Sí, trabajamos con {{subject}}.",
+    "scopedUnavailableDetail": "En {{subject}}, {{detailClause}}",
+    "confirmationPolicyWithSubject": "Si me indicás qué variante o línea de {{subject}} estás buscando, te oriento con las opciones y, si hace falta, te confirmo ese detalle puntual.",
+    "confirmationPolicyGeneric": "Si me indicás qué producto, variante o línea estás buscando, te oriento con las opciones y, si hace falta, te confirmo ese detalle puntual.",
+    "quoteRequirementsFields": "Para cotizar, necesitamos {{values}}.",
+    "quoteRequirementsTransition": "Para avanzar con el presupuesto, normalmente {{values}}.",
+    "recommendationSuitability": "Te lo recomiendo especialmente para {{useCases}}, en particular si estás evaluando {{subject}}.",
+    "recommendationMaterialsOrientation": "Para lo que buscas, solemos orientar primero a {{subject}} en {{materials}}.",
+    "warrantySingleSharedTwoMaterials": "La garantía de referencia es de {{value}} tanto en {{firstMaterial}} como en {{secondMaterial}}.",
+    "warrantySingleSharedManyMaterials": "La garantía de referencia es de {{value}} en {{materials}}.",
+    "warrantyScoped": "En {{scope}}, la garantía de referencia es de {{value}}.",
+    "warrantySingleGeneric": "La garantía de referencia es de {{value}}.",
+    "warrantyMultipleGeneric": "La garantía de referencia varía entre {{values}}.",
+    "outOfDomainConcreteSubject": "No, no trabajamos con {{subject}}."
   },
   "unspecifiedDetailPrefix": "Por ahora no tengo confirmación sobre",
   "extractionUncertainDetailPrefix": "Por ahora no tengo una confirmación suficientemente clara sobre",

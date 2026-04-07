@@ -5,9 +5,15 @@ import type { ResponseGroundingDetailType } from './response.types';
 
 type DetailCatalogEntry = {
   requestTerms: string[];
+  weakRequestTerms?: string[];
+  weakMatchThreshold?: number;
+  contextualRequestTerms?: string[];
+  contextualFrameTerms?: string[];
   generalEvidenceTerms?: string[];
   supportedAxes?: string[];
   unspecifiedAxes?: string[];
+  requiresProductContext?: boolean;
+  preferFamilyChoiceWhenContextLimited?: boolean;
   unspecifiedLabel: string;
 };
 
@@ -19,9 +25,77 @@ type GroundingQuestionSignals = {
   detailCueTerms: string[];
 };
 
+type ProductContextSignals = {
+  promptTerms: string[];
+};
+
 type CoverageScopeSignals = {
   insideLocationTerms: string[];
   outsideLocationTerms: string[];
+};
+
+type SubjectEquivalenceSignals = {
+  groups: string[][];
+};
+
+type SubjectAlignmentSignals = {
+  stopTerms: string[];
+};
+
+type GroundingPolicyTemplates = {
+  visitCostOutsideLocation: string;
+  visitCostInsideNoCost: string;
+  visitCostInsideHasCost: string;
+  mixedFamilyPartition: string;
+  contextLimitedDetailGeneric: string;
+  contextLimitedDetailFamilyChoice: string;
+  colorSingleScoped: string;
+  colorMultipleScoped: string;
+  colorSingleGeneric: string;
+  colorMultipleGeneric: string;
+  paymentMethods: string;
+  paymentMercadoPagoInstallmentsAndCards: string;
+  paymentMercadoPagoInstallments: string;
+  paymentMercadoPagoCards: string;
+  purchaseChannelHasStore: string;
+  purchaseChannelNoStore: string;
+  purchaseChannelOnlineAttention: string;
+  purchaseChannelVisitWithLocation: string;
+  purchaseChannelVisitGeneric: string;
+  serviceCapabilityClauseVisitAndMeasurements: string;
+  serviceCapabilityClauseVisitOnly: string;
+  serviceCapabilityClauseMeasurementsOnly: string;
+  serviceCapabilityClauseInstallation: string;
+  serviceCapabilityClauseAutomationAndMotorization: string;
+  serviceCapabilityClauseAutomation: string;
+  serviceCapabilityClauseMotorization: string;
+  serviceCapabilityClauseRepairAndMaintenance: string;
+  serviceCapabilityClauseRepair: string;
+  serviceCapabilityClauseMaintenance: string;
+  serviceCapabilityYesSingle: string;
+  serviceCapabilityYesMultiple: string;
+  mixedServiceRecommendationClarificationGeneric: string;
+  mixedServiceRecommendationClarificationFamilyChoice: string;
+  broadOverviewProductTypes: string;
+  broadOverviewMaterialsAndModes: string;
+  broadOverviewMaterials: string;
+  broadOverviewModes: string;
+  availabilityMaterials: string;
+  availabilityProductTypes: string;
+  availabilitySubject: string;
+  scopedUnavailableDetail: string;
+  confirmationPolicyWithSubject: string;
+  confirmationPolicyGeneric: string;
+  quoteRequirementsFields: string;
+  quoteRequirementsTransition: string;
+  recommendationSuitability: string;
+  recommendationMaterialsOrientation: string;
+  warrantySingleSharedTwoMaterials: string;
+  warrantySingleSharedManyMaterials: string;
+  warrantyScoped: string;
+  warrantySingleGeneric: string;
+  warrantyMultipleGeneric: string;
+  outOfDomainConcreteSubject: string;
 };
 
 type RawGroundingLocaleCatalog = {
@@ -31,7 +105,11 @@ type RawGroundingLocaleCatalog = {
   exactnessCues: string[];
   closeTurnReopenCues: string[];
   questionSignals: GroundingQuestionSignals;
+  productContextSignals?: ProductContextSignals;
   coverageScopeSignals?: CoverageScopeSignals;
+  subjectEquivalenceSignals?: SubjectEquivalenceSignals;
+  subjectAlignmentSignals?: SubjectAlignmentSignals;
+  policyTemplates: GroundingPolicyTemplates;
   unspecifiedDetailPrefix: string;
   extractionUncertainDetailPrefix: string;
   labelJoiner: string;
@@ -50,7 +128,11 @@ type GroundingLocaleCatalog = {
   exactnessCues: string[];
   closeTurnReopenCues: string[];
   questionSignals: GroundingQuestionSignals;
+  productContextSignals: ProductContextSignals;
   coverageScopeSignals: CoverageScopeSignals;
+  subjectEquivalenceSignals: SubjectEquivalenceSignals;
+  subjectAlignmentSignals: SubjectAlignmentSignals;
+  policyTemplates: GroundingPolicyTemplates;
   unspecifiedDetailPrefix: string;
   extractionUncertainDetailPrefix: string;
   labelJoiner: string;
@@ -64,6 +146,18 @@ type GroundingLocaleCatalog = {
 
 type ResponseGroundingLocaleFamily = 'default' | 'en' | 'es';
 
+export type GroundingDetailMatchAssessment = {
+  detailType: ResponseGroundingDetailType;
+  userStrongMatch: boolean;
+  userContextualMatch: boolean;
+  userWeakMatch: boolean;
+  queryStrongMatch: boolean;
+  queryContextualMatch: boolean;
+  queryWeakMatch: boolean;
+  score: number;
+  strongScore: number;
+};
+
 const defaultGuardrailConfig = {
   minimumTokenLength: 4,
   minimumSentenceTokenCount: 4,
@@ -72,6 +166,22 @@ const defaultGuardrailConfig = {
 };
 
 const localeCatalogCache = new Map<ResponseGroundingLocaleFamily, GroundingLocaleCatalog>();
+
+export const responseGroundingDetailTypes: ResponseGroundingDetailType[] = [
+  'coverage_support',
+  'pricing',
+  'payment_terms',
+  'purchase_channel',
+  'service_capability',
+  'quote_requirements',
+  'recommendation',
+  'availability',
+  'warranty',
+  'materials',
+  'color_options',
+  'specific_variants',
+  'feature_support',
+];
 
 export function resolveResponseGroundingLocaleFamily(locale?: string | null) {
   const family = String(locale ?? '')
@@ -99,6 +209,29 @@ export function resolveResponseGroundingCatalog(locale?: string | null) {
   return catalog;
 }
 
+export function resolveGroundingDetailSupportedAxes(
+  locale: string | null | undefined,
+  detailType: ResponseGroundingDetailType,
+) {
+  return [
+    ...(resolveResponseGroundingCatalog(locale).detailTypes[detailType]
+      ?.supportedAxes ?? []),
+  ];
+}
+
+export function isUserBackedGroundingDetailAssessment(
+  assessment: Pick<
+    GroundingDetailMatchAssessment,
+    'userStrongMatch' | 'userContextualMatch' | 'userWeakMatch'
+  >,
+) {
+  return (
+    assessment.userStrongMatch ||
+    assessment.userContextualMatch ||
+    assessment.userWeakMatch
+  );
+}
+
 export function normalizeGroundingText(value: string) {
   return value
     .toLowerCase()
@@ -120,6 +253,163 @@ export function hasGroundingCatalogSignal(
 
     return normalizedText.includes(term);
   });
+}
+
+function countGroundingCatalogSignals(
+  normalizedText: string,
+  terms: readonly string[],
+) {
+  return Array.from(new Set(terms.filter(Boolean))).filter((term) =>
+    normalizedText.includes(term),
+  ).length;
+}
+
+export function assessRequestedGroundingDetails(input: {
+  locale?: string | null;
+  userText: string;
+  queryText?: string | null;
+}) {
+  const catalog = resolveResponseGroundingCatalog(input.locale);
+  const normalizedUserText = normalizeGroundingText(input.userText);
+  const normalizedQueryText = normalizeGroundingText(input.queryText ?? '');
+
+  const scored = responseGroundingDetailTypes
+    .map((detailType) => {
+      const config = catalog.detailTypes[detailType];
+      const userStrongMatch = hasGroundingCatalogSignal(
+        normalizedUserText,
+        config.requestTerms,
+      );
+      const userContextualTermCount = countGroundingCatalogSignals(
+        normalizedUserText,
+        config.contextualRequestTerms ?? [],
+      );
+      const queryContextualTermCount = countGroundingCatalogSignals(
+        normalizedQueryText,
+        config.contextualRequestTerms ?? [],
+      );
+      const hasUserContextualFrame = hasGroundingCatalogSignal(
+        normalizedUserText,
+        config.contextualFrameTerms ?? [],
+      );
+      const hasQueryContextualFrame = hasGroundingCatalogSignal(
+        normalizedQueryText,
+        config.contextualFrameTerms ?? [],
+      );
+      const userContextualMatch =
+        userContextualTermCount > 0 &&
+        (hasUserContextualFrame || hasQueryContextualFrame);
+      const userWeakMatch = hasGroundingCatalogSignal(
+        normalizedUserText,
+        config.weakRequestTerms ?? [],
+      );
+      const userWeakMatchCount = countGroundingCatalogSignals(
+        normalizedUserText,
+        config.weakRequestTerms ?? [],
+      );
+      const queryStrongMatch = hasGroundingCatalogSignal(
+        normalizedQueryText,
+        config.requestTerms,
+      );
+      const queryContextualMatch =
+        queryContextualTermCount > 0 &&
+        (hasUserContextualFrame || hasQueryContextualFrame);
+      const queryWeakMatch = hasGroundingCatalogSignal(
+        normalizedQueryText,
+        config.weakRequestTerms ?? [],
+      );
+      const queryWeakMatchCount = countGroundingCatalogSignals(
+        normalizedQueryText,
+        config.weakRequestTerms ?? [],
+      );
+      const weakMatchThreshold = Math.max(1, config.weakMatchThreshold ?? 1);
+
+      return {
+        detailType,
+        userStrongMatch,
+        userContextualMatch,
+        userWeakMatch: userWeakMatch && userWeakMatchCount >= weakMatchThreshold,
+        userWeakMatchCount,
+        queryStrongMatch,
+        queryContextualMatch,
+        queryWeakMatch: queryWeakMatch && queryWeakMatchCount >= weakMatchThreshold,
+        queryWeakMatchCount,
+        score:
+          (userStrongMatch ? 4 : 0) +
+          (userContextualMatch ? Math.min(3, userContextualTermCount * 2) : 0) +
+          (queryStrongMatch ? 2 : 0) +
+          (queryContextualMatch ? Math.min(2, queryContextualTermCount) : 0) +
+          (userWeakMatch && userWeakMatchCount >= weakMatchThreshold
+            ? Math.min(2, userWeakMatchCount)
+            : 0) +
+          (queryWeakMatch && queryWeakMatchCount >= weakMatchThreshold
+            ? Math.min(1, queryWeakMatchCount * 0.5)
+            : 0),
+        strongScore:
+          (userStrongMatch ? 2 : 0) +
+          (userContextualMatch ? 1 : 0) +
+          (queryStrongMatch ? 1 : 0) +
+          (queryContextualMatch ? 1 : 0),
+      };
+    });
+  const hasAnyUserMatch = scored.some(
+    (entry) => entry.userStrongMatch || entry.userContextualMatch || entry.userWeakMatch,
+  );
+  const hasUserStrongMatch = scored.some((entry) => entry.userStrongMatch);
+
+  return scored
+    .filter((entry) => {
+      if (entry.score <= 0) {
+        return false;
+      }
+
+      if (hasUserStrongMatch) {
+        return entry.userStrongMatch || entry.userContextualMatch || entry.userWeakMatch;
+      }
+
+      return true;
+    })
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => {
+      const leftUserBacked =
+        left.userStrongMatch || left.userContextualMatch || left.userWeakMatch;
+      const rightUserBacked =
+        right.userStrongMatch || right.userContextualMatch || right.userWeakMatch;
+
+      if (hasAnyUserMatch && leftUserBacked !== rightUserBacked) {
+        return Number(rightUserBacked) - Number(leftUserBacked);
+      }
+
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+
+      if (right.strongScore !== left.strongScore) {
+        return right.strongScore - left.strongScore;
+      }
+
+      return responseGroundingDetailTypes.indexOf(left.detailType) -
+        responseGroundingDetailTypes.indexOf(right.detailType);
+    })
+    .map((entry) => ({
+      detailType: entry.detailType,
+      userStrongMatch: entry.userStrongMatch,
+      userContextualMatch: entry.userContextualMatch,
+      userWeakMatch: entry.userWeakMatch,
+      queryStrongMatch: entry.queryStrongMatch,
+      queryContextualMatch: entry.queryContextualMatch,
+      queryWeakMatch: entry.queryWeakMatch,
+      score: entry.score,
+      strongScore: entry.strongScore,
+    }));
+}
+
+export function resolveRequestedGroundingDetailTypes(input: {
+  locale?: string | null;
+  userText: string;
+  queryText?: string | null;
+}) {
+  return assessRequestedGroundingDetails(input).map((entry) => entry.detailType);
 }
 
 export function extractGroundingTokens(
@@ -170,6 +460,87 @@ export function renderExtractionUncertainDetailClause(input: {
   )}.`;
 }
 
+export function renderGroundingPolicyTemplate(input: {
+  locale?: string | null;
+  templateKey: keyof GroundingPolicyTemplates;
+  values: Record<string, string>;
+}) {
+  const catalog = resolveResponseGroundingCatalog(input.locale);
+  const template = catalog.policyTemplates[input.templateKey];
+
+  return template.replace(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/gu, (_, key: string) => {
+    return input.values[key] ?? '';
+  });
+}
+
+export function summarySeeksProductContext(
+  locale: string | null | undefined,
+  summary: string,
+) {
+  const normalizedSummary = normalizeGroundingText(summary);
+  const promptTerms =
+    resolveResponseGroundingCatalog(locale).productContextSignals.promptTerms;
+
+  return hasGroundingCatalogSignal(normalizedSummary, promptTerms);
+}
+
+export function expandGroundingEquivalentTokens(
+  locale: string | null | undefined,
+  tokens: readonly string[],
+) {
+  const normalizedTokens = Array.from(
+    new Set(
+      tokens
+        .map((token) => normalizeGroundingText(token))
+        .filter((token) => token.length > 0),
+    ),
+  );
+
+  if (normalizedTokens.length === 0) {
+    return [];
+  }
+
+  const expanded = new Set<string>(normalizedTokens);
+
+  for (const token of normalizedTokens) {
+    if (token.endsWith('es') && token.length > 5) {
+      expanded.add(token.slice(0, -2));
+    }
+
+    if (token.endsWith('s') && token.length > 3) {
+      expanded.add(token.slice(0, -1));
+      continue;
+    }
+
+    if (token.length > 3) {
+      expanded.add(`${token}s`);
+    }
+  }
+
+  const catalog = resolveResponseGroundingCatalog(locale);
+  const expandedTokenSet = new Set(expanded);
+
+  for (const group of catalog.subjectEquivalenceSignals.groups) {
+    const groupTokens = Array.from(
+      new Set(
+        group.flatMap((entry) =>
+          extractGroundingTokens(entry, 2).concat(normalizeGroundingText(entry)),
+        ),
+      ),
+    ).filter((entry) => entry.length > 0);
+
+    if (groupTokens.some((token) => expandedTokenSet.has(token))) {
+      groupTokens.forEach((token) => expanded.add(token));
+    }
+  }
+
+  const stopTerms = new Set(
+    resolveResponseGroundingCatalog(locale).subjectAlignmentSignals.stopTerms,
+  );
+
+  return Array.from(expanded).filter((token) => !stopTerms.has(token));
+}
+
 function loadGroundingCatalogResource(
   family: ResponseGroundingLocaleFamily,
 ): RawGroundingLocaleCatalog {
@@ -199,6 +570,9 @@ function compileGroundingCatalog(
         {
           ...config,
           requestTerms: normalizeTerms(config.requestTerms),
+          weakRequestTerms: normalizeTerms(config.weakRequestTerms ?? []),
+          contextualRequestTerms: normalizeTerms(config.contextualRequestTerms ?? []),
+          contextualFrameTerms: normalizeTerms(config.contextualFrameTerms ?? []),
           generalEvidenceTerms: normalizeTerms(config.generalEvidenceTerms ?? []),
         },
       ]),
@@ -215,6 +589,9 @@ function compileGroundingCatalog(
       ),
       detailCueTerms: normalizeTerms(raw.questionSignals?.detailCueTerms ?? []),
     },
+    productContextSignals: {
+      promptTerms: normalizeTerms(raw.productContextSignals?.promptTerms ?? []),
+    },
     coverageScopeSignals: {
       insideLocationTerms: normalizeTerms(
         raw.coverageScopeSignals?.insideLocationTerms ?? [],
@@ -223,6 +600,15 @@ function compileGroundingCatalog(
         raw.coverageScopeSignals?.outsideLocationTerms ?? [],
       ),
     },
+    subjectEquivalenceSignals: {
+      groups: (raw.subjectEquivalenceSignals?.groups ?? []).map((group) =>
+        normalizeTerms(group),
+      ),
+    },
+    subjectAlignmentSignals: {
+      stopTerms: normalizeTerms(raw.subjectAlignmentSignals?.stopTerms ?? []),
+    },
+    policyTemplates: raw.policyTemplates,
     unspecifiedDetailPrefix: raw.unspecifiedDetailPrefix,
     extractionUncertainDetailPrefix: raw.extractionUncertainDetailPrefix,
     labelJoiner: raw.labelJoiner,

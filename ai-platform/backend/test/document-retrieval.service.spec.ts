@@ -1460,6 +1460,330 @@ describe('DocumentRetrievalService', () => {
     );
   });
 
+  it('prefers material-aligned chunks when the user narrows the product after an open materials question', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-enrollar-modes-pvc',
+          documentId: 'doc-enrollar',
+          sequence: 0,
+          content:
+            'Para presupuesto en enrollar PVC pedimos ancho y alto aproximado, y si la quiere manual o motorizada.',
+          searchText:
+            'para presupuesto enrollar pvc pedimos ancho alto aproximado manual motorizada',
+          retrievalProjection:
+            'persiana cortina enrollar pvc quote_fields manual motorizada',
+          metadata: {
+            supportSummary: {
+              topic: '7.1. PERSIANA O CORTINA DE ENROLLAR EN PVC / Datos útiles para presupuesto',
+              supportedAxes: ['quote_fields', 'operation_modes'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'operation_modes',
+                  layer: 'factual',
+                  values: ['manuales', 'motorizadas'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANA O CORTINA DE ENROLLAR',
+                    normalizedValue: 'persiana o cortina de enrollar',
+                  },
+                  appliesTo: [{ axis: 'material', value: 'PVC' }],
+                },
+              ],
+            },
+          },
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-enrollar',
+            title: 'Enrollar',
+          },
+          knowledgeItems: [
+            {
+              kind: 'CLAIM',
+              label: 'operation_modes',
+              valueText: 'manuales, motorizadas',
+              normalizedValue: 'manuales motorizadas',
+              supportClass: 'EXPLICIT_FACT',
+              metadata: {
+                claim: {
+                  axis: 'operation_modes',
+                  layer: 'factual',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANA O CORTINA DE ENROLLAR',
+                    normalizedValue: 'persiana o cortina de enrollar',
+                  },
+                  appliesTo: [{ axis: 'material', value: 'PVC' }],
+                },
+              },
+            },
+          ],
+        },
+        {
+          id: 'chunk-enrollar-materials',
+          documentId: 'doc-enrollar',
+          sequence: 1,
+          content:
+            'Las persianas o cortinas de enrollar están disponibles en PVC y aluminio.',
+          searchText:
+            'las persianas o cortinas de enrollar estan disponibles en pvc y aluminio',
+          retrievalProjection:
+            'persiana cortina enrollar materials pvc aluminio',
+          metadata: {
+            supportSummary: {
+              topic: '7. PERSIANAS Y CORTINAS DE ENROLLAR',
+              supportedAxes: ['materials'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'materials',
+                  layer: 'factual',
+                  values: ['PVC', 'aluminio'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANA O CORTINA DE ENROLLAR',
+                    normalizedValue: 'persiana o cortina de enrollar',
+                  },
+                  appliesTo: [],
+                },
+              ],
+            },
+          },
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-enrollar',
+            title: 'Enrollar',
+          },
+          knowledgeItems: [
+            {
+              kind: 'CLAIM',
+              label: 'materials',
+              valueText: 'PVC, aluminio',
+              normalizedValue: 'pvc aluminio',
+              supportClass: 'EXPLICIT_FACT',
+              metadata: {
+                claim: {
+                  axis: 'materials',
+                  layer: 'factual',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANA O CORTINA DE ENROLLAR',
+                    normalizedValue: 'persiana o cortina de enrollar',
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'me refiero a cortinas de enrollar',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'me refiero a cortinas de enrollar',
+          productQuery: 'cortinas de enrollar',
+          requestSummary: 'Consulta sobre materiales para cortinas de enrollar',
+        },
+        language: 'es',
+        confidence: 0.9,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-materials-narrowing',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          subjectSummary: 'materiales disponibles',
+          topicSummary: 'Consulta sobre materiales disponibles',
+          activeDocumentIds: ['doc-enrollar'],
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+    });
+
+    expect(result.result?.groundedSummary).toMatch(/PVC y aluminio|aluminio y PVC/i);
+    expect(result.result?.groundedSummary).not.toMatch(/manual|motorizad/i);
+    expect(result.result?.matches[0]?.supportSummary?.supportedAxes).toEqual(
+      expect.arrayContaining(['materials']),
+    );
+  });
+
+  it('carries the previous requested detail when the user only clarifies the subject on a follow-up turn', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-enrollar-modes',
+          documentId: 'doc-enrollar',
+          sequence: 0,
+          content:
+            'Las cortinas de enrollar pueden ser manuales o motorizadas.',
+          searchText:
+            'las cortinas de enrollar pueden ser manuales o motorizadas',
+          retrievalProjection:
+            'persiana cortina enrollar operation_modes manual motorizada',
+          metadata: {
+            supportSummary: {
+              topic: '7. PERSIANAS Y CORTINAS DE ENROLLAR / Accionamiento',
+              supportedAxes: ['operation_modes'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'operation_modes',
+                  layer: 'factual',
+                  values: ['manuales', 'motorizadas'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANA O CORTINA DE ENROLLAR',
+                    normalizedValue: 'persiana o cortina de enrollar',
+                  },
+                },
+              ],
+            },
+          },
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-enrollar',
+            title: 'Enrollar',
+          },
+          knowledgeItems: [
+            {
+              kind: 'CLAIM',
+              label: 'operation_modes',
+              valueText: 'manuales, motorizadas',
+              normalizedValue: 'manuales motorizadas',
+              supportClass: 'EXPLICIT_FACT',
+              metadata: {
+                claim: {
+                  axis: 'operation_modes',
+                  layer: 'factual',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANA O CORTINA DE ENROLLAR',
+                    normalizedValue: 'persiana o cortina de enrollar',
+                  },
+                },
+              },
+            },
+          ],
+        },
+        {
+          id: 'chunk-enrollar-materials',
+          documentId: 'doc-enrollar',
+          sequence: 1,
+          content:
+            'Las persianas o cortinas de enrollar están disponibles en PVC y aluminio.',
+          searchText:
+            'las persianas o cortinas de enrollar estan disponibles en pvc y aluminio',
+          retrievalProjection:
+            'persiana cortina enrollar materials pvc aluminio',
+          metadata: {
+            supportSummary: {
+              topic: '7. PERSIANAS Y CORTINAS DE ENROLLAR / Materiales',
+              supportedAxes: ['materials'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'materials',
+                  layer: 'factual',
+                  values: ['PVC', 'aluminio'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANA O CORTINA DE ENROLLAR',
+                    normalizedValue: 'persiana o cortina de enrollar',
+                  },
+                },
+              ],
+            },
+          },
+          createdAt: new Date('2026-04-04T10:00:00.000Z'),
+          document: {
+            id: 'doc-enrollar',
+            title: 'Enrollar',
+          },
+          knowledgeItems: [
+            {
+              kind: 'CLAIM',
+              label: 'materials',
+              valueText: 'PVC, aluminio',
+              normalizedValue: 'pvc aluminio',
+              supportClass: 'EXPLICIT_FACT',
+              metadata: {
+                claim: {
+                  axis: 'materials',
+                  layer: 'factual',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANA O CORTINA DE ENROLLAR',
+                    normalizedValue: 'persiana o cortina de enrollar',
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'me refiero a cortinas de enrollar',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'me refiero a cortinas de enrollar',
+          productQuery: 'cortinas de enrollar',
+        },
+        language: 'es',
+        confidence: 0.9,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-materials-carryover',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          subjectSummary: 'Consulta sobre materiales disponibles',
+          topicSummary: 'Consulta sobre materiales disponibles',
+          activeDocumentIds: ['doc-enrollar'],
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-04T10:00:00.000Z',
+      },
+    });
+
+    expect(result.result?.groundedSummary).toMatch(/PVC y aluminio|aluminio y PVC/i);
+    expect(result.result?.groundedSummary).not.toMatch(/manual|motorizad/i);
+    expect(result.result?.query).toMatch(/material/i);
+  });
+
   it('prefers a refreshed explicit subject over the previous follow-up topic when the user pivots to a nearby product family', async () => {
     const service = new DocumentRetrievalService({
       listActiveReadyChunks: jest.fn(async () => [
@@ -1928,6 +2252,780 @@ describe('DocumentRetrievalService', () => {
         title: 'Documento Maestro',
       }),
     );
+  });
+
+  it('keeps service capability retrieval anchored on automation and maintenance instead of drifting to generic product chunks', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-service-automation',
+          documentId: 'doc-master',
+          sequence: 0,
+          content:
+            'Ofrecemos automatización para cortinas y persianas con foco en comodidad y uso cotidiano.',
+          searchText:
+            'ofrecemos automatizacion para cortinas y persianas con foco en comodidad y uso cotidiano',
+          retrievalProjection:
+            'automatizacion motorizacion cortinas persianas servicio',
+          metadata: {
+            section: 'AUTOMATIZACION',
+            supportSummary: {
+              topic: 'AUTOMATIZACION',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'automatizacion',
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'motorizacion',
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+        {
+          id: 'chunk-service-maintenance',
+          documentId: 'doc-master',
+          sequence: 1,
+          content:
+            'Realizamos reparación de cortinas y persianas, además de mantenimiento general.',
+          searchText:
+            'realizamos reparacion de cortinas y persianas ademas de mantenimiento general',
+          retrievalProjection:
+            'reparacion mantenimiento cortinas persianas servicio tecnico',
+          metadata: {
+            section: 'REPARACION Y MANTENIMIENTO',
+            supportSummary: {
+              topic: 'REPARACION Y MANTENIMIENTO',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'reparacion',
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'mantenimiento',
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+        {
+          id: 'chunk-generic-benefits',
+          documentId: 'doc-master',
+          sequence: 2,
+          content:
+            'Las cortinas venecianas permiten regular el paso de luz y tienen mantenimiento simple.',
+          searchText:
+            'las cortinas venecianas permiten regular el paso de luz y tienen mantenimiento simple',
+          retrievalProjection:
+            'cortinas venecianas beneficios mantenimiento simple',
+          metadata: null,
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message:
+        'puedo automatizar mis cortinas actuales y tambien hacer mantenimiento si algo falla?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage:
+            'puedo automatizar mis cortinas actuales y tambien hacer mantenimiento si algo falla?',
+          productQuery:
+            'automatizar cortinas actuales y mantenimiento si algo falla',
+        },
+        language: 'es',
+        confidence: 0.92,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    const excerpts = result.result?.matches.map((match) => match.excerpt ?? '') ?? [];
+
+    expect(excerpts.some((excerpt) => /automatización|automatizacion/i.test(excerpt))).toBe(
+      true,
+    );
+    expect(excerpts.some((excerpt) => /mantenimiento/i.test(excerpt))).toBe(true);
+  });
+
+  it('prioritizes service-offer chunks for repair follow-ups even when the subject references old shutters', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-persianas-producto',
+          documentId: 'doc-master',
+          sequence: 0,
+          content: 'Las persianas de enrollar pueden ser manuales o motorizadas.',
+          searchText: 'las persianas de enrollar pueden ser manuales o motorizadas',
+          retrievalProjection: 'persianas enrollar manual motorizado',
+          metadata: {
+            section: 'PERSIANAS Y CORTINAS DE ENROLLAR',
+            supportSummary: {
+              topic: 'PERSIANAS Y CORTINAS DE ENROLLAR',
+              supportedAxes: ['operation_modes'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'operation_modes',
+              value: 'manuales',
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'operation_modes',
+              value: 'motorizadas',
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+        {
+          id: 'chunk-persianas-servicio',
+          documentId: 'doc-master',
+          sequence: 1,
+          content:
+            'Realizamos reparación de cortinas y persianas, con referencia comercial a reparación en el día según agenda y tipo de trabajo.',
+          searchText:
+            'realizamos reparacion de cortinas y persianas con referencia comercial a reparacion en el dia segun agenda y tipo de trabajo',
+          retrievalProjection: 'reparacion persianas servicio tecnico mantenimiento',
+          metadata: {
+            section: 'SERVICIOS / Reparación y mantenimiento',
+            supportSummary: {
+              topic: 'SERVICIOS / Reparación y mantenimiento',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'reparacion',
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'mantenimiento',
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'tengo persianas viejas, arreglan eso?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'tengo persianas viejas, arreglan eso?',
+          productQuery: 'persianas viejas',
+          requestSummary: 'Consulta sobre reparación de persianas viejas',
+        },
+        language: 'es',
+        confidence: 0.95,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-follow-up',
+        lane: 'document_exploration',
+        approvedFacts: {
+          lastDocumentQuery:
+            'Consulta sobre automatización y mantenimiento de cortinas actuales',
+          topicSummary: 'cortinas actuales',
+        },
+        missingFields: [],
+        updatedAt: '2026-04-06T10:00:00.000Z',
+      } as any,
+    });
+
+    expect(result.result?.matches[0]).toEqual(
+      expect.objectContaining({
+        sequence: 1,
+        title: 'Documento Maestro',
+      }),
+    );
+    expect(result.result?.groundedSummary).toMatch(/repar/i);
+    expect(result.result?.groundedSummary).not.toMatch(/manual/i);
+  });
+
+  it('does not force service-capability follow-ups through product-family coherence locks', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-persianas-producto-dominante',
+          documentId: 'doc-master',
+          sequence: 0,
+          content:
+            'Las persianas viejas de enrollar pueden seguir siendo manuales o motorizadas.',
+          searchText:
+            'las persianas viejas de enrollar pueden seguir siendo manuales o motorizadas',
+          retrievalProjection:
+            'persianas viejas enrollar manual motorizado reparacion persianas',
+          metadata: {
+            section: 'PERSIANAS Y CORTINAS DE ENROLLAR',
+            supportSummary: {
+              topic: 'PERSIANAS Y CORTINAS DE ENROLLAR / Accionamiento',
+              supportedAxes: ['operation_modes'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'operation_modes',
+              value: 'manuales',
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'operation_modes',
+              value: 'motorizadas',
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+        {
+          id: 'chunk-servicio-general',
+          documentId: 'doc-master',
+          sequence: 1,
+          content:
+            'Combinamos venta, instalación, mantenimiento, reparación y trabajos a medida.',
+          searchText:
+            'combinamos venta instalacion mantenimiento reparacion y trabajos a medida',
+          retrievalProjection:
+            'servicios reparacion mantenimiento cortinas persianas',
+          metadata: {
+            section: 'PERFIL COMERCIAL',
+            supportSummary: {
+              topic: 'PERFIL COMERCIAL DE URUCORTINAS',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'mantenimiento',
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'reparacion',
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+        {
+          id: 'chunk-servicio-especifico',
+          documentId: 'doc-master',
+          sequence: 2,
+          content:
+            'Realizamos reparación de cortinas y persianas según agenda y tipo de trabajo.',
+          searchText:
+            'realizamos reparacion de cortinas y persianas segun agenda y tipo de trabajo',
+          retrievalProjection: 'reparacion persianas mantenimiento servicio',
+          metadata: {
+            section: 'SERVICIOS / Reparación y mantenimiento',
+            supportSummary: {
+              topic: 'SERVICIOS / Reparación y mantenimiento',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'reparacion',
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'mantenimiento',
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'tengo persianas viejas, arreglan eso?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'tengo persianas viejas, arreglan eso?',
+          productQuery: 'persianas viejas',
+          requestSummary: 'Consulta sobre reparación de persianas viejas',
+        },
+        language: 'es',
+        confidence: 0.95,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-follow-up-2',
+        lane: 'document_exploration',
+        approvedFacts: {
+          lastDocumentQuery:
+            'Consulta sobre automatización y mantenimiento de cortinas actuales',
+          topicSummary: 'cortinas actuales',
+        },
+        missingFields: [],
+        updatedAt: '2026-04-06T10:00:00.000Z',
+      } as any,
+    });
+
+    expect(result.result?.matches[0]).toEqual(
+      expect.objectContaining({
+        sequence: 2,
+      }),
+    );
+    expect(result.result?.groundedSummary).toMatch(/repar/i);
+    expect(result.result?.groundedSummary).not.toMatch(/manual|motorizad/i);
+  });
+
+  it('prefers product-orientation chunks over service chunks for recommendation follow-ups in noisy repair threads', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-noisy-service',
+          documentId: 'doc-master',
+          sequence: 0,
+          content:
+            'Realizamos reparación de cortinas y persianas, además de mantenimiento general.',
+          searchText:
+            'realizamos reparacion de cortinas y persianas ademas de mantenimiento general',
+          retrievalProjection:
+            'reparacion persianas mantenimiento servicio tecnico',
+          metadata: {
+            section: 'SERVICIOS / Reparación y mantenimiento',
+            supportSummary: {
+              topic: 'SERVICIOS / Reparación y mantenimiento',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'reparacion',
+              subject: {
+                axis: 'section_topic',
+                value: 'SERVICIOS',
+                normalizedValue: 'servicios',
+              },
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'service_offers',
+              value: 'mantenimiento',
+              subject: {
+                axis: 'section_topic',
+                value: 'SERVICIOS',
+                normalizedValue: 'servicios',
+              },
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+        {
+          id: 'chunk-noisy-product',
+          documentId: 'doc-master',
+          sequence: 1,
+          content:
+            'Las cortinas o persianas de enrollar exteriores se trabajan en PVC y aluminio. Para recambios exteriores, el aluminio suele ser la opción de mayor resistencia, aislamiento y durabilidad.',
+          searchText:
+            'las cortinas o persianas de enrollar exteriores se trabajan en pvc y aluminio para recambios exteriores el aluminio suele ser la opcion de mayor resistencia aislamiento y durabilidad',
+          retrievalProjection:
+            'persiana exterior enrollar pvc aluminio recambio durabilidad aislamiento',
+          metadata: {
+            section: 'CORTINAS DE ENROLLAR EXTERIORES',
+            supportSummary: {
+              topic: 'CORTINAS DE ENROLLAR EXTERIORES',
+              supportedAxes: ['materials', 'product_types', 'comparison_guidance'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'materials',
+              value: 'PVC',
+              subject: {
+                axis: 'section_topic',
+                value: 'CORTINAS DE ENROLLAR',
+                normalizedValue: 'cortinas de enrollar',
+              },
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'materials',
+              value: 'ALUMINIO',
+              subject: {
+                axis: 'section_topic',
+                value: 'CORTINAS DE ENROLLAR',
+                normalizedValue: 'cortinas de enrollar',
+              },
+            }),
+            buildClaimKnowledgeItem({
+              axis: 'product_types',
+              value: 'persiana exterior',
+              subject: {
+                axis: 'section_topic',
+                value: 'CORTINAS DE ENROLLAR',
+                normalizedValue: 'cortinas de enrollar',
+              },
+            }),
+            buildMetadataKnowledgeItem({
+              axis: 'comparison_guidance',
+              layer: 'guidance',
+              value:
+                'Para recambios exteriores, el aluminio suele ser la opción de mayor resistencia, aislamiento y durabilidad.',
+              subject: {
+                axis: 'section_topic',
+                value: 'Comparación útil',
+                normalizedValue: 'comparacion util',
+              },
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'me interesa algo exterior y de bajo mantenimiento',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'me interesa algo exterior y de bajo mantenimiento',
+          productQuery: 'persiana exterior de bajo mantenimiento',
+          requestSummary: 'Interés en persiana exterior de bajo mantenimiento',
+        },
+        language: 'es',
+        confidence: 0.95,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-noisy-recommendation',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          activeDocumentIds: ['doc-master'],
+          lastDocumentQuery:
+            'Consulta sobre reparación y opciones modernas de persianas',
+          topicSummary: 'persianas viejas',
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-06T10:00:00.000Z',
+      } as any,
+    });
+
+    expect(result.result?.matches[0]).toEqual(
+      expect.objectContaining({
+        sequence: 1,
+      }),
+    );
+    expect(result.result?.groundedSummary).toMatch(
+      /persiana exterior|aluminio|pvc|recambi/i,
+    );
+    expect(result.result?.groundedSummary).not.toMatch(
+      /^reparacion,\s*mantenimiento$/i,
+    );
+  });
+
+  it('promotes comparison guidance over thinner material aliases in recommendation follow-ups', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-material-alias',
+          documentId: 'doc-master',
+          sequence: 0,
+          content:
+            '- persiana PVC\n- cortina de enrollar PVC\n- persiana exterior PVC',
+          searchText:
+            'persiana pvc cortina de enrollar pvc persiana exterior pvc',
+          retrievalProjection:
+            'persiana exterior pvc cortina de enrollar pvc',
+          metadata: {
+            section: 'PERSIANA O CORTINA DE ENROLLAR EN PVC / Alias útiles',
+            supportSummary: {
+              topic: 'PERSIANA O CORTINA DE ENROLLAR EN PVC / Alias útiles',
+              supportedAxes: ['materials'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'materials',
+              value: 'PVC',
+              subject: {
+                axis: 'section_topic',
+                value: 'PERSIANA O CORTINA DE ENROLLAR',
+                normalizedValue: 'persiana o cortina de enrollar',
+              },
+              appliesTo: [
+                {
+                  axis: 'material',
+                  value: 'PVC',
+                  normalizedValue: 'pvc',
+                },
+              ],
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+        {
+          id: 'chunk-comparison-guidance',
+          documentId: 'doc-master',
+          sequence: 1,
+          content:
+            'Cuando el cliente consulta por persianas viejas de madera o sistemas deteriorados, la orientación comercial más clara es pasar a un recambio por PVC o aluminio según el nivel de prestación que busque. El PVC suele funcionar mejor cuando se busca una opción más económica y práctica. El aluminio suele ser la opción de mayor resistencia, aislamiento y durabilidad.',
+          searchText:
+            'persianas viejas madera sistemas deteriorados recambio pvc aluminio nivel prestacion opcion economica practica resistencia aislamiento durabilidad',
+          retrievalProjection:
+            'comparacion util persianas enrollar pvc aluminio recambio exterior',
+          metadata: {
+            section:
+              'RESPUESTAS ORGANICAS / Recomendación entre PVC y aluminio en cortinas de enrollar',
+            supportSummary: {
+              topic:
+                'RESPUESTAS ORGANICAS / Recomendación entre PVC y aluminio en cortinas de enrollar',
+              supportedAxes: ['comparison_guidance'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildMetadataKnowledgeItem({
+              axis: 'comparison_guidance',
+              layer: 'guidance',
+              value:
+                'Cuando el cliente consulta por persianas viejas de madera o sistemas deteriorados, la orientación comercial más clara es pasar a un recambio por PVC o aluminio según el nivel de prestación que busque. El PVC suele funcionar mejor cuando se busca una opción más económica y práctica. El aluminio suele ser la opción de mayor resistencia, aislamiento y durabilidad.',
+              subject: {
+                axis: 'section_topic',
+                value: 'Comparación útil',
+                normalizedValue: 'comparacion util',
+              },
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'me interesa algo exterior y de bajo mantenimiento',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'me interesa algo exterior y de bajo mantenimiento',
+          productQuery: 'persiana exterior de bajo mantenimiento',
+          requestSummary: 'Interés en persiana exterior de bajo mantenimiento',
+        },
+        language: 'es',
+        confidence: 0.95,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-recommendation-tier',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        lastApprovedToolName: undefined,
+        approvedFacts: {
+          activeDocumentIds: ['doc-master'],
+          lastDocumentQuery:
+            'Consulta sobre reparación y opciones modernas de persianas',
+          topicSummary: 'persianas viejas',
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-06T10:00:00.000Z',
+      } as any,
+    });
+
+    expect(result.result?.matches.map((match) => match.sequence)).toContain(1);
+  });
+
+  it('diversifies mixed-family retrieval so the first answer can keep both families visible', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-roller-blackout',
+          documentId: 'doc-master',
+          sequence: 0,
+          content:
+            'Roller blackout está pensado para reducir fuertemente el paso de la luz y brindar privacidad.',
+          searchText:
+            'roller blackout esta pensado para reducir fuertemente el paso de la luz y brindar privacidad',
+          retrievalProjection:
+            'roller blackout dormitorio luz privacidad',
+          metadata: {
+            section: 'CORTINAS ROLLER',
+            supportSummary: {
+              topic: 'CORTINAS ROLLER / Roller blackout',
+              supportedAxes: ['product_types'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'product_types',
+              value: 'roller blackout',
+              subject: {
+                axis: 'product_family',
+                value: 'cortinas roller',
+                normalizedValue: 'cortinas roller',
+              },
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+        {
+          id: 'chunk-aberturas-dvh',
+          documentId: 'doc-master',
+          sequence: 1,
+          content:
+            'Las series Probba, Gala y Summa permiten trabajar con doble vidrio hermético (DVH).',
+          searchText:
+            'las series probba gala y summa permiten trabajar con doble vidrio hermetico dvh',
+          retrievalProjection:
+            'aberturas dvh probba gala summa',
+          metadata: {
+            section: 'ABERTURAS',
+            supportSummary: {
+              topic: 'ABERTURAS / DVH',
+              supportedAxes: ['feature_support'],
+              unspecifiedAxes: [],
+            },
+          },
+          knowledgeItems: [
+            buildClaimKnowledgeItem({
+              axis: 'feature_support',
+              value: 'DVH',
+              subject: {
+                axis: 'product_family',
+                value: 'aberturas',
+                normalizedValue: 'aberturas',
+              },
+            }),
+          ],
+          createdAt: new Date('2026-04-06T10:00:00.000Z'),
+          document: {
+            id: 'doc-master',
+            title: 'Documento Maestro',
+          },
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message:
+        'estoy viendo roller blackout para un dormitorio y tambien aberturas con dvh para otro ambiente, me orientas?',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage:
+            'estoy viendo roller blackout para un dormitorio y tambien aberturas con dvh para otro ambiente, me orientas?',
+          productQuery:
+            'roller blackout para un dormitorio y tambien aberturas con dvh para otro ambiente',
+        },
+        language: 'es',
+        confidence: 0.9,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: null,
+    });
+
+    const excerpts = result.result?.matches.map((match) => match.excerpt ?? '') ?? [];
+
+    expect(excerpts.some((excerpt) => /roller blackout/i.test(excerpt))).toBe(true);
+    expect(excerpts.some((excerpt) => /\bDVH\b/i.test(excerpt))).toBe(true);
   });
 
   it('prefers a general family overview over a scoped variant when the user asks a broad family question', async () => {
@@ -2604,6 +3702,147 @@ describe('DocumentRetrievalService', () => {
 
     expect(result.reason).toBe('combined_booking_document_query');
     expect(result.result?.query).toBe('cambio de cadena de cortina roller');
+  });
+
+  it('pivots an active continuation from installation to specific aberturas series when the new turn asks for series', async () => {
+    const service = new DocumentRetrievalService({
+      listActiveReadyChunks: jest.fn(async () => [
+        {
+          id: 'chunk-aberturas-install',
+          documentId: 'doc-aberturas',
+          sequence: 100,
+          content:
+            'La mano de obra de aberturas puede cotizarse por separado o quedar sujeta a confirmación según el relevamiento en obra.',
+          searchText:
+            'mano de obra aberturas cotizarse por separado confirmacion relevamiento en obra',
+          retrievalProjection:
+            'aberturas instalacion mano de obra relevamiento confirmacion',
+          metadata: {
+            section: '12. ABERTURAS EN ALUMINIO / Instalación',
+            supportSummary: {
+              topic: '12. ABERTURAS EN ALUMINIO / Instalación',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+            },
+          },
+          createdAt: new Date('2026-04-05T20:00:00.000Z'),
+          document: {
+            id: 'doc-aberturas',
+            title: 'Documento Maestro',
+          },
+          knowledgeItems: [
+            {
+              kind: 'CLAIM',
+              label: 'service_offers',
+              valueText: 'toma de medidas, instalacion',
+              normalizedValue: 'toma de medidas instalacion',
+              supportClass: 'EXPLICIT_FACT',
+              metadata: {
+                claim: {
+                  axis: 'service_offers',
+                  layer: 'factual',
+                  values: ['toma de medidas', 'instalacion'],
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'ABERTURAS',
+                    normalizedValue: 'aberturas',
+                  },
+                },
+              },
+            },
+          ],
+        },
+        {
+          id: 'chunk-aberturas-series',
+          documentId: 'doc-aberturas',
+          sequence: 101,
+          content:
+            'Trabajamos con aberturas de aluminio en las series 20, 25, Probba, Gala y Summa.',
+          searchText:
+            'aberturas aluminio series 20 25 probba gala summa lineas disponibles',
+          retrievalProjection:
+            'aberturas aluminio series 20 25 probba gala summa lineas',
+          metadata: {
+            section: '12. ABERTURAS EN ALUMINIO',
+            supportSummary: {
+              topic: '12. ABERTURAS EN ALUMINIO',
+              supportedAxes: ['specific_variants', 'product_types'],
+              unspecifiedAxes: [],
+            },
+          },
+          createdAt: new Date('2026-04-05T20:00:01.000Z'),
+          document: {
+            id: 'doc-aberturas',
+            title: 'Documento Maestro',
+          },
+          knowledgeItems: [
+            {
+              kind: 'CLAIM',
+              label: 'specific_variants',
+              valueText: 'serie 20, serie 25, probba, gala, summa',
+              normalizedValue: 'serie 20 serie 25 probba gala summa',
+              supportClass: 'EXPLICIT_FACT',
+              metadata: {
+                claim: {
+                  axis: 'specific_variants',
+                  layer: 'factual',
+                  values: ['serie 20', 'serie 25', 'Probba', 'Gala', 'Summa'],
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'ABERTURAS',
+                    normalizedValue: 'aberturas',
+                  },
+                },
+              },
+            },
+          ],
+        },
+      ]),
+    } as any, new ConversationSignalResolverService());
+
+    const result = await service.retrieveForConversation({
+      message: 'que series de aberturas trabajan',
+      interpretation: {
+        intent: 'GENERAL_CONVERSATION',
+        entities: {
+          rawMessage: 'que series de aberturas trabajan',
+          productQuery: 'series de aberturas',
+          requestSummary: 'Consulta sobre series de aberturas disponibles',
+        },
+        language: 'es',
+        confidence: 0.85,
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      } as any,
+      conversationState: {
+        conversationId: 'conv-aberturas-series',
+        lane: 'document_exploration',
+        lastIntent: 'GENERAL_CONVERSATION',
+        lastApprovedAction: 'respond',
+        approvedFacts: {
+          subjectSummary: 'instalacion de aberturas con albañileria',
+          topicSummary: 'Consulta sobre instalación de aberturas con albañilería',
+          lastDocumentQuery: 'Consulta sobre instalación de aberturas con albañilería',
+          activeDocumentIds: ['doc-aberturas'],
+        },
+        pendingFacts: undefined,
+        missingFields: [],
+        nextUsefulField: undefined,
+        lastApprovedResult: undefined,
+        metadata: undefined,
+        updatedAt: '2026-04-05T20:00:00.000Z',
+      },
+    });
+
+    expect(result.result?.matches[0]).toEqual(
+      expect.objectContaining({
+        sequence: 101,
+      }),
+    );
+    expect(result.result?.groundedSummary).toMatch(/20|25|Probba|Gala|Summa/i);
   });
 
   it('keeps runtime-learned knowledge out of the primary document retrieval path', () => {

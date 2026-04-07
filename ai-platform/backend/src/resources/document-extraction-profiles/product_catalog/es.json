@@ -31,9 +31,60 @@
       "cardLeadTerms": ["tarjeta", "tarjetas"],
       "brandListLeadTerms": ["como"]
     },
+    "commercial_presence": {
+      "termFamilies": {
+        "sin local comercial": [
+          "no contamos con local comercial",
+          "no contamos con local",
+          "sin local comercial"
+        ],
+        "atencion online": [
+          "atencion es principalmente online",
+          "atención es principalmente online",
+          "nuestra atencion es principalmente online",
+          "nuestra atención es principalmente online",
+          "trabajamos principalmente online",
+          "atencion principalmente online",
+          "atención principalmente online"
+        ],
+        "con local comercial": [
+          "contamos con local comercial",
+          "tenemos local comercial"
+        ]
+      }
+    },
     "service_offers": {
       "termFamilies": {
         "instalacion": ["instalacion", "instalación", "colocacion", "colocación"],
+        "mantenimiento": [
+          "mantenimiento",
+          "mantenimientos",
+          "mantenimiento preventivo"
+        ],
+        "reparacion": [
+          "reparacion",
+          "reparación",
+          "reparaciones",
+          "arreglo",
+          "arreglos",
+          "servicio tecnico",
+          "servicio técnico"
+        ],
+        "motorizacion": [
+          "motorizacion",
+          "motorización",
+          "motorizar",
+          "motores",
+          "motores para cortinas",
+          "motores para persianas"
+        ],
+        "automatizacion": [
+          "automatizacion",
+          "automatización",
+          "automatizar",
+          "automatizacion general",
+          "automatización general"
+        ],
         "visita a domicilio": [
           "visita previa",
           "visitas a domicilio",
@@ -55,6 +106,8 @@
       "affirmativeLeadPhrases": [
         "realizamos",
         "ofrecemos",
+        "combinamos",
+        "trabajamos con",
         "podemos coordinar",
         "coordinamos",
         "puede haber",
@@ -70,6 +123,8 @@
         "admiten",
         "permite",
         "permiten",
+        "puede instalarse",
+        "pueden instalarse",
         "soporta",
         "soportan",
         "trabaja con",
@@ -91,6 +146,8 @@
         "no admiten",
         "no permite",
         "no permiten",
+        "no puede instalarse",
+        "no pueden instalarse",
         "no trabaja con",
         "no trabajan con"
       ],
@@ -144,6 +201,24 @@
   "matchingHints": {
     "listStopTerms": ["con", "para"],
     "oversizedClaimTailPhrases": ["con opciones"],
-    "conjunctionTerms": ["y"]
+    "conjunctionTerms": ["y"],
+    "comparisonGuidanceSignals": [
+      "segun el nivel de prestacion",
+      "según el nivel de prestación",
+      "suele funcionar mejor cuando",
+      "suele ser la opcion de",
+      "suele ser la opción de",
+      "opcion mas",
+      "opción más",
+      "mejor prestacion",
+      "mejor prestación",
+      "mayor durabilidad",
+      "mayor resistencia",
+      "más economica",
+      "más económica",
+      "más práctica",
+      "cuando el cliente prioriza",
+      "conviene orientar"
+    ]
   }
 }

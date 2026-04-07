@@ -295,11 +295,27 @@ export function PublicChatShell({
             </div>
           </div>
 
-          <div className="sidebar-group">
-            <div className="tab-content">
-              <div className="tab-pane fade active show" id="chat-menu">
-                <div id="chats" className="sidebar-content active slimscroll">
-                  <div className="slimscroll">
+          <div className="sidebar-group" style={{ minHeight: 0 }}>
+            <div className="tab-content" style={{ height: '100%', minHeight: 0 }}>
+              <div
+                className="tab-pane fade active show"
+                id="chat-menu"
+                style={{ height: '100%', minHeight: 0 }}
+              >
+                <div
+                  id="chats"
+                  className="sidebar-content active slimscroll"
+                  style={{ height: '100%', minHeight: 0 }}
+                >
+                  <div
+                    className="slimscroll"
+                    style={{
+                      height: '100%',
+                      minHeight: 0,
+                      display: 'flex',
+                      flexDirection: 'column',
+                    }}
+                  >
                     <div className="chat-search-header">
                       <div className="header-title d-flex align-items-center justify-content-between">
                         <h4 className="mb-3">Chats</h4>
@@ -405,7 +421,16 @@ export function PublicChatShell({
                       </div>
                     </div>
 
-                    <div className="sidebar-body chat-body" id="chatsidebar">
+                    <div
+                      className="sidebar-body chat-body"
+                      id="chatsidebar"
+                      style={{
+                        flex: '1 1 auto',
+                        minHeight: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                      }}
+                    >
                       <div className="d-flex justify-content-between align-items-center mb-3">
                         <h5 className="chat-title">All Chats</h5>
                         <div className="dropdown">
@@ -426,7 +451,15 @@ export function PublicChatShell({
                           </ul>
                         </div>
                       </div>
-                      <div className="chat-users-wrap">
+                      <div
+                        className="chat-users-wrap"
+                        style={{
+                          flex: '1 1 auto',
+                          minHeight: 0,
+                          overflowY: 'auto',
+                          paddingRight: '0.25rem',
+                        }}
+                      >
                         {conversations.map((conversation, index) => {
                           const isSelected =
                             conversation.conversationId === selectedConversationId;

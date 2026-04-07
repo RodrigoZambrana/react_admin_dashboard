@@ -31,9 +31,32 @@
       "cardLeadTerms": ["card", "cards"],
       "brandListLeadTerms": ["like", "such as"]
     },
+    "commercial_presence": {
+      "termFamilies": {
+        "no physical store": [
+          "we do not have a physical store",
+          "we do not have a store",
+          "no physical store"
+        ],
+        "online attention": [
+          "our service is mainly online",
+          "we work mainly online",
+          "mainly online attention",
+          "online attention"
+        ],
+        "physical store": [
+          "we have a physical store",
+          "we have a store"
+        ]
+      }
+    },
     "service_offers": {
       "termFamilies": {
         "installation": ["installation", "install"],
+        "maintenance": ["maintenance", "preventive maintenance"],
+        "repair": ["repair", "repairs", "technical service", "fix", "service call"],
+        "motorization": ["motorization", "motorisation", "motorized", "motors"],
+        "automation": ["automation", "automate", "automated"],
         "visit": ["visit", "visits", "home visit"],
         "measurement": ["measurements", "measurement taking", "measure taking"],
         "samples": ["sample", "samples", "swatch"]
@@ -41,6 +64,8 @@
       "affirmativeLeadPhrases": [
         "we provide",
         "we offer",
+        "we combine",
+        "we work with",
         "we can arrange",
         "we arrange",
         "there can be"
@@ -56,6 +81,7 @@
         "admits",
         "allow",
         "allows",
+        "can be installed",
         "works with",
         "can include",
         "can add",
@@ -69,6 +95,7 @@
         "do not admit",
         "does not allow",
         "do not allow",
+        "cannot be installed",
         "does not work with",
         "do not work with"
       ],
@@ -110,6 +137,18 @@
   "matchingHints": {
     "listStopTerms": ["with", "for"],
     "oversizedClaimTailPhrases": ["with options"],
-    "conjunctionTerms": ["and"]
+    "conjunctionTerms": ["and"],
+    "comparisonGuidanceSignals": [
+      "depending on the performance level",
+      "usually works better when",
+      "usually is the option for",
+      "more economical",
+      "more practical",
+      "greater durability",
+      "greater resistance",
+      "better performance",
+      "when the customer prioritizes",
+      "it is better to orient"
+    ]
   }
 }

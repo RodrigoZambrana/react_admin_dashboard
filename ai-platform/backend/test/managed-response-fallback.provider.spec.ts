@@ -38,7 +38,7 @@ describe('ManagedResponseFallbackProvider', () => {
     expect(repository.createVersion).toHaveBeenCalledTimes(2);
   });
 
-  it('reuses managed fallback catalogs without consulting bootstrap seeds again', async () => {
+  it('reuses managed fallback catalogs without creating bootstrap versions again', async () => {
     const repository = buildRepository([
       {
         id: 'fallback-en-1',
@@ -66,8 +66,86 @@ describe('ManagedResponseFallbackProvider', () => {
         locale: 'en',
       }),
     );
-    expect(seedSource.listSeeds).not.toHaveBeenCalled();
+    expect(seedSource.listSeeds).toHaveBeenCalledTimes(1);
     expect(repository.createVersion).not.toHaveBeenCalled();
+  });
+
+  it('merges active managed catalogs with seeded defaults when new templates are missing', async () => {
+    const repository = buildRepository([
+      {
+        id: 'fallback-es-1',
+        locale: 'es',
+        resource: {
+          locale: 'es',
+          templates: {
+            basic_response: 'Hola, contame en qué te puedo ayudar.',
+            clarification_requested_date:
+              'Necesito la fecha deseada para continuar.',
+            clarification_user_goal:
+              'Necesito entender mejor lo que necesitás para continuar.',
+            clarification_generic: 'Necesito un poco más de contexto.',
+            execution_success_booking:
+              'La reserva fue confirmada para {{scheduledFor}}.',
+            execution_success_quote:
+              'La cotización preliminar fue creada por {{currency}} {{estimatedTotal}}.',
+            execution_success_product:
+              'Encontré {{name}} por {{currency}} {{price}}.',
+            execution_success_generic:
+              'La acción solicitada se ejecutó correctamente.',
+            execution_failure_unknown_tool:
+              'No pude completar {{actionLabel}} porque la capacidad aprobada no está disponible.',
+            execution_failure_validation:
+              'No pude completar {{actionLabel}} con la información disponible.',
+            execution_failure_generic:
+              'No pude completar {{actionLabel}} por un error durante la ejecución.',
+          },
+          actionLabels: buildCatalog('es').actionLabels,
+          defaults: buildCatalog('es').defaults,
+        },
+        version: 1,
+        status: 'ACTIVE',
+        metadata: {
+          origin: 'admin',
+        },
+        createdAt: new Date(),
+        createdBy: 'admin',
+      },
+    ]);
+    const seedSource = {
+      listSeeds: jest.fn(async () => [
+        {
+          key: 'default',
+          value: buildCatalog('default'),
+          createdBy: 'system:response-fallback-seed',
+          metadata: {
+            origin: 'seed' as const,
+            source: 'filesystem',
+          },
+        },
+        {
+          key: 'es',
+          value: buildCatalog('es'),
+          createdBy: 'system:response-fallback-seed',
+          metadata: {
+            origin: 'seed' as const,
+            source: 'filesystem',
+          },
+        },
+      ]),
+    };
+    const provider = new ManagedResponseFallbackProvider(
+      repository as any,
+      seedSource as any,
+    );
+
+    await expect(provider.resolveCatalog('es')).resolves.toEqual(
+      expect.objectContaining({
+        locale: 'es',
+        templates: expect.objectContaining({
+          clarification_quote_scope: expect.any(String),
+        }),
+      }),
+    );
   });
 });
 
@@ -80,6 +158,10 @@ function buildCatalog(locale: string) {
         locale === 'es'
           ? 'Necesito la fecha deseada para continuar.'
           : 'I need the requested date to continue.',
+      clarification_quote_scope:
+        locale === 'es'
+          ? 'Necesito saber qué producto o línea querés cotizar.'
+          : 'I need to know which product or line you want to quote.',
       clarification_user_goal:
         locale === 'es'
           ? 'Necesito entender mejor lo que necesitas para continuar.'

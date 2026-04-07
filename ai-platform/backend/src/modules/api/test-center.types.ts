@@ -17,6 +17,8 @@ export type TestCenterTurnExpectation = {
   shouldAvoidStructuralSummary?: boolean;
   expectedClose?: boolean;
   allowPrudentUnknown?: boolean;
+  shouldAskFollowUpQuestion?: boolean;
+  shouldPreferMultiline?: boolean;
   preferredResponseMode?: 'answer' | 'prudent' | 'close';
 };
 

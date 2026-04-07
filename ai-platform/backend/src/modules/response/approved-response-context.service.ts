@@ -177,6 +177,14 @@ export class ApprovedResponseContextService {
     const grounding = this.responseGroundingService.assessDocumentContext({
       locale: input.interpretation.language,
       userMessage: input.message,
+      parsedSubject:
+        (typeof input.interpretation.entities.productQuery === 'string' &&
+        input.interpretation.entities.productQuery.trim().length > 0
+          ? input.interpretation.entities.productQuery.trim()
+          : typeof input.interpretation.entities.requestSummary === 'string' &&
+              input.interpretation.entities.requestSummary.trim().length > 0
+            ? input.interpretation.entities.requestSummary.trim()
+            : null) ?? null,
       documentContext: input.documentContext,
     });
 

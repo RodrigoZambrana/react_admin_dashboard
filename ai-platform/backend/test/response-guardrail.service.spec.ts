@@ -192,7 +192,7 @@ describe('ResponseGuardrailService', () => {
       }),
     ).resolves.toEqual({
       accepted: false,
-      reasons: ['unsupported_document_detail'],
+      reasons: ['missing_required_detail_axis', 'unsupported_document_detail'],
     });
   });
 
@@ -342,6 +342,84 @@ describe('ResponseGuardrailService', () => {
     });
   });
 
+  it('rejects mixed service answers that mention an unresolved recommendation without clarifying the missing context', async () => {
+    await expect(
+      service.evaluate({
+        approvedContext: {
+          ...approvedContext,
+          outcome: 'respond',
+          execution: {
+            status: 'not_applicable',
+            toolName: null,
+            validatedInputSummary: null,
+            resultSummary: null,
+            failure: null,
+          },
+          userMessage:
+            'hola, estoy viendo opciones porque se me rompio una persiana y ademas quiero algo mas moderno, ustedes hacen eso?',
+          documentContext: {
+            source: 'document_origin',
+            query:
+              'Consulta sobre opciones para persianas modernas y reparación de persiana rota',
+            groundedSummary:
+              'Reparacion, mantenimiento instalacion, reparacion, motorizacion, automatizacion',
+            responseMode: 'document_exploration',
+            grounding: buildGrounding({
+              supportLevel: 'partial',
+              absenceReason: 'document_gap',
+              requestedDetailTypes: [
+                'recommendation',
+                'specific_variants',
+                'service_capability',
+              ],
+              supportedDetailTypes: ['service_capability'],
+              unsupportedDetailTypes: ['recommendation', 'specific_variants'],
+              requiredUnspecifiedDetailTypes: [
+                'recommendation',
+                'specific_variants',
+              ],
+            }),
+            matches: [
+              {
+                documentId: 'doc-1',
+                title: 'Catálogo',
+                excerpt:
+                  'Realizamos reparación de cortinas y persianas, además de mantenimiento general.',
+                sequence: 0,
+                score: 5.2,
+                supportSummary: {
+                  topic: 'SERVICIOS',
+                  supportedAxes: ['service_offers'],
+                  unspecifiedAxes: [],
+                  axisSummaries: [
+                    {
+                      axis: 'service_offers',
+                      values: ['reparacion', 'mantenimiento', 'automatizacion'],
+                      supportClass: 'explicit_fact',
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+        generatedResponse: {
+          message:
+            'Sí, realizamos reparación de persianas y también ofrecemos soluciones modernas como motorización y automatización. Podemos hacer una visita a domicilio para tomar medidas y asesorarte sobre la mejor opción para tu caso.',
+          assertedOutcome: 'respond',
+          assertedExecutionStatus: 'not_applicable',
+          mentionedMissingFields: [],
+          mentionedApprovedFactKeys: [],
+          mentionedApprovedResultKeys: [],
+          mentionedDocumentIds: [],
+        },
+      }),
+    ).resolves.toEqual({
+      accepted: false,
+      reasons: ['missing_required_detail_axis', 'unsupported_document_detail'],
+    });
+  });
+
   it('rejects presenting partially supported detail as explicit when exactness was requested', async () => {
     await expect(
       service.evaluate({
@@ -382,7 +460,7 @@ describe('ResponseGuardrailService', () => {
       }),
     ).resolves.toEqual({
       accepted: false,
-      reasons: ['partial_document_detail_overclaim'],
+      reasons: ['missing_required_detail_axis', 'partial_document_detail_overclaim'],
     });
   });
 
@@ -426,7 +504,7 @@ describe('ResponseGuardrailService', () => {
       }),
     ).resolves.toEqual({
       accepted: false,
-      reasons: ['wrong_unspecified_detail_axis'],
+      reasons: ['missing_required_detail_axis', 'wrong_unspecified_detail_axis'],
     });
   });
 

@@ -16,6 +16,7 @@ describe('ResponseFallbackService', () => {
                 ? 'Hola, ¿en qué puedo ayudarte?'
                 : 'Hi, how can I help you?',
             clarification_requested_date: '',
+            clarification_quote_scope: '',
             clarification_user_goal: '',
             clarification_generic: '',
             execution_success_booking:
@@ -97,6 +98,7 @@ describe('ResponseFallbackService', () => {
             opening_greeting: 'Hola, gracias por contactarnos.',
             basic_response: 'Hola, ¿en qué puedo ayudarte?',
             clarification_requested_date: '',
+            clarification_quote_scope: '',
             clarification_user_goal: '',
             clarification_generic: '',
             execution_success_booking: '',
@@ -187,8 +189,9 @@ describe('ResponseFallbackService', () => {
             locale: 'es',
           templates: {
             opening_greeting: 'Entiendo.',
-            basic_response: 'Entiendo.',
+              basic_response: 'Entiendo.',
               clarification_requested_date: 'Necesito una fecha.',
+              clarification_quote_scope: 'Necesito saber qué producto querés cotizar.',
               clarification_user_goal: 'Contame brevemente qué necesitás.',
               clarification_generic: '¿Podés contarme un poco más?',
               execution_success_booking: 'Reserva creada.',
@@ -254,6 +257,7 @@ describe('ResponseFallbackService', () => {
             opening_greeting: '',
             basic_response: 'Hi, how can I help you?',
             clarification_requested_date: '',
+            clarification_quote_scope: '',
             clarification_user_goal: '',
             clarification_generic: '',
             execution_success_booking: '',

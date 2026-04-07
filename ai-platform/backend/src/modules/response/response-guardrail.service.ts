@@ -149,18 +149,22 @@ export class ResponseGuardrailService {
             ...documentGrounding.unsupportedDetailTypes,
           ],
       );
-      const addressedDetailTypes = new Set<string>(claimedDetailTypes);
-
-      for (const detailType of unspecifiedDetailTypes) {
-        addressedDetailTypes.add(detailType);
-      }
+      const resolvedRequiredDetailTypes = new Set(
+        [...allowedUnspecifiedDetailTypes].filter(
+          (detailType) =>
+            unspecifiedDetailTypes.includes(detailType) ||
+            this.responseGroundingService.summaryContainsConcreteDetail({
+              locale: approvedContext.locale,
+              detailType,
+              summary: generatedResponse.message,
+              documentContext: approvedContext.documentContext,
+            }),
+        ),
+      );
 
       if (
         allowedUnspecifiedDetailTypes.size > 0 &&
-        unspecifiedDetailTypes.length === 0 &&
-        ![...allowedUnspecifiedDetailTypes].some((detailType) =>
-          addressedDetailTypes.has(detailType),
-        )
+        resolvedRequiredDetailTypes.size === 0
       ) {
         reasons.add('missing_required_detail_axis');
       }
@@ -189,22 +193,22 @@ export class ResponseGuardrailService {
             return false;
           }
 
-          const hasUnsupportedDetail = analysis.claimedDetailTypes.some((detailType) =>
-            documentGrounding.unsupportedDetailTypes.includes(detailType),
+          const unresolvedUnsupportedDetail = analysis.claimedDetailTypes.some(
+            (detailType) =>
+              documentGrounding.unsupportedDetailTypes.includes(detailType) &&
+              !this.responseGroundingService.summaryContainsConcreteDetail({
+                locale: approvedContext.locale,
+                detailType,
+                summary: analysis.sentence,
+                documentContext: approvedContext.documentContext,
+              }),
           );
 
-          if (!hasUnsupportedDetail) {
+          if (!unresolvedUnsupportedDetail) {
             return false;
           }
 
-          return !documentGrounding.supportedDetailTypes.some((detailType) =>
-            this.responseGroundingService.summaryContainsConcreteDetail({
-              locale: approvedContext.locale,
-              detailType,
-              summary: analysis.sentence,
-              documentContext: approvedContext.documentContext,
-            }),
-          );
+          return true;
         }) &&
         !messageContainsUnspecifiedCue
       ) {

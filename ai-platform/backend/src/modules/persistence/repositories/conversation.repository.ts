@@ -62,6 +62,24 @@ export class ConversationRepository {
     });
   }
 
+  listRecentByChannels(channels: string[], limit = 20) {
+    return this.prisma.conversation.findMany({
+      where: {
+        channel: {
+          in: channels,
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: limit,
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+  }
+
   appendMessage(
     conversationId: string,
     role: MessageRole,

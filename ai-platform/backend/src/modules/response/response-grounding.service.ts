@@ -14,9 +14,11 @@ import {
   extractGroundingTokens,
   hasGroundingCatalogSignal,
   normalizeGroundingText,
+  resolveRequestedGroundingDetailTypes,
   renderExtractionUncertainDetailClause,
   renderUnspecifiedDetailClause,
   resolveResponseGroundingCatalog,
+  responseGroundingDetailTypes,
   splitGroundingSentences,
 } from './response-grounding.catalogs';
 
@@ -52,6 +54,7 @@ export class ResponseGroundingService {
   assessDocumentContext(input: {
     locale?: string | null;
     userMessage: string;
+    parsedSubject?: string | null;
     documentContext: DocumentGroundingLike;
   }) {
     const catalog = resolveResponseGroundingCatalog(input.locale);
@@ -66,10 +69,15 @@ export class ResponseGroundingService {
       ].join(' '),
     );
 
-    const requestedDetailTypes = this.resolveRequestedDetailTypes({
-      catalog,
+    const requestedDetailTypes = resolveRequestedGroundingDetailTypes({
+      locale: input.locale,
       userText,
       queryText,
+    });
+    const concreteSubjectAlignment = resolveConcreteSubjectAlignment({
+      locale: input.locale,
+      parsedSubject: input.parsedSubject ?? null,
+      documentContext: input.documentContext,
     });
     const exactnessRequested =
       hasGroundingCatalogSignal(userText, catalog.exactnessCues) ||
@@ -85,8 +93,10 @@ export class ResponseGroundingService {
           generalEvidenceTerms:
             catalog.detailTypes[detailType].generalEvidenceTerms ?? [],
           dynamicEvidenceTerms: this.resolveDynamicEvidenceTerms({
+            locale: input.locale,
             detailType,
             documentContext: input.documentContext,
+            supportedAxes: catalog.detailTypes[detailType].supportedAxes ?? [],
           }),
           supportedAxes: catalog.detailTypes[detailType].supportedAxes ?? [],
           unspecifiedAxes: catalog.detailTypes[detailType].unspecifiedAxes ?? [],
@@ -97,15 +107,23 @@ export class ResponseGroundingService {
       ]),
     ) as Record<ResponseGroundingDetailType, DetailSupportResolution>;
 
-    const supportedDetailTypes = requestedDetailTypes.filter(
-      (detailType) => supportByDetailType[detailType].supportLevel === 'supported',
-    );
-    const partialDetailTypes = requestedDetailTypes.filter(
-      (detailType) => supportByDetailType[detailType].supportLevel === 'partial',
-    );
-    const unsupportedDetailTypes = requestedDetailTypes.filter(
-      (detailType) => supportByDetailType[detailType].supportLevel === 'unsupported',
-    );
+    const forceConcreteOutOfDomainGap =
+      concreteSubjectAlignment.isConcrete && !concreteSubjectAlignment.aligned;
+    const supportedDetailTypes = forceConcreteOutOfDomainGap
+      ? []
+      : requestedDetailTypes.filter(
+          (detailType) => supportByDetailType[detailType].supportLevel === 'supported',
+        );
+    const partialDetailTypes = forceConcreteOutOfDomainGap
+      ? []
+      : requestedDetailTypes.filter(
+          (detailType) => supportByDetailType[detailType].supportLevel === 'partial',
+        );
+    const unsupportedDetailTypes = forceConcreteOutOfDomainGap
+      ? [...requestedDetailTypes]
+      : requestedDetailTypes.filter(
+          (detailType) => supportByDetailType[detailType].supportLevel === 'unsupported',
+        );
     const questionQualifiedPartialDetailTypes = questionLike
       ? partialDetailTypes.filter(
           (detailType) =>
@@ -122,6 +140,9 @@ export class ResponseGroundingService {
     );
     const hasApprovedEvidence =
       input.documentContext.matches.length > 0 && evidenceText.length > 0;
+    const hasRelevantEvidence =
+      hasApprovedEvidence &&
+      (!concreteSubjectAlignment.isConcrete || concreteSubjectAlignment.aligned);
     const outstandingDetailsExist =
       partialDetailTypes.length > 0 || unsupportedDetailTypes.length > 0;
     const hasStructuredGap = requestedDetailTypes.some(
@@ -131,14 +152,16 @@ export class ResponseGroundingService {
       requestedDetailTypes.map((detailType) => supportByDetailType[detailType].evidenceTier),
     );
     const absenceReason =
-      outstandingDetailsExist || !hasApprovedEvidence
+      outstandingDetailsExist || !hasRelevantEvidence
         ? hasStructuredGap
           ? ('document_gap' as const)
+          : hasApprovedEvidence && forceConcreteOutOfDomainGap
+            ? ('document_gap' as const)
           : ('extraction_uncertain' as const)
         : null;
 
     return {
-      supportLevel: !hasApprovedEvidence
+      supportLevel: !hasRelevantEvidence
         ? ('unavailable' as const)
         : partialDetailTypes.length > 0 || unsupportedDetailTypes.length > 0
           ? ('partial' as const)
@@ -167,10 +190,13 @@ export class ResponseGroundingService {
         normalized,
         [
           ...catalog.detailTypes[detailType].requestTerms,
+          ...(catalog.detailTypes[detailType].weakRequestTerms ?? []),
           ...(catalog.detailTypes[detailType].generalEvidenceTerms ?? []),
           ...this.resolveDynamicEvidenceTerms({
+            locale: input.locale,
             detailType,
             documentContext: input.documentContext,
+            supportedAxes: catalog.detailTypes[detailType].supportedAxes ?? [],
           }),
         ],
       ),
@@ -212,13 +238,54 @@ export class ResponseGroundingService {
     return input.detailTypes.some((detailType) =>
       hasGroundingCatalogSignal(normalizedSummary, [
         ...catalog.detailTypes[detailType].requestTerms,
+        ...(catalog.detailTypes[detailType].weakRequestTerms ?? []),
         ...(catalog.detailTypes[detailType].generalEvidenceTerms ?? []),
         ...this.resolveDynamicEvidenceTerms({
+          locale: input.locale,
           detailType,
           documentContext: input.documentContext,
+          supportedAxes: catalog.detailTypes[detailType].supportedAxes ?? [],
         }),
       ]),
     );
+  }
+
+  countSummaryDetailSignals(input: {
+    locale?: string | null;
+    summary: string;
+    detailType: ResponseGroundingDetailType;
+    documentContext?: DocumentGroundingLike;
+  }) {
+    const summary = input.summary?.trim();
+
+    if (!summary) {
+      return 0;
+    }
+
+    const catalog = resolveResponseGroundingCatalog(input.locale);
+    const detailConfig = catalog.detailTypes[input.detailType];
+    const normalizedSummary = normalizeText(summary);
+    const dynamicEvidenceTerms = this.resolveDynamicEvidenceTerms({
+      locale: input.locale,
+      detailType: input.detailType,
+      documentContext: input.documentContext,
+      supportedAxes: detailConfig.supportedAxes ?? [],
+    });
+
+    const weightedSignals = [
+      { terms: detailConfig.requestTerms, weight: 4 },
+      { terms: detailConfig.generalEvidenceTerms ?? [], weight: 2 },
+      { terms: detailConfig.weakRequestTerms ?? [], weight: 1 },
+      { terms: dynamicEvidenceTerms, weight: 3 },
+    ];
+
+    return weightedSignals.reduce((score, group) => {
+      const matchedCount = Array.from(new Set(group.terms.filter(Boolean))).filter(
+        (term) => normalizedSummary.includes(term),
+      ).length;
+
+      return score + matchedCount * group.weight;
+    }, 0);
   }
 
   containsCloseTurnReopenCue(input: { locale?: string | null; message: string }) {
@@ -437,7 +504,11 @@ export class ResponseGroundingService {
       input.availableUnspecifiedAxes.has(axis),
     );
     const hasPropositionSupport = input.propositionSummaries.some((summary) =>
-      propositionMatchesDetailType(summary, input.detailType),
+      propositionMatchesDetailType(
+        summary,
+        input.detailType,
+        input.supportedAxes,
+      ),
     );
 
     if (hasStructuredSupport && !hasStructuredGap) {
@@ -496,20 +567,34 @@ export class ResponseGroundingService {
   }
 
   private resolveDynamicEvidenceTerms(input: {
+    locale?: string | null;
     detailType: ResponseGroundingDetailType;
     documentContext?: DocumentGroundingLike;
+    supportedAxes?: string[];
   }) {
     if (!input.documentContext) {
       return [];
     }
 
     const axisState = collectDocumentAxisState(input.documentContext);
-    const catalog = resolveDetailTypeAxes(input.detailType);
+    const allowedAxes = resolveSupportedAxesForDetailType({
+      detailType: input.detailType,
+      configuredAxes:
+        input.supportedAxes ??
+        resolveResponseGroundingCatalog(input.locale).detailTypes[input.detailType]
+          .supportedAxes,
+    });
     const values = axisState.axisValues
-      .filter((axisSummary) => catalog.supportedAxes.has(axisSummary.axis))
+      .filter((axisSummary) => allowedAxes.has(axisSummary.axis))
       .flatMap((axisSummary) => axisSummary.values);
     const propositionValues = axisState.propositionSummaries
-      .filter((summary) => propositionMatchesDetailType(summary, input.detailType))
+      .filter((summary) =>
+        propositionMatchesDetailType(
+          summary,
+          input.detailType,
+          Array.from(allowedAxes.values()),
+        ),
+      )
       .flatMap((summary) => [summary.objectValue, summary.objectNormalizedValue ?? '']);
 
     return Array.from(
@@ -534,6 +619,7 @@ export class ResponseGroundingService {
     }
 
     const dynamicEvidenceTerms = this.resolveDynamicEvidenceTerms({
+      locale: input.locale,
       detailType: input.detailType,
       documentContext: input.documentContext,
     }).filter((value) => value.length >= 3);
@@ -558,46 +644,83 @@ export class ResponseGroundingService {
     return hasGroundingCatalogSignal(normalizedSummary, dynamicEvidenceTerms);
   }
 
-  private resolveRequestedDetailTypes(input: {
-    catalog: ReturnType<typeof resolveResponseGroundingCatalog>;
-    userText: string;
-    queryText: string;
-  }) {
-    const requestedFromUser = detailTypes.filter((detailType) =>
-      hasGroundingCatalogSignal(
-        input.userText,
-        input.catalog.detailTypes[detailType].requestTerms,
-      ),
-    );
-
-    if (requestedFromUser.length > 0) {
-      return requestedFromUser;
-    }
-
-    return detailTypes.filter((detailType) =>
-      hasGroundingCatalogSignal(
-        input.queryText,
-        input.catalog.detailTypes[detailType].requestTerms,
-      ),
-    );
-  }
 }
 
-const detailTypes: ResponseGroundingDetailType[] = [
-  'coverage_support',
-  'pricing',
-  'payment_terms',
-  'purchase_channel',
-  'availability',
-  'warranty',
-  'materials',
-  'color_options',
-  'specific_variants',
-  'feature_support',
-];
+const detailTypes: ResponseGroundingDetailType[] = responseGroundingDetailTypes;
 
 function normalizeText(value: string) {
   return normalizeGroundingText(value);
+}
+
+function resolveConcreteSubjectAlignment(input: {
+  locale?: string | null;
+  parsedSubject?: string | null;
+  documentContext: DocumentGroundingLike;
+}) {
+  const subject = normalizeText(input.parsedSubject ?? '');
+
+  if (!subject) {
+    return {
+      isConcrete: false,
+      aligned: true,
+    };
+  }
+
+  const catalog = resolveResponseGroundingCatalog(input.locale);
+  const subjectTokens = extractGroundingTokens(
+    subject,
+    Math.max(4, catalog.guardrail.minimumTokenLength),
+  );
+
+  if (subjectTokens.length === 0) {
+    return {
+      isConcrete: false,
+      aligned: true,
+    };
+  }
+
+  const evidenceText = [
+    input.documentContext.groundedSummary,
+    ...input.documentContext.matches.flatMap((match) => [
+      match.title ?? '',
+      match.excerpt ?? '',
+      match.supportSummary?.topic ?? '',
+      ...(match.supportSummary?.axisSummaries ?? []).flatMap((summary) => [
+        summary.axis,
+        summary.facet ?? '',
+        summary.subject?.normalizedValue ?? summary.subject?.value ?? '',
+        ...summary.values,
+        ...(summary.appliesTo ?? []).map(
+          (scope) => scope.normalizedValue ?? scope.value,
+        ),
+      ]),
+      ...(match.supportSummary?.propositionSummaries ?? []).flatMap((summary) => [
+        summary.predicate,
+        summary.facet ?? '',
+        summary.objectNormalizedValue ?? summary.objectValue,
+        summary.subject?.normalizedValue ?? summary.subject?.value ?? '',
+        ...(summary.relationScope ?? []).map(
+          (scope) => scope.normalizedValue ?? scope.value,
+        ),
+      ]),
+    ]),
+  ].join(' ');
+  const evidenceTokens = new Set(
+    extractGroundingTokens(
+      evidenceText,
+      Math.max(4, catalog.guardrail.minimumTokenLength),
+    ),
+  );
+  const overlapCount = subjectTokens.filter((token) =>
+    evidenceTokens.has(token),
+  ).length;
+
+  return {
+    isConcrete: true,
+    aligned:
+      overlapCount >= Math.min(2, subjectTokens.length) ||
+      overlapCount / Math.max(1, subjectTokens.length) >= 0.5,
+  };
 }
 
 function collectDocumentAxisState(documentContext: DocumentGroundingLike) {
@@ -636,25 +759,6 @@ function collectDocumentAxisState(documentContext: DocumentGroundingLike) {
   };
 }
 
-function resolveDetailTypeAxes(detailType: ResponseGroundingDetailType) {
-  if (detailType === 'payment_terms') {
-    return {
-      supportedAxes: new Set(['payment_methods', 'payment_terms', 'installment_count']),
-      unspecifiedAxes: new Set<string>(),
-    };
-  }
-
-  if (detailType === 'specific_variants') {
-    return {
-      supportedAxes: new Set(['specific_variants', 'product_types']),
-    };
-  }
-
-  return {
-    supportedAxes: new Set([detailType]),
-  };
-}
-
 function hasAnyGroundingDetailSignal(
   normalizedText: string,
   catalog: ReturnType<typeof resolveResponseGroundingCatalog>,
@@ -662,7 +766,10 @@ function hasAnyGroundingDetailSignal(
   return detailTypes.some((detailType) =>
     hasGroundingCatalogSignal(
       normalizedText,
-      catalog.detailTypes[detailType].requestTerms,
+      [
+        ...catalog.detailTypes[detailType].requestTerms,
+        ...(catalog.detailTypes[detailType].weakRequestTerms ?? []),
+      ],
     ),
   );
 }
@@ -670,18 +777,29 @@ function hasAnyGroundingDetailSignal(
 function propositionMatchesDetailType(
   proposition: DocumentKnowledgePropositionSummary,
   detailType: ResponseGroundingDetailType,
+  supportedAxes: string[],
 ) {
-  const { supportedAxes } = resolveDetailTypeAxes(detailType);
+  const allowedAxes = resolveSupportedAxesForDetailType({
+    detailType,
+    configuredAxes: supportedAxes,
+  });
 
-  if (supportedAxes.has(proposition.predicate)) {
+  if (allowedAxes.has(proposition.predicate)) {
     return true;
   }
 
-  return (
-    detailType === 'payment_terms' &&
-    proposition.predicate === 'payment_terms' &&
-    (proposition.facet === 'installment_count' || proposition.facet === 'card_brands')
-  );
+  return false;
+}
+
+function resolveSupportedAxesForDetailType(input: {
+  detailType: ResponseGroundingDetailType;
+  configuredAxes?: string[];
+}) {
+  if (Array.isArray(input.configuredAxes) && input.configuredAxes.length > 0) {
+    return new Set(input.configuredAxes);
+  }
+
+  return new Set([input.detailType]);
 }
 
 function resolveAggregateEvidenceTier(

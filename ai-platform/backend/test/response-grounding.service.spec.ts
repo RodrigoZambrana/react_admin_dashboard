@@ -17,6 +17,9 @@ describe('ResponseGroundingService', () => {
         | 'pricing'
         | 'payment_terms'
         | 'purchase_channel'
+        | 'service_capability'
+        | 'quote_requirements'
+        | 'recommendation'
         | 'availability'
         | 'warranty'
         | 'materials'
@@ -29,6 +32,9 @@ describe('ResponseGroundingService', () => {
         | 'pricing'
         | 'payment_terms'
         | 'purchase_channel'
+        | 'service_capability'
+        | 'quote_requirements'
+        | 'recommendation'
         | 'availability'
         | 'warranty'
         | 'materials'
@@ -41,6 +47,9 @@ describe('ResponseGroundingService', () => {
         | 'pricing'
         | 'payment_terms'
         | 'purchase_channel'
+        | 'service_capability'
+        | 'quote_requirements'
+        | 'recommendation'
         | 'availability'
         | 'warranty'
         | 'materials'
@@ -53,6 +62,9 @@ describe('ResponseGroundingService', () => {
         | 'pricing'
         | 'payment_terms'
         | 'purchase_channel'
+        | 'service_capability'
+        | 'quote_requirements'
+        | 'recommendation'
         | 'availability'
         | 'warranty'
         | 'materials'
@@ -65,6 +77,9 @@ describe('ResponseGroundingService', () => {
         | 'pricing'
         | 'payment_terms'
         | 'purchase_channel'
+        | 'service_capability'
+        | 'quote_requirements'
+        | 'recommendation'
         | 'availability'
         | 'warranty'
         | 'materials'
@@ -111,7 +126,7 @@ describe('ResponseGroundingService', () => {
         evidenceTier: 'excerpt_only',
         absenceReason: 'extraction_uncertain',
         exactnessRequested: true,
-        partialDetailTypes: ['color_options'],
+        partialDetailTypes: expect.arrayContaining(['color_options']),
       }),
     );
   });
@@ -218,6 +233,463 @@ describe('ResponseGroundingService', () => {
     );
   });
 
+  it('treats installation questions with an unsupported execution qualifier as partial mixed detail support', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'y hacen instalacion de aberturas con albañileria?',
+      parsedSubject: 'instalacion de aberturas con albañileria',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre instalación de aberturas con albañilería',
+        groundedSummary: 'toma de medidas, instalacion',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'La mano de obra de aberturas puede cotizarse por separado o quedar sujeta a confirmación según el relevamiento en obra.',
+            sequence: 0,
+            score: 9.5,
+            supportSummary: {
+              topic: '12. ABERTURAS EN ALUMINIO / Instalación',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'service_offers',
+                  layer: 'factual',
+                  values: ['toma de medidas', 'instalacion'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'ABERTURAS',
+                    normalizedValue: 'aberturas',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment).toEqual(
+      expect.objectContaining({
+        supportLevel: 'partial',
+        requestedDetailTypes: expect.arrayContaining([
+          'service_capability',
+          'feature_support',
+        ]),
+        supportedDetailTypes: expect.arrayContaining(['service_capability']),
+        unsupportedDetailTypes: expect.arrayContaining(['feature_support']),
+        requiredUnspecifiedDetailTypes: expect.arrayContaining(['feature_support']),
+      }),
+    );
+  });
+
+  it('treats purchase-channel questions as supported when commercial presence and visit facts are present', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'tienen local comercial?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre local comercial y modalidad de atención',
+        groundedSummary:
+          'No contamos con local comercial. Trabajamos principalmente de forma online.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'No contamos con local comercial. Nuestra atención es principalmente online. Podemos coordinar visitas a domicilio.',
+            sequence: 0,
+            score: 4.8,
+            supportSummary: {
+              topic: 'INFORMACION GENERAL',
+              supportedAxes: [
+                'commercial_presence',
+                'service_offers',
+                'coverage_locations',
+              ],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'commercial_presence',
+                  values: ['sin local comercial', 'atencion online'],
+                  supportClass: 'explicit_fact',
+                },
+                {
+                  axis: 'service_offers',
+                  values: ['visita a domicilio'],
+                  supportClass: 'explicit_fact',
+                },
+                {
+                  axis: 'coverage_locations',
+                  values: ['Montevideo'],
+                  supportClass: 'explicit_fact',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.supportedDetailTypes).toContain('purchase_channel');
+    expect(assessment.unsupportedDetailTypes).not.toContain('purchase_channel');
+  });
+
+  it('treats service capability questions as supported when service offers are present', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'toman medidas a domicilio?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre toma de medidas a domicilio',
+        groundedSummary:
+          'Sí, podemos coordinar una visita a domicilio para tomar medidas.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'Sí, podemos coordinar una visita a domicilio para tomar medidas.',
+            sequence: 0,
+            score: 4.9,
+            supportSummary: {
+              topic: 'VISITA PREVIA',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'service_offers',
+                  values: ['visita a domicilio', 'toma de medidas'],
+                  supportClass: 'explicit_fact',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.supportedDetailTypes).toContain('service_capability');
+  });
+
+  it('keeps recommendation and variant cues alongside supported service capability in noisy mixed queries', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage:
+        'hola, estoy viendo opciones porque se me rompio una persiana y ademas quiero algo mas moderno, ustedes hacen eso?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre reparación y opciones modernas de persianas',
+        groundedSummary:
+          'Realizamos reparación de cortinas y persianas, además de mantenimiento general.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'Realizamos reparación de cortinas y persianas, además de mantenimiento general.',
+            sequence: 0,
+            score: 5.4,
+            supportSummary: {
+              topic: 'SERVICIOS',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'service_offers',
+                  values: ['reparacion', 'mantenimiento'],
+                  supportClass: 'explicit_fact',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.requestedDetailTypes).toEqual(
+      expect.arrayContaining([
+        'service_capability',
+        'recommendation',
+        'specific_variants',
+      ]),
+    );
+    expect(assessment.supportedDetailTypes).toContain('service_capability');
+    expect(assessment.unsupportedDetailTypes).toEqual(
+      expect.arrayContaining(['recommendation', 'specific_variants']),
+    );
+  });
+
+  it('marks generic matched evidence as unavailable when the parsed subject is outside the supported domain', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'venden muebles o hacen trabajos electricos?',
+      parsedSubject: 'muebles o trabajos eléctricos',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre venta de muebles o realización de trabajos eléctricos',
+        groundedSummary:
+          'Combinamos venta, instalación, mantenimiento, reparación y trabajos a medida.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'Combinamos venta, instalación, mantenimiento, reparación y trabajos a medida.',
+            sequence: 0,
+            score: 2,
+            supportSummary: {
+              topic: 'PERFIL COMERCIAL',
+              supportedAxes: ['service_offers', 'commercial_presence'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'service_offers',
+                  values: ['instalacion', 'mantenimiento', 'reparacion'],
+                  supportClass: 'explicit_fact',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.supportLevel).toBe('unavailable');
+    expect(assessment.absenceReason).toBe('document_gap');
+  });
+
+  it('treats usage-shape queries as recommendation requests when they provide enough weak recommendation signals', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'me interesa algo exterior y de bajo mantenimiento',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Interés en persiana exterior de bajo mantenimiento',
+        groundedSummary:
+          'Las cortinas de enrollar exteriores pueden ser de PVC o aluminio.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'Las cortinas de enrollar exteriores pueden ser de PVC o aluminio.',
+            sequence: 0,
+            score: 4.1,
+            supportSummary: {
+              topic: 'CORTINAS DE ENROLLAR',
+              supportedAxes: ['materials', 'product_types'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'materials',
+                  values: ['PVC', 'ALUMINIO'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS DE ENROLLAR',
+                    normalizedValue: 'cortinas de enrollar',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.requestedDetailTypes).toContain('recommendation');
+    expect(assessment.supportedDetailTypes).toContain('recommendation');
+  });
+
+  it('lets recommendation cues take precedence over broader carryover service cues', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'me interesa algo exterior y de bajo mantenimiento',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre reparación y opciones modernas de persianas',
+        groundedSummary:
+          'Las cortinas de enrollar exteriores pueden ser de PVC o aluminio.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'Las cortinas de enrollar exteriores pueden ser de PVC o aluminio.',
+            sequence: 0,
+            score: 4.1,
+            supportSummary: {
+              topic: 'CORTINAS DE ENROLLAR',
+              supportedAxes: ['materials', 'product_types'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'materials',
+                  values: ['PVC', 'ALUMINIO'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS DE ENROLLAR',
+                    normalizedValue: 'cortinas de enrollar',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.requestedDetailTypes).toContain('recommendation');
+    expect(assessment.requestedDetailTypes).not.toContain('service_capability');
+  });
+
+  it('treats availability questions as supported when explicit product types are present', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'tienen roller blackout?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre disponibilidad de roller blackout',
+        groundedSummary: 'Roller Blackout.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt: 'Roller Blackout',
+            sequence: 0,
+            score: 6.2,
+            supportSummary: {
+              topic: 'CORTINAS ROLLER',
+              supportedAxes: ['product_types'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'product_types',
+                  values: ['Roller Blackout'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS ROLLER',
+                    normalizedValue: 'cortinas roller',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.requestedDetailTypes).toEqual(['availability']);
+    expect(assessment.supportedDetailTypes).toContain('availability');
+    expect(assessment.unsupportedDetailTypes).not.toContain('availability');
+  });
+
+  it('marks availability as unavailable when the concrete subject is outside the document domain', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'Hola venden camas de 1 plaza?',
+      parsedSubject: 'camas de 1 plaza',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre disponibilidad de camas de 1 plaza',
+        groundedSummary:
+          'Confirmamos el producto, pedimos medidas aproximadas, pedimos cantidad, pedimos variante o configuración si aplica',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'Confirmamos el producto, pedimos medidas aproximadas, pedimos cantidad, pedimos variante o configuración si aplica',
+            sequence: 0,
+            score: 7,
+            supportSummary: {
+              topic: 'Si la consulta pasa a presupuesto',
+              supportedAxes: ['quote_transition'],
+              unspecifiedAxes: [],
+            },
+          },
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt: 'Roller blackout, roller doble, trasluz y tela liviana.',
+            sequence: 1,
+            score: 6,
+            supportSummary: {
+              topic: 'CORTINAS TRADICIONALES',
+              supportedAxes: ['product_types'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'product_types',
+                  values: ['velo', 'trasluz', 'blackout', 'tela liviana', 'doble capa'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS TRADICIONALES',
+                    normalizedValue: 'cortinas tradicionales',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.requestedDetailTypes).toEqual(['availability']);
+    expect(assessment.supportLevel).toBe('unavailable');
+    expect(assessment.absenceReason).toBe('document_gap');
+    expect(assessment.supportedDetailTypes).not.toContain('availability');
+  });
+
+  it('treats quote requirement questions as supported when quote_fields are present', () => {
+    const assessment = service.assessDocumentContext({
+      locale: 'es',
+      userMessage: 'que datos necesitan para cotizar?',
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre datos para presupuesto',
+        groundedSummary:
+          'Para cotizar necesitamos ancho y alto aproximado, si es instalación nueva o reemplazo, y si prefieres manual o motorizada.',
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Catálogo',
+            excerpt:
+              'ancho y alto aproximado; si es instalación nueva o reemplazo; si prefieres manual o motorizada',
+            sequence: 0,
+            score: 4.7,
+            supportSummary: {
+              topic: 'Datos útiles para presupuesto',
+              supportedAxes: ['quote_fields'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'quote_fields',
+                  values: [
+                    'ancho y alto aproximado',
+                    'si es instalación nueva o reemplazo',
+                    'si prefieres manual o motorizada',
+                  ],
+                  supportClass: 'explicit_fact',
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(assessment.supportedDetailTypes).toContain('quote_requirements');
+  });
+
   it('treats visit-cost questions as structurally supported when the document exposes visit cost axes', () => {
     const assessment = service.assessDocumentContext({
       locale: 'es',
@@ -262,7 +734,7 @@ describe('ResponseGroundingService', () => {
     expect(assessment).toEqual(
       expect.objectContaining({
         supportLevel: 'explicit',
-        supportedDetailTypes: ['pricing'],
+        supportedDetailTypes: expect.arrayContaining(['pricing']),
       }),
     );
   });

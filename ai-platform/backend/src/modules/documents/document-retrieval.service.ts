@@ -6,12 +6,19 @@ import type {
 } from '../continuity/continuity.types';
 import {
   normalizeConversationSignalText,
+  resolveConversationSignalCatalog,
   tokenizeConversationSignalText,
 } from '../conversation-signals/conversation-signal.catalogs';
 import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
 import type { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import type { DecisionResult } from '../decision/decision.types';
 import { DocumentChunkRepository } from '../persistence/repositories/document-chunk.repository';
+import {
+  assessRequestedGroundingDetails,
+  isUserBackedGroundingDetailAssessment,
+  resolveResponseGroundingCatalog,
+} from '../response/response-grounding.catalogs';
+import type { ResponseGroundingDetailType } from '../response/response.types';
 import { classifyDocumentChunkUsageBoundary } from './document-chunk-boundary';
 import { composeActiveCorpusByLayer } from './document-corpus';
 import {
@@ -78,6 +85,10 @@ export class DocumentRetrievalService {
     );
     const queryTokens = tokenizeQuery(query, input.interpretation.language);
     const currentFocusText = this.resolveRawMessage(input);
+    const segmentQueries = resolveSupplementalSegmentQueries(
+      currentFocusText || query,
+      input.interpretation.language,
+    );
     const focusTokens =
       previousTopic || previousDocumentQuery
         ? tokenizeQuery(currentFocusText, input.interpretation.language)
@@ -94,6 +105,73 @@ export class DocumentRetrievalService {
     const explicitSubjectTokens = explicitSubjectTopic
       ? tokenizeSubjectQuery(explicitSubjectTopic, input.interpretation.language)
       : [];
+    const requestedDetailAssessments = assessRequestedGroundingDetails({
+      locale: input.interpretation.language,
+      userText: currentFocusText || input.message,
+      queryText: query,
+    });
+    const currentFocusDetailAssessments = assessRequestedGroundingDetails({
+      locale: input.interpretation.language,
+      userText: currentFocusText || input.message,
+      queryText: currentFocusText || input.message,
+    });
+    const requestedDetailTypes = requestedDetailAssessments.map(
+      (entry) => entry.detailType,
+    );
+    const primaryRequestedDetailType =
+      requestedDetailAssessments[0]?.detailType ?? null;
+    const userBackedServiceCapability = requestedDetailAssessments.some(
+      (entry) =>
+        entry.detailType === 'service_capability' &&
+        isUserBackedGroundingDetailAssessment(entry),
+    );
+    const userBackedSpecificVariants = requestedDetailAssessments.some(
+      (entry) =>
+        entry.detailType === 'specific_variants' &&
+        isUserBackedGroundingDetailAssessment(entry),
+    );
+    const recommendationPrimaryFocus =
+      primaryRequestedDetailType === 'recommendation' &&
+      requestedDetailAssessments.some(
+        (entry) =>
+          entry.detailType === 'recommendation' &&
+          isUserBackedGroundingDetailAssessment(entry),
+      );
+    const actionScopedRequestedDetails = hasActionScopedRequestedDetails(
+      requestedDetailTypes,
+      input.interpretation.language,
+    ) && !(recommendationPrimaryFocus && !userBackedServiceCapability);
+    const serviceCapabilityContinuationFocus =
+      reason === 'active_document_continuation' &&
+      requestedDetailTypes.includes('service_capability') &&
+      actionScopedRequestedDetails;
+    const recommendationContinuationFocus =
+      reason === 'active_document_continuation' &&
+      recommendationPrimaryFocus &&
+      !userBackedServiceCapability;
+    const specificVariantsContinuationFocus =
+      reason === 'active_document_continuation' && userBackedSpecificVariants;
+    const clarificationCarryoverFocus =
+      reason === 'active_document_continuation' &&
+      Boolean(explicitSubjectTopic) &&
+      requestedDetailTypes.length > 0 &&
+      !currentFocusDetailAssessments.some((entry) =>
+        isUserBackedGroundingDetailAssessment(entry),
+      );
+    const effectiveFocusTokens =
+      serviceCapabilityContinuationFocus ||
+      recommendationContinuationFocus ||
+      specificVariantsContinuationFocus ||
+      clarificationCarryoverFocus
+      ? queryTokens
+      : focusTokens;
+    const preferPrimaryRequestedDetail =
+      primaryRequestedDetailType !== null &&
+      requestedDetailAssessments.some(
+        (entry) =>
+          entry.detailType === primaryRequestedDetailType &&
+          isUserBackedGroundingDetailAssessment(entry),
+      );
 
     if (queryTokens.length === 0) {
       return {
@@ -123,18 +201,45 @@ export class DocumentRetrievalService {
         const structuralText = buildChunkStructuralText(chunk);
         const scopeAlignmentScore = scoreScopeAlignment(
           chunk.knowledgeItems ?? [],
-          focusTokens,
+          effectiveFocusTokens,
           input.interpretation.language,
         );
         const axisAlignmentScore = scoreAxisAlignment(
           chunk.knowledgeItems ?? [],
-          focusTokens,
+          effectiveFocusTokens,
           input.interpretation.language,
         );
         const actionCapabilityScore = scoreActionCapabilityRelevance(
           chunk.knowledgeItems ?? [],
-          focusTokens.length > 0 ? focusTokens : queryTokens,
+          effectiveFocusTokens.length > 0 ? effectiveFocusTokens : queryTokens,
           input.interpretation.language,
+        );
+        const recommendationOrientationScore = scoreRecommendationOrientationRelevance(
+          chunk.knowledgeItems ?? [],
+          effectiveFocusTokens.length > 0 ? effectiveFocusTokens : queryTokens,
+          input.interpretation.language,
+        );
+        const recommendationEvidenceTier = resolveRecommendationEvidenceTier(
+          chunk.knowledgeItems ?? [],
+        );
+        const requestedDetailAlignmentScore = scoreRequestedDetailAxisAlignment(
+          chunk.knowledgeItems ?? [],
+          requestedDetailTypes,
+          input.interpretation.language,
+        );
+        const requestedDetailTextAlignmentScore = scoreRequestedDetailTextAlignment(
+          [chunk.searchText, chunk.retrievalProjection ?? '', structuralText].join(' '),
+          requestedDetailTypes,
+          input.interpretation.language,
+        );
+        const detailDriftPenalty = scoreRequestedDetailDriftPenalty(
+          chunk.knowledgeItems ?? [],
+          {
+            locale: input.interpretation.language,
+            primaryDetailType: primaryRequestedDetailType,
+            preferRecommendation: recommendationContinuationFocus,
+            preferPrimaryRequestedDetail,
+          },
         );
         const subjectTokens = extractChunkSubjectTokens(
           chunk,
@@ -148,6 +253,44 @@ export class DocumentRetrievalService {
           structuralText,
           preferredTopicTokens,
         );
+        const segmentScores = segmentQueries.map((segment) =>
+          scoreChunk(
+            segment.text,
+            segment.tokens,
+            segment.tokens,
+            chunk.searchText,
+            chunk.retrievalProjection,
+            structuralText,
+            chunk.knowledgeItems,
+            input.interpretation.language,
+            {
+              activeDocumentIds,
+              preferredTopicTokens: segment.preferredTopicTokens,
+              hasTopicCarryover: false,
+              activeDocumentMatch:
+                Boolean(activeDocumentIds?.includes(chunk.documentId)),
+              usageBoundary,
+              structuralTopicOverlap: scoreTopicTokenOverlap(
+                structuralText,
+                segment.preferredTopicTokens,
+              ),
+              axisAlignmentScore,
+              axisFocusActive: true,
+            },
+          ) +
+            exactSubjectAlignmentScore *
+              (actionScopedRequestedDetails ? 1 : 2) +
+            requestedDetailAlignmentScore +
+            requestedDetailTextAlignmentScore * 2 +
+            (actionScopedRequestedDetails ? actionCapabilityScore * 1.5 : 0) +
+            (recommendationContinuationFocus
+              ? recommendationOrientationScore * 2
+              : 0) -
+            (recommendationContinuationFocus
+              ? recommendationEvidenceTier * 2
+              : 0) -
+            detailDriftPenalty,
+        );
 
         return {
           chunk,
@@ -157,22 +300,28 @@ export class DocumentRetrievalService {
           scopeAlignmentScore,
           axisAlignmentScore,
           actionCapabilityScore,
+          recommendationOrientationScore,
+          recommendationEvidenceTier,
+          requestedDetailAlignmentScore,
+          requestedDetailTextAlignmentScore,
+          detailDriftPenalty,
           subjectTokens,
           exactSubjectAlignmentScore,
+          segmentScores,
           claimSummary: buildClaimBackedSummary(
             chunk,
-            focusTokens.length > 0 ? focusTokens : queryTokens,
+            effectiveFocusTokens.length > 0 ? effectiveFocusTokens : queryTokens,
             input.interpretation.language,
           ),
           propositionSummary: buildPropositionBackedSummary(
             chunk,
-            focusTokens.length > 0 ? focusTokens : queryTokens,
+            effectiveFocusTokens.length > 0 ? effectiveFocusTokens : queryTokens,
             input.interpretation.language,
           ),
           score: scoreChunk(
             query,
             queryTokens,
-            focusTokens,
+            effectiveFocusTokens,
             chunk.searchText,
             chunk.retrievalProjection,
             structuralText,
@@ -190,7 +339,19 @@ export class DocumentRetrievalService {
               axisAlignmentScore,
               axisFocusActive: focusTokens.length > 0,
             },
-          ) + exactSubjectAlignmentScore * 4,
+          ) +
+            exactSubjectAlignmentScore *
+              (actionScopedRequestedDetails ? 1.5 : 4) +
+            requestedDetailAlignmentScore +
+            requestedDetailTextAlignmentScore * 2.5 +
+            (actionScopedRequestedDetails ? actionCapabilityScore * 2 : 0) +
+            (recommendationContinuationFocus
+              ? recommendationOrientationScore * 3
+              : 0) -
+            (recommendationContinuationFocus
+              ? recommendationEvidenceTier * 3
+              : 0) -
+            detailDriftPenalty,
         };
       })
       .filter((entry) => entry.score > 0)
@@ -221,21 +382,55 @@ export class DocumentRetrievalService {
         : scored.filter((entry) => entry.score >= Math.max(1, minimumScore - 1));
     const axisLockedMatched = filterAxisLockedMatches(
       relaxedMatched,
-      focusTokens,
+      effectiveFocusTokens,
     );
     const actionLockedMatched = filterActionLockedMatches(
       axisLockedMatched,
-      focusTokens,
+      effectiveFocusTokens,
+    );
+    const detailLockedMatched = filterRequestedDetailMatches(
+      actionLockedMatched,
+      requestedDetailTypes,
+      input.interpretation.language,
     );
     const coherentMatched = filterStructurallyCoherentMatches(
-      actionLockedMatched,
+      detailLockedMatched,
       preferredTopicTokens,
+      requestedDetailTypes,
+      input.interpretation.language,
     );
     const exactSubjectMatched = filterExactSubjectMatches(
       coherentMatched,
       explicitSubjectTokens,
+      requestedDetailTypes,
+      input.interpretation.language,
     );
-    const topMatched = exactSubjectMatched.slice(0, 4);
+    const diversifiedMatched = diversifySupplementalSegmentMatches(
+      exactSubjectMatched,
+      scored,
+      segmentQueries.length,
+      minimumScore,
+    );
+    const primaryRequestedDetailPromotedMatched =
+      preferPrimaryRequestedDetail && primaryRequestedDetailType
+        ? promotePrimaryRequestedDetailMatches(
+            diversifiedMatched,
+            scored,
+          )
+        : diversifiedMatched;
+    const recommendationPromotedMatched = recommendationContinuationFocus
+      ? promoteRecommendationContinuationMatches(
+          primaryRequestedDetailPromotedMatched,
+          scored,
+        )
+      : primaryRequestedDetailPromotedMatched;
+    const specificVariantsPromotedMatched = specificVariantsContinuationFocus
+      ? promoteSpecificVariantsContinuationMatches(
+          recommendationPromotedMatched,
+          scored,
+        )
+      : recommendationPromotedMatched;
+    const topMatched = specificVariantsPromotedMatched.slice(0, 4);
 
     if (topMatched.length === 0) {
       return {
@@ -253,7 +448,10 @@ export class DocumentRetrievalService {
     const matches = topMatched.map((entry) => ({
       documentId: entry.chunk.documentId,
       title: entry.chunk.document.title,
-      excerpt: buildExcerpt(entry.chunk.content, queryTokens),
+      excerpt: buildExcerpt(
+        entry.chunk.content,
+        effectiveFocusTokens.length > 0 ? effectiveFocusTokens : queryTokens,
+      ),
       sequence: entry.chunk.sequence,
       score: Number(entry.score.toFixed(3)),
       supportSummary: buildChunkSupportSummary(entry.chunk),
@@ -269,9 +467,10 @@ export class DocumentRetrievalService {
           incremental:
             signals.threading.incrementalFollowUp ||
             reason === 'active_document_continuation',
-          preferredSummaries: topMatched
-            .map((entry) => entry.claimSummary || entry.propositionSummary)
-            .filter((value): value is string => Boolean(value)),
+          preferPrimaryExcerpt: actionScopedRequestedDetails,
+          preferredSummaries: selectPreferredGroundedSummaries(topMatched, {
+            requestedDetailTypes,
+          }),
         }),
         matches,
       },
@@ -513,6 +712,20 @@ export class DocumentRetrievalService {
         }
 
         return previousTopic;
+      }
+
+      const subjectClarificationCarryoverQuery =
+        explicitSubjectTopic && currentTopic
+          ? resolveSubjectClarificationCarryoverQuery({
+              previousTopic,
+              currentTopic,
+              explicitSubjectTopic,
+              locale: input.interpretation.language,
+            })
+          : null;
+
+      if (subjectClarificationCarryoverQuery) {
+        return subjectClarificationCarryoverQuery;
       }
 
       if (
@@ -885,6 +1098,7 @@ function buildGroundedSummary(
   queryTokens: string[],
   options?: {
     incremental?: boolean;
+    preferPrimaryExcerpt?: boolean;
     preferredSummaries?: string[];
   },
 ) {
@@ -897,8 +1111,27 @@ function buildGroundedSummary(
     const rankedPreferredSummaries = preferredSummaries.map((summary) => ({
       summary,
       score: scoreSummaryExcerpt(summary, queryTokens),
-    }));
+    }))
+      .sort((left, right) => right.score - left.score);
     const primaryPreferredSummary = rankedPreferredSummaries[0];
+    const primaryExcerptCandidate = matches
+      .slice(0, 1)
+      .map((match) => normalizeSummaryExcerpt(match.excerpt))
+      .find((summary): summary is string => Boolean(summary));
+
+    if (
+      primaryExcerptCandidate &&
+      shouldPreferExcerptOverPreferredSummary({
+        preferredSummary: primaryPreferredSummary.summary,
+        excerptSummary: primaryExcerptCandidate,
+        queryTokens,
+      })
+    ) {
+      return primaryExcerptCandidate
+        .slice(0, options?.incremental ? 220 : 320)
+        .trim();
+    }
+
     const selectedPreferredSummaries = [primaryPreferredSummary.summary];
 
     if (!options?.incremental) {
@@ -921,9 +1154,13 @@ function buildGroundedSummary(
 
   const rankedExcerpts = matches
     .slice(0, 3)
-    .map((match) => ({
+    .map((match, matchIndex) => ({
       sentence: normalizeSummaryExcerpt(match.excerpt),
-      score: scoreSummaryExcerpt(match.excerpt, queryTokens),
+      score:
+        scoreSummaryExcerpt(match.excerpt, queryTokens) +
+        (options?.preferPrimaryExcerpt ? Math.max(0, 2 - matchIndex) : 0),
+      retrievalScore: match.score,
+      matchIndex,
       sequence: match.sequence,
       index: 0,
     }))
@@ -931,6 +1168,8 @@ function buildGroundedSummary(
       (entry): entry is {
         sentence: string;
         score: number;
+        retrievalScore: number;
+        matchIndex: number;
         sequence: number;
         index: number;
       } => Boolean(entry.sentence),
@@ -938,6 +1177,14 @@ function buildGroundedSummary(
     .sort((left, right) => {
       if (right.score !== left.score) {
         return right.score - left.score;
+      }
+
+      if (right.retrievalScore !== left.retrievalScore) {
+        return right.retrievalScore - left.retrievalScore;
+      }
+
+      if (left.matchIndex !== right.matchIndex) {
+        return left.matchIndex - right.matchIndex;
       }
 
       if (left.sequence !== right.sequence) {
@@ -986,6 +1233,69 @@ function buildGroundedSummary(
     .join(' ')
     .slice(0, options?.incremental ? 220 : 320)
     .trim();
+}
+
+function selectPreferredGroundedSummaries<
+  T extends {
+    claimSummary?: string | null;
+    propositionSummary?: string | null;
+    requestedDetailAlignmentScore?: number;
+  },
+>(
+  entries: T[],
+  input: {
+    requestedDetailTypes: ResponseGroundingDetailType[];
+  },
+) {
+  const requestedDetailConstrained = input.requestedDetailTypes.length > 0;
+  const detailAlignedEntries = requestedDetailConstrained
+    ? entries.filter((entry) => (entry.requestedDetailAlignmentScore ?? 0) > 0)
+    : entries;
+  const sourceEntries =
+    requestedDetailConstrained && detailAlignedEntries.length > 0
+      ? detailAlignedEntries
+      : requestedDetailConstrained
+        ? []
+        : entries;
+
+  return sourceEntries
+    .map((entry) => entry.claimSummary || entry.propositionSummary)
+    .filter((value): value is string => Boolean(value));
+}
+
+function shouldPreferExcerptOverPreferredSummary(input: {
+  preferredSummary: string;
+  excerptSummary: string;
+  queryTokens: string[];
+}) {
+  const preferredScore = scoreSummaryExcerpt(
+    input.preferredSummary,
+    input.queryTokens,
+  );
+  const excerptScore = scoreSummaryExcerpt(input.excerptSummary, input.queryTokens);
+
+  if (
+    looksRetrievalLowSignalSummary(input.preferredSummary) &&
+    !looksRetrievalLowSignalSummary(input.excerptSummary)
+  ) {
+    return true;
+  }
+
+  if (
+    countDelimitedSegments(input.preferredSummary) <= 1 &&
+    countDelimitedSegments(input.excerptSummary) >= 2 &&
+    excerptScore >= preferredScore
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function looksRetrievalLowSignalSummary(summary: string) {
+  const tokens = tokenizeQuery(summary);
+
+  return tokens.length > 0 && new Set(tokens).size <= 1;
 }
 
 function resolveMinimumScore(
@@ -1125,6 +1435,93 @@ function tokenizeQuery(value: string, locale?: string | null) {
   );
 }
 
+function resolveSupplementalSegmentQueries(value: string, locale?: string | null) {
+  const normalized = normalizeConversationSignalText(value);
+
+  if (!normalized) {
+    return [];
+  }
+
+  const signalCatalog = resolveConversationSignalCatalog(locale);
+  const bridgeTerms = signalCatalog.textSupport.bridgeTerms
+    .map((term) => normalizeConversationSignalText(term))
+    .filter(Boolean);
+  const bridgeAlternation = bridgeTerms.length
+    ? bridgeTerms.map((term) => escapeRegExp(term)).join('|')
+    : '';
+  const rawSegments = normalized
+    .split(
+      bridgeAlternation.length > 0
+        ? new RegExp(`(?:[,;/]+|\\b(?:${bridgeAlternation})\\b)`, 'u')
+        : /[,;/]+/u,
+    )
+    .map((segment) => trimSegmentStopWords(segment, locale))
+    .filter((segment) => segment.length > 0);
+  const baseTokens = tokenizeQuery(normalized, locale);
+  const seen = new Set<string>();
+
+  return rawSegments
+    .map((segment) => {
+      const tokens = tokenizeQuery(segment, locale);
+
+      if (tokens.length < 2) {
+        return null;
+      }
+
+      const signature = tokens.join('|');
+
+      if (signature === baseTokens.join('|') || seen.has(signature)) {
+        return null;
+      }
+
+      seen.add(signature);
+
+      return {
+        text: segment,
+        tokens,
+        preferredTopicTokens: tokenizeSubjectQuery(segment, locale),
+      };
+    })
+    .filter(
+      (
+        value,
+      ): value is {
+        text: string;
+        tokens: string[];
+        preferredTopicTokens: string[];
+      } => Boolean(value),
+    );
+}
+
+function trimSegmentStopWords(value: string, locale?: string | null) {
+  const parts = value.split(/\s+/u).filter(Boolean);
+
+  if (parts.length === 0) {
+    return '';
+  }
+
+  const stopWordSet = new Set(
+    resolveConversationSignalCatalog(locale).textSupport.informativeStopWords.map(
+      (term) => normalizeConversationSignalText(term),
+    ),
+  );
+  let start = 0;
+  let end = parts.length;
+
+  while (start < end && stopWordSet.has(normalizeConversationSignalText(parts[start]))) {
+    start += 1;
+  }
+
+  while (
+    end > start &&
+    stopWordSet.has(normalizeConversationSignalText(parts[end - 1]))
+  ) {
+    end -= 1;
+  }
+
+  return parts.slice(start, end).join(' ').trim();
+}
+
 function tokenizeSubjectQuery(value: string, locale?: string | null) {
   return tokenizeConversationSignalText(value, {
     locale,
@@ -1143,6 +1540,47 @@ function expandRetrievalEquivalentTokens(tokens: string[]) {
 
   if (tokenSet.has('presupuesto') || tokenSet.has('budget')) {
     expanded.push('cotizacion', 'quotation', 'quote');
+  }
+
+  if (tokenSet.has('automatizar') || tokenSet.has('automation')) {
+    expanded.push('automatizacion', 'automation');
+  }
+
+  if (tokenSet.has('automatizacion')) {
+    expanded.push('automatizar', 'automation');
+  }
+
+  if (tokenSet.has('motorizacion') || tokenSet.has('motorization')) {
+    expanded.push('motorizar', 'motorizacion', 'motorization');
+  }
+
+  if (tokenSet.has('motorizar')) {
+    expanded.push('motorizacion', 'motorization');
+  }
+
+  if (tokenSet.has('reparar') || tokenSet.has('repair') || tokenSet.has('repairs')) {
+    expanded.push('reparacion', 'repair', 'repairs');
+  }
+
+  if (tokenSet.has('reparacion')) {
+    expanded.push('reparar', 'repair', 'repairs');
+  }
+
+  for (const token of tokenSet) {
+    if (token.length <= 4) {
+      continue;
+    }
+
+    if (token.endsWith('es') && token.length > 5) {
+      expanded.push(token.slice(0, -2));
+    }
+
+    if (token.endsWith('s')) {
+      expanded.push(token.slice(0, -1));
+      continue;
+    }
+
+    expanded.push(`${token}s`);
   }
 
   return expanded;
@@ -1180,6 +1618,308 @@ function resolvePreferredTopicText(input: {
   }
 
   return input.previousTopic;
+}
+
+function diversifySupplementalSegmentMatches<
+  T extends {
+    score: number;
+    segmentScores: number[];
+    chunk: { documentId: string; sequence: number };
+    richness: number;
+    exactSubjectAlignmentScore: number;
+  },
+>(baseEntries: T[], allEntries: T[], segmentCount: number, minimumScore: number) {
+  if (segmentCount === 0) {
+    return baseEntries;
+  }
+
+  const merged = [...baseEntries];
+  const seen = new Set(
+    baseEntries.map((entry) => `${entry.chunk.documentId}:${entry.chunk.sequence}`),
+  );
+
+  for (let index = 0; index < segmentCount; index += 1) {
+    const segmentCandidate = [...allEntries]
+      .filter(
+        (entry) =>
+          (entry.segmentScores[index] ?? 0) >= Math.max(2, minimumScore - 1),
+      )
+      .sort((left, right) => {
+        const leftScore = left.segmentScores[index] ?? 0;
+        const rightScore = right.segmentScores[index] ?? 0;
+
+        if (rightScore !== leftScore) {
+          return rightScore - leftScore;
+        }
+
+        if (right.score !== left.score) {
+          return right.score - left.score;
+        }
+
+        if (right.exactSubjectAlignmentScore !== left.exactSubjectAlignmentScore) {
+          return right.exactSubjectAlignmentScore - left.exactSubjectAlignmentScore;
+        }
+
+        return right.richness - left.richness;
+      })[0];
+
+    if (!segmentCandidate) {
+      continue;
+    }
+
+    const key = `${segmentCandidate.chunk.documentId}:${segmentCandidate.chunk.sequence}`;
+
+    if (seen.has(key)) {
+      continue;
+    }
+
+    seen.add(key);
+    merged.push(segmentCandidate);
+  }
+
+  return merged.sort((left, right) => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+
+    if (right.exactSubjectAlignmentScore !== left.exactSubjectAlignmentScore) {
+      return right.exactSubjectAlignmentScore - left.exactSubjectAlignmentScore;
+    }
+
+    return right.richness - left.richness;
+  });
+}
+
+function promoteRecommendationContinuationMatches<
+  T extends {
+    score: number;
+    recommendationOrientationScore?: number;
+    recommendationEvidenceTier?: number;
+    detailDriftPenalty?: number;
+    structuralTopicOverlap: number;
+    exactSubjectAlignmentScore: number;
+    chunk: { documentId: string; sequence: number };
+  },
+>(baseEntries: T[], allEntries: T[]) {
+  const baseEvidenceTier = Math.max(
+    ...baseEntries.map((entry) => entry.recommendationEvidenceTier ?? 0),
+    0,
+  );
+
+  const promotedCandidate = [...allEntries]
+    .filter(
+      (entry) =>
+        entry.score > 0 &&
+        (entry.recommendationEvidenceTier ?? 0) > 0 &&
+        (
+          (entry.recommendationOrientationScore ?? 0) > 0 ||
+          entry.exactSubjectAlignmentScore > 0
+        ) &&
+        (entry.detailDriftPenalty ?? 0) === 0,
+    )
+    .sort((left, right) => {
+      const rightEvidenceTier = right.recommendationEvidenceTier ?? 0;
+      const leftEvidenceTier = left.recommendationEvidenceTier ?? 0;
+
+      if (rightEvidenceTier !== leftEvidenceTier) {
+        return rightEvidenceTier - leftEvidenceTier;
+      }
+
+      const rightRecommendationScore = right.recommendationOrientationScore ?? 0;
+      const leftRecommendationScore = left.recommendationOrientationScore ?? 0;
+
+      if (rightRecommendationScore !== leftRecommendationScore) {
+        return rightRecommendationScore - leftRecommendationScore;
+      }
+
+      if (right.structuralTopicOverlap !== left.structuralTopicOverlap) {
+        return right.structuralTopicOverlap - left.structuralTopicOverlap;
+      }
+
+      if (
+        right.exactSubjectAlignmentScore !== left.exactSubjectAlignmentScore
+      ) {
+        return right.exactSubjectAlignmentScore - left.exactSubjectAlignmentScore;
+      }
+
+      return right.score - left.score;
+    })[0];
+
+  if (!promotedCandidate) {
+    return baseEntries;
+  }
+
+  if ((promotedCandidate.recommendationEvidenceTier ?? 0) <= baseEvidenceTier) {
+    return baseEntries;
+  }
+
+  const promotedKey = `${promotedCandidate.chunk.documentId}:${promotedCandidate.chunk.sequence}`;
+  const retained = baseEntries.filter(
+    (entry) =>
+      `${entry.chunk.documentId}:${entry.chunk.sequence}` !== promotedKey,
+  );
+
+  return [promotedCandidate, ...retained];
+}
+
+function promoteSpecificVariantsContinuationMatches<
+  T extends {
+    score: number;
+    requestedDetailTextAlignmentScore?: number;
+    requestedDetailAlignmentScore?: number;
+    exactSubjectAlignmentScore: number;
+    structuralTopicOverlap: number;
+    detailDriftPenalty?: number;
+    chunk: { documentId: string; sequence: number };
+  },
+>(baseEntries: T[], allEntries: T[]) {
+  const promotedCandidate = [...allEntries]
+    .filter(
+      (entry) =>
+        entry.score > 0 &&
+        ((entry.requestedDetailAlignmentScore ?? 0) > 0 ||
+          (entry.requestedDetailTextAlignmentScore ?? 0) > 0) &&
+        ((entry.requestedDetailTextAlignmentScore ?? 0) > 0 ||
+          entry.exactSubjectAlignmentScore > 0) &&
+        (entry.detailDriftPenalty ?? 0) === 0,
+    )
+    .sort((left, right) => {
+      const rightTextAlignment = right.requestedDetailTextAlignmentScore ?? 0;
+      const leftTextAlignment = left.requestedDetailTextAlignmentScore ?? 0;
+
+      if (rightTextAlignment !== leftTextAlignment) {
+        return rightTextAlignment - leftTextAlignment;
+      }
+
+      const rightAxisAlignment = right.requestedDetailAlignmentScore ?? 0;
+      const leftAxisAlignment = left.requestedDetailAlignmentScore ?? 0;
+
+      if (rightAxisAlignment !== leftAxisAlignment) {
+        return rightAxisAlignment - leftAxisAlignment;
+      }
+
+      if (right.exactSubjectAlignmentScore !== left.exactSubjectAlignmentScore) {
+        return right.exactSubjectAlignmentScore - left.exactSubjectAlignmentScore;
+      }
+
+      if (right.structuralTopicOverlap !== left.structuralTopicOverlap) {
+        return right.structuralTopicOverlap - left.structuralTopicOverlap;
+      }
+
+      return right.score - left.score;
+    })[0];
+
+  if (!promotedCandidate) {
+    return baseEntries;
+  }
+
+  const baseTextAlignment = Math.max(
+    ...baseEntries.map((entry) => entry.requestedDetailTextAlignmentScore ?? 0),
+    0,
+  );
+  const baseAxisAlignment = Math.max(
+    ...baseEntries.map((entry) => entry.requestedDetailAlignmentScore ?? 0),
+    0,
+  );
+
+  if (
+    (promotedCandidate.requestedDetailTextAlignmentScore ?? 0) < baseTextAlignment &&
+    (promotedCandidate.requestedDetailAlignmentScore ?? 0) <= baseAxisAlignment
+  ) {
+    return baseEntries;
+  }
+
+  const promotedKey = `${promotedCandidate.chunk.documentId}:${promotedCandidate.chunk.sequence}`;
+  const retained = baseEntries.filter(
+    (entry) =>
+      `${entry.chunk.documentId}:${entry.chunk.sequence}` !== promotedKey,
+  );
+
+  return [promotedCandidate, ...retained];
+}
+
+function promotePrimaryRequestedDetailMatches<
+  T extends {
+    score: number;
+    requestedDetailTextAlignmentScore?: number;
+    requestedDetailAlignmentScore?: number;
+    exactSubjectAlignmentScore: number;
+    structuralTopicOverlap: number;
+    scopeAlignmentScore?: number;
+    detailDriftPenalty?: number;
+    chunk: { documentId: string; sequence: number };
+  },
+>(
+  baseEntries: T[],
+  allEntries: T[],
+) {
+  const promotedCandidate = [...allEntries]
+    .filter(
+      (entry) =>
+        entry.score > 0 &&
+        ((entry.requestedDetailAlignmentScore ?? 0) > 0 ||
+          (entry.requestedDetailTextAlignmentScore ?? 0) > 0) &&
+        (entry.detailDriftPenalty ?? 0) === 0,
+    )
+    .sort((left, right) => {
+      const rightAxisAlignment = right.requestedDetailAlignmentScore ?? 0;
+      const leftAxisAlignment = left.requestedDetailAlignmentScore ?? 0;
+
+      if (rightAxisAlignment !== leftAxisAlignment) {
+        return rightAxisAlignment - leftAxisAlignment;
+      }
+
+      const rightTextAlignment = right.requestedDetailTextAlignmentScore ?? 0;
+      const leftTextAlignment = left.requestedDetailTextAlignmentScore ?? 0;
+
+      if (rightTextAlignment !== leftTextAlignment) {
+        return rightTextAlignment - leftTextAlignment;
+      }
+
+      if ((right.scopeAlignmentScore ?? 0) !== (left.scopeAlignmentScore ?? 0)) {
+        return (right.scopeAlignmentScore ?? 0) - (left.scopeAlignmentScore ?? 0);
+      }
+
+      if (right.exactSubjectAlignmentScore !== left.exactSubjectAlignmentScore) {
+        return right.exactSubjectAlignmentScore - left.exactSubjectAlignmentScore;
+      }
+
+      if (right.structuralTopicOverlap !== left.structuralTopicOverlap) {
+        return right.structuralTopicOverlap - left.structuralTopicOverlap;
+      }
+
+      return right.score - left.score;
+    })[0];
+
+  if (!promotedCandidate) {
+    return baseEntries;
+  }
+
+  const primaryRequestedEntry = baseEntries[0];
+
+  if (
+    primaryRequestedEntry &&
+    (primaryRequestedEntry.requestedDetailAlignmentScore ?? 0) > 0 &&
+    (primaryRequestedEntry.detailDriftPenalty ?? 0) === 0 &&
+    (primaryRequestedEntry.requestedDetailAlignmentScore ?? 0) >=
+      (promotedCandidate.requestedDetailAlignmentScore ?? 0) &&
+    (primaryRequestedEntry.scopeAlignmentScore ?? 0) >=
+      (promotedCandidate.scopeAlignmentScore ?? 0)
+  ) {
+    return baseEntries;
+  }
+
+  const promotedKey = `${promotedCandidate.chunk.documentId}:${promotedCandidate.chunk.sequence}`;
+  const retained = baseEntries.filter(
+    (entry) =>
+      `${entry.chunk.documentId}:${entry.chunk.sequence}` !== promotedKey,
+  );
+
+  return [promotedCandidate, ...retained];
+}
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
 }
 
 function shouldPivotToCurrentTopic(input: {
@@ -1433,6 +2173,41 @@ function resolveRequestAwareTopic(input: {
   const hasNovelRequestTokens = requestTokens.some((token) => !currentTokens.has(token));
 
   return hasNovelRequestTokens ? requestSummary : input.currentTopic;
+}
+
+function resolveSubjectClarificationCarryoverQuery(input: {
+  previousTopic: string;
+  currentTopic: string;
+  explicitSubjectTopic: string;
+  locale?: string | null;
+}) {
+  const previousDetailAssessments = assessRequestedGroundingDetails({
+    locale: input.locale,
+    userText: input.previousTopic,
+    queryText: input.previousTopic,
+  });
+  const currentDetailAssessments = assessRequestedGroundingDetails({
+    locale: input.locale,
+    userText: input.currentTopic,
+    queryText: input.currentTopic,
+  });
+  const currentHasUserBackedDetail = currentDetailAssessments.some((assessment) =>
+    isUserBackedGroundingDetailAssessment(assessment),
+  );
+
+  if (currentHasUserBackedDetail) {
+    return null;
+  }
+
+  const previousHasUserBackedDetail = previousDetailAssessments.some((assessment) =>
+    isUserBackedGroundingDetailAssessment(assessment),
+  );
+
+  if (!previousHasUserBackedDetail) {
+    return null;
+  }
+
+  return `${input.explicitSubjectTopic.trim()}. ${input.previousTopic.trim()}`.trim();
 }
 
 function scoreSummaryExcerpt(excerpt: string, queryTokens: string[]) {
@@ -1784,6 +2559,321 @@ function scoreActionCapabilityRelevance(
   );
 }
 
+function scoreRecommendationOrientationRelevance(
+  knowledgeItems: Array<{
+    kind: string;
+    label: string;
+    valueText: string;
+    normalizedValue?: string | null;
+    supportClass: string;
+    metadata?: unknown;
+  }>,
+  queryTokens: string[],
+  locale?: string | null,
+) {
+  if (queryTokens.length === 0) {
+    return 0;
+  }
+
+  const factualCandidates = extractStructuredKnowledgeClaims(knowledgeItems, {
+    layers: ['factual'],
+  }).filter((claim) =>
+    RECOMMENDATION_ORIENTATION_AXES.has(claim.axis),
+  );
+  const metadataCandidates = extractKnowledgeMetadataSummaries(knowledgeItems, {
+    layers: ['workflow', 'guidance'],
+  }).filter((note) => note.axis === 'comparison_guidance');
+  const queryTokenSet = new Set(queryTokens);
+  const candidates = [
+    ...factualCandidates.map((claim) => ({
+      axis: claim.axis,
+      facet: claim.facet,
+      values: claim.values,
+      subject: claim.subject,
+      appliesTo: claim.appliesTo ?? [],
+      supportClass: claim.supportClass,
+      isMetadata: false,
+    })),
+    ...metadataCandidates.map((note) => ({
+      axis: note.axis,
+      facet: note.facet,
+      values: note.values,
+      subject: note.subject,
+      appliesTo: note.appliesTo ?? [],
+      supportClass: note.supportClass,
+      isMetadata: true,
+    })),
+  ];
+
+  if (candidates.length === 0) {
+    return 0;
+  }
+
+  return Math.max(
+    ...candidates.map((candidate) => {
+      const axisTokens = tokenizeQuery(
+        [
+          resolveStructuralKnowledgeAxisLabel(candidate.axis, locale),
+          candidate.facet ?? '',
+        ].join(' '),
+        locale,
+      );
+      const valueTokens = tokenizeQuery(candidate.values.join(' '), locale);
+      const subjectTokens = tokenizeQuery(
+        `${candidate.subject?.axis ?? ''} ${candidate.subject?.normalizedValue ?? candidate.subject?.value ?? ''}`,
+        locale,
+      );
+      const scopeTokens = tokenizeQuery(
+        candidate.appliesTo
+          .map((scope) => `${scope.axis} ${scope.normalizedValue ?? scope.value}`)
+          .join(' '),
+        locale,
+      );
+      const axisOverlap = axisTokens.filter((token) => queryTokenSet.has(token)).length;
+      const valueOverlap = valueTokens.filter((token) => queryTokenSet.has(token)).length;
+      const subjectOverlap = subjectTokens.filter((token) => queryTokenSet.has(token)).length;
+      const scopeOverlap = scopeTokens.filter((token) => queryTokenSet.has(token)).length;
+
+      let score =
+        axisOverlap * 2 +
+        valueOverlap * 3 +
+        subjectOverlap * 2 +
+        scopeOverlap * 2;
+
+      if (score > 0) {
+        score += candidate.isMetadata
+          ? 2
+          : candidate.supportClass === 'explicit_fact'
+            ? 2
+            : 1;
+
+        if (
+          candidate.axis === 'materials' ||
+          candidate.axis === 'product_types' ||
+          candidate.axis === 'suitability'
+        ) {
+          score += 1;
+        }
+      }
+
+      return score;
+    }),
+    0,
+  );
+}
+
+function resolveRecommendationEvidenceTier(
+  knowledgeItems: Array<{
+    kind: string;
+    label: string;
+    valueText: string;
+    normalizedValue?: string | null;
+    supportClass: string;
+    metadata?: unknown;
+  }>,
+) {
+  const metadataAxes = new Set(
+    extractKnowledgeMetadataSummaries(knowledgeItems, {
+      layers: ['workflow', 'guidance'],
+    }).map((note) => note.axis),
+  );
+
+  if (metadataAxes.has('comparison_guidance')) {
+    return 3;
+  }
+
+  const factualAxes = new Set(
+    extractStructuredKnowledgeClaims(knowledgeItems, {
+      layers: ['factual'],
+    }).map((claim) => claim.axis),
+  );
+
+  if (factualAxes.has('suitability')) {
+    return 2;
+  }
+
+  if (
+    factualAxes.has('materials') ||
+    factualAxes.has('product_types') ||
+    factualAxes.has('feature_support')
+  ) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function scoreRequestedDetailDriftPenalty(
+  knowledgeItems: Array<{
+    kind: string;
+    label: string;
+    valueText: string;
+    normalizedValue?: string | null;
+    supportClass: string;
+    metadata?: unknown;
+  }>,
+  input: {
+    locale?: string | null;
+    primaryDetailType: ResponseGroundingDetailType | null;
+    preferRecommendation: boolean;
+    preferPrimaryRequestedDetail: boolean;
+  },
+) {
+  if (!input.primaryDetailType || !input.preferPrimaryRequestedDetail) {
+    return 0;
+  }
+
+  const catalog = resolveResponseGroundingCatalog(input.locale);
+  const primarySupportedAxes = new Set(
+    catalog.detailTypes[input.primaryDetailType]?.supportedAxes ?? [],
+  );
+  const recommendationAxes = new Set(
+    catalog.detailTypes.recommendation?.supportedAxes ?? [],
+  );
+  const factualAxes = new Set(
+    extractStructuredKnowledgeClaims(knowledgeItems, {
+      layers: ['factual'],
+    }).map((claim) => claim.axis),
+  );
+  const metadataAxes = new Set(
+    extractKnowledgeMetadataSummaries(knowledgeItems, {
+      layers: ['workflow', 'guidance'],
+    }).map((note) => note.axis),
+  );
+  const allAxes = new Set([...factualAxes, ...metadataAxes]);
+  const hasPrimaryAxis = [...allAxes].some((axis) => primarySupportedAxes.has(axis));
+  const hasRecommendationAxis = [...allAxes].some((axis) =>
+    recommendationAxes.has(axis),
+  );
+  const hasActionAxis = [...allAxes].some((axis) =>
+    ACTION_SCOPED_DETAIL_AXES.has(axis),
+  );
+  const hasOffTargetAxis = [...allAxes].some(
+    (axis) =>
+      !primarySupportedAxes.has(axis) &&
+      axis !== 'organic_response_pattern',
+  );
+
+  if (
+    input.preferRecommendation &&
+    input.primaryDetailType === 'recommendation' &&
+    hasActionAxis &&
+    !hasRecommendationAxis
+  ) {
+    return 10;
+  }
+
+  const primaryDetailIsActionScoped = [...primarySupportedAxes].some((axis) =>
+    ACTION_SCOPED_DETAIL_AXES.has(axis),
+  );
+
+  if (!primaryDetailIsActionScoped && !hasPrimaryAxis && hasOffTargetAxis) {
+    return 8;
+  }
+
+  if (!primaryDetailIsActionScoped && hasActionAxis && !hasPrimaryAxis) {
+    return 10;
+  }
+
+  return 0;
+}
+
+function scoreRequestedDetailAxisAlignment(
+  knowledgeItems: Array<{
+    kind: string;
+    label: string;
+    valueText: string;
+    normalizedValue?: string | null;
+    supportClass: string;
+    metadata?: unknown;
+  }>,
+  requestedDetailTypes: ResponseGroundingDetailType[],
+  locale?: string | null,
+) {
+  if (requestedDetailTypes.length === 0) {
+    return 0;
+  }
+
+  const catalog = resolveResponseGroundingCatalog(locale);
+  const supportedAxes = new Set(
+    requestedDetailTypes.flatMap(
+      (detailType) => catalog.detailTypes[detailType].supportedAxes ?? [],
+    ),
+  );
+
+  if (supportedAxes.size === 0) {
+    return 0;
+  }
+
+  const factualAxisMatches = new Set(
+    extractStructuredKnowledgeClaims(knowledgeItems, {
+      layers: ['factual'],
+    })
+      .filter((claim) => supportedAxes.has(claim.axis))
+      .map((claim) => claim.axis),
+  );
+  const metadataAxisMatches = new Set(
+    extractKnowledgeMetadataSummaries(knowledgeItems, {
+      layers: ['workflow', 'guidance'],
+    })
+      .filter((note) => supportedAxes.has(note.axis))
+      .map((note) => note.axis),
+  );
+
+  return factualAxisMatches.size * 6 + metadataAxisMatches.size * 3;
+}
+
+function scoreRequestedDetailTextAlignment(
+  value: string,
+  requestedDetailTypes: ResponseGroundingDetailType[],
+  locale?: string | null,
+) {
+  if (!value.trim() || requestedDetailTypes.length === 0) {
+    return 0;
+  }
+
+  const normalizedValue = normalizeConversationSignalText(value);
+
+  if (!normalizedValue) {
+    return 0;
+  }
+
+  const catalog = resolveResponseGroundingCatalog(locale);
+
+  return requestedDetailTypes.reduce((score, detailType) => {
+    const detailConfig = catalog.detailTypes[detailType];
+
+    if (!detailConfig) {
+      return score;
+    }
+
+    const contextualRequestTerms = Array.isArray(
+      (
+        detailConfig as {
+          contextualRequestTerms?: unknown;
+        }
+      ).contextualRequestTerms,
+    )
+      ? (detailConfig as { contextualRequestTerms: string[] }).contextualRequestTerms
+      : [];
+
+    const cues = Array.from(
+      new Set(
+        [
+          ...(detailConfig.requestTerms ?? []),
+          ...(detailConfig.generalEvidenceTerms ?? []),
+          ...contextualRequestTerms,
+        ]
+          .map((term) => normalizeConversationSignalText(term))
+          .filter((term) => term.length > 0),
+      ),
+    );
+    const cueMatches = cues.filter((cue) => normalizedValue.includes(cue)).length;
+
+    return score + cueMatches;
+  }, 0);
+}
+
 function scoreStructuredClaimQueryAlignment(
   claim: {
     axis: string;
@@ -2006,10 +3096,20 @@ function filterStructurallyCoherentMatches<
     structuralTopicOverlap: number;
     scopeAlignmentScore: number;
     axisAlignmentScore: number;
+    requestedDetailTextAlignmentScore?: number;
     subjectTokens: string[];
   },
->(entries: T[], preferredTopicTokens: string[]) {
+>(
+  entries: T[],
+  preferredTopicTokens: string[],
+  requestedDetailTypes: ResponseGroundingDetailType[] = [],
+  locale?: string | null,
+) {
   if (entries.length <= 1 || preferredTopicTokens.length === 0) {
+    return entries;
+  }
+
+  if (hasActionScopedRequestedDetails(requestedDetailTypes, locale)) {
     return entries;
   }
 
@@ -2043,6 +3143,24 @@ function filterStructurallyCoherentMatches<
   }
 
   if (maxStructuralTopicOverlap < 2) {
+    const maxRequestedDetailTextAlignment = Math.max(
+      ...filtered.map((entry) => entry.requestedDetailTextAlignmentScore ?? 0),
+      0,
+    );
+
+    if (requestedDetailTypes.length > 0 && maxRequestedDetailTextAlignment > 0) {
+      const detailFiltered = filtered.filter(
+        (entry) =>
+          (entry.requestedDetailTextAlignmentScore ?? 0) >=
+            Math.max(1, maxRequestedDetailTextAlignment - 1) ||
+          entry.scopeAlignmentScore > 0,
+      );
+
+      if (detailFiltered.length > 0) {
+        return detailFiltered;
+      }
+    }
+
     return filtered;
   }
 
@@ -2086,6 +3204,50 @@ function filterAxisLockedMatches<
   return filtered.length > 0 ? filtered : entries;
 }
 
+function filterRequestedDetailMatches<
+  T extends {
+    requestedDetailAlignmentScore?: number;
+    requestedDetailTextAlignmentScore?: number;
+    scopeAlignmentScore: number;
+  },
+>(
+  entries: T[],
+  requestedDetailTypes: ResponseGroundingDetailType[] = [],
+  locale?: string | null,
+) {
+  if (
+    entries.length <= 1 ||
+    requestedDetailTypes.length === 0 ||
+    hasActionScopedRequestedDetails(requestedDetailTypes, locale)
+  ) {
+    return entries;
+  }
+
+  const maxAxisAlignment = Math.max(
+    ...entries.map((entry) => entry.requestedDetailAlignmentScore ?? 0),
+    0,
+  );
+  const maxTextAlignment = Math.max(
+    ...entries.map((entry) => entry.requestedDetailTextAlignmentScore ?? 0),
+    0,
+  );
+
+  if (maxAxisAlignment <= 0 && maxTextAlignment <= 0) {
+    return entries;
+  }
+
+  const filtered = entries.filter(
+    (entry) =>
+      (entry.requestedDetailAlignmentScore ?? 0) >=
+        Math.max(1, maxAxisAlignment - 3) ||
+      (entry.requestedDetailTextAlignmentScore ?? 0) >=
+        Math.max(1, maxTextAlignment - 1) ||
+      entry.scopeAlignmentScore > 0,
+  );
+
+  return filtered.length > 0 ? filtered : entries;
+}
+
 function filterActionLockedMatches<
   T extends {
     actionCapabilityScore: number;
@@ -2118,8 +3280,17 @@ function filterExactSubjectMatches<
   T extends {
     exactSubjectAlignmentScore: number;
   },
->(entries: T[], explicitSubjectTokens: string[]) {
+>(
+  entries: T[],
+  explicitSubjectTokens: string[],
+  requestedDetailTypes: ResponseGroundingDetailType[] = [],
+  locale?: string | null,
+) {
   if (entries.length <= 1 || explicitSubjectTokens.length === 0) {
+    return entries;
+  }
+
+  if (shouldBypassExactSubjectLock(requestedDetailTypes, locale)) {
     return entries;
   }
 
@@ -2138,6 +3309,49 @@ function filterExactSubjectMatches<
 
   return filtered.length > 0 ? filtered : entries;
 }
+
+function shouldBypassExactSubjectLock(
+  requestedDetailTypes: ResponseGroundingDetailType[],
+  locale?: string | null,
+) {
+  return hasActionScopedRequestedDetails(requestedDetailTypes, locale);
+}
+
+function hasActionScopedRequestedDetails(
+  requestedDetailTypes: ResponseGroundingDetailType[],
+  locale?: string | null,
+) {
+  if (requestedDetailTypes.length === 0) {
+    return false;
+  }
+
+  const catalog = resolveResponseGroundingCatalog(locale);
+  const actionScopedAxes = ACTION_SCOPED_DETAIL_AXES;
+
+  return requestedDetailTypes.some((detailType) =>
+    (catalog.detailTypes[detailType]?.supportedAxes ?? []).some((axis) =>
+      actionScopedAxes.has(axis),
+    ),
+  );
+}
+
+const ACTION_SCOPED_DETAIL_AXES = new Set([
+  'service_offers',
+  'commercial_visit_cost',
+  'travel_cost_responsibility',
+  'quote_fields',
+  'quote_transition',
+  'commercial_presence',
+  'coverage_locations',
+]);
+
+const RECOMMENDATION_ORIENTATION_AXES = new Set([
+  'comparison_guidance',
+  'suitability',
+  'feature_support',
+  'materials',
+  'product_types',
+]);
 
 function computeChunkRichness(chunk: {
   knowledgeItems?: Array<{

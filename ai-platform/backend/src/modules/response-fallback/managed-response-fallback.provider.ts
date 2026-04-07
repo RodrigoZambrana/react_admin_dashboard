@@ -12,6 +12,10 @@ import { FileSystemResponseFallbackSeedSource } from './filesystem-response-fall
 
 @Injectable()
 export class ManagedResponseFallbackProvider extends ResponseFallbackProvider {
+  private seedCatalogCache:
+    | Map<string, ResponseFallbackCatalogResource>
+    | null = null;
+
   constructor(
     private readonly responseFallbackVersionRepository: ResponseFallbackVersionRepository,
     private readonly seedSource: FileSystemResponseFallbackSeedSource,
@@ -26,15 +30,17 @@ export class ManagedResponseFallbackProvider extends ResponseFallbackProvider {
   > {
     await this.ensureBootstrapSeeded();
     const resource = await this.findActiveRecord(key);
+    const seedCatalogs = await this.getSeedCatalogs();
 
-    return resource ? this.mapRecord(resource) : null;
+    return resource ? this.mapRecord(resource, seedCatalogs) : null;
   }
 
   async listActive() {
     await this.ensureBootstrapSeeded();
     const resources = await this.responseFallbackVersionRepository.listActive();
+    const seedCatalogs = await this.getSeedCatalogs();
 
-    return resources.map((resource) => this.mapRecord(resource));
+    return resources.map((resource) => this.mapRecord(resource, seedCatalogs));
   }
 
   async resolveCatalog(locale?: string | null) {
@@ -70,6 +76,25 @@ export class ManagedResponseFallbackProvider extends ResponseFallbackProvider {
     }
   }
 
+  private async getSeedCatalogs() {
+    if (this.seedCatalogCache) {
+      return this.seedCatalogCache;
+    }
+
+    const seeds = await this.seedSource.listSeeds();
+    const catalogMap = new Map<string, ResponseFallbackCatalogResource>();
+
+    for (const seed of seeds) {
+      catalogMap.set(
+        seed.key,
+        responseFallbackCatalogResourceSchema.parse(seed.value),
+      );
+    }
+
+    this.seedCatalogCache = catalogMap;
+    return catalogMap;
+  }
+
   private async findActiveRecord(locale: string) {
     const normalizedLocale = normalizeLocaleCode(locale);
 
@@ -99,11 +124,17 @@ export class ManagedResponseFallbackProvider extends ResponseFallbackProvider {
     metadata: unknown;
     createdAt: Date;
     createdBy: string | null;
-  }): RuntimeManagedResourceVersion<string, ResponseFallbackCatalogResource> {
+  }, seedCatalogs: Map<string, ResponseFallbackCatalogResource>): RuntimeManagedResourceVersion<string, ResponseFallbackCatalogResource> {
+    const mergedResource = mergeCatalogWithSeeds(
+      record.locale,
+      record.resource,
+      seedCatalogs,
+    );
+
     return {
       id: record.id,
       key: record.locale,
-      value: responseFallbackCatalogResourceSchema.parse(record.resource),
+      value: responseFallbackCatalogResourceSchema.parse(mergedResource),
       version: record.version,
       status: record.status as RuntimeManagedResourceVersion<
         string,
@@ -122,4 +153,53 @@ export class ManagedResponseFallbackProvider extends ResponseFallbackProvider {
 function normalizeLocaleCode(locale?: string | null) {
   const normalized = locale?.trim().toLowerCase();
   return normalized ? normalized : null;
+}
+
+function mergeCatalogWithSeeds(
+  locale: string,
+  resource: unknown,
+  seedCatalogs: Map<string, ResponseFallbackCatalogResource>,
+) {
+  const normalizedLocale = normalizeLocaleCode(locale) ?? 'default';
+  const defaultSeed = seedCatalogs.get('default');
+  const localeSeed =
+    seedCatalogs.get(normalizedLocale) ??
+    (normalizedLocale.includes('-')
+      ? seedCatalogs.get(normalizedLocale.split('-')[0])
+      : null);
+
+  const base = mergeDeep(defaultSeed ?? {}, localeSeed ?? {});
+  return mergeDeep(base, resource);
+}
+
+function mergeDeep<T>(base: T, override: unknown): T {
+  if (!isPlainObject(base) || !isPlainObject(override)) {
+    return (override ?? base) as T;
+  }
+
+  const result: Record<string, unknown> = {
+    ...base,
+  };
+
+  for (const [key, overrideValue] of Object.entries(override)) {
+    const baseValue = result[key];
+
+    if (Array.isArray(overrideValue)) {
+      result[key] = [...overrideValue];
+      continue;
+    }
+
+    if (isPlainObject(baseValue) && isPlainObject(overrideValue)) {
+      result[key] = mergeDeep(baseValue, overrideValue);
+      continue;
+    }
+
+    result[key] = overrideValue;
+  }
+
+  return result as T;
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }

@@ -819,6 +819,231 @@ describe('DocumentKnowledgeExtractionService', () => {
     );
   });
 
+  it('extracts installation-condition compatibility statements as reusable feature support', () => {
+    const service = new DocumentKnowledgeExtractionService();
+
+    const chunks = service.buildChunkCandidates({
+      sourceText: [
+        '7. CORTINAS DE ENROLLAR',
+        '',
+        'Las cortinas de enrollar pueden instalarse sin albañilería, por el exterior y aun en casos con rejas.',
+      ].join('\n'),
+      originKind: 'TEXT',
+      language: 'es',
+      extractionContext: {
+        activeCapabilities: ['product_catalog_lookup'],
+        locale: 'es',
+      },
+    });
+
+    const allItems = chunks.flatMap((chunk) => chunk.structuredItems ?? []);
+    const featureSupportClaim = allItems.find(
+      (item) =>
+        item.kind === 'claim' &&
+        item.label === 'feature_support' &&
+        item.metadata?.claim?.values?.includes('sin albañilería'),
+    );
+
+    expect(featureSupportClaim).toEqual(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          claim: expect.objectContaining({
+            axis: 'feature_support',
+            layer: 'factual',
+            values: expect.arrayContaining(['sin albañilería']),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('extracts reusable commercial presence facts from general attention prose', () => {
+    const service = new DocumentKnowledgeExtractionService();
+
+    const chunks = service.buildChunkCandidates({
+      sourceText: [
+        'INFORMACION GENERAL',
+        '',
+        'Nuestra atención es principalmente online. No contamos con local comercial.',
+        'Brindamos asesoramiento personalizado y coordinación de visitas a domicilio.',
+      ].join('\n'),
+      originKind: 'TEXT',
+      language: 'es',
+      sourceMetadata: {
+        sourceName: 'informacion-general.txt',
+      },
+      extractionContext: {
+        activeCapabilities: ['product_catalog_lookup'],
+        locale: 'es',
+      },
+    });
+
+    const allItems = chunks.flatMap((chunk) => chunk.structuredItems ?? []);
+
+    expect(allItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'commercial_presence',
+          metadata: expect.objectContaining({
+            claim: expect.objectContaining({
+              axis: 'commercial_presence',
+              values: ['atencion online'],
+            }),
+          }),
+        }),
+        expect.objectContaining({
+          label: 'commercial_presence',
+          metadata: expect.objectContaining({
+            claim: expect.objectContaining({
+              axis: 'commercial_presence',
+              values: ['sin local comercial'],
+            }),
+          }),
+        }),
+      ]),
+    );
+  });
+
+  it('extracts comparison guidance from factual recambio prose outside formal guidance sections', () => {
+    const service = new DocumentKnowledgeExtractionService();
+
+    const chunks = service.buildChunkCandidates({
+      sourceText: [
+        '7. PERSIANAS Y CORTINAS DE ENROLLAR',
+        '',
+        '7.1. PERSIANA O CORTINA DE ENROLLAR EN PVC',
+        '',
+        'La persiana de enrollar en PVC es una opción funcional y económica.',
+        '',
+        '7.2. PERSIANA O CORTINA DE ENROLLAR EN ALUMINIO',
+        '',
+        'La persiana de enrollar en aluminio es la variante más robusta dentro de esta familia.',
+        '',
+        '7.3. REEMPLAZO DE SISTEMAS VIEJOS',
+        '',
+        'Cuando el cliente consulta por persianas viejas de madera o sistemas deteriorados, la orientación comercial más clara es pasar a un recambio por PVC o aluminio según el nivel de prestación que busque. El PVC suele funcionar mejor cuando se busca una opción más económica y práctica. El aluminio suele ser la opción de mayor resistencia, aislamiento y durabilidad.',
+      ].join('\n'),
+      originKind: 'TEXT',
+      language: 'es',
+      extractionContext: {
+        activeCapabilities: ['product_catalog_lookup'],
+        locale: 'es',
+        profileConfigHints: {
+          product_catalog: {
+            observedValuesByAxis: {
+              materials: ['PVC', 'aluminio'],
+            },
+          },
+        },
+      },
+    });
+
+    const allItems = chunks.flatMap((chunk) => chunk.structuredItems ?? []);
+    const comparisonGuidanceClaim = allItems.find(
+      (item) =>
+        item.kind === 'claim' &&
+        item.label === 'comparison_guidance' &&
+        item.metadata?.claim?.layer === 'guidance' &&
+        item.metadata?.claim?.values?.some((value: string) =>
+          /pvc.+aluminio|aluminio.+pvc/i.test(value),
+        ),
+    );
+
+    expect(comparisonGuidanceClaim).toEqual(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          extractionScope: 'tenant_only',
+          claim: expect.objectContaining({
+            layer: 'guidance',
+            subject: expect.objectContaining({
+              value: expect.stringMatching(/PVC y aluminio/i),
+            }),
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('splits conditional guidance headings from docx-like paragraph structure into reusable guidance axes', () => {
+    const service = new DocumentKnowledgeExtractionService();
+
+    const chunks = service.buildChunkCandidates({
+      sourceText: [
+        '14. COMO SOLEMOS AVANZAR UNA CONSULTA',
+        '',
+        'Si la consulta es informativa',
+        '',
+        '- primero explicamos el producto, la diferencia o la recomendación de uso',
+        '',
+        '- no pasamos directo a cotización si la persona todavía está comparando opciones',
+        '',
+        'Si la consulta pasa a presupuesto',
+        '',
+        '- confirmamos el producto',
+        '',
+        '- pedimos medidas aproximadas',
+        '',
+        '- pedimos cantidad',
+        '',
+        'Si hace falta una confirmación puntual',
+        '',
+        '- disponibilidad puntual de colores o texturas',
+        '',
+        '- garantía exacta de la línea elegida',
+      ].join('\n'),
+      originKind: 'TEXT',
+      language: 'es',
+      extractionContext: {
+        activeCapabilities: ['product_catalog_lookup'],
+        locale: 'es',
+      },
+    });
+
+    const allItems = chunks.flatMap((chunk) => chunk.structuredItems ?? []);
+
+    expect(allItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'informative_flow',
+          metadata: expect.objectContaining({
+            claim: expect.objectContaining({
+              layer: 'guidance',
+              values: [
+                'primero explicamos el producto, la diferencia o la recomendación de uso',
+                'no pasamos directo a cotización si la persona todavía está comparando opciones',
+              ],
+            }),
+          }),
+        }),
+        expect.objectContaining({
+          label: 'quote_transition',
+          metadata: expect.objectContaining({
+            claim: expect.objectContaining({
+              layer: 'guidance',
+              values: expect.arrayContaining([
+                'confirmamos el producto',
+                'pedimos medidas aproximadas',
+                'pedimos cantidad',
+              ]),
+            }),
+          }),
+        }),
+        expect.objectContaining({
+          label: 'confirmation_policy',
+          metadata: expect.objectContaining({
+            claim: expect.objectContaining({
+              layer: 'guidance',
+              values: expect.arrayContaining([
+                'disponibilidad puntual de colores o texturas',
+                'garantía exacta de la línea elegida',
+              ]),
+            }),
+          }),
+        }),
+      ]),
+    );
+  });
+
   it('extracts visit, rectification, installation, and visit-cost facts from service-oriented document prose', () => {
     const service = new DocumentKnowledgeExtractionService();
 

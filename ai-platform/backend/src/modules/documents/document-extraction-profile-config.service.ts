@@ -36,6 +36,9 @@ type RawDocumentExtractionProfileResource = {
       cardLeadTerms?: string[];
       brandListLeadTerms?: string[];
     };
+    commercial_presence?: {
+      termFamilies?: Record<string, string[]>;
+    };
     service_offers?: {
       termFamilies?: Record<string, string[]>;
       affirmativeLeadPhrases?: string[];
@@ -82,6 +85,7 @@ type RawDocumentExtractionProfileResource = {
     listStopTerms?: string[];
     oversizedClaimTailPhrases?: string[];
     conjunctionTerms?: string[];
+    comparisonGuidanceSignals?: string[];
   };
 };
 
@@ -152,6 +156,12 @@ export type CompiledDocumentExtractionProfileConfig = {
     cardLeadTerms: string[];
     brandListLeadTerms: string[];
   };
+  commercialPresence?: {
+    normalizedTerms: Array<{
+      normalizedValue: string;
+      sourceTerms: string[];
+    }>;
+  };
   serviceOffers?: {
     normalizedTerms: Array<{
       normalizedValue: string;
@@ -192,6 +202,7 @@ export type CompiledDocumentExtractionProfileConfig = {
   };
   matchingHints: {
     listStopTerms: string[];
+    comparisonGuidanceSignals: string[];
     oversizedClaimTailPattern: RegExp | null;
     conjunctionTerms: string[];
   };
@@ -510,6 +521,18 @@ function compileProfileResource(input: {
             ) ?? [],
         }
       : undefined,
+    commercialPresence:
+      input.raw.axes.commercial_presence?.termFamilies &&
+      Object.keys(input.raw.axes.commercial_presence.termFamilies).length > 0
+        ? {
+            normalizedTerms: Object.entries(
+              input.raw.axes.commercial_presence.termFamilies,
+            ).map(([normalizedValue, sourceTerms]) => ({
+              normalizedValue,
+              sourceTerms: sourceTerms.map((term) => term.trim()).filter(Boolean),
+            })),
+          }
+        : undefined,
     serviceOffers:
       input.raw.axes.service_offers?.termFamilies &&
       Object.keys(input.raw.axes.service_offers.termFamilies).length > 0
@@ -626,6 +649,10 @@ function compileProfileResource(input: {
         input.raw.matchingHints?.listStopTerms?.map((term) =>
           normalizeDocumentKnowledgeText(term),
         ) ?? [],
+      comparisonGuidanceSignals:
+        input.raw.matchingHints?.comparisonGuidanceSignals?.map((term) =>
+          normalizeDocumentKnowledgeText(term),
+        ) ?? [],
       oversizedClaimTailPattern,
       conjunctionTerms:
         input.raw.matchingHints?.conjunctionTerms?.map((term) =>
@@ -661,6 +688,9 @@ function compileProfileResource(input: {
                   input.raw.axes.payment_methods?.headingTerms ?? [],
                 ),
             )
+            ? 'mixed'
+            : 'platform_default',
+          commercial_presence: observedAxes.has('commercial_presence')
             ? 'mixed'
             : 'platform_default',
           construction_components: observedAxes.has('construction_components')
@@ -709,6 +739,7 @@ function compileProfileResource(input: {
         },
         matchingHints: {
           listStopTerms: 'platform_default',
+          comparisonGuidanceSignals: 'platform_default',
           conjunctionTerms: 'platform_default',
           oversizedClaimTailPhrases: 'platform_default',
         },

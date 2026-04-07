@@ -18,6 +18,7 @@ type ExtractedSignature = {
   chunkCount: number;
   claimCount: number;
   propositionCount: number;
+  commercialPresence: string[];
   paymentMethods: string[];
   installments: string[];
   cards: string[];
@@ -26,9 +27,38 @@ type ExtractedSignature = {
   visitCost: string[];
   travelCost: string[];
   warranties: string[];
+  informativeFlow: string[];
+  quoteTransition: string[];
+  confirmationPolicy: string[];
+  organicResponsePattern: string[];
+  comparisonGuidance: string[];
   supportSerie25: string[];
   supportProbba: string[];
 };
+
+type ComparableSignatureKey = Exclude<
+  keyof ExtractedSignature,
+  'chunkCount' | 'claimCount' | 'propositionCount'
+>;
+
+const comparableSignatureKeys: ComparableSignatureKey[] = [
+  'commercialPresence',
+  'paymentMethods',
+  'installments',
+  'cards',
+  'pvcColors',
+  'aluminumColors',
+  'visitCost',
+  'travelCost',
+  'warranties',
+  'informativeFlow',
+  'quoteTransition',
+  'confirmationPolicy',
+  'organicResponsePattern',
+  'comparisonGuidance',
+  'supportSerie25',
+  'supportProbba',
+];
 
 describe('Document format equivalence', () => {
   const fixturesDir = join(__dirname, 'fixtures', 'urucortinas');
@@ -71,8 +101,15 @@ describe('Document format equivalence', () => {
     expect(Math.abs(docx.chunkCount - txt.chunkCount)).toBeLessThanOrEqual(5);
     expect(Math.abs(html.chunkCount - txt.chunkCount)).toBeLessThanOrEqual(5);
 
-    expect(stripVolatileCounts(docx)).toEqual(stripVolatileCounts(txt));
-    expect(stripVolatileCounts(html)).toEqual(stripVolatileCounts(txt));
+    const comparableKeys = resolveComparableKeys([txt, docx, html]);
+    const baselineComparable = projectComparableSignature(txt, comparableKeys);
+
+    expect(projectComparableSignature(docx, comparableKeys)).toEqual(
+      baselineComparable,
+    );
+    expect(projectComparableSignature(html, comparableKeys)).toEqual(
+      baselineComparable,
+    );
   });
 });
 
@@ -114,6 +151,7 @@ async function buildSignature(input: {
     chunkCount: chunks.length,
     claimCount: claims.length,
     propositionCount: propositions.length,
+    commercialPresence: sortedUnique(flatClaimValues(claims, 'commercial_presence')),
     paymentMethods: sortedUnique(flatClaimValues(claims, 'payment_methods')),
     installments: claims
       .filter((claim) => claim.axis === 'payment_terms' && claim.facet === 'installment_count')
@@ -166,6 +204,11 @@ async function buildSignature(input: {
             .join(',')}:${claim.values.join('|')}`,
       )
       .sort(),
+    informativeFlow: sortedUnique(flatClaimValues(claims, 'informative_flow')),
+    quoteTransition: sortedUnique(flatClaimValues(claims, 'quote_transition')),
+    confirmationPolicy: sortedUnique(flatClaimValues(claims, 'confirmation_policy')),
+    organicResponsePattern: sortedUnique(flatClaimValues(claims, 'organic_response_pattern')),
+    comparisonGuidance: sortedUnique(flatClaimValues(claims, 'comparison_guidance')),
     supportSerie25: propositions
       .filter(
         (proposition) =>
@@ -211,17 +254,17 @@ function sortedUnique(values: string[]) {
   return Array.from(new Set(values)).sort();
 }
 
-function stripVolatileCounts(signature: ExtractedSignature) {
-  return {
-    paymentMethods: signature.paymentMethods,
-    installments: signature.installments,
-    cards: signature.cards,
-    pvcColors: signature.pvcColors,
-    aluminumColors: signature.aluminumColors,
-    visitCost: signature.visitCost,
-    travelCost: signature.travelCost,
-    warranties: signature.warranties,
-    supportSerie25: signature.supportSerie25,
-    supportProbba: signature.supportProbba,
-  };
+function resolveComparableKeys(signatures: ExtractedSignature[]) {
+  return comparableSignatureKeys.filter((key) =>
+    signatures.some((signature) => signature[key].length > 0),
+  );
+}
+
+function projectComparableSignature(
+  signature: ExtractedSignature,
+  keys: ComparableSignatureKey[],
+) {
+  return Object.fromEntries(
+    keys.map((key) => [key, signature[key]]),
+  ) as Record<ComparableSignatureKey, string[]>;
 }

@@ -1,9 +1,18 @@
 import { Injectable } from '@nestjs/common';
 
 import { ContinuityAwareInterpretation } from '../continuity/continuity.types';
+import {
+  normalizeConversationSignalText,
+  resolveConversationSignalCatalog,
+  tokenizeConversationSignalText,
+} from '../conversation-signals/conversation-signal.catalogs';
 import { ConversationSignalResolverService } from '../conversation-signals/conversation-signal-resolver.service';
 import { ConversationRoutingSignals } from '../conversation-signals/conversation-signal.types';
 import { PipelineLoggerService } from '../logging/pipeline-logger.service';
+import {
+  expandGroundingEquivalentTokens,
+  resolveResponseGroundingCatalog,
+} from '../response/response-grounding.catalogs';
 import { TenantCapabilityRegistryService } from '../tenant-capabilities/tenant-capability-registry.service';
 import { ProductCatalogService } from '../tools/product-catalog.service';
 import { DecisionInput, DecisionResult } from './decision.types';
@@ -133,6 +142,21 @@ export class DecisionService {
     if (interpretation.intent === 'CREATE_QUOTE' && !informationalTransactionalTurn) {
       if (!capabilities.capabilities.quote.enabled) {
         return this.buildRespondDecision('quote_capability_disabled');
+      }
+
+      const quoteMissingFields = this.resolveQuoteMissingFields({
+        input: normalizedInput,
+        productCatalogMatch,
+      });
+
+      if (quoteMissingFields.length > 0) {
+        return {
+          domain: 'core',
+          action: 'clarify',
+          reasonCode: 'quote_missing_scope',
+          missingFields: quoteMissingFields,
+          responseTemplateKey: 'core.clarification_quote_scope',
+        };
       }
 
       return {
@@ -355,6 +379,67 @@ export class DecisionService {
       input.interpretation.normalizedEntities.dates.length > 0 ||
       input.interpretation.normalizedEntities.measurements.length > 0 ||
       input.interpretation.normalizedEntities.dimensions.length > 0
+    );
+  }
+
+  private resolveQuoteMissingFields(input: {
+    input: DecisionInput;
+    productCatalogMatch: Awaited<
+      ReturnType<DecisionService['resolveProductCatalogMatch']>
+    >;
+  }) {
+    const readiness = this.resolveQuoteReadiness(
+      input.input,
+      input.productCatalogMatch.matched,
+    );
+
+    if (readiness.ready) {
+      return [];
+    }
+
+    return readiness.missingFields;
+  }
+
+  private resolveQuoteReadiness(
+    input: DecisionInput,
+    hasGroundedProductMatch: boolean,
+  ) {
+    const hasScope = this.hasMeaningfulQuoteScope(input, hasGroundedProductMatch);
+
+    if (!hasScope) {
+      return {
+        ready: false as const,
+        missingFields: ['quote_scope'],
+      };
+    }
+
+    return {
+      ready: true as const,
+      missingFields: [] as string[],
+    };
+  }
+
+  private hasMeaningfulQuoteScope(
+    input: DecisionInput,
+    hasGroundedProductMatch: boolean,
+  ) {
+    if (hasGroundedProductMatch) {
+      return true;
+    }
+
+    const locale = input.interpretation.language;
+    const scopeCandidates = [
+      typeof input.interpretation.entities.productQuery === 'string'
+        ? input.interpretation.entities.productQuery
+        : '',
+      typeof input.interpretation.entities.rawMessage === 'string'
+        ? input.interpretation.entities.rawMessage
+        : '',
+      this.resolveStoredSubjectContext(input),
+    ].filter((value) => value.trim().length > 0);
+
+    return scopeCandidates.some((candidate) =>
+      hasMeaningfulQuoteScopeTokens(candidate, locale),
     );
   }
 
@@ -623,6 +708,28 @@ export class DecisionService {
     );
   }
 
+  private resolveStoredSubjectContext(input: DecisionInput) {
+    const approvedFacts =
+      input.conversationState?.approvedFacts &&
+      typeof input.conversationState.approvedFacts === 'object'
+        ? (input.conversationState.approvedFacts as Record<string, unknown>)
+        : null;
+
+    const storedValues = [
+      typeof approvedFacts?.subjectSummary === 'string'
+        ? approvedFacts.subjectSummary
+        : '',
+      typeof approvedFacts?.topicSummary === 'string'
+        ? approvedFacts.topicSummary
+        : '',
+      typeof approvedFacts?.requestSummary === 'string'
+        ? approvedFacts.requestSummary
+        : '',
+    ].filter((value) => value.trim().length > 0);
+
+    return storedValues[0] ?? '';
+  }
+
   private resolveSignals(input: DecisionInput) {
     if (input.signals) {
       return input.signals;
@@ -683,4 +790,48 @@ export class DecisionService {
       documentRetrieval: null,
     };
   }
+}
+
+function hasMeaningfulQuoteScopeTokens(value: string, locale?: string | null) {
+  const normalized = normalizeConversationSignalText(value);
+
+  if (!normalized) {
+    return false;
+  }
+
+  const catalog = resolveResponseGroundingCatalog(locale);
+  const excludedTokens = new Set(
+    expandGroundingEquivalentTokens(locale, [
+      ...(catalog.detailTypes.quote_requirements?.requestTerms ?? []),
+      ...(catalog.detailTypes.quote_requirements?.generalEvidenceTerms ?? []),
+      ...catalog.subjectAlignmentSignals.stopTerms,
+      'un',
+      'una',
+      'unos',
+      'unas',
+    ]).map((term) => normalizeConversationSignalText(term)),
+  );
+  const genericFamilyTokens = new Set(
+    catalog.subjectEquivalenceSignals.groups.flatMap((group) => group),
+  );
+  const scopedTokens = expandGroundingEquivalentTokens(
+    locale,
+    tokenizeConversationSignalText(value, {
+      locale,
+      minimumTokenLength: 3,
+      stopWordSet: 'retrieval',
+    }),
+  ).filter(
+    (token) =>
+      token.length >= 3 &&
+      /[\p{L}]/u.test(token) &&
+      !/^\d+(?:x\d+)+$/u.test(token) &&
+      !excludedTokens.has(token),
+  );
+  const distinctTokens = Array.from(new Set(scopedTokens));
+  const qualifierTokens = distinctTokens.filter(
+    (token) => !genericFamilyTokens.has(token),
+  );
+
+  return distinctTokens.length >= 2 && qualifierTokens.length >= 1;
 }

@@ -235,6 +235,641 @@
           }
         }
       ]
+    },
+    {
+      "id": "curated-roller-bedroom-advisory",
+      "label": "Roller blackout para dormitorio",
+      "description": "Valida asesoramiento informativo para roller blackout, recomendación de uso, visita en Montevideo y cierre real.",
+      "category": "supported_information",
+      "tags": ["roller", "blackout", "dormitorio", "montevideo", "visita"],
+      "turns": [
+        {
+          "message": "buenas noches, tienen roller blackout?",
+          "expectation": {
+            "topicTerms": ["roller", "blackout"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["roller", "blackout"],
+                "count": 2,
+                "label": "roller blackout"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "que me recomiendan para que no pase luz? es para un dormitorio",
+          "expectation": {
+            "topicTerms": ["blackout", "dormitorio", "luz"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["blackout", "dormitorio", "luz", "privacidad"],
+                "count": 2,
+                "label": "recomendación"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "toman medidas a domicilio? me encuentro en montevideo",
+          "expectation": {
+            "topicTerms": ["visita", "medidas", "montevideo"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["visita", "medidas", "montevideo", "sin costo"],
+                "count": 2,
+                "label": "visita en montevideo"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "muchas gracias por la ayuda",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldNotMention": ["fecha", "hora", "reserva"],
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-aberturas-dvh-series",
+      "label": "Aberturas en aluminio con DVH",
+      "description": "Valida recomendación de líneas para aberturas en aluminio, follow-up sobre DVH y cierre sin mezclar series.",
+      "category": "supported_information",
+      "tags": ["aberturas", "aluminio", "dvh", "series"],
+      "turns": [
+        {
+          "message": "buenas tardes, necesito informacion de aberturas en aluminio",
+          "expectation": {
+            "topicTerms": ["aberturas", "aluminio"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["aberturas", "aluminio"],
+                "count": 2,
+                "label": "aberturas aluminio"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "trabajan con doble vidrio hermetico?",
+          "expectation": {
+            "topicTerms": ["dvh", "doble vidrio", "aberturas"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["dvh", "doble vidrio", "vidrio"],
+                "count": 1,
+                "label": "soporte dvh"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "que serie me recomiendan si quiero algo mas economico?",
+          "expectation": {
+            "topicTerms": ["serie", "economico", "dvh"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["serie 25", "probba", "gala", "summa"],
+                "count": 1,
+                "label": "serie sugerida"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "serie 25 soporta dvh?",
+          "expectation": {
+            "topicTerms": ["serie 25", "dvh"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["serie 25", "dvh", "doble vidrio"],
+                "count": 2,
+                "label": "respuesta serie 25"
+              }
+            ],
+            "shouldNotMention": ["pertenece a probba"],
+            "allowPrudentUnknown": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "perfecto, gracias",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-limited-context-materials",
+      "label": "Contexto limitado sobre materiales",
+      "description": "Valida que ante una consulta sin producto previo el sistema pida contexto, luego responda el tema correcto y cierre bien.",
+      "category": "edge_case",
+      "tags": ["contexto", "materiales", "aclaracion", "enrollar"],
+      "turns": [
+        {
+          "message": "que materiales tienen?",
+          "expectation": {
+            "topicTerms": ["producto", "linea", "variante", "material"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["producto", "línea", "linea", "variante", "material"],
+                "count": 1,
+                "label": "pedido de contexto"
+              }
+            ],
+            "shouldAskFollowUpQuestion": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "me refiero a cortinas de enrollar",
+          "expectation": {
+            "topicTerms": ["cortinas de enrollar", "pvc", "aluminio"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["pvc", "aluminio"],
+                "count": 2,
+                "label": "materiales de enrollar"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "gracias, con eso me alcanza",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-combined-visit-payment-quote",
+      "label": "Consulta combinada de visita, cuotas y cotización",
+      "description": "Valida respuesta compuesta sobre visita en Montevideo, Mercado Pago en cuotas y luego datos de cotización.",
+      "category": "supported_information",
+      "tags": ["visita", "montevideo", "mercado pago", "cuotas", "cotizacion", "multilinea"],
+      "turns": [
+        {
+          "message": "estoy en montevideo y quiero saber si toman medidas a domicilio y si aceptan mercado pago en cuotas",
+          "expectation": {
+            "topicTerms": ["montevideo", "medidas", "mercado pago", "cuotas"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["visita", "domicilio", "medidas", "montevideo", "sin costo"],
+                "count": 2,
+                "label": "visita en montevideo"
+              },
+              {
+                "terms": ["mercado pago", "cuotas", "12"],
+                "count": 2,
+                "label": "cuotas con mercado pago"
+              }
+            ],
+            "shouldPreferMultiline": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "si avanzo, que datos necesitan para cotizar primero?",
+          "expectation": {
+            "topicTerms": ["cotizar", "ancho", "alto", "cantidad", "medidas"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["ancho", "alto", "medidas", "cantidad", "producto", "variante"],
+                "count": 3,
+                "label": "datos para cotizar"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "excelente, muchas gracias",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-mixed-products-guided",
+      "label": "Consulta mixta de roller y aberturas",
+      "description": "Valida que ante una consulta sobre productos distintos el sistema mantenga ambos temas visibles o pida ordenar la conversación, y luego continúe cada rama con coherencia.",
+      "category": "edge_case",
+      "tags": ["mixto", "roller", "aberturas", "dvh", "contexto"],
+      "turns": [
+        {
+          "message": "estoy viendo roller blackout para un dormitorio y tambien aberturas con dvh para otro ambiente, me orientas?",
+          "expectation": {
+            "topicTerms": ["roller", "blackout", "aberturas", "dvh"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["roller", "blackout", "aberturas", "dvh"],
+                "count": 2,
+                "label": "temas detectados"
+              }
+            ],
+            "shouldAskFollowUpQuestion": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "arranquemos por roller, quiero que no pase luz",
+          "expectation": {
+            "topicTerms": ["roller", "blackout", "luz", "privacidad"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["blackout", "luz", "privacidad", "dormitorio"],
+                "count": 2,
+                "label": "recomendación roller"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "y en aberturas algo mas economico con dvh?",
+          "expectation": {
+            "topicTerms": ["aberturas", "dvh", "serie", "economico"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["serie 25", "probba", "gala", "summa", "dvh"],
+                "count": 2,
+                "label": "orientación de serie"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "perfecto, gracias por ahora",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-no-local-visit-payment",
+      "label": "Sin local, visita y medios de pago",
+      "description": "Valida una respuesta compuesta cuando el usuario pregunta por local, forma de ver productos y pago en una misma conversación.",
+      "category": "supported_information",
+      "tags": ["local", "visita", "productos", "pagos", "multilinea"],
+      "turns": [
+        {
+          "message": "no tienen local? como puedo ver productos si estoy en montevideo?",
+          "expectation": {
+            "topicTerms": ["local", "montevideo", "visita", "productos"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["no contamos con local", "no tenemos local", "sin local comercial"],
+                "count": 1,
+                "label": "sin local"
+              },
+              {
+                "terms": ["visita", "domicilio", "mostrar", "productos", "montevideo"],
+                "count": 2,
+                "label": "alternativa para ver productos"
+              }
+            ],
+            "shouldPreferMultiline": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "y aceptan tarjetas de credito o mercado pago?",
+          "expectation": {
+            "topicTerms": ["tarjetas", "mercado pago", "pago"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["tarjetas", "mercado pago", "transferencia", "efectivo"],
+                "count": 2,
+                "label": "medios de pago"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "te agradezco mucho",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-product-service-overview",
+      "label": "Overview de productos y servicios",
+      "description": "Valida una respuesta amplia sobre líneas de producto y servicios, seguida de alcance para hogares y negocios.",
+      "category": "supported_information",
+      "tags": ["overview", "productos", "servicios", "comercio", "hogar", "multilinea"],
+      "turns": [
+        {
+          "message": "que productos ofrecen y que servicios brindan?",
+          "expectation": {
+            "topicTerms": ["roller", "aberturas", "toldos", "instalación", "mantenimiento", "reparación", "automatización"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["roller", "aberturas", "toldos", "cerramientos", "persianas", "cortinas"],
+                "count": 2,
+                "label": "líneas de producto"
+              },
+              {
+                "terms": ["instalación", "mantenimiento", "reparación", "automatización", "motorización"],
+                "count": 2,
+                "label": "tipos de servicio"
+              }
+            ],
+            "shouldPreferMultiline": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "atienden negocios o solo casas?",
+          "expectation": {
+            "topicTerms": ["hogar", "oficina", "comercio", "industria", "negocio"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["hogar", "oficina", "comercio", "industria"],
+                "count": 2,
+                "label": "tipo de clientes"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "perfecto, gracias",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-automation-maintenance-repair",
+      "label": "Automatización, mantenimiento y reparación",
+      "description": "Valida una conversación sobre automatización de cortinas existentes y servicios de mantenimiento o reparación.",
+      "category": "supported_information",
+      "tags": ["automatización", "motorización", "mantenimiento", "reparación", "persianas"],
+      "turns": [
+        {
+          "message": "puedo automatizar mis cortinas actuales y tambien hacer mantenimiento si algo falla?",
+          "expectation": {
+            "topicTerms": ["automatización", "motorización", "mantenimiento", "reparación", "cortinas"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["automatización", "motorización", "motores"],
+                "count": 1,
+                "label": "automatización"
+              },
+              {
+                "terms": ["mantenimiento", "reparación", "servicio técnico", "arreglo"],
+                "count": 1,
+                "label": "mantenimiento o reparación"
+              }
+            ],
+            "shouldPreferMultiline": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "tengo persianas viejas, arreglan eso?",
+          "expectation": {
+            "topicTerms": ["persianas", "reparación", "mantenimiento", "arreglo"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["persianas", "reparación", "mantenimiento", "arreglo"],
+                "count": 2,
+                "label": "reparación de persianas"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "gracias por ahora",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-budget-without-product",
+      "label": "Presupuesto sin producto definido",
+      "description": "Valida que ante una intención de presupuesto sin contexto suficiente el sistema pida información antes de cotizar.",
+      "category": "edge_case",
+      "tags": ["presupuesto", "cotización", "contexto limitado", "clarificación"],
+      "turns": [
+        {
+          "message": "necesito un presupuesto",
+          "expectation": {
+            "topicTerms": ["producto", "medidas", "línea", "linea", "qué estás buscando", "que estas buscando"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["producto", "línea", "linea", "medidas", "qué estás buscando", "que estas buscando"],
+                "count": 1,
+                "label": "pedido de contexto para cotizar"
+              }
+            ],
+            "shouldAskFollowUpQuestion": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "es para unas ventanas del living",
+          "expectation": {
+            "topicTerms": ["roller", "persiana", "abertura", "ventanas", "opciones"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["roller", "persiana", "abertura", "ventanas", "opciones"],
+                "count": 2,
+                "label": "orientación inicial"
+              }
+            ],
+            "shouldAskFollowUpQuestion": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "por ahora solo queria orientarme, gracias",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-noisy-broken-and-modern",
+      "label": "Ruido: persiana rota y opción moderna",
+      "description": "Valida una consulta con contexto mezclado: reparación de persiana y búsqueda de una alternativa más moderna.",
+      "category": "edge_case",
+      "tags": ["ruido", "persiana", "reparación", "moderno", "opciones"],
+      "turns": [
+        {
+          "message": "hola, estoy viendo opciones porque se me rompio una persiana y ademas quiero algo mas moderno, ustedes hacen eso?",
+          "expectation": {
+            "topicTerms": ["persiana", "reparación", "opciones", "moderno", "roller", "enrollar"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["reparación", "mantenimiento", "persiana"],
+                "count": 1,
+                "label": "capacidad de reparación"
+              },
+              {
+                "terms": ["opciones", "roller", "enrollar", "alternativa"],
+                "count": 1,
+                "label": "alternativa de producto"
+              }
+            ],
+            "shouldAskFollowUpQuestion": true,
+            "shouldPreferMultiline": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "me interesa algo exterior y de bajo mantenimiento",
+          "expectation": {
+            "topicTerms": ["exterior", "mantenimiento", "pvc", "aluminio", "enrollar"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["pvc", "aluminio", "enrollar", "mantenimiento"],
+                "count": 2,
+                "label": "orientación exterior"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "excelente, gracias",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-out-of-domain-fallback",
+      "label": "Fuera de dominio controlado",
+      "description": "Valida que el sistema no invente cobertura sobre servicios ajenos al dominio actual.",
+      "category": "unsupported_information",
+      "tags": ["fuera de dominio", "fallback", "prudencia"],
+      "turns": [
+        {
+          "message": "venden muebles o hacen trabajos electricos?",
+          "expectation": {
+            "allowPrudentUnknown": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "perfecto, gracias",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
+    },
+    {
+      "id": "curated-replacement-outside-montevideo",
+      "label": "Reemplazo fuera de Montevideo",
+      "description": "Valida reemplazo de enrollar fuera de Montevideo, costo de visita, datos para cotizar y cierre correcto.",
+      "category": "supported_information",
+      "tags": ["reemplazo", "aluminio", "montevideo", "traslado", "cotizacion"],
+      "turns": [
+        {
+          "message": "hola busco reemplazar una cortina de enrollar de madera por una de aluminio",
+          "expectation": {
+            "topicTerms": ["reemplazo", "cortina de enrollar", "aluminio"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["reemplazo", "aluminio", "enrollar"],
+                "count": 2,
+                "label": "reemplazo aluminio"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "me encuentro fuera de montevideo",
+          "expectation": {
+            "topicTerms": ["fuera de montevideo", "traslado", "visita"],
+            "allowPrudentUnknown": true,
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "la visita tiene costo?",
+          "expectation": {
+            "topicTerms": ["visita", "costo", "traslado"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["traslado", "costo", "fuera de montevideo", "interior"],
+                "count": 2,
+                "label": "costo fuera de montevideo"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "que datos necesitan para cotizar?",
+          "expectation": {
+            "topicTerms": ["cotizar", "ancho", "alto", "reemplazo"],
+            "mustMentionAtLeast": [
+              {
+                "terms": ["ancho", "alto", "reemplazo", "manual", "motorizada", "color"],
+                "count": 3,
+                "label": "datos para cotizar"
+              }
+            ],
+            "shouldAvoidStructuralSummary": true
+          }
+        },
+        {
+          "message": "excelente, muchas gracias",
+          "expectation": {
+            "expectedClose": true,
+            "preferredResponseMode": "close",
+            "shouldAvoidStructuralSummary": true
+          }
+        }
+      ]
     }
   ]
 }

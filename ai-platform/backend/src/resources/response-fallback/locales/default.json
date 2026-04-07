@@ -11,6 +11,7 @@
     "opening_greeting": "Hello, thanks for reaching out.",
     "basic_response": "Hi, tell me how I can help.",
     "clarification_requested_date": "To schedule the visit, I need the requested date and time.",
+    "clarification_quote_scope": "To guide you with a quote, I first need to know which product or line you are considering.",
     "clarification_user_goal": "Tell me what you need and I'll keep going from there.",
     "clarification_generic": "Share a little more detail and I'll keep going.",
     "execution_success_booking": "The booking was confirmed for {{scheduledFor}}.",
@@ -40,6 +41,11 @@
       "To schedule the visit, I need the requested date and time.",
       "Tell me the day and time that work for you so I can schedule the visit.",
       "Let me know when you'd like the visit and I'll keep going."
+    ],
+    "clarification_quote_scope": [
+      "To guide you with a quote, I first need to know which product or line you are considering.",
+      "Before quoting, tell me which product, line, or job you have in mind and I'll guide you from there.",
+      "To move forward with a quote, I first need to place what product or solution you want to price."
     ],
     "clarification_user_goal": [
       "Tell me what you need and I'll keep going from there.",

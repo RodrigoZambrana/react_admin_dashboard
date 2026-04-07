@@ -41,6 +41,8 @@ const ACTIVE_ASYNC_TURN_STATUSES = new Set<AsyncConversationTurnStatus>([
   AsyncConversationTurnStatus.AWAITING_REPLY,
 ]);
 
+const PUBLIC_CHAT_VISIBLE_CHANNELS = ['webchat_async', 'admin_test_center'];
+
 @Injectable()
 export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
   private readonly stabilizationTimers = new Map<string, NodeJS.Timeout>();
@@ -208,8 +210,8 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
   async listRecentConversations(
     limit = 12,
   ): Promise<AsyncChatConversationSummary[]> {
-    const conversations = await this.conversationRepository.listRecentByChannel(
-      'webchat_async',
+    const conversations = await this.conversationRepository.listRecentByChannels(
+      PUBLIC_CHAT_VISIBLE_CHANNELS,
       limit,
     );
 

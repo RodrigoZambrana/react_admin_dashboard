@@ -582,7 +582,7 @@ describe('AsyncTurnIntakeService', () => {
 
     const service = new AsyncTurnIntakeService(
       {
-        listRecentByChannel: jest.fn(async () => [
+        listRecentByChannels: jest.fn(async () => [
           {
             id: 'conv-list',
             language: 'es',

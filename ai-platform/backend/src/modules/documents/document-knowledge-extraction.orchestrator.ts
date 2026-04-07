@@ -243,8 +243,10 @@ function buildSemanticBlocks(
     };
   };
 
-  for (const paragraph of paragraphs) {
+  for (let index = 0; index < paragraphs.length; index += 1) {
+    const paragraph = paragraphs[index];
     const normalizedParagraph = stripDividerLines(paragraph).trim();
+    const nextParagraph = resolveNextMeaningfulParagraph(paragraphs, index);
 
     if (!normalizedParagraph) {
       continue;
@@ -284,6 +286,7 @@ function buildSemanticBlocks(
     const heading = resolveSemanticHeading(
       paragraph,
       headingStack[headingStack.length - 1],
+      nextParagraph,
     );
 
     if (heading) {
@@ -429,6 +432,7 @@ function resolveSupportTopic(block: DocumentSemanticBlock) {
 function resolveSemanticHeading(
   paragraph: string,
   currentHeading?: SemanticHeading,
+  nextParagraph?: string,
 ) {
   const firstLine = getMeaningfulLines(paragraph)[0];
 
@@ -469,7 +473,7 @@ function resolveSemanticHeading(
     } satisfies SemanticHeading;
   }
 
-  if (looksLikeStandaloneHeading(paragraph, firstLine)) {
+  if (looksLikeStandaloneHeading(paragraph, firstLine, nextParagraph)) {
     const parentDepth = currentHeading?.depth ?? 0;
     const depth =
       currentHeading?.kind === 'suffix' || currentHeading?.kind === 'standalone'
@@ -534,7 +538,11 @@ function resolveNumberedHeadingDepth(value: string) {
   return match[1].split('.').length;
 }
 
-function looksLikeStandaloneHeading(paragraph: string, firstLine: string) {
+function looksLikeStandaloneHeading(
+  paragraph: string,
+  firstLine: string,
+  nextParagraph?: string,
+) {
   const meaningfulLines = getMeaningfulLines(paragraph);
   const normalizedLine = firstLine.trim();
 
@@ -564,16 +572,47 @@ function looksLikeStandaloneHeading(paragraph: string, firstLine: string) {
 
   const lowerCased = normalizedLine.toLocaleLowerCase();
 
-  if (
+  const conditionalLead =
     lowerCased.startsWith('si ') ||
     lowerCased.startsWith('cuando ') ||
     lowerCased.startsWith('para ') ||
-    lowerCased.startsWith('por ')
-  ) {
+    lowerCased.startsWith('por ');
+
+  if (conditionalLead && !looksLikeStructuredListParagraph(nextParagraph)) {
     return false;
   }
 
   return /^[\p{L}\p{N}][\p{L}\p{N}\s\-\/()+,:]+$/u.test(normalizedLine);
+}
+
+function resolveNextMeaningfulParagraph(paragraphs: string[], currentIndex: number) {
+  for (let index = currentIndex + 1; index < paragraphs.length; index += 1) {
+    const normalizedParagraph = stripDividerLines(paragraphs[index]).trim();
+
+    if (normalizedParagraph.length > 0) {
+      return normalizedParagraph;
+    }
+  }
+
+  return undefined;
+}
+
+function looksLikeStructuredListParagraph(paragraph?: string) {
+  if (!paragraph) {
+    return false;
+  }
+
+  const meaningfulLines = getMeaningfulLines(paragraph);
+
+  if (meaningfulLines.length === 0) {
+    return false;
+  }
+
+  return meaningfulLines.every(
+    (line) =>
+      /^\s*[-•]/u.test(line) ||
+      /^[^:]{1,80}:\s+\S+/u.test(line),
+  );
 }
 
 function splitOversizedParagraph(paragraph: string) {

@@ -101,6 +101,7 @@ export class ProductCatalogDocumentProfile implements DocumentExtractionProfile 
       items.push(...extractColorSeeds(sentence, chunkContext, config));
       items.push(...extractSuitabilitySeeds(sentence, chunkContext, config));
       items.push(...extractPaymentMethodSeeds(sentence, chunkContext, config));
+      items.push(...extractCommercialPresenceSeeds(sentence, chunkContext, config));
       items.push(...extractConstructionComponentSeeds(sentence, chunkContext, config));
       items.push(...extractFeatureSupportSeeds(sentence, chunkContext, config));
       items.push(...extractInstallmentSeeds(sentence, chunkContext, config));
@@ -114,6 +115,13 @@ export class ProductCatalogDocumentProfile implements DocumentExtractionProfile 
       );
     }
 
+    items.push(
+      ...extractInlineComparisonGuidanceSeeds(
+        input.chunk.content,
+        chunkContext,
+        config,
+      ),
+    );
     items.push(...extractGuidanceSeeds(input, chunkContext));
     const dedupedItems = dedupeStructuredItemSeeds(items);
     const propositions = dedupeStructuredPropositionSeeds(
@@ -513,6 +521,32 @@ function extractInstallmentSeeds(
   }
 
   return items;
+}
+
+function extractCommercialPresenceSeeds(
+  sentence: string,
+  chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
+) {
+  const values = resolveMatchedCommercialPresenceValues(sentence, config);
+
+  if (values.length === 0) {
+    return [];
+  }
+
+  return [
+    buildRelationalClaimSeed({
+      axis: 'commercial_presence',
+      claimKind: 'relational_fact',
+      claimValues: values,
+      supportClass: 'explicit_fact',
+      evidenceTextSpan: sentence,
+      metadata: buildProfileMetadata({
+        scope: 'tenant_only',
+      }),
+      claimContext: buildClaimContext('factual', chunkContext),
+    }),
+  ];
 }
 
 function resolvePaymentMethodScope(
@@ -1210,6 +1244,11 @@ function extractServiceOfferSeeds(
 ) {
   const values = new Set<string>();
   const combinedMatch = sentence.match(/(?:combina|incluye)\s+([^.]+)/iu);
+  const sentenceMatchedValues = resolveMatchedServiceOfferValues(sentence, config);
+  const headingMatchedValues = resolveMatchedServiceOfferValues(
+    chunkContext.sectionHeading ?? '',
+    config,
+  );
 
   if (combinedMatch?.[1]) {
     splitListValues(combinedMatch[1], config).forEach((value) => values.add(value));
@@ -1220,12 +1259,18 @@ function extractServiceOfferSeeds(
     normalizedSentence,
     config.serviceOffers?.affirmativeLeadPhrases ?? [],
   );
-
-  if (affirmativeServiceSentence) {
-    resolveMatchedServiceOfferValues(sentence, config).forEach((value) => values.add(value));
-    resolveMatchedServiceOfferValues(chunkContext.sectionHeading ?? '', config).forEach((value) =>
-      values.add(value),
+  const serviceDenseSentence =
+    sentenceMatchedValues.length >= 2 ||
+    headingMatchedValues.length >= 2 ||
+    Boolean(
+      chunkContext.sectionHeading &&
+        sentenceMatchedValues.length > 0 &&
+        headingMatchedValues.length > 0,
     );
+
+  if (affirmativeServiceSentence || serviceDenseSentence) {
+    sentenceMatchedValues.forEach((value) => values.add(value));
+    headingMatchedValues.forEach((value) => values.add(value));
   }
 
   const serviceValues = Array.from(values.values());
@@ -1514,6 +1559,70 @@ function extractGuidanceSeeds(
   });
 }
 
+function extractInlineComparisonGuidanceSeeds(
+  chunkContent: string,
+  chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
+) {
+  const normalizedRoot = normalizeDocumentKnowledgeHeading(
+    chunkContext.rootHeading ?? '',
+  ) ?? '';
+  const normalizedSection = normalizeDocumentKnowledgeHeading(
+    chunkContext.sectionHeading ?? '',
+  ) ?? '';
+
+  if (
+    looksLikeGuidanceResponseSection(normalizedRoot, normalizedSection) ||
+    isComparisonGuidanceSection(normalizedSection)
+  ) {
+    return [];
+  }
+
+  const normalizedContent = normalizeDocumentKnowledgeText(chunkContent);
+  const comparisonSignals =
+    config.matchingHints?.comparisonGuidanceSignals ?? [];
+
+  if (
+    !normalizedContent ||
+    comparisonSignals.length === 0 ||
+    !comparisonSignals.some((signal: string) => normalizedContent.includes(signal))
+  ) {
+    return [];
+  }
+
+  const observedValuesByAxis = config.derivedHints?.observedValuesByAxis ?? {};
+  const comparisonEntities = collectInlineComparisonEntities({
+    normalizedContent,
+    observedValuesByAxis,
+  });
+
+  if (comparisonEntities.length < 2) {
+    return [];
+  }
+
+  const paragraphValue = normalizeGuidanceParagraphContent({
+    content: chunkContent,
+    sectionHeading: chunkContext.sectionHeading,
+  });
+
+  if (!paragraphValue) {
+    return [];
+  }
+
+  const guidanceContext = buildGuidanceClaimContext(chunkContext);
+  const subjectLabel = comparisonEntities.join(' y ');
+
+  return buildGuidanceClaimSeeds({
+    axis: 'comparison_guidance',
+    values: [paragraphValue],
+    evidenceTextSpan: chunkContent,
+    subjectOverride:
+      buildScopedValue('section_topic', subjectLabel) ??
+      buildGuidanceSectionSubject(chunkContext),
+    claimContext: guidanceContext,
+  });
+}
+
 function buildChunkContext(
   input: DocumentExtractionProfileInput,
   config: ProductCatalogProfileConfig,
@@ -1721,6 +1830,57 @@ function buildGuidanceSectionSubject(
   }
 
   return buildScopedValue('section_topic', sectionHeading);
+}
+
+function collectInlineComparisonEntities(input: {
+  normalizedContent: string;
+  observedValuesByAxis: Record<string, string[]>;
+}) {
+  const candidateAxes = ['materials', 'product_types'];
+  const positionedCandidates = candidateAxes.flatMap((axis) =>
+    (input.observedValuesByAxis[axis] ?? [])
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .map((value) => {
+        const normalizedValue = normalizeDocumentKnowledgeText(value);
+
+        if (!normalizedValue) {
+          return null;
+        }
+
+        return {
+          value,
+          normalizedValue,
+          index: input.normalizedContent.indexOf(normalizedValue),
+        };
+      })
+      .filter(
+        (
+          value,
+        ): value is {
+          value: string;
+          normalizedValue: string;
+          index: number;
+        } => value !== null && value.index >= 0,
+      ),
+  );
+
+  const seen = new Set<string>();
+
+  return positionedCandidates
+    .sort((left, right) => left.index - right.index)
+    .map((entry) => entry.value)
+    .filter((value) => {
+      const normalizedValue = normalizeDocumentKnowledgeText(value);
+
+      if (!normalizedValue || seen.has(normalizedValue)) {
+        return false;
+      }
+
+      seen.add(normalizedValue);
+      return true;
+    })
+    .slice(0, 3);
 }
 
 function buildRelationalClaimWithEntities(input: {
@@ -2169,6 +2329,7 @@ function extractIndependentPropositionSeeds(
     ...extractFeatureSupportPropositionSeeds(sentence, chunkContext, config),
     ...extractPaymentTermPropositionSeeds(sentence, chunkContext, config),
     ...extractCoveragePropositionSeeds(sentence, chunkContext, config),
+    ...extractCommercialPresencePropositionSeeds(sentence, chunkContext, config),
     ...extractServiceOfferPropositionSeeds(sentence, chunkContext, config),
   ];
 }
@@ -2362,6 +2523,40 @@ function extractCoveragePropositionSeeds(
   return propositions;
 }
 
+function extractCommercialPresencePropositionSeeds(
+  sentence: string,
+  chunkContext: ChunkExtractionContext,
+  config: ProductCatalogProfileConfig,
+) {
+  const values = resolveMatchedCommercialPresenceValues(sentence, config);
+
+  if (values.length === 0) {
+    return [];
+  }
+
+  const claimContext = buildClaimContext('factual', chunkContext);
+  const metadata = buildPropositionMetadata({
+    scope: 'tenant_only',
+    claimContext,
+  });
+  const relationScope = buildPropositionRelationScope(
+    claimContext.appliesTo ?? [],
+  );
+
+  return values.map((value) =>
+    buildDirectPropositionSeed({
+      predicate: 'commercial_presence',
+      objectValue: value,
+      polarity: 'affirmed',
+      supportClass: 'explicit_fact',
+      evidenceTextSpan: sentence,
+      metadata,
+      relationScope,
+      subject: claimContext.subject,
+    }),
+  );
+}
+
 function extractServiceOfferPropositionSeeds(
   sentence: string,
   chunkContext: ChunkExtractionContext,
@@ -2370,6 +2565,11 @@ function extractServiceOfferPropositionSeeds(
   const normalizedSentence = normalizeDocumentKnowledgeText(sentence);
   const serviceValues = new Set<string>();
   const combinedMatch = sentence.match(/(?:combina|incluye)\s+([^.]+)/iu);
+  const sentenceMatchedValues = resolveMatchedServiceOfferValues(sentence, config);
+  const headingMatchedValues = resolveMatchedServiceOfferValues(
+    chunkContext.sectionHeading ?? '',
+    config,
+  );
 
   if (combinedMatch?.[1]) {
     splitListValues(combinedMatch[1], config).forEach((value) =>
@@ -2381,11 +2581,17 @@ function extractServiceOfferPropositionSeeds(
     hasNormalizedPhrase(
       normalizedSentence,
       config.serviceOffers?.affirmativeLeadPhrases ?? [],
+    ) ||
+    sentenceMatchedValues.length >= 2 ||
+    headingMatchedValues.length >= 2 ||
+    Boolean(
+      chunkContext.sectionHeading &&
+        sentenceMatchedValues.length > 0 &&
+        headingMatchedValues.length > 0,
     )
   ) {
-    resolveMatchedServiceOfferValues(sentence, config).forEach((value) =>
-      serviceValues.add(value),
-    );
+    sentenceMatchedValues.forEach((value) => serviceValues.add(value));
+    headingMatchedValues.forEach((value) => serviceValues.add(value));
   }
 
   const claimContext = buildClaimContext('factual', chunkContext);
@@ -2409,6 +2615,36 @@ function extractServiceOfferPropositionSeeds(
       subject: claimContext.subject,
     }),
   );
+}
+
+function resolveMatchedCommercialPresenceValues(
+  value: string,
+  config: ProductCatalogProfileConfig,
+) {
+  const normalizedValue = normalizeDocumentKnowledgeText(value);
+
+  if (!normalizedValue) {
+    return [];
+  }
+
+  const matchedValues =
+    config.commercialPresence?.normalizedTerms
+      ?.filter(({ sourceTerms }) =>
+        sourceTerms.some((term) =>
+          normalizedValue.includes(normalizeDocumentKnowledgeText(term)),
+        ),
+      )
+      .map(({ normalizedValue }) => normalizedValue) ?? [];
+  const dedupedValues = dedupeValues(matchedValues);
+
+  if (
+    dedupedValues.includes('sin local comercial') &&
+    dedupedValues.includes('con local comercial')
+  ) {
+    return dedupedValues.filter((value) => value !== 'con local comercial');
+  }
+
+  return dedupedValues;
 }
 
 function mapClaimScopesToPropositionScope(

@@ -428,6 +428,14 @@ function shouldLockScopedKnowledgeDraft(
   approvedDraft: string,
 ) {
   if (
+    context.outcome === 'respond' &&
+    context.documentContext?.grounding.supportLevel === 'unavailable' &&
+    (context.documentContext?.grounding.requestedDetailTypes.length ?? 0) === 0
+  ) {
+    return true;
+  }
+
+  if (
     context.outcome !== 'respond' ||
     !context.responseStyle?.incrementalFollowUp ||
     context.documentContext?.grounding.supportLevel !== 'explicit' ||

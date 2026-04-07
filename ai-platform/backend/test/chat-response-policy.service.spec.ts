@@ -559,7 +559,7 @@ describe('ChatResponsePolicyService', () => {
         },
       }),
     ).resolves.toBe(
-      'Por ahora no tengo confirmación sobre los colores exactos.',
+      'Depende del producto o línea. Si me indicás qué producto estás evaluando, te digo los colores exactos.',
     );
   });
 
@@ -1222,6 +1222,196 @@ describe('ChatResponsePolicyService', () => {
     });
 
     expect(response).toBe('Sí, trabajamos con cortinas roller.');
+  });
+
+  it('answers supported availability questions for explicit product types with a short subject availability response', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage: 'tienen roller blackout?',
+      intent: 'GET_PRODUCT',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'tienen roller blackout?',
+          productQuery: 'roller blackout',
+          requestSummary: 'Consulta sobre disponibilidad de roller blackout',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre disponibilidad de roller blackout',
+        groundedSummary:
+          'En una misma instalación una tela screen, una tela blackout Roller Blackout',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'explicit',
+          evidenceTier: 'typed_claim',
+          absenceReason: null,
+          exactnessRequested: false,
+          requestedDetailTypes: ['availability'],
+          supportedDetailTypes: ['availability'],
+          partialDetailTypes: [],
+          unsupportedDetailTypes: [],
+          requiredUnspecifiedDetailTypes: [],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'La roller blackout está pensada para reducir fuertemente el paso de la luz y dar mayor privacidad.',
+            sequence: 20,
+            score: 18,
+            supportSummary: {
+              topic: '6.1. CORTINAS ROLLER / Roller Blackout',
+              supportedAxes: ['product_types'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'product_types',
+                  layer: 'factual',
+                  values: ['Roller Blackout'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS ROLLER',
+                    normalizedValue: 'cortinas roller',
+                  },
+                  appliesTo: [],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).toBe('Sí, trabajamos con roller blackout.');
+  });
+
+  it('returns an explicit out-of-domain negative for unsupported concrete availability subjects', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage: 'Hola venden camas de 1 plaza?',
+      intent: 'GET_PRODUCT',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage: 'Hola venden camas de 1 plaza?',
+          productQuery: 'camas de 1 plaza',
+          requestSummary: 'Consulta sobre disponibilidad de camas de 1 plaza',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre disponibilidad de camas de 1 plaza',
+        groundedSummary:
+          'Confirmamos el producto, pedimos medidas aproximadas, pedimos cantidad, pedimos variante o configuración si aplica',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'unavailable',
+          evidenceTier: 'typed_claim',
+          absenceReason: 'document_gap',
+          exactnessRequested: false,
+          requestedDetailTypes: ['availability'],
+          supportedDetailTypes: [],
+          partialDetailTypes: [],
+          unsupportedDetailTypes: ['availability'],
+          requiredUnspecifiedDetailTypes: ['availability'],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'Confirmamos el producto, pedimos medidas aproximadas, pedimos cantidad, pedimos variante o configuración si aplica',
+            sequence: 0,
+            score: 7,
+            supportSummary: {
+              topic: 'Si la consulta pasa a presupuesto',
+              supportedAxes: ['quote_transition'],
+              unspecifiedAxes: [],
+            },
+          },
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt: 'Roller blackout, roller doble, trasluz y tela liviana.',
+            sequence: 1,
+            score: 6,
+            supportSummary: {
+              topic: 'CORTINAS TRADICIONALES',
+              supportedAxes: ['product_types'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'product_types',
+                  layer: 'factual',
+                  values: ['velo', 'trasluz', 'blackout', 'tela liviana', 'doble capa'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'CORTINAS TRADICIONALES',
+                    normalizedValue: 'cortinas tradicionales',
+                  },
+                  appliesTo: [],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).toBe('No, no trabajamos con camas de 1 plaza.');
   });
 
   it('does not answer a variants question with operational guidance when the document lacks factual variant support', async () => {
@@ -2260,6 +2450,1603 @@ describe('ChatResponsePolicyService', () => {
     );
   });
 
+  it('composes supported service capability with a scoped unsupported compatibility clause', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'y hacen instalacion de aberturas con albañileria?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.9,
+          entities: {
+            rawMessage: 'y hacen instalacion de aberturas con albañileria?',
+            productQuery: 'instalacion de aberturas con albañileria',
+            requestSummary: 'Consulta sobre instalación de aberturas con albañilería',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre instalación de aberturas con albañilería',
+          groundedSummary: 'toma de medidas, instalacion',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'partial',
+            evidenceTier: 'typed_claim',
+            absenceReason: 'document_gap',
+            exactnessRequested: false,
+            requestedDetailTypes: ['service_capability', 'feature_support'],
+            supportedDetailTypes: ['service_capability'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: ['feature_support'],
+            requiredUnspecifiedDetailTypes: ['feature_support'],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'La mano de obra de aberturas puede cotizarse por separado o quedar sujeta a confirmación según el relevamiento en obra.',
+              sequence: 0,
+              score: 8.4,
+              supportSummary: {
+                topic: '12. ABERTURAS EN ALUMINIO / Instalación',
+                supportedAxes: ['service_offers'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'service_offers',
+                    layer: 'factual',
+                    values: ['instalacion'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'ABERTURAS',
+                      normalizedValue: 'aberturas',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Sí, realizamos instalación para aberturas. En aberturas, por ahora no tengo confirmación sobre la compatibilidad exacta.',
+    );
+  });
+
+  it('renders purchase-channel answers in customer-facing prose when local presence facts exist', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'tienen local comercial?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'tienen local comercial?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre local comercial y modalidad de atención',
+          groundedSummary:
+            'No contamos con local comercial. Nuestra atención es principalmente online.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['purchase_channel'],
+            supportedDetailTypes: ['purchase_channel'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'No contamos con local comercial. Nuestra atención es principalmente online. Podemos coordinar visitas a domicilio para mostrarte el producto.',
+              sequence: 0,
+              score: 8.8,
+              supportSummary: {
+                topic: 'INFORMACION GENERAL',
+                supportedAxes: [
+                  'commercial_presence',
+                  'service_offers',
+                  'coverage_locations',
+                ],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'commercial_presence',
+                    layer: 'factual',
+                    values: ['sin local comercial', 'atencion online'],
+                    supportClass: 'explicit_fact',
+                  },
+                  {
+                    axis: 'service_offers',
+                    layer: 'factual',
+                    values: ['visita a domicilio', 'muestras'],
+                    supportClass: 'explicit_fact',
+                  },
+                  {
+                    axis: 'coverage_locations',
+                    layer: 'factual',
+                    values: ['Montevideo'],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'No contamos con local comercial. Trabajamos principalmente de forma online. Si estás en Montevideo, podemos coordinar una visita a domicilio para mostrarte el producto.',
+    );
+  });
+
+  it('renders service capability answers from service offers in customer-facing prose', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'toman medidas a domicilio?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'toman medidas a domicilio?',
+            productQuery: 'cortina de enrollar',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre toma de medidas a domicilio',
+          groundedSummary:
+            'Sí, podemos coordinar una visita a domicilio para tomar medidas.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['service_capability'],
+            supportedDetailTypes: ['service_capability'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Sí, podemos coordinar una visita a domicilio para tomar medidas.',
+              sequence: 0,
+              score: 8.2,
+              supportSummary: {
+                topic: 'VISITA PREVIA',
+                supportedAxes: ['service_offers'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'service_offers',
+                    layer: 'factual',
+                    values: ['visita a domicilio', 'toma de medidas'],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Sí, podemos coordinar una visita a domicilio para tomar medidas.',
+    );
+  });
+
+  it('renders automation and maintenance capabilities as an affirmative service summary', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage:
+          'puedo automatizar mis cortinas actuales y hacer mantenimiento si algo falla?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage:
+              'puedo automatizar mis cortinas actuales y hacer mantenimiento si algo falla?',
+            productQuery: 'cortinas actuales',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre automatización y mantenimiento de cortinas actuales',
+          groundedSummary:
+            'Sí, realizamos automatización, motorización y mantenimiento.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['service_capability'],
+            supportedDetailTypes: ['service_capability'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Ofrecemos automatización para cortinas y persianas, además de mantenimiento y reparación.',
+              sequence: 0,
+              score: 8.9,
+              supportSummary: {
+                topic: 'AUTOMATIZACION Y MANTENIMIENTO',
+                supportedAxes: ['service_offers'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'service_offers',
+                    layer: 'factual',
+                    values: ['automatizacion', 'motorizacion', 'mantenimiento'],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Sí, realizamos automatización, motorización y mantenimiento.',
+    );
+  });
+
+  it('combines supported service capability with recommendation-oriented clarification in noisy mixed turns', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage:
+          'hola, estoy viendo opciones porque se me rompio una persiana y ademas quiero algo mas moderno, ustedes hacen eso?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage:
+              'hola, estoy viendo opciones porque se me rompio una persiana y ademas quiero algo mas moderno, ustedes hacen eso?',
+            productQuery: 'persiana moderna',
+            requestSummary: 'Consulta sobre reparación y opciones modernas de persianas',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre reparación y opciones modernas de persianas',
+          groundedSummary:
+            'Sí, realizamos reparación de cortinas y persianas, además de mantenimiento general.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'partial',
+            evidenceTier: 'typed_claim',
+            absenceReason: 'document_gap',
+            exactnessRequested: false,
+            requestedDetailTypes: [
+              'service_capability',
+              'recommendation',
+              'specific_variants',
+            ],
+            supportedDetailTypes: ['service_capability'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: ['recommendation', 'specific_variants'],
+            requiredUnspecifiedDetailTypes: ['recommendation', 'specific_variants'],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Realizamos reparación de cortinas y persianas, además de mantenimiento general.',
+              sequence: 0,
+              score: 8.4,
+              supportSummary: {
+                topic: '13. SERVICIOS / Reparación y mantenimiento',
+                supportedAxes: ['service_offers'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'service_offers',
+                    layer: 'factual',
+                    values: ['reparacion', 'mantenimiento'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'SERVICIOS',
+                      normalizedValue: 'servicios',
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Combinamos venta, instalación, mantenimiento, reparación y trabajos a medida.',
+              sequence: 1,
+              score: 7.1,
+              supportSummary: {
+                topic: '1. PERFIL COMERCIAL DE URUCORTINAS',
+                supportedAxes: ['commercial_presence', 'service_offers'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'service_offers',
+                    layer: 'factual',
+                    values: [
+                      'visita a domicilio',
+                      'toma de medidas',
+                      'instalacion',
+                      'automatizacion',
+                      'motorizacion',
+                      'reparacion',
+                      'mantenimiento',
+                    ],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PERFIL COMERCIAL DE URUCORTINAS',
+                      normalizedValue: 'perfil comercial de urucortinas',
+                    },
+                  },
+                  {
+                    axis: 'commercial_presence',
+                    layer: 'factual',
+                    values: ['sin local comercial'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'PERFIL COMERCIAL DE URUCORTINAS',
+                      normalizedValue: 'perfil comercial de urucortinas',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Sí, realizamos reparación. Si además estás evaluando una alternativa más moderna o conveniente, decime qué producto o línea estás viendo y te oriento.',
+    );
+  });
+
+  it('responds with an explicit negative when the subject is concrete and outside the supported domain', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'venden muebles o hacen trabajos electricos?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'venden muebles o hacen trabajos electricos?',
+            productQuery: 'muebles o trabajos eléctricos',
+            requestSummary:
+              'Consulta sobre venta de muebles o realización de trabajos eléctricos',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre venta de muebles o realización de trabajos eléctricos',
+          groundedSummary:
+            'Combinamos venta, instalación, mantenimiento, reparación y trabajos a medida.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'unavailable',
+            evidenceTier: 'none',
+            absenceReason: 'document_gap',
+            exactnessRequested: false,
+            requestedDetailTypes: [],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Combinamos venta, instalación, mantenimiento, reparación y trabajos a medida.',
+              sequence: 0,
+              score: 2.1,
+              supportSummary: {
+                topic: '1. PERFIL COMERCIAL DE URUCORTINAS',
+                supportedAxes: ['service_offers'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'service_offers',
+                    layer: 'factual',
+                    values: ['instalacion', 'mantenimiento', 'reparacion'],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'No, no trabajamos con muebles ni con trabajos eléctricos.',
+    );
+  });
+
+  it('does not emit an out-of-domain negative when the user clarifies ventanas and the evidence is anchored on aberturas', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage: 'es para unas ventanas del living',
+      intent: 'CREATE_QUOTE',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'general_conversation',
+        missingFields: ['quote_scope'],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.92,
+        entities: {
+          rawMessage: 'es para unas ventanas del living',
+          productQuery: 'ventanas',
+          requestSummary: 'Solicitud de presupuesto para ventanas del living',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'Solicitud de presupuesto para ventanas del living',
+        groundedSummary:
+          'Confirmamos el producto, pedimos medidas aproximadas y el tipo de abertura.',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'unavailable',
+          evidenceTier: 'typed_claim',
+          absenceReason: 'document_gap',
+          exactnessRequested: false,
+          requestedDetailTypes: ['quote_requirements'],
+          supportedDetailTypes: [],
+          partialDetailTypes: [],
+          unsupportedDetailTypes: ['quote_requirements'],
+          requiredUnspecifiedDetailTypes: ['quote_requirements'],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'tipo de abertura, ancho y alto aproximado, serie y tipo de vidrio.',
+            sequence: 0,
+            score: 8.8,
+            supportSummary: {
+              topic: '12. ABERTURAS EN ALUMINIO / Datos útiles para presupuesto',
+              supportedAxes: ['quote_fields'],
+              unspecifiedAxes: [],
+              metadataNotes: [
+                {
+                  axis: 'quote_fields',
+                  layer: 'workflow',
+                  values: [
+                    'tipo de abertura',
+                    'ancho y alto aproximado',
+                    'serie',
+                    'tipo de vidrio',
+                  ],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'ABERTURAS',
+                    normalizedValue: 'aberturas',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).not.toContain('No, no trabajamos');
+    expect(response).toMatch(/producto o línea|producto o linea/i);
+  });
+
+  it('does not emit an out-of-domain negative when service evidence supports a noisy repair-plus-recommendation turn', async () => {
+    const response = await service.resolve({
+      locale: 'es',
+      userMessage:
+        'hola, estoy viendo opciones porque se me rompio una persiana y ademas quiero algo mas moderno, ustedes hacen eso?',
+      intent: 'GENERAL_CONVERSATION',
+      outcome: 'respond',
+      decision: {
+        domain: 'core',
+        action: 'respond',
+        reasonCode: 'document_grounded_exploration',
+        missingFields: [],
+        responseTemplateKey: 'core.general_response',
+      },
+      interpretation: {
+        language: 'es',
+        confidence: 0.95,
+        entities: {
+          rawMessage:
+            'hola, estoy viendo opciones porque se me rompio una persiana y ademas quiero algo mas moderno, ustedes hacen eso?',
+          productQuery: 'persiana moderna',
+          requestSummary: 'Consulta sobre reparación y opciones modernas de persianas',
+        },
+        normalizedEntities: {
+          dates: [],
+          measurements: [],
+          dimensions: [],
+        },
+      },
+      execution: {
+        status: 'not_applicable',
+        toolName: null,
+        validatedInputSummary: null,
+        resultSummary: null,
+        failure: null,
+      },
+      approvedFactKeys: [],
+      approvedResultKeys: [],
+      approvedDocumentIds: ['doc-1'],
+      documentContext: {
+        source: 'document_origin',
+        query: 'Consulta sobre reparación y opciones modernas de persianas',
+        groundedSummary:
+          'Combinamos venta, instalación, mantenimiento, reparación y trabajos a medida.',
+        responseMode: 'document_exploration',
+        grounding: {
+          supportLevel: 'unavailable',
+          evidenceTier: 'typed_claim',
+          absenceReason: 'document_gap',
+          exactnessRequested: false,
+          requestedDetailTypes: ['service_capability', 'recommendation'],
+          supportedDetailTypes: [],
+          partialDetailTypes: [],
+          unsupportedDetailTypes: ['service_capability', 'recommendation'],
+          requiredUnspecifiedDetailTypes: ['recommendation'],
+        },
+        matches: [
+          {
+            documentId: 'doc-1',
+            title: 'Documento Maestro',
+            excerpt:
+              'Realizamos reparación de cortinas y persianas, además de mantenimiento general.',
+            sequence: 0,
+            score: 8.4,
+            supportSummary: {
+              topic: '13. SERVICIOS / Reparación y mantenimiento',
+              supportedAxes: ['service_offers'],
+              unspecifiedAxes: [],
+              axisSummaries: [
+                {
+                  axis: 'service_offers',
+                  layer: 'factual',
+                  values: ['reparacion', 'mantenimiento'],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'SERVICIOS',
+                    normalizedValue: 'servicios',
+                  },
+                },
+              ],
+              metadataNotes: [
+                {
+                  axis: 'comparison_guidance',
+                  layer: 'guidance',
+                  values: [
+                    'Para un recambio más moderno, te orientamos según si buscas una opción más económica o una de mayor durabilidad.',
+                  ],
+                  supportClass: 'explicit_fact',
+                  subject: {
+                    axis: 'section_topic',
+                    value: 'PERSIANAS Y CORTINAS DE ENROLLAR',
+                    normalizedValue: 'persianas y cortinas de enrollar',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+
+    expect(response).not.toContain('No, no trabajamos');
+    expect(response).toContain('Sí, realizamos reparación');
+    expect(response).toMatch(/producto o línea|producto o linea/i);
+  });
+
+  it('asks for product context before answering detail-only material questions', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'que materiales tienen?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.9,
+          entities: {
+            rawMessage: 'que materiales tienen?',
+            requestSummary: 'Consulta sobre materiales disponibles',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'materiales disponibles',
+          groundedSummary: 'PVC, aluminio, screen y blackout.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['materials'],
+            supportedDetailTypes: ['materials'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt: 'Las cortinas de enrollar se trabajan en PVC y aluminio.',
+              sequence: 0,
+              score: 7.9,
+              supportSummary: {
+                topic: 'CORTINAS DE ENROLLAR / Materiales',
+                supportedAxes: ['materials'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'materials',
+                    layer: 'factual',
+                    values: ['PVC', 'aluminio'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'product_family',
+                      value: 'cortinas de enrollar',
+                      normalizedValue: 'cortinas de enrollar',
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt: 'Las cortinas roller se trabajan en screen y blackout.',
+              sequence: 1,
+              score: 7.8,
+              supportSummary: {
+                topic: 'CORTINAS ROLLER / Materiales',
+                supportedAxes: ['materials'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'materials',
+                    layer: 'factual',
+                    values: ['screen', 'blackout'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'product_family',
+                      value: 'cortinas roller',
+                      normalizedValue: 'cortinas roller',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Depende del producto o línea. Si me indicás si estás viendo cortinas de enrollar o cortinas roller, te digo los materiales exactos.',
+    );
+  });
+
+  it('offers a family partition when the same turn mixes multiple product families', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage:
+          'estoy viendo roller blackout para un dormitorio y tambien aberturas con dvh para otro ambiente, me orientas?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.9,
+          entities: {
+            rawMessage:
+              'estoy viendo roller blackout para un dormitorio y tambien aberturas con dvh para otro ambiente, me orientas?',
+            productQuery:
+              'roller blackout para un dormitorio y también aberturas con DVH para otro ambiente',
+            requestSummary:
+              'Consulta sobre roller blackout para dormitorio y aberturas con DVH para otro ambiente',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query:
+            'roller blackout para dormitorio y aberturas con dvh para otro ambiente',
+          groundedSummary:
+            'Roller blackout y aberturas con DVH son opciones válidas según el ambiente.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['recommendation', 'feature_support'],
+            supportedDetailTypes: ['recommendation', 'feature_support'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt: 'Roller blackout reduce fuertemente el paso de la luz.',
+              sequence: 0,
+              score: 8.5,
+              supportSummary: {
+                topic: 'CORTINAS ROLLER / Roller blackout',
+                supportedAxes: ['product_types'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'product_types',
+                    layer: 'factual',
+                    values: ['roller blackout'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'product_family',
+                      value: 'cortinas roller',
+                      normalizedValue: 'cortinas roller',
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt: 'Las aberturas Probba y Gala admiten DVH.',
+              sequence: 1,
+              score: 8.4,
+              supportSummary: {
+                topic: 'ABERTURAS / DVH',
+                supportedAxes: ['feature_support'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'feature_support',
+                    layer: 'factual',
+                    values: ['DVH'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'product_family',
+                      value: 'aberturas',
+                      normalizedValue: 'aberturas',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Sí, te puedo orientar con cortinas roller y aberturas. Si te parece, arrancamos por una primero y después vemos la otra: ¿querés empezar por cortinas roller o por aberturas?',
+    );
+  });
+
+  it('renders quote requirement answers from quote fields in customer-facing prose', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'que datos necesitan para cotizar?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'que datos necesitan para cotizar?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre datos para presupuesto',
+          groundedSummary:
+            'Para cotizar necesitamos ancho y alto aproximado, si es instalación nueva o reemplazo, y si prefieres manual o motorizada.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['quote_requirements'],
+            supportedDetailTypes: ['quote_requirements'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'ancho y alto aproximado; si es instalación nueva o reemplazo; si prefieres manual o motorizada',
+              sequence: 0,
+              score: 8.1,
+              supportSummary: {
+                topic: 'Datos útiles para presupuesto',
+                supportedAxes: ['quote_fields'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'quote_fields',
+                    layer: 'workflow',
+                    values: [
+                      'ancho y alto aproximado',
+                      'si es instalación nueva o reemplazo',
+                      'si prefieres manual o motorizada',
+                    ],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Para cotizar necesitamos ancho y alto aproximado, si es instalación nueva o reemplazo, y si prefieres manual o motorizada.',
+    );
+  });
+
+  it('renders recommendation answers from comparison guidance in customer-facing prose', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'que me recomiendas entre serie 25 probba y gala?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'que me recomiendas entre serie 25 probba y gala?',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta comparativa entre Serie 25, Probba y Gala',
+          groundedSummary:
+            'Serie 25 es una opción más estándar. Probba es una línea intermedia. Gala es una línea más fuerte y de mejor prestación general.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['recommendation'],
+            supportedDetailTypes: ['recommendation'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Serie 25 es una opción más estándar. Probba es una línea intermedia. Gala es una línea más fuerte y de mejor prestación general.',
+              sequence: 0,
+              score: 8.5,
+              supportSummary: {
+                topic: 'RECOMENDACION ENTRE SERIE 25, PROBBA Y GALA',
+                supportedAxes: ['comparison_guidance'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'comparison_guidance',
+                    layer: 'guidance',
+                    values: [
+                      'Serie 25 es una opción más estándar. Probba es una línea intermedia. Gala es una línea más fuerte y de mejor prestación general.',
+                    ],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Serie 25 es una opción más estándar. Probba es una línea intermedia. Gala es una línea más fuerte y de mejor prestación general.',
+    );
+  });
+
+  it('prefers recommendation-oriented guidance over service phrasing when the turn describes usage constraints', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'me interesa algo exterior y de bajo mantenimiento',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.94,
+          entities: {
+            rawMessage: 'me interesa algo exterior y de bajo mantenimiento',
+            productQuery: 'persiana exterior de bajo mantenimiento',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Interés en persiana exterior de bajo mantenimiento',
+          groundedSummary:
+            'Ofrecemos persianas exteriores que requieren bajo mantenimiento, con servicios de instalación, mantenimiento, reparación y automatización.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['recommendation', 'service_capability'],
+            supportedDetailTypes: ['recommendation', 'service_capability'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Las cortinas de enrollar exteriores pueden ser de PVC o aluminio y requieren poco mantenimiento.',
+              sequence: 0,
+              score: 7.1,
+              supportSummary: {
+                topic: 'CORTINAS DE ENROLLAR',
+                supportedAxes: ['materials', 'product_types'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'materials',
+                    layer: 'factual',
+                    values: ['PVC', 'ALUMINIO'],
+                    supportClass: 'explicit_fact',
+                    subject: {
+                      axis: 'section_topic',
+                      value: 'CORTINAS DE ENROLLAR',
+                      normalizedValue: 'cortinas de enrollar',
+                    },
+                  },
+                ],
+              },
+            },
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Realizamos instalación, mantenimiento, reparación y automatización.',
+              sequence: 1,
+              score: 6.8,
+              supportSummary: {
+                topic: 'SERVICIOS',
+                supportedAxes: ['service_offers'],
+                unspecifiedAxes: [],
+                axisSummaries: [
+                  {
+                    axis: 'service_offers',
+                    layer: 'factual',
+                    values: ['instalacion', 'mantenimiento', 'reparacion'],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Para lo que buscas, solemos orientar primero a cortinas de enrollar en PVC y ALUMINIO.',
+    );
+  });
+
+  it('prefers the most compact comparison guidance when multiple recommendation notes are available', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'me interesa algo exterior y de bajo mantenimiento',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.94,
+          entities: {
+            rawMessage: 'me interesa algo exterior y de bajo mantenimiento',
+            productQuery: 'persiana exterior de bajo mantenimiento',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Interés en persiana exterior de bajo mantenimiento',
+          groundedSummary:
+            'Para una opción exterior y de bajo mantenimiento, recomendamos persianas o cortinas de enrollar.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'explicit',
+            evidenceTier: 'typed_claim',
+            absenceReason: null,
+            exactnessRequested: false,
+            requestedDetailTypes: ['recommendation'],
+            supportedDetailTypes: ['recommendation'],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: [],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Cuando el cliente consulta por persianas viejas de madera o sistemas deteriorados, la orientación comercial más clara es pasar a un recambio por PVC o aluminio según el nivel de prestación que busque.',
+              sequence: 0,
+              score: 7.1,
+              supportSummary: {
+                topic: 'Comparación útil',
+                supportedAxes: ['comparison_guidance'],
+                unspecifiedAxes: [],
+                metadataNotes: [
+                  {
+                    axis: 'comparison_guidance',
+                    layer: 'guidance',
+                    values: [
+                      'Cuando el cliente consulta por persianas viejas de madera o sistemas deteriorados, la orientación comercial más clara es pasar a un recambio por PVC o aluminio según el nivel de prestación que busque. El PVC suele funcionar mejor cuando se busca una opción más económica y práctica. El aluminio suele ser la opción de mayor resistencia, aislamiento y durabilidad.',
+                    ],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'PVC es la opción más funcional y económica. Aluminio es la opción de mayor durabilidad, mejor prestación y mejor garantía.',
+              sequence: 1,
+              score: 6.8,
+              supportSummary: {
+                topic: 'Comparación útil',
+                supportedAxes: ['comparison_guidance'],
+                unspecifiedAxes: [],
+                metadataNotes: [
+                  {
+                    axis: 'comparison_guidance',
+                    layer: 'guidance',
+                    values: [
+                      'PVC es la opción más funcional y económica. Aluminio es la opción de mayor durabilidad, mejor prestación y mejor garantía.',
+                    ],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'PVC es la opción más funcional y económica. Aluminio es la opción de mayor durabilidad, mejor prestación y mejor garantía.',
+    );
+  });
+
+  it('turns confirmation policy guidance into a customer-facing follow-up prompt when the exact detail is unconfirmed', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'que textura exacta tienen disponible hoy?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.95,
+          entities: {
+            rawMessage: 'que textura exacta tienen disponible hoy?',
+            productQuery: 'roller blackout',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre textura exacta para roller blackout',
+          groundedSummary:
+            'Si hace falta una confirmación puntual, se consulta y se detalla a la brevedad.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'partial',
+            evidenceTier: 'typed_claim',
+            absenceReason: 'document_gap',
+            exactnessRequested: true,
+            requestedDetailTypes: ['color_options'],
+            supportedDetailTypes: [],
+            partialDetailTypes: [],
+            unsupportedDetailTypes: ['color_options'],
+            requiredUnspecifiedDetailTypes: ['color_options'],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Si hace falta una confirmación puntual, se consulta y se detalla a la brevedad: disponibilidad puntual de colores o texturas.',
+              sequence: 0,
+              score: 7.7,
+              supportSummary: {
+                topic: 'COMO SOLEMOS AVANZAR UNA CONSULTA',
+                supportedAxes: ['confirmation_policy'],
+                unspecifiedAxes: ['exact_color_options'],
+                metadataNotes: [
+                  {
+                    axis: 'confirmation_policy',
+                    layer: 'guidance',
+                    values: ['disponibilidad puntual de colores o texturas'],
+                    supportClass: 'partial_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Por ahora no tengo confirmación sobre los colores exactos. Si me indicás qué variante o línea de roller blackout estás buscando, te oriento con las opciones y, si hace falta, te confirmo ese detalle puntual.',
+    );
+  });
+
+  it('suppresses literal confirmation guidance summaries and uses metadata notes for unsupported availability details', async () => {
+    await expect(
+      service.resolve({
+        locale: 'es',
+        userMessage: 'que textura exacta tienen disponible hoy?',
+        intent: 'GENERAL_CONVERSATION',
+        outcome: 'respond',
+        decision: {
+          domain: 'core',
+          action: 'respond',
+          reasonCode: 'document_grounded_exploration',
+          missingFields: [],
+          responseTemplateKey: 'core.general_response',
+        },
+        interpretation: {
+          language: 'es',
+          confidence: 0.85,
+          entities: {
+            rawMessage: 'que textura exacta tienen disponible hoy?',
+            productQuery: 'textura disponible',
+            requestSummary: 'Consulta sobre la textura exacta disponible hoy',
+          },
+          normalizedEntities: {
+            dates: [],
+            measurements: [],
+            dimensions: [],
+          },
+        },
+        execution: {
+          status: 'not_applicable',
+          toolName: null,
+          validatedInputSummary: null,
+          resultSummary: null,
+          failure: null,
+        },
+        approvedFactKeys: [],
+        approvedResultKeys: [],
+        approvedDocumentIds: ['doc-1'],
+        documentContext: {
+          source: 'document_origin',
+          query: 'Consulta sobre la textura exacta disponible hoy',
+          groundedSummary:
+            'Si hace falta una confirmación puntual, se comenta que no se tiene esa información en este momento y se consulta y se detalla a la brevedad: disponibilidad puntual de colores o texturas.',
+          responseMode: 'document_exploration',
+          grounding: {
+            supportLevel: 'partial',
+            evidenceTier: 'excerpt_only',
+            absenceReason: 'extraction_uncertain',
+            exactnessRequested: true,
+            requestedDetailTypes: ['availability'],
+            supportedDetailTypes: [],
+            partialDetailTypes: ['availability'],
+            unsupportedDetailTypes: [],
+            requiredUnspecifiedDetailTypes: ['availability'],
+          },
+          matches: [
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt: '- pedimos variante o configuración si aplica',
+              sequence: 122,
+              score: 5,
+              supportSummary: {
+                topic:
+                  '14. COMO SOLEMOS AVANZAR UNA CONSULTA / Si la consulta pasa a presupuesto',
+                supportedAxes: ['quote_transition'],
+                unspecifiedAxes: [],
+                metadataNotes: [
+                  {
+                    axis: 'quote_transition',
+                    layer: 'guidance',
+                    values: [
+                      'confirmamos el producto',
+                      'pedimos medidas aproximadas',
+                      'pedimos cantidad',
+                      'pedimos variante o configuración si aplica',
+                    ],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+            {
+              documentId: 'doc-1',
+              title: 'Documento Maestro',
+              excerpt:
+                'Si hace falta una confirmación puntual, se comenta que no se tiene esa información en este momento y se consulta y se detalla a la brevedad: disponibilidad puntual de colores o texturas.',
+              sequence: 123,
+              score: 2,
+              supportSummary: {
+                topic:
+                  '14. COMO SOLEMOS AVANZAR UNA CONSULTA / Si hace falta una confirmación puntual',
+                supportedAxes: ['confirmation_policy'],
+                unspecifiedAxes: [],
+                metadataNotes: [
+                  {
+                    axis: 'confirmation_policy',
+                    layer: 'guidance',
+                    values: [
+                      'disponibilidad puntual de colores o texturas',
+                      'detalles técnicos especificos',
+                    ],
+                    supportClass: 'explicit_fact',
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      }),
+    ).resolves.toEqual(
+      'Por ahora no tengo una confirmación suficientemente clara sobre la disponibilidad exacta. Si me indicás qué producto, variante o línea estás buscando, te oriento con las opciones y, si hace falta, te confirmo ese detalle puntual.',
+    );
+  });
+
   it('answers outside-location visit-cost follow-ups with the outside scoped fact instead of the inside one', async () => {
     await expect(
       service.resolve({
@@ -2384,6 +4171,8 @@ function buildCatalog(locale?: string) {
         basic_response: 'Hola, contame en qué te puedo ayudar.',
         clarification_requested_date:
           'Para coordinar la visita, necesito la fecha y la hora que te sirven.',
+        clarification_quote_scope:
+          'Para orientarte con un presupuesto, primero necesito saber qué producto o línea estás evaluando.',
         clarification_user_goal:
           'Decime qué necesitás y lo seguimos desde ahí.',
         clarification_generic: 'Contame un poco más y sigo con eso.',
@@ -2420,6 +4209,9 @@ function buildCatalog(locale?: string) {
           'Para coordinar la visita, necesito la fecha y la hora que te sirven.',
           'Decime qué día y horario querés para poder agendar la visita.',
           'Indicame cuándo te queda bien la visita y sigo con eso.',
+        ],
+        clarification_quote_scope: [
+          'Para orientarte con un presupuesto, primero necesito saber qué producto o línea estás evaluando.',
         ],
         clarification_user_goal: [
           'Decime qué necesitás y lo seguimos desde ahí.',
@@ -2468,6 +4260,8 @@ function buildCatalog(locale?: string) {
       opening_greeting: 'Hello, thanks for reaching out.',
       basic_response: 'Hi, tell me how I can help.',
       clarification_requested_date: 'To schedule the visit, I need the requested date and time.',
+      clarification_quote_scope:
+        'To guide you with a quote, I first need to know which product or line you are considering.',
       clarification_user_goal:
         "Tell me what you need and I'll keep going from there.",
       clarification_generic: "Share a little more detail and I'll keep going.",
@@ -2504,6 +4298,9 @@ function buildCatalog(locale?: string) {
         'To schedule the visit, I need the requested date and time.',
         "Tell me the day and time that work for you so I can schedule the visit.",
         "Let me know when you'd like the visit and I'll keep going.",
+      ],
+      clarification_quote_scope: [
+        'To guide you with a quote, I first need to know which product or line you are considering.',
       ],
       clarification_user_goal: [
         "Tell me what you need and I'll keep going from there.",
