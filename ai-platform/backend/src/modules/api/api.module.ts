@@ -31,9 +31,13 @@ import { AsyncChatController } from './async-chat.controller';
 import { AsyncTurnExecutionControlService } from './async-turn-execution-control.service';
 import { AsyncTurnIntakeService } from './async-turn-intake.service';
 import { AsyncTurnTimingPolicyService } from './async-turn-timing-policy.service';
+import { ChannelConversationBridgeController } from './channel-conversation-bridge.controller';
+import { ChannelConversationBridgeService } from './channel-conversation-bridge.service';
 import { ChatController } from './chat.controller';
 import { RuntimeResourcesAdminController } from './runtime-resources-admin.controller';
 import { SemanticTurnExecutionService } from './semantic-turn-execution.service';
+import { StorefrontWebchatController } from './storefront-webchat.controller';
+import { StorefrontWebchatService } from './storefront-webchat.service';
 import { TraceLogService } from './trace-log.service';
 
 @Module({
@@ -58,6 +62,8 @@ import { TraceLogService } from './trace-log.service';
   controllers: [
     ChatController,
     AsyncChatController,
+    ChannelConversationBridgeController,
+    StorefrontWebchatController,
     RuntimeResourcesAdminController,
     AdminCatalogController,
     AdminDocumentsController,
@@ -69,6 +75,8 @@ import { TraceLogService } from './trace-log.service';
     AsyncTurnTimingPolicyService,
     AsyncTurnExecutionControlService,
     SemanticTurnExecutionService,
+    ChannelConversationBridgeService,
+    StorefrontWebchatService,
     AsyncTurnIntakeService,
     ChatOrchestratorService,
     AdminCatalogService,

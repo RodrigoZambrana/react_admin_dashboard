@@ -7,8 +7,10 @@ import { resolveAiRuntimeBootstrap } from '../runtime-config/ai-runtime-bootstra
 import {
   AiRuntimeResource,
   AsyncIntakeRuntimeResource,
+  buildDefaultChannelControlRuntimeResource,
   buildDefaultAsyncIntakeRuntimeResource,
   buildDefaultTenantCapabilityRuntimeResource,
+  ChannelControlRuntimeResource,
   CriticalConfigKey,
   CriticalConfigValue,
   LearningRuntimeResource,
@@ -65,6 +67,15 @@ export class EnvCriticalConfigSeedSource extends RuntimeManagedResourceSeedSourc
       {
         key: 'tenant_capabilities',
         value: this.buildTenantCapabilitiesSeed(),
+        createdBy: 'system:critical-config-seed',
+        metadata: {
+          origin: 'system',
+          source: 'env-seed',
+        },
+      },
+      {
+        key: 'channel_control',
+        value: this.buildChannelControlSeed(),
         createdBy: 'system:critical-config-seed',
         metadata: {
           origin: 'system',
@@ -177,6 +188,10 @@ export class EnvCriticalConfigSeedSource extends RuntimeManagedResourceSeedSourc
         config: { ...(capability.config ?? {}) },
       })),
     };
+  }
+
+  private buildChannelControlSeed(): ChannelControlRuntimeResource {
+    return buildDefaultChannelControlRuntimeResource();
   }
 
   private readOptionalString(key: string) {

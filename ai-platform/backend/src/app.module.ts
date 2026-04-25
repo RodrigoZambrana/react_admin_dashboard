@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { AiGatewayModule } from './modules/ai-gateway/ai-gateway.module';
 import { ApiModule } from './modules/api/api.module';
+import { ChannelControlModule } from './modules/channel-control/channel-control.module';
 import { CriticalConfigModule } from './modules/critical-config/critical-config.module';
 import { DecisionModule } from './modules/decision/decision.module';
 import { DocumentsModule } from './modules/documents/documents.module';
@@ -35,6 +36,7 @@ import { TenantMiddleware } from './modules/persistence/tenant/tenant.middleware
     SecurityModule,
     PersistenceModule,
     InfrastructureModule,
+    ChannelControlModule,
     PromptModule,
     CriticalConfigModule,
     KnowledgeMetadataModule,

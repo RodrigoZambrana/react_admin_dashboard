@@ -121,8 +121,72 @@ model Conversation {
   state       ConversationState?
   asyncTurns  AsyncConversationTurn[]
   testCenterEvaluation TestCenterConversationEvaluation?
+  publicWebchatSession PublicWebchatSession?
+  channelBindings ChannelConversationBinding[]
+  channelMessages ChannelMessageRecord[]
 
   @@index([tenantId, createdAt])
+}
+
+model ChannelConversationBinding {
+  id             String       @id @default(cuid())
+  tenantId       String
+  conversationId String
+  channel        String
+  threadId       String
+  userId         String
+  inboxAccountId String?
+  inboxAddress   String?
+  displayName    String?
+  email          String?
+  queueSlug      String?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, channel, threadId])
+  @@index([tenantId, channel, userId, updatedAt])
+}
+
+model ChannelMessageRecord {
+  id                String       @id @default(cuid())
+  tenantId          String
+  conversationId    String
+  channel           String
+  externalMessageId String
+  providerMessageId String?
+  remoteId          String?
+  direction         String
+  status            String?
+  occurredAt        DateTime?
+  metadata          Json?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, channel, externalMessageId])
+  @@index([tenantId, conversationId, createdAt])
+}
+
+model PublicWebchatSession {
+  id             String       @id @default(cuid())
+  tenantId       String
+  conversationId String       @unique
+  guestId        String
+  scope          String
+  authenticated  Boolean      @default(false)
+  name           String?
+  email          String?
+  locale         String
+  currency       String
+  page           String?
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, guestId, updatedAt])
 }
 
 model Message {
@@ -217,6 +281,40 @@ model CriticalConfigVersion {
 
   @@unique([tenantId, key, version])
   @@index([tenantId, key, status])
+}
+
+model ChannelConnectionState {
+  id              String   @id @default(cuid())
+  tenantId        String
+  channelKey      String
+  driver          String
+  enabled         Boolean  @default(false)
+  connectionState String
+  health          String
+  summary         String?
+  capabilities    Json?
+  payload         Json
+  metadata        Json?
+  observedAt      DateTime
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([tenantId, channelKey])
+  @@index([tenantId, driver, observedAt])
+}
+
+model ChannelSecret {
+  id        String   @id @default(cuid())
+  tenantId  String
+  key       String
+  value     String
+  label     String?
+  lastFour  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([tenantId, key])
+  @@index([tenantId, updatedAt])
 }
 
 model KnowledgeMetadataVersion {

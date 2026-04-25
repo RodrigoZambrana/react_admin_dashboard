@@ -5,6 +5,10 @@ import { AsyncConversationTurnInputRepository } from './repositories/async-conve
 import { AsyncConversationTurnRepository } from './repositories/async-conversation-turn.repository';
 import { CatalogItemRepository } from './repositories/catalog-item.repository';
 import { CatalogSourceRepository } from './repositories/catalog-source.repository';
+import { ChannelConversationBindingRepository } from './repositories/channel-conversation-binding.repository';
+import { ChannelConnectionStateRepository } from './repositories/channel-connection-state.repository';
+import { ChannelMessageRecordRepository } from './repositories/channel-message-record.repository';
+import { ChannelSecretRepository } from './repositories/channel-secret.repository';
 import { ChatLogRepository } from './repositories/chat-log.repository';
 import { ConversationRepository } from './repositories/conversation.repository';
 import { ConversationStateRepository } from './repositories/conversation-state.repository';
@@ -18,6 +22,7 @@ import { KnowledgeRepository } from './repositories/knowledge.repository';
 import { KnowledgeMetadataVersionRepository } from './repositories/knowledge-metadata-version.repository';
 import { MessageRepository } from './repositories/message.repository';
 import { PromptVersionRepository } from './repositories/prompt-version.repository';
+import { PublicWebchatSessionRepository } from './repositories/public-webchat-session.repository';
 import { TemporalLocaleVersionRepository } from './repositories/temporal-locale-version.repository';
 import { TestCenterEvaluationRepository } from './repositories/test-center-evaluation.repository';
 import { PrismaService } from './prisma/prisma.service';
@@ -37,6 +42,10 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     AsyncConversationTurnInputRepository,
     CatalogSourceRepository,
     CatalogItemRepository,
+    ChannelConversationBindingRepository,
+    ChannelConnectionStateRepository,
+    ChannelMessageRecordRepository,
+    ChannelSecretRepository,
     InfrastructureRepository,
     ConversationRepository,
     ConversationStateRepository,
@@ -48,6 +57,7 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,
+    PublicWebchatSessionRepository,
     TemporalLocaleVersionRepository,
     TestCenterEvaluationRepository,
     KnowledgeRepository,
@@ -61,6 +71,10 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     AsyncConversationTurnInputRepository,
     CatalogSourceRepository,
     CatalogItemRepository,
+    ChannelConversationBindingRepository,
+    ChannelConnectionStateRepository,
+    ChannelMessageRecordRepository,
+    ChannelSecretRepository,
     InfrastructureRepository,
     ConversationRepository,
     ConversationStateRepository,
@@ -72,6 +86,7 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     MessageRepository,
     ChatLogRepository,
     PromptVersionRepository,
+    PublicWebchatSessionRepository,
     TemporalLocaleVersionRepository,
     TestCenterEvaluationRepository,
     KnowledgeRepository,

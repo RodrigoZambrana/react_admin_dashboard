@@ -8,6 +8,7 @@ import { CriticalConfigProvider } from './critical-config.provider';
 import {
   AiRuntimeResource,
   AsyncIntakeRuntimeResource,
+  ChannelControlRuntimeResource,
   CriticalConfigKey,
   criticalConfigKeySchema,
   CriticalConfigResourceMap,
@@ -61,6 +62,12 @@ export class CriticalConfigService {
   async getAsyncIntakeConfig(): Promise<AsyncIntakeRuntimeResource | null> {
     return (await this.getActiveConfig('async_intake'))?.value as
       | AsyncIntakeRuntimeResource
+      | null;
+  }
+
+  async getChannelControlConfig(): Promise<ChannelControlRuntimeResource | null> {
+    return (await this.getActiveConfig('channel_control'))?.value as
+      | ChannelControlRuntimeResource
       | null;
   }
 

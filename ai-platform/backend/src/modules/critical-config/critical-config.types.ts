@@ -1,5 +1,10 @@
 import { z } from 'zod';
 import {
+  buildDefaultChannelControlResource,
+  channelControlResourceSchema,
+  ChannelControlResource,
+} from '../channel-control/channel-control.types';
+import {
   buildDefaultTenantCapabilitiesResource,
   TenantCapabilitiesResource,
   tenantCapabilitiesResourceSchema,
@@ -10,6 +15,7 @@ export const criticalConfigKeySchema = z.enum([
   'learning',
   'async_intake',
   'tenant_capabilities',
+  'channel_control',
 ]);
 export type CriticalConfigKey = z.infer<typeof criticalConfigKeySchema>;
 
@@ -71,6 +77,7 @@ export type AsyncIntakeRuntimeResource = z.infer<
 >;
 export type AsyncIntakeLexicon = z.infer<typeof asyncIntakeLexiconSchema>;
 export type TenantCapabilityRuntimeResource = TenantCapabilitiesResource;
+export type ChannelControlRuntimeResource = ChannelControlResource;
 
 export function buildDefaultAsyncIntakeRuntimeResource(): AsyncIntakeRuntimeResource {
   return {
@@ -131,18 +138,24 @@ export function buildDefaultTenantCapabilityRuntimeResource(): TenantCapabilityR
   return buildDefaultTenantCapabilitiesResource();
 }
 
+export function buildDefaultChannelControlRuntimeResource(): ChannelControlRuntimeResource {
+  return buildDefaultChannelControlResource();
+}
+
 export type CriticalConfigResourceMap = {
   ai_runtime: AiRuntimeResource;
   learning: LearningRuntimeResource;
   async_intake: AsyncIntakeRuntimeResource;
   tenant_capabilities: TenantCapabilityRuntimeResource;
+  channel_control: ChannelControlRuntimeResource;
 };
 
 export type CriticalConfigValue =
   | AiRuntimeResource
   | LearningRuntimeResource
   | AsyncIntakeRuntimeResource
-  | TenantCapabilityRuntimeResource;
+  | TenantCapabilityRuntimeResource
+  | ChannelControlRuntimeResource;
 
 export function parseCriticalConfigValue<TKey extends CriticalConfigKey>(
   key: TKey,
@@ -160,6 +173,12 @@ export function parseCriticalConfigValue<TKey extends CriticalConfigKey>(
 
   if (key === 'tenant_capabilities') {
     return tenantCapabilitiesResourceSchema.parse(
+      value,
+    ) as CriticalConfigResourceMap[TKey];
+  }
+
+  if (key === 'channel_control') {
+    return channelControlResourceSchema.parse(
       value,
     ) as CriticalConfigResourceMap[TKey];
   }
