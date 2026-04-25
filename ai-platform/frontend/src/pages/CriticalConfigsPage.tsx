@@ -35,7 +35,8 @@ function buildDefaultConfigValue(
   | AiRuntimeResource
   | LearningRuntimeResource
   | AsyncIntakeRuntimeResource
-  | TenantCapabilitiesResource {
+  | TenantCapabilitiesResource
+  | Record<string, unknown> {
   if (key === 'ai_runtime') {
     return {
       provider: 'openai',
@@ -127,6 +128,16 @@ function buildDefaultConfigValue(
     };
   }
 
+  if (key === 'channel_control') {
+    return {
+      meta: {},
+      whatsappQr: {},
+      email: {},
+      webchat: {},
+      routing: {},
+    };
+  }
+
   return {
     enabled: true,
     observedStages: ['execution', 'response'],
@@ -152,7 +163,11 @@ function getConfigSecondaryLabel(version: CriticalConfigVersion) {
     return `${value.capabilities.filter((capability) => capability.enabled).length} enabled capabilities`;
   }
 
-  return `${(version.value as LearningRuntimeResource).observedStages.length} observed stages`;
+  if (version.key === 'channel_control') {
+    return 'channel control resource';
+  }
+
+  return `${((version.value as LearningRuntimeResource).observedStages ?? []).length} observed stages`;
 }
 
 function buildConfigForm(base?: CriticalConfigVersion): CriticalConfigFormState {
@@ -526,6 +541,7 @@ export function CriticalConfigsPage() {
                         <option value="learning">learning</option>
                         <option value="async_intake">async_intake</option>
                         <option value="tenant_capabilities">tenant_capabilities</option>
+                        <option value="channel_control">channel_control</option>
                       </select>
                     </div>
                   </div>

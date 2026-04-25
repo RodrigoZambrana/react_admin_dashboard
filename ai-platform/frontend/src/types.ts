@@ -144,16 +144,110 @@ export type TenantCapabilitiesResource = {
   }>;
 };
 
+export type ChannelSecretRef = {
+  strategy: 'local' | 'env';
+  ref: string;
+};
+
+export type ChannelRouteDefaults = {
+  inboxKey: string | null;
+  queueKey: string | null;
+  scope: 'customer_public' | 'customer_authenticated' | 'admin_internal';
+};
+
+export type ChannelConnectionStateView = {
+  channelKey: string;
+  driver: string;
+  enabled: boolean;
+  connectionState: string;
+  health: 'healthy' | 'degraded' | 'offline' | 'unknown';
+  summary: string | null;
+  observedAt: string;
+};
+
+export type MetaChannelSettingsView = {
+  config: {
+    enabled: boolean;
+    messengerEnabled: boolean;
+    instagramEnabled: boolean;
+    publicBaseUrl: string | null;
+    pageId: string | null;
+    instagramBusinessAccountId: string | null;
+    appId: string | null;
+    verifyToken: null;
+    appSecret: null;
+    pageAccessToken: null;
+    messengerPageAccessToken: null;
+    instagramAccessToken: null;
+  };
+  status: {
+    driver: string;
+    enabled: boolean;
+    webhookInboundReady: boolean;
+    signatureValidationReady: boolean;
+    webhookVerificationReady: boolean;
+  };
+};
+
+export type WhatsappQrChannelSettingsView = {
+  config: {
+    enabled: boolean;
+    displayName: string;
+    address: string | null;
+    autoStart: boolean;
+    typingIndicatorEnabled: boolean;
+    presenceIndicatorEnabled: boolean;
+    humanDelayEnabled: boolean;
+    minReplyDelayMs: number;
+    maxReplyDelayMs: number;
+    maxOutboundPerHour: number;
+    maxOutboundPerDay: number;
+    allowProactiveOutbound: boolean;
+  };
+  status: {
+    enabled: boolean;
+    state: string;
+    driver: string;
+    connectedPhone: string | null;
+    lastError: string | null;
+  };
+};
+
+export type EmailChannelSettingsView = {
+  source: 'environment' | 'database';
+  updatedAt: string | null;
+  imapHost: string;
+  imapPort: number;
+  imapSecurity: 'SSL_TLS' | 'STARTTLS' | 'NONE';
+  smtpHost: string;
+  smtpPort: number;
+  smtpSecurity: 'SSL_TLS' | 'STARTTLS' | 'NONE';
+  username: string;
+  fromAddress: string;
+  fromName: string | null;
+  maxAttachmentSizeMb: number;
+  ratePerMinute: number;
+  pollIntervalMs: number;
+  pollBatchSize: number;
+  passwordSet: boolean;
+};
+
 export type CriticalConfigVersion = {
   id: string;
-  key: 'ai_runtime' | 'learning' | 'async_intake' | 'tenant_capabilities';
+  key:
+    | 'ai_runtime'
+    | 'learning'
+    | 'async_intake'
+    | 'tenant_capabilities'
+    | 'channel_control';
   version: number;
   status: ManagedResourceStatus;
   value:
     | AiRuntimeResource
     | LearningRuntimeResource
     | AsyncIntakeRuntimeResource
-    | TenantCapabilitiesResource;
+    | TenantCapabilitiesResource
+    | Record<string, unknown>;
   metadata?: Record<string, unknown> | null;
   createdAt: string;
   createdBy?: string | null;

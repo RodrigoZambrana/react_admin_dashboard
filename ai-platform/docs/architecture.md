@@ -178,6 +178,7 @@ Important clarification:
 - `PersistenceModule`: Prisma repositories and tenant enforcement
 - `ParsingModule`: normalization of dates, measurements, and entities
 - `RuntimeConfigModule`: abstraction over managed runtime configuration and safe env-backed secret resolution, keeping provider/runtime selection portable while leaving room for future repository-backed tenant/auth settings
+- `ChannelControlModule`: managed channel configuration control plane for Meta, WhatsApp QR, email, webchat, and shared routing defaults
 - `SecurityModule`: placeholder security planning for future Bearer auth and admin-only endpoint guards
 - `TenantCapabilitiesModule`: backend-owned tenant capability resolution from managed runtime configuration with compatibility-safe fallback
 - `TenantResourcesModule`: reusable tenant resource adapters for multi-format document and structured catalog ingestion
@@ -1407,6 +1408,106 @@ This keeps the system from solving repeated relation classes with ad-hoc wording
   - technical debt when they are acceptable to defer without compromising the roadmap
 - Do not stop platform progress after a completed wave just because review findings exist; carry non-blocking findings into the next wave prompt, roadmap context, and closeout documentation
 - Update `docs/progress.md` after every iteration
+
+## Channel Control Boundary
+
+`ChannelControl` is now an explicit bounded context inside `ai-platform` with two distinct planes:
+
+- desired state
+  - versioned config in managed critical config key `channel_control`
+- observed state
+  - latest runtime projection in `ChannelConnectionState`
+
+This split is intentional:
+
+- desired state is edited by admin/UI workflows
+- observed state is published by transport adapters
+- neither concern is allowed to leak into core chat decisioning
+
+Internal adapter contracts are read/write only for control-plane integration:
+
+- `GET /internal/channel-control`
+- `GET /internal/channel-control/channels/:channelKey`
+- `PUT /internal/channel-control/channels/:channelKey/connection-state`
+
+These contracts exist so transport adapters can stop reading legacy backend config without coupling core chat runtime to adapter-specific orchestration.
+
+## Channel Conversation Bridge
+
+Transport adapters must not depend on legacy conversation endpoints anymore.
+
+`ai-platform` now exposes an internal bridge boundary for transport-originated conversation traffic:
+
+- `POST /internal/conversations/inbound`
+- `POST /internal/conversations/history-message`
+- `POST /internal/conversations/bootstrap-thread`
+- `POST /internal/conversations/outbound-status`
+- `POST /internal/conversations/:id/agent-reply`
+
+This bridge is intentionally additive:
+
+- it does not replace the core async chat runtime
+- it maps transport identities into platform-native `conversationId`
+- it persists channel-side correlation separately through:
+  - `ChannelConversationBinding`
+  - `ChannelMessageRecord`
+
+That keeps adapter concerns outside the core response/decision pipeline while still letting channel transports stop depending on legacy backend ownership.
+
+## Channel Settings API
+
+The UI-facing channel settings API is standardized under `ai-platform`.
+
+Channel settings screens use:
+
+- `GET /settings/channels/meta`
+- `PUT /settings/channels/meta`
+- `POST /settings/channels/meta/sync`
+- `GET /settings/channels/whatsapp-qr`
+- `PUT /settings/channels/whatsapp-qr`
+- `POST /settings/channels/whatsapp-qr/session/start`
+- `POST /settings/channels/whatsapp-qr/session/stop`
+- `POST /settings/channels/whatsapp-qr/session/reconnect`
+- `POST /settings/channels/whatsapp-qr/session/reset`
+- `POST /settings/channels/whatsapp-qr/sync`
+- `POST /settings/channels/whatsapp-qr/backfill`
+- `GET /settings/channels/email`
+- `PUT /settings/channels/email`
+
+This API is separate from the lower-level control contracts:
+
+- `/admin/channel-control` exposes raw desired state for admin/control-plane tooling
+- `/internal/channel-control` exposes adapter-facing snapshots and connection-state writes
+- `/settings/channels/*` exposes screen-ready channel settings and channel operations
+
+The underlying owner remains the `ChannelControl` bounded context. Channel operations that need transport state delegate to `channel-adapter` through an explicit adapter admin client.
+
+Channel settings UI can live in ecommerce/admin-facing applications as a consumer surface. That does not move ownership out of `ai-platform`: ecommerce can present and operate chat capabilities, but it must read/write channel state through the chat platform contracts.
+
+Secrets are not stored directly inside the versioned `channel_control` resource. Channel credential fields use refs:
+
+- `local` refs resolve through the local/dev `ChannelSecret` store
+- `env` refs resolve through environment variables
+- production secret management should replace the local/dev store behind the same ref boundary
+
+Email has an explicit boundary:
+
+- inbox email transport config belongs to `ChannelControl`
+- ecommerce delivery config, templates, role rules, categories, logs, metrics, and transactional test-send do not belong to `ChannelControl`
+- those delivery concerns must stay in the ecommerce/notifications domain until they are extracted into a separate delivery-control module
+- legacy `/settings/email/inbox-config` is not recreated in `ai-platform`; callers must use `/settings/channels/email`
+
+## Storefront Chat Integration Boundary
+
+Storefront chat consumers must not call legacy `/conversations/webchat/*`.
+
+`ai-platform` now exposes a dedicated public facade for storefront webchat:
+
+- `POST /chat/public/webchat/session`
+- `GET /chat/public/webchat/session/:conversationId`
+- `POST /chat/public/webchat/messages`
+
+This facade is an adapter over the async chat runtime, not a second chat implementation. It preserves ecommerce UI isolation while keeping the chat core inside `ai-platform`.
 
 ## Frontend Theme Strategy
 

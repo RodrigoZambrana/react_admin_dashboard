@@ -5,6 +5,7 @@ import { AdminShell, type AdminNavigationItem } from './components/layout/AdminS
 import { TemplateAssetBundle } from './components/layout/TemplateAssetBundle';
 import { DashboardPage } from './pages/DashboardPage';
 import { ChatTestCenterPage } from './pages/ChatTestCenterPage';
+import { ChannelSettingsPage } from './pages/ChannelSettingsPage';
 import { CriticalConfigsPage } from './pages/CriticalConfigsPage';
 import { DateTimeLocaleResourcesPage } from './pages/DateTimeLocaleResourcesPage';
 import { DocumentsPage } from './pages/DocumentsPage';
@@ -16,6 +17,7 @@ import { ResponseFallbackCatalogsPage } from './pages/ResponseFallbackCatalogsPa
 type RouteKey =
   | 'dashboard'
   | 'chat-test-center'
+  | 'channel-settings'
   | 'knowledge-center'
   | 'documents'
   | 'prompts'
@@ -27,6 +29,7 @@ type RouteKey =
 const routeLabels: Record<RouteKey, string> = {
   dashboard: 'Operations Dashboard',
   'chat-test-center': 'Chat Test Center',
+  'channel-settings': 'Channel Settings',
   'knowledge-center': 'Knowledge Center',
   documents: 'Documents',
   prompts: 'Prompts',
@@ -48,6 +51,12 @@ const navigationItems: AdminNavigationItem[] = [
     label: 'Chat Test Center',
     icon: 'ti ti-flask-2',
     href: '#chat-test-center',
+  },
+  {
+    key: 'channel-settings',
+    label: 'Channel Settings',
+    icon: 'ti ti-plug-connected',
+    href: '#channel-settings',
   },
   {
     key: 'knowledge-center',
@@ -170,6 +179,7 @@ export function AdminApp() {
       >
         {route === 'dashboard' ? <DashboardPage /> : null}
         {route === 'chat-test-center' ? <ChatTestCenterPage /> : null}
+        {route === 'channel-settings' ? <ChannelSettingsPage /> : null}
         {route === 'knowledge-center' ? <KnowledgeCenterPage /> : null}
         {route === 'documents' ? <DocumentsPage /> : null}
         {route === 'prompts' ? <PromptsPage /> : null}

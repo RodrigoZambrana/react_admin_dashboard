@@ -218,6 +218,33 @@
 ### Technical Debt
 - prompt not versioned yet
 - no parsing normalization
+
+## Iteration 10
+
+### Implemented
+- Channel-control extraction matrix and iteration plan documented for the migration from legacy channel config semantics
+- First managed `channel_control` resource in `ai-platform`, versioned through the existing critical-config infrastructure
+- Initial admin API for channel-control sections:
+  - Meta
+  - WhatsApp QR
+  - email
+  - webchat
+  - shared routing
+
+### Working
+- `ai-platform` can now persist and retrieve a typed channel-control baseline without touching the core chat runtime
+- channel-control config is versioned and tenant-scoped like other runtime-managed resources
+- the implementation is additive and does not depend on legacy chat runtime code
+
+### Technical Debt
+- no connection-state projection yet
+- no adapter command plane yet
+- no ecommerce UI integration yet
+
+### Next Steps
+- add connection-state projections and adapter-facing read contracts
+- migrate ecommerce UI callers to `ai-platform`
+- cut adapter config reads away from legacy backend
 - no decision engine
 - no auth implemented
 
@@ -3261,3 +3288,208 @@
   - the document contains the fact
   - typed claim support is missing
   - proposition or excerpt evidence should still prevent a false `not specified`
+
+## Iteration 94
+
+### Implemented
+- Added `ChannelConnectionState` as a persisted observed-state projection in `ai-platform`
+- Extended `ChannelControl` with adapter-facing internal contracts:
+  - `GET /internal/channel-control`
+  - `GET /internal/channel-control/channels/:channelKey`
+  - `PUT /internal/channel-control/channels/:channelKey/connection-state`
+- Added resolved secret material for `env`-backed refs on the internal adapter contract, keeping runtime config ownership in `ai-platform`
+- Updated `services/channel-adapter` to use `ai-platform` as the primary control-plane source for:
+  - Meta effective config
+  - WhatsApp QR effective config
+  - connection-state publication
+- Added a public storefront webchat facade in `ai-platform`:
+  - `POST /chat/public/webchat/session`
+  - `GET /chat/public/webchat/session/:conversationId`
+  - `POST /chat/public/webchat/messages`
+- Migrated `ecommerce` webchat API calls to the new public `ai-platform` endpoints through a dedicated `NEXT_PUBLIC_CHAT_AGENT_URL`
+
+### Working
+- `channel-adapter` no longer needs legacy backend config as its primary config source for Meta and WhatsApp QR
+- `ai-platform` now owns both desired channel config and latest observed channel connection state
+- `ecommerce` storefront chat integration can target `ai-platform` directly without reusing legacy `/conversations/webchat/*`
+
+### Technical Debt
+- `channel-adapter` still depends on legacy backend for conversation write paths; only config ownership moved in this iteration
+- env-backed secret resolution is transitional; a dedicated secret manager or managed secret store is still pending
+- storefront webchat facade currently adapts attachment-only turns into text hints until async intake grows first-class attachment ingestion
+
+### Next Steps
+- Move channel transport conversation ingest/reply contracts off legacy backend onto `ai-platform`
+- Add admin UI surfaces for channel-control and connection-state using the new `ai-platform` endpoints
+- Replace env-secret resolution with managed secret refs without changing adapter contracts
+
+## Iteration 95
+
+### Implemented
+- Added a channel conversation bridge in `ai-platform` for adapter traffic:
+  - `POST /internal/conversations/inbound`
+  - `POST /internal/conversations/history-message`
+  - `POST /internal/conversations/bootstrap-thread`
+  - `POST /internal/conversations/outbound-status`
+  - `POST /internal/conversations/:id/agent-reply`
+- Added explicit persistence for transport correlation:
+  - `ChannelConversationBinding`
+  - `ChannelMessageRecord`
+- Switched `services/channel-adapter` conversation client from legacy backend routes to `ai-platform`
+- Applied the new migrations locally and rebuilt `ai-platform` and `ecommerce`
+
+### Working
+- adapter config and adapter conversation ingress now target `ai-platform`
+- `ecommerce` public webchat uses the public `ai-platform` facade instead of legacy `/conversations/webchat/*`
+- legacy backend remains only as a temporary transport-side dependency for operations not yet moved, not as the primary chat control plane
+
+### Technical Debt
+- outbound-status is persisted as bridge-side transport state, but it does not yet enrich a richer message delivery model in `ai-platform`
+- `webchat` transport code inside `services/channel-adapter` still exists, even though storefront traffic is now expected to go direct to `ai-platform`
+- channel secrets still resolve from env refs when configured that way
+
+### Next Steps
+- move remaining operator/transport write paths that still assume legacy backend conversation semantics
+- migrate admin UI channel screens to `ai-platform` channel-control APIs
+- delete unused legacy channel runtime/config paths once callers are fully removed
+
+## Iteration 96
+
+### Implemented
+- Added standardized channel settings endpoints in `ai-platform`:
+  - `GET /settings/channels/meta`
+  - `PUT /settings/channels/meta`
+  - `POST /settings/channels/meta/sync`
+  - `GET /settings/channels/whatsapp-qr`
+  - `PUT /settings/channels/whatsapp-qr`
+  - `POST /settings/channels/whatsapp-qr/session/start`
+  - `POST /settings/channels/whatsapp-qr/session/stop`
+  - `POST /settings/channels/whatsapp-qr/session/reconnect`
+  - `POST /settings/channels/whatsapp-qr/session/reset`
+  - `POST /settings/channels/whatsapp-qr/sync`
+  - `POST /settings/channels/whatsapp-qr/backfill`
+- Added `ChannelAdapterAdminClient` so `ai-platform` can orchestrate adapter status/session operations directly instead of routing those actions through legacy backend
+- Added a channel settings service that maps `ChannelControl` desired state plus `ChannelConnectionState` observed state into screen-ready channel settings responses
+- Migrated frontend channel settings callers to `ai-platform` by pointing only `MetaChannelService` and `WhatsappQrChannelService` at the new explicit base URL, without moving the rest of the admin app off legacy APIs
+- Enabled transitional managed secret resolution in `ChannelControl` so Meta secrets entered through the migrated UI can flow to adapters without introducing legacy secure-config ownership back into the target
+
+### Working
+- Current admin Meta and WhatsApp QR screens can stop depending on legacy backend channel endpoints
+- `ai-platform` is now the control-plane owner for both channel configuration and adapter operations that those screens need
+- The migration is isolated: only channel settings callers changed base URL; the rest of the admin UI remains untouched
+
+### Technical Debt
+- Channel secrets now use `local` refs backed by `ChannelSecret` for local/dev; production still needs a dedicated secret-manager-backed implementation behind the same ref boundary
+- Frontend settings screens still live in the legacy admin project even though their data now comes from `ai-platform`
+
+### Next Steps
+- Replace the local/dev channel secret store with a proper secret-manager-backed resolver for production
+- Remove the corresponding legacy backend channel controllers/services once traffic to `/settings/channels/meta` and `/settings/channels/whatsapp-qr` has been cut over
+- Decide whether the migrated channel settings screens stay in the legacy admin UI temporarily or move into the `ai-platform` frontend in the next extraction wave
+
+## Iteration 97
+
+### Implemented
+- Verified that the remaining functional callers for legacy Meta and WhatsApp QR settings had already been moved to `ai-platform`
+- Removed legacy backend Meta channel module:
+  - `backend/src/channels/meta/*`
+- Removed legacy backend WhatsApp QR channel module:
+  - `backend/src/channels/whatsapp-qr/*`
+- Removed those modules from the legacy backend bootstrap in `backend/src/app.module.ts`
+
+### Working
+- The current settings screens still exist in the legacy admin UI, but they no longer require the legacy backend channel modules
+- Legacy backend now compiles without `MetaChannelModule` and `WhatsappQrModule`
+- Runtime ownership for these channel settings is effectively concentrated in `ai-platform`
+
+### Technical Debt
+- Email is not part of this deletion wave because its current legacy surface lives under `settings/email/*`, not under `backend/src/channels/*`
+- The migrated settings screens still live in the legacy admin project, even though they now consume `ai-platform`
+
+### Next Steps
+- Plan and execute the separate email migration wave from legacy `settings/email/*` to `ai-platform`
+- Remove any remaining legacy admin references once the screens themselves are moved or replaced
+
+## Iteration 98
+
+### Implemented
+- Evaluated legacy email settings by bounded context instead of by route grouping
+- Classified email into two distinct domains:
+  - email inbox channel configuration: belongs in `ChannelControl`
+  - transactional email delivery/rules/templates/logs/metrics: stays outside channel control
+- Added `ai-platform` standardized endpoints for the channel-owned part:
+  - `GET /settings/channels/email`
+  - `PUT /settings/channels/email`
+- Migrated frontend inbox-email config callers to those channel settings endpoints through [EmailConfigService.ts](/Users/rodrigo/git/personal/react_admin_dashboard/frontend/src/services/EmailConfigService.ts)
+
+### Working
+- Email inbox transport configuration is now treated analogously to the other channels under `ai-platform`
+- The current email configuration screen can already consume `ai-platform` for the inbox-channel portion without moving the full email admin domain
+
+### Technical Debt
+- Transactional provider config (`/settings/email/config`) still lives in the legacy email domain
+- Role rules, templates, logs, metrics, and test-send flows are still part of the legacy email surface and should not be forced into `ChannelControl`
+
+### Next Steps
+- Decide whether transactional email provider config should remain a dedicated delivery domain or be split into a separate control-plane module in `ai-platform`
+- If the delivery domain moves, migrate `/settings/email/config` independently from inbox-channel config
+
+## Iteration 99
+
+### Implemented
+- Added the concrete endpoint/entity ownership matrix to [channel-control-extraction-matrix.md](/Users/rodrigo/git/personal/react_admin_dashboard/ai-platform/docs/channel-control-extraction-matrix.md)
+- Marked `/settings/email/inbox-config` as a legacy backend route that must not be recreated as a channel standard in `ai-platform`
+- Added the standard channel settings API for email:
+  - `GET /settings/channels/email`
+  - `PUT /settings/channels/email`
+- Documented the standard channel contracts:
+  - `GET /settings/channels/:channel`
+  - `PUT /settings/channels/:channel`
+  - `GET /admin/channel-control`
+  - `PUT /admin/channel-control/:channel`
+  - `GET /internal/channel-control`
+  - `GET /internal/channel-control/channels/:channelKey`
+  - `PUT /internal/channel-control/channels/:channelKey/connection-state`
+
+### Working
+- Current email settings UI uses `/settings/channels/email` for the channel-owned inbox config
+- Admin and adapter integrations remain under `ChannelControl`
+
+### Technical Debt
+- The email settings screen still mixes provider delivery config and inbox channel config in one UI component
+- Transactional email delivery ownership remains intentionally outside `ChannelControl`
+
+### Next Steps
+- Split the email settings UI into clearer sections or screens when the frontend moves fully to the new ownership model
+- Keep delivery-control extraction separate from channel-control extraction
+
+## Iteration 100
+
+### Implemented
+- Renamed the channel settings boundary from compatibility naming to standardized channel settings naming:
+  - `ChannelSettingsController`
+  - `ChannelSettingsService`
+- Removed the `ai-platform` `/settings/email/inbox-config` endpoint instead of preserving it as a parallel channel route
+- Added a channel settings page to the `ai-platform` frontend so channel configuration can be operated directly from the chat platform UI
+- Kept ecommerce/admin-facing UI capability valid as a consumer surface: UI may expose chat/channel controls, but state ownership remains in `ai-platform`
+- Replaced direct `managed_ref` secret material in `channel_control` with local/dev `ChannelSecret` refs using strategy `local`
+- Renamed the adapter conversation client from backend-oriented naming to `AiPlatformConversationsClient`
+
+### Working
+- Standard UI channel settings API:
+  - `GET /settings/channels/meta`
+  - `PUT /settings/channels/meta`
+  - `GET /settings/channels/whatsapp-qr`
+  - `PUT /settings/channels/whatsapp-qr`
+  - `GET /settings/channels/email`
+  - `PUT /settings/channels/email`
+- Adapter config and conversation paths no longer use legacy backend naming or fallback config ownership
+
+### Technical Debt
+- `ChannelSecret` is a local/dev store; production still needs a real secret-manager implementation behind the existing `local`/`env` ref boundary
+- Email delivery config remains intentionally outside `ChannelControl`
+
+### Next Steps
+- Apply pending Prisma migrations in the running environment
+- Smoke `ai-platform` channel settings UI and adapter reads against the running stack
+- Commit the channel-control baseline in reviewable slices

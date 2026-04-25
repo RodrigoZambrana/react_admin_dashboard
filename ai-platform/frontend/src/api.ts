@@ -12,8 +12,10 @@ import type {
   DocumentRecord,
   DocumentKnowledgePromotionCandidate,
   DocumentKnowledgeView,
+  EmailChannelSettingsView,
   KnowledgeEntry,
   KnowledgeMetadataVersion,
+  MetaChannelSettingsView,
   PromptVersion,
   RuntimeResourceContextView,
   PromptEffectiveView,
@@ -27,6 +29,7 @@ import type {
   TraceDetail,
   TraceSummary,
   TemporalLocaleVersion,
+  WhatsappQrChannelSettingsView,
 } from './types';
 
 function resolveApiBaseUrl() {
@@ -250,6 +253,61 @@ export async function getAiRuntimeDiagnostics() {
   return apiRequest<AiRuntimeDiagnostics>(
     '/admin/runtime-resources/critical-configs/ai-runtime/diagnostics',
   );
+}
+
+export async function getMetaChannelSettings() {
+  return apiRequest<MetaChannelSettingsView>('/settings/channels/meta');
+}
+
+export async function updateMetaChannelSettings(input: Record<string, unknown>) {
+  return apiRequest<MetaChannelSettingsView>('/settings/channels/meta', {
+    method: 'PUT',
+    body: input,
+  });
+}
+
+export async function syncMetaChannelSettings() {
+  return apiRequest<MetaChannelSettingsView>('/settings/channels/meta/sync', {
+    method: 'POST',
+    body: {},
+  });
+}
+
+export async function getWhatsappQrChannelSettings() {
+  return apiRequest<WhatsappQrChannelSettingsView>(
+    '/settings/channels/whatsapp-qr',
+  );
+}
+
+export async function updateWhatsappQrChannelSettings(input: Record<string, unknown>) {
+  return apiRequest<WhatsappQrChannelSettingsView>(
+    '/settings/channels/whatsapp-qr',
+    {
+      method: 'PUT',
+      body: input,
+    },
+  );
+}
+
+export async function syncWhatsappQrChannelSettings() {
+  return apiRequest<WhatsappQrChannelSettingsView>(
+    '/settings/channels/whatsapp-qr/sync',
+    {
+      method: 'POST',
+      body: {},
+    },
+  );
+}
+
+export async function getEmailChannelSettings() {
+  return apiRequest<EmailChannelSettingsView>('/settings/channels/email');
+}
+
+export async function updateEmailChannelSettings(input: Record<string, unknown>) {
+  return apiRequest<EmailChannelSettingsView>('/settings/channels/email', {
+    method: 'PUT',
+    body: input,
+  });
 }
 
 export async function createCriticalConfigVersion(input: {
