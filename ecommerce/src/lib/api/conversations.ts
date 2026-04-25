@@ -8,7 +8,7 @@ import type {
   WebchatScope,
 } from "@/types/conversations";
 
-const conversationsBaseUrl = env.publicApiBaseUrl.replace(/\/storefront$/, "");
+const conversationsBaseUrl = env.publicChatAgentUrl;
 
 const parseResponse = async <T>(response: Response): Promise<T> => {
   const text = await response.text();
@@ -36,7 +36,7 @@ export const ConversationsApi = {
     page?: string | null;
     authenticated?: boolean;
   }): Promise<WebchatSession> {
-    const response = await fetch(`${conversationsBaseUrl}/conversations/webchat/session`, {
+    const response = await fetch(`${conversationsBaseUrl}/chat/public/webchat/session`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -60,7 +60,7 @@ export const ConversationsApi = {
     authenticated?: boolean;
     metadata?: Record<string, unknown>;
   }): Promise<WebchatSendMessageResult> {
-    const response = await fetch(`${conversationsBaseUrl}/conversations/webchat/dispatch`, {
+    const response = await fetch(`${conversationsBaseUrl}/chat/public/webchat/messages`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -76,7 +76,7 @@ export const ConversationsApi = {
     guestId?: string;
   }): Promise<WebchatSession> {
     const url = new URL(
-      `${conversationsBaseUrl}/conversations/webchat/session/${payload.conversationId}`,
+      `${conversationsBaseUrl}/chat/public/webchat/session/${payload.conversationId}`,
     );
     if (payload.guestId) {
       url.searchParams.set("guestId", payload.guestId);

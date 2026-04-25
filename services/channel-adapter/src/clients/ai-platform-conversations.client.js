@@ -10,7 +10,7 @@ const toJson = async (response) => {
   }
 }
 
-const BACKEND_UNSAFE_PATTERNS = [
+const AI_PLATFORM_UNSAFE_PATTERNS = [
   /('|\")\s*or\s+(\d+|true|false|null)/gi,
   /\bUNION\b\s+\bSELECT\b/gi,
   /\bDROP\b\s+\bTABLE\b/gi,
@@ -26,7 +26,7 @@ const BACKEND_UNSAFE_PATTERNS = [
   /<[^>]+>/g,
 ]
 
-const sanitizeBackendString = (value) => {
+const sanitizeAiPlatformString = (value) => {
   if (typeof value !== 'string') {
     return value
   }
@@ -35,39 +35,39 @@ const sanitizeBackendString = (value) => {
     .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, ' ')
     .trim()
 
-  for (const pattern of BACKEND_UNSAFE_PATTERNS) {
+  for (const pattern of AI_PLATFORM_UNSAFE_PATTERNS) {
     sanitized = sanitized.replace(pattern, ' ')
   }
 
   return sanitized.replace(/\s+/g, ' ').trim()
 }
 
-const sanitizeBackendPayload = (value) => {
+const sanitizeAiPlatformPayload = (value) => {
   if (typeof value === 'string') {
-    return sanitizeBackendString(value)
+    return sanitizeAiPlatformString(value)
   }
 
   if (Array.isArray(value)) {
-    return value.map((entry) => sanitizeBackendPayload(entry))
+    return value.map((entry) => sanitizeAiPlatformPayload(entry))
   }
 
   if (value && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, sanitizeBackendPayload(entry)]),
+      Object.entries(value).map(([key, entry]) => [key, sanitizeAiPlatformPayload(entry)]),
     )
   }
 
   return value
 }
 
-export class BackendConversationsClient {
+export class AiPlatformConversationsClient {
   constructor(config) {
-    this.baseUrl = config.backendBaseUrl.replace(/\/$/, '')
+    this.baseUrl = config.aiPlatformBaseUrl.replace(/\/$/, '')
     this.internalToken = config.internalToken
   }
 
   async createWebchatMessage(payload) {
-    const response = await fetch(`${this.baseUrl}/conversations/webchat/message`, {
+    const response = await fetch(`${this.baseUrl}/chat/public/webchat/messages`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -83,9 +83,9 @@ export class BackendConversationsClient {
   }
 
   async replyAsAgent(conversationId, payload) {
-    const sanitizedPayload = sanitizeBackendPayload(payload)
+    const sanitizedPayload = sanitizeAiPlatformPayload(payload)
     const response = await fetch(
-      `${this.baseUrl}/conversations/${conversationId}/agent-reply`,
+      `${this.baseUrl}/internal/conversations/${conversationId}/agent-reply`,
       {
         method: 'POST',
         headers: {
@@ -104,7 +104,7 @@ export class BackendConversationsClient {
   }
 
   async ingestInboundMessage(payload) {
-    const response = await fetch(`${this.baseUrl}/conversations/internal/inbound`, {
+    const response = await fetch(`${this.baseUrl}/internal/conversations/inbound`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -124,7 +124,7 @@ export class BackendConversationsClient {
 
   async importChannelHistoryMessage(payload) {
     const response = await fetch(
-      `${this.baseUrl}/conversations/internal/history-message`,
+      `${this.baseUrl}/internal/conversations/history-message`,
       {
         method: 'POST',
         headers: {
@@ -146,7 +146,7 @@ export class BackendConversationsClient {
 
   async bootstrapChannelThread(payload) {
     const response = await fetch(
-      `${this.baseUrl}/conversations/internal/bootstrap-thread`,
+      `${this.baseUrl}/internal/conversations/bootstrap-thread`,
       {
         method: 'POST',
         headers: {
@@ -168,7 +168,7 @@ export class BackendConversationsClient {
 
   async syncOutboundStatus(payload) {
     const response = await fetch(
-      `${this.baseUrl}/conversations/internal/outbound-status`,
+      `${this.baseUrl}/internal/conversations/outbound-status`,
       {
         method: 'POST',
         headers: {

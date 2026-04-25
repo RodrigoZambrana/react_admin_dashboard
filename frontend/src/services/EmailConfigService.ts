@@ -1,5 +1,14 @@
 import ApiService from './ApiService'
 
+const channelControlBaseUrl = (
+  import.meta.env.VITE_CHAT_AGENT_API_URL ||
+  import.meta.env.VITE_AI_PLATFORM_URL ||
+  'http://localhost:4110'
+).replace(/\/$/, '')
+
+const channelControlUrl = (path: string) =>
+  `${channelControlBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
+
 export type EmailConfigPayload = {
   provider: 'SMTP' | 'SENDGRID' | 'DEV'
   fromAddress: string
@@ -77,14 +86,14 @@ export async function apiSendTestEmailConfig<T = { ok: boolean }, U = { to: stri
 
 export async function apiGetInboxEmailConfig<T = InboxEmailConfigResponse>() {
   return ApiService.fetchData<T>({
-    url: '/settings/email/inbox-config',
+    url: channelControlUrl('/settings/channels/email'),
     method: 'get',
   })
 }
 
 export async function apiUpdateInboxEmailConfig<T = InboxEmailConfigResponse, U = InboxEmailConfigPayload>(data: U) {
   return ApiService.fetchData<T>({
-    url: '/settings/email/inbox-config',
+    url: channelControlUrl('/settings/channels/email'),
     method: 'put',
     data,
   })

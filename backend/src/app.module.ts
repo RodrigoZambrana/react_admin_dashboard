@@ -33,8 +33,6 @@ import { QaModule } from './qa/qa.module'
 import { ConversationsModule } from './conversations/conversations.module'
 import { AiModule } from './ai/ai.module'
 import { KnowledgeModule } from './knowledge/knowledge.module'
-import { WhatsappQrModule } from './channels/whatsapp-qr/whatsapp-qr.module'
-import { MetaChannelModule } from './channels/meta/meta.module'
 import { GrowthModule } from './growth/growth.module'
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware'
@@ -84,8 +82,6 @@ import { ObservabilityService } from './common/observability/observability.servi
     ConversationsModule,
     AiModule,
     KnowledgeModule,
-    WhatsappQrModule,
-    MetaChannelModule,
     GrowthModule,
   ],
   providers: [

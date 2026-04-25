@@ -39,6 +39,17 @@ export class MetaAdapter {
       })
   }
 
+  async syncConfigFromControlPlane() {
+    if (!this.clients.channelControl) {
+      return this.getStatus()
+    }
+
+    const snapshot = await this.clients.channelControl.getChannelSnapshot('meta')
+    this.applyControlPlaneSnapshot(snapshot)
+    await this.publishConnectionState()
+    return this.getStatus()
+  }
+
   buildCoalescerKey({ normalized, projection }) {
     return [
       normalized?.channel || 'meta',
@@ -257,6 +268,62 @@ export class MetaAdapter {
     }
   }
 
+  applyControlPlaneSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object' || !snapshot.config) {
+      return
+    }
+
+    const config = snapshot.config
+    const secrets = snapshot.resolvedSecrets || {}
+
+    this.updateConfig({
+      enabled: config.enabled,
+      messengerEnabled: config.messengerEnabled,
+      instagramEnabled: config.instagramEnabled,
+      publicBaseUrl: config.publicBaseUrl,
+      pageId: config.pageId,
+      instagramBusinessAccountId: config.instagramBusinessAccountId,
+      appId: config.appId,
+      verifyToken: secrets.verifyToken,
+      appSecret: secrets.appSecret,
+      pageAccessToken: secrets.pageAccessToken,
+      messengerPageAccessToken: secrets.messengerPageAccessToken,
+      instagramAccessToken: secrets.instagramAccessToken,
+    })
+  }
+
+  async publishConnectionState() {
+    if (!this.clients.channelControl) {
+      return null
+    }
+
+    const status = this.getStatus()
+    const outboundReady =
+      Boolean(status?.messenger?.outboundReady) ||
+      Boolean(status?.instagram?.outboundReady)
+    const inboundReady = Boolean(status?.webhookInboundReady)
+    const health = status.enabled
+      ? inboundReady || outboundReady
+        ? 'healthy'
+        : 'degraded'
+      : 'offline'
+
+    return this.clients.channelControl.syncConnectionState('meta', {
+      driver: 'meta',
+      enabled: Boolean(status.enabled),
+      connectionState: status.enabled ? 'configured' : 'disabled',
+      health,
+      summary: status.enabled
+        ? outboundReady || inboundReady
+          ? 'Meta channel configured and partially ready.'
+          : 'Meta channel configured but missing readiness requirements.'
+        : 'Meta channel disabled.',
+      capabilities: status.capabilities || {},
+      payload: status,
+      observedAt: new Date().toISOString(),
+    })
+  }
+
   updateConfig(input = {}) {
     if (Object.prototype.hasOwnProperty.call(input, 'enabled')) {
       this.config.metaEnabled = input.enabled === true
@@ -299,7 +366,9 @@ export class MetaAdapter {
       this.config.instagramAccessToken = cleanString(input.instagramAccessToken)
     }
 
-    return this.getStatus()
+    const status = this.getStatus()
+    void this.publishConnectionState().catch(() => undefined)
+    return status
   }
 
   verifyWebhook(searchParams) {

@@ -1,5 +1,14 @@
 import ApiService from './ApiService'
 
+const channelControlBaseUrl = (
+    import.meta.env.VITE_CHAT_AGENT_API_URL ||
+    import.meta.env.VITE_AI_PLATFORM_URL ||
+    'http://localhost:4110'
+).replace(/\/$/, '')
+
+const channelControlUrl = (path: string) =>
+    `${channelControlBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
+
 export type MetaChannelConfig = {
     enabled: boolean
     messengerEnabled: boolean
@@ -84,7 +93,7 @@ export type MetaChannelOverview = {
 
 export const apiGetMetaChannelOverview = () =>
     ApiService.fetchData<MetaChannelOverview>({
-        url: '/settings/channels/meta',
+        url: channelControlUrl('/settings/channels/meta'),
         method: 'get',
     })
 
@@ -92,13 +101,13 @@ export const apiUpdateMetaChannelConfig = (
     data: Partial<MetaChannelConfig>,
 ) =>
     ApiService.fetchData<MetaChannelOverview>({
-        url: '/settings/channels/meta',
+        url: channelControlUrl('/settings/channels/meta'),
         method: 'put',
         data,
     })
 
 export const apiSyncMetaChannelConfig = () =>
     ApiService.fetchData<MetaChannelOverview>({
-        url: '/settings/channels/meta/sync',
+        url: channelControlUrl('/settings/channels/meta/sync'),
         method: 'post',
     })

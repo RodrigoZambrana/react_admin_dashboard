@@ -1,5 +1,14 @@
 import ApiService from './ApiService'
 
+const channelControlBaseUrl = (
+    import.meta.env.VITE_CHAT_AGENT_API_URL ||
+    import.meta.env.VITE_AI_PLATFORM_URL ||
+    'http://localhost:4110'
+).replace(/\/$/, '')
+
+const channelControlUrl = (path: string) =>
+    `${channelControlBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
+
 export type WhatsappQrChannelConfig = {
     enabled: boolean
     displayName: string | null
@@ -95,7 +104,7 @@ export type WhatsappQrBackfillResult = {
 
 export const apiGetWhatsappQrOverview = () =>
     ApiService.fetchData<WhatsappQrOverview>({
-        url: '/settings/channels/whatsapp-qr',
+        url: channelControlUrl('/settings/channels/whatsapp-qr'),
         method: 'get',
     })
 
@@ -103,43 +112,43 @@ export const apiUpdateWhatsappQrConfig = (
     data: Partial<WhatsappQrChannelConfig>,
 ) =>
     ApiService.fetchData<WhatsappQrOverview>({
-        url: '/settings/channels/whatsapp-qr',
+        url: channelControlUrl('/settings/channels/whatsapp-qr'),
         method: 'put',
         data,
     })
 
 export const apiStartWhatsappQrSession = () =>
     ApiService.fetchData<WhatsappQrOverview>({
-        url: '/settings/channels/whatsapp-qr/session/start',
+        url: channelControlUrl('/settings/channels/whatsapp-qr/session/start'),
         method: 'post',
     })
 
 export const apiStopWhatsappQrSession = () =>
     ApiService.fetchData<WhatsappQrOverview>({
-        url: '/settings/channels/whatsapp-qr/session/stop',
+        url: channelControlUrl('/settings/channels/whatsapp-qr/session/stop'),
         method: 'post',
     })
 
 export const apiReconnectWhatsappQrSession = () =>
     ApiService.fetchData<WhatsappQrOverview>({
-        url: '/settings/channels/whatsapp-qr/session/reconnect',
+        url: channelControlUrl('/settings/channels/whatsapp-qr/session/reconnect'),
         method: 'post',
     })
 
 export const apiResetWhatsappQrSession = () =>
     ApiService.fetchData<WhatsappQrOverview>({
-        url: '/settings/channels/whatsapp-qr/session/reset',
+        url: channelControlUrl('/settings/channels/whatsapp-qr/session/reset'),
         method: 'post',
     })
 
 export const apiSyncWhatsappQrConfig = () =>
     ApiService.fetchData<WhatsappQrOverview>({
-        url: '/settings/channels/whatsapp-qr/sync',
+        url: channelControlUrl('/settings/channels/whatsapp-qr/sync'),
         method: 'post',
     })
 
 export const apiBackfillWhatsappQrHistory = () =>
     ApiService.fetchData<WhatsappQrBackfillResult>({
-        url: '/settings/channels/whatsapp-qr/backfill',
+        url: channelControlUrl('/settings/channels/whatsapp-qr/backfill'),
         method: 'post',
     })

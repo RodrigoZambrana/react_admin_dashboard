@@ -1,7 +1,8 @@
 import http from 'node:http'
 
 import { AiAgentClient } from './clients/ai-agent.client.js'
-import { BackendConversationsClient } from './clients/backend-conversations.client.js'
+import { AiPlatformConversationsClient } from './clients/ai-platform-conversations.client.js'
+import { ChannelControlClient } from './clients/channel-control.client.js'
 import { EmailAdapter } from './channels/email/email.adapter.js'
 import { MetaAdapter } from './channels/meta/meta.adapter.js'
 import { WhatsappQrAdapter } from './channels/whatsapp-qr/whatsapp-qr.adapter.js'
@@ -12,7 +13,7 @@ const port = Number(process.env.PORT || 4200)
 const config = {
   service: 'channel-adapter',
   nodeEnv: process.env.NODE_ENV || 'development',
-  backendBaseUrl: process.env.BACKEND_BASE_URL || 'http://backend:4000/api',
+  aiPlatformBaseUrl: process.env.AI_PLATFORM_BASE_URL || 'http://ai-platform-backend:4110',
   aiAgentBaseUrl: process.env.AI_AGENT_BASE_URL || 'http://ai-agent-service:4100',
   redisUrl: process.env.REDIS_URL || 'redis://redis:6379',
   internalToken: process.env.AI_INTERNAL_TOKEN || 'local-ai-internal-token',
@@ -104,8 +105,9 @@ const readBody = async (req) => {
 }
 
 const clients = {
-  conversations: new BackendConversationsClient(config),
+  conversations: new AiPlatformConversationsClient(config),
   ai: new AiAgentClient(config),
+  channelControl: new ChannelControlClient(config),
 }
 
 const webchatAdapter = new WebchatAdapter(clients)
@@ -113,6 +115,12 @@ const emailAdapter = new EmailAdapter(clients)
 const metaAdapter = new MetaAdapter(clients, config)
 const whatsappQrAdapter = new WhatsappQrAdapter(clients, config)
 
+await metaAdapter.syncConfigFromControlPlane().catch((error) => {
+  console.warn('[channel-adapter] meta control-plane sync failed during bootstrap', error)
+})
+await whatsappQrAdapter.syncConfigFromControlPlane().catch((error) => {
+  console.warn('[channel-adapter] whatsapp-qr control-plane sync failed during bootstrap', error)
+})
 await whatsappQrAdapter.init()
 
 const requireInternalToken = (req, res) => {
@@ -162,6 +170,7 @@ const server = http.createServer(async (req, res) => {
       if (!requireInternalToken(req, res)) {
         return
       }
+      await whatsappQrAdapter.syncConfigFromControlPlane().catch(() => undefined)
       json(res, 200, whatsappQrAdapter.getStatus())
       return
     }
@@ -170,6 +179,7 @@ const server = http.createServer(async (req, res) => {
       if (!requireInternalToken(req, res)) {
         return
       }
+      await metaAdapter.syncConfigFromControlPlane().catch(() => undefined)
       json(res, 200, metaAdapter.getStatus())
       return
     }
@@ -178,6 +188,7 @@ const server = http.createServer(async (req, res) => {
       if (!requireInternalToken(req, res)) {
         return
       }
+      await metaAdapter.syncConfigFromControlPlane().catch(() => undefined)
       json(res, 200, metaAdapter.getEffectiveConfig())
       return
     }

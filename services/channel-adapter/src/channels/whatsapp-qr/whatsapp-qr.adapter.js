@@ -579,6 +579,17 @@ export class WhatsappQrAdapter {
     this.lastBackfillResult = null
   }
 
+  async syncConfigFromControlPlane() {
+    if (!this.clients.channelControl) {
+      return this.getStatus()
+    }
+
+    const snapshot = await this.clients.channelControl.getChannelSnapshot('whatsapp-qr')
+    await this.applyControlPlaneSnapshot(snapshot)
+    await this.publishConnectionState()
+    return this.getStatus()
+  }
+
   buildLiveInboundCoalescerKey({ projection, externalUserId, remoteJid }) {
     return [
       'whatsapp',
@@ -699,6 +710,7 @@ export class WhatsappQrAdapter {
     if (this.runtimeConfig.enabled && this.runtimeConfig.autoStart) {
       await this.startSession()
     }
+    await this.publishConnectionState().catch(() => undefined)
   }
 
   getStatus() {
@@ -718,6 +730,63 @@ export class WhatsappQrAdapter {
         lastBackfillResult: this.lastBackfillResult,
       },
     }
+  }
+
+  async applyControlPlaneSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object' || !snapshot.config) {
+      return this.getStatus()
+    }
+
+    const config = snapshot.config
+
+    return this.updateConfig({
+      enabled: config.enabled,
+      displayName: config.displayName,
+      address: config.address,
+      autoStart: config.autoStart,
+      typingIndicatorEnabled: config.typingIndicatorEnabled,
+      presenceIndicatorEnabled: config.presenceIndicatorEnabled,
+      humanDelayEnabled: config.humanDelayEnabled,
+      minReplyDelayMs: config.minReplyDelayMs,
+      maxReplyDelayMs: config.maxReplyDelayMs,
+      maxOutboundPerHour: config.maxOutboundPerHour,
+      maxOutboundPerDay: config.maxOutboundPerDay,
+      reactionsEnabled: config.reactionsEnabled,
+      readReceiptsEnabled: config.readReceiptsEnabled,
+      allowProactiveOutbound: config.allowProactiveOutbound,
+      quietHoursStart: config.quietHoursStart,
+      quietHoursEnd: config.quietHoursEnd,
+    })
+  }
+
+  async publishConnectionState() {
+    if (!this.clients.channelControl) {
+      return null
+    }
+
+    const status = this.getStatus()
+    const state = String(status?.state || 'idle')
+    const health =
+      state === 'connected'
+        ? 'healthy'
+        : state === 'connecting' || state === 'qr_ready' || state === 'stopped'
+          ? 'degraded'
+          : this.runtimeConfig.enabled
+            ? 'degraded'
+            : 'offline'
+
+    return this.clients.channelControl.syncConnectionState('whatsapp-qr', {
+      driver: 'whatsapp_qr',
+      enabled: Boolean(status.enabled),
+      connectionState: state,
+      health,
+      summary: status.enabled
+        ? `WhatsApp QR state: ${state}.`
+        : 'WhatsApp QR channel disabled.',
+      capabilities: status.capabilities || {},
+      payload: status,
+      observedAt: new Date().toISOString(),
+    })
   }
 
   async updateConfig(input) {
@@ -775,7 +844,9 @@ export class WhatsappQrAdapter {
       await this.startSession()
     }
 
-    return this.getStatus()
+    const status = this.getStatus()
+    await this.publishConnectionState().catch(() => undefined)
+    return status
   }
 
   async startSession() {
@@ -791,7 +862,9 @@ export class WhatsappQrAdapter {
     this.manualStop = false
     this.clearReconnectTimer()
     await this.startSocket()
-    return this.getStatus()
+    const status = this.getStatus()
+    await this.publishConnectionState().catch(() => undefined)
+    return status
   }
 
   async stopSession(options = {}) {
@@ -820,14 +893,18 @@ export class WhatsappQrAdapter {
       this.status.connectedAt = null
     }
 
-    return this.getStatus()
+    const status = this.getStatus()
+    await this.publishConnectionState().catch(() => undefined)
+    return status
   }
 
   async reconnectSession() {
     await this.stopSession({ preserveAuth: true })
     this.manualStop = false
     await this.startSession()
-    return this.getStatus()
+    const status = this.getStatus()
+    await this.publishConnectionState().catch(() => undefined)
+    return status
   }
 
   async resetSession() {
@@ -835,7 +912,9 @@ export class WhatsappQrAdapter {
     if (this.runtimeConfig.enabled) {
       await this.startSession()
     }
-    return this.getStatus()
+    const status = this.getStatus()
+    await this.publishConnectionState().catch(() => undefined)
+    return status
   }
 
   async sendOutbound(payload) {
