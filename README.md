@@ -199,18 +199,18 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
    2. Arranca primero la base externa y después el stack manualmente:
       ```bash
       docker compose -f deploy/docker-compose.postgres-local.yml up -d
-      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.ai-agent.yml --profile ai up --build
+      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.channel-adapter.yml --profile ai up --build
       ```
       Agrega `-d` si querés dejar los contenedores en segundo plano.
    3. Con los servicios en marcha, crea únicamente el superadmin de desarrollo usando las credenciales definidas en `SEED_SUPERADMIN_*`:
       ```bash
-      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.ai-agent.yml --profile ai exec backend npx --yes prisma db seed
+      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.channel-adapter.yml --profile ai exec backend npx --yes prisma db seed
       ```
       Asegurate de que el contenedor del backend muestre `Nest application successfully started` en los logs (`docker compose logs backend -f`) antes de ejecutar el seed para evitar que falten binarios.
       Si `ENABLE_DEMO_SEED=false`, el comando solo genera la cuenta superadmin y no agrega datos de ejemplo.
       También podés recrear (o forzar) el superadmin sin ejecutar el seed completo:
       ```bash
-      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.ai-agent.yml --profile ai exec backend \
+      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.channel-adapter.yml --profile ai exec backend \
         env DEFAULT_ADMIN_EMAIL=admin@example.com \
             DEFAULT_ADMIN_PASSWORD=Admin@123! \
             DEFAULT_ADMIN_NAME="Admin Local" \
@@ -218,19 +218,19 @@ Los environments de testing y prod en GitHub Actions deben definir los secretos 
       ```
    4. Para reiniciar el proceso desde cero (eliminando contenedores, volúmenes y volver a levantar todo), primero detén el stack y borra los recursos existentes:
       ```bash
-      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.ai-agent.yml --profile ai down --remove-orphans
+      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.channel-adapter.yml --profile ai down --remove-orphans
       docker compose -f deploy/docker-compose.postgres-local.yml down --volumes --remove-orphans
       docker volume rm postgres-local 2>/dev/null || true
       ```
       Luego vuelve a repetir los pasos 1 a 3.
    5. Para automatizar el teardown completo, recrear el stack, ejecutar el seed y seguir los logs en una sola secuencia (validando antes que los `.env` estén completos):
       ```bash
-      make env-check && make dev-down && make postgres-down && make postgres-up && make dev-up && docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.ai-agent.yml --profile ai exec backend npx --yes prisma db seed && make dev-logs
+      make env-check && make dev-down && make postgres-down && make postgres-up && make dev-up && docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.channel-adapter.yml --profile ai exec backend npx --yes prisma db seed && make dev-logs
       ```
       Presioná `Ctrl+C` cuando quieras dejar de seguir los logs.
    6. Si necesitás inspeccionar o editar los datos con Prisma Studio:
       ```bash
-      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.ai-agent.yml --profile ai exec backend npx prisma studio --host 0.0.0.0 --port 5555 --browser none
+      docker compose -f deploy/docker-compose.dev.yml -f deploy/docker-compose.channel-adapter.yml --profile ai exec backend npx prisma studio --host 0.0.0.0 --port 5555 --browser none
       ```
       La interfaz queda disponible en `http://localhost:5555`. Asegurate de tener publicado el puerto `5555` en el servicio `backend` (temporalmente, si es necesario) y presioná `Ctrl+C` para cerrarla cuando termines.
 

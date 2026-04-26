@@ -125,40 +125,83 @@ describe('AiRuntimeDiagnosticsService', () => {
     );
   });
 
-  it('treats mock runtime as fallback even when the provider is registered', async () => {
+  it('reports a legacy mock resource as ignored and still uses the bootstrap OpenAI runtime', async () => {
     const service = new AiRuntimeDiagnosticsService(
       {
         getAiGatewayConfig: jest.fn(async () => ({
-          provider: 'mock',
-          model: 'mock-rule-engine',
-          timeoutMs: 1000,
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          timeoutMs: 7000,
           credentials: {
-            strategy: 'none',
-            envKey: null,
-            value: null,
+            strategy: 'env',
+            envKey: 'OPENAI_API_KEY',
+            value: 'secret-token',
           },
           providerOptions: {},
           source: {
-            type: 'managed',
-            key: 'ai_runtime',
-            version: 2,
+            type: 'bootstrap',
+            reason: 'legacy_mock_resource_ignored',
           },
         })),
       } as any,
       {
         listProviderNames: jest.fn(() => ['mock', 'openai']),
-        resolve: jest.fn(() => ({ providerName: 'mock' })),
+        resolve: jest.fn(() => ({ providerName: 'openai' })),
       } as any,
     );
 
     await expect(service.getDiagnostics()).resolves.toEqual(
       expect.objectContaining({
-        status: 'fallback',
+        status: 'ready',
         canUseRuntime: true,
+        exploratoryReady: true,
+        issues: expect.arrayContaining([
+          expect.objectContaining({
+            code: 'legacy_mock_resource_ignored',
+            severity: 'warning',
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it('reports invalid diagnostics when the bootstrap runtime has no credential available', async () => {
+    const service = new AiRuntimeDiagnosticsService(
+      {
+        getAiGatewayConfig: jest.fn(async () => ({
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          timeoutMs: 7000,
+          credentials: {
+            strategy: 'env',
+            envKey: 'OPENAI_API_KEY',
+            value: null,
+          },
+          providerOptions: {},
+          source: {
+            type: 'bootstrap',
+            reason: 'missing_openai_credentials',
+          },
+        })),
+      } as any,
+      {
+        listProviderNames: jest.fn(() => ['mock', 'openai']),
+        resolve: jest.fn(() => ({ providerName: 'openai' })),
+      } as any,
+    );
+
+    await expect(service.getDiagnostics()).resolves.toEqual(
+      expect.objectContaining({
+        status: 'invalid',
+        canUseRuntime: false,
         exploratoryReady: false,
         issues: expect.arrayContaining([
           expect.objectContaining({
-            code: 'mock_runtime_active',
+            code: 'missing_credentials',
+            severity: 'error',
+          }),
+          expect.objectContaining({
+            code: 'missing_openai_credentials',
             severity: 'warning',
           }),
         ]),

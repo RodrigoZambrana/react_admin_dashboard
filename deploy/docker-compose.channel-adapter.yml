@@ -1,0 +1,36 @@
+services:
+  channel-adapter:
+    profiles: ["ai"]
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-channel-adapter
+    build:
+      context: ../services
+      dockerfile: channel-adapter/Dockerfile
+    env_file:
+      - ./env/channel-adapter.dev.env
+      - path: ./env/.env.channel-adapter.dev.local
+        required: false
+    environment:
+      PORT: ${CHANNEL_ADAPTER_PORT:-4200}
+      NODE_ENV: ${NODE_ENV:-development}
+      AI_INTERNAL_TOKEN: ${AI_INTERNAL_TOKEN:-local-ai-internal-token}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+      AI_PLATFORM_BASE_URL: ${AI_PLATFORM_BASE_URL:-http://host.docker.internal:4110}
+      WHATSAPP_QR_RUNTIME_DIR: /app/runtime/whatsapp-qr
+    depends_on:
+      - backend
+      - redis
+    ports:
+      - "${CHANNEL_ADAPTER_PORT:-4200}:4200"
+    volumes:
+      - type: bind
+        source: ${STACK_RUNTIME_ROOT:-../.docker/admin-dashboard-dev}/channel-adapter/whatsapp-qr
+        target: /app/runtime/whatsapp-qr
+
+  redis:
+    profiles: ["ai", "ai-cache"]
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-redis
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"

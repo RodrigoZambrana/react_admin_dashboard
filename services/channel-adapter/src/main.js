@@ -1,6 +1,6 @@
 import http from 'node:http'
 
-import { AiAgentClient } from './clients/ai-agent.client.js'
+import { AiPlatformAgentClient } from './clients/ai-platform-agent.client.js'
 import { AiPlatformConversationsClient } from './clients/ai-platform-conversations.client.js'
 import { ChannelControlClient } from './clients/channel-control.client.js'
 import { EmailAdapter } from './channels/email/email.adapter.js'
@@ -14,7 +14,6 @@ const config = {
   service: 'channel-adapter',
   nodeEnv: process.env.NODE_ENV || 'development',
   aiPlatformBaseUrl: process.env.AI_PLATFORM_BASE_URL || 'http://ai-platform-backend:4110',
-  aiAgentBaseUrl: process.env.AI_AGENT_BASE_URL || 'http://ai-agent-service:4100',
   redisUrl: process.env.REDIS_URL || 'redis://redis:6379',
   internalToken: process.env.AI_INTERNAL_TOKEN || 'local-ai-internal-token',
   metaVerifyToken: process.env.META_VERIFY_TOKEN || process.env.VERIFY_TOKEN || '',
@@ -106,7 +105,7 @@ const readBody = async (req) => {
 
 const clients = {
   conversations: new AiPlatformConversationsClient(config),
-  ai: new AiAgentClient(config),
+  ai: new AiPlatformAgentClient(config),
   channelControl: new ChannelControlClient(config),
 }
 

@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 
 import { CriticalConfigService } from '../critical-config/critical-config.service';
 import { KnowledgeMetadataService } from '../knowledge-metadata/knowledge-metadata.service';
@@ -6,6 +7,7 @@ import { PromptService } from '../prompt/prompt.service';
 import { ResponseFallbackService } from '../response-fallback/response-fallback.service';
 import { TemporalLocaleService } from '../temporal/temporal-locale.service';
 import { AiRuntimeDiagnosticsService } from '../runtime-config/ai-runtime-diagnostics.service';
+import { AI_RUNTIME_OPENAI_SECRET_KEY } from '../runtime-config/ai-runtime-secrets';
 import { AiPromptVisibilityService } from '../ai-gateway/ai-prompt-visibility.service';
 import { TenantRuntimeContextService } from '../persistence/tenant/tenant-runtime-context.service';
 import { CreateCriticalConfigVersionDto } from './dto/create-critical-config-version.dto';
@@ -14,6 +16,8 @@ import { CreatePromptVersionDto } from './dto/create-prompt-version.dto';
 import { CreateResponseFallbackVersionDto } from './dto/create-response-fallback-version.dto';
 import { CreateTemporalLocaleVersionDto } from './dto/create-temporal-locale-version.dto';
 import { ActivateManagedResourceVersionDto } from './dto/activate-managed-resource-version.dto';
+import { UpdateAiRuntimeSecureCredentialDto } from './dto/update-ai-runtime-secure-credential.dto';
+import { SecureConfigService } from '../security/secure-config.service';
 
 @Controller('admin/runtime-resources')
 export class RuntimeResourcesAdminController {
@@ -26,6 +30,8 @@ export class RuntimeResourcesAdminController {
     private readonly aiRuntimeDiagnosticsService: AiRuntimeDiagnosticsService,
     private readonly aiPromptVisibilityService: AiPromptVisibilityService,
     private readonly tenantRuntimeContextService: TenantRuntimeContextService,
+    private readonly secureConfigService: SecureConfigService,
+    private readonly configService: ConfigService,
   ) {}
 
   @Get('prompts')
@@ -110,6 +116,38 @@ export class RuntimeResourcesAdminController {
   @Get('critical-configs/ai-runtime/diagnostics')
   getAiRuntimeDiagnostics() {
     return this.aiRuntimeDiagnosticsService.getDiagnostics();
+  }
+
+  @Get('critical-configs/ai-runtime/secure-credential')
+  async getAiRuntimeSecureCredential() {
+    const managed = await this.criticalConfigService.getAiRuntimeConfig();
+    const envKey = managed?.credentials?.envKey?.trim() || 'OPENAI_API_KEY';
+    const stored = await this.secureConfigService.getString(
+      AI_RUNTIME_OPENAI_SECRET_KEY,
+    );
+    const envValue = envKey ? this.configService.get<string>(envKey) : null;
+
+    return {
+      key: AI_RUNTIME_OPENAI_SECRET_KEY,
+      envKey,
+      source: stored?.value
+        ? 'database'
+        : envValue?.trim()
+          ? 'environment'
+          : 'missing',
+      storedSecret: Boolean(stored?.value),
+      envPresent: Boolean(envValue?.trim()),
+      updatedAt: stored?.updatedAt?.toISOString() ?? null,
+    };
+  }
+
+  @Put('critical-configs/ai-runtime/secure-credential')
+  async updateAiRuntimeSecureCredential(
+    @Body() body: UpdateAiRuntimeSecureCredentialDto,
+  ) {
+    const value = body.value?.trim() || null;
+    await this.secureConfigService.setString(AI_RUNTIME_OPENAI_SECRET_KEY, value);
+    return this.getAiRuntimeSecureCredential();
   }
 
   @Post('critical-configs')

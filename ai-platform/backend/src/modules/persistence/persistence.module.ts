@@ -11,6 +11,7 @@ import { ChannelMessageRecordRepository } from './repositories/channel-message-r
 import { ChannelSecretRepository } from './repositories/channel-secret.repository';
 import { ChatLogRepository } from './repositories/chat-log.repository';
 import { ConversationRepository } from './repositories/conversation.repository';
+import { ConversationOperatorStateRepository } from './repositories/conversation-operator-state.repository';
 import { ConversationStateRepository } from './repositories/conversation-state.repository';
 import { CriticalConfigVersionRepository } from './repositories/critical-config-version.repository';
 import { DocumentChunkRepository } from './repositories/document-chunk.repository';
@@ -48,6 +49,7 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     ChannelSecretRepository,
     InfrastructureRepository,
     ConversationRepository,
+    ConversationOperatorStateRepository,
     ConversationStateRepository,
     CriticalConfigVersionRepository,
     DocumentRepository,
@@ -77,6 +79,7 @@ import { TenantRuntimeContextService } from './tenant/tenant-runtime-context.ser
     ChannelSecretRepository,
     InfrastructureRepository,
     ConversationRepository,
+    ConversationOperatorStateRepository,
     ConversationStateRepository,
     CriticalConfigVersionRepository,
     DocumentRepository,

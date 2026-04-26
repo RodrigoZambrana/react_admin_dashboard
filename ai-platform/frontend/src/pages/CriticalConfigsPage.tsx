@@ -4,8 +4,10 @@ import {
   activateCriticalConfigVersion,
   createCriticalConfigVersion,
   getAiRuntimeDiagnostics,
+  getAiRuntimeSecureCredential,
   listActiveCriticalConfigs,
   listCriticalConfigVersions,
+  updateAiRuntimeSecureCredential,
 } from '../api';
 import { ResourceVersionTable } from '../components/resources/ResourceVersionTable';
 import { EmptyState } from '../components/shared/EmptyState';
@@ -15,6 +17,7 @@ import { StatusBadge } from '../components/shared/StatusBadge';
 import type {
   AiRuntimeDiagnostics,
   AiRuntimeResource,
+  AiRuntimeSecureCredentialView,
   AsyncIntakeRuntimeResource,
   CriticalConfigVersion,
   LearningRuntimeResource,
@@ -192,8 +195,12 @@ export function CriticalConfigsPage() {
   const [form, setForm] = useState<CriticalConfigFormState>(buildConfigForm());
   const [aiRuntimeDiagnostics, setAiRuntimeDiagnostics] =
     useState<AiRuntimeDiagnostics | null>(null);
+  const [aiRuntimeSecureCredential, setAiRuntimeSecureCredential] =
+    useState<AiRuntimeSecureCredentialView | null>(null);
+  const [aiRuntimeSecureSecret, setAiRuntimeSecureSecret] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingSecureCredential, setSavingSecureCredential] = useState(false);
   const [activatingId, setActivatingId] = useState<string>();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -211,14 +218,16 @@ export function CriticalConfigsPage() {
     try {
       setLoading(true);
       setError(null);
-      const [versionData, activeData, diagnostics] = await Promise.all([
+      const [versionData, activeData, diagnostics, secureCredential] = await Promise.all([
         listCriticalConfigVersions(),
         listActiveCriticalConfigs(),
         getAiRuntimeDiagnostics(),
+        getAiRuntimeSecureCredential(),
       ]);
       setVersions(versionData);
       setActiveVersions(activeData);
       setAiRuntimeDiagnostics(diagnostics);
+      setAiRuntimeSecureCredential(secureCredential);
       const nextSelected = nextSelectedId ?? selectedId ?? versionData[0]?.id;
       setSelectedId(nextSelected);
       const nextVersion = versionData.find((version) => version.id === nextSelected);
@@ -311,6 +320,45 @@ export function CriticalConfigsPage() {
         ...patch,
       },
     }));
+  };
+
+  const saveAiRuntimeSecureCredential = async () => {
+    const value = aiRuntimeSecureSecret.trim();
+
+    if (!value) {
+      setError('Enter an OpenAI API key before saving the secure credential.');
+      return;
+    }
+
+    try {
+      setSavingSecureCredential(true);
+      setError(null);
+      setNotice(null);
+      const updated = await updateAiRuntimeSecureCredential({ value });
+      setAiRuntimeSecureCredential(updated);
+      setAiRuntimeSecureSecret('');
+      setNotice('AI runtime secure credential stored.');
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setSavingSecureCredential(false);
+    }
+  };
+
+  const clearAiRuntimeSecureCredential = async () => {
+    try {
+      setSavingSecureCredential(true);
+      setError(null);
+      setNotice(null);
+      const updated = await updateAiRuntimeSecureCredential({ value: null });
+      setAiRuntimeSecureCredential(updated);
+      setAiRuntimeSecureSecret('');
+      setNotice('AI runtime secure credential cleared.');
+    } catch (requestError) {
+      setError((requestError as Error).message);
+    } finally {
+      setSavingSecureCredential(false);
+    }
   };
 
   return (
@@ -616,48 +664,6 @@ export function CriticalConfigsPage() {
                       </div>
                       <div className="col-md-4">
                         <div className="mb-3">
-                          <label className="form-label">Credential strategy</label>
-                          <select
-                            className="form-select"
-                            value={form.aiRuntimeDraft.credentials.strategy}
-                            onChange={(event) =>
-                              updateAiRuntimeDraft({
-                                credentials: {
-                                  strategy: event.target.value as 'none' | 'env',
-                                  envKey:
-                                    event.target.value === 'env'
-                                      ? form.aiRuntimeDraft.credentials.envKey ??
-                                        'OPENAI_API_KEY'
-                                      : null,
-                                },
-                              })
-                            }
-                          >
-                            <option value="env">env</option>
-                            <option value="none">none</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="mb-3">
-                          <label className="form-label">Credential env key</label>
-                          <input
-                            className="form-control"
-                            value={form.aiRuntimeDraft.credentials.envKey ?? ''}
-                            onChange={(event) =>
-                              updateAiRuntimeDraft({
-                                credentials: {
-                                  ...form.aiRuntimeDraft.credentials,
-                                  envKey: event.target.value || null,
-                                },
-                              })
-                            }
-                            disabled={form.aiRuntimeDraft.credentials.strategy === 'none'}
-                          />
-                        </div>
-                      </div>
-                      <div className="col-md-4">
-                        <div className="mb-3">
                           <label className="form-label">Base URL</label>
                           <input
                             className="form-control"
@@ -679,12 +685,18 @@ export function CriticalConfigsPage() {
                         </div>
                       </div>
                       <div className="col-12">
+                        <div className="alert alert-light custom-react-alert mb-3">
+                          The AI runtime credential is managed separately as a secure
+                          secret. This config only controls provider, model and timeout.
+                        </div>
+                      </div>
+                      <div className="col-12">
                         <div className="alert alert-info custom-react-alert mb-3">
                           Active runtime status: {aiRuntimeDiagnostics?.status ?? 'unknown'}.
                           {' '}Exploratory mode:{' '}
                           {aiRuntimeDiagnostics?.exploratoryReady ? 'ready' : 'not ready'}.
-                          {' '}Configured env key:{' '}
-                          {form.aiRuntimeDraft.credentials.envKey ?? 'OPENAI_API_KEY'}.
+                          {' '}Secure secret source:{' '}
+                          {aiRuntimeSecureCredential?.source ?? 'unknown'}.
                         </div>
                       </div>
                     </>
@@ -717,6 +729,135 @@ export function CriticalConfigsPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="row">
+        <div className="col-12 d-flex">
+          <div className="card flex-fill">
+            <div className="card-header d-flex align-items-center justify-content-between">
+              <div>
+                <h5 className="mb-1">AI runtime secure credential</h5>
+                <p className="mb-0 text-muted">
+                  Encrypted secure storage is the primary source. Environment fallback is
+                  only used when the database secret is absent.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => void refresh(selectedVersion?.id)}
+                disabled={loading || savingSecureCredential}
+              >
+                <i className="ti ti-refresh me-1"></i>Refresh
+              </button>
+            </div>
+            <div className="card-body">
+              {aiRuntimeSecureCredential ? (
+                <div className="row g-3 align-items-end">
+                  <div className="col-md-4">
+                    <div className="react-resource-summary h-100">
+                      <h6>Secret status</h6>
+                      <p className="text-muted mb-3">
+                        {aiRuntimeSecureCredential.source === 'database'
+                          ? 'Resolved from secure storage.'
+                          : aiRuntimeSecureCredential.source === 'environment'
+                            ? 'Resolved from environment fallback.'
+                            : 'No secure secret is configured yet.'}
+                      </p>
+                      <div className="react-meta-list">
+                        <div>
+                          <span className="react-meta-label">Secure key</span>
+                          <strong>{aiRuntimeSecureCredential.key}</strong>
+                        </div>
+                        <div>
+                          <span className="react-meta-label">Env fallback</span>
+                          <strong>{aiRuntimeSecureCredential.envKey ?? 'OPENAI_API_KEY'}</strong>
+                        </div>
+                        <div>
+                          <span className="react-meta-label">Stored secret</span>
+                          <strong>{aiRuntimeSecureCredential.storedSecret ? 'Yes' : 'No'}</strong>
+                        </div>
+                        <div>
+                          <span className="react-meta-label">Environment present</span>
+                          <strong>{aiRuntimeSecureCredential.envPresent ? 'Yes' : 'No'}</strong>
+                        </div>
+                        <div>
+                          <span className="react-meta-label">Updated at</span>
+                          <strong>
+                            {aiRuntimeSecureCredential.updatedAt
+                              ? formatDateTime(aiRuntimeSecureCredential.updatedAt)
+                              : 'Never'}
+                          </strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="col-md-5">
+                    <div className="mb-3">
+                      <label className="form-label">OpenAI API key</label>
+                      <input
+                        className="form-control"
+                        type="password"
+                        value={aiRuntimeSecureSecret}
+                        onChange={(event) => setAiRuntimeSecureSecret(event.target.value)}
+                        placeholder={
+                          aiRuntimeSecureCredential.storedSecret
+                            ? 'Replace stored secret'
+                            : 'Paste secure secret'
+                        }
+                        autoComplete="off"
+                      />
+                      <div className="form-text">
+                        This value is encrypted before persistence. Leaving it blank does
+                        not change the current stored secret.
+                      </div>
+                    </div>
+                    <div className="alert alert-info custom-react-alert mb-0">
+                      {aiRuntimeSecureCredential.source === 'database'
+                        ? 'The AI runtime currently resolves the credential from secure storage.'
+                        : aiRuntimeSecureCredential.source === 'environment'
+                          ? 'The runtime is still relying on the environment fallback. Saving a secret here moves it to secure storage.'
+                          : 'No runtime credential is available. Save a secret here or configure the environment fallback to restore readiness.'}
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="d-grid gap-2">
+                      <button
+                        type="button"
+                        className="btn btn-dark"
+                        onClick={() => void saveAiRuntimeSecureCredential()}
+                        disabled={savingSecureCredential || !aiRuntimeSecureSecret.trim()}
+                      >
+                        <i className="ti ti-device-floppy me-1"></i>
+                        {savingSecureCredential ? 'Saving...' : 'Save secure secret'}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline-danger"
+                        onClick={() => void clearAiRuntimeSecureCredential()}
+                        disabled={savingSecureCredential || !aiRuntimeSecureCredential.storedSecret}
+                      >
+                        Clear stored secret
+                      </button>
+                    </div>
+                  </div>
+                  <div className="col-12">
+                    <div className="alert alert-warning custom-react-alert mb-0">
+                      {aiRuntimeSecureCredential.source === 'missing'
+                        ? 'No secure secret or environment fallback is available. The AI runtime will remain invalid until one is configured.'
+                        : 'The secure credential is managed independently from the governed critical config version.'}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <EmptyState
+                  title="Secure credential unavailable"
+                  body="Refresh the page or verify the admin backend to manage the AI runtime secret explicitly."
+                />
+              )}
             </div>
           </div>
         </div>

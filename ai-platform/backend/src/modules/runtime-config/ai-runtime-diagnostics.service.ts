@@ -25,21 +25,20 @@ export class AiRuntimeDiagnosticsService {
         code:
           config.source.reason === 'env_provider_override'
             ? 'using_env_override'
-            : 'using_bootstrap_default',
+            : config.source.reason === 'legacy_mock_resource_ignored'
+              ? 'legacy_mock_resource_ignored'
+              : config.source.reason === 'missing_openai_credentials'
+                ? 'missing_openai_credentials'
+                : 'using_bootstrap_default',
         severity: 'warning',
         message:
           config.source.reason === 'env_provider_override'
             ? 'No governed ai_runtime resource is active. The platform is using env bootstrap overrides for provider resolution.'
-            : 'No governed ai_runtime resource is active. The platform is using exploratory OpenAI defaults from OPENAI_API_KEY.',
-      });
-    }
-
-    if (config.source.type === 'fallback') {
-      issues.push({
-        code: 'missing_managed_resource',
-        severity: 'warning',
-        message:
-          'No governed ai_runtime resource is active and no exploratory OpenAI bootstrap is available. The platform is using the mock fallback runtime.',
+            : config.source.reason === 'legacy_mock_resource_ignored'
+              ? 'The active ai_runtime resource still points at the legacy mock provider. The bootstrap OpenAI runtime is taking precedence.'
+              : config.source.reason === 'missing_openai_credentials'
+                ? 'No governed ai_runtime resource is active and no OpenAI credential is currently available in secure storage or env.'
+                : 'No governed ai_runtime resource is active. The platform is using exploratory OpenAI defaults from OPENAI_API_KEY.',
       });
     }
 
@@ -72,23 +71,15 @@ export class AiRuntimeDiagnosticsService {
       issues.push({
         code: 'missing_credentials',
         severity: 'error',
-        message: `The configured env key "${config.credentials.envKey ?? 'unknown'}" is not currently resolved in runtime.`,
-      });
-    }
-
-    if (config.provider === 'mock') {
-      issues.push({
-        code: 'mock_runtime_active',
-        severity: 'warning',
-        message:
-          'The active AI runtime is using the mock provider. Real exploratory AI is not enabled.',
+        message: `The configured AI credential key "${config.credentials.envKey ?? 'unknown'}" is not currently resolved in secure storage or env.`,
       });
     }
 
     const hasErrors = issues.some((issue) => issue.severity === 'error');
-    const canUseRuntime = providerRegistered && !hasErrors;
-    const exploratoryReady = canUseRuntime && config.provider !== 'mock';
-    const status = hasErrors ? 'invalid' : exploratoryReady ? 'ready' : 'fallback';
+    const canUseRuntime =
+      providerRegistered && !hasErrors && Boolean(config.credentials.value);
+    const exploratoryReady = canUseRuntime;
+    const status = hasErrors ? 'invalid' : 'ready';
 
     return {
       provider: config.provider,

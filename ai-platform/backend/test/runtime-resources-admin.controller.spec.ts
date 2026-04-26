@@ -5,6 +5,11 @@ describe('RuntimeResourcesAdminController', () => {
     const criticalConfigService = {
       listConfigs: jest.fn(async () => ['config-version']),
       listActiveConfigs: jest.fn(async () => ['config-active']),
+      getAiRuntimeConfig: jest.fn(async () => ({
+        credentials: {
+          envKey: 'OPENAI_API_KEY',
+        },
+      })),
       createVersion: jest.fn(async () => ({ id: 'config-created' })),
       activateVersion: jest.fn(async () => ({ id: 'config-activated' })),
     };
@@ -19,6 +24,18 @@ describe('RuntimeResourcesAdminController', () => {
       listActiveCatalogs: jest.fn(async () => ['fallback-active']),
       createVersion: jest.fn(async () => ({ id: 'fallback-created' })),
       activateVersion: jest.fn(async () => ({ id: 'fallback-activated' })),
+    };
+    const secureConfigService = {
+      getString: jest.fn(async () => ({
+        value: 'stored-openai-key',
+        updatedAt: new Date('2026-04-26T12:00:00.000Z'),
+      })),
+      setString: jest.fn(async () => undefined),
+    };
+    const configService = {
+      get: jest.fn((key: string) =>
+        key === 'OPENAI_API_KEY' ? 'fallback-openai-key' : undefined,
+      ),
     };
     const controller = new RuntimeResourcesAdminController(
       {
@@ -57,6 +74,8 @@ describe('RuntimeResourcesAdminController', () => {
           matchesDefault: true,
         })),
       } as any,
+      secureConfigService as any,
+      configService as any,
     );
 
     await expect(controller.listCriticalConfigVersions('learning')).resolves.toEqual([
@@ -67,6 +86,14 @@ describe('RuntimeResourcesAdminController', () => {
     ]);
     await expect(controller.getAiRuntimeDiagnostics()).resolves.toEqual({
       status: 'ready',
+    });
+    await expect(controller.getAiRuntimeSecureCredential()).resolves.toEqual({
+      key: 'ai_runtime.openai_api_key',
+      envKey: 'OPENAI_API_KEY',
+      source: 'database',
+      storedSecret: true,
+      envPresent: true,
+      updatedAt: '2026-04-26T12:00:00.000Z',
     });
     await expect(
       controller.listKnowledgeMetadataVersions('default'),
@@ -148,5 +175,21 @@ describe('RuntimeResourcesAdminController', () => {
         createdBy: 'admin-ui',
       }),
     ).resolves.toEqual({ id: 'fallback-activated' });
+    await expect(
+      controller.updateAiRuntimeSecureCredential({
+        value: 'new-openai-key',
+      } as any),
+    ).resolves.toEqual({
+      key: 'ai_runtime.openai_api_key',
+      envKey: 'OPENAI_API_KEY',
+      source: 'database',
+      storedSecret: true,
+      envPresent: true,
+      updatedAt: '2026-04-26T12:00:00.000Z',
+    });
+    expect(secureConfigService.setString).toHaveBeenCalledWith(
+      'ai_runtime.openai_api_key',
+      'new-openai-key',
+    );
   });
 });

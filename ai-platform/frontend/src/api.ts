@@ -1,5 +1,6 @@
 import type {
   AiRuntimeDiagnostics,
+  AiRuntimeSecureCredentialView,
   AsyncChatAcceptedResponse,
   AsyncChatConversationSummary,
   AsyncChatSessionView,
@@ -252,6 +253,24 @@ export async function listActiveCriticalConfigs() {
 export async function getAiRuntimeDiagnostics() {
   return apiRequest<AiRuntimeDiagnostics>(
     '/admin/runtime-resources/critical-configs/ai-runtime/diagnostics',
+  );
+}
+
+export async function getAiRuntimeSecureCredential() {
+  return apiRequest<AiRuntimeSecureCredentialView>(
+    '/admin/runtime-resources/critical-configs/ai-runtime/secure-credential',
+  );
+}
+
+export async function updateAiRuntimeSecureCredential(input: {
+  value?: string | null;
+}) {
+  return apiRequest<AiRuntimeSecureCredentialView>(
+    '/admin/runtime-resources/critical-configs/ai-runtime/secure-credential',
+    {
+      method: 'PUT',
+      body: input,
+    },
   );
 }
 

@@ -5,10 +5,12 @@ import { ChannelConversationBindingRepository } from '../persistence/repositorie
 import { ChannelMessageRecordRepository } from '../persistence/repositories/channel-message-record.repository';
 import { ChatLogRepository } from '../persistence/repositories/chat-log.repository';
 import { ConversationRepository } from '../persistence/repositories/conversation.repository';
-import { InternalAgentReplyDto } from './dto/internal-agent-reply.dto';
+import { InternalAgentOutboundDto } from './dto/internal-agent-outbound.dto';
+import { InternalAgentTurnDto } from './dto/internal-agent-turn.dto';
 import { InternalBootstrapChannelThreadDto } from './dto/internal-bootstrap-channel-thread.dto';
 import { InternalChannelInboundMessageDto } from './dto/internal-channel-inbound-message.dto';
 import { InternalSyncOutboundStatusDto } from './dto/internal-sync-outbound-status.dto';
+import { SemanticTurnExecutionService } from './semantic-turn-execution.service';
 
 @Injectable()
 export class ChannelConversationBridgeService {
@@ -17,6 +19,7 @@ export class ChannelConversationBridgeService {
     private readonly channelConversationBindingRepository: ChannelConversationBindingRepository,
     private readonly channelMessageRecordRepository: ChannelMessageRecordRepository,
     private readonly chatLogRepository: ChatLogRepository,
+    private readonly semanticTurnExecutionService: SemanticTurnExecutionService,
   ) {}
 
   async ingestInboundMessage(input: InternalChannelInboundMessageDto) {
@@ -118,7 +121,7 @@ export class ChannelConversationBridgeService {
     };
   }
 
-  async replyAsAgent(conversationId: string, input: InternalAgentReplyDto) {
+  async replyAsAgent(conversationId: string, input: InternalAgentOutboundDto) {
     const conversation = await this.conversationRepository.findById(conversationId);
     if (!conversation) {
       throw new NotFoundException(`Conversation "${conversationId}" was not found.`);
@@ -148,6 +151,50 @@ export class ChannelConversationBridgeService {
       conversationId,
       content: message.content,
       createdAt: message.createdAt.toISOString(),
+    };
+  }
+
+  async executeAgentTurn(conversationId: string, input: InternalAgentTurnDto) {
+    const conversation = await this.conversationRepository.findById(conversationId);
+    if (!conversation) {
+      throw new NotFoundException(`Conversation "${conversationId}" was not found.`);
+    }
+
+    const message = String(input.message || '').trim();
+    const result = await this.semanticTurnExecutionService.executeClosedTurn(
+      {
+        conversationId,
+        message,
+        locale: input.locale,
+      },
+      {
+        projectReplyImmediately: false,
+        persistIncomingMessage: false,
+      },
+    );
+
+    return {
+      response: {
+        text: result.response,
+        finalUserText: result.response,
+        debugSummary: result.approvedResponseDraft,
+        auditPayload: {
+          intent: result.intent,
+          entities: result.entities,
+          decision: result.decision,
+          execution: result.execution,
+          continuity: result.continuity,
+          conversationState: result.conversationState,
+          approvedResponseContext: result.approvedResponse.approvedContext,
+        },
+        provider: result.interpretationResult.provider ?? 'ai-platform',
+        model: result.interpretationResult.model ?? null,
+        memory: {
+          conversationContext: result.conversationState,
+        },
+        toolCalls: [],
+      },
+      metadata: result.metadata,
     };
   }
 

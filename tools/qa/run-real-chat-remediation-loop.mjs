@@ -25,7 +25,7 @@ import {
 import { exportRealChatRemediationResources } from "./real-chat-remediation-resource-export-lib.mjs";
 
 const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:4000/api";
-const DEFAULT_AI_AGENT_BASE_URL = "http://127.0.0.1:4100";
+const DEFAULT_AI_PLATFORM_BASE_URL = "http://127.0.0.1:4110";
 const DEFAULT_INTERNAL_TOKEN = "local-ai-internal-token";
 const DEFAULT_TENANT_KEY = "urucortinas";
 const DEFAULT_PAGE = "/shop";
@@ -44,7 +44,7 @@ function printUsage() {
       "  --output-root <path>             Base output directory. Default: .qa/runs.",
       "  --corpus-dir <path>              Corpus root with manifests/. Default: .qa/external-real-conversations/whatsapp.",
       "  --backend-base-url <url>         Backend API base URL. Default: http://127.0.0.1:4000/api.",
-      "  --ai-agent-base-url <url>        AI agent health URL root. Default: http://127.0.0.1:4100.",
+      "  --ai-platform-base-url <url>     AI platform health URL root. Default: http://127.0.0.1:4110.",
       "  --internal-token <token>         Internal token for backend AI endpoints.",
       "  --tenant-key <slug>              Tenant key. Default: urucortinas.",
       "  --page <path>                    Page metadata for the storefront chat. Default: /shop.",
@@ -74,7 +74,7 @@ function parseArgs(argv) {
     outputRoot: DEFAULT_REAL_CORPUS_RUNS_DIR,
     corpusDir: path.dirname(DEFAULT_REAL_CORPUS_MANIFESTS_DIR),
     backendBaseUrl: DEFAULT_BACKEND_BASE_URL,
-    aiAgentBaseUrl: DEFAULT_AI_AGENT_BASE_URL,
+    aiPlatformBaseUrl: DEFAULT_AI_PLATFORM_BASE_URL,
     internalToken: DEFAULT_INTERNAL_TOKEN,
     tenantKey: DEFAULT_TENANT_KEY,
     page: DEFAULT_PAGE,
@@ -126,13 +126,13 @@ function parseArgs(argv) {
       options.backendBaseUrl = arg.slice("--backend-base-url=".length);
       continue;
     }
-    if (arg === "--ai-agent-base-url") {
-      options.aiAgentBaseUrl = argv[index + 1] ?? options.aiAgentBaseUrl;
+    if (arg === "--ai-platform-base-url") {
+      options.aiPlatformBaseUrl = argv[index + 1] ?? options.aiPlatformBaseUrl;
       index += 1;
       continue;
     }
-    if (arg.startsWith("--ai-agent-base-url=")) {
-      options.aiAgentBaseUrl = arg.slice("--ai-agent-base-url=".length);
+    if (arg.startsWith("--ai-platform-base-url=")) {
+      options.aiPlatformBaseUrl = arg.slice("--ai-platform-base-url=".length);
       continue;
     }
     if (arg === "--internal-token") {
@@ -506,8 +506,8 @@ function buildProbeCommand(options) {
     options.outputRoot,
     "--backend-base-url",
     options.backendBaseUrl,
-    "--ai-agent-base-url",
-    options.aiAgentBaseUrl,
+    "--ai-platform-base-url",
+    options.aiPlatformBaseUrl,
     "--internal-token",
     options.internalToken,
     "--tenant-key",
@@ -575,8 +575,8 @@ function buildRerunCommand(options, loopRunDir) {
     options.corpusDir,
     "--backend-base-url",
     options.backendBaseUrl,
-    "--ai-agent-base-url",
-    options.aiAgentBaseUrl,
+    "--ai-platform-base-url",
+    options.aiPlatformBaseUrl,
     "--internal-token",
     options.internalToken,
     "--tenant-key",

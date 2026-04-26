@@ -5,11 +5,11 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 
-import { AiAgentClient } from '../../services/channel-adapter/src/clients/ai-agent.client.js'
+import { AiPlatformAgentClient } from '../../services/channel-adapter/src/clients/ai-platform-agent.client.js'
 import { BackendConversationsClient } from '../../services/channel-adapter/src/clients/backend-conversations.client.js'
 import { WhatsappQrAdapter } from '../../services/channel-adapter/src/channels/whatsapp-qr/whatsapp-qr.adapter.js'
 import { estimatePendingUtteranceDelay } from '../../services/channel-adapter/src/runtime/pending-utterance-assembler.js'
-import { isSystemNoiseMessage } from '../../services/ai-agent-service/src/ai/ingress/system-noise.js'
+import { isSystemNoiseMessage } from './system-noise.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, '..', '..')
@@ -22,7 +22,7 @@ const DEFAULT_CORPUS_DIR = path.join(
 )
 const DEFAULT_OUTPUT_ROOT = path.join(repoRoot, '.qa', 'runs')
 const DEFAULT_BACKEND_BASE_URL = 'http://127.0.0.1:4000/api'
-const DEFAULT_AI_AGENT_BASE_URL = 'http://127.0.0.1:4100'
+const DEFAULT_AI_PLATFORM_BASE_URL = 'http://127.0.0.1:4110'
 const DEFAULT_INTERNAL_TOKEN = 'local-ai-internal-token'
 const DEFAULT_TENANT_KEY = 'urucortinas'
 const DEFAULT_QUIET_WINDOW_MS = 900
@@ -195,7 +195,7 @@ function parseArgs(argv) {
     corpusDir: DEFAULT_CORPUS_DIR,
     outputRoot: DEFAULT_OUTPUT_ROOT,
     backendBaseUrl: DEFAULT_BACKEND_BASE_URL,
-    aiAgentBaseUrl: DEFAULT_AI_AGENT_BASE_URL,
+    aiPlatformBaseUrl: DEFAULT_AI_PLATFORM_BASE_URL,
     internalToken: DEFAULT_INTERNAL_TOKEN,
     tenantKey: DEFAULT_TENANT_KEY,
     retryAttempts: DEFAULT_RETRY_ATTEMPTS,
@@ -235,13 +235,13 @@ function parseArgs(argv) {
       options.backendBaseUrl = arg.slice('--backend-base-url='.length)
       continue
     }
-    if (arg === '--ai-agent-base-url') {
-      options.aiAgentBaseUrl = argv[index + 1] ?? options.aiAgentBaseUrl
+    if (arg === '--ai-platform-base-url') {
+      options.aiPlatformBaseUrl = argv[index + 1] ?? options.aiPlatformBaseUrl
       index += 1
       continue
     }
-    if (arg.startsWith('--ai-agent-base-url=')) {
-      options.aiAgentBaseUrl = arg.slice('--ai-agent-base-url='.length)
+    if (arg.startsWith('--ai-platform-base-url=')) {
+      options.aiPlatformBaseUrl = arg.slice('--ai-platform-base-url='.length)
       continue
     }
     if (arg === '--internal-token') {
@@ -338,10 +338,10 @@ function parseArgs(argv) {
           '  --corpus-dir <path>           Corpus root with manifests/ directory.',
           '  --output-root <path>          Base output directory. Default: .qa/runs.',
           '  --backend-base-url <url>      Backend API base URL. Default: http://127.0.0.1:4000/api.',
-          '  --ai-agent-base-url <url>     AI agent base URL. Default: http://127.0.0.1:4100.',
+          '  --ai-platform-base-url <url>  AI platform base URL. Default: http://127.0.0.1:4110.',
           '  --internal-token <token>      Internal token for backend/channel-adapter contracts.',
           '  --tenant-key <slug>           Tenant key used in replay. Default: urucortinas.',
-          '  --retry-attempts <n>          Retry attempts for 429/5xx from backend or ai-agent.',
+          '  --retry-attempts <n>          Retry attempts for 429/5xx from backend or ai-platform.',
           '  --retry-initial-delay-ms <n>  Initial retry backoff. Default: 1500.',
           '  --limit-conversations <n>     Limit conversations for smoke runs.',
           '  --limit-turns <n>             Limit semantic turns per conversation for smoke runs.',
@@ -1529,7 +1529,7 @@ function buildExecutiveSummary({ runId, options, conversations, findingsSummary,
     corpusDir: options.corpusDir,
     outputRoot: options.outputRoot,
     backendBaseUrl: options.backendBaseUrl,
-    aiAgentBaseUrl: options.aiAgentBaseUrl,
+    aiPlatformBaseUrl: options.aiPlatformBaseUrl,
     tenantKey: options.tenantKey,
     totalConversations: conversations.length,
     totalEvaluatedTurns: totalTurns,
@@ -1801,8 +1801,9 @@ async function main() {
       backendBaseUrl: options.backendBaseUrl,
       internalToken: options.internalToken,
     }),
-    ai: new AiAgentClient({
-      aiAgentBaseUrl: options.aiAgentBaseUrl,
+    ai: new AiPlatformAgentClient({
+      aiPlatformBaseUrl: options.aiPlatformBaseUrl,
+      internalToken: options.internalToken,
     }),
   }
 

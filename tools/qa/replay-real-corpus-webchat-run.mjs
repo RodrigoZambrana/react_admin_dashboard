@@ -775,7 +775,7 @@ async function main() {
     runId,
     options: {
       ...options,
-      aiAgentBaseUrl: null
+      aiPlatformBaseUrl: null
     },
     conversations,
     findingsSummary,

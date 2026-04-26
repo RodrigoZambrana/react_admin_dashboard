@@ -6,12 +6,12 @@ describe('ManagedCriticalConfigProvider', () => {
       getSeed: async () => ({
         key: 'ai_runtime',
         value: {
-          provider: 'mock',
-          model: 'mock-rule-engine',
-          timeoutMs: 1000,
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          timeoutMs: 7000,
           credentials: {
-            strategy: 'none',
-            envKey: null,
+            strategy: 'env',
+            envKey: 'OPENAI_API_KEY',
           },
           providerOptions: {},
         },
@@ -25,12 +25,12 @@ describe('ManagedCriticalConfigProvider', () => {
         {
           key: 'ai_runtime',
           value: {
-            provider: 'mock',
-            model: 'mock-rule-engine',
-            timeoutMs: 1000,
+            provider: 'openai',
+            model: 'gpt-4.1-mini',
+            timeoutMs: 7000,
             credentials: {
-              strategy: 'none',
-              envKey: null,
+              strategy: 'env',
+              envKey: 'OPENAI_API_KEY',
             },
             providerOptions: {},
           },
@@ -52,7 +52,7 @@ describe('ManagedCriticalConfigProvider', () => {
       expect.objectContaining({
         key: 'ai_runtime',
         value: expect.objectContaining({
-          provider: 'mock',
+          provider: 'openai',
         }),
       }),
     );
@@ -114,12 +114,12 @@ describe('ManagedCriticalConfigProvider', () => {
         id: 'cfg-1',
         key: 'ai_runtime',
         value: {
-          provider: 'mock',
-          model: 'mock-rule-engine',
-          timeoutMs: 1000,
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          timeoutMs: 7000,
           credentials: {
-            strategy: 'none',
-            envKey: null,
+            strategy: 'env',
+            envKey: 'OPENAI_API_KEY',
           },
           providerOptions: {},
         },

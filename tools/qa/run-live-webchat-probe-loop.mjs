@@ -42,7 +42,7 @@ import {
 } from "./replay-real-corpus-webchat-run.mjs";
 
 const DEFAULT_BACKEND_BASE_URL = "http://127.0.0.1:4000/api";
-const DEFAULT_AI_AGENT_BASE_URL = "http://127.0.0.1:4100";
+const DEFAULT_AI_PLATFORM_BASE_URL = "http://127.0.0.1:4110";
 const DEFAULT_INTERNAL_TOKEN = "local-ai-internal-token";
 const DEFAULT_TENANT_KEY = "urucortinas";
 const DEFAULT_PAGE = "/shop";
@@ -58,7 +58,7 @@ function parseArgs(argv) {
   const options = {
     outputRoot: DEFAULT_REAL_CORPUS_RUNS_DIR,
     backendBaseUrl: DEFAULT_BACKEND_BASE_URL,
-    aiAgentBaseUrl: DEFAULT_AI_AGENT_BASE_URL,
+    aiPlatformBaseUrl: DEFAULT_AI_PLATFORM_BASE_URL,
     internalToken: DEFAULT_INTERNAL_TOKEN,
     tenantKey: DEFAULT_TENANT_KEY,
     page: DEFAULT_PAGE,
@@ -97,13 +97,13 @@ function parseArgs(argv) {
       options.backendBaseUrl = arg.slice("--backend-base-url=".length);
       continue;
     }
-    if (arg === "--ai-agent-base-url") {
-      options.aiAgentBaseUrl = argv[index + 1] ?? options.aiAgentBaseUrl;
+    if (arg === "--ai-platform-base-url") {
+      options.aiPlatformBaseUrl = argv[index + 1] ?? options.aiPlatformBaseUrl;
       index += 1;
       continue;
     }
-    if (arg.startsWith("--ai-agent-base-url=")) {
-      options.aiAgentBaseUrl = arg.slice("--ai-agent-base-url=".length);
+    if (arg.startsWith("--ai-platform-base-url=")) {
+      options.aiPlatformBaseUrl = arg.slice("--ai-platform-base-url=".length);
       continue;
     }
     if (arg === "--internal-token") {
@@ -257,7 +257,7 @@ function parseArgs(argv) {
           "Options:",
           "  --output-root <path>          Base output directory. Default: .qa/runs.",
           "  --backend-base-url <url>      Backend API base URL. Default: http://127.0.0.1:4000/api.",
-          "  --ai-agent-base-url <url>     AI agent health URL root. Default: http://127.0.0.1:4100.",
+          "  --ai-platform-base-url <url>  AI platform health URL root. Default: http://127.0.0.1:4110.",
           "  --internal-token <token>      Internal token for backend AI endpoints.",
           "  --tenant-key <slug>           Tenant key used in probes. Default: urucortinas.",
           "  --page <path>                 Page metadata sent by storefront webchat. Default: /shop.",
@@ -289,7 +289,7 @@ async function parseJsonResponse(response) {
   return payload;
 }
 
-async function fetchAiAgentHealth(baseUrl) {
+async function fetchAiPlatformHealth(baseUrl) {
   const response = await fetch(`${baseUrl.replace(/\/$/, "")}/health`, { method: "GET" });
   return parseJsonResponse(response);
 }
@@ -305,8 +305,8 @@ async function fetchInternalJson(baseUrl, route, internalToken) {
 }
 
 async function buildPreflight(options) {
-  const [aiAgentHealth, runtimeConfig, topicTaxonomy, quoteProfiles] = await Promise.all([
-    fetchAiAgentHealth(options.aiAgentBaseUrl),
+  const [aiPlatformHealth, runtimeConfig, topicTaxonomy, quoteProfiles] = await Promise.all([
+    fetchAiPlatformHealth(options.aiPlatformBaseUrl),
     fetchInternalJson(
       options.backendBaseUrl,
       "/ai/runtime-config/internal",
@@ -330,7 +330,7 @@ async function buildPreflight(options) {
 
   return {
     generatedAt: new Date().toISOString(),
-    aiAgentHealth,
+    aiPlatformHealth,
     runtimeConfig,
     topicTaxonomy,
     quoteProfiles
@@ -390,16 +390,16 @@ function summarizeProviderParticipation(turnEntries, preflight) {
     const provider =
       typeof turn.response?.provider === "string"
         ? turn.response.provider
-        : typeof preflight?.aiAgentHealth?.provider === "string"
-          ? preflight.aiAgentHealth.provider
+        : typeof preflight?.aiPlatformHealth?.provider === "string"
+          ? preflight.aiPlatformHealth.provider
           : typeof preflight?.runtimeConfig?.provider === "string"
             ? preflight.runtimeConfig.provider
             : null;
     const model =
       typeof turn.response?.model === "string"
         ? turn.response.model
-        : typeof preflight?.aiAgentHealth?.model === "string"
-          ? preflight.aiAgentHealth.model
+        : typeof preflight?.aiPlatformHealth?.model === "string"
+          ? preflight.aiPlatformHealth.model
           : typeof preflight?.runtimeConfig?.model === "string"
             ? preflight.runtimeConfig.model
             : null;
@@ -432,14 +432,14 @@ function summarizeProviderParticipation(turnEntries, preflight) {
     configuredProvider:
       typeof preflight?.runtimeConfig?.provider === "string"
         ? preflight.runtimeConfig.provider
-        : typeof preflight?.aiAgentHealth?.provider === "string"
-          ? preflight.aiAgentHealth.provider
+        : typeof preflight?.aiPlatformHealth?.provider === "string"
+          ? preflight.aiPlatformHealth.provider
           : null,
     configuredModel:
       typeof preflight?.runtimeConfig?.model === "string"
         ? preflight.runtimeConfig.model
-        : typeof preflight?.aiAgentHealth?.model === "string"
-          ? preflight.aiAgentHealth.model
+        : typeof preflight?.aiPlatformHealth?.model === "string"
+          ? preflight.aiPlatformHealth.model
           : null,
     runtimeEnabled: preflight?.runtimeConfig?.enabled === true,
     totalTurns: turnEntries.length,

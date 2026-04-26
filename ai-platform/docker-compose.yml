@@ -1,6 +1,40 @@
-version: "3.9"
-
 services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: runtime
+    env_file:
+      - backend/.env.local
+    environment:
+      PORT: ${AI_PLATFORM_PORT:-4110}
+      DATABASE_URL: ${AI_PLATFORM_DATABASE_URL:-postgresql://ai_platform:ai_platform@postgres:5432/ai_platform?schema=public}
+      DEFAULT_TENANT_ID: ${DEFAULT_TENANT_ID:-demo-tenant}
+      REDIS_URL: ${AI_PLATFORM_REDIS_URL:-redis://redis:6379}
+      QDRANT_URL: ${AI_PLATFORM_QDRANT_URL:-http://qdrant:6333}
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-10000}
+    ports:
+      - "${AI_PLATFORM_HOST_PORT:-4110}:4110"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:4110/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -11,6 +45,11 @@ services:
       - "5434:5432"
     volumes:
       - ai-platform-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ai_platform -d ai_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   redis:
     image: redis:7-alpine

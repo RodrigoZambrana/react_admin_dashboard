@@ -26,7 +26,7 @@ describe('EnvCriticalConfigSeedSource', () => {
     );
   });
 
-  it('preserves explicit provider overrides at the env bootstrap edge', async () => {
+  it('ignores legacy mock provider overrides at the env bootstrap edge', async () => {
     const source = new EnvCriticalConfigSeedSource(
       {
         get: jest.fn((key: string) => {
@@ -46,10 +46,10 @@ describe('EnvCriticalConfigSeedSource', () => {
     await expect(source.getSeed('ai_runtime')).resolves.toEqual(
       expect.objectContaining({
         value: expect.objectContaining({
-          provider: 'mock',
+          provider: 'openai',
           credentials: {
-            strategy: 'none',
-            envKey: null,
+            strategy: 'env',
+            envKey: 'OPENAI_API_KEY',
           },
         }),
       }),

@@ -124,8 +124,8 @@
       "cwd": ".",
       "steps": [
         { "cwd": ".", "command": ["node", "tools/qa/ingest-whatsapp-real-corpus.mjs"] },
-        { "cwd": ".", "command": ["docker", "exec", "dashboard-ai-agent-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4100/health"] },
-        { "cwd": "services/ai-agent-service", "command": ["npm", "run", "test:conversation-quality"] },
+        { "cwd": ".", "command": ["curl", "-fsS", "http://127.0.0.1:4110/health"] },
+        { "cwd": "ai-platform", "command": ["npm", "run", "test", "--workspace", "backend", "--", "--runInBand"] },
         {
           "cwd": "backend",
           "command": [
@@ -311,7 +311,7 @@
       "cwd": ".",
       "steps": [
         { "cwd": ".", "command": ["docker", "exec", "dashboard-redis-dev", "redis-cli", "ping"] },
-        { "cwd": ".", "command": ["docker", "exec", "dashboard-ai-agent-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4100/health"] },
+        { "cwd": ".", "command": ["curl", "-fsS", "http://127.0.0.1:4110/health"] },
         { "cwd": ".", "command": ["docker", "exec", "dashboard-channel-adapter-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4200/health"] },
         { "cwd": ".", "command": ["docker", "exec", "dashboard-channel-adapter-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4200/channels"] }
       ],

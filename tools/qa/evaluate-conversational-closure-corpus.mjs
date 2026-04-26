@@ -7,7 +7,7 @@ import process from "node:process";
 import { pathToFileURL } from "node:url";
 
 import { estimatePendingUtteranceDelay } from "../../services/channel-adapter/src/runtime/pending-utterance-assembler.js";
-import { isSystemNoiseMessage } from "../../services/ai-agent-service/src/ai/ingress/system-noise.js";
+import { isSystemNoiseMessage } from "./system-noise.mjs";
 
 const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
 const DEFAULT_CORPUS_DIR = path.join(

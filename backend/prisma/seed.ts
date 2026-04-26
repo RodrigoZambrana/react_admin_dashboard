@@ -705,8 +705,8 @@ async function seedCmsSections() {
     },
     {
       key: 'HOME_HIGHLIGHTS',
-      name: 'Home Highlights',
-      description: 'Bloques editoriales destacados del home storefront.',
+      name: 'Atención comercial',
+      description: 'Visitas, pagos y garantía destacados del home storefront.',
       sortOrder: 10,
       isActive: true,
     },
@@ -728,10 +728,142 @@ async function seedCmsSections() {
 
 async function seedCmsEntries() {
   const now = new Date()
+  const storiesSection = await prisma.cmsSection.findUnique({
+    where: { key: 'HOME_STORIES' },
+    select: { id: true },
+  })
   const section = await prisma.cmsSection.findUnique({
     where: { key: 'HOME_HIGHLIGHTS' },
     select: { id: true },
   })
+
+  if (!storiesSection && !section) {
+    return
+  }
+
+  if (storiesSection) {
+    const storyDefaults = [
+      {
+        slug: 'home-story-asesoramiento',
+        title: 'Asesoramiento antes de comprar',
+        subtitle: 'Elegir bien desde el inicio',
+        description:
+          'Compara materiales, terminaciones y sistemas de apertura con acompañamiento comercial real.',
+        priority: 30,
+        ctaLabel: 'Explorar soluciones',
+        ctaUrl: '/contact',
+        thumbnailUrl: '/assets/images/stories/story-home-1.jpg',
+        assets: [
+          {
+            title: 'Asesoramiento antes de comprar',
+            caption:
+              'Una guía simple para definir producto, medidas y nivel de prestación antes de pedir cotización.',
+            mediaType: CmsEntryAssetType.IMAGE,
+            mediaUrl: '/assets/images/stories/story-home-1.jpg',
+            posterUrl: '/assets/images/stories/story-home-1.jpg',
+            sortOrder: 0,
+          },
+        ],
+      },
+      {
+        slug: 'home-story-compra-segura',
+        title: 'Compra segura y acompañada',
+        subtitle: 'Seguimiento del proceso',
+        description:
+          'Recibe ayuda para elegir la mejor opción antes de comprar y coordinar la entrega.',
+        priority: 20,
+        ctaLabel: 'Ver productos',
+        ctaUrl: '/shop',
+        thumbnailUrl: '/assets/images/stories/story-home-2.jpg',
+        assets: [
+          {
+            title: 'Compra segura y acompañada',
+            caption:
+              'Acompañamiento comercial y seguimiento durante todo el proceso.',
+            mediaType: CmsEntryAssetType.IMAGE,
+            mediaUrl: '/assets/images/stories/story-home-2.jpg',
+            posterUrl: '/assets/images/stories/story-home-2.jpg',
+            sortOrder: 0,
+          },
+        ],
+      },
+      {
+        slug: 'home-story-entrega-coordinada',
+        title: 'Entrega coordinada',
+        subtitle: 'Fechas claras y seguimiento',
+        description:
+          'Visualiza fechas estimadas y mantén el control del pedido desde tu cuenta.',
+        priority: 10,
+        ctaLabel: 'Conocer entregas',
+        ctaUrl: '/contact',
+        thumbnailUrl: '/assets/images/stories/story-home-3.jpg',
+        assets: [
+          {
+            title: 'Entrega coordinada',
+            caption: 'Planificación simple para entrega o instalación según el producto.',
+            mediaType: CmsEntryAssetType.IMAGE,
+            mediaUrl: '/assets/images/stories/story-home-3.jpg',
+            posterUrl: '/assets/images/stories/story-home-3.jpg',
+            sortOrder: 0,
+          },
+        ],
+      },
+    ]
+
+    for (const entry of storyDefaults) {
+      const saved = await prisma.cmsEntry.upsert({
+        where: {
+          sectionId_locale_slug: {
+            sectionId: storiesSection.id,
+            locale: 'es',
+            slug: entry.slug,
+          },
+        },
+        update: {
+          title: entry.title,
+          subtitle: entry.subtitle,
+          description: entry.description,
+          status: CmsEntryStatus.PUBLISHED,
+          priority: entry.priority,
+          isActive: true,
+          publishedAt: now,
+          thumbnailUrl: entry.thumbnailUrl,
+          ctaLabel: entry.ctaLabel,
+          ctaUrl: entry.ctaUrl,
+        },
+        create: {
+          sectionId: storiesSection.id,
+          slug: entry.slug,
+          locale: 'es',
+          title: entry.title,
+          subtitle: entry.subtitle,
+          description: entry.description,
+          status: CmsEntryStatus.PUBLISHED,
+          priority: entry.priority,
+          isActive: true,
+          publishedAt: now,
+          thumbnailUrl: entry.thumbnailUrl,
+          ctaLabel: entry.ctaLabel,
+          ctaUrl: entry.ctaUrl,
+        },
+        select: { id: true },
+      })
+
+      await prisma.cmsEntryAsset.deleteMany({ where: { entryId: saved.id } })
+      await prisma.cmsEntryAsset.createMany({
+        data: entry.assets.map((asset) => ({
+          entryId: saved.id,
+          title: asset.title,
+          caption: asset.caption,
+          mediaType: asset.mediaType,
+          mediaUrl: asset.mediaUrl,
+          posterUrl: asset.posterUrl,
+          sortOrder: asset.sortOrder,
+          isActive: true,
+        })),
+      })
+    }
+  }
 
   if (!section) {
     return
@@ -740,17 +872,19 @@ async function seedCmsEntries() {
   const defaults = [
     {
       slug: 'home-highlight-compra-segura',
-      title: 'Compra segura y asesorada',
-      subtitle: 'Acompanamiento comercial real',
-      description: 'Recibe ayuda para elegir la mejor opción antes de comprar y coordinar la entrega.',
+      title: 'Visita y toma de medidas',
+      subtitle: 'Acompañamiento comercial real',
+      description:
+        'Podemos coordinar una visita a domicilio para tomar medidas y orientar tu compra. En Montevideo la visita es sin costo.',
       priority: 30,
-      ctaLabel: 'Ver productos',
-      ctaUrl: '/shop',
+      ctaLabel: 'Solicitar visita',
+      ctaUrl: '/contact',
       thumbnailUrl: '/assets/images/stories/story-home-2.jpg',
       assets: [
         {
-          title: 'Compra segura y asesorada',
-          caption: 'Acompañamiento comercial y seguimiento durante todo el proceso.',
+          title: 'Visita y toma de medidas',
+          caption:
+            'Coordinamos la visita a domicilio para tomar medidas y revisar el producto adecuado antes de avanzar.',
           mediaType: CmsEntryAssetType.IMAGE,
           mediaUrl: '/assets/images/stories/story-home-2.jpg',
           posterUrl: '/assets/images/stories/story-home-2.jpg',
@@ -760,17 +894,19 @@ async function seedCmsEntries() {
     },
     {
       slug: 'home-highlight-entrega-coordinada',
-      title: 'Entrega coordinada',
-      subtitle: 'Fechas claras y seguimiento',
-      description: 'Visualiza fechas estimadas y mantén el control del pedido desde tu cuenta.',
+      title: 'Pagos y garantía',
+      subtitle: 'Medios de pago vigentes',
+      description:
+        'Aceptamos transferencia, efectivo, Mercado Pago y tarjetas. Con Mercado Pago se puede pagar en cuotas, y las cortinas de enrollar cuentan con garantía de 2 años.',
       priority: 20,
-      ctaLabel: 'Conocer entregas',
+      ctaLabel: 'Ver formas de pago',
       ctaUrl: '/contact',
       thumbnailUrl: '/assets/images/stories/story-home-3.jpg',
       assets: [
         {
-          title: 'Entrega coordinada',
-          caption: 'Planificación simple para entrega o instalación según el producto.',
+          title: 'Pagos y garantía',
+          caption:
+            'Formas de pago flexibles y garantía clara para cortinas de enrollar y soluciones afines.',
           mediaType: CmsEntryAssetType.IMAGE,
           mediaUrl: '/assets/images/stories/story-home-3.jpg',
           posterUrl: '/assets/images/stories/story-home-3.jpg',

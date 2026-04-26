@@ -8,7 +8,7 @@ import type {
   WebchatScope,
 } from "@/types/conversations";
 
-const conversationsBaseUrl = env.publicChatAgentUrl;
+const conversationsBaseUrl = env.publicAiPlatformUrl;
 
 const parseResponse = async <T>(response: Response): Promise<T> => {
   const text = await response.text();

@@ -65,7 +65,10 @@ export class AiGatewayService {
       };
     }
 
-    if (this.requiresCredentials(providerConfig) && !providerConfig.credentials.value) {
+    if (
+      this.requiresCredentials(providerConfig.provider) &&
+      !providerConfig.credentials.value
+    ) {
       const error = this.buildMissingCredentialsError(providerConfig.provider);
 
       this.logger.error(
@@ -192,7 +195,10 @@ export class AiGatewayService {
       };
     }
 
-    if (this.requiresCredentials(providerConfig) && !providerConfig.credentials.value) {
+    if (
+      this.requiresCredentials(providerConfig.provider) &&
+      !providerConfig.credentials.value
+    ) {
       const error = this.buildMissingCredentialsError(providerConfig.provider);
 
       this.logger.error(
@@ -280,13 +286,8 @@ export class AiGatewayService {
     }
   }
 
-  private requiresCredentials(input: {
-    credentials: {
-      strategy: 'none' | 'env';
-      value: string | null;
-    };
-  }) {
-    return input.credentials.strategy !== 'none';
+  private requiresCredentials(provider: string) {
+    return provider !== 'mock';
   }
 
   private buildMissingCredentialsError(provider: string) {

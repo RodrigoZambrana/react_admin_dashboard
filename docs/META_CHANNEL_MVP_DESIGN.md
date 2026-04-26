@@ -53,9 +53,9 @@ Meta Webhook
 -> signature verification
 -> meta.webhook.js event extraction
 -> meta.adapter.js normalization
--> backend /conversations/internal/inbound
--> ai-agent-service /respond
--> backend /conversations/:id/agent-reply
+-> ai-platform /internal/conversations/inbound
+-> ai-platform /internal/conversations/:id/agent-turn
+-> ai-platform /internal/conversations/:id/replies/agent
 -> channel-adapter /dispatch/meta
 -> Meta Send API
 ```

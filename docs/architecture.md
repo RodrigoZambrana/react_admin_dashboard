@@ -5,32 +5,32 @@
 - `backend`: NestJS + Fastify + Prisma + PostgreSQL
 - `frontend`: React + TypeScript admin
 - `ecommerce`: Next.js storefront
-- `services/ai-agent-service`: optional AI runtime
 - `services/channel-adapter`: optional multichannel ingress/egress service
+- `ai-platform`: canonical chat and AI runtime
 - `deploy/`: compose files and environment overlays
 
 ## Source of Truth
 
 - PostgreSQL is the canonical persistence layer
-- `backend` owns business rules and internal data contracts
+- `backend` owns ecommerce/admin business rules and internal data contracts
+- `ai-platform` owns chat, channel control and AI conversation state
 - `frontend` and `ecommerce` must consume validated HTTP contracts
-- `services/ai-agent-service` must never access the database directly
 - `services/channel-adapter` must never own business state
 
 ## Canonical Integration Pattern
 
 1. Channel receives or emits message
 2. `channel-adapter` normalizes payload
-3. `backend/src/conversations` persists canonical conversation state
-4. `ai-agent-service` reads/writes only through backend endpoints
-5. `frontend` reads the unified read model
-6. `ecommerce` uses only customer-safe conversation contracts
+3. `ai-platform` persists canonical conversation state through its channel bridge
+4. `ai-platform` executes chat/AI turns
+5. `frontend` reads chat state through `ai-platform` contracts
+6. `ecommerce` uses only customer-safe `ai-platform` conversation contracts
 
 Outbound additions:
 
-7. Operator or AI replies are created from `backend/src/conversations`
-8. Email uses `InboxService` as real transport and persistence path
-9. Meta-family outbound goes through `channel-adapter`, then syncs status back to the hub through internal backend contracts
+7. Operator or AI replies are created through `ai-platform`
+8. Email notification delivery remains ecommerce/backend business delivery, not chat-channel ownership
+9. Meta-family outbound goes through `channel-adapter`, then syncs status back to `ai-platform` internal contracts
 
 ## Persistence Baseline For Conversations
 
@@ -154,7 +154,7 @@ Conversation-derived knowledge must never skip the candidate stage.
 ## Deployment Baseline
 
 - Main stack stays in `deploy/docker-compose.dev.yml`
-- AI stack overlays through `deploy/docker-compose.ai-agent.yml`
+- Channel adapter overlays through `deploy/docker-compose.channel-adapter.yml`
 - Redis is enabled in the AI overlay from day 1 for hot memory, locks and rate limiting
 - PostgreSQL remains external to the application containers, preserving independent lifecycle and backups
 

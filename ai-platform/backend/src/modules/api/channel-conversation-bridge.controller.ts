@@ -9,7 +9,8 @@ import {
 import { ConfigService } from '@nestjs/config';
 
 import { ChannelConversationBridgeService } from './channel-conversation-bridge.service';
-import { InternalAgentReplyDto } from './dto/internal-agent-reply.dto';
+import { InternalAgentOutboundDto } from './dto/internal-agent-outbound.dto';
+import { InternalAgentTurnDto } from './dto/internal-agent-turn.dto';
 import { InternalBootstrapChannelThreadDto } from './dto/internal-bootstrap-channel-thread.dto';
 import { InternalChannelInboundMessageDto } from './dto/internal-channel-inbound-message.dto';
 import { InternalSyncOutboundStatusDto } from './dto/internal-sync-outbound-status.dto';
@@ -57,14 +58,24 @@ export class ChannelConversationBridgeController {
     return this.bridgeService.syncOutboundStatus(body);
   }
 
-  @Post(':id/agent-reply')
+  @Post(':id/replies/agent')
   replyAsAgent(
     @Param('id') conversationId: string,
-    @Body() body: InternalAgentReplyDto,
+    @Body() body: InternalAgentOutboundDto,
     @Headers('x-ai-internal-token') token?: string,
   ) {
     this.assertInternalToken(token);
     return this.bridgeService.replyAsAgent(conversationId, body);
+  }
+
+  @Post(':id/agent-turn')
+  executeAgentTurn(
+    @Param('id') conversationId: string,
+    @Body() body: InternalAgentTurnDto,
+    @Headers('x-ai-internal-token') token?: string,
+  ) {
+    this.assertInternalToken(token);
+    return this.bridgeService.executeAgentTurn(conversationId, body);
   }
 
   private assertInternalToken(token?: string) {

@@ -403,8 +403,12 @@ function buildGatewayConfig(
           version: number | null;
         }
       | {
-          type: 'fallback';
-          reason: 'missing_managed_resource';
+          type: 'bootstrap';
+          reason:
+            | 'env_openai_exploratory_default'
+            | 'env_provider_override'
+            | 'legacy_mock_resource_ignored'
+            | 'missing_openai_credentials';
         };
   }> = {},
 ) {

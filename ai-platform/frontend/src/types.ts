@@ -265,13 +265,13 @@ export type AiRuntimeDiagnostics = {
       }
     | {
         type: 'bootstrap';
-        reason: 'env_openai_exploratory_default' | 'env_provider_override';
-      }
-    | {
-        type: 'fallback';
-        reason: 'missing_managed_resource';
+        reason:
+          | 'env_openai_exploratory_default'
+          | 'env_provider_override'
+          | 'legacy_mock_resource_ignored'
+          | 'missing_openai_credentials';
       };
-  status: 'ready' | 'invalid' | 'fallback';
+  status: 'ready' | 'invalid';
   canUseRuntime: boolean;
   exploratoryReady: boolean;
   providerRegistered: boolean;
@@ -286,6 +286,15 @@ export type AiRuntimeDiagnostics = {
     severity: 'error' | 'warning';
     message: string;
   }>;
+};
+
+export type AiRuntimeSecureCredentialView = {
+  key: string;
+  envKey: string | null;
+  source: 'database' | 'environment' | 'missing';
+  storedSecret: boolean;
+  envPresent: boolean;
+  updatedAt: string | null;
 };
 
 export type KnowledgeMetadataResource = {

@@ -1442,7 +1442,8 @@ Transport adapters must not depend on legacy conversation endpoints anymore.
 - `POST /internal/conversations/history-message`
 - `POST /internal/conversations/bootstrap-thread`
 - `POST /internal/conversations/outbound-status`
-- `POST /internal/conversations/:id/agent-reply`
+- `POST /internal/conversations/:id/agent-turn`
+- `POST /internal/conversations/:id/replies/agent`
 
 This bridge is intentionally additive:
 

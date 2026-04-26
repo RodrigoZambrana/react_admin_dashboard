@@ -24,13 +24,13 @@ export default async function LegacyStorefrontHomePage() {
   return (
     <AppLayout navbar={<Navbar />}>
       <SectionStories stories={stories} />
-      <SectionCmsHighlights section={homeHighlightsSection} />
       <Section1 />
       <Section10 />
       <Section12 />
       <Section2 />
       <Section5 />
       <Section6 />
+      <SectionCmsHighlights section={homeHighlightsSection} />
     </AppLayout>
   );
 }

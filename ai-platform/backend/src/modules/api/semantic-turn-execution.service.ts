@@ -45,16 +45,21 @@ export class SemanticTurnExecutionService {
     },
     options?: {
       projectReplyImmediately?: boolean;
+      persistIncomingMessage?: boolean;
       abortSignal?: AbortSignal;
     },
   ): Promise<SemanticTurnExecutionResult> {
     const projectReplyImmediately = options?.projectReplyImmediately ?? true;
+    const persistIncomingMessage = options?.persistIncomingMessage ?? true;
     const [previousMessages, priorPersistentMessageCount] = await Promise.all([
       this.memoryService.getRecent(input.conversationId, 10),
       this.conversationRepository.countMessages(input.conversationId),
     ]);
     const hasPriorMessages =
-      previousMessages.length > 0 || priorPersistentMessageCount > 0;
+      previousMessages.length > 0 ||
+      (persistIncomingMessage
+        ? priorPersistentMessageCount > 0
+        : priorPersistentMessageCount > 1);
     const metadata = {
       conversationId: input.conversationId,
       traceId: this.tenantContext.getTraceId(),
@@ -69,11 +74,13 @@ export class SemanticTurnExecutionService {
       },
     });
 
-    const incomingMessage = await this.conversationRepository.appendMessage(
-      input.conversationId,
-      MessageRole.USER,
-      input.message,
-    );
+    const incomingMessage = persistIncomingMessage
+      ? await this.conversationRepository.appendMessage(
+          input.conversationId,
+          MessageRole.USER,
+          input.message,
+        )
+      : null;
     await this.memoryService.append(input.conversationId, 'user', input.message);
     throwIfAborted(options?.abortSignal);
 
@@ -221,7 +228,7 @@ export class SemanticTurnExecutionService {
       stage: 'logging',
       status: 'completed',
       payload: {
-        incomingMessageId: incomingMessage.id,
+        incomingMessageId: incomingMessage?.id ?? null,
         outgoingMessageId: outgoingMessage?.id ?? null,
         metadata,
         conversationState: this.buildConversationStateSummary(conversationState),
@@ -234,7 +241,7 @@ export class SemanticTurnExecutionService {
       intent: preparedTurn.effectiveInterpretation.intent,
       entities: preparedTurn.effectiveInterpretation.entities,
       metadata,
-      incomingMessageId: incomingMessage.id,
+      incomingMessageId: incomingMessage?.id ?? null,
       outgoingMessageId: outgoingMessage?.id ?? null,
       interpretationResult,
       parsedInterpretation,

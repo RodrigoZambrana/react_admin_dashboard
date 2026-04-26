@@ -85,7 +85,7 @@ export class AiPlatformConversationsClient {
   async replyAsAgent(conversationId, payload) {
     const sanitizedPayload = sanitizeAiPlatformPayload(payload)
     const response = await fetch(
-      `${this.baseUrl}/internal/conversations/${conversationId}/agent-reply`,
+      `${this.baseUrl}/internal/conversations/${conversationId}/replies/agent`,
       {
         method: 'POST',
         headers: {

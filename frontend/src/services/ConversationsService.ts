@@ -1,5 +1,41 @@
 import ApiService from './ApiService'
 
+const chatPlatformBaseUrl = (
+    import.meta.env.VITE_AI_PLATFORM_URL ||
+    'http://localhost:4110'
+).replace(/\/$/, '')
+
+const chatPlatformUrl = (path: string) =>
+    `${chatPlatformBaseUrl}${path.startsWith('/') ? path : `/${path}`}`
+
+const fetchChatPlatformConversationAction = async (
+    url: string,
+    data?: Record<string, unknown>,
+) => {
+    const response = await ApiService.fetchData<ConversationDetail>({
+        url: chatPlatformUrl(url),
+        method: 'post',
+        data,
+    })
+    return response.data
+}
+
+const fetchChatPlatformDeleteAction = async (
+    url: string,
+    data?: Record<string, unknown>,
+) => {
+    const response = await ApiService.fetchData<{
+        ok: boolean
+        conversationId: string
+        deleted: boolean
+    }>({
+        url: chatPlatformUrl(url),
+        method: 'post',
+        data,
+    })
+    return response.data
+}
+
 export type ConversationSummary = {
     id: string
     tenantKey: string
@@ -898,138 +934,106 @@ const ConversationsService = {
         conversationId: string,
         archived: boolean,
     ) {
-        const response = await ApiService.fetchData<{
-            ok: boolean
-            conversationId: string
-            archived: boolean
-        }>({
-            url: `/conversations/${conversationId}/whatsapp/archive`,
-            method: 'post',
-            data: {
-                archived,
-            },
-        })
-        return response.data
+        const data = await fetchChatPlatformConversationAction(
+            `/admin/conversations/${conversationId}/archive`,
+            { archived },
+        )
+        return {
+            ok: true,
+            conversationId: data.id,
+            archived: Boolean(data.channelState?.archived),
+        }
     },
 
     async toggleWebchatChatArchive(
         conversationId: string,
         archived: boolean,
     ) {
-        const response = await ApiService.fetchData<{
-            ok: boolean
-            conversationId: string
-            archived: boolean
-        }>({
-            url: `/conversations/${conversationId}/webchat/archive`,
-            method: 'post',
-            data: {
-                archived,
-            },
-        })
-        return response.data
+        const data = await fetchChatPlatformConversationAction(
+            `/admin/conversations/${conversationId}/archive`,
+            { archived },
+        )
+        return {
+            ok: true,
+            conversationId: data.id,
+            archived: Boolean(data.channelState?.archived),
+        }
     },
 
     async toggleWhatsappChatReadState(
         conversationId: string,
         read: boolean,
     ) {
-        const response = await ApiService.fetchData<{
-            ok: boolean
-            conversationId: string
-            read: boolean
-        }>({
-            url: `/conversations/${conversationId}/whatsapp/read-state`,
-            method: 'post',
-            data: {
-                read,
-            },
-        })
-        return response.data
+        const data = await fetchChatPlatformConversationAction(
+            `/admin/conversations/${conversationId}/${read ? 'read' : 'unread'}`,
+        )
+        return {
+            ok: true,
+            conversationId: data.id,
+            read: Boolean(data.channelState?.read),
+        }
     },
 
     async toggleWhatsappChatPinState(
         conversationId: string,
         pinned: boolean,
     ) {
-        const response = await ApiService.fetchData<{
-            ok: boolean
-            conversationId: string
-            pinned: boolean
-        }>({
-            url: `/conversations/${conversationId}/whatsapp/pin-state`,
-            method: 'post',
-            data: {
-                pinned,
-            },
-        })
-        return response.data
+        const data = await fetchChatPlatformConversationAction(
+            `/admin/conversations/${conversationId}/${pinned ? 'pin' : 'unpin'}`,
+        )
+        return {
+            ok: true,
+            conversationId: data.id,
+            pinned: Boolean(data.channelState?.pinned),
+        }
     },
 
     async setWhatsappChatMuteState(
         conversationId: string,
         preset: 'off' | '8h' | '7d',
     ) {
-        const response = await ApiService.fetchData<{
-            ok: boolean
-            conversationId: string
-            muted: boolean
-            mutePreset: string | null
-            muteDurationMs: number | null
-            mutedUntil: string | null
-        }>({
-            url: `/conversations/${conversationId}/whatsapp/mute-state`,
-            method: 'post',
-            data: {
-                preset,
-            },
-        })
-        return response.data
+        const data = await fetchChatPlatformConversationAction(
+            `/admin/conversations/${conversationId}/mute-state`,
+            { preset },
+        )
+        return {
+            ok: true,
+            conversationId: data.id,
+            muted: Boolean(data.channelState?.muted),
+            mutePreset: data.channelState?.mutePreset ?? null,
+            muteDurationMs: data.channelState?.muteDurationMs ?? null,
+            mutedUntil: data.channelState?.mutedUntil ?? null,
+        }
     },
 
     async setWebchatChatMuteState(
         conversationId: string,
         preset: 'off' | '8h' | '7d',
     ) {
-        const response = await ApiService.fetchData<{
-            ok: boolean
-            conversationId: string
-            muted: boolean
-            mutePreset: string | null
-            muteDurationMs: number | null
-            mutedUntil: string | null
-        }>({
-            url: `/conversations/${conversationId}/webchat/mute-state`,
-            method: 'post',
-            data: {
-                preset,
-            },
-        })
-        return response.data
+        const data = await fetchChatPlatformConversationAction(
+            `/admin/conversations/${conversationId}/mute-state`,
+            { preset },
+        )
+        return {
+            ok: true,
+            conversationId: data.id,
+            muted: Boolean(data.channelState?.muted),
+            mutePreset: data.channelState?.mutePreset ?? null,
+            muteDurationMs: data.channelState?.muteDurationMs ?? null,
+            mutedUntil: data.channelState?.mutedUntil ?? null,
+        }
     },
 
     async deleteWebchatChat(conversationId: string) {
-        const response = await ApiService.fetchData<{
-            ok: boolean
-            conversationId: string
-            deleted: boolean
-        }>({
-            url: `/conversations/${conversationId}/webchat/delete`,
-            method: 'post',
-        })
-        return response.data
+        return fetchChatPlatformDeleteAction(
+            `/admin/conversations/${conversationId}/delete`,
+        )
     },
 
     async deleteWhatsappChat(conversationId: string) {
-        const response = await ApiService.fetchData<{
-            ok: boolean
-            conversationId: string
-            deleted: boolean
-        }>({
-            url: `/conversations/${conversationId}/whatsapp/delete`,
-            method: 'post',
-        })
-        return response.data
+        return fetchChatPlatformDeleteAction(
+            `/admin/conversations/${conversationId}/delete`,
+        )
     },
 
     async downloadWhatsappMessageMedia(
@@ -1066,35 +1070,27 @@ const ConversationsService = {
     },
 
     async markConversationRead(id: string) {
-        const response = await ApiService.fetchData<ConversationDetail>({
-            url: `/conversations/${id}/read`,
-            method: 'post',
-        })
-        return response.data
+        return fetchChatPlatformConversationAction(
+            `/admin/conversations/${id}/read`,
+        )
     },
 
     async markConversationUnread(id: string) {
-        const response = await ApiService.fetchData<ConversationDetail>({
-            url: `/conversations/${id}/unread`,
-            method: 'post',
-        })
-        return response.data
+        return fetchChatPlatformConversationAction(
+            `/admin/conversations/${id}/unread`,
+        )
     },
 
     async pinConversation(id: string) {
-        const response = await ApiService.fetchData<ConversationDetail>({
-            url: `/conversations/${id}/pin`,
-            method: 'post',
-        })
-        return response.data
+        return fetchChatPlatformConversationAction(
+            `/admin/conversations/${id}/pin`,
+        )
     },
 
     async unpinConversation(id: string) {
-        const response = await ApiService.fetchData<ConversationDetail>({
-            url: `/conversations/${id}/unpin`,
-            method: 'post',
-        })
-        return response.data
+        return fetchChatPlatformConversationAction(
+            `/admin/conversations/${id}/unpin`,
+        )
     },
 
     async fetchConversationDebug(id: string) {

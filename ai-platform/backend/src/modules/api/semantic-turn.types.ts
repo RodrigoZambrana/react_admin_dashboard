@@ -18,7 +18,7 @@ export type SemanticTurnExecutionResult = {
     conversationId: string;
     traceId: string;
   };
-  incomingMessageId: string;
+  incomingMessageId: string | null;
   outgoingMessageId: string | null;
   interpretationResult: InterpretationAttempt;
   parsedInterpretation: ParsedInterpretation;

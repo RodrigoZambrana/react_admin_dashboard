@@ -26,20 +26,20 @@ export type AiGatewayConfig = {
       }
     | {
         type: 'bootstrap';
-        reason: 'env_openai_exploratory_default' | 'env_provider_override';
-      }
-    | {
-        type: 'fallback';
-        reason: 'missing_managed_resource';
+        reason:
+          | 'env_openai_exploratory_default'
+          | 'env_provider_override'
+          | 'legacy_mock_resource_ignored'
+          | 'missing_openai_credentials';
       };
 };
 
 export type AiRuntimeDiagnosticIssue = {
   code:
-    | 'missing_managed_resource'
     | 'using_bootstrap_default'
     | 'using_env_override'
-    | 'mock_runtime_active'
+    | 'legacy_mock_resource_ignored'
+    | 'missing_openai_credentials'
     | 'provider_not_registered'
     | 'missing_env_key'
     | 'missing_credentials'
@@ -53,7 +53,7 @@ export type AiRuntimeDiagnostics = {
   model: string | null;
   timeoutMs: number | null;
   source: AiGatewayConfig['source'];
-  status: 'ready' | 'invalid' | 'fallback';
+  status: 'ready' | 'invalid';
   canUseRuntime: boolean;
   exploratoryReady: boolean;
   providerRegistered: boolean;

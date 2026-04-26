@@ -54,7 +54,7 @@ describe('InfrastructureService', () => {
     );
   });
 
-  it('reports not_ready when infrastructure is healthy but AI runtime is still mock fallback', async () => {
+  it('reports not_ready when infrastructure is healthy but AI runtime has no credential yet', async () => {
     const service = new InfrastructureService(
       {
         pingDatabase: jest.fn(async () => true),
@@ -80,20 +80,21 @@ describe('InfrastructureService', () => {
       } as any,
       {
         getDiagnostics: jest.fn(async () => ({
-          provider: 'mock',
-          model: 'mock-rule-engine',
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
           source: {
-            type: 'fallback',
-            reason: 'missing_managed_resource',
+            type: 'bootstrap',
+            reason: 'missing_openai_credentials',
           },
-          status: 'fallback',
-          canUseRuntime: true,
+          status: 'invalid',
+          canUseRuntime: false,
           exploratoryReady: false,
           issues: [
             {
-              code: 'mock_runtime_active',
+              code: 'missing_openai_credentials',
               severity: 'warning',
-              message: 'The active AI runtime is using the mock provider.',
+              message:
+                'No governed ai_runtime resource is active and no OpenAI credential is currently available in secure storage or env.',
             },
           ],
         })),
@@ -105,7 +106,7 @@ describe('InfrastructureService', () => {
         status: 'not_ready',
         services: expect.objectContaining({
           aiRuntime: expect.objectContaining({
-            status: 'warning',
+            status: 'error',
             exploratoryReady: false,
           }),
         }),

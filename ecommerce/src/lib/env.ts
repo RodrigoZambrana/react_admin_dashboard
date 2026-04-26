@@ -75,7 +75,7 @@ const ensureStorefrontPath = (value: string): string => {
 };
 
 const DEFAULT_API_BASE = "http://localhost:4000/api/storefront";
-const DEFAULT_CHAT_AGENT_BASE = "http://localhost:4110";
+const DEFAULT_AI_PLATFORM_BASE = "http://localhost:4110";
 const DEFAULT_SITE_URL = "http://localhost:3000";
 
 const normalizeClientSlug = (value: string | undefined | null) => {
@@ -98,18 +98,17 @@ const serverApiBaseRaw =
   process.env.STOREFRONT_API_URL ?? process.env.NEXT_PUBLIC_STOREFRONT_API_URL ?? DEFAULT_API_BASE;
 const clientApiBaseRaw =
   process.env.NEXT_PUBLIC_STOREFRONT_API_URL ?? serverApiBaseRaw ?? DEFAULT_API_BASE;
-const chatAgentBaseRaw =
-  process.env.NEXT_PUBLIC_CHAT_AGENT_URL ??
+const aiPlatformBaseRaw =
   process.env.NEXT_PUBLIC_AI_PLATFORM_URL ??
-  DEFAULT_CHAT_AGENT_BASE;
+  DEFAULT_AI_PLATFORM_BASE;
 const clientSiteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_SITE_URL;
 
 const normalizedApiBase =
   ensureStorefrontPath(normalize(serverApiBaseRaw, "server")) || DEFAULT_API_BASE;
 const normalizedPublicApiBase =
   ensureStorefrontPath(normalize(clientApiBaseRaw, "client")) || DEFAULT_API_BASE;
-const normalizedChatAgentBase =
-  removeTrailingSlash(normalize(chatAgentBaseRaw, "client")) || DEFAULT_CHAT_AGENT_BASE;
+const normalizedAiPlatformBase =
+  removeTrailingSlash(normalize(aiPlatformBaseRaw, "client")) || DEFAULT_AI_PLATFORM_BASE;
 const normalizedSiteUrl = normalize(clientSiteUrlRaw, "client") || DEFAULT_SITE_URL;
 
 const safeOrigin = (value: string | null): string | null => {
@@ -126,7 +125,7 @@ const safeOrigin = (value: string | null): string | null => {
 export const env = {
   apiBaseUrl: normalizedApiBase,
   publicApiBaseUrl: normalizedPublicApiBase,
-  publicChatAgentUrl: normalizedChatAgentBase,
+  publicAiPlatformUrl: normalizedAiPlatformBase,
   publicSiteUrl: normalizedSiteUrl,
   publicSiteOrigin: safeOrigin(normalizedSiteUrl) ?? safeOrigin(DEFAULT_SITE_URL),
   nodeEnv: process.env.NODE_ENV ?? "development",

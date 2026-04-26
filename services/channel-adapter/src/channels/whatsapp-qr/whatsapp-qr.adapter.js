@@ -932,8 +932,8 @@ export class WhatsappQrAdapter {
     }
 
     const source = normalizeString(payload?.metadata?.source)
-    const simulateHumanBehavior = source === 'ai-agent-service'
-    if (!this.runtimeConfig.allowProactiveOutbound && source === 'ai-agent-service') {
+    const simulateHumanBehavior = source === 'ai-platform'
+    if (!this.runtimeConfig.allowProactiveOutbound && source === 'ai-platform') {
       if (this.isWithinQuietHours()) {
         throw new Error('whatsapp_qr_quiet_hours')
       }

@@ -4,13 +4,11 @@ files for the dev stack, with `.local` files reserved for optional overrides:
 - `backend.dev.env`
 - `frontend.dev.env`
 - `storefront.dev.env`
-- `ai-agent.dev.env`
 - `channel-adapter.dev.env`
 
 Optional local overlays for Docker Compose:
 
 - `.env.backend.dev.local`
-- `.env.ai-agent.dev.local`
 - `.env.channel-adapter.dev.local`
 
 Deployment workflows still upload decrypted secrets into the following files before
@@ -19,8 +17,8 @@ running Docker Compose:
 - `backend.dev.env` / `frontend.dev.env` / `storefront.dev.env` (desarrollo local)
 - `backend.testing.env` / `frontend.testing.env` / `storefront.testing.env`
 - `backend.prod.env` / `frontend.prod.env` / `storefront.prod.env`
-- `ai-agent.dev.env` / `channel-adapter.dev.env` (stack AI opcional)
-- `ai-agent.prod.env` / `channel-adapter.prod.env`
+- `channel-adapter.dev.env` (adapter de canales opcional)
+- `channel-adapter.prod.env`
 
 Every environment keeps a matching `.example` file with the full list of expected keys.
 Use the examples as reference when you need to update the versioned baselines or create
@@ -33,7 +31,6 @@ cp deploy/env/storefront.testing.env.example deploy/env/storefront.testing.env
 cp deploy/env/backend.prod.env.example deploy/env/backend.prod.env
 cp deploy/env/frontend.prod.env.example deploy/env/frontend.prod.env
 cp deploy/env/storefront.prod.env.example deploy/env/storefront.prod.env
-cp deploy/env/ai-agent.prod.env.example deploy/env/ai-agent.prod.env
 cp deploy/env/channel-adapter.prod.env.example deploy/env/channel-adapter.prod.env
 ```
 
@@ -69,14 +66,12 @@ archivos de entorno. El frontend controla además variables de Vite como
 Run `node scripts/check-env.mjs` to validate that all `.env` files contain the keys
 declared in `env.schema.json` before building or deploying.
 
-AI optional stack
-- the AI stack should be enabled as an overlay, not mixed directly into the base compose
-- use `deploy/docker-compose.ai-agent.yml` as the starting point
-- Redis should be enabled from the first AI-capable stack execution
-- keep Postgres outside this overlay, as it is today, so database lifecycle, backup and recovery remain independent
-- production should run with Redis using:
-  - `AI_MEMORY_DRIVER=redis`
-  - `REDIS_ENABLED=true`
+Channel adapter overlay
+- the channel adapter stack should be enabled as an overlay, not mixed directly into the base compose
+- use `deploy/docker-compose.channel-adapter.yml` as the channel adapter overlay file
+- channel-adapter calls the canonical ai-platform through `AI_PLATFORM_BASE_URL`
+- Redis remains in this overlay for adapter runtime coordination
+- ai-platform owns chat runtime, channel control, and conversation state
 
 Backend + Prisma migration flow
 - Local outside Docker:

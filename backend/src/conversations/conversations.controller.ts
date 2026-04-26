@@ -3,7 +3,6 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   NotFoundException,
   Param,
   Post,
@@ -24,13 +23,8 @@ import { ReplyConversationDto } from './dto/reply-conversation.dto'
 import { AssignConversationDto } from './dto/assign-conversation.dto'
 import { ConversationHandoffDto } from './dto/conversation-handoff.dto'
 import { CreateWebchatMessageDto } from './dto/create-webchat-message.dto'
-import { AgentReplyDto } from './dto/agent-reply.dto'
 import { DispatchWebchatMessageDto } from './dto/dispatch-webchat-message.dto'
 import { GetWebchatSessionDto } from './dto/get-webchat-session.dto'
-import { IngestInboundMessageDto } from './dto/ingest-inbound-message.dto'
-import { ImportChannelHistoryMessageDto } from './dto/import-channel-history-message.dto'
-import { BootstrapChannelThreadDto } from './dto/bootstrap-channel-thread.dto'
-import { SyncOutboundStatusDto } from './dto/sync-outbound-status.dto'
 import { CreateAdminInternalSessionDto } from './dto/create-admin-internal-session.dto'
 import { RerouteConversationDto } from './dto/reroute-conversation.dto'
 import { ListConversationContactsDto } from './dto/list-conversation-contacts.dto'
@@ -262,70 +256,6 @@ export class ConversationsController {
   @Post('webchat/dispatch')
   dispatchWebchatMessage(@Body() dto: DispatchWebchatMessageDto) {
     return this.conversations.dispatchWebchatMessage(dto)
-  }
-
-  @Post('internal/inbound')
-  ingestInbound(
-    @Body() dto: IngestInboundMessageDto,
-    @Headers('x-ai-internal-token') token?: string,
-  ) {
-    const expectedToken =
-      this.config.get<string>('AI_INTERNAL_TOKEN') ||
-      'local-ai-internal-token'
-
-    if (!token || token !== expectedToken) {
-      throw new NotFoundException('conversation.notFound')
-    }
-
-    return this.conversations.ingestInboundMessage(dto)
-  }
-
-  @Post('internal/outbound-status')
-  syncOutboundStatus(
-    @Body() dto: SyncOutboundStatusDto,
-    @Headers('x-ai-internal-token') token?: string,
-  ) {
-    const expectedToken =
-      this.config.get<string>('AI_INTERNAL_TOKEN') ||
-      'local-ai-internal-token'
-
-    if (!token || token !== expectedToken) {
-      throw new NotFoundException('conversation.notFound')
-    }
-
-    return this.conversations.syncOutboundStatus(dto)
-  }
-
-  @Post('internal/history-message')
-  importChannelHistoryMessage(
-    @Body() dto: ImportChannelHistoryMessageDto,
-    @Headers('x-ai-internal-token') token?: string,
-  ) {
-    const expectedToken =
-      this.config.get<string>('AI_INTERNAL_TOKEN') ||
-      'local-ai-internal-token'
-
-    if (!token || token !== expectedToken) {
-      throw new NotFoundException('conversation.notFound')
-    }
-
-    return this.conversations.importChannelHistoryMessage(dto)
-  }
-
-  @Post('internal/bootstrap-thread')
-  bootstrapChannelThread(
-    @Body() dto: BootstrapChannelThreadDto,
-    @Headers('x-ai-internal-token') token?: string,
-  ) {
-    const expectedToken =
-      this.config.get<string>('AI_INTERNAL_TOKEN') ||
-      'local-ai-internal-token'
-
-    if (!token || token !== expectedToken) {
-      throw new NotFoundException('conversation.notFound')
-    }
-
-    return this.conversations.bootstrapChannelThread(dto)
   }
 
   @Post(':id/takeover')
@@ -727,20 +657,4 @@ export class ConversationsController {
     )
   }
 
-  @Post(':id/agent-reply')
-  async replyAsAgent(
-    @Param('id') id: string,
-    @Body() dto: AgentReplyDto,
-    @Headers('x-ai-internal-token') token?: string,
-  ) {
-    const expectedToken =
-      this.config.get<string>('AI_INTERNAL_TOKEN') ||
-      'local-ai-internal-token'
-
-    if (!token || token !== expectedToken) {
-      throw new NotFoundException('conversation.notFound')
-    }
-
-    return this.conversations.replyAsAgent(id, dto)
-  }
 }

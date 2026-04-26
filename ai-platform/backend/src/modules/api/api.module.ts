@@ -19,6 +19,8 @@ import { ToolsModule } from '../tools/tools.module';
 import { ChatOrchestratorService } from './chat-orchestrator.service';
 import { AdminCatalogController } from './admin-catalog.controller';
 import { AdminCatalogService } from './admin-catalog.service';
+import { AdminConversationsController } from './admin-conversations.controller';
+import { AdminConversationsService } from './admin-conversations.service';
 import { AdminDocumentsController } from './admin-documents.controller';
 import { AdminDocumentsService } from './admin-documents.service';
 import { AdminTestCenterEvaluationService } from './admin-test-center-evaluation.service';
@@ -66,6 +68,7 @@ import { TraceLogService } from './trace-log.service';
     StorefrontWebchatController,
     RuntimeResourcesAdminController,
     AdminCatalogController,
+    AdminConversationsController,
     AdminDocumentsController,
     AdminKnowledgeController,
     AdminTestCenterController,
@@ -80,6 +83,7 @@ import { TraceLogService } from './trace-log.service';
     AsyncTurnIntakeService,
     ChatOrchestratorService,
     AdminCatalogService,
+    AdminConversationsService,
     AdminDocumentsService,
     AdminKnowledgeService,
     AdminTestCenterScenarioCatalogService,

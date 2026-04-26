@@ -2,6 +2,10 @@ import { RuntimeConfigService } from '../src/modules/runtime-config/runtime-conf
 
 describe('RuntimeConfigService', () => {
   it('resolves AI runtime config from governed managed resources through a provider-agnostic contract', async () => {
+    const secureConfig = {
+      getString: jest.fn(async () => null),
+      setString: jest.fn(async () => undefined),
+    };
     const service = new RuntimeConfigService(
       {
         get: jest.fn((key: string) =>
@@ -25,6 +29,7 @@ describe('RuntimeConfigService', () => {
           },
         })),
       } as any,
+      secureConfig as any,
     );
 
     await expect(service.getAiGatewayConfig()).resolves.toEqual({
@@ -45,9 +50,20 @@ describe('RuntimeConfigService', () => {
         version: 4,
       },
     });
+    expect(secureConfig.getString).toHaveBeenCalledWith(
+      'ai_runtime.openai_api_key',
+    );
+    expect(secureConfig.setString).toHaveBeenCalledWith(
+      'ai_runtime.openai_api_key',
+      'secret-token',
+    );
   });
 
   it('uses exploratory OpenAI defaults when OPENAI_API_KEY is present and no governed config exists', async () => {
+    const secureConfig = {
+      getString: jest.fn(async () => null),
+      setString: jest.fn(async () => undefined),
+    };
     const service = new RuntimeConfigService(
       {
         get: jest.fn((key: string) =>
@@ -57,6 +73,7 @@ describe('RuntimeConfigService', () => {
       {
         getActiveConfig: jest.fn(async () => null),
       } as any,
+      secureConfig as any,
     );
 
     await expect(service.getAiGatewayConfig()).resolves.toEqual({
@@ -74,9 +91,20 @@ describe('RuntimeConfigService', () => {
         reason: 'env_openai_exploratory_default',
       },
     });
+    expect(secureConfig.getString).toHaveBeenCalledWith(
+      'ai_runtime.openai_api_key',
+    );
+    expect(secureConfig.setString).toHaveBeenCalledWith(
+      'ai_runtime.openai_api_key',
+      'real-openai-key',
+    );
   });
 
-  it('keeps an explicit governed ai_runtime resource above exploratory env defaults', async () => {
+  it('prefers a stored secret over env bootstrap values', async () => {
+    const secureConfig = {
+      getString: jest.fn(async () => ({ value: 'stored-openai-key' })),
+      setString: jest.fn(async () => undefined),
+    };
     const service = new RuntimeConfigService(
       {
         get: jest.fn((key: string) =>
@@ -87,27 +115,28 @@ describe('RuntimeConfigService', () => {
         getActiveConfig: jest.fn(async () => ({
           version: 8,
           value: {
-            provider: 'mock',
-            model: 'mock-rule-engine',
-            timeoutMs: 1000,
+            provider: 'openai',
+            model: 'gpt-4.1-mini',
+            timeoutMs: 7000,
             credentials: {
-              strategy: 'none',
-              envKey: null,
+              strategy: 'env',
+              envKey: 'OPENAI_API_KEY',
             },
             providerOptions: {},
           },
         })),
       } as any,
+      secureConfig as any,
     );
 
     await expect(service.getAiGatewayConfig()).resolves.toEqual({
-      provider: 'mock',
-      model: 'mock-rule-engine',
-      timeoutMs: 1000,
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      timeoutMs: 7000,
       credentials: {
-        strategy: 'none',
-        envKey: null,
-        value: null,
+        strategy: 'env',
+        envKey: 'OPENAI_API_KEY',
+        value: 'stored-openai-key',
       },
       providerOptions: {},
       source: {
@@ -116,9 +145,14 @@ describe('RuntimeConfigService', () => {
         version: 8,
       },
     });
+    expect(secureConfig.setString).not.toHaveBeenCalled();
   });
 
-  it('falls back to mock only when no governed config or exploratory OpenAI bootstrap is available', async () => {
+  it('returns a bootstrap OpenAI config with unresolved credentials when no key is configured', async () => {
+    const secureConfig = {
+      getString: jest.fn(async () => null),
+      setString: jest.fn(async () => undefined),
+    };
     const service = new RuntimeConfigService(
       {
         get: jest.fn(),
@@ -126,22 +160,26 @@ describe('RuntimeConfigService', () => {
       {
         getActiveConfig: jest.fn(async () => null),
       } as any,
+      secureConfig as any,
     );
 
     await expect(service.getAiGatewayConfig()).resolves.toEqual({
-      provider: 'mock',
-      model: 'mock-rule-engine',
-      timeoutMs: 1000,
+      provider: 'openai',
+      model: 'gpt-4.1-mini',
+      timeoutMs: 7000,
       credentials: {
-        strategy: 'none',
-        envKey: null,
+        strategy: 'env',
+        envKey: 'OPENAI_API_KEY',
         value: null,
       },
       providerOptions: {},
       source: {
-        type: 'fallback',
-        reason: 'missing_managed_resource',
+        type: 'bootstrap',
+        reason: 'missing_openai_credentials',
       },
     });
+    expect(secureConfig.getString).toHaveBeenCalledWith(
+      'ai_runtime.openai_api_key',
+    );
   });
 });

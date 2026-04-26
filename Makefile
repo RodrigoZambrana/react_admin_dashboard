@@ -13,7 +13,8 @@ POSTGRES_NETWORK_NAME ?= postgres-local
 STACK_RUNTIME_ROOT ?= ../.docker/$(APP_STACK_NAME)
 POSTGRES_HOST_PORT ?= 5432
 COMPOSE_DEV := deploy/docker-compose.dev.yml
-COMPOSE_AI := deploy/docker-compose.ai-agent.yml
+COMPOSE_AI := deploy/docker-compose.channel-adapter.yml
+COMPOSE_AI_PLATFORM := ai-platform/docker-compose.yml
 COMPOSE_POSTGRES_LOCAL := deploy/docker-compose.postgres-local.yml
 COMPOSE_TESTING := deploy/docker-compose.testing.yml
 COMPOSE_PROD := deploy/docker-compose.prod.yml
@@ -36,8 +37,20 @@ postgres-up:
 postgres-down:
 	$(POSTGRES_STACK_ENV) docker compose -f $(COMPOSE_POSTGRES_LOCAL) down
 
+## Start the canonical ai-platform stack
+ai-platform-up:
+	docker compose -f $(COMPOSE_AI_PLATFORM) up -d --build
+
+## Stop the canonical ai-platform stack
+ai-platform-down:
+	docker compose -f $(COMPOSE_AI_PLATFORM) down
+
+## Follow logs from the canonical ai-platform stack
+ai-platform-logs:
+	docker compose -f $(COMPOSE_AI_PLATFORM) logs -f
+
 ## Start local development stack with live reloaders
-dev-up: prepare-dev-stack postgres-up
+dev-up: ai-platform-up prepare-dev-stack postgres-up
 	$(DEV_STACK_ENV) docker compose -f $(COMPOSE_DEV) -f $(COMPOSE_AI) --profile ai up -d --build
 
 ## Render the canonical local development stack config

@@ -1,7 +1,6 @@
 import ApiService from './ApiService'
 
 const channelControlBaseUrl = (
-  import.meta.env.VITE_CHAT_AGENT_API_URL ||
   import.meta.env.VITE_AI_PLATFORM_URL ||
   'http://localhost:4110'
 ).replace(/\/$/, '')

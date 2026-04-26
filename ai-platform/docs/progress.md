@@ -3331,7 +3331,8 @@
   - `POST /internal/conversations/history-message`
   - `POST /internal/conversations/bootstrap-thread`
   - `POST /internal/conversations/outbound-status`
-  - `POST /internal/conversations/:id/agent-reply`
+  - `POST /internal/conversations/:id/agent-turn`
+  - `POST /internal/conversations/:id/replies/agent`
 - Added explicit persistence for transport correlation:
   - `ChannelConversationBinding`
   - `ChannelMessageRecord`
