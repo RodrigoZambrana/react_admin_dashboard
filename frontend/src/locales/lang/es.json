@@ -15,8 +15,7 @@
       "customers": "Listado",
       "customerDetails": "Detalles del cliente",
       "mail": "Correo",
-      "messages": "Mensajes",
-      "messagesDebug": "Mensajes Debug",
+      "messages": "Conversaciones",
       "conversationsLegacy": "Mensajes legacy"
     },
     "appsCalendar": {
@@ -100,12 +99,38 @@
       "companyProfile": "Datos de la empresa",
       "mercadoPago": "Mercado Pago",
       "google": "Google y reCAPTCHA",
+      "channels": "Canales",
+      "email": "Email e Integraciones",
       "systemConfig": "Configuración del sistema",
       "aberturas": "Aberturas",
-      "email": "Email e Integraciones",
       "emailTemplates": "Plantillas de correo",
       "emailConfig": "Configuración de correo",
+      "whatsappQr": "WhatsApp QR",
+      "metaChannels": "Canales Meta",
       "calendarEventTypes": "Tipos de evento"
+    },
+    "appsCms": {
+      "root": "CMS",
+      "generalPages": "Páginas generales",
+      "content": "Contenido legado",
+      "storePages": "Páginas del storefront",
+      "media": "Multimedia"
+    },
+    "appsAi": {
+      "ai": "Agente de chat",
+      "home": "Agente de chat",
+      "runtime": "Configuración",
+      "knowledgeOverview": "Resumen de conocimiento",
+      "knowledgeSnapshots": "Snapshots de conocimiento",
+      "knowledgeManageArticles": "Gestionar artículos",
+      "knowledgeQuoteProfiles": "Perfiles de cotización",
+      "knowledgeDocuments": "Documentos",
+      "knowledgeCandidates": "Candidatos",
+      "knowledgeRawEvents": "Eventos crudos",
+      "knowledgeIngestionRuns": "Corridas de ingesta",
+      "knowledgeFeedback": "Feedback",
+      "knowledgeConversationBundles": "Bundles de conversaciones",
+      "knowledgeNegativeExamples": "Ejemplos negativos"
     },
     "uiComponents": "Componentes de la UI",
     "uiComponentsCommon": {
@@ -405,6 +430,7 @@
       "submit": "Iniciar sesión",
       "submitting": "Iniciando sesión...",
       "noAccount": "¿No tienes una cuenta todavía?",
+      "googleDisabledHint": "Habilita el inicio con Google desde la configuración de la plataforma para activar esta opción.",
       "recaptchaMessage": "reCAPTCHA Enterprise protege esta acción."
     },
     "signUp": {
@@ -2586,11 +2612,11 @@
       },
       "fields": {
         "googleEnabled": {
-          "label": "Habilitar acceso con Google (backend)",
-          "help": "Controla si el backend acepta OAuth de Google. Deshabilitalo para apagar el flujo por completo."
+          "label": "Habilitar acceso con Google",
+          "help": "Controla si la plataforma acepta OAuth de Google. Deshabilitalo para apagar el flujo por completo."
         },
         "storefrontGoogleEnabled": {
-          "label": "Mostrar botón de Google (storefront)",
+          "label": "Mostrar botón de Google en el storefront",
           "help": "Activa la opción de inicio de sesión con Google en el storefront. Requiere tener el flujo habilitado arriba."
         },
         "storefrontSiteUrl": {

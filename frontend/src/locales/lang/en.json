@@ -15,8 +15,7 @@
       "customers": "Customers",
       "customerDetails": "Customer Details",
       "mail": "Mail",
-      "messages": "Messages",
-      "messagesDebug": "Messages Debug",
+      "messages": "Conversations",
       "conversationsLegacy": "Messages legacy"
     },
     "appsCalendar": {
@@ -101,12 +100,38 @@
       "companyProfile": "Company Profile",
       "mercadoPago": "Mercado Pago",
       "google": "Google & reCAPTCHA",
+      "channels": "Channels",
+      "email": "Email & Integrations",
       "systemConfig": "System Config",
       "aberturas": "Openings",
-      "email": "Email & Integrations",
       "emailTemplates": "Email Templates",
       "emailConfig": "Email Configuration",
+      "whatsappQr": "WhatsApp QR",
+      "metaChannels": "Meta Channels",
       "calendarEventTypes": "Calendar Event Types"
+    },
+    "appsCms": {
+      "root": "CMS",
+      "generalPages": "General Site Pages",
+      "content": "Legacy Content",
+      "storePages": "Storefront Pages",
+      "media": "Media"
+    },
+    "appsAi": {
+      "ai": "Chat Agent",
+      "home": "Chat Agent",
+      "runtime": "Configuration",
+      "knowledgeOverview": "Knowledge Overview",
+      "knowledgeSnapshots": "Knowledge Snapshots",
+      "knowledgeManageArticles": "Manage Articles",
+      "knowledgeQuoteProfiles": "Quote Profiles",
+      "knowledgeDocuments": "Documents",
+      "knowledgeCandidates": "Candidates",
+      "knowledgeRawEvents": "Raw Events",
+      "knowledgeIngestionRuns": "Ingestion Runs",
+      "knowledgeFeedback": "Feedback",
+      "knowledgeConversationBundles": "Conversation Bundles",
+      "knowledgeNegativeExamples": "Negative Examples"
     },
     "uiComponents": "UI Components",
     "uiComponentsCommon": {
@@ -406,6 +431,7 @@
       "submit": "Sign In",
       "submitting": "Signing in...",
       "noAccount": "Don't have an account yet?",
+      "googleDisabledHint": "Enable Google sign-in from the platform settings to activate this option.",
       "recaptchaMessage": "reCAPTCHA Enterprise protects this action."
     },
     "signUp": {
@@ -2585,11 +2611,11 @@
       },
       "fields": {
         "googleEnabled": {
-          "label": "Enable Google sign-in (backend)",
-          "help": "Controls whether Google OAuth is accepted by the backend. Disable this to turn off the flow entirely."
+          "label": "Enable Google sign-in",
+          "help": "Controls whether Google OAuth is accepted by the platform. Disable this to turn off the flow entirely."
         },
         "storefrontGoogleEnabled": {
-          "label": "Enable Google button (storefront)",
+          "label": "Show Google button in storefront",
           "help": "Toggles the Google sign-in option in the storefront UI. Requires Google OAuth to be enabled above."
         },
         "storefrontSiteUrl": {

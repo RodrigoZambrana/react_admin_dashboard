@@ -189,7 +189,7 @@ const AiRuntimeSettings = () => {
         } catch (error) {
             console.error(error)
             toast.push(
-                <Notification title="No fue posible cargar la configuración AI" type="danger">
+                <Notification title="No fue posible cargar la configuración del agente de chat" type="danger">
                     Verifica permisos y disponibilidad del backend.
                 </Notification>,
                 { placement: 'top-end' },
@@ -234,15 +234,14 @@ const AiRuntimeSettings = () => {
                 <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                     <div className="max-w-4xl">
                         <div className="text-xs uppercase tracking-wide text-gray-400">
-                            AI Runtime
+                            Configuración
                         </div>
                         <h4 className="mt-1 text-2xl font-semibold text-gray-900">
                             Runtime técnico del agente
                         </h4>
                         <p className="mt-3 text-sm leading-6 text-gray-600">
                             Esta pantalla queda reservada para proveedor, modelo, límites,
-                            prompts y catálogo técnico de acciones. La gestión de knowledge
-                            ya vive en superficies dedicadas del módulo IA.
+                            prompts, uso y catálogo técnico de acciones del agente de chat.
                         </p>
                         <div className="mt-4 flex flex-wrap items-center gap-2">
                             <Badge
@@ -281,27 +280,7 @@ const AiRuntimeSettings = () => {
                             variant="default"
                             onClick={() => navigate(`${APP_PREFIX_PATH}/settings/ai`)}
                         >
-                            Volver a IA
-                        </Button>
-                        <Button
-                            variant="default"
-                            onClick={() =>
-                                navigate(
-                                    `${APP_PREFIX_PATH}/settings/ai/knowledge/overview`,
-                                )
-                            }
-                        >
-                            Knowledge overview
-                        </Button>
-                        <Button
-                            variant="default"
-                            onClick={() =>
-                                navigate(
-                                    `${APP_PREFIX_PATH}/settings/ai/knowledge/ingestion-runs`,
-                                )
-                            }
-                        >
-                            Corridas de ingesta
+                            Volver a agente
                         </Button>
                         <Button variant="solid" onClick={() => void loadConfig()}>
                             Refrescar
@@ -403,15 +382,15 @@ const AiRuntimeSettings = () => {
                         nextValues.openAiApiKey = ''
                         setValues(nextValues)
                         toast.push(
-                            <Notification title="Configuración AI guardada" type="success">
-                                El runtime del agente quedó actualizado.
+                            <Notification title="Configuración del agente guardada" type="success">
+                                La configuración del agente quedó actualizada.
                             </Notification>,
                             { placement: 'top-end' },
                         )
                     } catch (error) {
                         console.error(error)
                         toast.push(
-                            <Notification title="No fue posible guardar la configuración AI" type="danger">
+                            <Notification title="No fue posible guardar la configuración del agente de chat" type="danger">
                                 Revisa los campos y vuelve a intentar.
                             </Notification>,
                             { placement: 'top-end' },
@@ -426,7 +405,7 @@ const AiRuntimeSettings = () => {
                         <Card bodyClass="p-6">
                             <FormContainer>
                                 <FormItem
-                                    label="Habilitar AI"
+                                    label="Habilitar agente de chat"
                                     extra="Permite pausar la asistencia sin perder la configuración."
                                 >
                                     <div className="flex items-center gap-4">
@@ -469,7 +448,7 @@ const AiRuntimeSettings = () => {
                                 </div>
 
                                 <FormItem
-                                    label="OpenAI API key"
+                                    label="Clave API de OpenAI"
                                     extra="Deja vacío para conservar la clave ya almacenada."
                                 >
                                     <Field

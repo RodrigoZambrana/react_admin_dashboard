@@ -73,6 +73,8 @@ const navigationIcon: NavigationIcons = {
     settings: <HiOutlineAdjustments />,
     products: <HiOutlineShoppingBag />,
     ai: <HiOutlineSparkles />,
+    message: <HiOutlineChatAlt2 />,
+    layout: <HiOutlineTemplate />,
     emailChannel: <HiOutlineMail />,
     whatsapp: <HiOutlineChatAlt2 />,
     meta: <HiOutlineGlobeAlt />,

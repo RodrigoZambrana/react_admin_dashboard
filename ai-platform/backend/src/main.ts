@@ -19,7 +19,47 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors();
+  const defaultAllowedOrigins = (
+    process.env.DEFAULT_ALLOWED_ORIGINS ??
+    'http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080,http://localhost:5179,http://127.0.0.1:5179'
+  )
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  const envAllowedOrigins = (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  const allowedOrigins = Array.from(
+    new Set([...defaultAllowedOrigins, ...envAllowedOrigins]),
+  );
+
+  await app.enableCors({
+    origin: (origin, cb) => {
+      if (!origin) {
+        cb(null, true);
+        return;
+      }
+
+      if (allowedOrigins.includes('*')) {
+        cb(null, true);
+        return;
+      }
+
+      const match = allowedOrigins.find(
+        (allowed) => origin === allowed || origin.endsWith(allowed),
+      );
+
+      if (match) {
+        cb(null, true);
+        return;
+      }
+
+      cb(new Error('Origin not allowed'), false);
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    credentials: true,
+  });
 
   const port = Number(process.env.PORT ?? 4110);
   await app.listen(port);

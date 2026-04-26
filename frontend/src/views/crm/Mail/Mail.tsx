@@ -35,9 +35,9 @@ const Mail = () => {
         },
         {
             key: 'ai',
-            label: 'IA',
+            label: 'Agente de chat',
             icon: TbRobot,
-            to: '/app/settings/ai',
+            to: '/app/settings/ai/runtime',
             active: location.pathname.startsWith('/app/settings/ai'),
         },
         {

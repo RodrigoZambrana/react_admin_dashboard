@@ -228,7 +228,7 @@ const AiHomePage = () => {
                     <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                         <div className="max-w-4xl">
                             <div className="text-xs uppercase tracking-wide text-gray-400">
-                                AI Module
+                                Agente de chat
                             </div>
                             <h4 className="mt-1 text-2xl font-semibold text-gray-900">
                                 IA como módulo operativo independiente

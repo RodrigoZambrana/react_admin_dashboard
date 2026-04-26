@@ -55,7 +55,7 @@ const DefaultItem = ({ nav, onLinkClick, userAuthority }: DefaultItemProps) => {
                         <MenuItem eventKey={subNav.key}>
                             {subNav.path ? (
                                 <Link
-                                    className="h-full w-full flex items-center"
+                                    className="h-full w-full flex items-center gap-2"
                                     to={subNav.path}
                                     target={
                                         subNav.isExternalLink ? '_blank' : ''
@@ -73,6 +73,7 @@ const DefaultItem = ({ nav, onLinkClick, userAuthority }: DefaultItemProps) => {
                                         })
                                     }}
                                 >
+                                    <VerticalMenuIcon icon={subNav.icon} />
                                     <span>
                                         <Trans
                                             i18nKey={subNav.translateKey}
@@ -81,7 +82,8 @@ const DefaultItem = ({ nav, onLinkClick, userAuthority }: DefaultItemProps) => {
                                     </span>
                                 </Link>
                             ) : (
-                                <span>
+                                <span className="flex items-center gap-2">
+                                    <VerticalMenuIcon icon={subNav.icon} />
                                     <Trans
                                         i18nKey={subNav.translateKey}
                                         defaults={subNav.title}

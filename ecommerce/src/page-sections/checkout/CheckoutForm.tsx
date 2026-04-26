@@ -369,6 +369,7 @@ export default function CheckoutForm({
 
   return (
     <Formik
+      enableReinitialize
       initialValues={initialValues}
       validationSchema={checkoutSchema}
       onSubmit={handleFormSubmit}>

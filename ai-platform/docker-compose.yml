@@ -35,6 +35,25 @@ services:
       retries: 12
       start_period: 60s
 
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_URL: ${AI_PLATFORM_VITE_API_URL:-http://localhost:4110}
+        VITE_TENANT_ID: ${DEFAULT_TENANT_ID:-demo-tenant}
+    ports:
+      - "${AI_PLATFORM_FRONTEND_HOST_PORT:-5179}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1/health >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
   postgres:
     image: postgres:16-alpine
     environment:

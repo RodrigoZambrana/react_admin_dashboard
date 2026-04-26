@@ -30,7 +30,6 @@ import { PricingModule } from './pricing/pricing.module'
 import { AberturasGlossaryModule } from './aberturas/aberturas-glossary.module'
 import { CmsModule } from './cms/cms.module'
 import { QaModule } from './qa/qa.module'
-import { ConversationsModule } from './conversations/conversations.module'
 import { AiModule } from './ai/ai.module'
 import { KnowledgeModule } from './knowledge/knowledge.module'
 import { GrowthModule } from './growth/growth.module'
@@ -79,7 +78,6 @@ import { ObservabilityService } from './common/observability/observability.servi
     AberturasGlossaryModule,
     CmsModule,
     QaModule,
-    ConversationsModule,
     AiModule,
     KnowledgeModule,
     GrowthModule,
