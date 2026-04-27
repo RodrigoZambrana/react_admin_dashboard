@@ -1,15 +1,14 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
-
-const backendBaseUrl = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
+import { aiPlatformApiBaseUrl } from "./support/env";
 
 test("admin can takeover, reply and release a conversation", async ({
   page,
   request,
 }) => {
   const seedResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/session`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
     {
       data: {
         tenantKey: "urucortinas",

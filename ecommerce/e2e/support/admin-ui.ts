@@ -2,7 +2,7 @@ import { expect, type Page } from "@playwright/test";
 
 const adminAppBaseUrl = process.env.PLAYWRIGHT_ADMIN_APP_URL ?? "http://localhost:8080";
 const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? "desarrollo@software-strategy.com";
-const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? "LocalAdmin123!";
+const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? "Pass123";
 
 export async function loginAsAdminUser(
   page: Page,

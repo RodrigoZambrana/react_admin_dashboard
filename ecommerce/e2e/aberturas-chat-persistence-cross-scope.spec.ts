@@ -13,12 +13,11 @@ import {
   startAdminInternalAssistantConversationForUser,
 } from "./support/admin-api";
 import { loginAsAdminUser, resolveAdminAppUrl } from "./support/admin-ui";
-import { storefrontBaseUrl } from "./support/env";
+import { aiPlatformApiBaseUrl, storefrontBaseUrl } from "./support/env";
 import { buildTestCustomer } from "./support/factories";
 import { registerCustomer } from "./support/storefront-api";
 
-const backendBaseUrl =
-  process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
+const backendBaseUrl = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
 
 type ConversationDetail = {
   id: string;
@@ -60,7 +59,7 @@ async function fetchConversationDetail(
   conversationId: string,
 ): Promise<ConversationDetail> {
   const response = await request.get(
-    `${backendBaseUrl}/api/conversations/${conversationId}`,
+    `${aiPlatformApiBaseUrl}/admin/conversations/${conversationId}`,
     {
       headers: {
         authorization: `Bearer ${token}`,

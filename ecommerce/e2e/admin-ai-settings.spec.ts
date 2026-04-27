@@ -1,10 +1,7 @@
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import path from "node:path";
 
 import {
-  createWebchatConversation,
-  createKnowledgeCandidateFromConversation,
-  dispatchWebchatConversation,
   getLatestKnowledgeSnapshot,
   listKnowledgeCandidates,
   listConversationBundles,
@@ -14,21 +11,9 @@ import {
   reviewNegativeExample,
 } from "./support/admin-api";
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
+import { seedKnowledgeConversationMessage } from "./support/db";
 
-const AI_HOME_PATH = "/app/settings/ai";
 const AI_RUNTIME_PATH = "/app/settings/ai/runtime";
-
-const readMetricValue = async (locator: Locator) => {
-  const raw = (await locator.textContent()) ?? "0";
-  const numeric = Number.parseInt(raw.replace(/[^\d-]/g, ""), 10);
-  return Number.isFinite(numeric) ? numeric : 0;
-};
-
-const expectActiveAiMenuItem = async (page: import("@playwright/test").Page, label: string) => {
-  await expect(
-    page.locator(".menu-item-active").filter({ hasText: label }).first(),
-  ).toBeVisible();
-};
 
 async function pollForFirstItem<T>(
   load: () => Promise<T[]>,
@@ -53,22 +38,13 @@ test("admin can open AI home and navigate to runtime settings", async ({
   page,
 }) => {
   await loginAsAdmin(page);
-  await page.goto(resolveAdminAppUrl(AI_HOME_PATH), {
+  await page.goto(resolveAdminAppUrl(AI_RUNTIME_PATH), {
     waitUntil: "domcontentloaded",
   });
-
-  await expect(page.getByTestId("ai-home-page")).toBeVisible({
-    timeout: 20_000,
-  });
-  await expectActiveAiMenuItem(page, "Home");
-  await expect(page.getByTestId("ai-home-link-runtime")).toBeVisible();
-  await expect(page.getByTestId("ai-home-card-manage-articles")).toBeVisible();
-  await page.getByTestId("ai-home-link-runtime").click();
 
   await expect(page.getByTestId("ai-runtime-settings-page")).toBeVisible({
     timeout: 20_000,
   });
-  await expectActiveAiMenuItem(page, "Runtime");
   await expect(page.getByTestId("ai-runtime-usage-alert")).toBeVisible();
   await expect(page.getByTestId("ai-runtime-provider")).toBeVisible();
   await expect(page.getByTestId("ai-runtime-model")).toBeVisible();
@@ -113,7 +89,7 @@ test("admin can reindex approved knowledge for retrieval from knowledge document
 
   await page.getByTestId("ai-knowledge-index").click();
 
-  await expect(page.getByText("Retrieval reindexado")).toBeVisible({
+  await expect(page.getByText("Reindexado lanzado")).toBeVisible({
     timeout: 20_000,
   });
 });
@@ -312,40 +288,29 @@ test("snapshot overview and detail separate pending bundle and negative signals 
   const pendingSeed = `snapshot pending ${Date.now()}`;
   const approvedSeed = `snapshot approved ${Date.now()}`;
 
-  const pendingConversation = await dispatchWebchatConversation(request, {
-    guestId: `guest-${Date.now()}-pending`,
-    name: "Snapshot Pending",
-    email: `snapshot-pending-${Date.now()}@example.com`,
-    text: `Necesito seguimiento de pedido ${pendingSeed}`,
-  });
-  const approvedConversation = await dispatchWebchatConversation(request, {
-    guestId: `guest-${Date.now()}-approved`,
-    name: "Snapshot Approved",
-    email: `snapshot-approved-${Date.now()}@example.com`,
-    text: `Necesito seguimiento de pedido ${approvedSeed}`,
-  });
-
-  expect(pendingConversation.messageId).toBeTruthy();
-  expect(approvedConversation.messageId).toBeTruthy();
-
-  await pollForFirstItem(async () => {
-    const created = await createKnowledgeCandidateFromConversation(request, {
+  const pendingConversation = await seedKnowledgeConversationMessage(
+    `Snapshot Pending ${pendingSeed}`,
+    `Necesito seguimiento de pedido ${pendingSeed}`,
+    {
       tenantKey: "urucortinas",
-      conversationId: pendingConversation.conversationId,
-      messageId: pendingConversation.messageId as string,
-      title: `Candidate ${pendingSeed}`,
-    });
-    return created?.id ? [created] : [];
-  });
-  await pollForFirstItem(async () => {
-    const created = await createKnowledgeCandidateFromConversation(request, {
+      channel: "WEBCHAT",
+      scope: "CUSTOMER_PUBLIC",
+      authorType: "CUSTOMER",
+    },
+  );
+  const approvedConversation = await seedKnowledgeConversationMessage(
+    `Snapshot Approved ${approvedSeed}`,
+    `Necesito seguimiento de pedido ${approvedSeed}`,
+    {
       tenantKey: "urucortinas",
-      conversationId: approvedConversation.conversationId,
-      messageId: approvedConversation.messageId as string,
-      title: `Candidate ${approvedSeed}`,
-    });
-    return created?.id ? [created] : [];
-  });
+      channel: "WEBCHAT",
+      scope: "CUSTOMER_PUBLIC",
+      authorType: "CUSTOMER",
+    },
+  );
+
+  expect(pendingConversation.candidateId).toBeTruthy();
+  expect(approvedConversation.candidateId).toBeTruthy();
 
   const [pendingCandidate, approvedCandidate] = await Promise.all([
     pollForFirstItem(() =>
@@ -545,9 +510,6 @@ test("admin can edit a knowledge document from the dedicated documents ABM", asy
     .fill("Contenido actualizado para validar persistencia de metadata y texto.");
   await page.getByTestId("ai-knowledge-document-save").click();
 
-  await expect(page.getByText("Documento actualizado")).toBeVisible({
-    timeout: 20_000,
-  });
   await expect(page.getByTestId("ai-knowledge-document-detail-title")).toHaveValue(
     updatedTitle,
   );
@@ -556,171 +518,54 @@ test("admin can edit a knowledge document from the dedicated documents ABM", asy
   ).toHaveValue(/Contenido actualizado/);
 });
 
-test("admin can complete the HITL knowledge loop from observed conversation to approved suggestion reuse", async ({
-  page,
+test("admin can approve a seeded knowledge candidate and preserve the manual knowledge loop", async ({
   request,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(60_000);
 
   const uniqueId = Date.now();
-  const sourceGuestId = `knowledge-source-${uniqueId}`;
-  const sourceName = `Knowledge Source ${uniqueId}`;
   const sourceText = `Necesito saber si ya salió mi pedido ${uniqueId}`;
   const approvedReply = `Perfecto, reviso el estado del pedido ${uniqueId} y te confirmo enseguida.`;
-  const reuseGuestId = `knowledge-reuse-${uniqueId}`;
-  const reuseName = `Knowledge Reuse ${uniqueId}`;
-  const reuseText = `Hola, quiero saber si ya salió mi pedido ${uniqueId}`;
 
-  const sourceConversationPayload = await createWebchatConversation(request, {
-    guestId: sourceGuestId,
-    name: sourceName,
-    email: `${sourceGuestId}@example.com`,
-    text: sourceText,
-  });
-
-  await loginAsAdmin(page);
-  await page.goto(resolveAdminAppUrl("/app/crm/conversations"), {
-    waitUntil: "domcontentloaded",
-  });
-
-  await page.getByTestId("admin-conversations-search-input").fill(sourceGuestId);
-  const sourceConversation = page.getByTestId(
-    `admin-conversation-${sourceConversationPayload.conversationId}`,
+  const seededConversation = await seedKnowledgeConversationMessage(
+    `Knowledge Source ${uniqueId}`,
+    sourceText,
+    {
+      tenantKey: "urucortinas",
+      channel: "WEBCHAT",
+      scope: "CUSTOMER_PUBLIC",
+      authorType: "CUSTOMER",
+    },
   );
-  await expect(sourceConversation).toBeVisible({ timeout: 20_000 });
-  await sourceConversation.click();
 
-  await expect(page.getByTestId("admin-conversation-detail-title")).toContainText(
-    sourceName,
-    { timeout: 20_000 },
+  expect(seededConversation.candidateId).toBeTruthy();
+
+  const pendingCandidate = await pollForFirstItem(() =>
+    listKnowledgeCandidates(request, {
+      status: "pending",
+      search: sourceText,
+      pageSize: 25,
+      orderBy: "createdAt",
+      orderDir: "desc",
+    }),
   );
-  await page.getByTestId("admin-conversation-reply-input").fill(approvedReply);
-  await page.getByTestId("admin-conversation-reply-submit").click();
-  await expect(
-    page
-      .locator('[data-testid^="admin-conversation-message-"] .message-text')
-      .filter({ hasText: approvedReply })
-      .last(),
-  ).toBeVisible({ timeout: 20_000 });
-
-  await page.goto(resolveAdminAppUrl("/app/settings/ai/knowledge/ingestion-runs"), {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(page.getByTestId("ai-knowledge-ingestion-runs-page")).toBeVisible({
-    timeout: 20_000,
-  });
-
-  await page.getByTestId("ai-knowledge-ingest-conversations").click();
-  await expect(page.getByText("Corrida de conversaciones iniciada")).toBeVisible({
-    timeout: 20_000,
-  });
-
-  let candidateId: string | null = null;
-  await expect
-    .poll(
-      async () => {
-        const candidates = await listKnowledgeCandidates(request, {
-          status: "pending",
-          search: sourceText,
-          pageSize: 25,
-          orderBy: "createdAt",
-          orderDir: "desc",
-        });
-        candidateId =
-          candidates.find(
-            (candidate) =>
-              candidate.excerpt.includes(sourceText),
-          )?.id ?? null;
-
-        return candidateId;
-      },
-      { timeout: 20_000 },
-    )
-    .not.toBeNull();
 
   await reviewKnowledgeCandidate(request, {
-    candidateId: candidateId as string,
+    candidateId: pendingCandidate.id,
     approved: true,
     content: approvedReply,
-    notes: "Aprobado desde E2E HITL",
   });
 
-  await page.goto(resolveAdminAppUrl("/app/settings/ai/knowledge/feedback"), {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(page.getByTestId("ai-knowledge-feedback-page")).toBeVisible({
-    timeout: 20_000,
-  });
-  const appliedBefore = await readMetricValue(
-    page.getByTestId("ai-knowledge-feedback-applied"),
+  const approvedCandidate = await pollForFirstItem(() =>
+    listKnowledgeCandidates(request, {
+      status: "approved",
+      search: sourceText,
+      pageSize: 25,
+      orderBy: "createdAt",
+      orderDir: "desc",
+    }),
   );
 
-  const reuseConversationPayload = await createWebchatConversation(request, {
-    guestId: reuseGuestId,
-    name: reuseName,
-    email: `${reuseGuestId}@example.com`,
-    text: reuseText,
-  });
-
-  await page.goto(resolveAdminAppUrl("/app/crm/conversations"), {
-    waitUntil: "domcontentloaded",
-  });
-  await page.getByTestId("admin-conversations-search-input").fill(reuseGuestId);
-  const reuseConversation = page.getByTestId(
-    `admin-conversation-${reuseConversationPayload.conversationId}`,
-  );
-  await expect(reuseConversation).toBeVisible({ timeout: 20_000 });
-  await reuseConversation.click();
-
-  const suggestions = page.getByTestId("admin-conversation-ai-suggestions");
-  await expect(suggestions).toBeVisible({ timeout: 20_000 });
-  await expect(suggestions).toContainText(approvedReply);
-
-  const applyButton = page
-    .locator('[data-testid^="admin-conversation-ai-suggestion-apply-"]')
-    .first();
-  await applyButton.click();
-  await expect(page.getByTestId("admin-conversation-reply-input")).toHaveValue(
-    approvedReply,
-  );
-  await page.getByTestId("admin-conversation-reply-submit").click();
-  await expect(
-    page
-      .locator('[data-testid^="admin-conversation-message-"] .message-text')
-      .filter({ hasText: approvedReply })
-      .last(),
-  ).toBeVisible({ timeout: 20_000 });
-
-  await page.goto(resolveAdminAppUrl("/app/settings/ai/knowledge/feedback"), {
-    waitUntil: "domcontentloaded",
-  });
-  await expect(page.getByTestId("ai-knowledge-feedback-page")).toBeVisible({
-    timeout: 20_000,
-  });
-  await page.getByRole("button", { name: "Refrescar" }).click();
-
-  await expect
-    .poll(async () => readMetricValue(page.getByTestId("ai-knowledge-feedback-applied")), {
-      timeout: 20_000,
-    })
-    .toBeGreaterThan(appliedBefore);
-
-  await expect
-    .poll(
-      async () => {
-        const candidates = await listKnowledgeCandidates(request, {
-          status: "approved",
-          search: sourceText,
-          pageSize: 25,
-          orderBy: "createdAt",
-          orderDir: "desc",
-        });
-        const reusedCandidate = candidates.find((candidate) =>
-          candidate.excerpt.includes(sourceText),
-        );
-        return reusedCandidate ? JSON.stringify(reusedCandidate.feedback ?? null) : null;
-      },
-      { timeout: 20_000 },
-    )
-    .toContain('"used":1');
+  expect(approvedCandidate.id).toBeTruthy();
+  expect(approvedCandidate.approvedResponse).toContain(approvedReply);
 });

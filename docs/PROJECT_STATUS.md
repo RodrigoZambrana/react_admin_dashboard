@@ -80,7 +80,7 @@ El proyecto tiene una base funcional y una separación razonable por aplicacione
 - Estrategia general de cache unificada para `backend`, `frontend` y `ecommerce`.
 - Expansión de `data-testid` en superficies críticas como base de automatización futura.
 - Aumento progresivo de cobertura de pruebas con regresiones browser para flujos de alto riesgo.
-- Formalización del flujo de alta, modificación y baja de tests como parte del proceso normal de cambio en todos los proyectos.
+- Formalización del flujo de alta, modificación y baja de tests como parte del proceso normal de cambio en todos los proyectos, incluyendo la verificación, actualización y complementación continua de los casos para cubrir la mayor superficie posible en pruebas independientes y end to end del ecommerce.
 - Dirección futura del CMS del sitio: `stories` ligado a `Product` sirve como MVP, pero la evolución recomendada es desacoplarlo a un dominio CMS independiente con asociación opcional a producto, categoría o URL.
 
 ## 2. Mapa del proyecto

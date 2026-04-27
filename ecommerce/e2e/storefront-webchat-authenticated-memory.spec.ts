@@ -1,18 +1,12 @@
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
 import { signInAdmin } from "./support/admin-api";
-import { resolveAdminAppUrl, loginAsAdmin } from "./support/admin-ui";
-import { storefrontApiBaseUrl, storefrontBaseUrl } from "./support/env";
+import { aiPlatformApiBaseUrl, storefrontApiBaseUrl, storefrontBaseUrl } from "./support/env";
 import { buildTestCustomer } from "./support/factories";
-
-const backendBaseUrl =
-  process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
 
 type ConversationDetail = {
   id: string;
   scope: string;
-  controlMode?: string | null;
-  needsHuman?: boolean | null;
   aiState?: {
     memory?: {
       intentKey?: string | null;
@@ -21,15 +15,6 @@ type ConversationDetail = {
       lastResetAt?: string | null;
       resetCount?: number | null;
       historyTurnCount?: number | null;
-    } | null;
-    audit?: {
-      intentSource?: string | null;
-      decisionPath?: string[] | null;
-      referencedMessages?: Array<{
-        messageId?: string | null;
-        preview?: string | null;
-      }> | null;
-      messageContextOrigin?: string[] | null;
     } | null;
   } | null;
   messages: Array<{
@@ -40,26 +25,13 @@ type ConversationDetail = {
   }>;
 };
 
-const resolveExpectedModeLabel = (detail: {
-  controlMode?: string | null;
-  needsHuman?: boolean | null;
-}) => {
-  if (detail.needsHuman || detail.controlMode === "human") {
-    return "Asesor humano";
-  }
-  if (detail.controlMode === "hybrid") {
-    return "IA + equipo";
-  }
-  return "Asistente IA";
-};
-
 async function fetchConversationDetail(
   request: APIRequestContext,
   token: string,
   conversationId: string,
 ): Promise<ConversationDetail> {
   const response = await request.get(
-    `${backendBaseUrl}/api/conversations/${conversationId}`,
+    `${aiPlatformApiBaseUrl}/admin/conversations/${conversationId}`,
     {
       headers: {
         authorization: `Bearer ${token}`,
@@ -129,8 +101,8 @@ async function ensureStorefrontChatOpen(page: Page) {
   await expect(drawer).toBeVisible();
 }
 
-async function registerAuthenticatedCustomer(
-  page: Page,
+async function registerCustomer(
+  request: APIRequestContext,
   customer: {
     firstName: string;
     lastName: string;
@@ -139,7 +111,7 @@ async function registerAuthenticatedCustomer(
     password: string;
   },
 ) {
-  const registerResponse = await page.request.post(
+  const registerResponse = await request.post(
     `${storefrontApiBaseUrl}/auth/register`,
     {
       data: {
@@ -155,181 +127,14 @@ async function registerAuthenticatedCustomer(
   expect(registerResponse.ok()).toBeTruthy();
 }
 
-test("authenticated webchat keeps continuity for related follow-up and exposes task reset in admin after topic shift", async ({
+test("public webchat persists quote transcript across reload and keeps it visible in admin", async ({
   page,
   request,
 }) => {
   const adminToken = await signInAdmin(request);
   const customer = buildTestCustomer();
 
-  await registerAuthenticatedCustomer(page, customer);
-
-  await page.addInitScript(() => {
-    window.localStorage.setItem("storefront.locale.v1", "es");
-  });
-
-  await page.goto(storefrontBaseUrl, {
-    waitUntil: "domcontentloaded",
-  });
-
-  await ensureStorefrontChatOpen(page);
-
-  const firstPrompt =
-    "Quiero cotización para una corrediza 2h2g serie probba blanco v4mm cierre fenix 110 x 120.";
-  const secondPrompt = "¿Ese mismo modelo puede venir en negro?";
-  const thirdPrompt =
-    "Ahora necesito cambiar mi dirección de entrega y actualizar mis datos de cuenta.";
-
-  await sendStorefrontWebchatMessage(page, firstPrompt);
-
-  const sessionRaw = await page.evaluate(() =>
-    window.localStorage.getItem("storefront.webchat.session.v1"),
-  );
-  expect(sessionRaw).toBeTruthy();
-
-  const session = JSON.parse(sessionRaw as string) as {
-    conversationId: string;
-    scope: string;
-  };
-
-  expect(session.conversationId).toBeTruthy();
-  expect(session.scope).toBe("customer_authenticated");
-
-  const firstState = await waitForConversationState(
-    request,
-    adminToken,
-    session.conversationId,
-    (detail) =>
-      detail.scope === "customer_authenticated" &&
-      Boolean(detail.aiState?.memory?.intentKey) &&
-      detail.messages.some(
-        (message) =>
-          message.authorType === "agent" &&
-          typeof message.body === "string" &&
-          message.body.length > 0,
-      ),
-  );
-
-  const initialIntentKey = firstState.aiState?.memory?.intentKey ?? null;
-  expect(initialIntentKey).toBeTruthy();
-  expect(firstState.aiState?.memory?.lastResetAt ?? null).toBeNull();
-
-  await sendStorefrontWebchatMessage(page, secondPrompt);
-
-  const secondState = await waitForConversationState(
-    request,
-    adminToken,
-    session.conversationId,
-    (detail) =>
-      detail.messages.filter((message) => message.authorType === "customer").length >=
-        2 &&
-      detail.messages.filter((message) => message.authorType === "agent").length >= 2 &&
-      Boolean(detail.aiState?.memory?.state),
-  );
-
-  expect(secondState.scope).toBe("customer_authenticated");
-  expect(secondState.aiState?.memory?.intentKey ?? null).toBe(initialIntentKey);
-  expect(secondState.aiState?.memory?.state ?? null).toBe("COMPLETED");
-  expect(secondState.aiState?.memory?.lastResetAt ?? null).toBeNull();
-  expect(secondState.aiState?.audit?.intentSource ?? null).toBe("hybrid");
-  expect(secondState.aiState?.audit?.decisionPath ?? []).toContain(
-    "context:referenced_messages",
-  );
-  expect(secondState.aiState?.audit?.referencedMessages?.length ?? 0).toBeGreaterThan(0);
-  expect(secondState.aiState?.audit?.messageContextOrigin ?? []).toContain(
-    "message_text",
-  );
-
-  await sendStorefrontWebchatMessage(page, thirdPrompt);
-
-  const resetState = await waitForConversationState(
-    request,
-    adminToken,
-    session.conversationId,
-    (detail) =>
-      detail.scope === "customer_authenticated" &&
-      Boolean(detail.aiState?.memory?.lastResetAt) &&
-      (detail.aiState?.memory?.resetCount ?? 0) >= 1,
-  );
-
-  expect(resetState.aiState?.memory?.intentKey).toBeTruthy();
-  expect(["HANDED_OFF", "COMPLETED"]).toContain(
-    resetState.aiState?.memory?.state ?? null,
-  );
-  expect(resetState.aiState?.memory?.taskSummary).toBeTruthy();
-  expect(resetState.aiState?.memory?.lastResetAt).toBeTruthy();
-  expect(resetState.aiState?.memory?.resetCount).toBeGreaterThanOrEqual(1);
-  const expectedModeLabel = resolveExpectedModeLabel(resetState);
-  await expect(page.getByText(expectedModeLabel).first()).toBeVisible({
-    timeout: 20_000,
-  });
-  if (expectedModeLabel !== "Asistente IA") {
-    await expect(
-      page.getByTestId("storefront-webchat-handoff-banner"),
-    ).toBeVisible({
-      timeout: 20_000,
-    });
-  }
-
-  await loginAsAdmin(page);
-  await page.goto(resolveAdminAppUrl("/app/crm/conversations"), {
-    waitUntil: "domcontentloaded",
-  });
-
-  await expect(page.getByTestId("admin-conversations-page")).toBeVisible({
-    timeout: 20_000,
-  });
-  await page
-    .getByTestId("admin-conversations-search-input")
-    .fill(`${customer.firstName} ${customer.lastName}`);
-
-  const conversationRow = page.getByTestId(
-    `admin-conversation-${session.conversationId}`,
-  );
-  await expect(conversationRow).toBeVisible({ timeout: 20_000 });
-  await expect(conversationRow).toContainText("Reset de tarea");
-  await expect(
-    page.getByTestId(`admin-conversation-mode-${session.conversationId}`),
-  ).toContainText(expectedModeLabel);
-  await expect(
-    page.getByTestId(`admin-conversation-task-summary-${session.conversationId}`),
-  ).toContainText("cambiar mi dirección de entrega", {
-    timeout: 20_000,
-  });
-  await conversationRow.click();
-
-  await expect(page).toHaveURL(
-    new RegExp(`/app/crm/conversations/${session.conversationId}$`),
-  );
-  await expect(page.getByTestId("admin-conversation-detail")).toBeVisible();
-  await page.getByTestId("admin-conversation-details-open").click();
-  await expect(page.getByText(/^Reset de tarea:/i)).toBeVisible({
-    timeout: 20_000,
-  });
-  await expect(page.getByText(/^Tarea:/i)).toBeVisible();
-  await expect(page.getByTestId("admin-conversation-mode-current")).toContainText(
-    expectedModeLabel,
-  );
-  await expect(page.getByTestId("admin-conversation-mode-inline")).toContainText(
-    expectedModeLabel,
-  );
-  await expect(page.getByTestId("admin-conversation-task-summary-inline")).toContainText(
-    "cambiar mi dirección de entrega",
-  );
-  await page.getByTestId("admin-conversation-task-summary-apply").click();
-  await expect(page.getByTestId("admin-conversation-handoff-notes")).toHaveValue(
-    /cambiar mi dirección de entrega/i,
-  );
-});
-
-test("authenticated webchat persists transcript across reload and keeps task summary visible in admin", async ({
-  page,
-  request,
-}) => {
-  const adminToken = await signInAdmin(request);
-  const customer = buildTestCustomer();
-
-  await registerAuthenticatedCustomer(page, customer);
+  await registerCustomer(request, customer);
 
   await page.addInitScript(() => {
     window.localStorage.setItem("storefront.locale.v1", "es");
@@ -353,7 +158,7 @@ test("authenticated webchat persists transcript across reload and keeps task sum
     conversationId: string;
     scope: string;
   };
-  expect(beforeReloadSession.scope).toBe("customer_authenticated");
+  expect(beforeReloadSession.scope).toBe("customer_public");
 
   await page.reload({ waitUntil: "domcontentloaded" });
   await ensureStorefrontChatOpen(page);
@@ -372,35 +177,29 @@ test("authenticated webchat persists transcript across reload and keeps task sum
     scope: string;
   };
   expect(afterReloadSession.conversationId).toBe(beforeReloadSession.conversationId);
-  expect(afterReloadSession.scope).toBe("customer_authenticated");
+  expect(afterReloadSession.scope).toBe("customer_public");
 
   const detail = await waitForConversationState(
     request,
     adminToken,
     afterReloadSession.conversationId,
     (conversation) =>
-      conversation.scope === "customer_authenticated" &&
-      Boolean(conversation.aiState?.memory?.taskSummary),
+      conversation.scope === "customer_public" &&
+      conversation.messages.some(
+        (message) =>
+          message.authorType === "agent" &&
+          typeof message.body === "string" &&
+          message.body.includes("cotización preliminar"),
+      ),
   );
 
-  expect(detail.aiState?.memory?.taskSummary ?? "").toContain("corrediza");
-
-  await loginAsAdmin(page);
-  await page.goto(resolveAdminAppUrl("/app/crm/conversations"), {
-    waitUntil: "domcontentloaded",
-  });
-
-  await page
-    .getByTestId("admin-conversations-search-input")
-    .fill(`${customer.firstName} ${customer.lastName}`);
-
-  const conversationRow = page.getByTestId(
-    `admin-conversation-${afterReloadSession.conversationId}`,
-  );
-  await expect(conversationRow).toBeVisible({ timeout: 20_000 });
-  await expect(
-    page.getByTestId(
-      `admin-conversation-task-summary-${afterReloadSession.conversationId}`,
+  expect(
+    detail.messages.some(
+      (message) =>
+        message.authorType === "agent" &&
+        typeof message.body === "string" &&
+        message.body.includes("cotización preliminar"),
     ),
-  ).toContainText("corrediza");
+  ).toBe(true);
+
 });

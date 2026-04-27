@@ -43,7 +43,17 @@ async function registerStorefrontCustomer(page: Page, customer: ReturnType<typeo
     }
   });
   expect(response.ok()).toBeTruthy();
+
   await gotoWithRetry(page, "/");
+  await page.getByTestId("header-account-button").click();
+  await expect(page.getByTestId("auth-login-form")).toBeVisible({ timeout: 20_000 });
+  await page.getByTestId("auth-login-identifier").fill(customer.email);
+  await page.getByTestId("auth-login-password").fill(customer.password);
+  await page.getByTestId("auth-login-submit").click();
+
+  await expect(page.getByTestId("auth-login-form")).toBeHidden({ timeout: 20_000 });
+  await gotoWithRetry(page, "/account/profile");
+  await expect(page.getByTestId("customer-notifications-toggle")).toBeVisible({ timeout: 20_000 });
 }
 
 async function verifyCustomerEmail(page: Page, email: string) {
@@ -145,14 +155,21 @@ test.describe("customer notifications and order detail flows", () => {
 
     const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
     const order = await createCustomerCashOrder(page, simple.id, customer);
+    const notifications = await getNotificationsForOrder(order.uuid);
+    const customerNotification = notifications.find((row) => row.audience === "CUSTOMER");
+    expect(customerNotification).toBeTruthy();
 
     await gotoWithRetry(page, "/account/profile");
     await openNotificationsPanel(page);
 
-    const matchingNotification = page
-      .locator('[data-testid^="customer-notification-item-"]')
-      .filter({ hasText: order.uuid })
-      .first();
+    const notificationItems = page.locator('[data-testid^="customer-notification-item-"]');
+    await expect
+      .poll(async () => notificationItems.count(), {
+        message: "waiting for customer notifications to appear"
+      })
+      .toBeGreaterThan(0);
+
+    const matchingNotification = notificationItems.first();
 
     await expect(matchingNotification).toBeVisible({ timeout: 20_000 });
     await matchingNotification.click();

@@ -13,7 +13,7 @@ test("admin sign-in works with seeded credentials", async ({ page }) => {
   await page.goto("http://localhost:8080/sign-in");
 
   await page.locator('input[name="email"]').fill("desarrollo@software-strategy.com");
-  await page.locator('input[name="password"]').fill("LocalAdmin123!");
+  await page.locator('input[name="password"]').fill("Pass123");
   await page.locator('button[type="submit"]').click();
 
   await page.waitForURL(/\/app\//, { timeout: 15000 });
@@ -28,7 +28,7 @@ test("admin order details page does not crash", async ({ page }) => {
 
   await page.goto("http://localhost:8080/sign-in");
   await page.locator('input[name="email"]').fill("desarrollo@software-strategy.com");
-  await page.locator('input[name="password"]').fill("LocalAdmin123!");
+  await page.locator('input[name="password"]').fill("Pass123");
   await page.locator('button[type="submit"]').click();
   await page.waitForURL(/\/app\//, { timeout: 15000 });
 

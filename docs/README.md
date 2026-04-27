@@ -19,6 +19,7 @@
 
 - [QA_CENTER.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/QA_CENTER.md)
 - [EXECUTION_ROADMAP.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/EXECUTION_ROADMAP.md)
+- [PRODUCTION_EXECUTION_PROMPTS.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/PRODUCTION_EXECUTION_PROMPTS.md)
 - [PROJECT_STATUS.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/PROJECT_STATUS.md)
 - [PENDING_IMPLEMENTATION_REPORT_2026-03-23.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/PENDING_IMPLEMENTATION_REPORT_2026-03-23.md)
 - [PRODUCT_READINESS_E2E_ASSESSMENT.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/PRODUCT_READINESS_E2E_ASSESSMENT.md)

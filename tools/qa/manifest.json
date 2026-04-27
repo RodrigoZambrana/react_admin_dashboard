@@ -310,10 +310,63 @@
       "kind": "quality",
       "cwd": ".",
       "steps": [
-        { "cwd": ".", "command": ["docker", "exec", "dashboard-redis-dev", "redis-cli", "ping"] },
+        {
+          "cwd": ".",
+          "command": [
+            "docker",
+            "compose",
+            "-f",
+            "deploy/docker-compose.dev.yml",
+            "-f",
+            "deploy/docker-compose.channel-adapter.yml",
+            "--profile",
+            "ai",
+            "exec",
+            "-T",
+            "redis",
+            "redis-cli",
+            "ping"
+          ]
+        },
         { "cwd": ".", "command": ["curl", "-fsS", "http://127.0.0.1:4110/health"] },
-        { "cwd": ".", "command": ["docker", "exec", "dashboard-channel-adapter-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4200/health"] },
-        { "cwd": ".", "command": ["docker", "exec", "dashboard-channel-adapter-dev", "wget", "-q", "-O", "-", "http://127.0.0.1:4200/channels"] }
+        {
+          "cwd": ".",
+          "command": [
+            "docker",
+            "compose",
+            "-f",
+            "deploy/docker-compose.dev.yml",
+            "-f",
+            "deploy/docker-compose.channel-adapter.yml",
+            "--profile",
+            "ai",
+            "exec",
+            "-T",
+            "channel-adapter",
+            "node",
+            "-e",
+            "fetch('http://127.0.0.1:4200/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+          ]
+        },
+        {
+          "cwd": ".",
+          "command": [
+            "docker",
+            "compose",
+            "-f",
+            "deploy/docker-compose.dev.yml",
+            "-f",
+            "deploy/docker-compose.channel-adapter.yml",
+            "--profile",
+            "ai",
+            "exec",
+            "-T",
+            "channel-adapter",
+            "node",
+            "-e",
+            "fetch('http://127.0.0.1:4200/channels').then((response) => response.text()).then((body) => { if (!body.trim()) process.exit(1); process.stdout.write(body); }).catch(() => process.exit(1))"
+          ]
+        }
       ],
       "estimatedMinutes": 1,
       "tags": ["ai", "redis", "docker", "smoke"]

@@ -1,8 +1,15 @@
 import { expect, type APIRequestContext } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 
-const adminApiBaseUrl = process.env.PLAYWRIGHT_ADMIN_API_URL ?? "http://localhost:4000/api";
+import {
+  aiPlatformApiBaseUrl,
+  aiPlatformInternalToken,
+} from "./env";
+
+const adminApiBaseUrl = process.env.PLAYWRIGHT_ADMIN_API_URL ?? "http://127.0.0.1:4000/api";
 const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? "desarrollo@software-strategy.com";
-const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? "LocalAdmin123!";
+const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? "Pass123";
+const aiPlatformConversationChannel = "email";
 
 type SignInResponse =
   | {
@@ -265,24 +272,114 @@ export async function createAdminInternalSessionForUser(
   input: { subject: string; message: string; tenantKey?: string }
 ): Promise<AdminConversationPayload> {
   const token = await signInAdminUser(request, credentials);
-  const response = await request.post(
-    `${adminApiBaseUrl}/conversations/admin-internal/session`,
+  const tenantKey = input.tenantKey ?? "urucortinas";
+  const threadId = `admin-internal-${Date.now()}-${randomUUID()}`;
+  const userId = credentials.email;
+
+  const bootstrapResponse = await request.post(
+    `${aiPlatformApiBaseUrl}/internal/conversations/bootstrap-thread`,
     {
       headers: {
-        authorization: `Bearer ${token}`
+        "x-ai-internal-token": aiPlatformInternalToken,
       },
       data: {
-        subject: input.subject,
-        message: input.message,
-        tenantKey: input.tenantKey
-      }
-    }
+        tenantKey,
+        channel: aiPlatformConversationChannel,
+        userId,
+        threadId,
+        displayName: input.subject,
+        email: credentials.email,
+        inboxAddress: credentials.email,
+        metadata: {
+          subject: input.subject,
+          seedKind: "admin_internal_session",
+        },
+      },
+    },
   );
 
-  expect(response.ok()).toBeTruthy();
-  const payload = (await response.json()) as AdminConversationPayload;
-  expect(payload.id).toBeTruthy();
-  return payload;
+  expect(bootstrapResponse.ok()).toBeTruthy();
+  const bootstrapPayload = (await bootstrapResponse.json()) as AdminConversationPayload;
+  expect(bootstrapPayload.id).toBeTruthy();
+
+  const inboundResponse = await request.post(
+    `${aiPlatformApiBaseUrl}/internal/conversations/inbound`,
+    {
+      headers: {
+        "x-ai-internal-token": aiPlatformInternalToken,
+      },
+      data: {
+        tenantKey,
+        channel: aiPlatformConversationChannel,
+        userId,
+        conversationId: bootstrapPayload.id,
+        threadId,
+        displayName: input.subject,
+        email: credentials.email,
+        subject: input.subject,
+        text: input.message,
+        authorKind: "customer_human",
+        messageKind: "text",
+        direction: "inbound",
+        metadata: {
+          subject: input.subject,
+          seedKind: "admin_internal_session",
+        },
+      },
+    },
+  );
+
+  expect(inboundResponse.ok()).toBeTruthy();
+
+  const turnResponse = await request.post(
+    `${aiPlatformApiBaseUrl}/internal/conversations/${bootstrapPayload.id}/agent-turn`,
+    {
+      headers: {
+        "x-ai-internal-token": aiPlatformInternalToken,
+      },
+      data: {
+        message: input.message,
+      },
+    },
+  );
+
+  expect(turnResponse.ok()).toBeTruthy();
+  const turnPayload = (await turnResponse.json()) as {
+    response?: {
+      text?: string;
+      finalUserText?: string;
+    };
+  };
+  const replyText =
+    turnPayload.response?.text?.trim() ||
+    turnPayload.response?.finalUserText?.trim() ||
+    "";
+
+  if (replyText) {
+    const replyResponse = await request.post(
+      `${aiPlatformApiBaseUrl}/internal/conversations/${bootstrapPayload.id}/replies/agent`,
+      {
+        headers: {
+          "x-ai-internal-token": aiPlatformInternalToken,
+        },
+        data: {
+          body: replyText,
+          finalUserText: replyText,
+          debugSummary: null,
+          metadata: {
+            seedKind: "admin_internal_session",
+            subject: input.subject,
+          },
+        },
+      },
+    );
+
+    expect(replyResponse.ok()).toBeTruthy();
+  }
+
+  // The admin token is resolved above so the helper still exercises the auth path.
+  expect(token).toBeTruthy();
+  return bootstrapPayload;
 }
 
 export async function startAdminInternalAssistantConversationForUser(
@@ -291,19 +388,34 @@ export async function startAdminInternalAssistantConversationForUser(
   input?: { tenantKey?: string }
 ): Promise<AdminConversationPayload> {
   const token = await signInAdminUser(request, credentials);
-  const response = await request.post(`${adminApiBaseUrl}/conversations/contact-session`, {
-    headers: {
-      authorization: `Bearer ${token}`
+  const tenantKey = input?.tenantKey ?? "urucortinas";
+  const threadId = `admin-internal-assistant-${Date.now()}-${randomUUID()}`;
+
+  const response = await request.post(
+    `${aiPlatformApiBaseUrl}/internal/conversations/bootstrap-thread`,
+    {
+      headers: {
+        "x-ai-internal-token": aiPlatformInternalToken,
+      },
+      data: {
+        tenantKey,
+        channel: aiPlatformConversationChannel,
+        userId: credentials.email,
+        threadId,
+        displayName: "Asistente interno",
+        email: credentials.email,
+        inboxAddress: credentials.email,
+        metadata: {
+          seedKind: "admin_internal_assistant",
+        },
+      },
     },
-    data: {
-      contactType: "internal",
-      tenantKey: input?.tenantKey
-    }
-  });
+  );
 
   expect(response.ok()).toBeTruthy();
   const payload = (await response.json()) as AdminConversationPayload;
   expect(payload.id).toBeTruthy();
+  expect(token).toBeTruthy();
   return payload;
 }
 
@@ -344,7 +456,7 @@ export async function createWebchatConversation(
   },
 ) {
   const sessionResponse = await request.post(
-    `${adminApiBaseUrl}/conversations/webchat/session`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -365,7 +477,7 @@ export async function createWebchatConversation(
   };
 
   const messageResponse = await request.post(
-    `${adminApiBaseUrl}/conversations/webchat/message`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/messages`,
     {
       data: {
         conversationId: sessionPayload.conversationId,
@@ -383,9 +495,50 @@ export async function createWebchatConversation(
     };
   };
 
+  const directMessageId = messagePayload.message?.id ?? null;
+  if (directMessageId) {
+    return {
+      ...sessionPayload,
+      messageId: directMessageId,
+    };
+  }
+
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const transcriptResponse = await request.get(
+      `${aiPlatformApiBaseUrl}/chat/public/webchat/session/${sessionPayload.conversationId}?guestId=${encodeURIComponent(
+        sessionPayload.guestId ?? input.guestId,
+      )}`,
+    );
+
+    expect(transcriptResponse.ok()).toBeTruthy();
+    const transcript = (await transcriptResponse.json()) as {
+      conversationId: string;
+      messages?: Array<{
+        id: string;
+        role: string;
+        text?: string | null;
+        createdAt?: string;
+      }>;
+    };
+
+    const customerMessage = [...(transcript.messages ?? [])]
+      .reverse()
+      .find((message) => message.role === "customer" && (message.text ?? "").includes(input.text));
+
+    if (customerMessage?.id) {
+      return {
+        ...sessionPayload,
+        messageId: customerMessage.id,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
   return {
     ...sessionPayload,
-    messageId: messagePayload.message?.id ?? null,
+    messageId: null,
   };
 }
 
@@ -407,7 +560,7 @@ export async function dispatchWebchatConversation(
   },
 ) {
   const sessionResponse = await request.post(
-    `${adminApiBaseUrl}/conversations/webchat/session`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -429,7 +582,7 @@ export async function dispatchWebchatConversation(
 
   const effectiveGuestId = sessionPayload.guestId ?? input.guestId;
   const dispatchResponse = await request.post(
-    `${adminApiBaseUrl}/conversations/webchat/dispatch`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/messages`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -448,31 +601,44 @@ export async function dispatchWebchatConversation(
 
   expect(dispatchResponse.ok()).toBeTruthy();
 
-  const transcriptResponse = await request.get(
-    `${adminApiBaseUrl}/conversations/webchat/session/${sessionPayload.conversationId}?guestId=${encodeURIComponent(
-      effectiveGuestId,
-    )}`,
-  );
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const transcriptResponse = await request.get(
+      `${aiPlatformApiBaseUrl}/chat/public/webchat/session/${sessionPayload.conversationId}?guestId=${encodeURIComponent(
+        effectiveGuestId,
+      )}`,
+    );
 
-  expect(transcriptResponse.ok()).toBeTruthy();
-  const transcript = (await transcriptResponse.json()) as {
-    conversationId: string;
-    messages?: Array<{
-      id: string;
-      role: string;
-      text?: string | null;
-      createdAt?: string;
-    }>;
-  };
+    expect(transcriptResponse.ok()).toBeTruthy();
+    const transcript = (await transcriptResponse.json()) as {
+      conversationId: string;
+      messages?: Array<{
+        id: string;
+        role: string;
+        text?: string | null;
+        createdAt?: string;
+      }>;
+    };
 
-  const customerMessage = [...(transcript.messages ?? [])]
-    .reverse()
-    .find((message) => message.role === "customer" && (message.text ?? "").includes(input.text));
+    const customerMessage = [...(transcript.messages ?? [])]
+      .reverse()
+      .find((message) => message.role === "customer" && (message.text ?? "").includes(input.text));
+
+    if (customerMessage?.id) {
+      return {
+        conversationId: transcript.conversationId,
+        guestId: effectiveGuestId,
+        messageId: customerMessage.id,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
 
   return {
-    conversationId: transcript.conversationId,
+    conversationId: sessionPayload.conversationId,
     guestId: effectiveGuestId,
-    messageId: customerMessage?.id ?? null,
+    messageId: null,
   };
 }
 

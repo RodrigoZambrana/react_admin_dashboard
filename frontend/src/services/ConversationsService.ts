@@ -1338,17 +1338,15 @@ const ConversationsService = {
         aiSuggestionFeedback?: ConversationAiSuggestionFeedbackInput,
         attachments?: ConversationMessageAttachmentInput[],
     ) {
-        const response = await ApiService.fetchData<ConversationDetail>({
-            url: `/conversations/${id}/reply`,
-            method: 'post',
-            data: {
+        return fetchChatPlatformConversationAction(
+            `/admin/conversations/${id}/reply`,
+            {
                 body,
                 kind: 'text',
                 aiSuggestionFeedback,
                 attachments,
             },
-        })
-        return response.data
+        )
     },
 
     async reactToWhatsappMessage(

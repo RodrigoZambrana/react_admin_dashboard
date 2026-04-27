@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 
 import { AdminConversationQueryDto } from './dto/admin-conversation-query.dto';
+import { AdminConversationReplyDto } from './dto/admin-conversation-reply.dto';
 import { UpdateAdminConversationArchiveDto } from './dto/update-admin-conversation-archive.dto';
 import { UpdateAdminConversationMuteDto } from './dto/update-admin-conversation-mute.dto';
 import { UpdateAdminConversationOperatorDto } from './dto/update-admin-conversation-operator.dto';
@@ -21,6 +22,14 @@ export class AdminConversationsController {
     @Query('actorKey') actorKey?: string,
   ) {
     return this.adminConversationsService.getConversation(conversationId, actorKey);
+  }
+
+  @Post(':conversationId/reply')
+  reply(
+    @Param('conversationId') conversationId: string,
+    @Body() body: AdminConversationReplyDto,
+  ) {
+    return this.adminConversationsService.reply(conversationId, body);
   }
 
   @Post(':conversationId/read')

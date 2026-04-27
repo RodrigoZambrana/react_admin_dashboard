@@ -251,6 +251,123 @@ const baseAppsRoute: Routes = [
             header: 'Configuración',
         },
     },
+    {
+        key: 'appsAi.knowledgeOverview',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/overview`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeOverview')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Knowledge Overview',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeManageArticles',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/manage-articles`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeManageArticles')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Knowledge Manage Articles',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeDocuments',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/documents`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeDocuments')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Knowledge Documents',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeCandidates',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/candidates`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeCandidates')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Knowledge Candidates',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeRawEvents',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/raw-events`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeRawEvents')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Knowledge Raw Events',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeIngestionRuns',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/ingestion-runs`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeIngestionRuns')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Knowledge Ingestion Runs',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeFeedback',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/feedback`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeFeedback')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Knowledge Feedback',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeConversationBundles',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/conversation-bundles`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeConversationBundles')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Conversation Bundles',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeNegativeExamples',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/negative-examples`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeNegativeExamples')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Negative Examples',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeQuoteProfiles',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/quote-profiles`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeQuoteProfiles')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Quote Profiles',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeSnapshots',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/snapshots`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeSnapshots')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Knowledge Snapshots',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeSnapshotDetail',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/snapshots/:snapshotId`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeSnapshotDetail')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Snapshot Detail',
+        },
+    },
+    {
+        key: 'appsAi.knowledgeSnapshotSources',
+        path: `${APP_PREFIX_PATH}/settings/ai/knowledge/snapshots/:snapshotId/sources`,
+        component: lazy(() => import('@/views/settings/AiKnowledgeSnapshotSources')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Snapshot Sources',
+        },
+    },
     ...(hasParametricProducts
         ? isUrucortinas
             ? [

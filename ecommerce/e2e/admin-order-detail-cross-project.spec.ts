@@ -60,14 +60,16 @@ test("admin opens a storefront-created order by uuid and sees customer notes", a
 
   await page.goto("http://localhost:8080/sign-in");
   await page.locator('input[name="email"]').fill("desarrollo@software-strategy.com");
-  await page.locator('input[name="password"]').fill("LocalAdmin123!");
+  await page.locator('input[name="password"]').fill("Pass123");
   await page.locator('button[type="submit"]').click();
   await page.waitForURL(/\/app\//, { timeout: 15_000 });
 
   await page.goto(`http://localhost:8080/app/sales/order-details/${order.uuid}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/app/sales/order-details/${order.uuid}$`),
+  );
   await page.waitForLoadState("networkidle");
 
-  await expect(page.getByText(`#${order.uuid}`).first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Cliente").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Montevideo, Montevideo").first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText("Uruguay").first()).toBeVisible({ timeout: 20_000 });

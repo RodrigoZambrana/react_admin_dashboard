@@ -242,6 +242,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
   const AccountButton = ({ className }: { className?: string }) => (
     <IconButton
       className={className}
+      data-testid="header-account-button"
       bg="gray.200"
       p="12px"
       size="small"

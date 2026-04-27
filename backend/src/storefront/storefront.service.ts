@@ -2120,14 +2120,9 @@ export class StorefrontService implements OnModuleInit {
           throw new NotFoundException('Product not found')
         }
 
-        const publishedParametricDefinition =
-          product.mode === ProductMode.PARAMETRIC
-            ? await this.publishedProductResolver.resolvePublishedParametricProduct(
-                product.id,
-                product.currency,
-                product.salePrice,
-              )
-            : null
+        const publishedParametricDefinition = await this.resolvePublishedParametricDefinition(
+          product,
+        )
         const detail = this.toProductDetail(product, publishedParametricDefinition)
 
         const relationGroups = new Map<
@@ -3971,15 +3966,35 @@ export class StorefrontService implements OnModuleInit {
     const definitions = await Promise.all(
       uniqueIds.map(async (productId) => [
         productId,
-        await this.publishedProductResolver.resolvePublishedParametricProduct(
-          productId,
-          parametricProducts.find((product) => product.id === productId)?.currency,
-          parametricProducts.find((product) => product.id === productId)?.salePrice,
+        await this.resolvePublishedParametricDefinition(
+          parametricProducts.find((product) => product.id === productId)!,
         ),
       ] as const),
     )
 
     return new Map<number, PublishedParametricProductDefinition | null>(definitions)
+  }
+
+  private async resolvePublishedParametricDefinition(
+    product:
+      | Prisma.ProductGetPayload<{ include: { images: true; category: true } }>
+      | {
+          id: number
+          mode: ProductMode
+          currency: string | null
+          salePrice: Prisma.Decimal | number | null
+        },
+  ): Promise<PublishedParametricProductDefinition | null> {
+    if (product.mode !== ProductMode.PARAMETRIC) {
+      return null
+    }
+
+    const resolvedProductId = await this.resolveStorefrontParametricProductId(product.id)
+    return this.publishedProductResolver.resolvePublishedParametricProduct(
+      resolvedProductId,
+      product.currency,
+      product.salePrice,
+    )
   }
 
   private buildPublishedParametricVariantLabel(

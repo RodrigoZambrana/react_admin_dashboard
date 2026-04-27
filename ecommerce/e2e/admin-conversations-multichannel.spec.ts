@@ -11,13 +11,14 @@ test("admin inbox shows projected email conversations with queue metadata", asyn
   request,
 }) => {
   const uniqueId = Date.now();
+  const displayName = "Cliente Email";
   const emailResponse = await request.post(
     `${channelAdapterBaseUrl}/webhooks/email`,
     {
       data: {
         tenantKey: "urucortinas",
         fromAddress: `cliente-${uniqueId}@example.com`,
-        fromName: "Cliente Email",
+        fromName: displayName,
         toAddress: inboxEmailAddress,
         inboxAddress: inboxEmailAddress,
         subject: `Consulta email ${uniqueId}`,
@@ -45,6 +46,6 @@ test("admin inbox shows projected email conversations with queue metadata", asyn
   });
   await page.getByTestId("admin-conversations-channel-email").click();
 
-  const row = page.getByText(`Consulta email ${uniqueId}`).first();
+  const row = page.getByText(displayName).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
 });

@@ -1,6 +1,7 @@
+import { randomUUID } from "node:crypto";
 import { Client } from "pg";
 
-import { databaseUrl, storefrontBaseUrl } from "./env";
+import { aiPlatformDatabaseUrl, databaseUrl, storefrontBaseUrl } from "./env";
 
 type EmailActionEvent = "verify_email" | "reset_link";
 
@@ -83,6 +84,13 @@ export type ApprovedMercadoPagoIntentSnapshot = {
   externalPaymentId: string;
 };
 
+export type SeededConversationMessageSnapshot = {
+  conversationId: string;
+  messageId: string;
+  rawEventId: string;
+  candidateId: string;
+};
+
 function normalizeActionUrl(url: string): string {
   const target = new URL(url);
   const storefront = new URL(storefrontBaseUrl);
@@ -93,8 +101,11 @@ function normalizeActionUrl(url: string): string {
   return target.toString();
 }
 
-async function withClient<T>(callback: (client: Client) => Promise<T>): Promise<T> {
-  const client = new Client({ connectionString: databaseUrl });
+async function withClient<T>(
+  callback: (client: Client) => Promise<T>,
+  connectionString = databaseUrl
+): Promise<T> {
+  const client = new Client({ connectionString });
   await client.connect();
 
   try {
@@ -319,7 +330,7 @@ export async function waitForLatestConversationOutboundBySubject(
           ORDER BY cm."createdAt" DESC
           LIMIT 1
         `,
-        [subject, channel.toUpperCase()]
+        [subject, channel.toLowerCase()]
       )
     );
 
@@ -348,6 +359,318 @@ export async function waitForLatestConversationOutboundBySubject(
         deliveryStatus:
           typeof metadata?.deliveryStatus === "string"
             ? metadata.deliveryStatus
+            : null,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
+  throw new Error(`Timed out waiting for outbound message for subject ${subject}`);
+}
+
+export async function seedKnowledgeConversationMessage(
+  subject: string,
+  messageText: string,
+  input?: {
+    tenantKey?: string;
+    channel?: "WEBCHAT" | "EMAIL" | "WHATSAPP" | "FACEBOOK" | "INSTAGRAM" | "ADMIN_CHAT";
+    scope?: "CUSTOMER_PUBLIC" | "CUSTOMER_AUTHENTICATED" | "ADMIN_INTERNAL";
+    authorType?: "CUSTOMER" | "OPERATOR" | "AGENT" | "SYSTEM";
+  },
+): Promise<SeededConversationMessageSnapshot> {
+  const tenantKey = input?.tenantKey ?? "urucortinas";
+  const channel = input?.channel ?? "WEBCHAT";
+  const scope = input?.scope ?? "CUSTOMER_PUBLIC";
+  const authorType = input?.authorType ?? "CUSTOMER";
+  const conversationId = `c_${randomUUID().replace(/-/g, "")}`;
+  const messageId = `m_${randomUUID().replace(/-/g, "")}`;
+  const rawEventId = `re_${randomUUID().replace(/-/g, "")}`;
+  const candidateId = `kc_${randomUUID().replace(/-/g, "")}`;
+  const now = new Date();
+  const normalizedMessage = messageText.trim();
+  const contextSummary = `Asunto: ${subject} · Scope: ${scope} · Canal: ${channel}`;
+  const suggestedResponse = `Quedo revisando ${subject}.`;
+  const relationSeed = `seed-${conversationId}`;
+  const metadata = JSON.stringify({
+    source: "qa-seed",
+    subject,
+  });
+
+  await withClient(async (client) => {
+    await client.query("BEGIN");
+    await client.query(
+      `
+        INSERT INTO "Conversation" (
+          id,
+          "tenantKey",
+          scope,
+          "conversationRole",
+          channel,
+          status,
+          "controlMode",
+          "needsHuman",
+          subject,
+          "externalThreadId",
+          "createdAt",
+          "updatedAt"
+        ) VALUES ($1, $2, $3::"ConversationScope", $4::"ConversationRole", $5::"ConversationChannel", 'OPEN'::"ConversationStatus", 'AI'::"ConversationControlMode", false, $6, $7, $8, $8)
+      `,
+      [
+        conversationId,
+        tenantKey,
+        scope,
+        scope,
+        channel,
+        subject,
+        `seed-${subject}-${Date.now()}`,
+        now,
+      ],
+    );
+
+    await client.query(
+      `
+        INSERT INTO "ConversationMessage" (
+          id,
+          "conversationId",
+          "authorType",
+          "kind",
+          body,
+          "normalizedText",
+          "createdAt"
+        ) VALUES ($1, $2, $3::"ConversationMessageAuthorType", 'TEXT'::"ConversationMessageKind", $4, $4, $5)
+      `,
+      [messageId, conversationId, authorType, messageText, now],
+    );
+
+    await client.query(
+      `
+        INSERT INTO "KnowledgeRawEvent" (
+          id,
+          "tenantKey",
+          scope,
+          channel,
+          "sourceAuthorType",
+          status,
+          "conversationId",
+          "messageId",
+          "userMessage",
+          "normalizedMessage",
+          "redactedMessage",
+          "operatorReply",
+          "aiReply",
+          "detectedIntent",
+          problem,
+          "contextSummary",
+          "suggestedResponse",
+          confidence,
+          "relevanceScore",
+          "dedupeHash",
+          "clusterKey",
+          "messageElements",
+          "messageContextOrigin",
+          attachments,
+          metadata,
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          $1,
+          $2,
+          $3::"KnowledgeDocumentScope",
+          $4::"ConversationChannel",
+          $5::"ConversationMessageAuthorType",
+          'NEW'::"KnowledgeRawEventStatus",
+          $6,
+          $7,
+          $8,
+          $9,
+          NULL,
+          NULL,
+          NULL,
+          'order.status',
+          'Seguimiento de pedido',
+          $10,
+          $11,
+          0.92,
+          0.88,
+          $12,
+          $12,
+          NULL,
+          NULL,
+          NULL,
+          $13::jsonb,
+          $14,
+          $14
+        )
+      `,
+      [
+        rawEventId,
+        tenantKey,
+        scope,
+        channel,
+        authorType,
+        conversationId,
+        messageId,
+        normalizedMessage,
+        normalizedMessage,
+        contextSummary,
+        suggestedResponse,
+        relationSeed,
+        metadata,
+        now,
+      ],
+    );
+
+    await client.query(
+      `
+        INSERT INTO "KnowledgeCandidate" (
+          id,
+          "tenantKey",
+          scope,
+          "sourceType",
+          status,
+          "observationId",
+          title,
+          excerpt,
+          "redactedExcerpt",
+          summary,
+          "detectedIntent",
+          problem,
+          "contextSummary",
+          "suggestedResponse",
+          "approvedResponse",
+          confidence,
+          "dedupeHash",
+          "clusterKey",
+          version,
+          "piiDetected",
+          metadata,
+          "conversationId",
+          "messageId",
+          "createdByUserId",
+          "reviewedByUserId",
+          "reviewedAt",
+          "createdAt",
+          "updatedAt"
+        ) VALUES (
+          $1,
+          $2,
+          $3::"KnowledgeDocumentScope",
+          'CONVERSATION_DERIVED'::"KnowledgeSourceType",
+          'PENDING'::"KnowledgeCandidateStatus",
+          $4,
+          $5,
+          $6,
+          NULL,
+          $7,
+          'order.status',
+          'Seguimiento de pedido',
+          $8,
+          $9,
+          NULL,
+          0.92,
+          $10,
+          $10,
+          1,
+          false,
+          $11::jsonb,
+          $12,
+          $13,
+          NULL,
+          NULL,
+          NULL,
+          $14,
+          $14
+        )
+      `,
+      [
+        candidateId,
+        tenantKey,
+        scope,
+        rawEventId,
+        `Candidate ${subject}`,
+        normalizedMessage,
+        subject,
+        `Asunto: ${subject} · Scope: ${scope} · Canal: ${channel}`,
+        suggestedResponse,
+        relationSeed,
+        metadata,
+        conversationId,
+        messageId,
+        now,
+      ],
+    );
+
+    await client.query("COMMIT");
+  });
+
+  return { conversationId, messageId, rawEventId, candidateId };
+}
+
+export async function waitForLatestConversationReplyBySubjectInAiPlatform(
+  subject: string,
+  channel: "email" | "whatsapp" | "facebook" | "instagram",
+  timeoutMs = 20_000
+): Promise<ConversationOutboundSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(
+      async (client) =>
+        client.query<{
+          conversationId: string;
+          messageId: string;
+          metadata: unknown;
+        }>(
+          `
+          WITH target_conversation AS (
+            SELECT
+              cmr."conversationId"
+            FROM "ChannelMessageRecord" cmr
+            WHERE cmr.channel = $2::text
+              AND cmr.direction = 'inbound'
+              AND (
+                cmr.metadata ->> 'subject' = $1
+                OR cmr.metadata ->> 'fromName' = $1
+                OR cmr.metadata -> 'metadata' ->> 'fromName' = $1
+              )
+            ORDER BY cmr."createdAt" DESC
+            LIMIT 1
+          )
+          SELECT
+            c.id AS "conversationId",
+            m.id AS "messageId",
+            m.metadata AS metadata
+          FROM "Conversation" c
+          INNER JOIN target_conversation tc ON tc."conversationId" = c.id
+          INNER JOIN "Message" m ON m."conversationId" = c.id
+          WHERE m.role = 'ASSISTANT'
+          ORDER BY m."createdAt" DESC
+          LIMIT 1
+          `,
+          [subject, channel.toLowerCase()],
+        ),
+      aiPlatformDatabaseUrl,
+    );
+
+    const row = result.rows[0];
+    if (row?.conversationId) {
+      const inboxMetadata =
+        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null;
+
+      return {
+        conversationId: row.conversationId,
+        inboxAccountId: null,
+        remoteId: row.messageId,
+        providerMessageId:
+          typeof inboxMetadata?.providerMessageId === "string"
+            ? inboxMetadata.providerMessageId
+            : null,
+        deliveryStatus:
+          typeof inboxMetadata?.deliveryStatus === "string"
+            ? inboxMetadata.deliveryStatus
             : null,
       };
     }
@@ -390,7 +713,7 @@ export async function waitForLatestConversationOutboundByThread(
           ORDER BY cm."createdAt" DESC
           LIMIT 1
         `,
-        [threadId, channel.toUpperCase()]
+        [threadId, channel.toLowerCase()]
       )
     );
 

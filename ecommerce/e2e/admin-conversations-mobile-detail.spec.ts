@@ -1,9 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
-
-const backendBaseUrl =
-  process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
+import { aiPlatformApiBaseUrl } from "./support/env";
 
 test("mobile admin conversation detail keeps transcript visible and scrollable", async ({
   page,
@@ -13,7 +11,7 @@ test("mobile admin conversation detail keeps transcript visible and scrollable",
 
   const uniqueId = Date.now();
   const seedResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/session`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -31,7 +29,7 @@ test("mobile admin conversation detail keeps transcript visible and scrollable",
 
   for (let index = 0; index < 12; index += 1) {
     const messageResponse = await request.post(
-      `${backendBaseUrl}/api/conversations/webchat/message`,
+      `${aiPlatformApiBaseUrl}/chat/public/webchat/messages`,
       {
         data: {
           conversationId: seeded.conversationId,

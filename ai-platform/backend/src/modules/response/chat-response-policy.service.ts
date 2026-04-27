@@ -37,6 +37,10 @@ export class ChatResponsePolicyService {
   }
 
   private async resolveBaseResponse(context: ApprovedResponseContext) {
+    if (this.isPureGreeting(context.userMessage)) {
+      return this.buildBasicResponse(context);
+    }
+
     if (context.outcome === 'close_turn') {
       return this.buildCloseTurnResponse(context);
     }
@@ -287,6 +291,42 @@ export class ChatResponsePolicyService {
       templateKey: 'basic_response',
       variationSeed: this.buildVariationSeed(context, 'basic_response'),
     });
+  }
+
+  private isPureGreeting(value: string) {
+    const compact = value
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/[¿?¡!.,;:]/gu, ' ')
+      .replace(/\s+/gu, ' ')
+      .trim();
+
+    if (!compact) {
+      return false;
+    }
+
+    const tokens = compact.split(' ').filter(Boolean);
+
+    if (tokens.length === 0 || tokens.length > 4) {
+      return false;
+    }
+
+    const greetingTokens = new Set([
+      'hola',
+      'buenas',
+      'buenos',
+      'buen',
+      'dia',
+      'dias',
+      'tarde',
+      'tardes',
+      'noche',
+      'noches',
+    ]);
+
+    return tokens.every((token) => greetingTokens.has(token));
   }
 
   private async buildClarificationResponse(context: ApprovedResponseContext) {

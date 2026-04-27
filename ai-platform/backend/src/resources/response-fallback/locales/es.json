@@ -10,7 +10,7 @@
   ],
   "templates": {
     "opening_greeting": "Hola, gracias por contactarnos.",
-    "basic_response": "Hola, contame en qué te puedo ayudar.",
+    "basic_response": "Hola. ¿En qué podemos ayudarte hoy?",
     "clarification_requested_date": "Para coordinar la visita, necesito la fecha y la hora que te sirven.",
     "clarification_quote_scope": "Para orientarte con un presupuesto, primero necesito saber qué producto o línea estás evaluando.",
     "clarification_user_goal": "Decime qué necesitás y lo seguimos desde ahí.",
@@ -34,7 +34,7 @@
       "Hola, muchas gracias por escribirnos."
     ],
     "basic_response": [
-      "Hola, contame en qué te puedo ayudar.",
+      "Hola. ¿En qué podemos ayudarte hoy?",
       "Decime qué necesitás y te doy una mano.",
       "Contame qué querés resolver y lo vemos."
     ],

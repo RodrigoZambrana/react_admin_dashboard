@@ -7,8 +7,7 @@ import {
   startAdminInternalAssistantConversationForUser,
 } from "./support/admin-api";
 import { loginAsAdmin, loginAsAdminUser, resolveAdminAppUrl } from "./support/admin-ui";
-
-const backendBaseUrl = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
+import { aiPlatformApiBaseUrl } from "./support/env";
 
 async function createWebchatConversation(
   request: APIRequestContext,
@@ -28,7 +27,7 @@ async function createWebchatConversation(
   },
 ) {
   const sessionResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/session`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -49,7 +48,7 @@ async function createWebchatConversation(
   };
 
   const messageResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/message`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/messages`,
     {
       data: {
         conversationId: sessionPayload.conversationId,
@@ -84,7 +83,7 @@ async function createWebchatConversationWithAgentReply(
   },
 ) {
   const sessionResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/session`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -106,7 +105,7 @@ async function createWebchatConversationWithAgentReply(
 
   const effectiveGuestId = sessionPayload.guestId ?? input.guestId;
   const dispatchResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/dispatch`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/messages`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -128,7 +127,7 @@ async function createWebchatConversationWithAgentReply(
   const startedAt = Date.now();
   while (Date.now() - startedAt < 30_000) {
     const detailResponse = await request.get(
-      `${backendBaseUrl}/api/conversations/${sessionPayload.conversationId}`,
+      `${aiPlatformApiBaseUrl}/admin/conversations/${sessionPayload.conversationId}`,
       {
         headers: {
           authorization: `Bearer ${adminToken}`,

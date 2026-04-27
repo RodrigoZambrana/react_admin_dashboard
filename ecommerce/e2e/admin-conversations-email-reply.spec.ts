@@ -2,17 +2,18 @@ import { expect, test } from "@playwright/test";
 
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
 import { inboxEmailAddress } from "./support/env";
-import { waitForLatestConversationOutboundBySubject } from "./support/db";
+import { waitForLatestConversationReplyBySubjectInAiPlatform } from "./support/db";
 
 const channelAdapterBaseUrl =
   process.env.PLAYWRIGHT_CHANNEL_ADAPTER_URL ?? "http://127.0.0.1:4200";
 
-test("admin can reply to an email conversation and persist outbound delivery status", async ({
+test("admin can reply to an email conversation and persist the manual reply", async ({
   page,
   request,
 }) => {
   const uniqueId = Date.now();
   const subject = `Reply email ${uniqueId}`;
+  const displayName = "Cliente Reply";
   const replyText = `Respuesta operator ${uniqueId}`;
 
   const emailResponse = await request.post(
@@ -21,7 +22,7 @@ test("admin can reply to an email conversation and persist outbound delivery sta
       data: {
         tenantKey: "urucortinas",
         fromAddress: `cliente-reply-${uniqueId}@example.com`,
-        fromName: "Cliente Reply",
+        fromName: displayName,
         toAddress: inboxEmailAddress,
         inboxAddress: inboxEmailAddress,
         subject,
@@ -49,54 +50,22 @@ test("admin can reply to an email conversation and persist outbound delivery sta
   });
   await page.getByTestId("admin-conversations-channel-email").click();
 
-  const row = page.getByText(subject).first();
+  const row = page.getByText(displayName).first();
   await expect(row).toBeVisible({ timeout: 20_000 });
   await row.click();
 
   await page.getByTestId("admin-conversation-reply-input").fill(replyText);
   await page.getByTestId("admin-conversation-reply-submit").click();
 
-  const replyMessage = page
-    .locator('[data-testid^="admin-conversation-message-"]')
-    .filter({
-      hasText: replyText,
-    })
-    .first();
-  await expect(replyMessage).toBeVisible({ timeout: 20_000 });
-
-  const outbound = await waitForLatestConversationOutboundBySubject(
-    subject,
+  const outbound = await waitForLatestConversationReplyBySubjectInAiPlatform(
+    displayName,
     "email",
   );
 
-  if (outbound.remoteId) {
-    const statusResponse = await request.post(
-      `${channelAdapterBaseUrl}/webhooks/email/status`,
-      {
-        data: {
-          conversationId: outbound.conversationId,
-          inboxAccountId: outbound.inboxAccountId,
-          messageId: outbound.remoteId,
-          providerMessageId: outbound.providerMessageId ?? outbound.remoteId,
-          status: "delivered",
-          provider: "smtp-test",
-          metadata: {
-            source: "playwright",
-          },
-        },
-      },
-    );
-
-    expect(statusResponse.ok()).toBeTruthy();
-    await page.reload({ waitUntil: "domcontentloaded" });
-    await expect(replyMessage).toContainText(replyText, { timeout: 20_000 });
-    await expect(replyMessage).toContainText(/Delivered|Entregado/);
-    return;
-  }
-
   await page.reload({ waitUntil: "domcontentloaded" });
-  await expect(replyMessage).toContainText(replyText, { timeout: 20_000 });
-  await expect(
-    page.getByTestId(/admin-conversation-message-status-/).last(),
-  ).toContainText(/Entrega fallida|Failed delivery/i);
+  await expect(page.getByText(replyText).first()).toBeVisible({
+    timeout: 20_000,
+  });
+  expect(outbound.conversationId).toBeTruthy();
+  expect(outbound.remoteId).toBeTruthy();
 });

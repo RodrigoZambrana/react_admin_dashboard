@@ -7,6 +7,8 @@ import {
 } from '../persistence/repositories/conversation-operator-state.repository';
 import { PrismaService } from '../persistence/prisma/prisma.service';
 import { TenantContextService } from '../persistence/tenant/tenant-context.service';
+import { ChannelConversationBridgeService } from './channel-conversation-bridge.service';
+import { AdminConversationReplyDto } from './dto/admin-conversation-reply.dto';
 import { AdminConversationQueryDto } from './dto/admin-conversation-query.dto';
 
 type ConversationWithProjection = Conversation & {
@@ -37,6 +39,7 @@ export class AdminConversationsService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContextService,
     private readonly operatorStateRepository: ConversationOperatorStateRepository,
+    private readonly channelConversationBridgeService: ChannelConversationBridgeService,
   ) {}
 
   async listConversations(query: AdminConversationQueryDto = {}) {
@@ -170,6 +173,22 @@ export class AdminConversationsService {
         items: [],
       },
     };
+  }
+
+  async reply(conversationId: string, input: AdminConversationReplyDto) {
+    await this.ensureConversationExists(conversationId);
+    await this.channelConversationBridgeService.replyAsAgent(conversationId, {
+      body: input.body,
+      finalUserText: input.body,
+      metadata: {
+        source: 'admin_ui',
+        kind: input.kind ?? 'text',
+        attachments: input.attachments ?? [],
+      },
+      auditPayload: input.aiSuggestionFeedback ?? undefined,
+    });
+
+    return this.getConversation(conversationId);
   }
 
   async markRead(conversationId: string, actorKey?: string | null) {

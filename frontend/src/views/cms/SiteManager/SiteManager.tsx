@@ -1,3 +1,4 @@
+/* eslint-disable jsx-a11y/label-has-associated-control */
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
     DragDropContext,

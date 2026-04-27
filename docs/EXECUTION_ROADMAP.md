@@ -14,12 +14,14 @@ Plan operativo para ejecutar el saneamiento y la evolución del proyecto sin per
 - El stack Docker local debe seguir operativo en cada iteración relevante como control mínimo de integración y empaquetado.
 - No hace falta correr Docker por cada microcambio, pero sí al cierre de cada bloque relevante y al cierre de cualquier cambio en `package.json`, Dockerfiles, compose, envs, imports compartidos o runtime server/client.
 - El storefront debe evolucionar con una política explícita de procedencia de datos y degradación controlada cuando el backend no esté disponible.
+- La entrega actual de chat a producción cubre solo respuestas manuales; la automatización de respuestas queda explícitamente fuera de alcance para esta iteración y no debe usarse como gate de readiness.
 - Los DTO públicos del storefront deben mantenerse mínimos y auditados para no exponer costos, márgenes o reglas internas innecesarias.
 - El flujo de efectivo storefront debe tratar pedido y pago como eventos separados: registrar pedido ahora, confirmar pago solo cuando administración lo asiente.
 - Las automatizaciones E2E futuras deben apoyarse en `data-testid` estables en superficies críticas; ese criterio debe formar parte de la aceptación de cambios nuevos o refactors relevantes.
 - El bootstrap y la evolución de base deben seguir un camino reproducible con Prisma, pero la estructura física y la performance de consultas también deben revisarse periódicamente con normalización e índices donde corresponda.
 - La cobertura de pruebas objetivo debe crecer de forma incremental y priorizada, con regresiones browser para flujos críticos y sin depender de pasos manuales no trazables.
 - El ciclo de trabajo de pruebas debe contemplar explícitamente alta, modificación y baja de casos; ningún cambio funcional relevante se considera cerrado si no deja alineado su bloque de QA y su cobertura mínima asociada.
+- En cada iteración, además de validar, se deben verificar, actualizar y complementar los casos de prueba para maximizar la superficie cubierta, tanto en pruebas independientes como en flujos end to end del ecommerce.
 - Las futuras superficies editoriales del sitio deben modelarse en un dominio CMS independiente; no conviene seguir ampliando contenido editorial directamente sobre `Product`.
 
 ## Secuencia de trabajo recomendada

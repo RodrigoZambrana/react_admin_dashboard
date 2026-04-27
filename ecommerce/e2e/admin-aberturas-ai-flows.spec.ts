@@ -1,10 +1,13 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
-import { signInAdmin } from "./support/admin-api";
+import {
+  signInAdmin,
+  startAdminInternalAssistantConversationForUser,
+} from "./support/admin-api";
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
+import { aiPlatformApiBaseUrl } from "./support/env";
 
-const backendBaseUrl =
-  process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
+const backendBaseUrl = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
 
 type ConversationDetail = {
   id: string;
@@ -29,7 +32,7 @@ async function fetchConversationDetail(
   conversationId: string,
 ): Promise<ConversationDetail> {
   const response = await request.get(
-    `${backendBaseUrl}/api/conversations/${conversationId}`,
+    `${aiPlatformApiBaseUrl}/admin/conversations/${conversationId}`,
     {
       headers: {
         authorization: `Bearer ${token}`,
@@ -71,42 +74,12 @@ test("admin internal chat structures aberturas for insert and keeps missing pric
   const adminToken = await signInAdmin(request);
   const prompt =
     "Necesito agregar estas aberturas al sistema: Corrediza 2h2g serie probba blanco v4mm cierre fenix 110 x 120 usd 234; Gala corrediza con DVH color negro de 1.90 x 2.20";
-
-  const contactsResponse = await request.get(
-    `${backendBaseUrl}/api/conversations/contacts?search=${encodeURIComponent("Asistente")}&limit=10`,
-    {
-      headers: {
-        authorization: `Bearer ${adminToken}`,
-      },
-    },
+  const internalConversation = await startAdminInternalAssistantConversationForUser(
+    request,
+    { email: "desarrollo@software-strategy.com", password: "Pass123" },
+    { tenantKey: "urucortinas" },
   );
-  expect(contactsResponse.ok()).toBeTruthy();
-  const contactsPayload = (await contactsResponse.json()) as {
-    items: Array<{ key: string; conversationId: string | null }>;
-  };
-  const internalContact = contactsPayload.items.find(
-    (item) => item.key === "internal:assistant",
-  );
-  expect(internalContact).toBeTruthy();
-
-  let conversationId = internalContact?.conversationId ?? null;
-  if (!conversationId) {
-    const sessionResponse = await request.post(
-      `${backendBaseUrl}/api/conversations/contact-session`,
-      {
-        headers: {
-          authorization: `Bearer ${adminToken}`,
-        },
-        data: {
-          contactType: "internal",
-        },
-      },
-    );
-    expect(sessionResponse.ok()).toBeTruthy();
-    const sessionPayload = (await sessionResponse.json()) as { id: string };
-    conversationId = sessionPayload.id;
-  }
-  expect(conversationId).toBeTruthy();
+  const conversationId = internalConversation.id;
 
   await loginAsAdmin(page);
   await page.goto(

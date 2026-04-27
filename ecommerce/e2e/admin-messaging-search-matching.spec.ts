@@ -1,9 +1,7 @@
 import { expect, test, type APIRequestContext } from "@playwright/test";
 
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
-
-const backendBaseUrl =
-  process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
+import { aiPlatformApiBaseUrl } from "./support/env";
 
 async function seedWebchatConversation(
   request: APIRequestContext,
@@ -15,7 +13,7 @@ async function seedWebchatConversation(
   },
 ) {
   const sessionResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/session`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -32,7 +30,7 @@ async function seedWebchatConversation(
   const sessionPayload = await sessionResponse.json();
 
   const messageResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/message`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/messages`,
     {
       data: {
         conversationId: sessionPayload.conversationId,

@@ -9,9 +9,10 @@
 
 ## Manejo de secretos
 
-- Nunca subas archivos `.env` ni claves privadas al repositorio.
-- Usa GitHub Environments para almacenar secretos sensibles por ambiente (`testing`, `prod`); la rama `develop` se gestiona localmente con archivos `.env`.
-- Los secretos `ENV_FILE_BACKEND` y `ENV_FILE_FRONTEND` deben contener el contenido completo de los archivos `.env` usados en despliegue.
+- Nunca subas archivos `.env` de producción ni claves privadas al repositorio.
+- Los archivos `deploy/env/*.dev.env` hoy existen como baseline controlado de desarrollo local; no deben usarse como boundary de producción.
+- Usa GitHub Environments o un secret manager para almacenar secretos sensibles por ambiente (`testing`, `prod`); la rama `develop` se gestiona localmente con archivos `.env` no productivos.
+- Los secretos `ENV_FILE_BACKEND` y `ENV_FILE_FRONTEND` deben contener el contenido completo de los archivos `.env` usados en despliegue productivo o de testing, no valores operativos mezclados con el repo.
 - Rotar periódicamente contraseñas de base de datos, JWT y claves TLS.
 
 ## TLS

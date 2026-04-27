@@ -13,12 +13,15 @@ export default defineConfig({
     baseURL: storefrontBaseUrl,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
-    video: "retain-on-failure"
+    video: process.env.PLAYWRIGHT_RECORD_VIDEO ? "retain-on-failure" : "off"
   },
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] }
+      use: {
+        ...devices["Desktop Chrome"],
+        channel: process.env.PLAYWRIGHT_BROWSER_CHANNEL ?? "chrome"
+      }
     }
   ]
 });

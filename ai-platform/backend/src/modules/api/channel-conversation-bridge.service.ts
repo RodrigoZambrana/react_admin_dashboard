@@ -5,6 +5,8 @@ import { ChannelConversationBindingRepository } from '../persistence/repositorie
 import { ChannelMessageRecordRepository } from '../persistence/repositories/channel-message-record.repository';
 import { ChatLogRepository } from '../persistence/repositories/chat-log.repository';
 import { ConversationRepository } from '../persistence/repositories/conversation.repository';
+import { PrismaService } from '../persistence/prisma/prisma.service';
+import { TenantContextService } from '../persistence/tenant/tenant-context.service';
 import { InternalAgentOutboundDto } from './dto/internal-agent-outbound.dto';
 import { InternalAgentTurnDto } from './dto/internal-agent-turn.dto';
 import { InternalBootstrapChannelThreadDto } from './dto/internal-bootstrap-channel-thread.dto';
@@ -20,6 +22,8 @@ export class ChannelConversationBridgeService {
     private readonly channelMessageRecordRepository: ChannelMessageRecordRepository,
     private readonly chatLogRepository: ChatLogRepository,
     private readonly semanticTurnExecutionService: SemanticTurnExecutionService,
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContextService,
   ) {}
 
   async ingestInboundMessage(input: InternalChannelInboundMessageDto) {
@@ -146,6 +150,23 @@ export class ChannelConversationBridgeService {
       }),
     );
 
+    await this.channelMessageRecordRepository.upsert({
+      conversationId,
+      channel: conversation.channel,
+      externalMessageId: message.id,
+      providerMessageId: message.id,
+      remoteId: message.id,
+      direction: 'outbound',
+      status: 'pending_external',
+      occurredAt: message.createdAt,
+      metadata: this.toJson({
+        source: 'admin_ui',
+        body: content,
+        finalUserText: input.finalUserText ?? null,
+        metadata: input.metadata ?? {},
+      }),
+    });
+
     return {
       id: message.id,
       conversationId,
@@ -216,6 +237,38 @@ export class ChannelConversationBridgeService {
         inboxAccountId: input.inboxAccountId ?? null,
       } as Prisma.InputJsonValue,
     });
+
+    if (input.remoteId) {
+      const message = await this.prisma.message.findFirst({
+        where: {
+          id: input.remoteId,
+          tenantId: this.tenantContext.getTenantId(),
+        },
+      });
+
+      if (message) {
+        const currentMetadata =
+          message.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata)
+            ? (message.metadata as Record<string, unknown>)
+            : {};
+
+        await this.prisma.message.update({
+          where: {
+            id: message.id,
+          },
+          data: {
+            metadata: {
+              ...currentMetadata,
+              deliveryStatus: input.deliveryStatus,
+              providerMessageId: input.providerMessageId ?? input.remoteId,
+              remoteId: input.remoteId,
+              errorCode: input.errorCode ?? null,
+              errorMessage: input.errorMessage ?? null,
+            } as Prisma.InputJsonValue,
+          },
+        });
+      }
+    }
 
     await this.chatLogRepository.createLog({
       traceId: `outbound:${record.id}`,

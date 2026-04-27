@@ -1,11 +1,9 @@
 import { Buffer } from "node:buffer";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 
-import { storefrontBaseUrl } from "./support/env";
+import { aiPlatformApiBaseUrl, storefrontBaseUrl } from "./support/env";
 import { buildTestCustomer } from "./support/factories";
 import { registerCustomer } from "./support/storefront-api";
-
-const backendBaseUrl = process.env.PLAYWRIGHT_BACKEND_URL ?? "http://127.0.0.1:4000";
 
 async function openStorefrontChat(page: Page) {
   const drawer = page.getByTestId("storefront-webchat-drawer");
@@ -77,7 +75,7 @@ async function createWebchatSessionSnapshot(
   },
 ) {
   const sessionResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/session`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
     {
       data: {
         tenantKey: "urucortinas",
@@ -99,7 +97,7 @@ async function createWebchatSessionSnapshot(
 
   const effectiveGuestId = sessionPayload.guestId ?? input.guestId;
   const messageResponse = await request.post(
-    `${backendBaseUrl}/api/conversations/webchat/message`,
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/messages`,
     {
       data: {
         conversationId: sessionPayload.conversationId,
@@ -113,7 +111,7 @@ async function createWebchatSessionSnapshot(
   expect(messageResponse.ok()).toBeTruthy();
 
   const transcriptResponse = await request.get(
-    `${backendBaseUrl}/api/conversations/webchat/session/${sessionPayload.conversationId}?guestId=${encodeURIComponent(
+    `${aiPlatformApiBaseUrl}/chat/public/webchat/session/${sessionPayload.conversationId}?guestId=${encodeURIComponent(
       effectiveGuestId,
     )}`,
   );

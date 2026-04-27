@@ -1436,7 +1436,17 @@ describe('StorefrontService.createOrder', () => {
       createdAt: new Date('2026-03-23T12:00:00.000Z'),
       updatedAt: new Date('2026-03-23T12:00:00.000Z'),
     })
-    prisma.product.findMany.mockResolvedValue([])
+    prisma.product.findUnique.mockResolvedValue({
+      id: 2115,
+      mode: ProductMode.PARAMETRIC,
+    })
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 2115,
+        name: 'Ventana corrediza',
+        productCode: 'VENT-01',
+      },
+    ])
     publishedProductResolver.resolvePublishedParametricProduct.mockResolvedValue({
       defaultVariantKey: 'base:1',
       configuration: {

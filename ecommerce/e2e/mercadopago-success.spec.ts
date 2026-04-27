@@ -291,7 +291,9 @@ test.describe("mercado pago success handoff", () => {
       .toBeGreaterThanOrEqual(2);
 
     const notifications = await getNotificationsForOrder(order.uuid);
-    expect(notifications.filter((row) => row.eventType === "ORDER_RECEIVED")).toHaveLength(2);
+    const orderReceived = notifications.filter((row) => row.eventType === "ORDER_RECEIVED");
+    expect(orderReceived.some((row) => row.audience === "CUSTOMER")).toBeTruthy();
+    expect(orderReceived.some((row) => row.audience === "ADMIN")).toBeTruthy();
     expect(notifications.some((row) => row.eventType === "PAYMENT_RECEIVED")).toBeFalsy();
     expect(notifications.some((row) => row.eventType === "ORDER_STATUS_CHANGED")).toBeFalsy();
 
