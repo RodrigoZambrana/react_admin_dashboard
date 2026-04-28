@@ -56,6 +56,38 @@ Los resultados quedan persistidos en:
 - `.qa/latest.conversation-quality.json`
 - `.qa/latest.conversation-quality.md`
 
+## Informe granular de casos de uso
+
+El reporte canónico y actualizable de cobertura del sistema queda en:
+
+- [docs/qa/system-use-cases-report.xlsx](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/qa/system-use-cases-report.xlsx)
+
+Se regenera desde la fuente estructurada en:
+
+- [tools/qa/use-cases-report.source.mjs](/Users/rodrigo/Git/personal/react_admin_dashboard/tools/qa/use-cases-report.source.mjs)
+
+Comando de actualización:
+
+```bash
+node tools/qa/generate-use-cases-report.mjs
+```
+
+El workbook incluye también una capa explícita de estado por respuesta backend directa:
+
+- `validado por UI`
+- `validado por API directa`
+- `pendiente de backend`
+- `definido pero no cubierto`
+
+Además agrega la hoja `Guia manual`, que consolida todos los casos de uso disponibles como índice de arranque para pruebas manuales transversales.
+
+Regla de trabajo:
+
+- todos los casos que no estén en `VERIFICADA` deben tener su prueba creada, validada, actualizada y ejecutada antes de habilitar una corrida manual de cierre;
+- si un caso no tiene cobertura suficiente, se crea o actualiza el test correspondiente antes de usarlo como parte del checklist manual;
+- la guía manual es un índice de ejecución final, no un sustituto de la automatización.
+- quedan fuera del gate de esta entrega los casos de automatización de respuestas del agente, incluyendo `wording registry`, `hybrid intent`, `grounding`, `auto-reply` y similares; esos tests pueden existir, pero no bloquean el cierre manual-only de esta iteración.
+
 Para bloques conversacionales, `run-qa` genera además un reporte agrupado por patrón, bucket probable, capa a ajustar y siguiente acción sugerida.
 
 Si existe la carpeta externa de exports reales de WhatsApp, el loop conversacional también genera:

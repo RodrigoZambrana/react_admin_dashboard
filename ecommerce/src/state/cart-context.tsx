@@ -15,6 +15,7 @@ import type { Money, ProductMode, ProductSummary, ProductVariantAttribute } from
 import { extractProductIdFromCartLineId, isParametricCartLineId } from "@/lib/checkout/order-items";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useToast } from "@/contexts/ToastContext";
+import { trackAddToCart } from "@/lib/analytics";
 
 export interface CartProductSnapshot {
   id: string;
@@ -59,7 +60,7 @@ type CartAction =
     }
   | { type: "CLEAR" };
 
-const initialState: CartState = {
+export const initialState: CartState = {
   items: [],
   updatedAt: Date.now()
 };
@@ -84,7 +85,7 @@ const coerceCartConfiguration = (value: unknown): Record<string, unknown> | unde
   return undefined;
 };
 
-const upgradeCartState = (state: CartState | null | undefined): UpgradedCartStateResult => {
+export const upgradeCartState = (state: CartState | null | undefined): UpgradedCartStateResult => {
   if (!state || !Array.isArray(state.items)) {
     return { state: { items: [], updatedAt: Date.now() }, droppedInvalidParametricItems: 0 };
   }
@@ -94,6 +95,8 @@ const upgradeCartState = (state: CartState | null | undefined): UpgradedCartStat
   const upgradedItems: CartLineItem[] = state.items
     .map((item) => {
     const product = item.product ?? ({} as CartProductSnapshot);
+    const rawQuantity = Number(item.quantity);
+    const normalizedQuantity = Number.isFinite(rawQuantity) ? Math.max(1, rawQuantity) : 1;
     const legacyId = product.id ?? product.productId ?? "";
     let normalizedLineId = String(legacyId);
     if (!normalizedLineId || normalizedLineId.trim().length === 0) {
@@ -124,6 +127,7 @@ const upgradeCartState = (state: CartState | null | undefined): UpgradedCartStat
 
     return {
       ...item,
+      quantity: normalizedQuantity,
       product: {
         ...product,
         id: normalizedLineId,
@@ -152,13 +156,15 @@ const upgradeCartState = (state: CartState | null | undefined): UpgradedCartStat
   };
 };
 
-const cartReducer = (state: CartState, action: CartAction): CartState => {
+export const cartReducer = (state: CartState, action: CartAction): CartState => {
   switch (action.type) {
     case "LOADED":
       return action.payload;
     case "ADD_ITEM": {
       const existing = state.items.find((item) => item.product.id === action.payload.product.id);
-      const quantity = Math.max(1, action.payload.quantity);
+      const quantity = Number.isFinite(action.payload.quantity)
+        ? Math.max(1, action.payload.quantity)
+        : 1;
       const updatedItems = existing
         ? state.items.map((item) =>
             item.product.id === action.payload.product.id
@@ -187,7 +193,10 @@ const cartReducer = (state: CartState, action: CartAction): CartState => {
       const updatedItems = state.items
         .map((item) => {
           if (item.product.id !== action.payload.productId) return item;
-          const nextQuantity = Math.max(0, action.payload.quantity);
+          const numericQuantity = Number.isFinite(action.payload.quantity)
+            ? action.payload.quantity
+            : 0;
+          const nextQuantity = Math.max(0, numericQuantity);
           if (nextQuantity === 0) return null;
           return {
             ...item,
@@ -338,6 +347,7 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   const addItem = useCallback(
     (product: ProductSummary, quantity = 1) => {
       dispatch({ type: "ADD_ITEM", payload: { product: snapshotProduct(product), quantity } });
+      trackAddToCart(product, quantity);
       toast.success({
         title: "Producto agregado",
         description: `${product.name} se añadió al carrito.`
@@ -349,6 +359,22 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   const addItemSnapshot = useCallback(
     (product: CartProductSnapshot, quantity = 1) => {
       dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
+      trackAddToCart(
+        {
+          id: Number(product.productId) || product.id,
+          slug: product.slug,
+          name: product.name,
+          price: product.price,
+          salePrice: product.salePrice ?? null,
+          inventoryStatus: product.inventoryStatus,
+          thumbnail: product.thumbnail,
+          mode: product.mode,
+          variantId: product.variantId ?? null,
+          variantKey: product.variantKey ?? null,
+          variantLabel: product.variantLabel ?? null,
+        } as ProductSummary,
+        quantity,
+      );
       toast.success({
         title: "Producto agregado",
         description: `${product.name} se añadió al carrito.`

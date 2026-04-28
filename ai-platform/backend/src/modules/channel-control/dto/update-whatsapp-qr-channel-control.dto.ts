@@ -6,6 +6,7 @@ import {
   IsString,
   Max,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -13,10 +14,12 @@ import { Type } from 'class-transformer';
 class ChannelRouteDefaultsDto {
   @IsOptional()
   @IsString()
+  @MinLength(1)
   inboxKey?: string | null;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   queueKey?: string | null;
 
   @IsOptional()

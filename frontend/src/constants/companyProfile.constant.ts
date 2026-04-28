@@ -7,5 +7,9 @@ export const DEFAULT_COMPANY_PROFILE = {
     website: 'www.sistemadministrativo.com',
     addressLine1: '9498 Harvard Street',
     addressLine2: 'Fairfield, Chicago Town 06824',
+    seoDescription: '',
+    seoAuthor: '',
+    seoImageUrl: '',
+    googleSiteVerification: '',
     logo: null as string | null,
 } as const

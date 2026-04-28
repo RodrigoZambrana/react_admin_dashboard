@@ -1,13 +1,19 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 
 type ProductsPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export const metadata = {
-  title: "Products · Storefront",
-  description: "Products redirect to the public shop listing."
-};
+export async function generateMetadata(): Promise<Metadata> {
+  return buildStorefrontPageMetadata({
+    title: "Productos",
+    description: "La ruta de productos redirige al listado público de la tienda.",
+    canonicalPath: "/shop",
+    noIndex: true,
+  });
+}
 
 const normalize = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 

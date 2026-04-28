@@ -123,7 +123,7 @@ export default function RegisterClient() {
         phone: normalizedPhone,
         locale
       });
-      router.replace("/");
+      router.replace("/account/profile");
     } catch (err) {
       // session context provides the error message; nothing else to do here
     } finally {

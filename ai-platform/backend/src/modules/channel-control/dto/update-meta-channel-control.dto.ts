@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -14,16 +15,19 @@ class ChannelSecretRefDto {
   strategy?: 'local' | 'env';
 
   @IsString()
+  @MinLength(1)
   ref!: string;
 }
 
 class ChannelRouteDefaultsDto {
   @IsOptional()
   @IsString()
+  @MinLength(1)
   inboxKey?: string | null;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   queueKey?: string | null;
 
   @IsOptional()

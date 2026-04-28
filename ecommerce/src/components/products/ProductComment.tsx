@@ -9,13 +9,23 @@ import { getDateDifference } from "@utils/utils";
 interface Props {
   name: string;
   date: string;
-  imgUrl: string;
+  imgUrl?: string;
   rating: number;
   comment: string;
+  title?: string | null;
+  verifiedPurchase?: boolean;
 }
 // =========================================
 
-export default function ProductComment({ name, date, imgUrl, rating, comment }: Props) {
+export default function ProductComment({
+  name,
+  date,
+  imgUrl,
+  rating,
+  comment,
+  title,
+  verifiedPurchase
+}: Props) {
   return (
     <Box mb="32px" maxWidth="600px">
       <FlexBox alignItems="center" mb="1rem">
@@ -31,6 +41,17 @@ export default function ProductComment({ name, date, imgUrl, rating, comment }: 
           </FlexBox>
         </Box>
       </FlexBox>
+
+      {title ? (
+        <H6 mb="8px" mt="0px">
+          {title}
+          {verifiedPurchase ? <SemiSpan> · Verified purchase</SemiSpan> : null}
+        </H6>
+      ) : verifiedPurchase ? (
+        <H6 mb="8px" mt="0px">
+          <SemiSpan>Verified purchase</SemiSpan>
+        </H6>
+      ) : null}
 
       <Paragraph color="gray.700">{comment}</Paragraph>
     </Box>

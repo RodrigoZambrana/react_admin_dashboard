@@ -138,19 +138,20 @@ export class CmsPagesService {
     await this.assertUniqueAliases(normalized.aliases)
     return this.prisma.$transaction(async (tx) => {
       const page = await tx.cmsPage.create({
-        data: {
-          path: normalized.path,
-          title: normalized.title,
-          summary: normalized.summary,
-          scope: normalized.scope,
-          locale: normalized.locale,
-          status: normalized.status,
-          visible: normalized.visible,
-          seoTitle: normalized.seoTitle,
-          seoDescription: normalized.seoDescription,
-          layoutKey: normalized.layoutKey,
-          legacySource: normalized.legacySource,
-        },
+      data: {
+        path: normalized.path,
+        title: normalized.title,
+        summary: normalized.summary,
+        scope: normalized.scope,
+        locale: normalized.locale,
+        status: normalized.status,
+        visible: normalized.visible,
+        seoTitle: normalized.seoTitle,
+        seoDescription: normalized.seoDescription,
+        seoImageUrl: normalized.seoImageUrl,
+        layoutKey: normalized.layoutKey,
+        legacySource: normalized.legacySource,
+      },
       })
       await this.replacePageAliases(tx, page.id, normalized.aliases)
       await this.replacePageSections(tx, page.id, normalized.sections)
@@ -175,6 +176,7 @@ export class CmsPagesService {
       seoTitle: dto.seoTitle === undefined ? existing.seoTitle : dto.seoTitle,
       seoDescription:
         dto.seoDescription === undefined ? existing.seoDescription : dto.seoDescription,
+      seoImageUrl: dto.seoImageUrl === undefined ? existing.seoImageUrl : dto.seoImageUrl,
       layoutKey: dto.layoutKey === undefined ? existing.layoutKey : dto.layoutKey,
       legacySource:
         dto.legacySource === undefined ? existing.legacySource : dto.legacySource,
@@ -216,6 +218,7 @@ export class CmsPagesService {
           visible: normalized.visible,
           seoTitle: normalized.seoTitle,
           seoDescription: normalized.seoDescription,
+          seoImageUrl: normalized.seoImageUrl,
           layoutKey: normalized.layoutKey,
           legacySource: normalized.legacySource,
         },
@@ -616,6 +619,7 @@ export class CmsPagesService {
       visible: dto.visible ?? true,
       seoTitle: this.optionalText(dto.seoTitle),
       seoDescription: this.optionalText(dto.seoDescription),
+      seoImageUrl: this.optionalText(dto.seoImageUrl),
       layoutKey: this.optionalText(dto.layoutKey),
       legacySource: this.optionalText(dto.legacySource),
       aliases: this.normalizeAliasPaths(dto.aliases, normalizedPath),

@@ -5,8 +5,11 @@ import { StorefrontService } from '../storefront.service'
 import { ORDER_STATUS_CODES } from '../../common/constants/order-statuses'
 
 const createPrisma = () => ({
-  $transaction: vi.fn(async (callback: any) =>
-    callback({
+  $transaction: vi.fn(async (arg: any) => {
+    if (Array.isArray(arg)) {
+      return Promise.all(arg)
+    }
+    return arg({
       order: {
         create: vi.fn(),
         findUniqueOrThrow: vi.fn(),
@@ -20,11 +23,23 @@ const createPrisma = () => ({
       productVariant: {
         updateMany: vi.fn(),
       },
-    }),
-  ),
+      productReview: {
+        groupBy: vi.fn().mockResolvedValue([]),
+        findMany: vi.fn().mockResolvedValue([]),
+        findUnique: vi.fn(),
+        create: vi.fn(),
+      },
+    })
+  }),
   storefrontPaymentIntent: {
     findUnique: vi.fn(),
     update: vi.fn(),
+  },
+  systemConfig: {
+    findUnique: vi.fn(),
+  },
+  companyProfile: {
+    findUnique: vi.fn(),
   },
   order: {
     findUnique: vi.fn(),
@@ -50,12 +65,22 @@ const createPrisma = () => ({
     create: vi.fn(),
   },
   product: {
-    findMany: vi.fn(),
+    count: vi.fn(),
+    findMany: vi.fn().mockResolvedValue([]),
     findUnique: vi.fn(),
     findFirst: vi.fn(),
   },
+  productCategory: {
+    findMany: vi.fn(),
+  },
   productVariant: {
     findMany: vi.fn(),
+  },
+  productReview: {
+    groupBy: vi.fn().mockResolvedValue([]),
+    findMany: vi.fn().mockResolvedValue([]),
+    findUnique: vi.fn(),
+    create: vi.fn(),
   },
   dimensionPriceMatrix: {
     count: vi.fn(),
@@ -88,6 +113,12 @@ const createNotifications = () => ({
 const createMercadoPago = () => ({
   isEnabled: vi.fn().mockReturnValue(true),
   attachPaymentIntentToOrder: vi.fn().mockResolvedValue(undefined),
+  getPublicConfig: vi.fn().mockResolvedValue({
+    enabled: false,
+    publicKey: null,
+    country: null,
+    updatedAt: null,
+  }),
 })
 
 const createParametricPricing = () => ({
@@ -114,6 +145,7 @@ const createPaymentSettlement = () => ({
 
 const createCmsPages = () => ({
   getPublicPageByPath: vi.fn(),
+  listPages: vi.fn().mockResolvedValue([]),
 })
 
 const createGrowth = () => ({
@@ -129,6 +161,24 @@ const createGrowth = () => ({
     },
     insights: {
       content: { enabled: false },
+    },
+  }),
+})
+
+const createGoogleConfig = () => ({
+  getEffectiveConfig: vi.fn().mockResolvedValue({
+    google: {
+      enabled: false,
+      storefrontEnabled: false,
+      clientId: null,
+      clientSecret: null,
+      redirectUri: null,
+    },
+    recaptcha: {
+      storefront: {
+        enabled: false,
+        siteKey: null,
+      },
     },
   }),
 })
@@ -1424,6 +1474,9 @@ describe('StorefrontService.createOrder', () => {
       status: 0,
       description: 'Descripción',
       specifications: null,
+      seoTitle: 'Ventana corrediza | urucortinas',
+      seoDescription: 'Ventana corrediza de aluminio con vidrio simple.',
+      seoImageUrl: '/assets/images/products/ventana-og.png',
       categoryId: null,
       category: null,
       tags: [],
@@ -1568,6 +1621,9 @@ describe('StorefrontService.createOrder', () => {
         expect.objectContaining({ label: 'Color', value: 'BLANCO' }),
       ]),
     )
+    expect(detail.seoTitle).toBe('Ventana corrediza | urucortinas')
+    expect(detail.seoDescription).toBe('Ventana corrediza de aluminio con vidrio simple.')
+    expect(detail.seoImageUrl).toBe('/assets/images/products/ventana-og.png')
   })
 
   it('groups CMS informational navigation under a configurable label without duplicating base links', async () => {
@@ -1603,6 +1659,209 @@ describe('StorefrontService.createOrder', () => {
         { label: 'Bandas Verticales', href: '/bandas-verticales.html' },
       ],
     })
+  })
+})
+
+describe('StorefrontService SEO surfaces', () => {
+  let prisma: ReturnType<typeof createPrisma>
+  let service: StorefrontService
+  let googleConfig: ReturnType<typeof createGoogleConfig>
+  let cmsPages: ReturnType<typeof createCmsPages>
+
+  beforeEach(() => {
+    prisma = createPrisma()
+    prisma.systemConfig.findUnique.mockResolvedValue(null)
+    prisma.companyProfile.findUnique.mockResolvedValue(null)
+    googleConfig = createGoogleConfig()
+    cmsPages = createCmsPages()
+    cmsPages.getPublicPageByPath.mockResolvedValue({ sections: [] })
+
+    service = new StorefrontService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      createCurrencyConversion() as any,
+      createNotifications() as any,
+      { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
+      createMercadoPago() as any,
+      googleConfig as any,
+      createParametricPricing() as any,
+      {} as any,
+      { commitStorefrontItems: vi.fn().mockResolvedValue(undefined) } as any,
+      createPaymentSettlement() as any,
+      createPublishedProductResolver() as any,
+      { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+      cmsPages as any,
+      createGrowth() as any,
+    )
+
+    vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
+    ;(service as any).defaultCustomerPasswordHash = 'hash'
+  })
+
+  it('returns structured storefront SEO defaults for metadata generation', async () => {
+    const config = await service.getConfig()
+
+    expect(config.seo).toMatchObject({
+      siteName: 'urucortinas',
+      defaultTitle: 'urucortinas',
+      titleTemplate: '%s · urucortinas',
+      defaultDescription:
+        'Configurable eCommerce experience powered by the Wokiee template and a headless backend.',
+      shareImage: {
+        url: '/assets/images/banners/shop-cover.png',
+        alt: 'urucortinas',
+      },
+    })
+  })
+
+  it('hydrates company profile SEO fields into the storefront config', async () => {
+    prisma.companyProfile.findUnique.mockResolvedValue({
+      legalName: 'UruCortinas S.A.',
+      tradeName: 'urucortinas',
+      taxId: null,
+      email: 'hola@urucortinas.com.uy',
+      phone: null,
+      website: 'https://urucortinas.com.uy',
+      addressLine1: 'Av. Italia 1234',
+      addressLine2: null,
+      seoDescription:
+        'Urucortinas - Expertos en instalación, mantenimiento y venta de cortinas Roller, bandas verticales, toldos y cortinas de enrollar.',
+      seoAuthor: 'urucortinas',
+      seoImageUrl: '/assets/images/company/og.png',
+      googleSiteVerification: 'tenant-google-site-verification',
+      logo: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      id: 1,
+      singleton: 'default',
+    } as any)
+
+    const config = await service.getConfig()
+
+    expect(config.companyProfile).toMatchObject({
+      seoDescription:
+        'Urucortinas - Expertos en instalación, mantenimiento y venta de cortinas Roller, bandas verticales, toldos y cortinas de enrollar.',
+      seoAuthor: 'urucortinas',
+      seoImageUrl: '/assets/images/company/og.png',
+      googleSiteVerification: 'tenant-google-site-verification',
+    })
+  })
+
+  it('maps CMS SEO fields into the storefront page payload', async () => {
+    prisma.companyProfile.findUnique.mockResolvedValue(null)
+    const cmsPage = {
+      id: 99,
+      path: 'about-us',
+      title: 'About us',
+      summary: 'Company story and service overview',
+      locale: 'es',
+      seoTitle: 'About us | urucortinas',
+      seoDescription: 'Learn more about our company and services.',
+      seoImageUrl: '/assets/images/cms/about-hero.png',
+      layoutKey: 'landing-default',
+      legacySource: null,
+      sections: [],
+    }
+    const cmsPages = createCmsPages()
+    cmsPages.getPublicPageByPath.mockResolvedValue(cmsPage)
+
+    service = new StorefrontService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      createCurrencyConversion() as any,
+      createNotifications() as any,
+      { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
+      createMercadoPago() as any,
+      googleConfig as any,
+      createParametricPricing() as any,
+      {} as any,
+      { commitStorefrontItems: vi.fn().mockResolvedValue(undefined) } as any,
+      createPaymentSettlement() as any,
+      createPublishedProductResolver() as any,
+      { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
+      {} as any,
+      cmsPages as any,
+      createGrowth() as any,
+    )
+
+    vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
+    ;(service as any).defaultCustomerPasswordHash = 'hash'
+
+    const page = await service.getCmsPage('about-us')
+
+    expect(page.seo).toEqual({
+      title: 'About us | urucortinas',
+      description: 'Learn more about our company and services.',
+      imageUrl: '/assets/images/cms/about-hero.png',
+    })
+  })
+
+  it('maps category SEO fields into the public storefront tree', async () => {
+    prisma.productCategory.findMany.mockResolvedValue([
+      {
+        id: 1,
+        name: 'Cortinas',
+        description: 'Cortinas a medida',
+        image: '/uploads/categories/cortinas.png',
+        seoTitle: 'Cortinas a medida',
+        seoDescription: 'Descubre cortinas a medida para cada ambiente.',
+        seoImageUrl: '/assets/images/categories/og-cortinas.png',
+        parentId: null,
+        installServiceProductId: null,
+        _count: { products: 3 },
+      },
+    ])
+
+    const categories = await service.listCategories()
+
+    expect(categories[0]).toMatchObject({
+      name: 'Cortinas',
+      description: 'Cortinas a medida',
+      seoTitle: 'Cortinas a medida',
+      seoDescription: 'Descubre cortinas a medida para cada ambiente.',
+      seoImageUrl: '/assets/images/categories/og-cortinas.png',
+      thumbnail: {
+        url: '/uploads/categories/cortinas.png',
+        alt: 'Cortinas',
+      },
+    })
+  })
+
+  it('lists CMS pages for sitemap generation from the public storefront layer', async () => {
+    cmsPages.listPages.mockResolvedValue([
+      {
+        path: 'cortinas-roller',
+        title: 'Cortinas Roller',
+        summary: 'Landing page',
+        locale: 'es',
+        updatedAt: new Date('2026-04-26T00:00:00.000Z'),
+        seoTitle: 'Cortinas Roller',
+        seoDescription: 'Landing page',
+        seoImageUrl: '/assets/images/cms/roller.png',
+        legacySource: '/legacy/cortinas-roller.html',
+      },
+    ])
+
+    const pages = await service.listCmsPages('es')
+
+    expect(pages).toEqual([
+      {
+        path: 'cortinas-roller',
+        title: 'Cortinas Roller',
+        summary: 'Landing page',
+        locale: 'es',
+        updatedAt: '2026-04-26T00:00:00.000Z',
+        seo: {
+          title: 'Cortinas Roller',
+          description: 'Landing page',
+          imageUrl: '/assets/images/cms/roller.png',
+        },
+        legacySource: '/legacy/cortinas-roller.html',
+      },
+    ])
   })
 })
 
@@ -1953,5 +2212,236 @@ describe('StorefrontService customer-facing order DTOs', () => {
       activityTitle: 'Entrega coordinada',
       linkedAt: '2026-03-23T18:01:00.000Z',
     })
+  })
+
+  it('searches storefront products by text and returns published summaries', async () => {
+    prisma.product.count.mockResolvedValue(1)
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 501,
+        name: 'Ventana corrediza de aluminio',
+        productCode: 'VENT-ALU-501',
+        published: true,
+        productType: 'PHYSICAL',
+        mode: ProductMode.SIMPLE,
+        salePrice: decimal(250),
+        costPrice: decimal(150),
+        taxRate: 22,
+        currency: 'UYU',
+        stock: 3,
+        permanentStock: false,
+        status: 0,
+        images: [],
+        category: null,
+      },
+    ])
+    vi.spyOn(service as any, 'resolvePublishedParametricDefinitions').mockResolvedValue(new Map())
+
+    const result = await service.listProducts({
+      search: 'ventana',
+      page: '1',
+      pageSize: '12',
+    } as any)
+
+    expect(prisma.product.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            expect.objectContaining({
+              name: expect.objectContaining({
+                contains: 'ventana',
+              }),
+            }),
+          ]),
+        }),
+      }),
+    )
+    expect(result.total).toBe(1)
+    expect(result.data).toHaveLength(1)
+    expect(result.data[0]?.name).toContain('Ventana corrediza')
+  })
+
+  it('returns related storefront recommendations from the same category', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 900,
+      name: 'Puerta corrediza',
+      productType: 'PHYSICAL',
+      categoryId: 12,
+      category: { id: 12, name: 'Aberturas' },
+    })
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 901,
+        name: 'Puerta corrediza premium',
+        productCode: 'PUERTA-901',
+        published: true,
+        productType: 'PHYSICAL',
+        mode: ProductMode.SIMPLE,
+        salePrice: decimal(300),
+        costPrice: decimal(180),
+        taxRate: 22,
+        currency: 'UYU',
+        stock: 4,
+        permanentStock: false,
+        status: 0,
+        images: [],
+        category: { id: 12, name: 'Aberturas' },
+      },
+    ])
+    vi.spyOn(service as any, 'resolvePublishedParametricDefinitions').mockResolvedValue(new Map())
+
+    const result = await service.getRecommendations(900, 4)
+
+    expect(prisma.product.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 900 } }),
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0]?.name).toContain('Puerta corrediza premium')
+  })
+
+  it('aggregates product review stats and loads published reviews into the product detail', async () => {
+    prisma.product.findFirst.mockResolvedValue({
+      id: 321,
+      name: 'Ventana con reseñas',
+      productCode: 'VENT-321',
+      productType: 'PHYSICAL',
+      mode: ProductMode.SIMPLE,
+      salePrice: decimal(250),
+      costPrice: decimal(150),
+      currency: 'UYU',
+      stock: 8,
+      permanentStock: false,
+      status: 0,
+      published: true,
+      description: 'Descripción',
+      specifications: 'Material: Aluminio',
+      images: [],
+      category: { id: 2, name: 'Aberturas' },
+      installServiceProduct: null,
+      productRelationsFrom: [],
+      options: [],
+      variants: [],
+    })
+    prisma.productReview.groupBy.mockResolvedValue([
+      {
+        productId: 321,
+        _avg: { rating: 4.5 },
+        _count: { id: 2 },
+      },
+    ])
+    prisma.productReview.findMany.mockResolvedValue([
+      {
+        id: 10,
+        rating: 5,
+        title: 'Excelente',
+        comment: 'Quedó perfecto.',
+        createdAt: new Date('2026-04-20T12:00:00.000Z'),
+        verifiedPurchase: true,
+        customer: {
+          name: 'Ana Pérez',
+          firstName: 'Ana',
+          lastName: 'Pérez',
+          img: null,
+        },
+      },
+    ])
+    vi.spyOn(service as any, 'resolvePublishedParametricDefinition').mockResolvedValue(null)
+    vi.spyOn(service as any, 'resolvePublishedParametricDefinitions').mockResolvedValue(new Map())
+
+    const detail = await service.getProduct('321')
+
+    expect(prisma.productReview.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ productId: { in: [321] } }),
+      }),
+    )
+    expect(detail.rating).toBe(4.5)
+    expect(detail.ratingCount).toBe(2)
+    expect(detail.reviewSummary).toEqual({ averageRating: 4.5, reviewCount: 2 })
+    expect(detail.reviews).toHaveLength(1)
+    expect(detail.reviews?.[0]).toMatchObject({
+      id: 10,
+      rating: 5,
+      title: 'Excelente',
+      comment: 'Quedó perfecto.',
+      verifiedPurchase: true,
+    })
+  })
+
+  it('creates a verified review for a customer order item and prevents duplicates', async () => {
+    prisma.order.findFirst.mockResolvedValue({
+      id: 77,
+      uuid: '11111111-1111-1111-1111-111111111111',
+      customerId: 8,
+      documentType: DocumentType.ORDER,
+      items: [
+        {
+          id: 901,
+          productId: 321,
+          variantId: 12,
+        },
+      ],
+    })
+    prisma.productReview.findUnique.mockResolvedValue(null)
+    prisma.productReview.create.mockResolvedValue({
+      id: 15,
+      rating: 4,
+      title: 'Buena calidad',
+      comment: 'Llegó en tiempo y forma.',
+      createdAt: new Date('2026-04-27T12:00:00.000Z'),
+      verifiedPurchase: true,
+      customer: {
+        name: 'Ana Pérez',
+        firstName: 'Ana',
+        lastName: 'Pérez',
+        img: null,
+      },
+    })
+
+    const review = await service.createCustomerOrderReview(8, '11111111-1111-1111-1111-111111111111', {
+      productId: 321,
+      variantId: 12,
+      rating: 4,
+      title: '  Buena calidad  ',
+      comment: '  Llegó en tiempo y forma.  ',
+    } as any)
+
+    expect(prisma.productReview.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          productId: 321,
+          customerId: 8,
+          orderItemId: 901,
+          rating: 4,
+          title: 'Buena calidad',
+          comment: 'Llegó en tiempo y forma.',
+          verifiedPurchase: true,
+        }),
+      }),
+    )
+    expect(review).toMatchObject({
+      id: 15,
+      rating: 4,
+      title: 'Buena calidad',
+      comment: 'Llegó en tiempo y forma.',
+      verifiedPurchase: true,
+      customer: {
+        name: 'Ana Pérez',
+      },
+    })
+    expect((service as any).publicCache.size).toBe(0)
+
+    prisma.productReview.findUnique.mockResolvedValueOnce({
+      id: 15,
+    })
+
+    await expect(
+      service.createCustomerOrderReview(8, '11111111-1111-1111-1111-111111111111', {
+        productId: 321,
+        variantId: 12,
+        rating: 4,
+        comment: 'Otra reseña',
+      } as any),
+    ).rejects.toThrow('already been reviewed')
   })
 })

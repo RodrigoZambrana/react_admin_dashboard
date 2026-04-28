@@ -190,7 +190,7 @@ export default function OrderDetailClient({ identifier }: OrderDetailClientProps
 
         <Box py="0.5rem">
           {order.items.map((item) => (
-            <WriteReview item={item} key={`${item.productId}-${item.name}`} />
+            <WriteReview item={item} orderIdentifier={order.uuid} key={`${item.productId}-${item.name}`} />
           ))}
         </Box>
       </Card>

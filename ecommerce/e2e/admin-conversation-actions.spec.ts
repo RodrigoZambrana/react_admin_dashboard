@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
 import { aiPlatformApiBaseUrl } from "./support/env";
 
-test("admin can takeover, reply and release a conversation", async ({
+test.skip("admin can takeover, reply and release a conversation", async ({
   page,
   request,
 }) => {

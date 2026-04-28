@@ -92,6 +92,14 @@ type AdminConversationPayload = {
   id: string;
 };
 
+type InboxAccountPayload = {
+  id: string;
+  channel?: string;
+  address?: string | null;
+  displayName?: string | null;
+  active?: boolean;
+};
+
 type KnowledgeCandidatePayload = {
   id: string;
   status: string;
@@ -299,8 +307,14 @@ export async function createAdminInternalSessionForUser(
   );
 
   expect(bootstrapResponse.ok()).toBeTruthy();
-  const bootstrapPayload = (await bootstrapResponse.json()) as AdminConversationPayload;
-  expect(bootstrapPayload.id).toBeTruthy();
+  const bootstrapPayload = (await bootstrapResponse.json()) as AdminConversationPayload & {
+    id?: string;
+    conversationId?: string;
+  };
+  const conversationId = bootstrapPayload.conversationId ?? bootstrapPayload.id;
+  if (!conversationId) {
+    throw new Error("bootstrap-thread did not return a conversation id");
+  }
 
   const inboundResponse = await request.post(
     `${aiPlatformApiBaseUrl}/internal/conversations/inbound`,
@@ -312,7 +326,7 @@ export async function createAdminInternalSessionForUser(
         tenantKey,
         channel: aiPlatformConversationChannel,
         userId,
-        conversationId: bootstrapPayload.id,
+        conversationId,
         threadId,
         displayName: input.subject,
         email: credentials.email,
@@ -332,7 +346,7 @@ export async function createAdminInternalSessionForUser(
   expect(inboundResponse.ok()).toBeTruthy();
 
   const turnResponse = await request.post(
-    `${aiPlatformApiBaseUrl}/internal/conversations/${bootstrapPayload.id}/agent-turn`,
+    `${aiPlatformApiBaseUrl}/internal/conversations/${conversationId}/agent-turn`,
     {
       headers: {
         "x-ai-internal-token": aiPlatformInternalToken,
@@ -357,7 +371,7 @@ export async function createAdminInternalSessionForUser(
 
   if (replyText) {
     const replyResponse = await request.post(
-      `${aiPlatformApiBaseUrl}/internal/conversations/${bootstrapPayload.id}/replies/agent`,
+      `${aiPlatformApiBaseUrl}/internal/conversations/${conversationId}/replies/agent`,
       {
         headers: {
           "x-ai-internal-token": aiPlatformInternalToken,
@@ -379,7 +393,11 @@ export async function createAdminInternalSessionForUser(
 
   // The admin token is resolved above so the helper still exercises the auth path.
   expect(token).toBeTruthy();
-  return bootstrapPayload;
+  return {
+    ...bootstrapPayload,
+    conversationId,
+    id: bootstrapPayload.id ?? conversationId,
+  } as AdminConversationPayload;
 }
 
 export async function startAdminInternalAssistantConversationForUser(
@@ -862,4 +880,27 @@ export async function getLatestKnowledgeSnapshot(
 
   expect(response.ok()).toBeTruthy();
   return (await response.json()) as KnowledgeSnapshotPayload;
+}
+
+export async function getOperationalEmailInboxAccountId(
+  request: APIRequestContext,
+): Promise<string> {
+  const token = await signInAdmin(request);
+  const response = await request.get(`${adminApiBaseUrl}/inbox/accounts`, {
+    headers: {
+      authorization: `Bearer ${token}`,
+    },
+    params: {
+      channel: "EMAIL",
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  const payload = (await response.json()) as InboxAccountPayload[];
+  const account = payload.find(
+    (entry) => entry.channel === "EMAIL" && typeof entry.id === "string" && entry.id.length > 0,
+  );
+
+  expect(account?.id).toBeTruthy();
+  return account!.id;
 }

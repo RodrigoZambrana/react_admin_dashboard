@@ -26,9 +26,9 @@ const config: StorefrontClientVariantConfig = {
       }
     },
     seo: {
-      siteName: "UruCortinas",
-      defaultTitle: "UruCortinas",
-      titleTemplate: "%s · UruCortinas",
+      siteName: "urucortinas",
+      defaultTitle: "urucortinas",
+      titleTemplate: "%s · urucortinas",
       defaultDescription: "Cortinas a medida con producción nacional y asesoramiento personalizado."
     }
   }

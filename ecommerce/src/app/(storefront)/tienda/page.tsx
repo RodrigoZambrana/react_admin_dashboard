@@ -6,6 +6,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return buildStorefrontPageMetadata({
     title: "Tienda",
     description: "Explora la experiencia comercial actual del storefront.",
+    canonicalPath: "/tienda",
   });
 }
 

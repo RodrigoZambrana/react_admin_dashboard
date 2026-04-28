@@ -1,4 +1,4 @@
-import { Type } from 'class-transformer'
+import { Transform, Type } from 'class-transformer'
 import {
   ArrayMinSize,
   IsEmail,
@@ -34,6 +34,7 @@ class MercadoPagoIdentificationDto {
 }
 
 class MercadoPagoPayerDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsEmail()
   email!: string
 
@@ -110,11 +111,13 @@ export class MercadoPagoChargeDto {
   @MaxLength(128)
   checkoutToken?: string
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(8)
   currency!: string
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   token!: string
@@ -129,10 +132,12 @@ export class MercadoPagoChargeDto {
   @MaxLength(255)
   description?: string
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsInt()
   @IsPositive()
   installments!: number
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(32)

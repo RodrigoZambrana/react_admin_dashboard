@@ -1,10 +1,16 @@
 import { Fragment } from "react";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import ProductDetailExperience from "@component/products/ProductDetailExperience";
 import type Product from "@models/product.model";
 import type Shop from "@models/shop.model";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { buildProductMetadata, buildStorefrontPageMetadata } from "@/lib/page-metadata";
+import { getStorefrontConfig } from "@/lib/storefront-config";
 import { mapProductDetailToProduct, mapProductSummaryToProduct } from "@/lib/storefront/adapters";
+import StructuredData from "@/components/seo/StructuredData";
+import ProductViewAnalytics from "@/components/seo/ProductViewAnalytics";
+import { buildProductBreadcrumbs, buildProductJsonLd } from "@/lib/seo/structured-data";
 import type { ProductDetail } from "@/types/storefront";
 
 interface ProductPageSearchParams {
@@ -49,6 +55,47 @@ const collectProductIdentifiers = (slug: string, searchParams?: ProductPageSearc
   return identifiers;
 };
 
+const resolveProductDetail = async (slug: string, searchParams?: ProductPageSearchParams) => {
+  const identifierCandidates = collectProductIdentifiers(slug, searchParams);
+
+  for (const identifier of identifierCandidates) {
+    try {
+      return await StorefrontApi.getProduct(identifier);
+    } catch (error) {
+      if (isApiError(error) && error.status === 404) {
+        continue;
+      }
+      console.warn(`[product] Failed to load product using identifier "${identifier}"`, error);
+      break;
+    }
+  }
+
+  return null;
+};
+
+export async function generateMetadata({
+  params,
+  searchParams
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<ProductPageSearchParams | undefined>;
+}): Promise<Metadata> {
+  const resolvedParams = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const productDetail = await resolveProductDetail(resolvedParams.slug, resolvedSearchParams);
+
+  if (!productDetail) {
+    return buildStorefrontPageMetadata({
+      title: "Producto no disponible",
+      description: "No pudimos resolver la ficha del producto solicitado.",
+      canonicalPath: `/product/${resolvedParams.slug}`,
+      noIndex: true,
+    });
+  }
+
+  return buildProductMetadata(productDetail, resolvedParams.slug);
+}
+
 export default async function ProductDetails({
   params,
   searchParams
@@ -60,7 +107,6 @@ export default async function ProductDetails({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   const { slug } = resolvedParams;
-  const identifierCandidates = collectProductIdentifiers(slug, resolvedSearchParams);
 
   let productDetail: ProductDetail | null = null;
   let product: Product | null = null;
@@ -68,18 +114,7 @@ export default async function ProductDetails({
   let frequentlyBought: Product[] = [];
   let shops: Shop[] = [];
 
-  for (const identifier of identifierCandidates) {
-    try {
-      productDetail = await StorefrontApi.getProduct(identifier);
-      break;
-    } catch (error) {
-      if (isApiError(error) && error.status === 404) {
-        continue;
-      }
-      console.warn(`[product] Failed to load product using identifier "${identifier}"`, error);
-      break;
-    }
-  }
+  productDetail = await resolveProductDetail(slug, resolvedSearchParams);
 
   if (productDetail) {
     product = mapProductDetailToProduct(productDetail);
@@ -107,8 +142,17 @@ export default async function ProductDetails({
     notFound();
   }
 
+  const storefrontConfig = await getStorefrontConfig();
+  const safeProductDetail = productDetail as ProductDetail;
+  const structuredData = [
+    buildProductJsonLd(storefrontConfig, safeProductDetail, resolvedParams.slug),
+    buildProductBreadcrumbs(storefrontConfig, { slug: product.slug, title: product.title }),
+  ];
+
   return (
     <Fragment>
+      <StructuredData schemas={structuredData} />
+      <ProductViewAnalytics product={product} />
       <ProductDetailExperience
         product={product}
         shops={shops}
@@ -120,6 +164,8 @@ export default async function ProductDetails({
             : []
         }
         installationAddOn={productDetail?.installationAddOn ?? null}
+        reviews={Array.isArray(productDetail?.reviews) ? productDetail.reviews : []}
+        reviewSummary={productDetail?.reviewSummary ?? null}
       />
     </Fragment>
   );

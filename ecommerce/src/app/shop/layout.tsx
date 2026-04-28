@@ -4,8 +4,7 @@ import { enforcePublicRoute } from "@/lib/public-route-policy";
 import { StorefrontSessionProvider } from "@/state/session-context";
 import { StorefrontCurrencyProvider } from "@/state/currency-context";
 import { WishlistProvider } from "@/state/wishlist-context";
-import { WebchatProvider } from "@/state/webchat-context";
-import WebchatRoot from "@/components/ai-chat/WebchatRoot";
+import DeferredWebchatRoot from "@/components/ai-chat/DeferredWebchatRoot";
 import Topbar from "@component/topbar";
 import { Header } from "@component/header";
 import { Footer1 } from "@component/footer";
@@ -29,17 +28,15 @@ export default async function ShopLayout({ children }: ShopLayoutProps) {
       <StorefrontSessionProvider>
         <StorefrontCurrencyProvider>
           <WishlistProvider>
-            <WebchatProvider>
-              <Topbar />
-              <Header />
-              <Navbar />
+            <Topbar />
+            <Header />
+            <Navbar />
 
-              {children}
+            {children}
 
-              <WebchatRoot />
-              <MobileNavigationBar />
-              <Footer1 />
-            </WebchatProvider>
+            <DeferredWebchatRoot />
+            <MobileNavigationBar />
+            <Footer1 />
           </WishlistProvider>
         </StorefrontCurrencyProvider>
       </StorefrontSessionProvider>

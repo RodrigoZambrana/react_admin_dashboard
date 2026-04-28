@@ -10,6 +10,7 @@ import Card from '@/components/ui/Card'
 import Loading from '@/components/shared/Loading'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
+import Textarea from '@/components/ui/Textarea'
 import { Formik, Form, Field } from 'formik'
 import { FormContainer, FormItem } from '@/components/ui/Form'
 import * as Yup from 'yup'
@@ -32,6 +33,10 @@ type CompanyProfileForm = {
     website: string
     addressLine1: string
     addressLine2: string
+    seoDescription: string
+    seoAuthor: string
+    seoImageUrl: string
+    googleSiteVerification: string
 }
 
 type CompanyProfileResponse = Partial<
@@ -47,6 +52,10 @@ type CompanyProfileUpdateRequest = {
     website: string | null
     addressLine1: string | null
     addressLine2: string | null
+    seoDescription: string | null
+    seoAuthor: string | null
+    seoImageUrl: string | null
+    googleSiteVerification: string | null
     logo?: string | null
 }
 
@@ -66,6 +75,11 @@ const toFormValues = (payload?: CompanyProfileResponse): CompanyProfileForm => {
             website: DEFAULT_COMPANY_PROFILE.website ?? '',
             addressLine1: DEFAULT_COMPANY_PROFILE.addressLine1 ?? '',
             addressLine2: DEFAULT_COMPANY_PROFILE.addressLine2 ?? '',
+            seoDescription: DEFAULT_COMPANY_PROFILE.seoDescription ?? '',
+            seoAuthor: DEFAULT_COMPANY_PROFILE.seoAuthor ?? '',
+            seoImageUrl: DEFAULT_COMPANY_PROFILE.seoImageUrl ?? '',
+            googleSiteVerification:
+                DEFAULT_COMPANY_PROFILE.googleSiteVerification ?? '',
         }
     }
 
@@ -78,6 +92,10 @@ const toFormValues = (payload?: CompanyProfileResponse): CompanyProfileForm => {
         website: payload.website ?? '',
         addressLine1: payload.addressLine1 ?? '',
         addressLine2: payload.addressLine2 ?? '',
+        seoDescription: payload.seoDescription ?? '',
+        seoAuthor: payload.seoAuthor ?? '',
+        seoImageUrl: payload.seoImageUrl ?? '',
+        googleSiteVerification: payload.googleSiteVerification ?? '',
     }
 }
 
@@ -133,6 +151,10 @@ const CompanyProfileSettings = () => {
                 website: Yup.string().trim().max(255).notRequired(),
                 addressLine1: Yup.string().trim().notRequired(),
                 addressLine2: Yup.string().trim().notRequired(),
+                seoDescription: Yup.string().trim().max(320).notRequired(),
+                seoAuthor: Yup.string().trim().max(120).notRequired(),
+                seoImageUrl: Yup.string().trim().max(500).notRequired(),
+                googleSiteVerification: Yup.string().trim().max(255).notRequired(),
             }),
         [t],
     )
@@ -288,6 +310,19 @@ const CompanyProfileSettings = () => {
                                 addressLine2: trimmed.addressLine2.length
                                     ? trimmed.addressLine2
                                     : null,
+                                seoDescription: trimmed.seoDescription.length
+                                    ? trimmed.seoDescription
+                                    : null,
+                                seoAuthor: trimmed.seoAuthor.length
+                                    ? trimmed.seoAuthor
+                                    : null,
+                                seoImageUrl: trimmed.seoImageUrl.length
+                                    ? trimmed.seoImageUrl
+                                    : null,
+                                googleSiteVerification:
+                                    trimmed.googleSiteVerification.length
+                                        ? trimmed.googleSiteVerification
+                                        : null,
                             }
                             if (logoAction === 'replace' && logoPreview) {
                                 payload.logo = logoPreview
@@ -609,6 +644,123 @@ const CompanyProfileSettings = () => {
                                         )}
                                     />
                                 </FormItem>
+                                <div className="mt-2 rounded-lg border border-dashed border-gray-200 p-4 dark:border-gray-700">
+                                    <div className="mb-3">
+                                        <h4 className="text-sm font-semibold">
+                                            {t(
+                                                'settings.companyProfile.seo.title',
+                                                { defaultValue: 'SEO settings' },
+                                            )}
+                                        </h4>
+                                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            {t(
+                                                'settings.companyProfile.seo.subtitle',
+                                                {
+                                                    defaultValue:
+                                                        'These fields feed storefront metadata and are not shown on the public site.',
+                                                },
+                                            )}
+                                        </p>
+                                    </div>
+                                    <FormItem
+                                        label={t(
+                                            'settings.companyProfile.fields.seoDescription',
+                                            { defaultValue: 'Meta description' },
+                                        )}
+                                        invalid={Boolean(
+                                            errors.seoDescription &&
+                                                touched.seoDescription,
+                                        )}
+                                        errorMessage={errors.seoDescription}
+                                    >
+                                        <Field
+                                            as={Textarea}
+                                            name="seoDescription"
+                                            rows={4}
+                                            placeholder={t(
+                                                'settings.companyProfile.placeholders.seoDescription',
+                                                {
+                                                    defaultValue:
+                                                        'Short description used in search results.',
+                                                },
+                                            )}
+                                        />
+                                    </FormItem>
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <FormItem
+                                            label={t(
+                                                'settings.companyProfile.fields.seoAuthor',
+                                                { defaultValue: 'Author / brand' },
+                                            )}
+                                            invalid={Boolean(
+                                                errors.seoAuthor &&
+                                                    touched.seoAuthor,
+                                            )}
+                                            errorMessage={errors.seoAuthor}
+                                        >
+                                            <Field
+                                                as={Input}
+                                                name="seoAuthor"
+                                                placeholder={t(
+                                                    'settings.companyProfile.placeholders.seoAuthor',
+                                                    {
+                                                        defaultValue:
+                                                            'Company or brand name',
+                                                    },
+                                                )}
+                                            />
+                                        </FormItem>
+                                        <FormItem
+                                            label={t(
+                                                'settings.companyProfile.fields.googleSiteVerification',
+                                                {
+                                                    defaultValue:
+                                                        'Google site verification',
+                                                },
+                                            )}
+                                            invalid={Boolean(
+                                                errors.googleSiteVerification &&
+                                                    touched.googleSiteVerification,
+                                            )}
+                                            errorMessage={errors.googleSiteVerification}
+                                        >
+                                            <Field
+                                                as={Input}
+                                                name="googleSiteVerification"
+                                                placeholder={t(
+                                                    'settings.companyProfile.placeholders.googleSiteVerification',
+                                                    {
+                                                        defaultValue:
+                                                            'google-site-verification token',
+                                                    },
+                                                )}
+                                            />
+                                        </FormItem>
+                                    </div>
+                                    <FormItem
+                                        label={t(
+                                            'settings.companyProfile.fields.seoImageUrl',
+                                            { defaultValue: 'Open Graph image URL' },
+                                        )}
+                                        invalid={Boolean(
+                                            errors.seoImageUrl &&
+                                                touched.seoImageUrl,
+                                        )}
+                                        errorMessage={errors.seoImageUrl}
+                                    >
+                                        <Field
+                                            as={Input}
+                                            name="seoImageUrl"
+                                            placeholder={t(
+                                                'settings.companyProfile.placeholders.seoImageUrl',
+                                                {
+                                                    defaultValue:
+                                                        'https://cdn.example.com/og/company.png',
+                                                },
+                                            )}
+                                        />
+                                    </FormItem>
+                                </div>
                                 <div className="flex justify-end gap-2">
                                     <Button
                                         type="button"

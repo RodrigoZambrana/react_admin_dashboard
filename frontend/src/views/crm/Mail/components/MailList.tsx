@@ -147,6 +147,7 @@ const MailList = () => {
 
     const inboxState = mailState.inbox
     const inboxAccounts = inboxState.accounts
+    const inboxAccountsError = inboxState.accountsError
     const selectedInboxAccountId = inboxState.selectedAccountId
     const selectedInboxAccount = useMemo(
         () =>
@@ -931,6 +932,11 @@ const MailList = () => {
                         spinnerClass={mails.length > 0 ? 'hidden' : ''}
                         loading={loading}
                     >
+                        {inboxAccountsError ? (
+                            <div className="px-6 py-4 text-sm text-red-500" data-testid="admin-inbox-messages-error">
+                                {inboxAccountsError}
+                            </div>
+                        ) : null}
                         {selectedMessagesStatus === 'failed' && (
                             <div className="px-6 py-4 text-sm text-red-500" data-testid="admin-inbox-messages-error">
                                 {resolvedMessagesError}

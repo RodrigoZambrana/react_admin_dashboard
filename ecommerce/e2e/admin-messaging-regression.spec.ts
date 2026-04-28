@@ -92,6 +92,7 @@ test("admin messaging regression covers filters, pin, unread state, reply and ma
     .getByTestId("admin-conversations-filter-search")
     .fill(targetMessage);
   await page.getByTestId("admin-conversations-filter-reset").click();
+  await page.reload({ waitUntil: "domcontentloaded" });
 
   await expect(targetRow).toBeVisible();
   await expect(page.getByTestId(`admin-conversation-${secondary.conversationId}`)).toBeVisible();

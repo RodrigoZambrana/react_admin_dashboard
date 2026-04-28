@@ -137,6 +137,11 @@ enum ProductRelationType {
   INSTALLATION_ADD_ON
 }
 
+enum ProductReviewStatus {
+  PUBLISHED
+  HIDDEN
+}
+
 enum ProductAttributeType {
   COLOR
   SIZE
@@ -170,6 +175,7 @@ enum CmsPageSectionType {
   CTA_BANNER
   FAQ
   FEATURE_GRID
+  BUDGET_CALCULATOR
   SITE_FOOTER
 }
 
@@ -664,6 +670,7 @@ model Customer {
   otpChallenges                 CustomerOtpChallenge[]
   reauthTokens                  CustomerReauthToken[]
   addresses                     CustomerAddress[]
+  reviews                       ProductReview[]
   statusId                      Int?
   status                        CustomerStatus?                  @relation(fields: [statusId], references: [id], onDelete: SetNull)
   wishlist                      Wishlist?
@@ -805,6 +812,9 @@ model Product {
   img                       String?
   description               String?
   specifications            String?
+  seoTitle                  String?
+  seoDescription            String?
+  seoImageUrl               String?
   categoryId                Int?
   category                  ProductCategory?              @relation(fields: [categoryId], references: [id])
   installationResolutionMode InstallationResolutionMode?
@@ -814,10 +824,12 @@ model Product {
   installServiceProduct     Product?                      @relation("ProductInstallService", fields: [installServiceProductId], references: [id], onDelete: SetNull)
   productType               ProductType                   @default(PHYSICAL)
   mode                      ProductMode                   @default(SIMPLE)
+  calculationStrategy       String                        @default("M2")
   salePrice                 Decimal                       @default(0) @map("precio_venta") @db.Decimal(12, 2)
   costPrice                 Decimal                       @default(0) @map("precio_costo") @db.Decimal(12, 2)
   currency                  String                        @default("UYU")
   unitOfMeasure             SalesUnit                     @default(UNIT)
+  isBudgetCalculable        Boolean                       @default(false)
   stock                     Int                           @default(0)
   permanentStock            Boolean                       @default(false)
   status                    Int                           @default(0) // 0=inStock,1=limited,2=outOfStock
@@ -838,6 +850,7 @@ model Product {
   createdAt                 DateTime                      @default(now())
   updatedAt                 DateTime                      @updatedAt
   orderItems                OrderItem[]
+  reviews                   ProductReview[]
   installServiceForCategory ProductCategory?              @relation("CategoryInstallService")
   installServiceForProduct  Product[]                     @relation("ProductInstallService")
   priceMatrix               DimensionPriceMatrix[]
@@ -954,11 +967,35 @@ model ProductVariantSelection {
   @@index([optionValueId])
 }
 
+model ProductReview {
+  id              Int                @id @default(autoincrement())
+  productId       Int
+  product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  customerId      Int
+  customer        Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  orderItemId     Int?               @unique
+  orderItem       OrderItem?         @relation(fields: [orderItemId], references: [id], onDelete: SetNull)
+  rating          Int
+  title           String?
+  comment         String
+  status          ProductReviewStatus @default(PUBLISHED)
+  verifiedPurchase Boolean            @default(false)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([productId, status, createdAt])
+  @@index([customerId, createdAt])
+  @@index([orderItemId])
+}
+
 model ProductCategory {
   id                      Int               @id @default(autoincrement())
   name                    String            @unique
   description             String?
   image                   String?
+  seoTitle                String?
+  seoDescription          String?
+  seoImageUrl             String?
   parentId                Int?
   parent                  ProductCategory?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
   children                ProductCategory[] @relation("CategoryHierarchy")
@@ -1052,6 +1089,7 @@ model CmsPage {
   visible         Boolean            @default(true)
   seoTitle        String?
   seoDescription  String?
+  seoImageUrl     String?
   layoutKey       String?
   legacySource    String?
   aliases         CmsPageAlias[]
@@ -1174,6 +1212,7 @@ model Order {
   estimatedMax          Int?                      @default(3)
   comment               String?
   disclaimer            String?
+  metadata              Json?
   statusId              Int?
   subTotal              Decimal                   @default(0) @db.Decimal(18, 2)
   tax                   Decimal                   @default(0) @db.Decimal(18, 2)
@@ -1287,6 +1326,7 @@ model OrderItem {
   parametricReferenceDate DateTime?
   parametricSource        String?
   parametricVersion       String?
+  review                  ProductReview?
 }
 
 model Payment {
@@ -1685,6 +1725,10 @@ model CompanyProfile {
   website      String?
   addressLine1 String?
   addressLine2 String?
+  seoDescription String?
+  seoAuthor      String?
+  seoImageUrl    String?
+  googleSiteVerification String?
   logo         Bytes?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

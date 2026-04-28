@@ -14,6 +14,7 @@ import Notification from '@/components/ui/Notification'
 import Switcher from '@/components/ui/Switcher'
 import Textarea from '@/components/ui/Textarea'
 import Upload from '@/components/ui/Upload'
+import SeoImagePicker from '@/components/shared/SeoImagePicker'
 import { useLocation } from 'react-router-dom'
 import { toast } from '@/components/ui/toast'
 import CmsPagesService, {
@@ -51,6 +52,7 @@ const sectionTypeOptions: CmsPageSectionType[] = [
     'FAQ',
     'RICH_TEXT',
     'CTA_BANNER',
+    'BUDGET_CALCULATOR',
     'SITE_FOOTER',
 ]
 
@@ -142,6 +144,18 @@ const createDefaultSectionSettings = (
                 label: '',
                 href: '',
             }
+        case 'BUDGET_CALCULATOR':
+            return {
+                title: '',
+                description: '',
+                productId: '',
+                productSlug: '',
+                initialWidth: 1,
+                initialHeight: 1,
+                compact: true,
+                showCustomerFields: true,
+                submitLabel: 'Validar y agregar',
+            }
         case 'SITE_FOOTER':
             return {
                 title: '',
@@ -203,6 +217,7 @@ const createBlankPage = (): EditorPage => ({
     visible: true,
     seoTitle: '',
     seoDescription: '',
+    seoImageUrl: '',
     layoutKey: '',
     legacySource: '',
     sections: [],
@@ -233,6 +248,7 @@ const stripClientIds = (page: EditorPage): CmsPage => ({
     visible: page.visible,
     seoTitle: page.seoTitle,
     seoDescription: page.seoDescription,
+    seoImageUrl: page.seoImageUrl,
     layoutKey: page.layoutKey,
     legacySource: page.legacySource,
     sections: page.sections.map((section, sectionIndex) => ({
@@ -288,6 +304,13 @@ const fieldLabelMap: Record<string, string> = {
     mediaPosition: 'Posición de media',
     imageUrl: 'URL de imagen',
     imageAlt: 'Alt de imagen',
+    productId: 'Producto de presupuesto',
+    productSlug: 'Slug de producto',
+    initialWidth: 'Ancho inicial',
+    initialHeight: 'Alto inicial',
+    compact: 'Vista compacta',
+    showCustomerFields: 'Datos de cliente',
+    submitLabel: 'Texto del botón',
     primaryCtaLabel: 'CTA principal',
     primaryCtaHref: 'URL CTA principal',
     secondaryCtaLabel: 'CTA secundaria',
@@ -304,6 +327,7 @@ const fieldLabelMap: Record<string, string> = {
     brandHref: 'URL de marca',
     navigationMode: 'Presentación de navegación',
     navigationGroupLabel: 'Etiqueta del grupo de navegación',
+    seoImageUrl: 'Imagen SEO',
 }
 
 const toPrettyJson = (value: Record<string, unknown> | null | undefined) =>
@@ -797,6 +821,18 @@ const SiteManager = ({ initialTab = 'pages' }: SiteManagerProps) => {
                     ]
                 : section.type === 'CTA_BANNER'
                   ? ['title', 'description', 'label', 'href']
+                : section.type === 'BUDGET_CALCULATOR'
+                  ? [
+                        'title',
+                        'description',
+                        'productId',
+                        'productSlug',
+                        'initialWidth',
+                        'initialHeight',
+                        'compact',
+                        'showCustomerFields',
+                        'submitLabel',
+                    ]
                   : section.type === 'SITE_FOOTER'
                     ? ['title']
                   : ['title', 'description']
@@ -809,24 +845,44 @@ const SiteManager = ({ initialTab = 'pages' }: SiteManagerProps) => {
                             <label className="text-xs font-semibold text-gray-500 uppercase">
                                 {fieldLabelMap[field] ?? field}
                             </label>
-                            <select
-                                className="input"
-                                value={String(settings[field] ?? 'grouped')}
-                                onChange={(event) =>
-                                    setSectionSettingField(
-                                        section.clientId,
-                                        field,
-                                        event.target.value,
-                                    )
-                                }
-                            >
-                                <option value="grouped">
-                                    Grupo descriptivo
-                                </option>
-                                <option value="flat">Ítems planos</option>
-                            </select>
-                        </div>
-                    ) : field === 'description' || field === 'body' ? (
+                    <select
+                        className="input"
+                        value={String(settings[field] ?? 'grouped')}
+                        onChange={(event) =>
+                            setSectionSettingField(
+                                section.clientId,
+                                field,
+                                event.target.value,
+                            )
+                        }
+                    >
+                        <option value="grouped">
+                            Grupo descriptivo
+                        </option>
+                        <option value="flat">Ítems planos</option>
+                    </select>
+                    </div>
+                ) : field === 'compact' || field === 'showCustomerFields' ? (
+                    <div key={field}>
+                        <label className="text-xs font-semibold text-gray-500 uppercase">
+                            {fieldLabelMap[field] ?? field}
+                        </label>
+                        <select
+                            className="input"
+                            value={String(settings[field] ?? true)}
+                            onChange={(event) =>
+                                setSectionSettingField(
+                                    section.clientId,
+                                    field,
+                                    event.target.value === 'true',
+                                )
+                            }
+                        >
+                            <option value="true">Sí</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                ) : field === 'description' || field === 'body' ? (
                         <div className="lg:col-span-2" key={field}>
                             <label className="text-xs font-semibold text-gray-500 uppercase">
                                 {fieldLabelMap[field] ?? field}
@@ -1216,6 +1272,14 @@ const SiteManager = ({ initialTab = 'pages' }: SiteManagerProps) => {
                                         onChange={(event) =>
                                             setPageField('seoDescription', event.target.value)
                                         }
+                                    />
+                                </div>
+                                <div className="lg:col-span-2">
+                                    <SeoImagePicker
+                                        label="SEO image"
+                                        value={pageEditor.seoImageUrl ?? ''}
+                                        onChange={(nextValue) => setPageField('seoImageUrl', nextValue)}
+                                        helperText="Seleccioná una imagen existente de la media library para Open Graph y Twitter."
                                     />
                                 </div>
                                 <div className="lg:col-span-2">

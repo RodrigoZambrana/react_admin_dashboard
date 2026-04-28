@@ -4,8 +4,7 @@ import { getStorefrontConfig } from "@/lib/storefront-config";
 import { StorefrontSessionProvider } from "@/state/session-context";
 import { StorefrontCurrencyProvider } from "@/state/currency-context";
 import { WishlistProvider } from "@/state/wishlist-context";
-import { WebchatProvider } from "@/state/webchat-context";
-import WebchatRoot from "@/components/ai-chat/WebchatRoot";
+import DeferredWebchatRoot from "@/components/ai-chat/DeferredWebchatRoot";
 import AppLayout from "@component/layout/layout-3";
 
 import { StorefrontConfigProvider } from "../(storefront)/storefront-context";
@@ -18,10 +17,8 @@ export default async function Layout({ children }: PropsWithChildren) {
       <StorefrontSessionProvider>
         <StorefrontCurrencyProvider>
           <WishlistProvider>
-            <WebchatProvider>
-              <AppLayout>{children}</AppLayout>
-              <WebchatRoot />
-            </WebchatProvider>
+            <AppLayout>{children}</AppLayout>
+            <DeferredWebchatRoot />
           </WishlistProvider>
         </StorefrontCurrencyProvider>
       </StorefrontSessionProvider>

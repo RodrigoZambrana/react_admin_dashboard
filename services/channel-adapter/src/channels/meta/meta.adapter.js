@@ -380,6 +380,11 @@ export class MetaAdapter {
   }
 
   async handleWebhook(payload) {
+    const statusResult = await this.handleStatus(payload).catch(() => ({
+      ok: false,
+      statuses: 0,
+      results: [],
+    }))
     const events = extractMetaWebhookEvents(payload, {
       tenantKey: this.config.clientSlug || undefined,
     })
@@ -389,7 +394,6 @@ export class MetaAdapter {
 
     for (const event of events) {
       if (event.type === 'status') {
-        ignored += 1
         continue
       }
 
@@ -407,6 +411,7 @@ export class MetaAdapter {
       processedEvents: results.length,
       ignoredEvents: ignored,
       results,
+      statusResult,
     }
   }
 

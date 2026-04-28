@@ -12,6 +12,7 @@ import FrequentlyBought from "@component/products/FrequentlyBought";
 import InstallationAddOnPanel from "@component/products/InstallationAddOnPanel";
 import ProductDescription from "@component/products/ProductDescription";
 import ProductSpecifications from "@component/products/ProductSpecifications";
+import ProductReview from "@component/products/ProductReview";
 import Product from "@models/product.model";
 import { useTranslation } from "@/state/i18n-context";
 
@@ -35,6 +36,11 @@ type Props = {
   description?: string;
   descriptionHtml?: string;
   specifications?: Array<{ label: string; value: string }>;
+  reviews?: NonNullable<Product["reviews"]>;
+  reviewSummary?: {
+    averageRating: number;
+    reviewCount: number;
+  } | null;
 };
 // ==============================================================
 
@@ -46,10 +52,14 @@ export default function ProductView({
   installationAddOn,
   description,
   descriptionHtml,
-  specifications
+  specifications,
+  reviews,
+  reviewSummary
 }: Props) {
   const t = useTranslation();
-  const [selectedOption, setSelectedOption] = useState("description");
+  const [selectedOption, setSelectedOption] = useState<"description" | "specifications" | "reviews">(
+    "description"
+  );
   const showAvailableShopsSection = false; // hide Available Shops section
   const handleOptionClick = (opt: any) => () => setSelectedOption(opt);
 
@@ -61,6 +71,7 @@ export default function ProductView({
           p="4px 10px"
           fontWeight={500}
           className="cursor-pointer"
+          data-testid="product-tab-description"
           borderColor="primary.main"
           onClick={handleOptionClick("description")}
           borderBottom={selectedOption === "description" ? "2px solid" : ""}
@@ -72,11 +83,24 @@ export default function ProductView({
           p="4px 10px"
           fontWeight={500}
           className="cursor-pointer"
+          data-testid="product-tab-specifications"
           borderColor="primary.main"
           onClick={handleOptionClick("specifications")}
           borderBottom={selectedOption === "specifications" ? "2px solid" : ""}
           color={selectedOption === "specifications" ? "primary.main" : "text.muted"}>
           {t("product.tabs.specifications", { defaultMessage: "Specifications" })}
+        </H6>
+
+        <H6
+          p="4px 10px"
+          fontWeight={500}
+          className="cursor-pointer"
+          data-testid="product-tab-reviews"
+          borderColor="primary.main"
+          onClick={handleOptionClick("reviews")}
+          borderBottom={selectedOption === "reviews" ? "2px solid" : ""}
+          color={selectedOption === "reviews" ? "primary.main" : "text.muted"}>
+          {t("product.tabs.reviews", { defaultMessage: "Reviews" })}
         </H6>
       </FlexBox>
 
@@ -87,6 +111,13 @@ export default function ProductView({
         )}
         {selectedOption === "specifications" && (
           <ProductSpecifications specifications={specifications} />
+        )}
+        {selectedOption === "reviews" && (
+          <ProductReview
+            reviews={reviews}
+            averageRating={reviewSummary?.averageRating ?? null}
+            reviewCount={reviewSummary?.reviewCount}
+          />
         )}
       </Box>
 

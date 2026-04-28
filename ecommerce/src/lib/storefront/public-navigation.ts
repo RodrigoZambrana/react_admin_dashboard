@@ -5,7 +5,9 @@ export const buildDefaultPublicNavigation = (): NavigationConfig => ({
     { id: "nav-home", label: "Inicio", href: "/" },
     { id: "nav-shop", label: "Tienda", href: "/shop" },
     { id: "nav-categories", label: "Categorías", href: "/categories" },
-    { id: "nav-contact", label: "Contacto", href: "/contact" }
+    { id: "nav-about", label: "Quiénes somos", href: "/quienes-somos" },
+    { id: "nav-faq", label: "Preguntas frecuentes", href: "/preguntas-frecuentes" },
+    { id: "nav-contact", label: "Contacto", href: "/contacto.html" }
   ],
   secondary: [
     { id: "nav-account", label: "Account", href: "/account" },
@@ -25,7 +27,7 @@ export const buildDefaultPublicNavigation = (): NavigationConfig => ({
   ],
   socials: [],
   helpLinks: [
-    { id: "help-faq", label: "FAQ", href: "/contact" },
-    { id: "help-support", label: "Need Help?", href: "/contact" }
+    { id: "help-faq", label: "Preguntas frecuentes", href: "/preguntas-frecuentes" },
+    { id: "help-support", label: "Contacto", href: "/contacto.html" }
   ]
 });

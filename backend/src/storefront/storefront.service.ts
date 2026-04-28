@@ -16,12 +16,15 @@ import {
   OrderItem,
   ProductRelationType,
   ProductType,
+  SalesUnit,
   ProductMode,
   ProductAttributeType,
   CompanyProfile,
+  CmsEntryStatus,
   PaymentStatus,
   PaymentType,
   StorefrontPaymentIntent,
+  ProductReviewStatus,
 } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
@@ -65,7 +68,9 @@ import type {
   CmsContentSectionDto,
   CmsContentAssetDto,
   CmsContentEntryDto,
+  CmsPublicPageSummaryDto,
   CmsRenderablePageDto,
+  ProductReviewSummaryDto,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -74,6 +79,7 @@ import {
   StorefrontRefreshDto,
   StorefrontUpdateProfileDto,
 } from './dto/auth.dto'
+import { StorefrontCreateOrderReviewDto } from './dto/product-review.dto'
 import { StorefrontCreateOrderDto, StorefrontOrderItemDto } from './dto/order.dto'
 import { createHash } from 'crypto'
 import { StorefrontAddressDto } from './dto/address.dto'
@@ -142,6 +148,24 @@ type PreparedCheckoutPricingSummary = {
 type PreparedStorefrontCheckoutSnapshot = Omit<StorefrontCreateOrderDto, 'items'> & {
   items: PreparedCheckoutItemDto[]
   pricingSummary?: PreparedCheckoutPricingSummary
+}
+
+type ProductReviewSummaryRecord = {
+  id: number
+  rating: number
+  title: string | null
+  comment: string
+  createdAt: Date
+  verifiedPurchase: boolean
+  customer: {
+    name: string
+    img: string | null
+  }
+}
+
+type ProductReviewStatsRecord = {
+  averageRating: number
+  reviewCount: number
 }
 
 const mapStatusColorToBadge = (color?: string | null): 'primary' | 'secondary' | 'success' | 'warning' | 'error' => {
@@ -609,6 +633,19 @@ export class StorefrontService implements OnModuleInit {
     }
     const value = await loader()
     return this.writePublicCache(key, value, ttlMs)
+  }
+
+  private clearPublicCache(prefix?: string) {
+    if (!prefix) {
+      this.publicCache.clear()
+      return
+    }
+
+    for (const key of Array.from(this.publicCache.keys())) {
+      if (key.startsWith(prefix)) {
+        this.publicCache.delete(key)
+      }
+    }
   }
 
   private normalizeConfigString(value: unknown): string {
@@ -1295,6 +1332,10 @@ export class StorefrontService implements OnModuleInit {
       website: record.website ?? null,
       addressLine1: record.addressLine1 ?? null,
       addressLine2: record.addressLine2 ?? null,
+      seoDescription: record.seoDescription ?? null,
+      seoAuthor: record.seoAuthor ?? null,
+      seoImageUrl: record.seoImageUrl ?? null,
+      googleSiteVerification: record.googleSiteVerification ?? null,
       logo: logoBuffer ? buildImageDataUrl(logoBuffer) : null,
     }
   }
@@ -1551,7 +1592,18 @@ export class StorefrontService implements OnModuleInit {
     return this.getOrSetPublicCache('storefront:categories', PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
       const categories = await this.prisma.productCategory.findMany({
         orderBy: [{ parentId: 'asc' }, { name: 'asc' }],
-        include: { _count: { select: { products: true } } },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          image: true,
+          seoTitle: true,
+          seoDescription: true,
+          seoImageUrl: true,
+          parentId: true,
+          installServiceProductId: true,
+          _count: { select: { products: true } },
+        },
       })
       const nodes = new Map<number, StorefrontCategoryTree>()
       for (const category of categories) {
@@ -1563,6 +1615,9 @@ export class StorefrontService implements OnModuleInit {
           slug: buildCategorySlug(category.id, category.name),
           name: category.name,
           description: category.description ?? null,
+          seoTitle: category.seoTitle ?? null,
+          seoDescription: category.seoDescription ?? null,
+          seoImageUrl: category.seoImageUrl ?? null,
           thumbnail: imageUrl
             ? { id: `category-${category.id}`, url: imageUrl, alt: category.name }
             : null,
@@ -1588,6 +1643,31 @@ export class StorefrontService implements OnModuleInit {
 
       sortTree(roots)
       return roots
+    })
+  }
+
+  async listCmsPages(locale = 'es'): Promise<CmsPublicPageSummaryDto[]> {
+    const cacheKey = `storefront:cms-pages:${locale}`
+    return this.getOrSetPublicCache(cacheKey, PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
+      const pages = await this.cmsPages.listPages({
+        locale,
+        status: CmsEntryStatus.PUBLISHED,
+        visible: true,
+      })
+
+      return pages.map((page) => ({
+        path: page.path,
+        title: page.title,
+        summary: page.summary ?? null,
+        locale: page.locale,
+        updatedAt: page.updatedAt.toISOString(),
+        seo: {
+          title: page.seoTitle ?? null,
+          description: page.seoDescription ?? null,
+          imageUrl: page.seoImageUrl ?? null,
+        },
+        legacySource: page.legacySource ?? null,
+      }))
     })
   }
 
@@ -1834,8 +1914,13 @@ export class StorefrontService implements OnModuleInit {
       ])
 
       const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(products)
+      const reviewStats = await this.loadProductReviewStats(products.map((product) => product.id))
       const data = products.map((product) =>
-        this.toProductSummary(product, publishedParametricDefinitions.get(product.id) ?? null),
+        this.toProductSummary(
+          product,
+          publishedParametricDefinitions.get(product.id) ?? null,
+          reviewStats.get(product.id) ?? null,
+        ),
       )
       const totalPages = Math.max(1, Math.ceil(total / pageSize))
 
@@ -1878,6 +1963,7 @@ export class StorefrontService implements OnModuleInit {
       seo: {
         title: page.seoTitle,
         description: page.seoDescription,
+        imageUrl: page.seoImageUrl,
       },
       layoutKey: page.layoutKey,
       legacySource: page.legacySource,
@@ -2123,7 +2209,14 @@ export class StorefrontService implements OnModuleInit {
         const publishedParametricDefinition = await this.resolvePublishedParametricDefinition(
           product,
         )
-        const detail = this.toProductDetail(product, publishedParametricDefinition)
+        const reviewStatsMap = await this.loadProductReviewStats([product.id])
+        const reviews = await this.loadProductReviews(product.id, 6)
+        const detail = this.toProductDetail(
+          product,
+          publishedParametricDefinition,
+          reviewStatsMap.get(product.id) ?? null,
+          reviews,
+        )
 
         const relationGroups = new Map<
           ProductRelationType,
@@ -2221,8 +2314,13 @@ export class StorefrontService implements OnModuleInit {
         })
 
         const relatedPublishedDefinitions = await this.resolvePublishedParametricDefinitions(related)
+        const relatedReviewStats = await this.loadProductReviewStats(related.map((item) => item.id))
         detail.relatedProducts = related.map((item) =>
-          this.toProductSummary(item, relatedPublishedDefinitions.get(item.id) ?? null),
+          this.toProductSummary(
+            item,
+            relatedPublishedDefinitions.get(item.id) ?? null,
+            relatedReviewStats.get(item.id) ?? null,
+          ),
         )
         return detail
       },
@@ -2261,8 +2359,13 @@ export class StorefrontService implements OnModuleInit {
           },
         })
         const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(items)
+        const reviewStats = await this.loadProductReviewStats(items.map((item) => item.id))
         return items.map((item) =>
-          this.toProductSummary(item, publishedParametricDefinitions.get(item.id) ?? null),
+          this.toProductSummary(
+            item,
+            publishedParametricDefinitions.get(item.id) ?? null,
+            reviewStats.get(item.id) ?? null,
+          ),
         )
       },
     )
@@ -3853,6 +3956,106 @@ export class StorefrontService implements OnModuleInit {
     }
   }
 
+  async createCustomerOrderReview(
+    customerId: number,
+    orderIdentifier: string,
+    input: StorefrontCreateOrderReviewDto,
+  ): Promise<ProductReviewSummaryDto> {
+    const orderId = await this.resolveCustomerOrderId(customerId, orderIdentifier)
+    const order = await this.prisma.order.findFirst({
+      where: {
+        id: orderId,
+        customerId,
+        documentType: DocumentType.ORDER,
+      },
+      include: {
+        items: true,
+      },
+    })
+
+    if (!order) {
+      throw new NotFoundException('Order not found')
+    }
+
+    const rating = Math.max(1, Math.min(5, Math.trunc(Number(input.rating ?? 0))))
+    const comment = typeof input.comment === 'string' ? input.comment.trim() : ''
+    if (!comment) {
+      throw new BadRequestException('Review comment is required.')
+    }
+
+    const matchedItem = order.items.find((item) => {
+      if (item.productId !== input.productId) {
+        return false
+      }
+      if (input.variantId === undefined || input.variantId === null) {
+        return true
+      }
+      return item.variantId === input.variantId
+    })
+
+    if (!matchedItem) {
+      throw new NotFoundException('Order item not found for review')
+    }
+
+    const existingReview = await this.prisma.productReview.findUnique({
+      where: {
+        orderItemId: matchedItem.id,
+      },
+      include: {
+        customer: {
+          select: {
+            name: true,
+            firstName: true,
+            lastName: true,
+            img: true,
+          },
+        },
+      },
+    })
+
+    if (existingReview) {
+      throw new ConflictException('This order item has already been reviewed.')
+    }
+
+    const created = await this.prisma.productReview.create({
+      data: {
+        productId: input.productId,
+        customerId,
+        orderItemId: matchedItem.id,
+        rating,
+        title: input.title?.trim() || null,
+        comment,
+        status: ProductReviewStatus.PUBLISHED,
+        verifiedPurchase: true,
+      },
+      include: {
+        customer: {
+          select: {
+            name: true,
+            firstName: true,
+            lastName: true,
+            img: true,
+          },
+        },
+      },
+    })
+
+    this.clearPublicCache()
+
+    return this.mapProductReview({
+      id: created.id,
+      rating: created.rating,
+      title: created.title ?? null,
+      comment: created.comment,
+      createdAt: created.createdAt,
+      verifiedPurchase: created.verifiedPurchase,
+      customer: {
+        name: this.normalizeReviewCustomerName(created.customer),
+        img: created.customer.img ?? null,
+      },
+    })
+  }
+
   async getCustomerWishlist(customerId: number): Promise<CustomerWishlistDto> {
     const wishlist = await this.prisma.wishlist.findUnique({
       where: { customerId },
@@ -4026,9 +4229,115 @@ export class StorefrontService implements OnModuleInit {
     )
   }
 
+  private normalizeReviewCustomerName(customer?: {
+    name?: string | null
+    firstName?: string | null
+    lastName?: string | null
+  } | null): string {
+    const name = [customer?.firstName, customer?.lastName].filter(Boolean).join(' ').trim()
+    if (name.length > 0) {
+      return name
+    }
+    const fallback = customer?.name?.trim()
+    return fallback && fallback.length > 0 ? fallback : 'Cliente verificado'
+  }
+
+  private mapProductReview(review: {
+    id: number
+    rating: number
+    title: string | null
+    comment: string
+    createdAt: Date
+    verifiedPurchase: boolean
+    customer: {
+      name: string
+      img: string | null
+    }
+  }): ProductReviewSummaryDto {
+    return {
+      id: review.id,
+      rating: review.rating,
+      title: review.title ?? null,
+      comment: review.comment,
+      createdAt: review.createdAt.toISOString(),
+      verifiedPurchase: review.verifiedPurchase,
+      customer: {
+        name: review.customer.name,
+        imgUrl: review.customer.img ?? null,
+      },
+    }
+  }
+
+  private async loadProductReviewStats(productIds: number[]): Promise<Map<number, ProductReviewStatsRecord>> {
+    if (!productIds.length) {
+      return new Map()
+    }
+
+    const rows = await this.prisma.productReview.groupBy({
+      by: ['productId'],
+        where: {
+          productId: { in: productIds },
+        status: ProductReviewStatus.PUBLISHED,
+        },
+      _avg: {
+        rating: true,
+      },
+      _count: {
+        id: true,
+      },
+    })
+
+    return new Map(
+      rows.map((row) => [
+        row.productId,
+        {
+          averageRating: Number((row._avg.rating ?? 0).toFixed(1)),
+          reviewCount: row._count.id,
+        },
+      ]),
+    )
+  }
+
+  private async loadProductReviews(productId: number, limit = 6): Promise<ProductReviewSummaryDto[]> {
+    const reviews = await this.prisma.productReview.findMany({
+      where: {
+        productId,
+        status: ProductReviewStatus.PUBLISHED,
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: Math.max(1, Math.min(limit, 20)),
+      include: {
+        customer: {
+          select: {
+            name: true,
+            firstName: true,
+            lastName: true,
+            img: true,
+          },
+        },
+      },
+    })
+
+    return reviews.map((review) =>
+      this.mapProductReview({
+        id: review.id,
+        rating: review.rating,
+        title: review.title ?? null,
+        comment: review.comment,
+        createdAt: review.createdAt,
+        verifiedPurchase: review.verifiedPurchase,
+        customer: {
+          name: this.normalizeReviewCustomerName(review.customer),
+          img: review.customer.img ?? null,
+        },
+      }),
+    )
+  }
+
   private toProductSummary(
     product: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>,
     publishedParametricDefinition?: PublishedParametricProductDefinition | null,
+    reviewStats?: ProductReviewStatsRecord | null,
   ): ProductSummaryDto {
     const thumbnail = product.images?.[0]
     const defaultPublishedVariant = this.resolvePublishedParametricDefaultVariant(
@@ -4045,9 +4354,15 @@ export class StorefrontService implements OnModuleInit {
       id: product.id,
       slug: buildProductSlug(product.id, product.name, product.productCode ?? undefined),
       name: product.name,
+      updatedAt: (product.updatedAt ?? product.createdAt ?? new Date()).toISOString(),
       shortDescription: product.description,
+      seoTitle: product.seoTitle ?? null,
+      seoDescription: product.seoDescription ?? null,
+      seoImageUrl: product.seoImageUrl ?? null,
       price: money(resolvedSalePrice, resolvedCurrency),
       salePrice: money(resolvedSalePrice, resolvedCurrency),
+      rating: reviewStats ? reviewStats.averageRating : undefined,
+      ratingCount: reviewStats ? reviewStats.reviewCount : undefined,
       inventoryStatus: mapInventoryStatus(product),
       tags: product.tags ?? [],
       categories: product.category
@@ -4082,6 +4397,10 @@ export class StorefrontService implements OnModuleInit {
         defaultPublishedVariant?.specifications ??
         publishedParametricDefinition?.specifications ??
         undefined,
+      measurementType: product.unitOfMeasure === SalesUnit.SQUARE_METER ? 'M2' : undefined,
+      isPublic: Boolean(product.published),
+      isBudgetCalculable: Boolean(product.isBudgetCalculable),
+      calculationStrategy: product.calculationStrategy ?? 'M2',
     }
     return summary
   }
@@ -4102,8 +4421,10 @@ export class StorefrontService implements OnModuleInit {
   private toProductDetail(
     product: ProductWithVariants,
     publishedParametricDefinition?: PublishedParametricProductDefinition | null,
+    reviewStats?: ProductReviewStatsRecord | null,
+    reviews: ProductReviewSummaryDto[] = [],
   ): ProductDetailDto {
-    const summary = this.toProductSummary(product, publishedParametricDefinition)
+    const summary = this.toProductSummary(product, publishedParametricDefinition, reviewStats)
     const attributes = product.options.map((option) => ({
       id: option.id,
       type: option.type as ProductAttributeType,
@@ -4213,6 +4534,13 @@ export class StorefrontService implements OnModuleInit {
       frequentlyBoughtTogether: [],
       suggestedAddOns: [],
       installationAddOn: null,
+      reviewSummary: reviewStats
+        ? {
+            averageRating: reviewStats.averageRating,
+            reviewCount: reviewStats.reviewCount,
+          }
+        : null,
+      reviews,
       attributes: attributes.length ? attributes : undefined,
       variants: variants.length ? variants : undefined,
       publishedParametricOptions:

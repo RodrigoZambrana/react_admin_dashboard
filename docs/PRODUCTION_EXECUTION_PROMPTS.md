@@ -227,6 +227,8 @@ Turn all production-relevant findings into repeatable QA coverage. Ensure every 
 - Convert every newly observed regression into a repeatable QA block.
 - Verify, update, and complement the test cases so the QA surface stays broad enough to catch independent regressions and end-to-end ecommerce regressions.
 - Keep the QA coverage aligned with the current baseline before starting any new product iteration.
+- Do not begin manual close-out until every case not marked `VERIFICADA` has been created, validated, updated, and executed or has an explicitly documented exception.
+- Exclude auto-response automation suites (`wording registry`, `hybrid intent`, `grounding`, `auto-reply`) from this delivery; they may be tested separately, but they do not gate the manual-only production readiness loop.
 
 ## Iteration handoff format
 

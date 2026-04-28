@@ -67,6 +67,9 @@ type ProductCategoryConfig = {
   name: string
   description?: string | null
   image?: string | null
+  seoTitle?: string | null
+  seoDescription?: string | null
+  seoImageUrl?: string | null
   parent?: string | null
   installable?: boolean
   installationResolutionMode?: string | null
@@ -119,6 +122,10 @@ type CompanyProfileResponse = {
   website?: string | null
   addressLine1?: string | null
   addressLine2?: string | null
+  seoDescription?: string | null
+  seoAuthor?: string | null
+  seoImageUrl?: string | null
+  googleSiteVerification?: string | null
   logo?: string | null
 }
 type CompanyProfilePayload = {
@@ -130,6 +137,10 @@ type CompanyProfilePayload = {
   website?: unknown
   addressLine1?: unknown
   addressLine2?: unknown
+  seoDescription?: unknown
+  seoAuthor?: unknown
+  seoImageUrl?: unknown
+  googleSiteVerification?: unknown
   logo?: unknown
 }
 type MercadoPagoSettingsDraft = {
@@ -214,6 +225,10 @@ export class SettingsController {
     website: 'www.sistemadministrativo.com',
     addressLine1: '9498 Harvard Street',
     addressLine2: 'Fairfield, Chicago Town 06824',
+    seoDescription: null,
+    seoAuthor: null,
+    seoImageUrl: null,
+    googleSiteVerification: null,
     logo: null,
   }
 
@@ -293,6 +308,10 @@ export class SettingsController {
       website: record.website ?? null,
       addressLine1: record.addressLine1 ?? null,
       addressLine2: record.addressLine2 ?? null,
+      seoDescription: record.seoDescription ?? null,
+      seoAuthor: record.seoAuthor ?? null,
+      seoImageUrl: record.seoImageUrl ?? null,
+      googleSiteVerification: record.googleSiteVerification ?? null,
       logo: logoBuffer ? buildImageDataUrl(logoBuffer) : null,
     }
   }
@@ -318,6 +337,10 @@ export class SettingsController {
       website: optional(body.website),
       addressLine1: optional(body.addressLine1),
       addressLine2: optional(body.addressLine2),
+      seoDescription: optional(body.seoDescription),
+      seoAuthor: optional(body.seoAuthor),
+      seoImageUrl: optional(body.seoImageUrl),
+      googleSiteVerification: optional(body.googleSiteVerification),
     }
   }
 
@@ -819,6 +842,9 @@ export class SettingsController {
       name: string
       description?: string | null
       image?: string | null
+      seoTitle?: string | null
+      seoDescription?: string | null
+      seoImageUrl?: string | null
       parentId?: number | string | null
       installable?: boolean
       installationResolutionMode?: string | null
@@ -833,6 +859,9 @@ export class SettingsController {
     }
     const description = this.normalizeOptionalString(body.description)
     const image = this.normalizeOptionalString(body.image)
+    const seoTitle = this.normalizeOptionalString(body.seoTitle)
+    const seoDescription = this.normalizeOptionalString(body.seoDescription)
+    const seoImageUrl = this.normalizeOptionalString(body.seoImageUrl)
     const parentId = this.parseCategoryParentId(body.parentId)
     await this.ensureValidCategoryParent(null, parentId)
 
@@ -859,6 +888,9 @@ export class SettingsController {
           name,
           description: description ?? null,
           image: image ?? null,
+          seoTitle: seoTitle ?? null,
+          seoDescription: seoDescription ?? null,
+          seoImageUrl: seoImageUrl ?? null,
           parentId,
           installationResolutionMode,
           installationChargeScope,
@@ -904,6 +936,9 @@ export class SettingsController {
       name?: string | null
       description?: string | null
       image?: string | null
+      seoTitle?: string | null
+      seoDescription?: string | null
+      seoImageUrl?: string | null
       parentId?: number | string | null
       installable?: boolean
       installationResolutionMode?: string | null
@@ -942,6 +977,18 @@ export class SettingsController {
     const image = this.normalizeOptionalString(body.image)
     if (image !== undefined) {
       data.image = image
+    }
+    const seoTitle = this.normalizeOptionalString(body.seoTitle)
+    if (seoTitle !== undefined) {
+      data.seoTitle = seoTitle
+    }
+    const seoDescription = this.normalizeOptionalString(body.seoDescription)
+    if (seoDescription !== undefined) {
+      data.seoDescription = seoDescription
+    }
+    const seoImageUrl = this.normalizeOptionalString(body.seoImageUrl)
+    if (seoImageUrl !== undefined) {
+      data.seoImageUrl = seoImageUrl
     }
     if (Object.prototype.hasOwnProperty.call(body, 'parentId')) {
       const parentId = this.parseCategoryParentId(body.parentId)
@@ -1294,7 +1341,7 @@ export class SettingsController {
     const categoryNameById = new Map(productCategories.map((category) => [category.id, category.name]))
 
     return {
-      meta: { exportedAt: new Date().toISOString(), version: 1 },
+      meta: { exportedAt: new Date().toISOString(), version: 2 },
       orderStatuses: orderStatuses.map(({ label, color, id }) => ({
         name: label,
         color,
@@ -1315,6 +1362,9 @@ export class SettingsController {
           name: category.name,
           description: category.description ?? null,
           image: category.image ?? null,
+          seoTitle: category.seoTitle ?? null,
+          seoDescription: category.seoDescription ?? null,
+          seoImageUrl: category.seoImageUrl ?? null,
           parent: category.parentId ? categoryNameById.get(category.parentId) ?? null : null,
           installable: Boolean(service),
           installationResolutionMode:
@@ -1459,6 +1509,9 @@ export class SettingsController {
               name: string
               description: string | null
               image: string | null
+              seoTitle: string | null
+              seoDescription: string | null
+              seoImageUrl: string | null
               parentName: string | null
               installable: boolean
               installationResolutionMode: InstallationResolutionMode | null
@@ -1487,6 +1540,9 @@ export class SettingsController {
             }
             const descriptionValue = this.normalizeOptionalString(raw['description'])
             const imageValue = this.normalizeOptionalString(raw['image'])
+            const seoTitleValue = this.normalizeOptionalString(raw['seoTitle'])
+            const seoDescriptionValue = this.normalizeOptionalString(raw['seoDescription'])
+            const seoImageUrlValue = this.normalizeOptionalString(raw['seoImageUrl'])
             const parentName = this.sanitizeName(raw['parent'])
             const rawService = raw['service']
             const installableFlag = raw['installable']
@@ -1514,6 +1570,9 @@ export class SettingsController {
               name,
               description: descriptionValue ?? null,
               image: imageValue ?? null,
+              seoTitle: seoTitleValue ?? null,
+              seoDescription: seoDescriptionValue ?? null,
+              seoImageUrl: seoImageUrlValue ?? null,
               parentName: parentName ?? null,
               installable,
               installationResolutionMode,
@@ -1746,6 +1805,9 @@ export class SettingsController {
                   name: entry.name,
                   description: entry.description,
                   image: entry.image,
+                  seoTitle: entry.seoTitle,
+                  seoDescription: entry.seoDescription,
+                  seoImageUrl: entry.seoImageUrl,
                   parentId,
                   installationResolutionMode: entry.installationResolutionMode,
                   installationChargeScope: entry.installationChargeScope,

@@ -20,6 +20,7 @@ import OrganizationFields from './OrganizationFields'
 import ProductImages from './ProductImages'
 import PublicationFields from './PublicationFields'
 import ProductRelationsFields from './ProductRelationsFields'
+import SeoFields from './SeoFields'
 import cloneDeep from 'lodash/cloneDeep'
 import { HiOutlineTrash } from 'react-icons/hi'
 import { AiOutlineSave } from 'react-icons/ai'
@@ -93,8 +94,12 @@ type InitialData = {
     vendor?: string
     description?: string
     specifications?: string
+    seoTitle?: string
+    seoDescription?: string
+    seoImageUrl?: string
     published?: boolean
     permanentStock?: boolean
+    isBudgetCalculable?: boolean
     currency?: CurrencyCode
     unitOfMeasure?: SalesUnit
     mode?: ProductMode
@@ -260,9 +265,13 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
         vendor: '',
         description: '',
         specifications: '',
-        published: false,
-        permanentStock: false,
-        currency: 'UYU',
+        seoTitle: '',
+        seoDescription: '',
+        seoImageUrl: '',
+    published: false,
+    permanentStock: false,
+    isBudgetCalculable: false,
+    currency: 'UYU',
         unitOfMeasure: DEFAULT_SALES_UNIT,
         mode: 'simple',
         attributes: [],
@@ -559,6 +568,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                         ? (initialData.tags as string[])
                         : [],
                     permanentStock: Boolean(initialData.permanentStock),
+                    isBudgetCalculable:
+                        typeof initialData.isBudgetCalculable === 'boolean'
+                            ? initialData.isBudgetCalculable
+                            : false,
                     unitOfMeasure:
                         (initialData.unitOfMeasure ??
                             DEFAULT_SALES_UNIT) as SalesUnit,
@@ -590,6 +603,15 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                     }
                     if (typeof baseData.specifications === 'string') {
                         baseData.specifications = sanitizeString(baseData.specifications)
+                    }
+                    if (typeof baseData.seoTitle === 'string') {
+                        baseData.seoTitle = sanitizeString(baseData.seoTitle)
+                    }
+                    if (typeof baseData.seoDescription === 'string') {
+                        baseData.seoDescription = sanitizeString(baseData.seoDescription)
+                    }
+                    if (typeof baseData.seoImageUrl === 'string') {
+                        baseData.seoImageUrl = sanitizeString(baseData.seoImageUrl)
                     }
                     const installationServiceOverride = Boolean(
                         (baseData as typeof baseData & {
@@ -836,6 +858,10 @@ const ProductForm = forwardRef<FormikRef, ProductForm>((props, ref) => {
                                         <PublicationFields
                                             touched={touched as any}
                                             errors={errors as any}
+                                            values={values as any}
+                                            setFieldValue={setFieldValue}
+                                        />
+                                        <SeoFields
                                             values={values as any}
                                             setFieldValue={setFieldValue}
                                         />

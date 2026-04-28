@@ -46,6 +46,7 @@ export class SemanticTurnExecutionService {
     options?: {
       projectReplyImmediately?: boolean;
       persistIncomingMessage?: boolean;
+      incomingMessageMetadata?: Prisma.InputJsonValue | null;
       abortSignal?: AbortSignal;
     },
   ): Promise<SemanticTurnExecutionResult> {
@@ -79,6 +80,7 @@ export class SemanticTurnExecutionService {
           input.conversationId,
           MessageRole.USER,
           input.message,
+          options?.incomingMessageMetadata ?? undefined,
         )
       : null;
     await this.memoryService.append(input.conversationId, 'user', input.message);

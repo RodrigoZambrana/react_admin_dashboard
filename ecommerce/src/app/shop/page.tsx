@@ -1,8 +1,11 @@
+import type { Metadata } from "next";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
+import StructuredData from "@/components/seo/StructuredData";
+import { getStorefrontConfig } from "@/lib/storefront-config";
+import { buildCollectionPageJsonLd } from "@/lib/seo/structured-data";
+import { resolveAbsoluteUrl } from "@/lib/seo/urls";
 import { mapProductSummaryToProduct } from "@/lib/storefront/adapters";
-
-export const revalidate = 180;
-
 import Container from "@component/Container";
 import Hidden from "@component/hidden";
 
@@ -18,6 +21,15 @@ import {
   buildSearchCategoryOptions,
   findMatchingSearchCategories,
 } from "@/lib/storefront/search-utils";
+
+export const revalidate = 180;
+export async function generateMetadata(): Promise<Metadata> {
+  return buildStorefrontPageMetadata({
+    title: "Catálogo",
+    description: "Explora el catálogo público de productos y filtra por categoría, búsqueda o precio.",
+    canonicalPath: "/shop",
+  });
+}
 
 const PAGE_SIZE = 28;
 type SaleCategoryDefinition = {
@@ -164,6 +176,7 @@ const dedupeProducts = (products: Product[]) =>
   Array.from(new Map(products.map((product) => [product.id, product])).values());
 
 export default async function ShopPage({ searchParams }: SearchParams) {
+  const config = await getStorefrontConfig();
   const params = await searchParams;
   const pageParam = Array.isArray(params?.page) ? params?.page[0] : params?.page;
   const requestedPage = pageParam ? Math.max(Number(pageParam), 1) : 1;
@@ -275,22 +288,34 @@ export default async function ShopPage({ searchParams }: SearchParams) {
   meta = paginatedMeta;
 
   return (
-    <Container mt="2rem">
-      <SaleNavbar categories={saleCategories} selectedSlug={selectedCategorySlug} />
-
-      <Hidden down="sm">
-        <SaleCategory categories={saleCategories} selectedSlug={selectedCategorySlug} />
-      </Hidden>
-
-      <ShopProductArea
-        products={products}
-        meta={meta}
-        selectedCategorySlug={selectedCategorySlug}
-        selectedCategoryLabel={selectedCategoryLabel}
-        searchTerm={searchTerm}
-        categories={saleCategories}
-        filters={{ priceBounds: availablePriceBounds, active: appliedFilters }}
+    <>
+      <StructuredData
+        schemas={[
+          buildCollectionPageJsonLd(config, {
+            name: "Catálogo",
+            description:
+              "Explora el catálogo público de productos y filtra por categoría, búsqueda o precio.",
+            url: resolveAbsoluteUrl("/shop", config),
+          }),
+        ]}
       />
-    </Container>
+      <Container mt="2rem">
+        <SaleNavbar categories={saleCategories} selectedSlug={selectedCategorySlug} />
+
+        <Hidden down="sm">
+          <SaleCategory categories={saleCategories} selectedSlug={selectedCategorySlug} />
+        </Hidden>
+
+        <ShopProductArea
+          products={products}
+          meta={meta}
+          selectedCategorySlug={selectedCategorySlug}
+          selectedCategoryLabel={selectedCategoryLabel}
+          searchTerm={searchTerm}
+          categories={saleCategories}
+          filters={{ priceBounds: availablePriceBounds, active: appliedFilters }}
+        />
+      </Container>
+    </>
   );
 }

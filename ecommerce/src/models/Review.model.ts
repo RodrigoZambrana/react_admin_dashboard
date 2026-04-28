@@ -1,13 +1,15 @@
-import User from "./user.model";
-import Product from "./product.model";
-
 interface Review {
   id: string;
   rating: number;
-  customer: User;
   comment: string;
-  product: Product;
+  title?: string | null;
+  date: string;
+  customer: {
+    name: string;
+    imgUrl?: string | null;
+  };
   published?: boolean;
+  verifiedPurchase?: boolean;
 }
 
 export default Review;

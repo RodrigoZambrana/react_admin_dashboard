@@ -6,10 +6,12 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
   layouts: DEFAULT_HOME_LAYOUTS,
   navigation: {
     primary: [
-      { id: 'nav-new', label: 'New arrivals', href: '/products?sort=newest' },
-      { id: 'nav-shop', label: 'Shop', href: '/products' },
-      { id: 'nav-categories', label: 'Categories', href: '/categories' },
-      { id: 'nav-stories', label: 'Stories', href: '/blog' },
+      { id: 'nav-home', label: 'Inicio', href: '/' },
+      { id: 'nav-shop', label: 'Tienda', href: '/shop' },
+      { id: 'nav-categories', label: 'Categorías', href: '/categories' },
+      { id: 'nav-about', label: 'Quiénes somos', href: '/quienes-somos' },
+      { id: 'nav-faq', label: 'Preguntas frecuentes', href: '/preguntas-frecuentes' },
+      { id: 'nav-contact', label: 'Contacto', href: '/contacto.html' },
     ],
     secondary: [
       { id: 'nav-account', label: 'Account', href: '/account' },
@@ -17,9 +19,9 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
     ],
     footer: [
       [
-        { id: 'footer-about', label: 'About us', href: '/about' },
-        { id: 'footer-contact', label: 'Contact', href: '/contact' },
-        { id: 'footer-faq', label: 'FAQ', href: '/faq' },
+        { id: 'footer-about', label: 'Quiénes somos', href: '/quienes-somos' },
+        { id: 'footer-contact', label: 'Contacto', href: '/contacto.html' },
+        { id: 'footer-faq', label: 'Preguntas frecuentes', href: '/preguntas-frecuentes' },
       ],
       [
         { id: 'footer-shipping', label: 'Shipping', href: '/policies/shipping' },
@@ -48,11 +50,15 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
     },
   },
   seo: {
-    siteName: 'Ecommerce Storefront',
-    defaultTitle: 'Ecommerce Storefront',
-    titleTemplate: '%s · Ecommerce Storefront',
+    siteName: 'urucortinas',
+    defaultTitle: 'urucortinas',
+    titleTemplate: '%s · urucortinas',
     defaultDescription:
       'Configurable eCommerce experience powered by the Wokiee template and a headless backend.',
+    shareImage: {
+      url: '/assets/images/banners/shop-cover.png',
+      alt: 'urucortinas',
+    },
   },
   policies: [
     {
@@ -73,7 +79,21 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
     active: true,
     cta: { id: 'announcement-learn-more', label: 'See details', href: '/policies/shipping' },
   },
-  companyProfile: null,
+  companyProfile: {
+    legalName: null,
+    tradeName: null,
+    taxId: null,
+    email: null,
+    phone: null,
+    website: null,
+    addressLine1: null,
+    addressLine2: null,
+    seoDescription: null,
+    seoAuthor: null,
+    seoImageUrl: null,
+    googleSiteVerification: null,
+    logo: null,
+  },
   resilience: {
     snapshotFallbackEnabled: true,
   },

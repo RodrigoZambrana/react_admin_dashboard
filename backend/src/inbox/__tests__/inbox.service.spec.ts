@@ -17,7 +17,7 @@ const createConfig = () => ({
 })
 
 describe('InboxService', () => {
-  it('lists only operational email accounts while preserving non-email channels', async () => {
+  it('lists configured email accounts while preserving non-email channels', async () => {
     const prisma = createPrisma()
     const config = createConfig()
     const registry = {} as never
@@ -83,6 +83,7 @@ describe('InboxService', () => {
 
     expect(result.map((account) => account.id)).toEqual([
       'acc_email_valid',
+      'acc_email_invalid',
       'acc_whatsapp',
     ])
   })

@@ -6,7 +6,9 @@ import type {
   ProductVariant,
   ProductAttributeDefinition,
   ProductVariantAttribute,
-  PublishedParametricOptions
+  PublishedParametricOptions,
+  BudgetMeasurementType,
+  BudgetCalculationStrategy
 } from "@/types/storefront";
 
 interface Product {
@@ -36,6 +38,10 @@ interface Product {
   published?: boolean;
   specifications?: Array<{ label: string; value: string }>;
   mode?: ProductMode;
+  measurementType?: BudgetMeasurementType;
+  isPublic?: boolean;
+  isBudgetCalculable?: boolean;
+  calculationStrategy?: BudgetCalculationStrategy;
   variantKey?: string | null;
   variantAttributes?: ProductAttributeDefinition[];
   publishedParametricOptions?: PublishedParametricOptions;

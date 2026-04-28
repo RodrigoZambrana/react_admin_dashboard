@@ -13,9 +13,10 @@ export async function generateMetadata(): Promise<Metadata> {
     return buildStorefrontPageMetadata({
       title: page.seo?.title ?? page.title,
       description: page.seo?.description ?? page.summary ?? undefined,
+      canonicalPath: "/",
     });
   } catch {
-    return buildStorefrontPageMetadata();
+    return buildStorefrontPageMetadata({ canonicalPath: "/" });
   }
 }
 

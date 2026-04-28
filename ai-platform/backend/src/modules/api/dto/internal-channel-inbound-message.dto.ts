@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsString,
   MaxLength,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
@@ -38,36 +39,44 @@ class InternalConversationAttachmentDto {
 
 export class InternalChannelInboundMessageDto {
   @IsString()
+  @MinLength(1)
   tenantKey!: string;
 
   @IsIn(['email', 'whatsapp', 'facebook', 'instagram'])
   channel!: 'email' | 'whatsapp' | 'facebook' | 'instagram';
 
   @IsString()
+  @MinLength(1)
   userId!: string;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   conversationId?: string;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   inboxAccountId?: string;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   inboxAddress?: string;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   subject?: string;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   threadId?: string;
 
   @IsOptional()
   @IsString()
+  @MinLength(1)
   externalMessageId?: string;
 
   @IsOptional()

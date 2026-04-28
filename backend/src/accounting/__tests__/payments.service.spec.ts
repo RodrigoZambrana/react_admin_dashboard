@@ -5,6 +5,10 @@ import { decimal } from '../../common/currency/money.util'
 
 const createPrisma = () => ({
   $transaction: vi.fn(async (callback: any) => callback(createTx())),
+  payment: {
+    findMany: vi.fn(),
+    count: vi.fn(),
+  },
 })
 
 const createTx = () => ({
@@ -46,9 +50,8 @@ describe('PaymentsService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     tx = createTx()
-    prisma = {
-      $transaction: vi.fn(async (callback: any) => callback(tx)),
-    }
+    prisma = createPrisma() as any
+    prisma.$transaction.mockImplementation(async (callback: any) => callback(tx))
     settlement = createSettlement()
     service = new PaymentsService(
       prisma as any,
@@ -150,5 +153,51 @@ describe('PaymentsService', () => {
       tx,
     )
     expect(settlement.dispatch).toHaveBeenCalled()
+  })
+
+  it('lists payments with order and customer summaries', async () => {
+    prisma.payment.findMany.mockResolvedValue([
+      {
+        id: 21,
+        orderId: 99,
+        amount: decimal(150),
+        currency: 'UYU',
+        type: PaymentType.BALANCE,
+        status: PaymentStatus.CONFIRMED,
+        reference: 'REF-21',
+        method: 'Cash',
+        paymentMethodId: null,
+        date: new Date('2026-03-24T10:00:00.000Z'),
+        notes: null,
+        createdAt: new Date('2026-03-24T10:00:00.000Z'),
+        updatedAt: new Date('2026-03-24T10:05:00.000Z'),
+        attachments: [],
+        order: {
+          id: 99,
+          customerId: 7,
+          customer: {
+            name: 'Buyer Example',
+          },
+          grandTotal: decimal(150),
+          orderCurrency: 'UYU',
+          statusId: 1,
+        },
+      },
+    ])
+    prisma.payment.count.mockResolvedValue(1)
+
+    const result = await service.listPayments({ pageIndex: 1, pageSize: 25 } as any)
+
+    expect(prisma.payment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: expect.objectContaining({
+          order: expect.any(Object),
+          attachments: expect.any(Object),
+        }),
+      }),
+    )
+    expect(result.total).toBe(1)
+    expect(result.data).toHaveLength(1)
+    expect(result.data[0]?.order?.customerName).toBe('Buyer Example')
   })
 })

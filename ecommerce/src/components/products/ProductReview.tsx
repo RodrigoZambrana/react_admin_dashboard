@@ -1,134 +1,63 @@
-import * as yup from "yup";
-import { useFormik } from "formik";
+"use client";
 
 import Box from "@component/Box";
-import Rating from "@component/rating";
 import FlexBox from "@component/FlexBox";
-import TextArea from "@component/textarea";
-import { Button } from "@component/buttons";
-import { H2, H5 } from "@component/Typography";
+import Rating from "@component/rating";
+import { H2, H5, Paragraph, SemiSpan } from "@component/Typography";
 import ProductComment from "./ProductComment";
+import type Review from "@models/Review.model";
+import { useTranslation } from "@/state/i18n-context";
 
-const validationSchema = yup.object().shape({
-  rating: yup.number().required("Rating is required"),
-  comment: yup.string().required("Comment is required"),
-  date: yup.string().required("Date is required")
-});
-
-type FormValues = yup.InferType<typeof validationSchema>;
-
-export default function ProductReview() {
-  const initialValues: FormValues = {
-    rating: 5,
-    comment: "",
-    date: new Date().toISOString()
-  };
-
-  const {
-    values,
-    errors,
-    touched,
-    dirty,
-    isValid,
-    handleBlur,
-    handleChange,
-    handleSubmit,
-    setFieldValue
-  } = useFormik({
-    initialValues,
-    validationSchema,
-    onSubmit: async (values: FormValues) => {
-      console.log(values);
-      // resetForm();
-    }
-  });
-
-  return (
-    <div>
-      {commentList.map((item, ind) => (
-        <ProductComment {...item} key={ind} />
-      ))}
-
-      <H2 fontWeight="600" mt="55px" mb="20">
-        Write a Review for this product
-      </H2>
-
-      <form onSubmit={handleSubmit}>
-        <Box mb="20px">
-          <FlexBox mb="12px">
-            <H5 color="gray.700" mr="6px">
-              Your Rating
-            </H5>
-            <H5 color="error.main">*</H5>
-          </FlexBox>
-
-          <Rating
-            outof={5}
-            color="warn"
-            size="medium"
-            readOnly={false}
-            value={values.rating || 0}
-            onChange={(value) => setFieldValue("rating", value)}
-          />
-        </Box>
-
-        <Box mb="24px">
-          <FlexBox mb="12px">
-            <H5 color="gray.700" mr="6px">
-              Your Review
-            </H5>
-
-            <H5 color="error.main">*</H5>
-          </FlexBox>
-
-          <TextArea
-            fullWidth
-            rows={8}
-            name="comment"
-            onBlur={handleBlur}
-            onChange={handleChange}
-            value={values.comment || ""}
-            placeholder="Write a review here..."
-            errorText={touched.comment ? errors.comment : undefined}
-          />
-        </Box>
-
-        <Button
-          size="small"
-          type="submit"
-          color="primary"
-          variant="contained"
-          disabled={!(dirty && isValid)}>
-          Submit
-        </Button>
-      </form>
-    </div>
-  );
+interface Props {
+  reviews?: Review[];
+  reviewCount?: number;
+  averageRating?: number | null;
 }
 
-const commentList = [
-  {
-    name: "Jannie Schumm",
-    imgUrl: "/assets/images/faces/7.png",
-    rating: 4.7,
-    date: "2021-02-14",
-    comment:
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Varius massa id ut mattis. Facilisis vitae gravida egestas ac account."
-  },
-  {
-    name: "Joe Kenan",
-    imgUrl: "/assets/images/faces/6.png",
-    rating: 4.7,
-    date: "2019-08-10",
-    comment:
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Varius massa id ut mattis. Facilisis vitae gravida egestas ac account."
-  },
-  {
-    name: "Jenifer Tulio",
-    imgUrl: "/assets/images/faces/8.png",
-    rating: 4.7,
-    date: "2021-02-05",
-    comment:
-      "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Varius massa id ut mattis. Facilisis vitae gravida egestas ac account."
-  }
-];
+const buildFallbackAvatar = (name: string) =>
+  `/assets/images/faces/${Math.max(1, Math.min(8, (name.length % 8) + 1))}.png`;
+
+export default function ProductReview({ reviews = [], reviewCount, averageRating }: Props) {
+  const t = useTranslation();
+  const totalReviews = reviewCount ?? reviews.length;
+
+  return (
+    <Box>
+      <H2 fontWeight="600" mt="0px" mb="16px">
+        {t("product.tabs.reviews", { defaultMessage: "Reviews" })}
+      </H2>
+
+      <FlexBox alignItems="center" mb="24px" gridGap="0.75rem" flexWrap="wrap">
+        <Rating value={averageRating ?? 0} outof={5} color="warn" readOnly />
+        <H5 my="0px">{averageRating ? averageRating.toFixed(1) : "0.0"}</H5>
+        <SemiSpan>
+          {t("product.reviews.count", {
+            defaultMessage: "{{count}} reviews",
+            values: { count: totalReviews }
+          })}
+        </SemiSpan>
+      </FlexBox>
+
+      {reviews.length > 0 ? (
+        reviews.map((review) => (
+          <ProductComment
+            key={review.id}
+            name={review.customer.name}
+            date={review.date}
+            imgUrl={review.customer.imgUrl ?? buildFallbackAvatar(review.customer.name)}
+            rating={review.rating}
+            comment={review.comment}
+            title={review.title ?? undefined}
+            verifiedPurchase={review.verifiedPurchase}
+          />
+        ))
+      ) : (
+        <Paragraph color="gray.700">
+          {t("product.reviews.empty", {
+            defaultMessage: "No reviews have been published yet."
+          })}
+        </Paragraph>
+      )}
+    </Box>
+  );
+}

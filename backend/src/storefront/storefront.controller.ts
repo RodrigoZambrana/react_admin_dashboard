@@ -49,6 +49,7 @@ import {
   StorefrontPasswordChangeDto,
   StorefrontReauthPasswordDto,
 } from './dto/password.dto'
+import { StorefrontCreateOrderReviewDto } from './dto/product-review.dto'
 import { StorefrontSecurityService } from './security/storefront-security.service'
 
 @Controller('storefront')
@@ -86,6 +87,11 @@ export class StorefrontController {
   @Get('content/sections')
   listContentSections(@Query('locale') locale?: string) {
     return this.storefront.listContentSections(locale)
+  }
+
+  @Get('content/pages')
+  listContentPages(@Query('locale') locale?: string) {
+    return this.storefront.listCmsPages(locale)
   }
 
   @Get('content/pages/resolve')
@@ -551,6 +557,17 @@ export class StorefrontController {
   ) {
     const user = req.user
     return this.storefront.getCustomerOrderTimeline(user.sub, identifier)
+  }
+
+  @UseGuards(StorefrontJwtGuard)
+  @Post('account/orders/:identifier/reviews')
+  createAccountOrderReview(
+    @Req() req: FastifyRequest & { user: StorefrontJwtPayload },
+    @Param('identifier') identifier: string,
+    @Body() dto: StorefrontCreateOrderReviewDto,
+  ) {
+    const user = req.user
+    return this.storefront.createCustomerOrderReview(user.sub, identifier, dto)
   }
 
   @UseGuards(StorefrontJwtGuard)

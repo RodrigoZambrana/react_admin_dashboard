@@ -7,11 +7,19 @@ export interface NetworkStatus {
 
 export function useNetworkStatus(): NetworkStatus {
   const [state, setState] = useState<NetworkStatus>(() => ({
-    isOnline: typeof navigator === "undefined" ? true : navigator.onLine,
-    lastChangedAt: Date.now(),
+    isOnline: true,
+    lastChangedAt: 0,
   }));
 
   useEffect(() => {
+    const syncCurrentStatus = () =>
+      setState({
+        isOnline: navigator.onLine,
+        lastChangedAt: Date.now(),
+      });
+
+    syncCurrentStatus();
+
     const handleOnline = () =>
       setState({
         isOnline: true,

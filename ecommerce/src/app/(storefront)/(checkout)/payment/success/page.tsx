@@ -30,6 +30,7 @@ import {
 import { buildCheckoutOrderItems } from "@/lib/checkout/order-items";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { CartLineItem } from "@/state/cart-context";
+import { trackPurchase } from "@/lib/analytics";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -102,6 +103,7 @@ function PaymentSuccessContent() {
   }, [isCashSuccessFlow, persistedCheckout?.lastOrder, rawOrderUuid]);
   const [createdOrder, setCreatedOrder] = useState<OrderSummary | null>(persistedCashOrder);
   const cashCleanupDoneRef = useRef(false);
+  const purchaseTrackedRef = useRef(false);
   const paymentCheckoutSnapshot =
     payment?.method === "mercadopago" ? payment.checkoutSnapshot ?? null : null;
 
@@ -547,6 +549,17 @@ function PaymentSuccessContent() {
       setOrderState("error");
     }
   }, [orderItemsError]);
+
+  useEffect(() => {
+    if (purchaseTrackedRef.current) {
+      return;
+    }
+    if (orderState !== "success" || !createdOrder) {
+      return;
+    }
+    trackPurchase(createdOrder);
+    purchaseTrackedRef.current = true;
+  }, [createdOrder, orderState]);
 
   return (
     <Box py="6rem">

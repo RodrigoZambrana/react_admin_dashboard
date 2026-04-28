@@ -103,6 +103,12 @@ const buildCheckoutSchema = (t: ReturnType<typeof useTranslation>) =>
     number: yup
       .string()
       .trim()
+      .matches(/^\d+$/, {
+        message: t("account.address.form.errors.numberOnly", {
+          defaultMessage: "Ingresa solo números."
+        }),
+        excludeEmptyString: true
+      })
       .required(t("account.address.form.errors.numberRequired", { defaultMessage: "Debes ingresar el número." })),
     corner: yup.string().trim().optional(),
     apartment: yup.string().trim().optional(),

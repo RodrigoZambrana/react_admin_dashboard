@@ -10,6 +10,7 @@ import {
   CmsPageScope,
   CmsPageSectionType,
 } from '@prisma/client'
+import { htmlFragmentToCmsRichTextNodes } from '../src/cms/rich-text'
 
 type LegacyAction = {
   label: string
@@ -49,6 +50,7 @@ type ImportedPage = {
   summary?: string | null
   seoTitle?: string | null
   seoDescription?: string | null
+  seoImageUrl?: string | null
   legacySource: string
   sections: ImportedSection[]
 }
@@ -220,12 +222,6 @@ const buildDomOrderMap = ($: ReturnType<typeof load>) => {
 
 const domOrderOf = (map: Map<any, number>, element: any) =>
   map.get(element) ?? Number.MAX_SAFE_INTEGER
-
-const joinHtmlFragments = (parts: Array<string | null | undefined>) =>
-  parts
-    .map((part) => (part ?? '').trim())
-    .filter(Boolean)
-    .join('\n')
 
 const inferActionLabel = (label: string, href: string, iconClass?: string | null) => {
   if (label) return label
@@ -584,7 +580,7 @@ const extractFeatureGridSections = (
           content: {
             title,
             body: stripTags(bodyHtml),
-            bodyHtml,
+            richText: bodyHtml ? htmlFragmentToCmsRichTextNodes(bodyHtml) : [],
             href,
             linkLabel: normalizeWhitespace(node.find('.title a').first().text()),
             iconClass: node.find('.icon i').attr('class') ?? '',
@@ -629,7 +625,7 @@ const extractFeatureGridSections = (
           content: {
             title,
             body: stripTags(bodyHtml),
-            bodyHtml,
+            richText: bodyHtml ? htmlFragmentToCmsRichTextNodes(bodyHtml) : [],
             iconClass: node.find('.contact-icon i').attr('class') ?? '',
           },
         }
@@ -685,8 +681,8 @@ const extractContentSplitSections = (
         return
       }
 
-      const contentHtml = joinHtmlFragments(
-        contentColumns.map((column) => ($(column).html() ?? '').trim()),
+      const richText = contentColumns.flatMap((column) =>
+        htmlFragmentToCmsRichTextNodes($(column).html() ?? ''),
       )
 
       const gallery = carousel.length
@@ -725,14 +721,14 @@ const extractContentSplitSections = (
         key: `content-split-${index + 1}`,
         name: null,
         settings: sectionSettings,
-        blocks: contentHtml
+        blocks: richText.length
           ? [
               {
                 type: CmsPageBlockType.RICH_TEXT,
                 key: `content-split-body-${index + 1}`,
                 name: null,
                 content: {
-                  html: contentHtml,
+                  richText,
                 },
               },
             ]
@@ -802,18 +798,18 @@ const extractFaqSection = (
   const blocks = faqSection
     .find('.card')
     .toArray()
-    .map((element, index) => {
-      const node = $(element)
-      const question = normalizeWhitespace(node.find('.card-header').first().text())
-      const answer = (node.find('.card-body').first().html() ?? '').trim()
-      if (!question || !answer) return null
+      .map((element, index) => {
+        const node = $(element)
+        const question = normalizeWhitespace(node.find('.card-header').first().text())
+        const answer = (node.find('.card-body').first().html() ?? '').trim()
+        if (!question || !answer) return null
       return {
         type: CmsPageBlockType.FAQ_ITEM,
         key: `faq-${index + 1}`,
         name: question,
         content: {
           question,
-          answer,
+          answerRichText: htmlFragmentToCmsRichTextNodes(answer),
         },
       }
     })
@@ -992,7 +988,7 @@ const buildRichTextSection = (
         key: 'main-html',
         name: null,
         content: {
-          html,
+          richText: htmlFragmentToCmsRichTextNodes(html),
         },
       },
     ],
@@ -1090,6 +1086,7 @@ const upsertImportedPage = async (page: ImportedPage) => {
           visible: true,
           seoTitle: page.seoTitle ?? null,
           seoDescription: page.seoDescription ?? null,
+          seoImageUrl: page.seoImageUrl ?? null,
           layoutKey: 'landing-default',
           legacySource: page.legacySource,
         },
@@ -1106,6 +1103,7 @@ const upsertImportedPage = async (page: ImportedPage) => {
           visible: true,
           seoTitle: page.seoTitle ?? null,
           seoDescription: page.seoDescription ?? null,
+          seoImageUrl: page.seoImageUrl ?? null,
           layoutKey: 'landing-default',
           legacySource: page.legacySource,
         },
@@ -1191,6 +1189,7 @@ const main = async () => {
       summary: description || null,
       seoTitle: findMetaContent($, 'og:title') || title,
       seoDescription: findMetaContent($, 'og:description') || description || null,
+      seoImageUrl: findMetaContent($, 'og:image') || null,
       legacySource: htmlFile,
       sections: await buildPageSections(htmlFile, html),
     }

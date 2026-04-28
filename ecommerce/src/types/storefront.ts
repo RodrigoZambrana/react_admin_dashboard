@@ -86,6 +86,10 @@ export interface CompanyProfile {
   website?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
+  seoDescription?: string | null;
+  seoAuthor?: string | null;
+  seoImageUrl?: string | null;
+  googleSiteVerification?: string | null;
   logo?: string | null;
 }
 
@@ -336,9 +340,11 @@ export interface CmsRenderablePage {
   title: string;
   summary?: string | null;
   locale: string;
+  updatedAt?: string;
   seo?: {
     title?: string | null;
     description?: string | null;
+    imageUrl?: string | null;
   } | null;
   layoutKey?: string | null;
   legacySource?: string | null;
@@ -354,7 +360,11 @@ export interface ProductSummary {
   id: number;
   slug: string;
   name: string;
+  updatedAt?: string;
   shortDescription?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoImageUrl?: string | null;
   price: Money;
   salePrice?: Money | null;
   badges?: string[];
@@ -365,6 +375,10 @@ export interface ProductSummary {
   categories?: CategorySummary[];
   tags?: string[];
   mode?: ProductMode;
+  measurementType?: BudgetMeasurementType;
+  isPublic?: boolean;
+  isBudgetCalculable?: boolean;
+  calculationStrategy?: BudgetCalculationStrategy;
   images?: ProductImage[];
   gallery?: ProductImage[];
   attributes?: ProductVariantAttribute[];
@@ -373,6 +387,26 @@ export interface ProductSummary {
   variantLabel?: string | null;
   configuration?: Record<string, unknown> | null;
   specifications?: Array<{ label: string; value: string }>;
+}
+
+export interface ProductReviewCustomer {
+  name: string;
+  imgUrl?: string | null;
+}
+
+export interface ProductReviewSummary {
+  id: number;
+  rating: number;
+  title?: string | null;
+  comment: string;
+  createdAt: string;
+  verifiedPurchase: boolean;
+  customer: ProductReviewCustomer;
+}
+
+export interface ProductReviewStats {
+  averageRating: number;
+  reviewCount: number;
 }
 
 export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
@@ -395,9 +429,115 @@ export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
     dimensions?: string;
     materials?: string;
   };
+  reviewSummary?: ProductReviewStats | null;
+  reviews?: ProductReviewSummary[];
   attributes?: ProductAttributeDefinition[];
   variants?: ProductVariant[];
   publishedParametricOptions?: PublishedParametricOptions;
+}
+
+export type BudgetMeasurementType = "M2";
+export type BudgetCalculationStrategy = "M2" | string;
+
+export interface BudgetProductSummary {
+  id: number;
+  slug: string;
+  name: string;
+  productCode?: string | null;
+  img?: string | null;
+  description?: string | null;
+  currency: string;
+  unitPrice: number;
+  measurementType: BudgetMeasurementType;
+  isPublic: boolean;
+  isBudgetCalculable: boolean;
+  calculationStrategy: BudgetCalculationStrategy;
+}
+
+export interface BudgetCalculationResult {
+  productId: number;
+  width: number;
+  height: number;
+  area: number;
+  unitPrice: number;
+  totalPrice: number;
+  currency?: string;
+  measurementType: BudgetMeasurementType;
+  strategy: string;
+  product?: BudgetProductSummary;
+}
+
+export interface BudgetAddToCartItemRequest {
+  productId: number;
+  width: number;
+  height: number;
+  calculatedPrice?: number;
+  qty?: number;
+}
+
+export interface BudgetAddToCartRequest {
+  items: BudgetAddToCartItemRequest[];
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerNotes?: string;
+  recaptchaToken?: string;
+  currency?: string;
+}
+
+export interface BudgetAddToCartResponse {
+  currency: string;
+  subtotal: number;
+  items: Array<
+    BudgetCalculationResult & {
+      qty: number;
+      product: BudgetProductSummary;
+    }
+  >;
+}
+
+export interface BudgetSummaryRequest extends BudgetAddToCartRequest {
+  shippingFee?: number;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  customerNotes?: string;
+  currency?: string;
+}
+
+export interface BudgetSummaryResponse {
+  currency: string;
+  subtotal: number;
+  shippingFee: number;
+  grandTotal: number;
+  items: Array<
+    BudgetCalculationResult & {
+      qty: number;
+      lineTotal: number;
+      product: BudgetProductSummary;
+    }
+  >;
+  customer: {
+    name: string | null;
+    email: string | null;
+    phone: string | null;
+    notes: string | null;
+  };
+}
+
+export interface BudgetLeadRequest {
+  name: string;
+  email?: string;
+  phone?: string;
+  recaptchaToken?: string;
+}
+
+export interface BudgetLeadResponse {
+  customerId: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  status: string | null;
 }
 
 export interface ParametricSizeLimit {
@@ -482,10 +622,27 @@ export interface CategorySummary {
   slug: string;
   name: string;
   description?: string | null;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  seoImageUrl?: string | null;
   thumbnail?: ImageAsset | null;
   productCount: number;
   parentId?: number | null;
   children?: CategorySummary[];
+}
+
+export interface CmsPublicPageSummary {
+  path: string;
+  title: string;
+  summary?: string | null;
+  locale: string;
+  updatedAt?: string;
+  seo?: {
+    title?: string | null;
+    description?: string | null;
+    imageUrl?: string | null;
+  } | null;
+  legacySource?: string | null;
 }
 
 export interface BlogSummary {

@@ -18,12 +18,22 @@ import type {
   ProductListQuery,
   CmsContentSection,
   CmsRenderablePage,
+  CmsPublicPageSummary,
   ProductSummary,
   StorefrontShippingOption,
-  StorefrontConfig
+  StorefrontConfig,
+  BudgetAddToCartRequest,
+  BudgetAddToCartResponse,
+  BudgetCalculationResult,
+  BudgetProductSummary,
+  BudgetLeadRequest,
+  BudgetLeadResponse,
+  BudgetSummaryRequest,
+  BudgetSummaryResponse
 } from "@/types/storefront";
 import type { OrderTimelineResponse } from "@/types/orderTimeline";
 
+import { env } from "@/lib/env";
 import { apiFetch, isApiError } from "../http";
 import { loadStorefrontSnapshot } from "@/lib/snapshots/loaders";
 import { isSnapshotFallbackEnabled } from "@/lib/resilience-flags";
@@ -88,6 +98,10 @@ const buildPaginatedResponse = (
     totalPages,
   };
 };
+
+const budgetApiOrigin = new URL(env.apiBaseUrl).origin;
+const budgetApiBaseUrl = `${budgetApiOrigin}/api/budget/`;
+const budgetApiUrl = (path: string) => new URL(path, budgetApiBaseUrl).toString();
 
 export interface StorefrontAddressInput {
   street: string;
@@ -176,6 +190,14 @@ export interface GoogleAuthStartResponse {
   expiresAt: string;
 }
 
+export interface CreateOrderReviewRequest {
+  productId: number;
+  variantId?: number | null;
+  rating: number;
+  title?: string;
+  comment: string;
+}
+
 export const StorefrontApi = {
   async getConfig(slug?: string): Promise<StorefrontConfig> {
     return apiFetch<StorefrontConfig>("config", {
@@ -201,6 +223,13 @@ export const StorefrontApi = {
     return apiFetch<CmsContentSection[]>("content/sections", {
       params: locale ? { locale } : undefined,
       cache: "no-store"
+    });
+  },
+
+  async listCmsPages(locale?: string): Promise<CmsPublicPageSummary[]> {
+    return apiFetch<CmsPublicPageSummary[]>("content/pages", {
+      params: locale ? { locale } : undefined,
+      cache: "no-store",
     });
   },
 
@@ -263,6 +292,49 @@ export const StorefrontApi = {
   async getProductParametricConfig(productId: number): Promise<ParametricConfigSnapshot> {
     return apiFetch<ParametricConfigSnapshot>(`products/${productId}/parametric-config`, {
       cache: "no-store"
+    });
+  },
+
+  async listBudgetProducts(): Promise<BudgetProductSummary[]> {
+    return apiFetch<BudgetProductSummary[]>(budgetApiUrl("products"), {
+      cache: "no-store"
+    });
+  },
+
+  async calculateBudgetProduct(payload: {
+    productId: number;
+    width: number;
+    height: number;
+    currency?: string;
+  }): Promise<BudgetCalculationResult> {
+    return apiFetch<BudgetCalculationResult>(budgetApiUrl("calculate"), {
+      method: "POST",
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+  },
+
+  async addBudgetToCart(payload: BudgetAddToCartRequest): Promise<BudgetAddToCartResponse> {
+    return apiFetch<BudgetAddToCartResponse>(budgetApiUrl("add-to-cart"), {
+      method: "POST",
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+  },
+
+  async summarizeBudget(payload: BudgetSummaryRequest): Promise<BudgetSummaryResponse> {
+    return apiFetch<BudgetSummaryResponse>(budgetApiUrl("summary"), {
+      method: "POST",
+      body: JSON.stringify(payload),
+      cache: "no-store",
+    });
+  },
+
+  async saveBudgetLead(payload: BudgetLeadRequest): Promise<BudgetLeadResponse> {
+    return apiFetch<BudgetLeadResponse>(budgetApiUrl("lead"), {
+      method: "POST",
+      body: JSON.stringify(payload),
+      cache: "no-store",
     });
   },
 
@@ -397,6 +469,17 @@ export const StorefrontApi = {
 
   async createOrder(payload: CreateOrderPayload): Promise<OrderSummary> {
     return apiFetch<OrderSummary>("orders", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      cache: "no-store"
+    });
+  },
+
+  async createOrderReview(
+    orderIdentifier: string,
+    payload: CreateOrderReviewRequest
+  ): Promise<{ id: number }> {
+    return apiFetch<{ id: number }>(`account/orders/${encodeURIComponent(orderIdentifier)}/reviews`, {
       method: "POST",
       body: JSON.stringify(payload),
       cache: "no-store"

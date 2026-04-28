@@ -220,4 +220,8 @@ export class CreateOrderDto {
   @IsString()
   @IsSafeString()
   activityId?: string
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>
 }

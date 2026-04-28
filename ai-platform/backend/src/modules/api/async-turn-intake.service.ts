@@ -320,9 +320,12 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
       acceptedAt,
       flushAt: timing.flushAt,
       stabilizationDelayMs: timing.stabilizationDelayMs,
-      metadata: {
-        source: 'async_chat',
-      },
+      metadata: this.mergeTurnMetadata(
+        {
+          source: 'async_chat',
+        },
+        input.metadata,
+      ) as Prisma.InputJsonValue,
     });
   }
 
@@ -346,6 +349,33 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
       stabilizationDelayMs: timing.stabilizationDelayMs,
       flushAt: timing.flushAt,
     });
+  }
+
+  private mergeTurnMetadata(
+    base: Record<string, unknown>,
+    extra?: Record<string, unknown> | null,
+  ) {
+    if (!extra || typeof extra !== 'object') {
+      return base;
+    }
+
+    return {
+      ...base,
+      ...extra,
+      attachments: Array.isArray(extra.attachments)
+        ? extra.attachments
+        : base.attachments,
+    };
+  }
+
+  private normalizeIncomingMessageMetadata(
+    metadata: unknown,
+  ): Prisma.InputJsonValue | null {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return null;
+    }
+
+    return metadata as Prisma.InputJsonValue;
   }
 
   private scheduleStabilization(turn: AsyncTurnRecord) {
@@ -415,6 +445,9 @@ export class AsyncTurnIntakeService implements OnModuleInit, OnModuleDestroy {
           },
           {
             projectReplyImmediately: false,
+            incomingMessageMetadata: this.normalizeIncomingMessageMetadata(
+              turn.metadata,
+            ),
             abortSignal: executionControl.signal,
           },
         ),

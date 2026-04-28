@@ -39,18 +39,30 @@ const FALLBACK_CONFIG: StorefrontConfig = {
     }
   },
   seo: {
-    siteName: "Tienda",
-    defaultTitle: "Tienda",
-    titleTemplate: "%s | Tienda",
+    siteName: "urucortinas",
+    defaultTitle: "urucortinas",
+    titleTemplate: "%s · urucortinas",
     defaultDescription:
-      "Catalogo y experiencia de compra conectados al backend del proyecto."
+      "Catalogo y experiencia de compra conectados al backend del proyecto.",
+    shareImage: {
+      id: "storefront-share-image",
+      url: "/assets/images/banners/shop-cover.png",
+      alt: "urucortinas",
+    },
   },
   companyProfile: {
-    legalName: "Tienda",
-    tradeName: "Tienda",
+    legalName: "urucortinas",
+    tradeName: "urucortinas",
+    taxId: null,
     email: null,
     phone: null,
+    website: null,
     addressLine1: null,
+    addressLine2: null,
+    seoDescription: null,
+    seoAuthor: null,
+    seoImageUrl: null,
+    googleSiteVerification: null,
     logo: null
   },
   policies: [],
@@ -76,9 +88,10 @@ const buildCacheKey = (slug: string) => `${STOREFRONT_CONFIG_CACHE_KEY}:${slug}`
 const buildBaseFallbackConfig = (variant: StorefrontClientVariantConfig): StorefrontConfig =>
   merge({}, FALLBACK_CONFIG, {
     seo: {
-      siteName: variant.displayName,
-      defaultTitle: variant.displayName,
-      titleTemplate: `%s · ${variant.displayName}`,
+      siteName: variant.slug,
+      defaultTitle: variant.slug,
+      titleTemplate: `%s · ${variant.slug}`,
+      shareImage: FALLBACK_CONFIG.seo?.shareImage,
     },
     companyProfile: {
       legalName: variant.displayName,

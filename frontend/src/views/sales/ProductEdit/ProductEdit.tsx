@@ -198,12 +198,19 @@ const ProductEdit = () => {
               bulkDiscountPrice: Number(productData.bulkDiscountPrice ?? 0),
               description: productData.description ?? '',
               specifications: (productData as any).specifications ?? '',
+              seoTitle: (productData as any).seoTitle ?? '',
+              seoDescription: (productData as any).seoDescription ?? '',
+              seoImageUrl: (productData as any).seoImageUrl ?? '',
               tags: (productData as any).tags ?? [],
               brand: productData.brand ?? '',
               vendor: productData.vendor ?? '',
               published:
                   typeof (productData as any).published === 'boolean'
                       ? (productData as any).published
+                      : false,
+              isBudgetCalculable:
+                  typeof (productData as any).isBudgetCalculable === 'boolean'
+                      ? (productData as any).isBudgetCalculable
                       : false,
               permanentStock: Boolean((productData as any).permanentStock),
               currency: ((productData as any).currency || 'UYU') as string,

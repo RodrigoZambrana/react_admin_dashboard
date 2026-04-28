@@ -23,6 +23,7 @@ export const STOREFRONT_ROUTE_INVENTORY = {
     "/product/[slug]",
     "/product/search/[slug]",
     "/search",
+    "/presupuesto",
     "/cart",
     "/checkout",
     "/payment",

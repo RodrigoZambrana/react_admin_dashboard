@@ -50,12 +50,26 @@ export interface HomeLayoutDefinition {
   isDefault?: boolean
 }
 
+export interface SeoConfig {
+  siteName: string
+  titleTemplate?: string
+  defaultTitle: string
+  defaultDescription: string
+  shareImage?: {
+    url: string
+    alt?: string | null
+    width?: number | null
+    height?: number | null
+  } | null
+  twitterHandle?: string | null
+}
+
 export interface StorefrontConfig {
   defaultLayout: string
   layouts: HomeLayoutDefinition[]
   navigation: NavigationConfig
   theme: StorefrontTheme
-  seo: Record<string, unknown>
+  seo: SeoConfig
   policies: Array<{
     title: string
     body: string
@@ -123,6 +137,10 @@ export interface CompanyProfileDto {
   website?: string | null
   addressLine1?: string | null
   addressLine2?: string | null
+  seoDescription?: string | null
+  seoAuthor?: string | null
+  seoImageUrl?: string | null
+  googleSiteVerification?: string | null
   logo?: string | null
 }
 
@@ -209,7 +227,11 @@ export interface ProductSummaryDto {
   id: number
   slug: string
   name: string
+  updatedAt?: string
   shortDescription?: string | null
+  seoTitle?: string | null
+  seoDescription?: string | null
+  seoImageUrl?: string | null
   price: MoneyDto
   salePrice?: MoneyDto | null
   badges?: string[]
@@ -224,6 +246,30 @@ export interface ProductSummaryDto {
   variantLabel?: string | null
   configuration?: Record<string, unknown> | null
   specifications?: Array<{ label: string; value: string }>
+  measurementType?: 'M2'
+  isPublic?: boolean
+  isBudgetCalculable?: boolean
+  calculationStrategy?: string
+}
+
+export interface ProductReviewCustomerDto {
+  name: string
+  imgUrl?: string | null
+}
+
+export interface ProductReviewSummaryDto {
+  id: number
+  rating: number
+  title?: string | null
+  comment: string
+  createdAt: string
+  verifiedPurchase: boolean
+  customer: ProductReviewCustomerDto
+}
+
+export interface ProductReviewStatsDto {
+  averageRating: number
+  reviewCount: number
 }
 
 export interface PublishedParametricVariantDto {
@@ -278,6 +324,8 @@ export interface ProductDetailDto extends ProductSummaryDto {
     price: MoneyDto
   } | null
   meta?: Record<string, unknown>
+  reviewSummary?: ProductReviewStatsDto | null
+  reviews?: ProductReviewSummaryDto[]
   attributes?: ProductAttributeDefinitionDto[]
   variants?: ProductVariantDto[]
   publishedParametricOptions?: PublishedParametricOptionsDto
@@ -369,9 +417,11 @@ export interface CmsRenderablePageDto {
   title: string
   summary?: string | null
   locale: string
+  updatedAt?: string
   seo?: {
     title?: string | null
     description?: string | null
+    imageUrl?: string | null
   } | null
   layoutKey?: string | null
   legacySource?: string | null
@@ -562,8 +612,25 @@ export interface StorefrontCategoryTree {
   slug: string
   name: string
   description?: string | null
+  seoTitle?: string | null
+  seoDescription?: string | null
+  seoImageUrl?: string | null
   thumbnail?: ImageAssetDto | null
   productCount: number
   parentId: number | null
   children: StorefrontCategoryTree[]
+}
+
+export interface CmsPublicPageSummaryDto {
+  path: string
+  title: string
+  summary?: string | null
+  locale: string
+  updatedAt?: string
+  seo?: {
+    title?: string | null
+    description?: string | null
+    imageUrl?: string | null
+  } | null
+  legacySource?: string | null
 }

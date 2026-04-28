@@ -9,12 +9,15 @@ import { NumericFormat, NumericFormatProps } from 'react-number-format'
 import { useTranslation } from 'react-i18next'
 import type { ComponentType } from 'react'
 import { deriveInventoryStatus } from '@/utils/inventory'
+import { type SalesUnit } from '@/constants/product.constant'
 
 type FormFieldsName = {
     status: number
     published?: boolean
     stock: number
     permanentStock?: boolean
+    unitOfMeasure?: SalesUnit
+    isBudgetCalculable?: boolean
 }
 
 type PublicationFieldsProps = {
@@ -25,6 +28,8 @@ type PublicationFieldsProps = {
         published?: boolean
         stock: number
         permanentStock?: boolean
+        unitOfMeasure?: SalesUnit
+        isBudgetCalculable?: boolean
     }
     setFieldValue: (field: string, value: unknown) => void
 }
@@ -76,6 +81,13 @@ const PublicationFields = ({
         }
     }, [values.stock, permanentStockEnabled, values.status, setFieldValue])
 
+    useEffect(() => {
+        if (values.unitOfMeasure === 'SQUARE_METER' || values.isBudgetCalculable !== true) {
+            return
+        }
+        setFieldValue('isBudgetCalculable', false)
+    }, [setFieldValue, values.isBudgetCalculable, values.unitOfMeasure])
+
     const selectedStatus =
         statusOptions.find((opt) => Number(opt.value) === Number(values.status)) ||
         {
@@ -124,6 +136,24 @@ const PublicationFields = ({
                     </FormItem>
                 </div>
             </div>
+            {values.unitOfMeasure === 'SQUARE_METER' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                    <div className="col-span-1">
+                        <FormItem label={t('text.labels.budgetCalculable', { defaultValue: 'Presupuestable' })}>
+                            <Field name="isBudgetCalculable">
+                                {({ field, form }: FieldProps) => (
+                                    <Switcher
+                                        checked={Boolean(field.value)}
+                                        onChange={(checked) =>
+                                            form.setFieldValue(field.name, checked)
+                                        }
+                                    />
+                                )}
+                            </Field>
+                        </FormItem>
+                    </div>
+                </div>
+            ) : null}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div className="col-span-1">
                     <FormItem

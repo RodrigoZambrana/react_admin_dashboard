@@ -881,6 +881,7 @@ export const initialState: MailState = {
     inbox: {
         accounts: [],
         accountsLoading: false,
+        accountsError: null,
         mailboxesByAccount: {},
         mailboxesLoading: false,
         mailboxesRequestStatus: {},
@@ -1043,10 +1044,12 @@ const mailSlice = createSlice({
             })
             .addCase(fetchInboxAccounts.pending, (state) => {
                 state.inbox.accountsLoading = true
+                state.inbox.accountsError = null
             })
             .addCase(fetchInboxAccounts.fulfilled, (state, action) => {
                 state.inbox.accountsLoading = false
                 state.inbox.accounts = action.payload
+                state.inbox.accountsError = null
                 const hasSelectedAccount =
                     !!state.inbox.selectedAccountId &&
                     action.payload.some(
@@ -1060,10 +1063,14 @@ const mailSlice = createSlice({
                 if (action.payload.length === 0) {
                     state.inbox.selectedAccountId = undefined
                     state.inbox.selectedMailboxId = undefined
+                    state.mailListLoading = false
                 }
             })
             .addCase(fetchInboxAccounts.rejected, (state) => {
                 state.inbox.accountsLoading = false
+                state.inbox.accountsError =
+                    'Unable to load inbox accounts.'
+                state.mailListLoading = false
             })
             .addCase(fetchInboxMailboxes.pending, (state, action) => {
                 state.inbox.mailboxesLoading = true
@@ -1084,12 +1091,14 @@ const mailSlice = createSlice({
                         (mailbox) => mailbox.id === currentSelected,
                     )
                 if (!hasSelected) {
-        const preferredInboxId = findPrimaryInboxMailboxId(mailboxes)
-        if (preferredInboxId) {
-            state.inbox.selectedMailboxId = preferredInboxId
-        } else if (!currentSelected && mailboxes.length > 0) {
-            state.inbox.selectedMailboxId = mailboxes[0].id
-        }
+                    const preferredInboxId = findPrimaryInboxMailboxId(mailboxes)
+                    if (preferredInboxId) {
+                        state.inbox.selectedMailboxId = preferredInboxId
+                    } else if (!currentSelected && mailboxes.length > 0) {
+                        state.inbox.selectedMailboxId = mailboxes[0].id
+                    } else if (mailboxes.length === 0) {
+                        state.mailListLoading = false
+                    }
                 }
             })
             .addCase(fetchInboxMailboxes.rejected, (state, action) => {
@@ -1098,6 +1107,7 @@ const mailSlice = createSlice({
                 state.inbox.mailboxesRequestStatus[accountId] = 'failed'
                 state.inbox.mailboxesErrorByAccount[accountId] =
                     action.error?.message ?? 'Unable to load inbox mailboxes.'
+                state.mailListLoading = false
             })
             .addCase(fetchInboxMessages.pending, (state, action) => {
                 state.inbox.messagesLoading = true

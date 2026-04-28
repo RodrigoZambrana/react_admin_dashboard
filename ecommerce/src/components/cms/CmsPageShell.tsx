@@ -8,12 +8,13 @@ import { Header } from "@component/header";
 import Navbar from "@component/navbar/Navbar";
 import { Footer1 } from "@component/footer";
 import MobileNavigationBar from "@component/mobile-navigation";
+import BudgetCalculatorPanel from "@/components/budget/BudgetCalculatorPanel";
 import type {
-  CmsRenderableBlock,
   CmsRenderableMedia,
   CmsRenderablePage,
   CmsRenderableSection,
 } from "@/types/storefront";
+import { renderCmsRichTextContent } from "./rich-text";
 import styles from "./CmsPageShell.module.css";
 
 type Props = {
@@ -31,9 +32,20 @@ const asRecord = (value: Record<string, unknown> | null | undefined) => value ??
 const asString = (value: unknown) =>
   typeof value === "string" && value.trim().length > 0 ? value.trim() : "";
 
-const asHtml = (value: unknown) => asString(value);
-
 const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
+const asNumber = (value: unknown, fallback: number) => {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const deriveBudgetSlugFromPath = (path: string) => {
+  const normalized = path.trim().replace(/^\/+|\/+$/g, "");
+  if (!normalized) return null;
+  const leaf = normalized.split("/").filter(Boolean).pop() ?? "";
+  if (!leaf) return null;
+  return leaf.replace(/\.html?$/i, "").trim() || null;
+};
 
 const asActions = (value: unknown): ActionLink[] =>
   asArray<Record<string, unknown>>(value)
@@ -87,20 +99,6 @@ const renderHeading = (section: CmsRenderableSection) => {
   );
 };
 
-const renderRichTextBlocks = (blocks: CmsRenderableBlock[]) =>
-  blocks
-    .map((block) => {
-      const content = asRecord(block.content);
-      return (
-        asHtml(content.html) ||
-        asHtml(content.bodyHtml) ||
-        asHtml(content.body) ||
-        asHtml(content.description)
-      );
-    })
-    .filter(Boolean)
-    .join("\n");
-
 const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
   const settings = asRecord(section.settings);
   const slides = asArray<Record<string, unknown>>(settings.slides);
@@ -134,6 +132,8 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
   const primaryHref = asString(activeSlide.href) || asString(settings.primaryCtaHref);
   const secondaryLabel = asString(settings.secondaryCtaLabel);
   const secondaryHref = asString(settings.secondaryCtaHref);
+  const tertiaryLabel = asString(settings.tertiaryCtaLabel);
+  const tertiaryHref = asString(settings.tertiaryCtaHref);
 
   const previous = () =>
     setActiveIndex((current) => (current - 1 + normalizedSlides.length) % normalizedSlides.length);
@@ -152,6 +152,7 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
               <div className={styles.heroActions}>
                 {renderLink(primaryLabel, primaryHref, styles.primaryAction)}
                 {renderLink(secondaryLabel, secondaryHref, styles.secondaryAction)}
+                {renderLink(tertiaryLabel, tertiaryHref, styles.tertiaryAction)}
               </div>
             </div>
 
@@ -186,7 +187,17 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
   );
 };
 
-const FeatureGridSection = ({ section }: { section: CmsRenderableSection }) => {
+type CmsRenderOptions = {
+  allowHtmlFallback: boolean;
+};
+
+const FeatureGridSection = ({
+  section,
+  allowHtmlFallback,
+}: {
+  section: CmsRenderableSection;
+  allowHtmlFallback: boolean;
+}) => {
   const settings = asRecord(section.settings);
   const variant = asString(settings.variant) || "cards";
   const gridVariantClass =
@@ -206,12 +217,15 @@ const FeatureGridSection = ({ section }: { section: CmsRenderableSection }) => {
           const content = asRecord(block.content);
           const title = asString(content.title) || block.name || "";
           const description = asString(content.body) || asString(content.description);
-          const bodyHtml = asHtml(content.bodyHtml);
           const href = asString(content.href);
           const linkLabel = asString(content.linkLabel);
           const mediaUrl = pickMediaUrl(block.media) || asString(content.imageUrl);
           const mediaAlt = block.media?.alt || title || "Imagen";
           const iconClass = asString(content.iconClass);
+          const bodyContent = renderCmsRichTextContent(content, {
+            allowHtmlFallback,
+            fallbackClassName: styles.richTextHtml,
+          });
 
           return (
             <article className={styles.featureCard} key={block.id}>
@@ -226,8 +240,8 @@ const FeatureGridSection = ({ section }: { section: CmsRenderableSection }) => {
               ) : null}
               <div className={styles.featureCardBody}>
                 {title ? <h3>{title}</h3> : null}
-                {bodyHtml ? (
-                  <div dangerouslySetInnerHTML={{ __html: bodyHtml }} />
+                {bodyContent ? (
+                  bodyContent
                 ) : description ? (
                   <p>{description}</p>
                 ) : null}
@@ -380,7 +394,13 @@ const MediaCarouselSection = ({ section }: { section: CmsRenderableSection }) =>
   );
 };
 
-const ContentSplitSection = ({ section }: { section: CmsRenderableSection }) => {
+const ContentSplitSection = ({
+  section,
+  allowHtmlFallback,
+}: {
+  section: CmsRenderableSection;
+  allowHtmlFallback: boolean;
+}) => {
   const settings = asRecord(section.settings);
   const mediaPosition = asString(settings.mediaPosition) === "end" ? "end" : "start";
   const gallery = asArray<Record<string, unknown>>(settings.gallery).filter(
@@ -394,7 +414,10 @@ const ContentSplitSection = ({ section }: { section: CmsRenderableSection }) => 
   const imageAlt = gallery.length
     ? asString(activeGalleryItem.imageAlt) || "Imagen"
     : asString(settings.imageAlt) || "Imagen";
-  const contentHtml = renderRichTextBlocks(section.blocks);
+  const contentContent = renderCmsRichTextContent(section.blocks[0]?.content ?? null, {
+    allowHtmlFallback,
+    fallbackClassName: styles.richTextHtml,
+  });
 
   return (
     <Container className={styles.sectionContainer}>
@@ -432,26 +455,25 @@ const ContentSplitSection = ({ section }: { section: CmsRenderableSection }) => 
         </div>
 
         <div className={styles.contentSplitBody}>
-          {contentHtml ? (
-            <div className={styles.richTextHtml} dangerouslySetInnerHTML={{ __html: contentHtml }} />
-          ) : null}
+          {contentContent}
         </div>
       </section>
     </Container>
   );
 };
 
-const RichTextSection = ({ section }: { section: CmsRenderableSection }) => (
+const RichTextSection = ({
+  section,
+  allowHtmlFallback,
+}: {
+  section: CmsRenderableSection;
+  allowHtmlFallback: boolean;
+}) => (
   <Container className={styles.sectionContainer}>
     {renderHeading(section)}
     <div className={styles.richTextWrap}>
       {section.blocks.map((block) => {
         const content = asRecord(block.content);
-        const html =
-          asHtml(content.html) ||
-          asHtml(content.bodyHtml) ||
-          asHtml(content.body) ||
-          asHtml(content.description);
         const title = asString(content.title);
         return (
           <section className={styles.richTextCard} key={block.id}>
@@ -460,7 +482,10 @@ const RichTextSection = ({ section }: { section: CmsRenderableSection }) => (
                 <h2>{title}</h2>
               </div>
             ) : null}
-            {html ? <div className={styles.richTextHtml} dangerouslySetInnerHTML={{ __html: html }} /> : null}
+            {renderCmsRichTextContent(content, {
+              allowHtmlFallback,
+              fallbackClassName: styles.richTextHtml,
+            })}
           </section>
         );
       })}
@@ -468,18 +493,26 @@ const RichTextSection = ({ section }: { section: CmsRenderableSection }) => (
   </Container>
 );
 
-const FaqSection = ({ section }: { section: CmsRenderableSection }) => (
+const FaqSection = ({
+  section,
+  allowHtmlFallback,
+}: {
+  section: CmsRenderableSection;
+  allowHtmlFallback: boolean;
+}) => (
   <Container className={styles.sectionContainer}>
     {renderHeading(section)}
     <section className={styles.faqCard}>
       {section.blocks.map((block) => {
         const content = asRecord(block.content);
         const question = asString(content.question) || block.name || "";
-        const answer = asHtml(content.answer) || asHtml(content.body);
         return (
           <details key={block.id}>
             <summary>{question}</summary>
-            {answer ? <p dangerouslySetInnerHTML={{ __html: answer }} /> : null}
+            {renderCmsRichTextContent(content, {
+              allowHtmlFallback,
+              fallbackClassName: styles.faqAnswer,
+            })}
           </details>
         );
       })}
@@ -516,21 +549,98 @@ const CtaBannerSection = ({ section }: { section: CmsRenderableSection }) => {
   );
 };
 
-const sectionMap: Record<string, (section: CmsRenderableSection) => ReactElement | null> = {
+const BudgetCalculatorSection = ({ section }: { section: CmsRenderableSection }) => {
+  const settings = asRecord(section.settings);
+  const title = asString(settings.title) || "Presupuesto m²";
+  const description =
+    asString(settings.description) ||
+    "Calculadora embebida con selección de producto y cálculo validado en backend.";
+  const productId = asNumber(settings.productId ?? settings.initialProductId, NaN);
+  const productSlug = asString(settings.productSlug) || asString(settings.initialProductSlug) || null;
+  const compact = Boolean(settings.compact ?? true);
+  const showCustomerFields = settings.showCustomerFields === undefined ? true : Boolean(settings.showCustomerFields);
+
+  return (
+    <BudgetCalculatorPanel
+      compact={compact}
+      title={title}
+      description={description}
+      initialProductId={Number.isFinite(productId) && productId > 0 ? productId : null}
+      initialProductSlug={productSlug}
+      showCustomerFields={showCustomerFields}
+      submitLabel={asString(settings.submitLabel) || "Validar y agregar"}
+      initialWidth={Math.max(1, asNumber(settings.initialWidth, 1))}
+      initialHeight={Math.max(1, asNumber(settings.initialHeight, 1))}
+    />
+  );
+};
+
+const BudgetCalculatorSectionWithPage = ({
+  page,
+  section,
+}: {
+  page: CmsRenderablePage;
+  section: CmsRenderableSection;
+}) => {
+  const settings = asRecord(section.settings);
+  const fallbackSlug =
+    asString(settings.productSlug) ||
+    asString(settings.initialProductSlug) ||
+    deriveBudgetSlugFromPath(page.path);
+
+  return (
+    <BudgetCalculatorPanel
+      compact={Boolean(settings.compact ?? true)}
+      title={asString(settings.title) || "Presupuesto m²"}
+      description={
+        asString(settings.description) ||
+        "Calculadora embebida con selección de producto y cálculo validado en backend."
+      }
+      initialProductId={
+        (() => {
+          const parsed = asNumber(settings.productId ?? settings.initialProductId, NaN);
+          return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+        })()
+      }
+      initialProductSlug={fallbackSlug}
+      showCustomerFields={
+        settings.showCustomerFields === undefined ? true : Boolean(settings.showCustomerFields)
+      }
+      submitLabel={asString(settings.submitLabel) || "Validar y agregar"}
+      initialWidth={Math.max(1, asNumber(settings.initialWidth, 1))}
+      initialHeight={Math.max(1, asNumber(settings.initialHeight, 1))}
+    />
+  );
+};
+
+const sectionMap: Record<
+  string,
+  (section: CmsRenderableSection, options: CmsRenderOptions) => ReactElement | null
+> = {
   HERO: (section) => <HeroSection section={section} />,
-  FEATURE_GRID: (section) => <FeatureGridSection section={section} />,
+  FEATURE_GRID: (section, options) => (
+    <FeatureGridSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
+  ),
   MEDIA_GRID: (section) => <MediaGridSection section={section} />,
   MEDIA_CAROUSEL: (section) => <MediaCarouselSection section={section} />,
-  CONTENT_SPLIT: (section) => <ContentSplitSection section={section} />,
-  RICH_TEXT: (section) => <RichTextSection section={section} />,
-  FAQ: (section) => <FaqSection section={section} />,
+  CONTENT_SPLIT: (section, options) => (
+    <ContentSplitSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
+  ),
+  RICH_TEXT: (section, options) => (
+    <RichTextSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
+  ),
+  FAQ: (section, options) => (
+    <FaqSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
+  ),
   CTA_BANNER: (section) => <CtaBannerSection section={section} />,
+  BUDGET_CALCULATOR: (section) => <BudgetCalculatorSection section={section} />,
 };
 
 export default function CmsPageShell({ page }: Props) {
   const bodySections = page.sections.filter(
     (section) => section.type !== "SITE_HEADER" && section.type !== "SITE_FOOTER",
   );
+  const allowHtmlFallback = !page.legacySource;
 
   return (
     <div className={styles.siteShell}>
@@ -541,12 +651,17 @@ export default function CmsPageShell({ page }: Props) {
       <main className={styles.siteMain}>
         <div className={styles.pageStack}>
           {bodySections.map((section) => {
-            const renderer = sectionMap[section.type];
+            const renderer =
+              section.type === "BUDGET_CALCULATOR"
+                ? (currentSection: CmsRenderableSection) => (
+                    <BudgetCalculatorSectionWithPage page={page} section={currentSection} />
+                  )
+                : sectionMap[section.type];
             if (!renderer) {
               console.warn(`[cms] Unknown section type: ${section.type}`);
               return null;
             }
-            return <div key={section.id}>{renderer(section)}</div>;
+            return <div key={section.id}>{renderer(section, { allowHtmlFallback })}</div>;
           })}
         </div>
       </main>

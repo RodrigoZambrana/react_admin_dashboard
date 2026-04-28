@@ -15,14 +15,19 @@ import Divide from "./components/Divide";
 import SocialLinks from "./components/SocialLinks";
 import { StyledRoot } from "./styles";
 import useVisibility from "./useVisibility";
+import { looksLikePhoneNumber } from "@/lib/utils/phone";
 
 const defaultValidationSchema = yup.object({
   identifier: yup
     .string()
     .required("Email or phone number is required")
-    .test("trimmed", "Please enter a valid email or phone number", (value) =>
-      Boolean(value?.trim().length)
-    ),
+    .test("identifier-format", "Please enter a valid email or phone number", (value) => {
+      const trimmed = value?.trim();
+      if (!trimmed) {
+        return false;
+      }
+      return yup.string().email().isValidSync(trimmed) || looksLikePhoneNumber(trimmed);
+    }),
   password: yup.string().required("Password is required")
 });
 

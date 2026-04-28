@@ -2,10 +2,12 @@
 
 import { useMemo, useState } from "react";
 
+import BudgetCalculatorPanel from "@/components/budget/BudgetCalculatorPanel";
 import ProductIntro from "@component/products/ProductIntro";
 import ProductView from "@component/products/ProductView";
 import type Product from "@models/product.model";
 import type Shop from "@models/shop.model";
+import type Review from "@models/Review.model";
 
 type Props = {
   product: Product;
@@ -24,6 +26,22 @@ type Props = {
       formatted?: string;
     };
   } | null;
+  reviews?: Array<{
+    id: number;
+    rating: number;
+    title?: string | null;
+    comment: string;
+    createdAt: string;
+    verifiedPurchase: boolean;
+    customer: {
+      name: string;
+      imgUrl?: string | null;
+    };
+  }>;
+  reviewSummary?: {
+    averageRating: number;
+    reviewCount: number;
+  } | null;
 };
 
 export default function ProductDetailExperience({
@@ -32,7 +50,9 @@ export default function ProductDetailExperience({
   relatedProducts,
   frequentlyBought,
   suggestedAddOns,
-  installationAddOn
+  installationAddOn,
+  reviews,
+  reviewSummary
 }: Props) {
   const [publishedSelectionState, setPublishedSelectionState] = useState<{
     specifications: Array<{ label: string; value: string }>;
@@ -45,6 +65,22 @@ export default function ProductDetailExperience({
     }
     return product.specifications;
   }, [product.specifications, publishedSelectionState?.specifications]);
+
+  const productReviews: Review[] | undefined = reviews?.map((review) => ({
+    id: String(review.id),
+    rating: review.rating,
+    comment: review.comment,
+    title: review.title ?? undefined,
+    date: review.createdAt,
+    customer: {
+      name: review.customer.name,
+      imgUrl: review.customer.imgUrl ?? null,
+    },
+    verifiedPurchase: review.verifiedPurchase,
+    published: true,
+  }));
+
+  const budgetEnabled = product.isBudgetCalculable && product.measurementType === "M2";
 
   return (
     <>
@@ -69,6 +105,18 @@ export default function ProductDetailExperience({
         variants={product.variants}
       />
 
+      {budgetEnabled ? (
+        <BudgetCalculatorPanel
+          compact
+          title={`Presupuesto de ${product.title}`}
+          description="Instanciamos el selector en este producto y el cálculo se valida en backend antes de agregarlo al carrito."
+          initialProductId={Number(product.id)}
+          initialProductSlug={product.slug}
+          showCustomerFields
+          submitLabel="Validar y agregar"
+        />
+      ) : null}
+
       <ProductView
         shops={shops}
         relatedProducts={relatedProducts}
@@ -78,6 +126,8 @@ export default function ProductDetailExperience({
         description={product.description}
         descriptionHtml={product.descriptionHtml}
         specifications={activeSpecifications}
+        reviews={productReviews}
+        reviewSummary={reviewSummary}
       />
     </>
   );

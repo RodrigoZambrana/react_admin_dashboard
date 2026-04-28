@@ -14,8 +14,10 @@ import NProgressBar from "@component/NProgress";
 import { I18nProvider } from "@/state/i18n-context";
 import ToastProvider from "@context/ToastContext";
 import NetworkStatusBanner from "@/components/status/NetworkStatusBanner";
+import StructuredData from "@/components/seo/StructuredData";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import { getStorefrontConfig } from "@/lib/storefront-config";
+import { buildOrganizationJsonLd, buildWebSiteJsonLd } from "@/lib/seo/structured-data";
 import GrowthScripts from "@/components/GrowthScripts";
 
 const publicSans = localFont({
@@ -49,6 +51,12 @@ export default async function RootLayout({ children }: PropsWithChildren) {
             <ThemeProvider>
               <ToastProvider>
                 <CartProvider>
+                  <StructuredData
+                    schemas={[
+                      buildOrganizationJsonLd(storefrontConfig),
+                      buildWebSiteJsonLd(storefrontConfig),
+                    ]}
+                  />
                   {children}
                   <NetworkStatusBanner />
                   <NProgressBar />

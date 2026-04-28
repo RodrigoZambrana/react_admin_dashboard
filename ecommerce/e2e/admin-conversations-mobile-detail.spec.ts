@@ -27,7 +27,7 @@ test("mobile admin conversation detail keeps transcript visible and scrollable",
   expect(seedResponse.ok()).toBeTruthy();
   const seeded = await seedResponse.json();
 
-  for (let index = 0; index < 12; index += 1) {
+  for (let index = 0; index < 20; index += 1) {
     const messageResponse = await request.post(
       `${aiPlatformApiBaseUrl}/chat/public/webchat/messages`,
       {
@@ -67,7 +67,7 @@ test("mobile admin conversation detail keeps transcript visible and scrollable",
 
   expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
 
-  const lastMessage = messages.getByText("Mensaje mobile 12").last();
+  const lastMessage = messages.getByText("Mensaje mobile 20").last();
   await lastMessage.scrollIntoViewIfNeeded();
   await expect(lastMessage).toBeVisible();
 });

@@ -18,10 +18,13 @@ Plan operativo para ejecutar el saneamiento y la evolución del proyecto sin per
 - Los DTO públicos del storefront deben mantenerse mínimos y auditados para no exponer costos, márgenes o reglas internas innecesarias.
 - El flujo de efectivo storefront debe tratar pedido y pago como eventos separados: registrar pedido ahora, confirmar pago solo cuando administración lo asiente.
 - Las automatizaciones E2E futuras deben apoyarse en `data-testid` estables en superficies críticas; ese criterio debe formar parte de la aceptación de cambios nuevos o refactors relevantes.
+- Antes de habilitar una corrida manual de cierre, todos los casos que no estén en `VERIFICADA` deben tener test creado, actualizado y ejecutado, o una excepción documentada y aprobada.
 - El bootstrap y la evolución de base deben seguir un camino reproducible con Prisma, pero la estructura física y la performance de consultas también deben revisarse periódicamente con normalización e índices donde corresponda.
 - La cobertura de pruebas objetivo debe crecer de forma incremental y priorizada, con regresiones browser para flujos críticos y sin depender de pasos manuales no trazables.
 - El ciclo de trabajo de pruebas debe contemplar explícitamente alta, modificación y baja de casos; ningún cambio funcional relevante se considera cerrado si no deja alineado su bloque de QA y su cobertura mínima asociada.
 - En cada iteración, además de validar, se deben verificar, actualizar y complementar los casos de prueba para maximizar la superficie cubierta, tanto en pruebas independientes como en flujos end to end del ecommerce.
+- Las pruebas manuales no sustituyen la cobertura automatizada: primero se cierran los tests reproducibles de todo lo que no esté en `VERIFICADA` y después se usan manuales para exploración, verificación visual o confirmación de borde.
+- En esta entrega, los bloques de automatización de respuestas del agente (`wording registry`, `hybrid intent`, `grounding`, `auto-reply`) no forman parte del gate de readiness manual-only y no deben arrastrar el cierre del resto del sistema.
 - Las futuras superficies editoriales del sitio deben modelarse en un dominio CMS independiente; no conviene seguir ampliando contenido editorial directamente sobre `Product`.
 
 ## Secuencia de trabajo recomendada

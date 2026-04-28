@@ -3,6 +3,8 @@ import {
   Prisma,
   EmailCategory,
   Role,
+  ProductType,
+  SalesUnit,
   CmsEntryAssetType,
   CmsEntryStatus,
   NotificationEventType,
@@ -12,6 +14,7 @@ import {
 } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { seedUruCortinasBaseline } from './baseline/seed-baseline'
+import { seedUrucortinasPublicCmsContent } from './public-cms-content'
 import { listSeedPaymentMethods } from './shared/payment-methods'
 
 const prisma = new PrismaClient()
@@ -633,6 +636,55 @@ async function seedDemoData(superAdminEmail?: string) {
   }
 }
 
+async function seedBudgetProduct() {
+  const budgetCategory = await prisma.productCategory.findFirst({
+    where: { name: { in: ['cloths', 'devices'] } },
+    select: { id: true },
+  })
+
+  const budgetProduct = {
+    name: 'Cortinas Roller',
+    productCode: 'cortinas-roller',
+    img: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
+    description: 'Producto semilla para el flujo de presupuesto m².',
+    salePrice: 120,
+    costPrice: 72,
+    costPerItem: 72,
+    stock: 100,
+    status: 0,
+    currency: 'UYU',
+    unitOfMeasure: SalesUnit.SQUARE_METER,
+    isBudgetCalculable: true,
+    calculationStrategy: 'M2',
+    productType: ProductType.PHYSICAL,
+    published: true,
+    tags: ['budget', 'm2'],
+    categoryId: budgetCategory?.id ?? undefined,
+  }
+
+  const existing = await prisma.product.findFirst({
+    where: {
+      OR: [
+        { productCode: budgetProduct.productCode },
+        { name: budgetProduct.name },
+      ],
+    },
+    select: { id: true },
+  })
+
+  if (existing) {
+    await prisma.product.update({
+      where: { id: existing.id },
+      data: budgetProduct,
+    })
+    return
+  }
+
+  await prisma.product.create({
+    data: budgetProduct,
+  })
+}
+
 async function seedDefaultOrderStatuses() {
   console.log('[seed] Order statuses are defined statically; skipping database seeding.')
 }
@@ -973,8 +1025,10 @@ async function seedCmsEntries() {
 
 async function main() {
   await seedUruCortinasBaseline(prisma)
+  await seedUrucortinasPublicCmsContent(prisma)
   const superAdmin = await seedSuperAdmin()
   await seedCustomerStatuses()
+  await seedBudgetProduct()
   await seedDemoData(superAdmin?.email || SUPERADMIN_EMAIL)
   await seedDefaultOrderStatuses()
   await seedEmailSettings()

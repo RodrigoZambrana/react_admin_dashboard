@@ -681,9 +681,55 @@ export async function waitForLatestConversationReplyBySubjectInAiPlatform(
   throw new Error(`Timed out waiting for outbound message for subject ${subject}`);
 }
 
-export async function waitForLatestConversationOutboundByThread(
+export async function waitForConversationByThread(
   threadId: string,
-  channel: "email" | "whatsapp" | "facebook" | "instagram",
+  timeoutMs = 20_000
+): Promise<{
+  conversationId: string;
+  channel: string;
+  inboxAccountId: string | null;
+}> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) =>
+      client.query<{
+        conversationId: string;
+        channel: string;
+        inboxAccountId: string | null;
+      }>(
+        `
+          SELECT
+            c.id AS "conversationId",
+            c.channel AS "channel",
+            c."inboxAccountId" AS "inboxAccountId"
+          FROM "Conversation" c
+          INNER JOIN "ChannelConversationBinding" cb ON cb."conversationId" = c.id
+          WHERE cb."threadId" = $1
+          ORDER BY c."updatedAt" DESC, c.id DESC
+          LIMIT 1
+        `,
+        [threadId]
+      )
+    );
+
+    const row = result.rows[0];
+    if (row?.conversationId) {
+      return {
+        conversationId: row.conversationId,
+        channel: row.channel,
+        inboxAccountId: row.inboxAccountId
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
+  throw new Error(`Timed out waiting for conversation for thread ${threadId}`);
+}
+
+export async function waitForLatestConversationOutboundByConversationId(
+  conversationId: string,
   timeoutMs = 20_000
 ): Promise<ConversationOutboundSnapshot> {
   const deadline = Date.now() + timeoutMs;
@@ -707,13 +753,83 @@ export async function waitForLatestConversationOutboundByThread(
           FROM "Conversation" c
           INNER JOIN "ConversationMessage" cm ON cm."conversationId" = c.id
           LEFT JOIN "InboxMessage" im ON im.id = cm."inboxMessageId"
-          WHERE c."externalThreadId" = $1
-            AND c.channel = $2::"ConversationChannel"
+          WHERE c.id = $1
             AND cm."authorType" IN ('OPERATOR', 'AGENT')
           ORDER BY cm."createdAt" DESC
           LIMIT 1
         `,
-        [threadId, channel.toLowerCase()]
+        [conversationId]
+      )
+    );
+
+    const row = result.rows[0];
+    if (row?.conversationId) {
+      const inboxMetadata =
+        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null;
+      const messageMetadata =
+        row.messageMetadata &&
+        typeof row.messageMetadata === "object" &&
+        !Array.isArray(row.messageMetadata)
+          ? (row.messageMetadata as Record<string, unknown>)
+          : null;
+      const metadata = inboxMetadata ?? messageMetadata;
+
+      return {
+        conversationId: row.conversationId,
+        inboxAccountId: row.inboxAccountId,
+        remoteId: row.remoteId,
+        providerMessageId:
+          typeof metadata?.providerMessageId === "string"
+            ? metadata.providerMessageId
+            : null,
+        deliveryStatus:
+          typeof metadata?.deliveryStatus === "string"
+            ? metadata.deliveryStatus
+            : null,
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+  }
+
+  throw new Error(`Timed out waiting for outbound message for conversation ${conversationId}`);
+}
+
+export async function waitForLatestConversationOutboundByThread(
+  threadId: string,
+  channel: string,
+  timeoutMs = 20_000
+): Promise<ConversationOutboundSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) =>
+      client.query<{
+        conversationId: string;
+        inboxAccountId: string | null;
+        remoteId: string | null;
+        metadata: unknown;
+        messageMetadata: unknown;
+      }>(
+        `
+          SELECT
+            c.id AS "conversationId",
+            c."inboxAccountId" AS "inboxAccountId",
+            im."remoteId" AS "remoteId",
+            im.metadata AS metadata,
+            cm.metadata AS "messageMetadata"
+          FROM "Conversation" c
+          INNER JOIN "ChannelConversationBinding" cb ON cb."conversationId" = c.id
+          INNER JOIN "ConversationMessage" cm ON cm."conversationId" = c.id
+          LEFT JOIN "InboxMessage" im ON im.id = cm."inboxMessageId"
+          WHERE cb."threadId" = $1
+            AND cm."authorType" IN ('OPERATOR', 'AGENT')
+          ORDER BY cm."createdAt" DESC
+          LIMIT 1
+        `,
+        [threadId]
       )
     );
 
@@ -799,6 +915,145 @@ export async function getOrderSnapshotByUuid(orderUuid: string): Promise<LatestO
     statusId: row.statusId,
     itemNames: row.itemNames ?? [],
     itemCount: Number(row.itemCount)
+  };
+}
+
+export async function getConversationMessageById(
+  messageId: string
+): Promise<{
+  id: string;
+  body: string;
+  metadata: Record<string, unknown> | null;
+} | null> {
+  const result = await withClient(async (client) =>
+    client.query<{
+      id: string;
+      body: string;
+      metadata: unknown;
+    }>(
+      `
+        SELECT
+          m.id,
+          m.body,
+          m.metadata
+        FROM "ConversationMessage" m
+        WHERE m.id = $1
+        LIMIT 1
+      `,
+      [messageId]
+    )
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    body: row.body,
+    metadata:
+      row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? (row.metadata as Record<string, unknown>)
+        : null
+  };
+}
+
+export async function getAiPlatformChannelMessageRecordByRemoteId(
+  remoteId: string
+): Promise<{
+  id: string;
+  conversationId: string;
+  status: string | null;
+  metadata: Record<string, unknown> | null;
+} | null> {
+  const result = await withClient(async (client) =>
+    client.query<{
+      id: string;
+      conversationId: string;
+      status: string | null;
+      metadata: unknown;
+    }>(
+      `
+        SELECT
+          cmr.id,
+          cmr."conversationId",
+          cmr.status,
+          cmr.metadata
+        FROM "ChannelMessageRecord" cmr
+        WHERE cmr."remoteId" = $1
+        ORDER BY cmr."createdAt" DESC
+        LIMIT 1
+      `,
+      [remoteId],
+      ),
+    aiPlatformDatabaseUrl,
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    conversationId: row.conversationId,
+    status: row.status,
+      metadata:
+        row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+          ? (row.metadata as Record<string, unknown>)
+          : null,
+  };
+}
+
+export async function getAiPlatformMessageById(
+  messageId: string
+): Promise<{
+  id: string;
+  conversationId: string;
+  role: string;
+  content: string;
+  metadata: Record<string, unknown> | null;
+} | null> {
+  const result = await withClient(
+    async (client) =>
+      client.query<{
+        id: string;
+        conversationId: string;
+        role: string;
+        content: string;
+        metadata: unknown;
+      }>(
+        `
+          SELECT
+            m.id,
+            m."conversationId",
+            m.role,
+            m.content,
+            m.metadata
+          FROM "Message" m
+          WHERE m.id = $1
+          LIMIT 1
+        `,
+        [messageId]
+      ),
+    aiPlatformDatabaseUrl,
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    return null;
+  }
+
+  return {
+    id: row.id,
+    conversationId: row.conversationId,
+    role: row.role,
+    content: row.content,
+    metadata:
+      row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
+        ? (row.metadata as Record<string, unknown>)
+        : null,
   };
 }
 

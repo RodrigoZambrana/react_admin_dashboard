@@ -1,21 +1,34 @@
-import { IsDateString, IsEmail, IsOptional, IsString, MinLength, IsIn } from 'class-validator'
+import { Transform } from 'class-transformer'
+import { IsDateString, IsEmail, IsIn, IsOptional, IsString, Matches, MinLength } from 'class-validator'
+import { IsSafeString } from '../../common/validation/is-safe-string.decorator'
 
 export class StorefrontRegisterDto {
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? (value.trim().length > 0 ? value.trim() : undefined) : value))
+  @IsSafeString()
   @IsEmail()
   email?: string
 
   @IsString()
+  @Matches(/\S/, { message: 'text.validation.invalidCharacters' })
   @MinLength(8)
   password!: string
 
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsSafeString()
+  @MinLength(1)
   firstName!: string
 
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsSafeString()
+  @MinLength(1)
   lastName!: string
 
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsSafeString()
   @MinLength(6)
   phone!: string
 

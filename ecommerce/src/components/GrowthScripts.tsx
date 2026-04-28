@@ -1,23 +1,22 @@
 import Script from "next/script";
 import type { StorefrontConfig } from "@/types/storefront";
+import { resolveAnalyticsRuntime } from "@/lib/analytics";
 
 type Props = {
   config: StorefrontConfig;
 };
 
 export default function GrowthScripts({ config }: Props) {
-  const analytics = config.integrations?.google?.analytics;
-  const tagManager = config.integrations?.google?.tagManager;
-  const ads = config.integrations?.google?.ads;
   const metaPixel = config.integrations?.meta?.pixel;
+  const runtime = resolveAnalyticsRuntime(config);
 
-  const gtagIds = [analytics?.measurementId, ads?.conversionId].filter(
+  const gtagIds = [runtime.analytics, runtime.ads].filter(
     (value): value is string => Boolean(value && value.trim())
   );
 
   return (
     <>
-      {tagManager?.enabled && tagManager.containerId ? (
+      {runtime.tagManager ? (
         <>
           <Script
             id="growth-gtm-loader"
@@ -28,10 +27,19 @@ export default function GrowthScripts({ config }: Props) {
                 new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
                 j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
                 'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-                })(window,document,'script','dataLayer','${tagManager.containerId}');
+                })(window,document,'script','dataLayer','${runtime.tagManager}');
               `,
             }}
           />
+          <noscript>
+            <iframe
+              title="Google Tag Manager"
+              src={`https://www.googletagmanager.com/ns.html?id=${encodeURIComponent(runtime.tagManager)}`}
+              height="0"
+              width="0"
+              style={{ display: "none", visibility: "hidden" }}
+            />
+          </noscript>
         </>
       ) : null}
 

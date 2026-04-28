@@ -242,32 +242,36 @@ export class ChannelConversationBridgeService {
       const message = await this.prisma.message.findFirst({
         where: {
           id: input.remoteId,
-          tenantId: this.tenantContext.getTenantId(),
+          conversationId: input.conversationId,
+        },
+        select: {
+          metadata: true,
         },
       });
 
-      if (message) {
-        const currentMetadata =
-          message.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata)
-            ? (message.metadata as Record<string, unknown>)
-            : {};
+      const currentMetadata =
+        message?.metadata && typeof message.metadata === 'object' && !Array.isArray(message.metadata)
+          ? (message.metadata as Record<string, unknown>)
+          : {};
 
-        await this.prisma.message.update({
-          where: {
-            id: message.id,
-          },
-          data: {
-            metadata: {
-              ...currentMetadata,
-              deliveryStatus: input.deliveryStatus,
-              providerMessageId: input.providerMessageId ?? input.remoteId,
-              remoteId: input.remoteId,
-              errorCode: input.errorCode ?? null,
-              errorMessage: input.errorMessage ?? null,
-            } as Prisma.InputJsonValue,
-          },
-        });
-      }
+      const mergedMetadata = {
+        ...currentMetadata,
+        deliveryStatus: input.deliveryStatus,
+        providerMessageId: input.providerMessageId ?? input.remoteId,
+        remoteId: input.remoteId,
+        errorCode: input.errorCode ?? null,
+        errorMessage: input.errorMessage ?? null,
+      } as Prisma.InputJsonValue;
+
+      await this.prisma.message.updateMany({
+        where: {
+          id: input.remoteId,
+          conversationId: input.conversationId,
+        },
+        data: {
+          metadata: mergedMetadata,
+        },
+      });
     }
 
     await this.chatLogRepository.createLog({

@@ -75,6 +75,7 @@ export class StorefrontWebchatService {
       message: normalizedText,
       locale,
       channel: 'webchat_async',
+      metadata: this.buildMessageMetadata(input),
     });
 
     return {
@@ -208,6 +209,22 @@ export class StorefrontWebchatService {
     }
 
     return `${normalizedText}\n\nAdjuntos: ${attachmentHints.join(', ')}`;
+  }
+
+  private buildMessageMetadata(input: PublicWebchatMessageDto) {
+    const attachments = Array.isArray(input.attachments)
+      ? input.attachments
+      : [];
+    const metadata =
+      input.metadata && typeof input.metadata === 'object'
+        ? { ...input.metadata }
+        : {};
+
+    if (attachments.length > 0) {
+      metadata.attachments = attachments;
+    }
+
+    return Object.keys(metadata).length > 0 ? metadata : undefined;
   }
 
   private readMessageElements(metadata: Record<string, unknown> | null | undefined) {

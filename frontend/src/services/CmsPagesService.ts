@@ -12,6 +12,7 @@ export type CmsPageSectionType =
   | 'FAQ'
   | 'RICH_TEXT'
   | 'CTA_BANNER'
+  | 'BUDGET_CALCULATOR'
   | 'SITE_FOOTER'
 export type CmsPageBlockType =
   | 'TEXT'
@@ -76,6 +77,7 @@ export type CmsPage = {
   visible: boolean
   seoTitle?: string | null
   seoDescription?: string | null
+  seoImageUrl?: string | null
   layoutKey?: string | null
   legacySource?: string | null
   sections: CmsPageSection[]
@@ -92,6 +94,7 @@ export type CmsPageListItem = {
   visible: boolean
   seoTitle?: string | null
   seoDescription?: string | null
+  seoImageUrl?: string | null
   layoutKey?: string | null
   legacySource?: string | null
   updatedAt?: string

@@ -161,6 +161,11 @@ export class CmsPageDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(500)
+  seoImageUrl?: string | null
+
+  @IsOptional()
+  @IsString()
   @MaxLength(120)
   layoutKey?: string | null
 

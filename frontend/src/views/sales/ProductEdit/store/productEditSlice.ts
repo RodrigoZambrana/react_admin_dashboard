@@ -36,6 +36,9 @@ type ProductData = {
     bulkDiscountPrice?: number
     description?: string
     specifications?: string
+    seoTitle?: string
+    seoDescription?: string
+    seoImageUrl?: string
     tags?: string[]
     brand?: string
     vendor?: string
@@ -206,6 +209,10 @@ const mapApiProductToState = (payload: Record<string, unknown>): ProductData => 
         bulkDiscountPrice: typeof payload.bulkDiscountPrice === 'number' ? payload.bulkDiscountPrice : undefined,
         description: typeof payload.description === 'string' ? payload.description : undefined,
         specifications: typeof payload.specifications === 'string' ? payload.specifications : undefined,
+        seoTitle: typeof payload.seoTitle === 'string' ? payload.seoTitle : undefined,
+        seoDescription:
+            typeof payload.seoDescription === 'string' ? payload.seoDescription : undefined,
+        seoImageUrl: typeof payload.seoImageUrl === 'string' ? payload.seoImageUrl : undefined,
         tags: Array.isArray(payload.tags) ? (payload.tags as string[]) : undefined,
         brand: typeof payload.brand === 'string' ? payload.brand : undefined,
         vendor: typeof payload.vendor === 'string' ? payload.vendor : undefined,

@@ -285,6 +285,21 @@ export class UpsertProductDto {
   @IsSafeString()
   specifications?: string
 
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  seoTitle?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  seoDescription?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  seoImageUrl?: string
+
   @IsNumber()
   @Type(() => Number)
   categoryId!: number
@@ -372,6 +387,15 @@ export class UpsertProductDto {
   published?: boolean
 
   @IsOptional()
+  @IsBoolean()
+  isBudgetCalculable?: boolean
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  calculationStrategy?: string
+
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => ProductImagePayload)
@@ -421,6 +445,21 @@ export class UpdateProductDto {
   @IsString()
   @IsSafeString()
   specifications?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  seoTitle?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  seoDescription?: string
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  seoImageUrl?: string
 
   @IsOptional()
   @IsNumber()
@@ -512,6 +551,15 @@ export class UpdateProductDto {
   @IsOptional()
   @IsBoolean()
   published?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  isBudgetCalculable?: boolean
+
+  @IsOptional()
+  @IsString()
+  @IsSafeString()
+  calculationStrategy?: string
 
   @IsOptional()
   @IsArray()

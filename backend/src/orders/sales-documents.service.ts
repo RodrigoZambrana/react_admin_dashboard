@@ -2092,6 +2092,7 @@ export class SalesDocumentsService {
         validUntil: rawValidUntil ? new Date(rawValidUntil) : null,
         activityId: linkedActivity?.id ?? null,
         disclaimer,
+        metadata: dto.metadata ? (dto.metadata as Prisma.InputJsonValue) : undefined,
         items: { create: monetary.items },
       },
     })
@@ -2299,6 +2300,7 @@ export class SalesDocumentsService {
         estimatedMin: dto.shipping?.estimatedMin,
         estimatedMax: dto.shipping?.estimatedMax,
         comment: dto.comment,
+        metadata: dto.metadata === undefined ? undefined : (dto.metadata as Prisma.InputJsonValue),
         subTotal: monetary.subTotal.toFixed(2),
         tax: monetary.tax.toFixed(2),
         grandTotal: monetary.grandTotal.toFixed(2),
@@ -2784,7 +2786,44 @@ export class SalesDocumentsService {
     const result = await this.prisma.$transaction(async (tx) => {
       const budget = await tx.order.findFirst({
         where: { id, documentType: DocumentType.BUDGET },
-        include: { items: true },
+        select: {
+          id: true,
+          customerId: true,
+          paymentMethodId: true,
+          shippingAddress1: true,
+          shippingAddress2: true,
+          shippingCity: true,
+          shippingState: true,
+          shippingZip: true,
+          shippingCountry: true,
+          billingAddress1: true,
+          billingAddress2: true,
+          billingCity: true,
+          billingState: true,
+          billingZip: true,
+          billingCountry: true,
+          billingSameAsShipping: true,
+          shippingVendor: true,
+          deliveryFees: true,
+          estimatedMin: true,
+          estimatedMax: true,
+          comment: true,
+          disclaimer: true,
+          metadata: true,
+          statusId: true,
+          subTotal: true,
+          tax: true,
+          grandTotal: true,
+          orderCurrency: true,
+          fxBase: true,
+          fxRates: true,
+          currencySnapshot: true,
+          taxRateSnapshot: true,
+          exchangeRateSnapshot: true,
+          validUntil: true,
+          convertedOrderId: true,
+          items: true,
+        },
       })
       if (!budget) {
         throw new BadRequestException('sales.budgets.notFound')
@@ -2842,6 +2881,7 @@ export class SalesDocumentsService {
           currencySnapshot: budget.currencySnapshot ?? budget.orderCurrency,
           taxRateSnapshot: this.decimalToString(budget.taxRateSnapshot, 4),
           exchangeRateSnapshot: exchangeSnapshotJson,
+          metadata: budget.metadata ?? undefined,
           items: {
             create: budget.items.map((item) => {
               const specSummary = this.buildSpecSummary(item.customAttributes)

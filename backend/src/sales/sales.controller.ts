@@ -212,6 +212,11 @@ export class SalesController {
     return mode
   }
 
+  private normalizeCalculationStrategy(strategy?: string | null): string {
+    const normalized = this.safeTrim(strategy)
+    return normalized ? normalized.toUpperCase() : 'M2'
+  }
+
   private resolveInstallationChargeScope(
     value: unknown,
     fallback: InstallationChargeScope | null = null,
@@ -2456,6 +2461,11 @@ export class SalesController {
         dto.installationPricePresentationMode,
         dto.installationService ? InstallationPricePresentationMode.HIDDEN : null,
       )
+    const calculationStrategy = this.normalizeCalculationStrategy(dto.calculationStrategy)
+    const isBudgetCalculable =
+      dto.isBudgetCalculable !== undefined
+        ? Boolean(dto.isBudgetCalculable)
+        : (dto.unitOfMeasure ?? SalesUnit.UNIT) === SalesUnit.SQUARE_METER
     const installationServiceData = this.normalizeInstallationServicePayload(
       dto.installationService,
       dto.name,
@@ -2471,9 +2481,12 @@ export class SalesController {
           name: dto.name,
           productCode: dto.productCode,
           img: coverImage,
-          description: dto.description,
-          specifications: dto.specifications?.trim?.() ? dto.specifications.trim() : null,
-          categoryId: dto.categoryId,
+      description: dto.description,
+      specifications: dto.specifications?.trim?.() ? dto.specifications.trim() : null,
+      seoTitle: dto.seoTitle?.trim?.() ? dto.seoTitle.trim() : null,
+      seoDescription: dto.seoDescription?.trim?.() ? dto.seoDescription.trim() : null,
+      seoImageUrl: dto.seoImageUrl?.trim?.() ? dto.seoImageUrl.trim() : null,
+      categoryId: dto.categoryId,
           salePrice: normalizedSalePrice,
           costPrice: normalizedCostPrice,
           currency: currency.toUpperCase(),
@@ -2485,6 +2498,7 @@ export class SalesController {
           installationResolutionMode,
           installationChargeScope,
           installationPricePresentationMode,
+          calculationStrategy,
           costPerItem: dto.costPerItem ?? normalizedCostPrice,
           bulkDiscountPrice: dto.bulkDiscountPrice,
           taxRate,
@@ -2492,6 +2506,7 @@ export class SalesController {
           brand: dto.brand,
           vendor: dto.vendor,
           published: dto.published ?? false,
+          isBudgetCalculable,
         },
       })
       createdProductId = product.id
@@ -2512,6 +2527,8 @@ export class SalesController {
             permanentStock: false,
             status: 0,
             published: true,
+            isBudgetCalculable: false,
+            calculationStrategy: 'M2',
             category: dto.categoryId ? { connect: { id: dto.categoryId } } : undefined,
           },
         })
@@ -2571,6 +2588,8 @@ export class SalesController {
         installationResolutionMode: true,
         installationChargeScope: true,
         installationPricePresentationMode: true,
+        isBudgetCalculable: true,
+        calculationStrategy: true,
       },
     })
     if (!existingProduct) {
@@ -2615,6 +2634,14 @@ export class SalesController {
         : this.resolveInstallationPricePresentationMode(
             dto.installationPricePresentationMode,
           )
+    const normalizedCalculationStrategy =
+      dto.calculationStrategy === undefined
+        ? undefined
+        : this.normalizeCalculationStrategy(dto.calculationStrategy)
+    const normalizedIsBudgetCalculable =
+      dto.isBudgetCalculable === undefined
+        ? undefined
+        : Boolean(dto.isBudgetCalculable)
     const installationServiceProvided = Object.prototype.hasOwnProperty.call(
       dto,
       'installationService',
@@ -2638,6 +2665,24 @@ export class SalesController {
           : dto.specifications?.trim?.()
           ? dto.specifications.trim()
           : null,
+      seoTitle:
+        dto.seoTitle === undefined
+          ? undefined
+          : dto.seoTitle?.trim?.()
+            ? dto.seoTitle.trim()
+            : null,
+      seoDescription:
+        dto.seoDescription === undefined
+          ? undefined
+          : dto.seoDescription?.trim?.()
+            ? dto.seoDescription.trim()
+            : null,
+      seoImageUrl:
+        dto.seoImageUrl === undefined
+          ? undefined
+          : dto.seoImageUrl?.trim?.()
+            ? dto.seoImageUrl.trim()
+            : null,
       salePrice: normalizedSalePrice,
       costPrice: normalizedCostPrice,
       stock: dto.stock,
@@ -2671,6 +2716,8 @@ export class SalesController {
         normalizedInstallationPricePresentationMode === undefined
           ? undefined
           : normalizedInstallationPricePresentationMode,
+      calculationStrategy: normalizedCalculationStrategy,
+      isBudgetCalculable: normalizedIsBudgetCalculable,
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -2701,6 +2748,8 @@ export class SalesController {
                 permanentStock: false,
                 status: 0,
                 published: true,
+                isBudgetCalculable: false,
+                calculationStrategy: 'M2',
                 category:
                   dto.categoryId === undefined && existingProduct.categoryId
                     ? { connect: { id: existingProduct.categoryId } }
@@ -2726,6 +2775,8 @@ export class SalesController {
                 permanentStock: false,
                 status: 0,
                 published: true,
+                isBudgetCalculable: false,
+                calculationStrategy: 'M2',
                 category:
                   dto.categoryId === undefined && existingProduct.categoryId
                     ? { connect: { id: existingProduct.categoryId } }

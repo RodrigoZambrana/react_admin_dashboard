@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { createWebchatConversation } from "./support/admin-api";
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
-import { aiPlatformApiBaseUrl } from "./support/env";
 
 test("admin can open the conversations hub and inspect a webchat session", async ({
   page,
@@ -12,23 +12,12 @@ test("admin can open the conversations hub and inspect a webchat session", async
     pageErrors.push(error.message);
   });
 
-  const seedResponse = await request.post(
-    `${aiPlatformApiBaseUrl}/chat/public/webchat/session`,
-    {
-      data: {
-        tenantKey: "urucortinas",
-        guestId: `guest-${Date.now()}`,
-        name: "Test Conversation",
-        email: `conversations-${Date.now()}@example.com`,
-        locale: "es-UY",
-        page: "/shop",
-      },
-    }
-  );
-
-  expect(seedResponse.ok()).toBeTruthy();
-  const seeded = await seedResponse.json();
-  expect(seeded.conversationId).toBeTruthy();
+  const seeded = await createWebchatConversation(request, {
+    guestId: `guest-${Date.now()}`,
+    name: "Test Conversation",
+    email: `conversations-${Date.now()}@example.com`,
+    text: "Necesito cotizar unas cortinas roller",
+  });
 
   await loginAsAdmin(page);
 
@@ -36,9 +25,7 @@ test("admin can open the conversations hub and inspect a webchat session", async
     waitUntil: "domcontentloaded",
   });
 
-  await expect(page.getByTestId("admin-conversations-page")).toBeVisible({
-    timeout: 20_000,
-  });
+  await expect(page.getByTestId("admin-conversations-page")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("admin-conversations-sidebar")).toBeVisible();
   await expect(page.getByTestId("admin-conversations-list")).toBeVisible();
 

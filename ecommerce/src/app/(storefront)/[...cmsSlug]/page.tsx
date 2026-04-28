@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import CmsPageShell from "@/components/cms/CmsPageShell";
-import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
+import { buildCmsPageMetadata, buildStorefrontPageMetadata } from "@/lib/page-metadata";
+import StructuredData from "@/components/seo/StructuredData";
+import { getStorefrontConfig } from "@/lib/storefront-config";
+import { buildArticleJsonLd, buildCmsBreadcrumbs } from "@/lib/seo/structured-data";
 
 type PageProps = {
   params: Promise<{
@@ -22,12 +25,9 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const { StorefrontApi } = await import("@/lib/api/storefront");
   try {
     const page = await StorefrontApi.getCmsPage(path);
-    return buildStorefrontPageMetadata({
-      title: page.seo?.title ?? page.title,
-      description: page.seo?.description ?? page.summary ?? undefined,
-    });
+    return buildCmsPageMetadata(page, path ? `/${path}` : "/");
   } catch {
-    return buildStorefrontPageMetadata();
+    return buildStorefrontPageMetadata({ canonicalPath: path ? `/${path}` : "/" });
   }
 }
 
@@ -36,7 +36,18 @@ export default async function CmsCatchAllPage({ params }: PageProps) {
   const { StorefrontApi } = await import("@/lib/api/storefront");
   try {
     const page = await StorefrontApi.getCmsPage(path);
-    return <CmsPageShell page={page} />;
+    const config = await getStorefrontConfig();
+    return (
+      <>
+        <StructuredData
+          schemas={[
+            buildArticleJsonLd(config, page),
+            buildCmsBreadcrumbs(config, page),
+          ]}
+        />
+        <CmsPageShell page={page} />
+      </>
+    );
   } catch {
     notFound();
   }

@@ -23,7 +23,7 @@ import { buildCanonicalThreadKey, resolveMessageActivityAt } from './common/thre
 import { resolveQueueSlug, type QueueResolution, type QueueRuleConfig } from './common/queue-classifier'
 import {
   asMetadataRecord,
-  isOperationalEmailInboxAccount,
+  getEmailInboxAccountValidity,
 } from './common/email-account-validity'
 import { InboxEventsService, type InboxStreamFilter } from './events/inbox-events.service'
 import type {
@@ -250,7 +250,12 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
         return true
       }
 
-      return isOperationalEmailInboxAccount(account, this.configService)
+      const validity = getEmailInboxAccountValidity(account, this.configService)
+      return Boolean(
+        validity.hasStoredConfiguration ||
+          validity.isConfiguredAddress ||
+          validity.hasConnectivityProof,
+      )
     })
   }
 

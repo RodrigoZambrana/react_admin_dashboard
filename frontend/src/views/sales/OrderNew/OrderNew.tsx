@@ -22,7 +22,12 @@ import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { apiGetCustomers, apiGetCustomerDetails } from '@/services/CustomersService'
 import type { CalendarEventDto } from '@/services/CustomersService'
-import { apiGetSalesProducts, apiCreateSalesOrder, apiCreateSalesProduct } from '@/services/SalesService'
+import {
+    apiGetSalesProducts,
+    apiCreateSalesOrder,
+    apiCreateSalesProduct,
+    apiCalculateBudgetSummary,
+} from '@/services/SalesService'
 import { apiSearchCalendarActivities } from '@/services/CalendarService'
 import * as Yup from 'yup'
 import {
@@ -105,6 +110,34 @@ type ActivityLike = {
     location?: string | null
 }
 
+type BudgetQuickSummaryRequest = {
+    items: Array<{
+        productId: number
+        width: number
+        height: number
+        qty: number
+    }>
+    shippingFee: number
+    orderCurrency: string
+    customerName?: string
+    customerEmail?: string
+    customerPhone?: string
+    customerNotes?: string
+}
+
+type BudgetQuickSummaryResponse = {
+    currency: string
+    subtotal: number
+    shippingFee: number
+    grandTotal: number
+    customer: {
+        name: string | null
+        email: string | null
+        phone: string | null
+        notes: string | null
+    }
+}
+
 export type AddressFormValue = {
     street: string
     number: string
@@ -128,6 +161,10 @@ export type SalesDocumentFormValues = {
     validUntil: Date | null
     paymentMehod: string
     orderCurrency: string
+    budgetCustomerName: string
+    budgetCustomerEmail: string
+    budgetCustomerPhone: string
+    budgetCustomerNotes: string
     items: Item[]
     shippingAddress: AddressFormValue
     billingAddress: AddressFormValue
@@ -145,6 +182,10 @@ export type SalesDocumentSubmitPayload = {
     validUntilDate?: string | null
     paymentMehod?: string
     orderCurrency: string
+    budgetCustomerName?: string
+    budgetCustomerEmail?: string
+    budgetCustomerPhone?: string
+    budgetCustomerNotes?: string
     items: Array<{
         productId: string
         name: string
@@ -167,6 +208,7 @@ export type SalesDocumentSubmitPayload = {
     shipping: ShippingFormValue
     comment?: string
     activityId?: string
+    metadata?: Record<string, unknown>
 }
 
 export interface OrderNewProps {
@@ -235,6 +277,63 @@ const mergeDeep = <T,>(base: T, override?: Partial<T>): T => {
         ;(baseClone as any)[key] = value
     }
     return baseClone
+}
+
+type BudgetQuickSummaryWatcherProps = {
+    enabled: boolean
+    request: BudgetQuickSummaryRequest | null
+    onSummary: (summary: BudgetQuickSummaryResponse | null) => void
+    onLoading: (loading: boolean) => void
+    onError: (error: string | null) => void
+    fetchSummary: (request: BudgetQuickSummaryRequest) => Promise<BudgetQuickSummaryResponse>
+}
+
+const BudgetQuickSummaryWatcher = ({
+    enabled,
+    request,
+    onSummary,
+    onLoading,
+    onError,
+    fetchSummary,
+}: BudgetQuickSummaryWatcherProps) => {
+    useEffect(() => {
+        if (!enabled || !request) {
+            onSummary(null)
+            onLoading(false)
+            onError(null)
+            return
+        }
+
+        let cancelled = false
+        onLoading(true)
+        onError(null)
+        const timer = window.setTimeout(() => {
+            fetchSummary(request)
+                .then((summary) => {
+                    if (!cancelled) {
+                        onSummary(summary)
+                    }
+                })
+                .catch((error) => {
+                    if (!cancelled) {
+                        onSummary(null)
+                        onError(error instanceof Error ? error.message : String(error))
+                    }
+                })
+                .finally(() => {
+                    if (!cancelled) {
+                        onLoading(false)
+                    }
+                })
+        }, 300)
+
+        return () => {
+            cancelled = true
+            window.clearTimeout(timer)
+        }
+    }, [enabled, fetchSummary, onError, onLoading, onSummary, request])
+
+    return null
 }
 
 type ShippingOption = {
@@ -467,6 +566,9 @@ const OrderNew = ({
     const [taxRate, setTaxRate] = useState(22)
     const [quickMessage, setQuickMessage] = useState<string | null>(null)
     const [copyStatus, setCopyStatus] = useState<'idle' | 'success' | 'error'>('idle')
+    const [budgetSummary, setBudgetSummary] = useState<BudgetQuickSummaryResponse | null>(null)
+    const [budgetSummaryLoading, setBudgetSummaryLoading] = useState(false)
+    const [budgetSummaryError, setBudgetSummaryError] = useState<string | null>(null)
     const [documentDisclaimer, setDocumentDisclaimer] = useState<string>('')
     const [disclaimerLoading, setDisclaimerLoading] = useState(false)
     const [activityOptions, setActivityOptions] = useState<ActivityOption[]>([])
@@ -632,6 +734,7 @@ const OrderNew = ({
     const clearQuickMessage = useCallback(() => {
         setQuickMessage(null)
         setCopyStatus('idle')
+        setBudgetSummaryError(null)
     }, [])
 
     const hasRequiredMeasurements = useCallback((item: Item) => {
@@ -838,14 +941,35 @@ const OrderNew = ({
             items,
             currency,
             grandTotal,
+            customer,
         }: {
             items: Item[]
             currency: string
             grandTotal: number
+            customer?: {
+                name?: string
+                email?: string
+                phone?: string
+                notes?: string
+            }
         }) => {
             if (!items.length) {
                 return ''
             }
+            const headerLines = [
+                customer?.name?.trim()
+                    ? `${t('text.labels.name', { defaultValue: 'Nombre' })}: ${customer.name.trim()}`
+                    : '',
+                customer?.email?.trim()
+                    ? `${t('text.labels.email', { defaultValue: 'Email' })}: ${customer.email.trim()}`
+                    : '',
+                customer?.phone?.trim()
+                    ? `${t('text.labels.phone', { defaultValue: 'Phone' })}: ${customer.phone.trim()}`
+                    : '',
+                customer?.notes?.trim()
+                    ? `${t('text.labels.comments', { defaultValue: 'Notas' })}: ${customer.notes.trim()}`
+                    : '',
+            ].filter(Boolean)
             const perUnitLabel = t('sales.documents.quickMessage.perUnit', {
                 defaultValue: 'c/u',
             })
@@ -909,11 +1033,72 @@ const OrderNew = ({
                 i18n.language,
                 { fallbackCurrency: defaultCurrency },
             )
-            return [...lines, `${totalLabel}: ${formattedGrandTotal}`].join(
+            return [...headerLines, ...lines, `${totalLabel}: ${formattedGrandTotal}`].join(
                 '\n',
             )
         },
         [defaultCurrency, i18n.language, roundCurrencyValue, t],
+    )
+
+    const buildBudgetSummaryRequest = useCallback(
+        (values: SalesDocumentFormValues): BudgetQuickSummaryRequest | null => {
+            const items = (values.items as Item[])
+                .map((item) => {
+                    const unit = resolveSalesUnit(item.unitOfMeasure, item.pricingMethod)
+                    if (unit !== 'SQUARE_METER') {
+                        return null
+                    }
+                    const attrs = (item.customAttributes ?? {}) as Record<string, unknown>
+                    const width = normalizeMeasurementValue(attrs.width)
+                    const height = normalizeMeasurementValue(attrs.height)
+                    if (width === undefined || height === undefined) {
+                        return null
+                    }
+                    return {
+                        productId: Number(item.productId),
+                        width,
+                        height,
+                        qty: Math.max(1, Math.trunc(Number(item.qty) || 1)),
+                    }
+                })
+                .filter(
+                    (item): item is {
+                        productId: number
+                        width: number
+                        height: number
+                        qty: number
+                    } => Boolean(item && Number.isFinite(item.productId) && item.productId > 0),
+                )
+
+            if (!items.length) {
+                return null
+            }
+
+            const orderCurrencyValue =
+                normalizeCurrencyCode(values.orderCurrency, currencyBase) || currencyBase
+
+            return {
+                items,
+                shippingFee: roundCurrencyValue(Number(values.shipping?.deliveryFees ?? 0)),
+                orderCurrency: orderCurrencyValue,
+                customerName: values.budgetCustomerName?.trim() || undefined,
+                customerEmail: values.budgetCustomerEmail?.trim() || undefined,
+                customerPhone: values.budgetCustomerPhone?.trim() || undefined,
+                customerNotes: values.budgetCustomerNotes?.trim() || undefined,
+            }
+        },
+        [currencyBase, normalizeMeasurementValue, roundCurrencyValue],
+    )
+
+    const fetchBudgetSummary = useCallback(
+        async (request: BudgetQuickSummaryRequest) => {
+            const response = await apiCalculateBudgetSummary<
+                BudgetQuickSummaryResponse,
+                BudgetQuickSummaryRequest
+            >(request)
+            return response.data
+        },
+        [],
     )
 
     const copyQuickMessage = useCallback(async () => {
@@ -1387,6 +1572,10 @@ const OrderNew = ({
             validUntil: defaultValidUntil ? new Date(defaultValidUntil) : null,
             paymentMehod: 'Cash',
             orderCurrency: defaultCurrency,
+            budgetCustomerName: '',
+            budgetCustomerEmail: '',
+            budgetCustomerPhone: '',
+            budgetCustomerNotes: '',
             items: [],
             shippingAddress: {
                 street: '',
@@ -1593,22 +1782,43 @@ const formInitialValues = useMemo(() => {
                         if (!ensureMeasurementsFilled(values.items as Item[])) {
                             return
                         }
-                        const deliveryFee = roundCurrencyValue(
-                            Number(values.shipping?.deliveryFees ?? 0),
-                        )
-                        const lineTotals = values.items.map((item) =>
-                            roundCurrencyValue(calculateLineTotal(item)),
-                        )
-                        const rawTotal = lineTotals.reduce(
-                            (accumulator, lineTotal) => accumulator + lineTotal,
-                            0,
-                        )
-                        const total = roundCurrencyValue(rawTotal)
-                        const grandTotal = roundCurrencyValue(total + deliveryFee)
+                        const summaryRequest = buildBudgetSummaryRequest(values)
+                        if (!summaryRequest) {
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {validationItemsRequired}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                            return
+                        }
+                        let summary: BudgetQuickSummaryResponse
+                        try {
+                            summary = await fetchBudgetSummary(summaryRequest)
+                            setBudgetSummary(summary)
+                            setBudgetSummaryError(null)
+                        } catch (error) {
+                            const message =
+                                error instanceof Error ? error.message : String(error)
+                            setBudgetSummaryError(message)
+                            toast.push(
+                                <Notification title={t('validation.failed')} type="danger">
+                                    {message}
+                                </Notification>,
+                                { placement: 'top-center' },
+                            )
+                            return
+                        }
                         const message = composeQuickBudgetMessage({
                             items: values.items as Item[],
-                            currency: orderCurrencyValue,
-                            grandTotal,
+                            currency: summary.currency || summaryRequest.orderCurrency,
+                            grandTotal: summary.grandTotal,
+                            customer: {
+                                name: summary.customer.name ?? summaryRequest.customerName,
+                                email: summary.customer.email ?? summaryRequest.customerEmail,
+                                phone: summary.customer.phone ?? summaryRequest.customerPhone,
+                                notes: summary.customer.notes ?? summaryRequest.customerNotes,
+                            },
                         })
                         if (!message) {
                             toast.push(
@@ -1714,6 +1924,18 @@ const formInitialValues = useMemo(() => {
                         activityId: values.activityId
                             ? String(values.activityId)
                             : undefined,
+                        metadata:
+                            values.budgetCustomerName ||
+                            values.budgetCustomerEmail ||
+                            values.budgetCustomerPhone ||
+                            values.budgetCustomerNotes
+                                ? {
+                                      budgetCustomerName: values.budgetCustomerName || null,
+                                      budgetCustomerEmail: values.budgetCustomerEmail || null,
+                                      budgetCustomerPhone: values.budgetCustomerPhone || null,
+                                      budgetCustomerNotes: values.budgetCustomerNotes || null,
+                                  }
+                                : undefined,
                     }
                     if (documentId !== null && documentId !== undefined) {
                         payload.id = documentId
@@ -1824,6 +2046,10 @@ const formInitialValues = useMemo(() => {
                             value: orderCurrencyValue,
                             label: getCurrencyLabel(orderCurrencyValue),
                         }
+                    const budgetSummaryRequest =
+                        itemsOnlyMode && mode === 'budget'
+                            ? buildBudgetSummaryRequest(values)
+                            : null
                     const lineTotals =
                         mode === 'budget'
                             ? values.items.map((item) =>
@@ -1840,27 +2066,39 @@ const formInitialValues = useMemo(() => {
                             : roundCurrencyValue(rawTotal)
                     const tax = roundCurrencyValue(total * (taxRate / (100 + taxRate)))
                     const grandTotal = roundCurrencyValue(total + deliveryFee)
+                    const displaySubtotal =
+                        itemsOnlyMode && mode === 'budget' && budgetSummary
+                            ? budgetSummary.subtotal
+                            : total
+                    const displayGrandTotal =
+                        itemsOnlyMode && mode === 'budget' && budgetSummary
+                            ? budgetSummary.grandTotal
+                            : grandTotal
+                    const displayCurrency =
+                        itemsOnlyMode && mode === 'budget' && budgetSummary
+                            ? budgetSummary.currency
+                            : orderCurrencyValue
                     const formattedOrderTotal = formatCurrency(
-                        total,
-                        orderCurrencyValue,
+                        displaySubtotal,
+                        displayCurrency,
                         i18n.language,
                         { fallbackCurrency: defaultCurrency },
                     )
                     const formattedTax = formatCurrency(
                         tax,
-                        orderCurrencyValue,
+                        displayCurrency,
                         i18n.language,
                         { fallbackCurrency: defaultCurrency },
                     )
                     const formattedDeliveryFee = formatCurrency(
                         deliveryFee,
-                        orderCurrencyValue,
+                        displayCurrency,
                         i18n.language,
                         { fallbackCurrency: defaultCurrency },
                     )
                     const formattedGrandTotal = formatCurrency(
-                        grandTotal,
-                        orderCurrencyValue,
+                        displayGrandTotal,
+                        displayCurrency,
                         i18n.language,
                         { fallbackCurrency: defaultCurrency },
                     )
@@ -2759,6 +2997,78 @@ const formInitialValues = useMemo(() => {
                                                     </FormItem>
                                                 )}
                                             </div>
+                                            {itemsOnlyMode && (
+                                                <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+                                                    <FormItem
+                                                        label={t('text.labels.name', { defaultValue: 'Cliente' })}
+                                                    >
+                                                        <Field name="budgetCustomerName">
+                                                            {({ field, form }: FieldProps<string>) => (
+                                                                <Input
+                                                                    {...field}
+                                                                    placeholder={t('text.labels.name', { defaultValue: 'Cliente' })}
+                                                                    onChange={(event) => {
+                                                                        form.setFieldValue(field.name, event.target.value)
+                                                                        clearQuickMessage()
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </Field>
+                                                    </FormItem>
+                                                    <FormItem
+                                                        label={t('text.labels.email', { defaultValue: 'Email del cliente' })}
+                                                    >
+                                                        <Field name="budgetCustomerEmail">
+                                                            {({ field, form }: FieldProps<string>) => (
+                                                                <Input
+                                                                    {...field}
+                                                                    type="email"
+                                                                    placeholder={t('text.labels.email', { defaultValue: 'Email del cliente' })}
+                                                                    onChange={(event) => {
+                                                                        form.setFieldValue(field.name, event.target.value)
+                                                                        clearQuickMessage()
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </Field>
+                                                    </FormItem>
+                                                    <FormItem
+                                                        label={t('text.labels.phone', { defaultValue: 'Teléfono del cliente' })}
+                                                    >
+                                                        <Field name="budgetCustomerPhone">
+                                                            {({ field, form }: FieldProps<string>) => (
+                                                                <Input
+                                                                    {...field}
+                                                                    placeholder={t('text.labels.phone', { defaultValue: 'Teléfono del cliente' })}
+                                                                    onChange={(event) => {
+                                                                        form.setFieldValue(field.name, event.target.value)
+                                                                        clearQuickMessage()
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </Field>
+                                                    </FormItem>
+                                                    <FormItem
+                                                        className="md:col-span-2"
+                                                        label={t('text.labels.comments', { defaultValue: 'Notas del cliente' })}
+                                                    >
+                                                        <Field name="budgetCustomerNotes">
+                                                            {({ field, form }: FieldProps<string>) => (
+                                                                <Input
+                                                                    {...field}
+                                                                    textArea
+                                                                    rows={3}
+                                                                    placeholder={t('text.labels.comments', { defaultValue: 'Notas del cliente' })}
+                                                                    onChange={(event) => {
+                                                                        form.setFieldValue(field.name, event.target.value)
+                                                                        clearQuickMessage()
+                                                                    }}
+                                                                />
+                                                            )}
+                                                        </Field>
+                                                    </FormItem>
+                                                </div>
+                                            )}
                                         </FormContainer>
                                     </Card>
                                     <Card bodyClass="p-5">
@@ -2966,6 +3276,16 @@ const formInitialValues = useMemo(() => {
                                         <h4 className="mb-4">{t('text.titles.products')}</h4>
                                         <FormContainer>
                                             {itemsOnlyMode && (
+                                                <BudgetQuickSummaryWatcher
+                                                    enabled={mode === 'budget'}
+                                                    request={budgetSummaryRequest}
+                                                    onSummary={setBudgetSummary}
+                                                    onLoading={setBudgetSummaryLoading}
+                                                    onError={setBudgetSummaryError}
+                                                    fetchSummary={fetchBudgetSummary}
+                                                />
+                                            )}
+                                            {itemsOnlyMode && (
                                                 <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2">
                                                     <FormItem
                                                         label={orderCurrencyLabel}
@@ -3053,10 +3373,15 @@ const formInitialValues = useMemo(() => {
                                                             {itemsOnlyMode
                                                                 ? `${t('sales.documents.quickMessage.totalLabel', {
                                                                       defaultValue: 'Total a pagar',
-                                                                  })}: ${formattedGrandTotal}`
+                                                                  })}: ${budgetSummaryLoading ? '...' : formattedGrandTotal}`
                                                                 : `${t('text.columns.total')}: ${formattedOrderTotal}`}
                                                         </div>
                                                     </div>
+                                                    {itemsOnlyMode && budgetSummaryError && (
+                                                        <p className="text-sm text-red-600 dark:text-red-400">
+                                                            {budgetSummaryError}
+                                                        </p>
+                                                    )}
                                                 </div>
                                                 <div className="mt-4">
                                                     <EditableOrderProductsTable

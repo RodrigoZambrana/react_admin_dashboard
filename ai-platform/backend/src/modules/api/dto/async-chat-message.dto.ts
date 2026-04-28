@@ -1,4 +1,9 @@
-import { IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class AsyncChatMessageDto {
   @IsString()
@@ -16,4 +21,8 @@ export class AsyncChatMessageDto {
   @IsOptional()
   @IsString()
   channel?: string;
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown>;
 }

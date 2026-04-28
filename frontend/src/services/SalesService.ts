@@ -13,6 +13,18 @@ export type SalesDocumentResource = 'orders' | 'budgets'
 const documentEndpoint = (resource: SalesDocumentResource) =>
     resource === 'budgets' ? '/budgets' : '/orders'
 
+const normalizeProductModeForTransport = <T extends Record<string, unknown>>(data: T) => {
+    const mode = data.mode
+    if (typeof mode !== 'string' || !mode.trim()) {
+        return data
+    }
+
+    return {
+        ...data,
+        mode: mode.trim().toUpperCase(),
+    }
+}
+
 export async function apiGetSalesDashboardData<
     T extends Record<string, unknown>,
     U extends Record<string, unknown>,
@@ -81,7 +93,7 @@ export async function apiPutSalesProduct<T, U extends Record<string, unknown>>(
     return ApiService.fetchData<T>({
         url: '/sales/products/update',
         method: 'put',
-        data,
+        data: normalizeProductModeForTransport(data),
     })
 }
 
@@ -91,6 +103,37 @@ export async function apiCreateSalesProduct<
 >(data: U) {
     return ApiService.fetchData<T>({
         url: '/sales/products/create',
+        method: 'post',
+        data: normalizeProductModeForTransport(data),
+    })
+}
+
+export async function apiGetBudgetProducts<T>() {
+    return ApiService.fetchData<T>({
+        url: '/budget/products',
+        method: 'get',
+    })
+}
+
+export async function apiCalculateBudgetProduct<T, U extends Record<string, unknown>>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/budget/calculate',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiAddBudgetToCart<T, U extends Record<string, unknown>>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/budget/add-to-cart',
+        method: 'post',
+        data,
+    })
+}
+
+export async function apiCalculateBudgetSummary<T, U extends Record<string, unknown>>(data: U) {
+    return ApiService.fetchData<T>({
+        url: '/budget/summary',
         method: 'post',
         data,
     })

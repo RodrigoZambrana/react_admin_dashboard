@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import classNames from 'classnames'
 import Menu from '@/components/ui/Menu'
 import Badge from '@/components/ui/Badge'
@@ -192,6 +192,7 @@ const MailSidebarBootstrap = () => {
     const selectedMailboxesStatus = selectedInboxAccountId
         ? mailboxesStatusMap[selectedInboxAccountId]
         : undefined
+    const requestedAccountsRef = useRef(false)
 
     useEffect(() => {
         if (!queryAccountId) {
@@ -289,9 +290,14 @@ const MailSidebarBootstrap = () => {
     ])
 
     useEffect(() => {
-        if (!inboxAccountsLoading && inboxAccounts.length === 0) {
-            dispatch(fetchInboxAccounts())
+        if (requestedAccountsRef.current) {
+            return
         }
+        if (inboxAccountsLoading || inboxAccounts.length > 0) {
+            return
+        }
+        requestedAccountsRef.current = true
+        dispatch(fetchInboxAccounts())
     }, [dispatch, inboxAccountsLoading, inboxAccounts.length])
 
     useEffect(() => {

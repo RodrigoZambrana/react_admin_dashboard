@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+import { getOperationalEmailInboxAccountId } from "./support/admin-api";
 import { loginAsAdmin, resolveAdminAppUrl } from "./support/admin-ui";
 
 test("admin commercial surfaces render stable controls for order list, cms and inbox", async ({
-  page
+  page,
+  request,
 }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => {
@@ -23,14 +25,21 @@ test("admin commercial surfaces render stable controls for order list, cms and i
   await expect(page.getByTestId("cms-entry-form")).toBeVisible();
   await expect(page.getByTestId("cms-entry-save")).toBeVisible();
 
-  await page.goto(resolveAdminAppUrl("/app/crm/mail/inbox"), { waitUntil: "domcontentloaded" });
+  const accountId = await getOperationalEmailInboxAccountId(request);
+
+  await page.goto(
+    resolveAdminAppUrl(
+      `/app/crm/mail/inbox?account=${encodeURIComponent(accountId)}&mailbox=INBOX`,
+    ),
+    { waitUntil: "domcontentloaded" },
+  );
   await expect(page.getByTestId("admin-inbox-body")).toBeVisible({ timeout: 20_000 });
   await expect(page.getByTestId("admin-inbox-sidebar-content")).toBeVisible();
   await expect(page.getByTestId("admin-inbox-list")).toBeVisible();
   await expect(
     page
       .locator(
-        '[data-testid="admin-inbox-empty"], [data-testid="admin-inbox-messages-error"], [data-testid^="admin-inbox-mail-"]'
+        '[data-testid="admin-inbox-empty"], [data-testid="admin-inbox-messages-error"], [data-testid="admin-inbox-select-account"], [data-testid^="admin-inbox-mail-"]'
       )
       .first()
   ).toBeVisible({ timeout: 20_000 });

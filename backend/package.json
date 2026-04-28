@@ -17,6 +17,7 @@
     "knowledge:reindex:chunks": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reindex-knowledge-chunks.ts --dry-run",
     "knowledge:reindex:chunks:apply": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reindex-knowledge-chunks.ts --confirm",
     "cms:import:legacy-html": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/import-legacy-html-site.ts",
+    "cms:seed:public-content": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/seed-urucortinas-public-cms-content.ts",
     "baseline:export": "ts-node --project tsconfig.seed.json --transpile-only scripts/export-baseline-fixture.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy",
