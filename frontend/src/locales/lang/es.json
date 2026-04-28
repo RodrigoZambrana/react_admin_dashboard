@@ -114,7 +114,7 @@
       "systemConfig": "Configuración del sistema",
       "aberturas": "Aberturas",
       "emailTemplates": "Plantillas de correo",
-      "emailConfig": "Configuración de correo",
+      "emailConfig": "Email e Integraciones",
       "whatsappQr": "WhatsApp QR",
       "metaChannels": "Canales Meta",
       "calendarEventTypes": "Tipos de evento"
@@ -2263,6 +2263,117 @@
         "saveSuccess": "Configuración actualizada",
         "saveErrorTitle": "No pudimos actualizar la configuración",
         "saveErrorDescription": "Intentá nuevamente en unos segundos."
+      }
+    },
+    "channelsEmail": {
+      "overview": {
+        "kicker": "Canales",
+        "title": "Canal de correo",
+        "description": "Este canal controla las cuentas de correo operativas que luego aparecen dentro de los mensajes del CRM. Usalo para agregar, editar, activar o desactivar una o varias casillas antes de sincronizarlas con el runtime del inbox.",
+        "totalAccounts": "{{count}} cuentas",
+        "activeAccounts": "{{count}} activas",
+        "configuredAccounts": "{{count}} configuradas",
+        "refresh": "Actualizar"
+      },
+      "editor": {
+        "title": "Editor de cuenta",
+        "description": "Creá o actualizá las cuentas que se reflejarán en los mensajes del CRM y en el enrutado del inbox.",
+        "new": "Nueva cuenta",
+        "editing": "Editando cuenta",
+        "editingBanner": "Editando {{label}}",
+        "sections": {
+          "identity": "Identidad",
+          "imap": "IMAP",
+          "smtp": "SMTP",
+          "credentials": "Credenciales",
+          "defaults": "Valores por defecto",
+          "limits": "Límites y polling"
+        },
+        "fields": {
+          "address": "Dirección de correo",
+          "displayName": "Nombre visible",
+          "active": "Activa",
+          "imapHost": "Host IMAP",
+          "imapPort": "Puerto IMAP",
+          "imapSecurity": "Seguridad IMAP",
+          "smtpHost": "Host SMTP",
+          "smtpPort": "Puerto SMTP",
+          "smtpSecurity": "Seguridad SMTP",
+          "username": "Usuario",
+          "password": "Contraseña",
+          "fromAddress": "Dirección remitente",
+          "fromName": "Nombre remitente",
+          "maxAttachmentSizeMb": "Tamaño máximo de adjuntos (MB)",
+          "ratePerMinute": "Envíos por minuto",
+          "pollIntervalMs": "Intervalo de polling (ms)",
+          "pollBatchSize": "Tamaño de lote de polling"
+        },
+        "placeholders": {
+          "address": "soporte@ejemplo.com",
+          "displayName": "Bandeja de soporte",
+          "keepPassword": "Dejá vacío para conservar la contraseña actual"
+        },
+        "actions": {
+          "create": "Crear cuenta",
+          "update": "Actualizar cuenta",
+          "reset": "Reiniciar"
+        }
+      },
+      "list": {
+        "title": "Cuentas de correo registradas",
+        "description": "Estas cuentas luego aparecen en los mensajes del CRM y en el ruteo de conversaciones.",
+        "empty": "Aún no hay cuentas EMAIL registradas.",
+        "noAddress": "Sin dirección configurada",
+        "columns": {
+          "account": "Cuenta",
+          "status": "Estado",
+          "updated": "Actualizada",
+          "actions": "Acciones"
+        },
+        "actions": {
+          "newAccount": "Nueva cuenta",
+          "edit": "Editar",
+          "messages": "Mensajes",
+          "sync": "Sincronizar",
+          "activate": "Activar",
+          "deactivate": "Desactivar"
+        },
+        "badges": {
+          "active": "Activa",
+          "inactive": "Inactiva",
+          "configured": "Configurada",
+          "incomplete": "Incompleta",
+          "channelEmail": "Correo"
+        },
+        "status": {
+          "visible": "Visible en mensajes",
+          "hidden": "Oculta del ruteo normal"
+        },
+        "summaryLabels": {
+          "imap": "IMAP",
+          "smtp": "SMTP",
+          "user": "Usuario"
+        },
+        "unavailable": "N/D"
+      },
+      "security": {
+        "sslTls": "SSL/TLS",
+        "startTls": "STARTTLS",
+        "none": "Ninguna"
+      },
+      "notifications": {
+        "syncSuccessTitle": "Cuenta sincronizada",
+        "syncSuccessBody": "La cuenta se actualizó y sus buzones ya están listos para recibir mensajes.",
+        "syncErrorTitle": "No pudimos sincronizar la cuenta",
+        "activatedTitle": "Cuenta activada",
+        "deactivatedTitle": "Cuenta desactivada",
+        "toggleActiveBody": "El estado de la cuenta se actualizó.",
+        "updatedTitle": "Cuenta actualizada",
+        "updatedBody": "La cuenta ya quedó lista para el enrutado de mensajes.",
+        "createdTitle": "Cuenta creada",
+        "createdBody": "La nueva cuenta de correo se agregó al registro del canal.",
+        "saveErrorTitle": "No pudimos guardar la cuenta",
+        "updateErrorTitle": "No pudimos actualizar la cuenta"
       }
     },
     "productCategories": {

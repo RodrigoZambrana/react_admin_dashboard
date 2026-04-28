@@ -62,6 +62,7 @@ describe('apps navigation config', () => {
           title: 'Email & Integrations',
           translateKey: 'nav.appsSettings.emailConfig',
           icon: '',
+          path: '/app/settings/integrations',
         }),
       ]),
     )

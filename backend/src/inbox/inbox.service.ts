@@ -271,6 +271,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     address: string
     displayName?: string | null
     active?: boolean
+    metadata?: Record<string, unknown> | null
   }) {
     const address = this.normalizeAccountAddress(options.address)
     if (!address) {
@@ -278,6 +279,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     }
 
     const displayName = this.normalizeAccountLabel(options.displayName) ?? address
+    const metadata = this.normalizeMetadata(options.metadata)
 
     try {
       return await this.prisma.inboxAccount.create({
@@ -286,6 +288,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
           address,
           displayName,
           active: options.active ?? true,
+          metadata: metadata ? toJsonInput(metadata) : Prisma.JsonNull,
         },
       })
     } catch (error) {
@@ -305,6 +308,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
       address?: string | null
       displayName?: string | null
       active?: boolean
+      metadata?: Record<string, unknown> | null
     },
   ) {
     const existing = await this.getAccountOrThrow(accountId)
@@ -316,6 +320,17 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
       options.displayName === undefined
         ? existing.displayName ?? null
         : this.normalizeAccountLabel(options.displayName)
+    const metadata =
+      options.metadata === undefined
+        ? existing.metadata
+        : options.metadata === null
+          ? Prisma.JsonNull
+          : toJsonInput(
+              this.mergeAccountMetadata(
+                asMetadataRecord(existing.metadata),
+                options.metadata,
+              ) ?? options.metadata,
+            )
 
     try {
       return await this.prisma.inboxAccount.update({
@@ -324,6 +339,7 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
           address,
           displayName,
           active: options.active ?? existing.active,
+          metadata: toJsonInput(metadata),
         },
       })
     } catch (error) {
@@ -2456,6 +2472,38 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
   private normalizeAccountLabel(value?: string | null) {
     const normalized = typeof value === 'string' ? value.trim() : ''
     return normalized.length > 0 ? normalized : null
+  }
+
+  private normalizeMetadata(value?: Record<string, unknown> | null) {
+    const metadata = asMetadataRecord(value)
+    return metadata ? this.mergeAccountMetadata(undefined, metadata) : null
+  }
+
+  private mergeAccountMetadata(
+    existing?: Record<string, unknown> | null,
+    incoming?: Record<string, unknown> | null,
+  ) {
+    const base = existing ? { ...existing } : {}
+    const next = incoming ? { ...incoming } : {}
+    const merged = { ...base }
+
+    for (const [key, value] of Object.entries(next)) {
+      const current = merged[key]
+      if (this.isPlainRecord(current) && this.isPlainRecord(value)) {
+        merged[key] = {
+          ...current,
+          ...value,
+        }
+        continue
+      }
+      merged[key] = value
+    }
+
+    return Object.keys(merged).length > 0 ? merged : null
+  }
+
+  private isPlainRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
   }
 
   private extractSnippet(body: ChannelMessageBody): string | undefined {

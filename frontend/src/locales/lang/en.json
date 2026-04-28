@@ -115,7 +115,7 @@
       "systemConfig": "System Config",
       "aberturas": "Openings",
       "emailTemplates": "Email Templates",
-      "emailConfig": "Email Configuration",
+      "emailConfig": "Email & Integrations",
       "whatsappQr": "WhatsApp QR",
       "metaChannels": "Meta Channels",
       "calendarEventTypes": "Calendar Event Types"
@@ -2262,6 +2262,117 @@
         "saveSuccess": "Configuration updated",
         "saveErrorTitle": "Unable to update configuration",
         "saveErrorDescription": "Please try again in a few seconds."
+      }
+    },
+    "channelsEmail": {
+      "overview": {
+        "kicker": "Channels",
+        "title": "Email channel",
+        "description": "This channel controls the operational email accounts that later appear inside CRM messages. Use it to add, edit, activate or deactivate one or many mailboxes before syncing them with the inbox runtime.",
+        "totalAccounts": "{{count}} accounts",
+        "activeAccounts": "{{count}} active",
+        "configuredAccounts": "{{count}} configured",
+        "refresh": "Refresh"
+      },
+      "editor": {
+        "title": "Account editor",
+        "description": "Create or update the accounts that will be reflected in CRM messages and inbox routing.",
+        "new": "New account",
+        "editing": "Editing account",
+        "editingBanner": "Editing {{label}}",
+        "sections": {
+          "identity": "Identity",
+          "imap": "IMAP",
+          "smtp": "SMTP",
+          "credentials": "Credentials",
+          "defaults": "Defaults",
+          "limits": "Limits and polling"
+        },
+        "fields": {
+          "address": "Email address",
+          "displayName": "Display name",
+          "active": "Active",
+          "imapHost": "IMAP host",
+          "imapPort": "IMAP port",
+          "imapSecurity": "IMAP security",
+          "smtpHost": "SMTP host",
+          "smtpPort": "SMTP port",
+          "smtpSecurity": "SMTP security",
+          "username": "Username",
+          "password": "Password",
+          "fromAddress": "From address",
+          "fromName": "From name",
+          "maxAttachmentSizeMb": "Max attachment size (MB)",
+          "ratePerMinute": "Outgoing rate per minute",
+          "pollIntervalMs": "Polling interval (ms)",
+          "pollBatchSize": "Polling batch size"
+        },
+        "placeholders": {
+          "address": "support@example.com",
+          "displayName": "Support inbox",
+          "keepPassword": "Leave blank to keep the current password"
+        },
+        "actions": {
+          "create": "Create account",
+          "update": "Update account",
+          "reset": "Reset"
+        }
+      },
+      "list": {
+        "title": "Registered email accounts",
+        "description": "These accounts surface later in CRM messages and thread routing.",
+        "empty": "No EMAIL inbox accounts are available yet.",
+        "noAddress": "No address set",
+        "columns": {
+          "account": "Account",
+          "status": "Status",
+          "updated": "Updated",
+          "actions": "Actions"
+        },
+        "actions": {
+          "newAccount": "New account",
+          "edit": "Edit",
+          "messages": "Messages",
+          "sync": "Sync",
+          "activate": "Activate",
+          "deactivate": "Deactivate"
+        },
+        "badges": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "configured": "Configured",
+          "incomplete": "Incomplete",
+          "channelEmail": "Email"
+        },
+        "status": {
+          "visible": "Visible in messages",
+          "hidden": "Hidden from normal routing"
+        },
+        "summaryLabels": {
+          "imap": "IMAP",
+          "smtp": "SMTP",
+          "user": "User"
+        },
+        "unavailable": "N/A"
+      },
+      "security": {
+        "sslTls": "SSL/TLS",
+        "startTls": "STARTTLS",
+        "none": "None"
+      },
+      "notifications": {
+        "syncSuccessTitle": "Inbox account synced",
+        "syncSuccessBody": "The account was refreshed and its mailboxes are ready for messages.",
+        "syncErrorTitle": "Unable to sync inbox account",
+        "activatedTitle": "Account activated",
+        "deactivatedTitle": "Account deactivated",
+        "toggleActiveBody": "The inbox account status was updated.",
+        "updatedTitle": "Inbox account updated",
+        "updatedBody": "The account is now ready for message routing.",
+        "createdTitle": "Inbox account created",
+        "createdBody": "The new email account was added to the channel registry.",
+        "saveErrorTitle": "Unable to save inbox account",
+        "updateErrorTitle": "Unable to update account"
       }
     },
     "productCategories": {

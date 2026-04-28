@@ -47,7 +47,7 @@ envs:
     value: "true"
   - key: RUN_PRISMA_SEED_ON_BOOT
     scope: RUN_AND_BUILD_TIME
-    value: "false"
+    value: "true"
   - key: ENABLE_DEMO_SEED
     scope: RUN_AND_BUILD_TIME
     value: "false"

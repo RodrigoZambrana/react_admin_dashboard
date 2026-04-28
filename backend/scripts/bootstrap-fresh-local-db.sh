@@ -91,7 +91,7 @@ SQL
 
 npx prisma db execute --url "$DATABASE_URL" --file "$RESET_SQL" >/dev/null
 
-echo "[bootstrap] Applying official Prisma migrations..."
+echo "[bootstrap] Applying consolidated Prisma baseline..."
 npx prisma migrate deploy >/dev/null
 
 echo "[bootstrap] Seeding minimal baseline and bootstrap admin..."

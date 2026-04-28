@@ -548,8 +548,8 @@ const appsNavigationConfig: NavigationTree[] = [
                 authority: getRolesForFeature(FEATURES.SETTINGS),
                 subMenu: [
                     {
-                        key: 'appsSettings.emailConfig',
-                        path: `${APP_PREFIX_PATH}/settings/email/config`,
+                        key: 'appsSettings.integrations',
+                        path: `${APP_PREFIX_PATH}/settings/integrations`,
                         title: 'Email & Integrations',
                         translateKey: 'nav.appsSettings.emailConfig',
                         icon: '',

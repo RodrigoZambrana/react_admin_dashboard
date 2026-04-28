@@ -1,12 +1,51 @@
 import ApiService from './ApiService'
 
+export type EmailChannelSecurityOption = 'SSL_TLS' | 'STARTTLS' | 'NONE'
+
+export type InboxAccountMetadataDto = {
+    imap?: {
+        host?: string | null
+        port?: number | null
+        security?: EmailChannelSecurityOption | null
+    } | null
+    smtp?: {
+        host?: string | null
+        port?: number | null
+        security?: EmailChannelSecurityOption | null
+    } | null
+    credentials?: {
+        user?: string | null
+        password?: string | null
+    } | null
+    defaults?: {
+        fromAddress?: string | null
+        fromName?: string | null
+    } | null
+    limits?: {
+        maxAttachmentSizeMb?: number | null
+        outgoingRatePerMinute?: number | null
+    } | null
+    polling?: {
+        intervalMs?: number | null
+        batchSize?: number | null
+    } | null
+    validation?: {
+        smtpTlsVerifiedAt?: string | null
+        imapTlsVerifiedAt?: string | null
+        smtpVerifyVerifiedAt?: string | null
+        verifiedAt?: string | null
+    } | null
+    provider?: string | null
+    lastConfigSync?: string | null
+}
+
 export type InboxAccountDto = {
     id: string
     channel: string
     address?: string | null
     displayName?: string | null
     active: boolean
-    metadata?: unknown
+    metadata?: InboxAccountMetadataDto | Record<string, unknown> | null
     createdAt?: string
     updatedAt?: string
 }
@@ -15,6 +54,7 @@ export type UpsertInboxAccountPayload = {
     address: string
     displayName?: string | null
     active?: boolean
+    metadata?: InboxAccountMetadataDto | null
 }
 
 export type UpdateInboxAccountPayload = Partial<UpsertInboxAccountPayload>

@@ -1,5 +1,12 @@
 import { Transform } from 'class-transformer'
-import { IsBoolean, IsEmail, IsOptional, IsString, MaxLength } from 'class-validator'
+import {
+  IsBoolean,
+  IsEmail,
+  IsObject,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator'
 
 const normalizeString = ({ value }: { value: unknown }) => {
   if (typeof value !== 'string') {
@@ -24,6 +31,10 @@ export class UpsertInboxAccountDto {
   @Transform(({ value }) => value === true || value === 'true', { toClassOnly: true })
   @IsBoolean()
   active?: boolean
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown> | null
 }
 
 export class UpdateInboxAccountDto {
@@ -42,4 +53,8 @@ export class UpdateInboxAccountDto {
   @Transform(({ value }) => value === true || value === 'true', { toClassOnly: true })
   @IsBoolean()
   active?: boolean
+
+  @IsOptional()
+  @IsObject()
+  metadata?: Record<string, unknown> | null
 }

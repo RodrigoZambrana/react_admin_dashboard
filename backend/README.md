@@ -52,29 +52,29 @@ Bootstrap limpio reproducible
   - `npm run bootstrap:fresh:local`
 - Ese script:
   - recrea `public`,
-  - aplica la migración baseline oficial con `prisma migrate deploy`,
+  - aplica la migración baseline consolidada con `prisma migrate deploy`,
   - carga el baseline mínimo versionado de `urucortinas` vía `prisma db seed`,
   - y deja un `SUPERADMIN` conocido.
 - Detalle técnico y limitaciones actuales:
-  - [PRISMA_BOOTSTRAP.md](/Users/rodrigo/git/personal/react_admin_dashboard/backend/PRISMA_BOOTSTRAP.md)
+  - [PRISMA_BOOTSTRAP.md](/Users/rodrigo/Git/personal/react_admin_dashboard/backend/PRISMA_BOOTSTRAP.md)
 - Criterio para cambios futuros:
   - cambios de estructura: nueva migración Prisma
   - datos base obligatorios para una instalación nueva: `prisma db seed`
   - datos transaccionales: nunca en baseline/seed
 - Para instalaciones ya existentes que venían con la historia previa al squash:
-  - ejecutar una única vez `npm run prisma:resolve:squashed-baseline`
+  - ejecutar una única vez `npm run prisma:resolve:consolidated-baseline`
   - luego seguir normalmente con `npm run prisma:migrate`
 
 Catálogo de métodos de pago
 - `PaymentMethod` ya no es una tabla en el esquema actual.
 - Los métodos soportados viven en catálogo estático de código:
-  - [payment-methods.ts](/Users/rodrigo/git/personal/react_admin_dashboard/backend/src/common/constants/payment-methods.ts)
+  - [payment-methods.ts](/Users/rodrigo/Git/personal/react_admin_dashboard/backend/src/common/constants/payment-methods.ts)
 - Esto es intencional desde:
-  - [20260630123000_drop_payment_order_catalog](/Users/rodrigo/git/personal/react_admin_dashboard/backend/prisma/migrations/20260630123000_drop_payment_order_catalog/migration.sql)
+  - [20260630123000_drop_payment_order_catalog](/Users/rodrigo/Git/personal/react_admin_dashboard/backend/prisma/migrations/20260630123000_drop_payment_order_catalog/migration.sql)
 
 Notas de higiene Prisma
-- Prisma ahora toma la ubicación del schema desde [prisma.config.ts](/Users/rodrigo/git/personal/react_admin_dashboard/backend/prisma.config.ts).
-- El seed estándar también queda configurado en [prisma.config.ts](/Users/rodrigo/git/personal/react_admin_dashboard/backend/prisma.config.ts), por lo que funcionan tanto `npm run prisma:seed` como `npx prisma db seed` sin depender de `package.json#prisma`.
+- Prisma ahora toma la ubicación del schema desde [prisma.config.ts](/Users/rodrigo/Git/personal/react_admin_dashboard/backend/prisma.config.ts).
+- El seed estándar también queda configurado en [prisma.config.ts](/Users/rodrigo/Git/personal/react_admin_dashboard/backend/prisma.config.ts), por lo que funcionan tanto `npm run prisma:seed` como `npx prisma db seed` sin depender de `package.json#prisma`.
 
 Environment Configuration & Deployment Notes
 - Cookie behaviour: `AuthController.buildAuthCookieOptions()` sets `secure: true` whenever `NODE_ENV !== 'development'`. In testing/production debes servir la API sobre HTTPS (idealmente desde el mismo origen que el frontend) para que el navegador acepte la cookie `access_token`. Para pruebas HTTP temporales fuera de dev, ejecutá el backend con `NODE_ENV=development` o ajustá ese helper para exponer un toggle.

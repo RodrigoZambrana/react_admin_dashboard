@@ -690,32 +690,14 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
-        key: 'appsSettings.google',
-        path: `${APP_PREFIX_PATH}/settings/google`,
-        component: lazy(() => import('@/views/settings/EmailSettings/GoogleSettingsRedirect')),
-        authority: getRolesForFeature(FEATURES.SETTINGS),
-    },
-    {
-        key: 'appsSettings.mercadoPago',
-        path: `${APP_PREFIX_PATH}/settings/mercado-pago`,
-        component: lazy(() => import('@/views/settings/EmailSettings/MercadoPagoSettingsRedirect')),
-        authority: getRolesForFeature(FEATURES.SETTINGS),
-    },
-    {
         key: 'appsSettings.systemConfig',
         path: `${APP_PREFIX_PATH}/settings/system-config`,
         component: lazy(() => import('@/views/settings/SystemConfig')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
-        key: 'appsSettings.emailRoot',
-        path: `${APP_PREFIX_PATH}/settings/email`,
-        component: lazy(() => import('@/views/settings/EmailSettings/EmailSettingsRedirect')),
-        authority: getRolesForFeature(FEATURES.SETTINGS),
-    },
-    {
-        key: 'appsSettings.emailConfig',
-        path: `${APP_PREFIX_PATH}/settings/email/config`,
+        key: 'appsSettings.integrations',
+        path: `${APP_PREFIX_PATH}/settings/integrations`,
         component: lazy(() => import('@/views/settings/Email')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
     },
@@ -727,12 +709,6 @@ const baseAppsRoute: Routes = [
         meta: {
             header: 'Email Channel',
         },
-    },
-    {
-        key: 'appsSettings.emailTemplates',
-        path: `${APP_PREFIX_PATH}/settings/email/templates`,
-        component: lazy(() => import('@/views/settings/EmailSettings/EmailTemplatesRedirect')),
-        authority: getRolesForFeature(FEATURES.SETTINGS),
     },
     {
         key: 'appsSettings.calendarEventTypes',

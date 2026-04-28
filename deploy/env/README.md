@@ -35,6 +35,8 @@ cp deploy/env/channel-adapter.prod.env.example deploy/env/channel-adapter.prod.e
 ```
 
 Update the copied files with the values that apply to your environment.
+For DigitalOcean App Platform bootstrap and deploy-on-push flows, also review
+[`deploy/do-app-platform-seed-reference.md`](/Users/rodrigo/Git/personal/react_admin_dashboard/deploy/do-app-platform-seed-reference.md).
 At a minimum the backend file must define `DATABASE_URL`, authentication secrets
 (`JWT_SECRET`, `COOKIE_SECRET`) and CORS settings via `ALLOWED_ORIGINS`.
 If any value contains spaces, wrap it in double quotes so the file can be safely

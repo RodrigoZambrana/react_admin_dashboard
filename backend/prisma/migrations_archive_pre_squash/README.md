@@ -3,7 +3,7 @@ Legacy Prisma Migration History
 This folder preserves the pre-squash migration chain that existed before the
 official baseline migration was introduced in:
 
-- [backend/prisma/migrations/20260323160000_squashed_baseline/migration.sql](/Users/rodrigo/git/personal/react_admin_dashboard/backend/prisma/migrations/20260323160000_squashed_baseline/migration.sql)
+- [backend/prisma/migrations_archive_pre_consolidation/20260323160000_squashed_baseline/migration.sql](/Users/rodrigo/Git/personal/react_admin_dashboard/backend/prisma/migrations_archive_pre_consolidation/20260323160000_squashed_baseline/migration.sql)
 
 Why this archive exists
 - the historical chain had dependency-order issues and was not reliable for a

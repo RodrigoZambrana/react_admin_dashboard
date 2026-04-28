@@ -49,6 +49,7 @@ export class InboxController {
       address: body.address,
       displayName: body.displayName ?? null,
       active: body.active ?? true,
+      metadata: body.metadata ?? null,
     })
   }
 
@@ -61,6 +62,7 @@ export class InboxController {
       address: body.address ?? undefined,
       displayName: body.displayName ?? null,
       active: body.active,
+      metadata: body.metadata ?? undefined,
     })
   }
 
