@@ -82,6 +82,9 @@ const createPrisma = () => ({
     findUnique: vi.fn(),
     create: vi.fn(),
   },
+  standardSize: {
+    findMany: vi.fn(),
+  },
   dimensionPriceMatrix: {
     count: vi.fn(),
     findFirst: vi.fn(),
@@ -126,6 +129,22 @@ const createParametricPricing = () => ({
   getDefaultParametricProductId: vi.fn((productId?: number) => productId ?? 2115),
 })
 
+const createBudgetCalculator = () => ({
+  calculateForProduct: vi.fn().mockImplementation(async (product: any, width: number, height: number) => {
+    const unitPrice = Number(product?.salePrice?.toString?.() ?? product?.salePrice ?? 0)
+    return {
+      productId: product?.id ?? 0,
+      width,
+      height,
+      area: width * height,
+      unitPrice,
+      totalPrice: unitPrice * width * height,
+      measurementType: 'M2',
+      strategy: 'M2',
+    }
+  }),
+})
+
 const createPublishedProductResolver = () => ({
   resolvePublishedParametricProduct: vi.fn(),
   resolvePublishedParametricVariant: vi.fn().mockResolvedValue(null),
@@ -165,6 +184,10 @@ const createGrowth = () => ({
   }),
 })
 
+const createM2DerivedProducts = () => ({
+  resolveM2DerivedProductByIdentifier: vi.fn().mockResolvedValue(null),
+})
+
 const createGoogleConfig = () => ({
   getEffectiveConfig: vi.fn().mockResolvedValue({
     google: {
@@ -192,6 +215,7 @@ describe('StorefrontService.createOrder', () => {
   let paymentSettlement: ReturnType<typeof createPaymentSettlement>
   let cmsPages: ReturnType<typeof createCmsPages>
   let growth: ReturnType<typeof createGrowth>
+  let m2DerivedProducts: ReturnType<typeof createM2DerivedProducts>
 
   beforeEach(() => {
     prisma = createPrisma()
@@ -204,12 +228,14 @@ describe('StorefrontService.createOrder', () => {
     paymentSettlement = createPaymentSettlement()
     cmsPages = createCmsPages()
     growth = createGrowth()
+    m2DerivedProducts = createM2DerivedProducts()
 
     service = new StorefrontService(
       prisma as any,
       {} as any,
       {} as any,
       createCurrencyConversion() as any,
+      createBudgetCalculator() as any,
       createNotifications() as any,
       { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
       mercadoPago as any,
@@ -223,6 +249,7 @@ describe('StorefrontService.createOrder', () => {
       {} as any,
       cmsPages as any,
       growth as any,
+      m2DerivedProducts as any,
     )
 
     vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
@@ -596,6 +623,35 @@ describe('StorefrontService.createOrder', () => {
       payments: [],
       storefrontPayments: [],
     })
+    prisma.order.findUnique.mockResolvedValue({
+      id: 44,
+      uuid: 'ord-44',
+      createdAt: new Date('2026-03-22T10:00:00.000Z'),
+      documentType: DocumentType.ORDER,
+      statusId: ORDER_STATUS_CODES.PENDING,
+      orderCurrency: 'UYU',
+      paymentMethodId: null,
+      shippingAddress1: 'Av. Italia 1234',
+      shippingAddress2: 'Apto 2',
+      shippingCity: 'Montevideo',
+      shippingState: 'Montevideo',
+      shippingZip: '11000',
+      billingAddress1: 'Av. Italia 1234',
+      billingAddress2: 'Apto 2',
+      billingCity: 'Montevideo',
+      billingState: 'Montevideo',
+      billingZip: '11000',
+      shippingVendor: 'Envío Montevideo',
+      deliveryFees: decimal(10),
+      estimatedMin: 1,
+      estimatedMax: 3,
+      subTotal: decimal(3456),
+      tax: decimal(760.32),
+      grandTotal: decimal(3466),
+      items: [],
+      payments: [],
+      storefrontPayments: [],
+    })
 
     prisma.$transaction.mockImplementation(async (callback: any) =>
       callback({
@@ -773,6 +829,147 @@ describe('StorefrontService.createOrder', () => {
     expect(createPayload?.data?.items?.create?.[0]?.product).toEqual({ connect: { id: 1873 } })
     expect(createPayload?.data?.items?.create?.[0]?.variant).toBeUndefined()
     expect(createPayload?.data?.items?.create?.[0]?.parametricConfig).toBeUndefined()
+  })
+
+  it('creates an order for a derived m2 product using the resolved standard size and derived snapshot', async () => {
+    prisma.storefrontPaymentIntent.findUnique.mockResolvedValue(null)
+    prisma.customer.findUnique.mockResolvedValue(null)
+    prisma.customer.create.mockResolvedValue({
+      id: 10,
+      email: 'buyer@example.com',
+      firstName: 'Ana',
+      lastName: 'Pérez',
+      preferredLocale: 'es',
+    })
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 1874,
+        name: 'Cortina de Bandas Verticales',
+        published: true,
+        mode: ProductMode.SIMPLE,
+        salePrice: decimal(2400),
+        costPrice: decimal(1200),
+        taxRate: 22,
+        currency: 'UYU',
+        productCode: 'BANDAS-01',
+        stock: 8,
+        permanentStock: false,
+        status: 0,
+        unitOfMeasure: 'SQUARE_METER',
+        images: [],
+      },
+    ])
+    prisma.standardSize.findMany.mockResolvedValue([
+      {
+        id: 6,
+        width: decimal(1.2),
+        height: decimal(1.2),
+        label: '1.20 x 1.20',
+        isActive: true,
+        sortOrder: 5,
+      },
+    ])
+    prisma.productVariant.findMany.mockResolvedValue([])
+    prisma.shippingOption.findUnique.mockResolvedValue({
+      id: 3,
+      name: 'Envío Montevideo',
+      deliveryFees: 10,
+      estimatedMin: 1,
+      estimatedMax: 3,
+    })
+    prisma.order.create.mockResolvedValue({
+      id: 44,
+      uuid: 'ord-44',
+      createdAt: new Date('2026-03-22T10:00:00.000Z'),
+      documentType: DocumentType.ORDER,
+      statusId: ORDER_STATUS_CODES.PENDING,
+      orderCurrency: 'UYU',
+      paymentMethodId: null,
+      shippingAddress1: 'Av. Italia 1234',
+      shippingAddress2: 'Apto 2',
+      shippingCity: 'Montevideo',
+      shippingState: 'Montevideo',
+      shippingZip: '11000',
+      billingAddress1: 'Av. Italia 1234',
+      billingAddress2: 'Apto 2',
+      billingCity: 'Montevideo',
+      billingState: 'Montevideo',
+      billingZip: '11000',
+      shippingVendor: 'Envío Montevideo',
+      deliveryFees: decimal(10),
+      estimatedMin: 1,
+      estimatedMax: 3,
+      subTotal: decimal(3456),
+      tax: decimal(760.32),
+      grandTotal: decimal(3466),
+      items: [
+        {
+          productId: 1874,
+          qty: 1,
+          price: decimal(3456),
+          unitAmount: decimal(3456),
+          name: 'Cortina de Bandas Verticales - 1.20 x 1.20',
+          nameSnapshot: 'Cortina de Bandas Verticales - 1.20 x 1.20',
+          img: null,
+          specJson: [
+            { label: 'Medida', value: '1.20 x 1.20' },
+            { label: 'Ancho', value: '1.20 m' },
+            { label: 'Alto', value: '1.20 m' },
+            { label: 'Área', value: '1.44 m²' },
+          ],
+          specSummary: 'Medida: 1.20 x 1.20\nAncho: 1.20 m\nAlto: 1.20 m\nÁrea: 1.44 m²',
+          variantId: null,
+          parametricConfig: {
+            derived: true,
+            baseProductId: 1874,
+            sizeId: 6,
+            width: 1.2,
+            height: 1.2,
+            area: 1.44,
+            reference: 6,
+          },
+        },
+      ],
+      payments: [],
+      storefrontPayments: [],
+    })
+
+    prisma.$transaction.mockImplementation(async (callback: any) =>
+      callback({
+        order: { create: prisma.order.create, findUniqueOrThrow: prisma.order.findUnique },
+        payment: { create: vi.fn().mockResolvedValue({ id: 502 }) },
+        product: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+        productVariant: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      }),
+    )
+
+    const snapshot = await service.prepareCheckoutSnapshot({
+      ...buildBaseOrderPayload(),
+      items: [
+        {
+          productId: 1874,
+          quantity: 1,
+          derived: true,
+          reference: 6,
+          width: 1.2,
+          height: 1.2,
+        },
+      ],
+    })
+
+    expect(snapshot.items).toEqual([
+      expect.objectContaining({
+        productId: 1874,
+        quantity: 1,
+        derived: true,
+        width: 1.2,
+        height: 1.2,
+        reference: 6,
+        pricingSnapshot: expect.objectContaining({
+          unitPrice: 2400,
+        }),
+      }),
+    ])
   })
 
   it('requires variantId for variable products', async () => {
@@ -1626,6 +1823,113 @@ describe('StorefrontService.createOrder', () => {
     expect(detail.seoImageUrl).toBe('/assets/images/products/ventana-og.png')
   })
 
+  it('returns derived m2 detail with standard-size price, stock and configuration', async () => {
+    m2DerivedProducts.resolveM2DerivedProductByIdentifier.mockResolvedValue({
+      id: '1874:6',
+      baseProductId: 1874,
+      sizeId: 6,
+      name: 'Cortina de Bandas Verticales - 1.20 x 1.20',
+      updatedAt: '2026-03-22T22:01:50.814Z',
+      description: 'Cortina de Bandas Verticales: elegante y práctica.',
+      images: [
+        {
+          id: 1,
+          url: '/assets/images/products/bandas.jpg',
+          alt: 'Cortina de Bandas Verticales',
+        },
+      ],
+      width: 1.2,
+      height: 1.2,
+      area: 1.44,
+      unitPricePerM2: 2400,
+      totalPrice: 3456,
+      stock: 7,
+      currency: 'UYU',
+      sizeLabel: '1.20 x 1.20',
+      slug: 'cortina-de-bandas-verticales-1-20-x-1-20',
+      categories: [
+        {
+          id: 12,
+          slug: 'cortinas',
+          name: 'Cortinas',
+        },
+      ],
+      measurementType: 'M2',
+      isPublic: true,
+      isBudgetCalculable: true,
+      calculationStrategy: 'M2',
+      tags: ['m2', 'derived'],
+    })
+
+    prisma.product.findFirst.mockResolvedValue({
+      id: 1874,
+      name: 'Cortina de Bandas Verticales',
+      published: true,
+      productType: 'PHYSICAL',
+      mode: ProductMode.SIMPLE,
+      salePrice: decimal(2400),
+      costPrice: decimal(1200),
+      taxRate: 22,
+      currency: 'UYU',
+      productCode: 'BANDAS-01',
+      stock: 8,
+      permanentStock: false,
+      status: 0,
+      description: 'Cortina de Bandas Verticales: elegante y práctica.',
+      seoTitle: 'Cortina de Bandas Verticales | urucortinas',
+      seoDescription: 'Cortina de Bandas Verticales: elegante y práctica.',
+      seoImageUrl: '/assets/images/products/bandas-og.png',
+      categoryId: 12,
+      category: { id: 12, name: 'Cortinas' },
+      tags: ['m2'],
+      brand: null,
+      vendor: null,
+      img: null,
+      images: [
+        {
+          id: 1,
+          img: '/assets/images/products/bandas.jpg',
+          name: 'Cortina de Bandas Verticales',
+          sortOrder: 0,
+          variantId: null,
+        },
+      ],
+      options: [],
+      variants: [],
+      productRelationsFrom: [],
+      installServiceProduct: null,
+      createdAt: new Date('2026-03-23T12:00:00.000Z'),
+      updatedAt: new Date('2026-03-23T12:00:00.000Z'),
+    })
+
+    const detail = await service.getProduct('cortina-de-bandas-verticales-1-20-x-1-20')
+
+    expect(detail.slug).toBe('cortina-de-bandas-verticales-1-20-x-1-20')
+    expect(detail.name).toBe('Cortina de Bandas Verticales - 1.20 x 1.20')
+    expect(detail.price.amount).toBe(3456)
+    expect(detail.salePrice?.amount).toBe(3456)
+    expect(detail.inventoryStatus).toBe('in-stock')
+    expect(detail.configuration).toEqual(
+      expect.objectContaining({
+        derived: true,
+        baseProductId: 1874,
+        sizeId: 6,
+        width: 1.2,
+        height: 1.2,
+        widthMm: 1200,
+        heightMm: 1200,
+        area: 1.44,
+        reference: 6,
+      }),
+    )
+    expect(detail.specifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Medida', value: '1.20 x 1.20' }),
+        expect.objectContaining({ label: 'Área', value: '1.44 m²' }),
+      ]),
+    )
+  })
+
   it('groups CMS informational navigation under a configurable label without duplicating base links', async () => {
     cmsPages.getPublicPageByPath.mockResolvedValue({
       sections: [
@@ -1667,6 +1971,7 @@ describe('StorefrontService SEO surfaces', () => {
   let service: StorefrontService
   let googleConfig: ReturnType<typeof createGoogleConfig>
   let cmsPages: ReturnType<typeof createCmsPages>
+  let m2DerivedProducts: ReturnType<typeof createM2DerivedProducts>
 
   beforeEach(() => {
     prisma = createPrisma()
@@ -1674,6 +1979,7 @@ describe('StorefrontService SEO surfaces', () => {
     prisma.companyProfile.findUnique.mockResolvedValue(null)
     googleConfig = createGoogleConfig()
     cmsPages = createCmsPages()
+    m2DerivedProducts = createM2DerivedProducts()
     cmsPages.getPublicPageByPath.mockResolvedValue({ sections: [] })
 
     service = new StorefrontService(
@@ -1681,6 +1987,7 @@ describe('StorefrontService SEO surfaces', () => {
       {} as any,
       {} as any,
       createCurrencyConversion() as any,
+      createBudgetCalculator() as any,
       createNotifications() as any,
       { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
       createMercadoPago() as any,
@@ -1694,6 +2001,7 @@ describe('StorefrontService SEO surfaces', () => {
       {} as any,
       cmsPages as any,
       createGrowth() as any,
+      m2DerivedProducts as any,
     )
 
     vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
@@ -1772,6 +2080,7 @@ describe('StorefrontService SEO surfaces', () => {
       {} as any,
       {} as any,
       createCurrencyConversion() as any,
+      createBudgetCalculator() as any,
       createNotifications() as any,
       { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
       createMercadoPago() as any,
@@ -1785,6 +2094,7 @@ describe('StorefrontService SEO surfaces', () => {
       {} as any,
       cmsPages as any,
       createGrowth() as any,
+      createM2DerivedProducts() as any,
     )
 
     vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
@@ -1877,6 +2187,7 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
       {} as any,
       {} as any,
       createCurrencyConversion() as any,
+      createBudgetCalculator() as any,
       createNotifications() as any,
       { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
       createMercadoPago() as any,
@@ -1890,6 +2201,7 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
       {} as any,
       {} as any,
       createGrowth() as any,
+      createM2DerivedProducts() as any,
     )
   })
 
@@ -2064,6 +2376,7 @@ describe('StorefrontService customer-facing order DTOs', () => {
       {} as any,
       {} as any,
       createCurrencyConversion() as any,
+      createBudgetCalculator() as any,
       createNotifications() as any,
       { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
       createMercadoPago() as any,
@@ -2077,6 +2390,7 @@ describe('StorefrontService customer-facing order DTOs', () => {
       {} as any,
       {} as any,
       createGrowth() as any,
+      createM2DerivedProducts() as any,
     )
   })
 
@@ -2259,6 +2573,35 @@ describe('StorefrontService customer-facing order DTOs', () => {
     expect(result.total).toBe(1)
     expect(result.data).toHaveLength(1)
     expect(result.data[0]?.name).toContain('Ventana corrediza')
+  })
+
+  it('hides square-meter base products from the urucortinas storefront listing', async () => {
+    ;(service as any).config = {
+      get: vi.fn((key: string) => (key === 'CLIENT_SLUG' ? 'urucortinas' : undefined)),
+    }
+    prisma.product.count.mockResolvedValue(0)
+    prisma.product.findMany.mockResolvedValue([])
+    vi.spyOn(service as any, 'resolvePublishedParametricDefinitions').mockResolvedValue(new Map())
+
+    await service.listProducts({
+      page: '1',
+      pageSize: '12',
+    } as any)
+
+    expect(prisma.product.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          unitOfMeasure: { not: 'SQUARE_METER' },
+        }),
+      }),
+    )
+    expect(prisma.product.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          unitOfMeasure: { not: 'SQUARE_METER' },
+        }),
+      }),
+    )
   })
 
   it('returns related storefront recommendations from the same category', async () => {

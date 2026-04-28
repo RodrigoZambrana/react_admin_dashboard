@@ -1,5 +1,9 @@
-import type { StorefrontConfig, ProductSummary, CheckoutLineItem, OrderSummary } from "@/types/storefront";
+import type { StorefrontConfig, CheckoutLineItem, OrderSummary } from "@/types/storefront";
 import { resolvePublicPricing, type PublicPricingSource } from "@/lib/seo/public-pricing";
+
+import { initAutoTracking } from "./autoTrack";
+import { getAnalyticsContext, getSessionId, type AnalyticsContext } from "./session";
+import { track } from "./tracking";
 
 export type AnalyticsEvent =
   | {
@@ -19,6 +23,14 @@ export type AnalyticsEvent =
       };
     }
   | {
+      event: "begin_checkout";
+      ecommerce: {
+        currency: string;
+        value: number;
+        items: Array<Record<string, unknown>>;
+      };
+    }
+  | {
       event: "purchase";
       ecommerce: {
         transaction_id?: string;
@@ -27,12 +39,19 @@ export type AnalyticsEvent =
         items: Array<Record<string, unknown>>;
       };
     }
-  | Record<string, unknown>;
+  | {
+      event: string;
+      [key: string]: unknown;
+    };
 
 export type AnalyticsRuntime = {
   analytics?: string | null;
   tagManager?: string | null;
   ads?: string | null;
+};
+
+export type OrderAnalyticsContext = AnalyticsContext & {
+  source_event?: string | null;
 };
 
 type AnalyticsProductLike = PublicPricingSource & {
@@ -45,6 +64,14 @@ type AnalyticsProductLike = PublicPricingSource & {
   variantKey?: string | null;
 };
 
+const pushToDataLayer = (payload: AnalyticsEvent) => {
+  if (typeof window === "undefined") return;
+  const globalWindow = window as Window & { dataLayer?: unknown[] };
+  const dataLayer = globalWindow.dataLayer ?? [];
+  globalWindow.dataLayer = dataLayer;
+  dataLayer.push(payload);
+};
+
 export const resolveAnalyticsRuntime = (config: StorefrontConfig): AnalyticsRuntime => ({
   analytics: config.integrations?.google?.analytics?.measurementId?.trim() || null,
   tagManager: config.integrations?.google?.tagManager?.enabled
@@ -55,21 +82,13 @@ export const resolveAnalyticsRuntime = (config: StorefrontConfig): AnalyticsRunt
     : null,
 });
 
-const pushToDataLayer = (payload: AnalyticsEvent) => {
-  if (typeof window === "undefined") return;
-  const globalWindow = window as Window & { dataLayer?: unknown[] };
-  const dataLayer = globalWindow.dataLayer ?? [];
-  globalWindow.dataLayer = dataLayer;
-  dataLayer.push(payload);
-};
-
 export const trackAnalyticsEvent = (event: AnalyticsEvent) => {
   pushToDataLayer(event);
+  const { event: eventName, ...rest } = event;
+  track({ event: eventName, data: rest });
 };
 
-const mapItem = (
-  item: AnalyticsProductLike | CheckoutLineItem,
-) => {
+const mapItem = (item: AnalyticsProductLike | CheckoutLineItem) => {
   const pricing = resolvePublicPricing({
     currency: "currency" in item ? item.currency ?? undefined : undefined,
     price: "price" in item ? item.price : undefined,
@@ -99,10 +118,7 @@ const mapItem = (
   };
 };
 
-export const trackViewItem = (
-  product: AnalyticsProductLike,
-  currency?: string,
-) => {
+export const trackViewItem = (product: AnalyticsProductLike, currency?: string) => {
   const pricing = resolvePublicPricing({
     currency: "currency" in product ? product.currency ?? undefined : undefined,
     price: "price" in product ? product.price : undefined,
@@ -119,10 +135,7 @@ export const trackViewItem = (
   });
 };
 
-export const trackAddToCart = (
-  product: AnalyticsProductLike,
-  quantity = 1,
-) => {
+export const trackAddToCart = (product: AnalyticsProductLike, quantity = 1) => {
   const pricing = resolvePublicPricing({
     currency: "currency" in product ? product.currency ?? undefined : undefined,
     price: "price" in product ? product.price : undefined,
@@ -139,6 +152,38 @@ export const trackAddToCart = (
   });
 };
 
+export const trackBeginCheckout = (items: AnalyticsProductLike[]) => {
+  if (!items.length) {
+    return;
+  }
+
+  const firstItemPricing = resolvePublicPricing({
+    currency: "currency" in items[0] ? items[0].currency ?? undefined : undefined,
+    price: "price" in items[0] ? items[0].price : undefined,
+    salePrice: "salePrice" in items[0] ? items[0].salePrice ?? undefined : undefined,
+    basePrice: "basePrice" in items[0] ? items[0].basePrice ?? undefined : undefined,
+  });
+  const total = items.reduce((sum, item) => {
+    const pricing = resolvePublicPricing({
+      currency: "currency" in item ? item.currency ?? undefined : undefined,
+      price: "price" in item ? item.price : undefined,
+      salePrice: "salePrice" in item ? item.salePrice ?? undefined : undefined,
+      basePrice: "basePrice" in item ? item.basePrice ?? undefined : undefined,
+    });
+    const quantity = "quantity" in item && typeof item.quantity === "number" ? item.quantity : 1;
+    return sum + pricing.publicPrice.amount * quantity;
+  }, 0);
+
+  trackAnalyticsEvent({
+    event: "begin_checkout",
+    ecommerce: {
+      currency: firstItemPricing.currency,
+      value: total,
+      items: items.map((item) => mapItem(item)),
+    },
+  });
+};
+
 export const trackPurchase = (order: OrderSummary) => {
   trackAnalyticsEvent({
     event: "purchase",
@@ -150,3 +195,5 @@ export const trackPurchase = (order: OrderSummary) => {
     },
   });
 };
+
+export { getAnalyticsContext, getSessionId, initAutoTracking, track };

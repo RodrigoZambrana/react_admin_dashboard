@@ -16,6 +16,7 @@ import * as bcrypt from 'bcrypt'
 import { seedUruCortinasBaseline } from './baseline/seed-baseline'
 import { seedUrucortinasPublicCmsContent } from './public-cms-content'
 import { listSeedPaymentMethods } from './shared/payment-methods'
+import { runMultiEnvironmentSeeds } from './seeds'
 
 const prisma = new PrismaClient()
 
@@ -33,6 +34,103 @@ function maskSecret(value: string) {
   if (!value) return '(empty)'
   if (value.length <= 4) return '****'
   return `${value[0]}***${value[value.length - 1]}`
+}
+
+type StandardSizeSeed = {
+  widthM: number
+  heightM: number
+  sortOrder: number
+}
+
+const STANDARD_SIZE_SEED: StandardSizeSeed[] = [
+  // Replace this list when the storefront needs a different standard-size grid.
+  // Values are in meters because storefront m2 pricing works in meters.
+  { widthM: 0.80, heightM: 1.00, sortOrder: 0 },
+  { widthM: 1.00, heightM: 1.00, sortOrder: 1 },
+  { widthM: 1.00, heightM: 1.20, sortOrder: 2 },
+  { widthM: 1.00, heightM: 1.50, sortOrder: 3 },
+  { widthM: 1.20, heightM: 1.00, sortOrder: 4 },
+  { widthM: 1.20, heightM: 1.20, sortOrder: 5 },
+  { widthM: 1.20, heightM: 1.50, sortOrder: 6 },
+  { widthM: 1.20, heightM: 2.00, sortOrder: 7 },
+  { widthM: 1.50, heightM: 1.00, sortOrder: 8 },
+  { widthM: 1.50, heightM: 1.20, sortOrder: 9 },
+  { widthM: 1.50, heightM: 1.50, sortOrder: 10 },
+  { widthM: 1.50, heightM: 2.00, sortOrder: 11 },
+  { widthM: 1.80, heightM: 1.00, sortOrder: 12 },
+  { widthM: 1.80, heightM: 1.20, sortOrder: 13 },
+  { widthM: 1.80, heightM: 1.50, sortOrder: 14 },
+  { widthM: 1.80, heightM: 2.00, sortOrder: 15 },
+  { widthM: 2.00, heightM: 1.20, sortOrder: 16 },
+  { widthM: 2.00, heightM: 1.50, sortOrder: 17 },
+  { widthM: 2.00, heightM: 2.00, sortOrder: 18 },
+]
+
+const formatStandardSizeLabel = (widthM: number, heightM: number) =>
+  `${widthM.toFixed(2)} x ${heightM.toFixed(2)}`
+
+async function seedStandardSizes() {
+  if (STANDARD_SIZE_SEED.length === 0) {
+    console.log('[seed] STANDARD_SIZE_SEED is empty; skipping StandardSize seed.')
+    return
+  }
+
+  const desiredKeys = new Set(
+    STANDARD_SIZE_SEED.map((size) => `${size.widthM.toFixed(2)}:${size.heightM.toFixed(2)}`),
+  )
+
+  const existingSizes = await prisma.standardSize.findMany({
+    select: {
+      id: true,
+      width: true,
+      height: true,
+    },
+  })
+
+  for (const existing of existingSizes) {
+    const key = `${Number(existing.width.toString()).toFixed(2)}:${Number(existing.height.toString()).toFixed(2)}`
+    if (!desiredKeys.has(key)) {
+      await prisma.standardSize.update({
+        where: { id: existing.id },
+        data: { isActive: false },
+      })
+    }
+  }
+
+  let upserted = 0
+
+  for (const size of STANDARD_SIZE_SEED) {
+    const width = new Prisma.Decimal(size.widthM.toFixed(4))
+    const height = new Prisma.Decimal(size.heightM.toFixed(4))
+    const label = formatStandardSizeLabel(size.widthM, size.heightM)
+
+    await prisma.standardSize.upsert({
+      where: {
+        width_height: {
+          width,
+          height,
+        },
+      },
+      update: {
+        label,
+        isActive: true,
+        sortOrder: size.sortOrder,
+      },
+      create: {
+        width,
+        height,
+        label,
+        isActive: true,
+        sortOrder: size.sortOrder,
+      },
+      select: { id: true },
+    })
+    upserted += 1
+  }
+
+  console.log(
+    `[seed] StandardSize seeded: ${upserted} upserted, ${STANDARD_SIZE_SEED.length} active.`,
+  )
 }
 
 async function seedSuperAdmin() {
@@ -1025,6 +1123,14 @@ async function seedCmsEntries() {
 
 async function main() {
   await seedUruCortinasBaseline(prisma)
+  const seedSummary = await runMultiEnvironmentSeeds(prisma)
+  console.log(
+    `[seed] environment=${seedSummary.environment} settings=${seedSummary.log.created} warnings=${seedSummary.warnings.length}`,
+  )
+  for (const warning of seedSummary.warnings) {
+    console.warn(`[seed] ${warning}`)
+  }
+  await seedStandardSizes()
   await seedUrucortinasPublicCmsContent(prisma)
   const superAdmin = await seedSuperAdmin()
   await seedCustomerStatuses()

@@ -4,9 +4,11 @@ import {
   IsArray,
   IsEmail,
   IsInt,
+  IsNumber,
   IsOptional,
   IsPositive,
   IsString,
+  Min,
   ValidateNested,
   IsObject,
   Matches,
@@ -99,6 +101,28 @@ export class StorefrontOrderItemDto {
   @IsOptional()
   @IsObject()
   configuration?: Record<string, unknown>
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.0000001)
+  @Type(() => Number)
+  width?: number
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0.0000001)
+  @Type(() => Number)
+  height?: number
+
+  @IsOptional()
+  @Type(() => Boolean)
+  derived?: boolean
+
+  @IsOptional()
+  @IsInt()
+  @IsPositive()
+  @Type(() => Number)
+  reference?: number
 }
 
 export class StorefrontCreateOrderDto {
@@ -147,4 +171,15 @@ export class StorefrontCreateOrderDto {
   @IsString()
   @Matches(/^[A-Za-z]{3}$/, { message: 'Currency must be a 3-letter ISO code' })
   currency?: string
+
+  @IsOptional()
+  @IsObject()
+  analytics?: {
+    sessionId?: string
+    userId?: string
+    utmSource?: string | null
+    utmMedium?: string | null
+    utmCampaign?: string | null
+    referrer?: string | null
+  }
 }

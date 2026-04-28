@@ -11,6 +11,14 @@ export type InboxAccountDto = {
     updatedAt?: string
 }
 
+export type UpsertInboxAccountPayload = {
+    address: string
+    displayName?: string | null
+    active?: boolean
+}
+
+export type UpdateInboxAccountPayload = Partial<UpsertInboxAccountPayload>
+
 export type InboxMailboxDto = {
     id: string
     label: string
@@ -154,11 +162,41 @@ export type SendInboxMessagePayload = {
     queueSlug?: string
 }
 
-export const apiGetInboxAccounts = (params?: { channel?: string }) => {
+export const apiGetInboxAccounts = (params?: {
+    channel?: string
+    includeInactive?: boolean
+    includeUnconfigured?: boolean
+}) => {
     return ApiService.fetchData<InboxAccountDto[]>({
         url: '/inbox/accounts',
         method: 'get',
         params,
+    })
+}
+
+export const apiCreateInboxAccount = (data: UpsertInboxAccountPayload) => {
+    return ApiService.fetchData<InboxAccountDto>({
+        url: '/inbox/accounts',
+        method: 'post',
+        data,
+    })
+}
+
+export const apiUpdateInboxAccount = (
+    accountId: string,
+    data: UpdateInboxAccountPayload,
+) => {
+    return ApiService.fetchData<InboxAccountDto>({
+        url: `/inbox/accounts/${accountId}`,
+        method: 'put',
+        data,
+    })
+}
+
+export const apiDeactivateInboxAccount = (accountId: string) => {
+    return ApiService.fetchData<InboxAccountDto>({
+        url: `/inbox/accounts/${accountId}`,
+        method: 'delete',
     })
 }
 

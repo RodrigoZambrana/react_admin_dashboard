@@ -15,6 +15,7 @@ import { I18nProvider } from "@/state/i18n-context";
 import ToastProvider from "@context/ToastContext";
 import NetworkStatusBanner from "@/components/status/NetworkStatusBanner";
 import StructuredData from "@/components/seo/StructuredData";
+import AnalyticsBootstrap from "@/components/AnalyticsBootstrap";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import { getStorefrontConfig } from "@/lib/storefront-config";
 import { buildOrganizationJsonLd, buildWebSiteJsonLd } from "@/lib/seo/structured-data";
@@ -51,6 +52,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
             <ThemeProvider>
               <ToastProvider>
                 <CartProvider>
+                  <AnalyticsBootstrap />
                   <StructuredData
                     schemas={[
                       buildOrganizationJsonLd(storefrontConfig),

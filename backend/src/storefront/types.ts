@@ -184,6 +184,15 @@ export type InventoryStatus = 'in-stock' | 'limited' | 'back-order' | 'out-of-st
 export type ProductModeDto = 'simple' | 'variable' | 'parametric'
 export type ProductAttributeTypeDto = 'COLOR' | 'SIZE' | 'MATERIAL'
 
+export interface StandardSizeDto {
+  id: number
+  width: number
+  height: number
+  label: string
+  isActive: boolean
+  sortOrder: number
+}
+
 export interface ProductAttributeValueDto {
   id: number
   key: string
@@ -329,6 +338,31 @@ export interface ProductDetailDto extends ProductSummaryDto {
   attributes?: ProductAttributeDefinitionDto[]
   variants?: ProductVariantDto[]
   publishedParametricOptions?: PublishedParametricOptionsDto
+}
+
+export interface DerivedProductDto {
+  id: string
+  baseProductId: number
+  sizeId: number
+  name: string
+  updatedAt: string
+  description?: string | null
+  images: ImageAssetDto[]
+  width: number
+  height: number
+  area: number
+  unitPricePerM2: number
+  totalPrice: number
+  stock: number
+  currency: string
+  sizeLabel: string
+  slug: string
+  categories?: Array<{ id: number; slug: string; name: string }>
+  measurementType?: 'M2'
+  isPublic?: boolean
+  isBudgetCalculable?: boolean
+  calculationStrategy?: string
+  tags?: string[]
 }
 
 export type CmsContentAssetTypeDto = 'IMAGE' | 'VIDEO' | 'EMBED'

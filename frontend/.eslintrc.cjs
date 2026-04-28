@@ -89,6 +89,8 @@ module.exports = {
           '**/setupTests.ts',
           '**/*.test.ts',
           '**/*.test.tsx',
+          '**/*.spec.ts',
+          '**/*.spec.tsx',
         ],
       },
     ],

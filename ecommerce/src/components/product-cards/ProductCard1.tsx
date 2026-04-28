@@ -175,8 +175,24 @@ function ProductCard1({
   const t = useTranslation();
   const { state, dispatch } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
+  const derivedM2Configuration =
+    configuration && typeof configuration === "object" && (configuration as Record<string, unknown>).derived === true
+      ? (configuration as Record<string, unknown>)
+      : null;
+  const derivedM2BaseProductId = useMemo(() => {
+    if (!derivedM2Configuration) return null;
+    const candidate = Number(derivedM2Configuration.baseProductId ?? id ?? slug);
+    return Number.isFinite(candidate) ? candidate : null;
+  }, [derivedM2Configuration, id, slug]);
+  const derivedM2SizeId = useMemo(() => {
+    if (!derivedM2Configuration) return null;
+    const candidate = Number(derivedM2Configuration.sizeId ?? derivedM2Configuration.reference);
+    return Number.isFinite(candidate) && candidate > 0 ? candidate : null;
+  }, [derivedM2Configuration]);
   const cartProductId =
-    mode === "parametric" && variantKey
+    derivedM2Configuration && derivedM2BaseProductId && derivedM2SizeId
+      ? `${derivedM2BaseProductId}:DERIVED:${derivedM2SizeId}`
+      : mode === "parametric" && variantKey
       ? buildPublishedParametricLineId(id ?? slug ?? "product", variantKey)
       : id ?? slug;
   const cartItem = state.cart.find((item) => item.id === cartProductId);
@@ -219,6 +235,7 @@ function ProductCard1({
     async (amount: number) => {
       let resolvedConfiguration = configuration ?? undefined;
       let resolvedSelectionSummary = variantLabel ?? null;
+      const resolvedDerivedBaseProductId = derivedM2BaseProductId ?? (typeof id === "number" ? id : Number(id));
 
       if (mode === "parametric" && (!resolvedConfiguration || !resolvedSelectionSummary) && slug) {
         try {
@@ -243,7 +260,10 @@ function ProductCard1({
         type: "CHANGE_CART_AMOUNT",
         payload: {
           id: cartProductId,
-          productId: id ?? slug,
+          productId:
+            derivedM2Configuration && Number.isFinite(resolvedDerivedBaseProductId)
+              ? resolvedDerivedBaseProductId
+              : id ?? slug,
           slug,
           price: effectivePrice,
           currency: productCurrency,
@@ -270,6 +290,8 @@ function ProductCard1({
       productCurrency,
       t,
       title,
+      derivedM2BaseProductId,
+      derivedM2Configuration,
       variantKey,
       variantLabel
     ]
@@ -277,7 +299,7 @@ function ProductCard1({
 
   return (
     <Fragment>
-      <Wrapper borderRadius={12} {...props}>
+      <Wrapper borderRadius={12} data-testid={`product-card-${slug}`} {...props}>
         <div className="image-holder">
           {!!off && (
             <Chip
@@ -325,6 +347,7 @@ function ProductCard1({
             <Box flex="1 1 0" minWidth="0px" mr="0.5rem">
               <Link href={detailHref}>
                 <H3
+                  data-testid={`product-card-title-${slug}`}
                   mb="10px"
                   title={title}
                   fontSize="14px"
@@ -339,7 +362,11 @@ function ProductCard1({
               <Rating value={rating || 0} outof={5} color="warn" readOnly />
 
               <FlexBox alignItems="center" mt="10px">
-                <SemiSpan pr="0.5rem" fontWeight="600" color="primary.main">
+                <SemiSpan
+                  data-testid={`product-card-price-${slug}`}
+                  pr="0.5rem"
+                  fontWeight="600"
+                  color="primary.main">
                   {formattedSalePrice}
                 </SemiSpan>
 

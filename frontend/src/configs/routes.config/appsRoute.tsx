@@ -171,6 +171,24 @@ const baseAppsRoute: Routes = [
         authority: getRolesForFeature(FEATURES.ACCOUNTING),
     },
     {
+        key: 'appsAnalytics.home',
+        path: `${APP_PREFIX_PATH}/analytics`,
+        component: createRedirect(`${APP_PREFIX_PATH}/analytics/overview`),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Analytics',
+        },
+    },
+    {
+        key: 'appsAnalytics.section',
+        path: `${APP_PREFIX_PATH}/analytics/:section`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Analytics',
+        },
+    },
+    {
         key: 'appsAccounting.payments',
         path: `${APP_PREFIX_PATH}/accounting/payments`,
         component: lazy(() => import('@/views/accounting/Payments')),
@@ -700,6 +718,15 @@ const baseAppsRoute: Routes = [
         path: `${APP_PREFIX_PATH}/settings/email/config`,
         component: lazy(() => import('@/views/settings/Email')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
+    },
+    {
+        key: 'appsSettings.emailChannel',
+        path: `${APP_PREFIX_PATH}/settings/channels/email`,
+        component: lazy(() => import('@/views/settings/ChannelsEmail')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Email Channel',
+        },
     },
     {
         key: 'appsSettings.emailTemplates',

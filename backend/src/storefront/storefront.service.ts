@@ -71,6 +71,7 @@ import type {
   CmsPublicPageSummaryDto,
   CmsRenderablePageDto,
   ProductReviewSummaryDto,
+  DerivedProductDto,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -96,6 +97,8 @@ import {
   OrderPaymentSettlementService,
   type PaymentSettlementDispatchPlan,
 } from '../orders/order-payment-settlement.service'
+import { BudgetCalculatorService } from '../budget/budget-calculator.service'
+import type { BudgetProductSource } from '../budget/budget.types'
 import {
   StorefrontPublishedProductResolverService,
   type PublishedParametricProductDefinition,
@@ -106,6 +109,7 @@ import { StorefrontSecurityService } from './security/storefront-security.servic
 import { CmsService } from '../cms/cms.service'
 import { CmsPagesService } from '../cms/cms-pages.service'
 import { GrowthService } from '../growth/growth.service'
+import { M2DerivedProductsService } from './m2-derived-products.service'
 import { buildAddressPayload, normalizeCountryLabel } from '../common/orders/address'
 import { ensureDefaultShippingOptions } from '../common/shipping/default-shipping-options'
 
@@ -586,6 +590,7 @@ export class StorefrontService implements OnModuleInit {
     private readonly jwt: JwtService,
     private readonly config: ConfigService,
     private readonly currencyConversion: CurrencyConversionService,
+    private readonly budgetCalculator: BudgetCalculatorService,
     private readonly notifications: NotificationOrchestratorService,
     private readonly email: EmailService,
     private readonly mercadoPago: MercadoPagoService,
@@ -599,12 +604,20 @@ export class StorefrontService implements OnModuleInit {
     private readonly cms: CmsService,
     private readonly cmsPages: CmsPagesService,
     private readonly growth: GrowthService,
+    private readonly m2DerivedProducts: M2DerivedProductsService,
   ) {}
 
   private defaultCustomerPassword!: string
   private defaultCustomerPasswordHash!: string
   private readonly companySingletonKey = 'default'
   private readonly snapshotFallbackConfigKey = 'storefront:snapshotFallbackEnabled'
+
+  private getClientSlug(): string {
+    const get = this.config?.get?.bind(this.config)
+    return String(get?.('CLIENT_SLUG') ?? get?.('CLIENT') ?? '')
+      .trim()
+      .toLowerCase()
+  }
 
   private readPublicCache<T>(key: string): T | null {
     const entry = this.publicCache.get(key)
@@ -791,10 +804,37 @@ export class StorefrontService implements OnModuleInit {
                 },
               },
             },
+        },
+      })
+      : []
+    const variantById = new Map(variants.map((variant) => [variant.id, variant]))
+    const derivedSizeIds = dto.items
+      .map((item) => (item.reference !== undefined && item.reference !== null ? Number(item.reference) : null))
+      .filter((id): id is number => id !== null && Number.isFinite(id) && id > 0)
+    const derivedSizes = derivedSizeIds.length
+      ? await this.prisma.standardSize.findMany({
+          where: {
+            id: { in: Array.from(new Set(derivedSizeIds)) },
+            isActive: true,
+          },
+          select: {
+            id: true,
+            width: true,
+            height: true,
+            label: true,
+            isActive: true,
+            sortOrder: true,
           },
         })
       : []
-    const variantById = new Map(variants.map((variant) => [variant.id, variant]))
+    const derivedSizeById = new Map(derivedSizes.map((size) => [size.id, size]))
+    const normalizeDerivedDimension = (value: unknown, field: 'width' | 'height'): number => {
+      const normalized = typeof value === 'number' ? value : Number(value)
+      if (!Number.isFinite(normalized) || normalized <= 0) {
+        throw new BadRequestException(`Invalid ${field} for derived product`)
+      }
+      return Number(normalized)
+    }
 
     const rawLineItems = await Promise.all(
       dto.items.map(async (item) => {
@@ -843,8 +883,51 @@ export class StorefrontService implements OnModuleInit {
 
         const lockedPricing =
           options?.preferLockedPricing && this.isPreparedCheckoutItem(item) ? item.pricingSnapshot ?? null : null
+        const derivedSizeId =
+          item.reference !== undefined && item.reference !== null ? Number(item.reference) : null
 
-        if (product.mode === ProductMode.PARAMETRIC) {
+        const hasDerivedDimensions =
+          item.derived === true ||
+          derivedSizeId !== null ||
+          typeof item.width === 'number' ||
+          typeof item.height === 'number'
+
+        if (product.unitOfMeasure === SalesUnit.SQUARE_METER && hasDerivedDimensions) {
+          const derivedSize = derivedSizeId !== null ? derivedSizeById.get(derivedSizeId) ?? null : null
+          if (derivedSizeId !== null && !derivedSize) {
+            throw new BadRequestException('Selected standard size is invalid or unavailable.')
+          }
+
+          const width = derivedSize
+            ? normalizeDerivedDimension(derivedSize.width, 'width')
+            : normalizeDerivedDimension(item.width, 'width')
+          const height = derivedSize
+            ? normalizeDerivedDimension(derivedSize.height, 'height')
+            : normalizeDerivedDimension(item.height, 'height')
+          const budgetResult = await this.budgetCalculator.calculateForProduct(product as BudgetProductSource, width, height)
+          const sizeLabel = derivedSize?.label ?? `${width} x ${height}`
+
+          unitPrice = decimal(budgetResult.unitPrice)
+          unitCost = decimal(baseCostPrice)
+          priceCurrency = this.currencyConversion.normalizeCurrency(product.currency) ?? priceCurrency
+          specEntries = [
+            { label: 'Medida', value: sizeLabel },
+            { label: 'Ancho', value: `${width} m` },
+            { label: 'Alto', value: `${height} m` },
+            { label: 'Área', value: `${budgetResult.area} m²` },
+          ]
+          specSummary = specEntries.map((entry) => `${entry.label}: ${entry.value}`).join('\n')
+          displayName = `${product.name} - ${sizeLabel}`
+          skuSnapshot = product.productCode ?? undefined
+          parametricConfig = {
+            width,
+            height,
+            area: budgetResult.area,
+            sizeId: derivedSize?.id ?? derivedSizeId,
+            sizeLabel,
+            derived: true,
+          }
+        } else if (product.mode === ProductMode.PARAMETRIC) {
           const publishedParametricVariant = await this.resolvePublishedParametricConfiguration(
             product.id,
             item.configuration && typeof item.configuration === 'object'
@@ -1019,6 +1102,7 @@ export class StorefrontService implements OnModuleInit {
           quantity,
           unitPrice,
           unitCost,
+          pricingMethodSnapshot: product.unitOfMeasure,
           specEntries,
           specSummary,
           image: primaryImage,
@@ -1833,13 +1917,123 @@ export class StorefrontService implements OnModuleInit {
       return currentSlug === normalized || legacySlug === normalized
     })
 
-    return product?.id ?? null
+    if (product) {
+      return product.id
+    }
+
+    if (this.getClientSlug() !== 'urucortinas') {
+      return null
+    }
+
+    const [standardSizes, m2Products] = await Promise.all([
+      this.prisma.standardSize.findMany({
+        where: { isActive: true },
+        select: {
+          id: true,
+          label: true,
+        },
+      }),
+      this.prisma.product.findMany({
+        where: {
+          published: true,
+          productType: ProductType.PHYSICAL,
+          isBudgetCalculable: true,
+          unitOfMeasure: SalesUnit.SQUARE_METER,
+        },
+        select: {
+          id: true,
+          name: true,
+          productCode: true,
+        },
+      }),
+    ])
+
+    for (const m2Product of m2Products) {
+      for (const size of standardSizes) {
+        const derivedSlug = buildProductSlug(
+          m2Product.id,
+          `${m2Product.name} ${size.label}`,
+        ).toLowerCase()
+        const legacyDerivedSlug = buildLegacyProductSlug(
+          m2Product.id,
+          `${m2Product.name} ${size.label}`,
+        ).toLowerCase()
+        if (derivedSlug === normalized || legacyDerivedSlug === normalized) {
+          return m2Product.id
+        }
+      }
+    }
+
+    return null
+  }
+
+  private toDerivedProductDetail(
+    detail: ProductDetailDto,
+    derived: DerivedProductDto,
+  ): ProductDetailDto {
+    const configuration = {
+      derived: true,
+      baseProductId: derived.baseProductId,
+      sizeId: derived.sizeId,
+      sizeLabel: derived.sizeLabel,
+      width: derived.width,
+      height: derived.height,
+      widthMm: Math.round(derived.width * 1000),
+      heightMm: Math.round(derived.height * 1000),
+      area: derived.area,
+      reference: derived.sizeId,
+      slug: derived.slug,
+    }
+
+    const thumbnail = derived.images[0]
+    const gallery = derived.images.length > 0 ? derived.images : detail.gallery
+    const derivedPrice = money(derived.totalPrice, derived.currency)
+    const inventoryStatus = this.computeInventoryStatus(derived.stock, false)
+
+    return {
+      ...detail,
+      id: detail.id,
+      slug: derived.slug,
+      name: derived.name,
+      updatedAt: derived.updatedAt,
+      shortDescription: derived.description ?? detail.shortDescription ?? null,
+      description: derived.description ?? detail.description ?? null,
+      descriptionHtml: derived.description ?? detail.descriptionHtml ?? null,
+      price: derivedPrice,
+      salePrice: derivedPrice,
+      inventoryStatus,
+      thumbnail: thumbnail
+        ? {
+            ...thumbnail,
+            alt: thumbnail.alt ?? derived.name,
+          }
+        : detail.thumbnail,
+      gallery,
+      categories:
+        derived.categories?.length && derived.categories.length > 0
+          ? derived.categories
+          : detail.categories,
+      specifications: [
+        { label: 'Medida', value: derived.sizeLabel },
+        { label: 'Ancho', value: `${derived.width.toFixed(2)} m` },
+        { label: 'Alto', value: `${derived.height.toFixed(2)} m` },
+        { label: 'Área', value: `${derived.area.toFixed(2)} m²` },
+      ],
+      tags: derived.tags ?? detail.tags,
+      configuration,
+      measurementType: 'M2',
+      isPublic: true,
+      isBudgetCalculable: true,
+      calculationStrategy: 'M2',
+    }
   }
 
   async listProducts(query: StorefrontProductQueryDto) {
     const page = parsePositiveInt(query.page, 1)
     const pageSize = Math.min(parsePositiveInt(query.pageSize, 12), 48)
+    const clientSlug = this.getClientSlug()
     const cacheKey = `storefront:products:${JSON.stringify({
+      tenant: clientSlug || null,
       page,
       pageSize,
       category: query.category?.trim() ?? null,
@@ -1850,6 +2044,10 @@ export class StorefrontService implements OnModuleInit {
 
     return this.getOrSetPublicCache(cacheKey, PUBLIC_STOREFRONT_PRODUCTS_CACHE_TTL_MS, async () => {
       const where: Prisma.ProductWhereInput = { published: true, productType: ProductType.PHYSICAL }
+
+      if (clientSlug === 'urucortinas') {
+        where.unitOfMeasure = { not: SalesUnit.SQUARE_METER }
+      }
 
       if (query.category) {
         const trimmed = query.category.trim()
@@ -2093,7 +2291,11 @@ export class StorefrontService implements OnModuleInit {
       `storefront:product:${identifier.trim().toLowerCase()}`,
       PUBLIC_STOREFRONT_PRODUCTS_CACHE_TTL_MS,
       async () => {
-        const resolvedProductId = await this.resolveStorefrontProductIdByIdentifier(identifier)
+        const derivedProduct = await this.m2DerivedProducts.resolveM2DerivedProductByIdentifier(
+          identifier,
+        )
+        const resolvedProductId =
+          derivedProduct?.baseProductId ?? (await this.resolveStorefrontProductIdByIdentifier(identifier))
         if (!resolvedProductId) {
           throw new NotFoundException('Product not found')
         }
@@ -2206,6 +2408,9 @@ export class StorefrontService implements OnModuleInit {
           throw new NotFoundException('Product not found')
         }
 
+        const finalizeDetail = (value: ProductDetailDto): ProductDetailDto =>
+          derivedProduct ? this.toDerivedProductDetail(value, derivedProduct) : value
+
         const publishedParametricDefinition = await this.resolvePublishedParametricDefinition(
           product,
         )
@@ -2292,7 +2497,7 @@ export class StorefrontService implements OnModuleInit {
         const relatedRelations = mapRelatedGroup(ProductRelationType.RELATED)
         if (relatedRelations.length) {
           detail.relatedProducts = relatedRelations
-          return detail
+          return finalizeDetail(detail)
         }
 
         const related = await this.prisma.product.findMany({
@@ -2322,7 +2527,7 @@ export class StorefrontService implements OnModuleInit {
             relatedReviewStats.get(item.id) ?? null,
           ),
         )
-        return detail
+        return finalizeDetail(detail)
       },
     )
   }
@@ -2492,6 +2697,13 @@ export class StorefrontService implements OnModuleInit {
           throw new BadRequestException('One or more products are unavailable')
         }
 
+        const derivedItemFields = {
+          ...(item.width !== undefined && item.width !== null ? { width: Number(item.width) } : {}),
+          ...(item.height !== undefined && item.height !== null ? { height: Number(item.height) } : {}),
+          ...(item.derived !== undefined && item.derived !== null ? { derived: Boolean(item.derived) } : {}),
+          ...(item.reference !== undefined && item.reference !== null ? { reference: Number(item.reference) } : {}),
+        }
+
         const quantity = Math.max(1, Number(item.quantity ?? 1))
         const variantId =
           item.variantId !== undefined && item.variantId !== null ? Number(item.variantId) : null
@@ -2528,6 +2740,7 @@ export class StorefrontService implements OnModuleInit {
               productId: product.id,
               quantity,
               configuration: publishedVariant.configuration,
+              ...derivedItemFields,
             }
           }
 
@@ -2595,6 +2808,7 @@ export class StorefrontService implements OnModuleInit {
               matrixRowId: quote.matrixRowId ?? null,
               specifications: quote.specifications ?? null,
             },
+            ...derivedItemFields,
           }
         }
 
@@ -2602,6 +2816,7 @@ export class StorefrontService implements OnModuleInit {
           productId: product.id,
           quantity,
           ...(variant ? { variantId: variant.id } : {}),
+          ...derivedItemFields,
         }
       }),
     )
@@ -3376,6 +3591,12 @@ export class StorefrontService implements OnModuleInit {
               fxRates: fxRatesPayload,
               currencySnapshot: orderCurrency,
               exchangeRateSnapshot: fxRatesPayload,
+              sessionId: dto.analytics?.sessionId ?? null,
+              userId: dto.analytics?.userId ?? String(customer.id),
+              utmSource: dto.analytics?.utmSource ?? null,
+              utmMedium: dto.analytics?.utmMedium ?? null,
+              utmCampaign: dto.analytics?.utmCampaign ?? null,
+              referrer: dto.analytics?.referrer ?? null,
               comment: dto.notes,
               paymentMethodId: selectedPaymentMethod?.id ?? null,
               statusId: ORDER_STATUS_CODES.PENDING,
@@ -3390,6 +3611,7 @@ export class StorefrontService implements OnModuleInit {
                   unitAmount: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
                   unitAmountOrderCurrency: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
                   conversionRate: item.priceConversionRate.toDecimalPlaces(8),
+                  pricingMethodSnapshot: item.pricingMethodSnapshot,
                   unitPriceSnapshot: item.orderCurrencyUnitPrice.toDecimalPlaces(4),
                   unitCostAmount: item.unitCost.toDecimalPlaces(4),
                   unitCostCurrency: item.costCurrency,

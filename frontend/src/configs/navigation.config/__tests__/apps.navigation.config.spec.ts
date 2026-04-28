@@ -12,17 +12,23 @@ const findNode = (nodes: any[], predicate: (node: any) => boolean): any | undefi
 }
 
 describe('apps navigation config', () => {
-  it('renders CMS and Channels with structural icons and translation keys', () => {
+  it('renders CMS, Settings and Channels with structural icons and translation keys', () => {
     const root = appsNavigationConfig[0]
     expect(root?.subMenu?.length).toBeGreaterThan(0)
 
     const channels = findNode(root.subMenu as any[], (node) => node.key === 'apps.channels')
     const cms = findNode(root.subMenu as any[], (node) => node.key === 'apps.cms')
+    const settings = findNode(root.subMenu as any[], (node) => node.key === 'apps.settings')
 
     expect(channels).toMatchObject({
       title: 'Channels',
       translateKey: 'nav.appsSettings.channels',
       icon: 'message',
+    })
+    expect(settings).toMatchObject({
+      title: 'Settings',
+      translateKey: 'nav.appsSettings.settings',
+      icon: 'settings',
     })
     expect(cms).toMatchObject({
       title: 'CMS',
@@ -34,7 +40,7 @@ describe('apps navigation config', () => {
       expect.arrayContaining([
         expect.objectContaining({
           title: 'Email',
-          translateKey: 'nav.appsSettings.email',
+          translateKey: 'nav.appsSettings.emailChannel',
           icon: 'emailChannel',
         }),
         expect.objectContaining({
@@ -46,6 +52,16 @@ describe('apps navigation config', () => {
           title: 'Meta Channels',
           translateKey: 'nav.appsSettings.metaChannels',
           icon: 'meta',
+        }),
+        ]),
+    )
+
+    expect(settings.subMenu).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: 'Email & Integrations',
+          translateKey: 'nav.appsSettings.emailConfig',
+          icon: '',
         }),
       ]),
     )

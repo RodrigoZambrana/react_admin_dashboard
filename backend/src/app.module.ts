@@ -34,6 +34,7 @@ import { AiModule } from './ai/ai.module'
 import { KnowledgeModule } from './knowledge/knowledge.module'
 import { GrowthModule } from './growth/growth.module'
 import { BudgetModule } from './budget/budget.module'
+import { AnalyticsModule } from './analytics/analytics.module'
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware'
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor'
@@ -83,6 +84,7 @@ import { ObservabilityService } from './common/observability/observability.servi
     KnowledgeModule,
     GrowthModule,
     BudgetModule,
+    AnalyticsModule,
   ],
   providers: [
     {

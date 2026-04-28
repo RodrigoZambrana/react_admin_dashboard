@@ -26,6 +26,7 @@ import {
 } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ParametricPricingService } from '../pricing/parametric-pricing.service'
+import { M2DerivedProductsService } from '../storefront/m2-derived-products.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { UpsertProductDto, UpdateProductDto, TableQueryDto as ProductQuery } from './dto/product.dto'
 import { calculateOrderLineTotals, costPriceFromSale, decimalToNumber, roundCurrency, salePriceFromCost } from './utils/pricing'
@@ -154,7 +155,11 @@ const SALES_UNIT_KEYWORDS: Record<SalesUnit, string[]> = {
 @UseGuards(JwtAuthGuard)
 @Controller('sales')
 export class SalesController {
-  constructor(private prisma: PrismaService, private readonly parametricPricing: ParametricPricingService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly parametricPricing: ParametricPricingService,
+    private readonly m2DerivedProducts: M2DerivedProductsService,
+  ) {}
 
   private async getTaxRate() {
     const cfg = await this.prisma.systemConfig.findUnique({ where: { key: 'taxRate' } })
@@ -2144,7 +2149,8 @@ export class SalesController {
           if (createdAt && !Number.isNaN(createdAt.getTime())) {
             createData.createdAt = createdAt
           }
-          await this.prisma.product.create({ data: createData })
+          const createdProduct = await this.prisma.product.create({ data: createData })
+          await this.m2DerivedProducts.invalidateBaseProduct(createdProduct.id)
           created += 1
         } else {
           const updateData: Prisma.ProductUpdateInput = {
@@ -2183,6 +2189,7 @@ export class SalesController {
             where: { id: product.id },
             data: updateData,
           })
+          await this.m2DerivedProducts.invalidateBaseProduct(product.id)
           updated += 1
         }
       } catch (error) {

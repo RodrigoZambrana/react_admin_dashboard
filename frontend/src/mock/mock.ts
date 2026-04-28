@@ -115,6 +115,7 @@ export function mockServer({ environment = 'test' }) {
                 emailRoleRulesData,
                 emailLogsData,
                 emailProviderConfigData,
+                inboxAccountsData: [],
                 crmDashboardData,
                 projectDashboardData,
                 cryptoDashboardData,

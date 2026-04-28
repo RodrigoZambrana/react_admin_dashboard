@@ -54,6 +54,16 @@
       "expensesConfig": "Configuración de gastos",
       "payments": "Pagos"
     },
+    "appsAnalytics": {
+      "analytics": "Analítica",
+      "overview": "Resumen",
+      "funnel": "Embudo",
+      "marketing": "Marketing",
+      "products": "Productos",
+      "behavior": "Comportamiento",
+      "conversions": "Conversiones",
+      "growthInsights": "Growth & Insights"
+    },
     "appsProducts": {
       "products": "Productos",
       "list": "Listado de productos",

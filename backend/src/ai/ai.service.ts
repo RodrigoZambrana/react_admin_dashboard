@@ -22,6 +22,7 @@ import { AberturasParserService } from '../aberturas/parser/aberturas-parser.ser
 import { normalizeAberturasToken } from '../aberturas/parser/utils'
 import { ParametricPricingService } from '../pricing/parametric-pricing.service'
 import { resolveEffectiveInstallationPolicy } from '../catalog/installation-policy'
+import { M2DerivedProductsService } from '../storefront/m2-derived-products.service'
 import { CreateOrderDto } from '../sales/dto/order.dto'
 import { CreateAiCategoryDto } from './dto/create-ai-category.dto'
 import { CreateAiAppointmentDto } from './dto/create-ai-appointment.dto'
@@ -150,6 +151,7 @@ export class AiService {
     private readonly paymentSettlement: OrderPaymentSettlementService,
     private readonly aberturasParser: AberturasParserService,
     private readonly parametricPricing: ParametricPricingService,
+    private readonly m2DerivedProducts: M2DerivedProductsService,
   ) {}
 
   private normalizeRuntimeWordingEntry(
@@ -2196,6 +2198,7 @@ export class AiService {
         published: input.published ?? true,
       },
     })
+    await this.m2DerivedProducts.invalidateBaseProduct(product.id)
 
     return {
       id: product.id,
@@ -2309,6 +2312,7 @@ export class AiService {
         published: input.published ?? undefined,
       },
     })
+    await this.m2DerivedProducts.invalidateBaseProduct(product.id)
 
     return {
       id: product.id,
@@ -2356,6 +2360,7 @@ export class AiService {
         stock: true,
       },
     })
+    await this.m2DerivedProducts.invalidateBaseProduct(product.id)
 
     return {
       id: product.id,
@@ -3048,6 +3053,7 @@ export class AiService {
       where: { id },
       data: { published },
     })
+    await this.m2DerivedProducts.invalidateBaseProduct(product.id)
 
     return {
       id: product.id,

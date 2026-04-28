@@ -680,7 +680,14 @@ export default function CheckoutForm({
             <Grid container spacing={7}>
               <Grid item sm={6} xs={12}>
                 <Link href="/cart">
-                  <Button variant="outlined" color="primary" type="button" fullWidth>
+                  <Button
+                    variant="outlined"
+                    color="primary"
+                    type="button"
+                    fullWidth
+                    data-track="checkout_back_to_cart"
+                    data-label="Checkout back to cart"
+                  >
                     Back to cart
                   </Button>
                 </Link>
@@ -693,6 +700,8 @@ export default function CheckoutForm({
                   type="submit"
                   fullWidth
                   data-testid="checkout-continue-to-payment"
+                  data-track="checkout_continue_to_payment"
+                  data-label="Checkout continue to payment"
                 >
                   Continue to payment
                 </Button>

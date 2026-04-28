@@ -551,14 +551,13 @@ const CtaBannerSection = ({ section }: { section: CmsRenderableSection }) => {
 
 const BudgetCalculatorSection = ({ section }: { section: CmsRenderableSection }) => {
   const settings = asRecord(section.settings);
-  const title = asString(settings.title) || "Presupuesto m²";
+  const title = asString(settings.title) || "Calculá tu presupuesto";
   const description =
     asString(settings.description) ||
-    "Calculadora embebida con selección de producto y cálculo validado en backend.";
+    "Ingresá las medidas y obtené el precio al instante.";
   const productId = asNumber(settings.productId ?? settings.initialProductId, NaN);
   const productSlug = asString(settings.productSlug) || asString(settings.initialProductSlug) || null;
   const compact = Boolean(settings.compact ?? true);
-  const showCustomerFields = settings.showCustomerFields === undefined ? true : Boolean(settings.showCustomerFields);
 
   return (
     <BudgetCalculatorPanel
@@ -567,8 +566,6 @@ const BudgetCalculatorSection = ({ section }: { section: CmsRenderableSection })
       description={description}
       initialProductId={Number.isFinite(productId) && productId > 0 ? productId : null}
       initialProductSlug={productSlug}
-      showCustomerFields={showCustomerFields}
-      submitLabel={asString(settings.submitLabel) || "Validar y agregar"}
       initialWidth={Math.max(1, asNumber(settings.initialWidth, 1))}
       initialHeight={Math.max(1, asNumber(settings.initialHeight, 1))}
     />
@@ -594,7 +591,7 @@ const BudgetCalculatorSectionWithPage = ({
       title={asString(settings.title) || "Presupuesto m²"}
       description={
         asString(settings.description) ||
-        "Calculadora embebida con selección de producto y cálculo validado en backend."
+        "Ingresá las medidas y obtené el precio al instante."
       }
       initialProductId={
         (() => {
@@ -603,10 +600,6 @@ const BudgetCalculatorSectionWithPage = ({
         })()
       }
       initialProductSlug={fallbackSlug}
-      showCustomerFields={
-        settings.showCustomerFields === undefined ? true : Boolean(settings.showCustomerFields)
-      }
-      submitLabel={asString(settings.submitLabel) || "Validar y agregar"}
       initialWidth={Math.max(1, asNumber(settings.initialWidth, 1))}
       initialHeight={Math.max(1, asNumber(settings.initialHeight, 1))}
     />

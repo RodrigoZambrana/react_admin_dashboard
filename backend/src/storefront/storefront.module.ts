@@ -15,6 +15,11 @@ import { OrdersModule } from '../orders/orders.module'
 import { StorefrontPublishedProductResolverService } from './storefront-published-product-resolver.service'
 import { CmsModule } from '../cms/cms.module'
 import { GrowthModule } from '../growth/growth.module'
+import { BudgetModule } from '../budget/budget.module'
+import { M2DerivedProductCacheService } from './m2-derived-product.cache'
+import { M2DerivedProductsService } from './m2-derived-products.service'
+import { M2DerivedProductStockService } from './m2-derived-product-stock.service'
+import { M2DerivedController } from './m2-derived.controller'
 
 @Module({
   imports: [
@@ -25,8 +30,9 @@ import { GrowthModule } from '../growth/growth.module'
     OrdersModule,
     CmsModule,
     GrowthModule,
+    BudgetModule,
   ],
-  controllers: [StorefrontController],
+  controllers: [StorefrontController, M2DerivedController],
   providers: [
     StorefrontService,
     StorefrontJwtStrategy,
@@ -36,7 +42,10 @@ import { GrowthModule } from '../growth/growth.module'
     StorefrontSessionCookieService,
     StorefrontSecurityService,
     StorefrontPublishedProductResolverService,
+    M2DerivedProductCacheService,
+    M2DerivedProductStockService,
+    M2DerivedProductsService,
   ],
-  exports: [MercadoPagoService],
+  exports: [MercadoPagoService, M2DerivedProductsService],
 })
 export class StorefrontModule {}

@@ -1,12 +1,14 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Post,
   Query,
   Sse,
   UseGuards,
+  Put,
 } from '@nestjs/common'
 import type { MessageEvent } from '@nestjs/common'
 import type { Observable } from 'rxjs'
@@ -20,6 +22,7 @@ import { UpdateFlagsDto } from './dto/update-flags.dto'
 import { MoveMessageDto } from './dto/move-message.dto'
 import { SyncMailboxDto } from './dto/sync-mailbox.dto'
 import { GetMessageQueryDto } from './dto/get-message.dto'
+import { UpsertInboxAccountDto, UpdateInboxAccountDto } from './dto/upsert-account.dto'
 
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS, ROLES.SALES)
@@ -28,8 +31,42 @@ export class InboxController {
   constructor(private readonly inboxService: InboxService) {}
 
   @Get('accounts')
-  listAccounts(@Query('channel') channel?: string) {
-    return this.inboxService.listAccounts({ channel })
+  listAccounts(
+    @Query('channel') channel?: string,
+    @Query('includeInactive') includeInactive?: string,
+    @Query('includeUnconfigured') includeUnconfigured?: string,
+  ) {
+    return this.inboxService.listAccounts({
+      channel,
+      includeInactive: includeInactive === 'true',
+      includeUnconfigured: includeUnconfigured === 'true',
+    })
+  }
+
+  @Post('accounts')
+  createAccount(@Body() body: UpsertInboxAccountDto) {
+    return this.inboxService.createAccount({
+      address: body.address,
+      displayName: body.displayName ?? null,
+      active: body.active ?? true,
+    })
+  }
+
+  @Put('accounts/:accountId')
+  updateAccount(
+    @Param('accountId') accountId: string,
+    @Body() body: UpdateInboxAccountDto,
+  ) {
+    return this.inboxService.updateAccount(accountId, {
+      address: body.address ?? undefined,
+      displayName: body.displayName ?? null,
+      active: body.active,
+    })
+  }
+
+  @Delete('accounts/:accountId')
+  deactivateAccount(@Param('accountId') accountId: string) {
+    return this.inboxService.deactivateAccount(accountId)
   }
 
   @Get('accounts/:accountId/mailboxes')

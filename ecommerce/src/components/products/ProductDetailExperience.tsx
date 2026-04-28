@@ -99,6 +99,7 @@ export default function ProductDetailExperience({
         title={product.title}
         images={product.images && product.images.length > 0 ? product.images : [product.thumbnail]}
         mode={product.mode}
+        configuration={product.configuration}
         publishedParametricOptions={product.publishedParametricOptions}
         onPublishedParametricVariantChange={setPublishedSelectionState}
         variantAttributes={product.variantAttributes}
@@ -108,12 +109,10 @@ export default function ProductDetailExperience({
       {budgetEnabled ? (
         <BudgetCalculatorPanel
           compact
-          title={`Presupuesto de ${product.title}`}
-          description="Instanciamos el selector en este producto y el cálculo se valida en backend antes de agregarlo al carrito."
+          title={`Calculá el precio de ${product.title}`}
+          description="Ingresá las medidas y calculá el precio al instante."
           initialProductId={Number(product.id)}
           initialProductSlug={product.slug}
-          showCustomerFields
-          submitLabel="Validar y agregar"
         />
       ) : null}
 

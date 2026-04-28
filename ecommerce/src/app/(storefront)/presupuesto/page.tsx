@@ -27,8 +27,8 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildStorefrontPageMetadata({
-    title: "Presupuesto online",
-    description: "Calculadora online en español para productos a medida.",
+    title: "Calculá tu presupuesto",
+    description: "Ingresá las medidas y obtené el precio al instante.",
     canonicalPath: "/presupuesto",
   });
 }
@@ -47,8 +47,8 @@ export default async function PresupuestoPage({
   return (
     <AppLayout navbar={<Navbar />}>
       <BudgetPageContent
-        title="Presupuesto online"
-        description="Elegí un producto, completá tus medidas y recibí un presupuesto al instante."
+        title="Calculá tu presupuesto"
+        description="Ingresá las medidas y obtené el precio al instante."
         initialProductId={Number.isFinite(initialProductId) && initialProductId > 0 ? initialProductId : null}
         initialProductSlug={initialProductSlug}
         initialWidth={Number.isFinite(initialWidth) && initialWidth > 0 ? initialWidth : 1}

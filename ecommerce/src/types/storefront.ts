@@ -980,6 +980,14 @@ export interface CreateOrderPayload {
   shippingOptionId?: number;
   fulfillmentMode?: StorefrontFulfillmentMode;
   currency?: string;
+  analytics?: {
+    sessionId: string;
+    userId?: string;
+    utmSource?: string | null;
+    utmMedium?: string | null;
+    utmCampaign?: string | null;
+    referrer?: string | null;
+  };
 }
 
 export type CheckoutSnapshotPayload = Omit<CreateOrderPayload, "paymentIntentId">;

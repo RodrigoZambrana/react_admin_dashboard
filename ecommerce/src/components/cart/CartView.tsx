@@ -159,7 +159,12 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
               <IconMinus size={16} />
             </Button>
 
-            <Typography mx="0.5rem" fontWeight="600" fontSize="15px">
+            <Typography
+              data-testid={`cart-line-quantity-${String(item.product.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+              mx="0.5rem"
+              fontWeight="600"
+              fontSize="15px"
+            >
               {item.quantity}
             </Typography>
 

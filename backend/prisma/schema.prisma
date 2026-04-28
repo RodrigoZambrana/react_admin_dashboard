@@ -860,6 +860,20 @@ model Product {
   @@index([installServiceProductId])
 }
 
+model StandardSize {
+  id        Int      @id @default(autoincrement())
+  width     Decimal  @db.Decimal(10, 4)
+  height    Decimal  @db.Decimal(10, 4)
+  label     String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([width, height])
+  @@index([isActive, sortOrder])
+}
+
 model ProductRelation {
   id               Int                 @id @default(autoincrement())
   productId        Int
@@ -1173,6 +1187,18 @@ model SystemConfig {
   value String
 }
 
+model Setting {
+  id          Int      @id @default(autoincrement())
+  key         String
+  value       Json
+  environment String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([key, environment], map: "setting_key_environment_unique")
+  @@index([environment], map: "setting_environment_idx")
+}
+
 model SecureConfig {
   key       String   @id
   value     String
@@ -1239,6 +1265,12 @@ model Order {
   convertedAt           DateTime?
   convertedBy           Int?
   convertedByUser       User?                     @relation("OrderConvertedBy", fields: [convertedBy], references: [id], onDelete: SetNull)
+  sessionId             String?                   @map("session_id")
+  userId                String?                   @map("user_id")
+  utmSource             String?                   @map("utm_source")
+  utmMedium             String?                   @map("utm_medium")
+  utmCampaign           String?                   @map("utm_campaign")
+  referrer              String?
   documentFilePath      String?
   documentFileName      String?
   documentFileMime      String?
@@ -1266,6 +1298,8 @@ model Order {
   @@index([documentType, createdAt])
   @@index([customerId, documentType, date])
   @@index([validUntil])
+  @@index([sessionId])
+  @@index([utmSource, utmCampaign])
 }
 
 model OrderTimelineEvent {
@@ -1291,6 +1325,71 @@ model OrderTimelineEvent {
   @@index([orderId, timestamp])
   @@index([orderId, type])
   @@index([orderId, timestamp, id], map: "order_timeline_order_timestamp_id_idx")
+}
+
+model AnalyticsEvent {
+  id            String   @id @default(cuid())
+  eventName     String   @map("event_name")
+  sessionId     String   @map("session_id")
+  correlationId String?  @map("correlation_id")
+  userId        String?  @map("user_id")
+  url           String
+  referrer      String?
+  userAgent     String   @map("user_agent")
+  timestamp     DateTime @map("timestamp")
+  payload       Json     @db.JsonB
+  processed     Boolean  @default(false)
+  processedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([eventName, timestamp])
+  @@index([sessionId, timestamp])
+  @@index([processed, timestamp])
+  @@index([correlationId])
+  @@index([createdAt])
+  @@map("events")
+}
+
+model EventFact {
+  id             BigInt   @id @default(autoincrement())
+  eventName      String   @map("event_name")
+  eventTimestamp DateTime  @map("event_timestamp")
+  eventDate      DateTime  @db.Date @map("event_date")
+  sessionId      String   @map("session_id")
+  userId         String?  @map("user_id")
+  page           String?
+  path           String?
+  productId      String?  @map("product_id")
+  category       String?
+  utmSource      String?  @map("utm_source")
+  utmMedium      String?  @map("utm_medium")
+  utmCampaign    String?  @map("utm_campaign")
+  referrer       String?
+  device         String?
+  country        String?
+  value          Decimal? @db.Decimal(18, 4)
+  sourceEventId  String   @unique @map("source_event_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([eventName, eventDate])
+  @@index([sessionId, eventDate])
+  @@index([utmSource, utmCampaign])
+  @@map("event_facts")
+}
+
+model AnalyticsSession {
+  id          String   @id
+  firstSeen   DateTime? @map("first_seen")
+  lastSeen    DateTime? @map("last_seen")
+  utmSource   String?   @map("utm_source")
+  utmMedium   String?   @map("utm_medium")
+  utmCampaign String?   @map("utm_campaign")
+  referrer    String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("sessions")
 }
 
 model OrderItem {

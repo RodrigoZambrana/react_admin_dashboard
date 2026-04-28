@@ -6,6 +6,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module'
 import { OrdersModule } from '../orders/orders.module'
 import { AberturasGlossaryModule } from '../aberturas/aberturas-glossary.module'
 import { PricingModule } from '../pricing/pricing.module'
+import { StorefrontModule } from '../storefront/storefront.module'
 import { AiController } from './ai.controller'
 import { AiService } from './ai.service'
 import { AiAssetExtractionService } from './extraction/ai-asset-extraction.service'
@@ -21,6 +22,7 @@ import { UsageController } from './usage.controller'
     OrdersModule,
     AberturasGlossaryModule,
     PricingModule,
+    StorefrontModule,
   ],
   controllers: [AiController, UsageController],
   providers: [AiService, AiAssetExtractionService, OpenAiUsageService],

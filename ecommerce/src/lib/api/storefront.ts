@@ -38,6 +38,7 @@ import { apiFetch, isApiError } from "../http";
 import { loadStorefrontSnapshot } from "@/lib/snapshots/loaders";
 import { isSnapshotFallbackEnabled } from "@/lib/resilience-flags";
 import type { StorefrontSnapshot } from "@/lib/snapshots/types";
+import { normalizeSearchValue } from "@/lib/storefront/search-utils";
 
 let cachedFallbackCategories: CategorySummary[] | null = null;
 
@@ -99,9 +100,201 @@ const buildPaginatedResponse = (
   };
 };
 
+const loadAllStorefrontProducts = async (): Promise<ProductSummary[]> => {
+  const firstPage = await apiFetch<PaginatedResponse<ProductSummary>>("products", {
+    params: {
+      page: 1,
+      pageSize: 48,
+    },
+    cache: "no-store",
+  });
+
+  const responses: typeof firstPage[] = [firstPage];
+
+  if (firstPage.totalPages > 1) {
+    const remainingPages = Array.from({ length: firstPage.totalPages - 1 }, (_, index) => index + 2);
+    const settled = await Promise.allSettled(
+      remainingPages.map((page) =>
+        apiFetch<PaginatedResponse<ProductSummary>>("products", {
+          params: {
+            page,
+            pageSize: 48,
+          },
+          cache: "no-store",
+        }),
+      ),
+    );
+
+    for (const result of settled) {
+      if (result.status === "fulfilled") {
+        responses.push(result.value);
+      } else if (!isApiError(result.reason)) {
+        console.warn("[storefront] Failed to fetch additional product pages", result.reason);
+      }
+    }
+  }
+
+  return responses.flatMap((response) => response.data);
+};
+
 const budgetApiOrigin = new URL(env.apiBaseUrl).origin;
 const budgetApiBaseUrl = `${budgetApiOrigin}/api/budget/`;
 const budgetApiUrl = (path: string) => new URL(path, budgetApiBaseUrl).toString();
+
+type DerivedProductPayload = {
+  id: string;
+  baseProductId: number;
+  sizeId: number;
+  name: string;
+  updatedAt: string;
+  description?: string | null;
+  images: Array<{
+    id: number | string;
+    url: string;
+    alt?: string | null;
+  }>;
+  width: number;
+  height: number;
+  area: number;
+  unitPricePerM2: number;
+  totalPrice: number;
+  stock: number;
+  currency: string;
+  sizeLabel: string;
+  slug: string;
+  categories?: Array<{ id: number; slug: string; name: string }>;
+  measurementType?: "M2";
+  isPublic?: boolean;
+  isBudgetCalculable?: boolean;
+  calculationStrategy?: string;
+  tags?: string[];
+};
+
+const toInventoryStatus = (stock: number): ProductSummary["inventoryStatus"] => {
+  if (!Number.isFinite(stock) || stock <= 0) {
+    return "out-of-stock";
+  }
+  if (stock < 5) {
+    return "limited";
+  }
+  return "in-stock";
+};
+
+const mapDerivedProductToSummary = (product: DerivedProductPayload): ProductSummary => {
+  const thumbnailUrl = product.images[0]?.url ?? null;
+  const money = {
+    amount: product.totalPrice,
+    currency: product.currency,
+  };
+
+  return {
+    id: product.baseProductId * 1000 + product.sizeId,
+    slug: product.slug,
+    name: product.name,
+    updatedAt: product.updatedAt,
+    shortDescription: product.description ?? null,
+    price: money,
+    salePrice: money,
+    inventoryStatus: toInventoryStatus(product.stock),
+    thumbnail: thumbnailUrl
+      ? {
+          id: `${product.id}-thumbnail`,
+          url: thumbnailUrl,
+          alt: product.images[0]?.alt ?? product.name,
+        }
+      : undefined,
+    categories: product.categories ?? [],
+    tags: product.tags ?? [],
+    mode: "simple",
+    measurementType: product.measurementType ?? "M2",
+    isPublic: product.isPublic ?? true,
+    isBudgetCalculable: product.isBudgetCalculable ?? true,
+    calculationStrategy: product.calculationStrategy ?? "M2",
+    images: product.images.map((image, index) => ({
+      id: image.id,
+      url: image.url,
+      alt: image.alt ?? product.name,
+      isPrimary: index === 0,
+    })),
+    gallery: product.images.map((image, index) => ({
+      id: image.id,
+      url: image.url,
+      alt: image.alt ?? product.name,
+      isPrimary: index === 0,
+    })),
+    specifications: [
+      { label: "Medida", value: product.sizeLabel },
+      { label: "Ancho", value: `${product.width.toFixed(2)} m` },
+      { label: "Alto", value: `${product.height.toFixed(2)} m` },
+      { label: "Área", value: `${product.area.toFixed(2)} m²` },
+    ],
+    configuration: {
+      derived: true,
+      baseProductId: product.baseProductId,
+      sizeId: product.sizeId,
+      width: product.width,
+      height: product.height,
+      area: product.area,
+      sizeLabel: product.sizeLabel,
+    },
+  } as ProductSummary;
+};
+
+const filterAndSortProducts = (
+  products: ProductSummary[],
+  query: ProductListQuery,
+): ProductSummary[] => {
+  const categorySlug = query.categorySlug?.trim() ?? "";
+  const term = query.search?.trim() ?? "";
+  const normalizedTerm = normalizeSearchValue(term);
+  const filtered = products.filter((product) => {
+    if (categorySlug) {
+      const matchesCategory = product.categories?.some((category) => category.slug === categorySlug);
+      if (!matchesCategory) {
+        return false;
+      }
+    }
+
+    if (term) {
+      const haystack = [
+        product.name,
+        product.shortDescription ?? "",
+        product.slug,
+        ...(product.tags ?? []),
+        ...(product.categories?.map((category) => category.name) ?? []),
+      ].join(" ");
+      if (!normalizeSearchValue(haystack).includes(normalizedTerm)) {
+        return false;
+      }
+    }
+
+    if (query.tag && !(product.tags ?? []).includes(query.tag)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const sorted = [...filtered];
+  switch (query.sort) {
+    case "newest":
+      sorted.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+      break;
+    case "price-asc":
+      sorted.sort((a, b) => a.price.amount - b.price.amount);
+      break;
+    case "price-desc":
+      sorted.sort((a, b) => b.price.amount - a.price.amount);
+      break;
+    case "best-sellers":
+    case "featured":
+    default:
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+  }
+
+  return sorted;
+};
 
 export interface StorefrontAddressInput {
   street: string;
@@ -244,6 +437,47 @@ export const StorefrontApi = {
   },
 
   async listProducts(query: ProductListQuery = {}): Promise<PaginatedResponse<ProductSummary>> {
+    if (env.clientSlug === "urucortinas") {
+      try {
+        const [baseProducts, derivedProducts] = await Promise.all([
+          loadAllStorefrontProducts(),
+          apiFetch<DerivedProductPayload[]>("m2-derived", {
+            cache: "no-store",
+          }),
+        ]);
+
+        const merged = Array.from(
+          new Map(
+            [...baseProducts, ...derivedProducts.map(mapDerivedProductToSummary)].map((product) => [
+              product.slug,
+              product,
+            ]),
+          ).values(),
+        );
+
+        const filtered = filterAndSortProducts(merged, query);
+        return buildPaginatedResponse(filtered, query);
+      } catch (error) {
+        if (isSnapshotFallbackEnabled()) {
+          const record = await loadStorefrontSnapshot();
+          if (record) {
+            const fallbackItems = selectSnapshotProducts(record.value, query);
+            if (fallbackItems.length) {
+              const status = isApiError(error) ? error.status : "unknown";
+              console.warn(
+                `[storefront] urucortinas products endpoint unavailable (status: ${status}). Serving snapshot dataset.`,
+              );
+              const unique = Array.from(
+                new Map(fallbackItems.map((item) => [item.slug ?? item.id, item])).values(),
+              );
+              return buildPaginatedResponse(unique, query);
+            }
+          }
+        }
+        throw error;
+      }
+    }
+
     try {
       return await apiFetch<PaginatedResponse<ProductSummary>>("products", {
         params: {

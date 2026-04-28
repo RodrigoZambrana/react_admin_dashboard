@@ -410,6 +410,9 @@ const createService = () => {
       suggestions: [],
     }),
   }
+  const derivedProducts = {
+    invalidateBaseProduct: vi.fn().mockResolvedValue(undefined),
+  }
 
   const service = new AiService(
     prisma as never,
@@ -420,9 +423,18 @@ const createService = () => {
     paymentSettlement as never,
     new AberturasParserService(aberturasGlossary as never) as never,
     parametricPricing as never,
+    derivedProducts as never,
   )
 
-  return { prisma, service, salesDocuments, paymentSettlement, aberturasGlossary, parametricPricing }
+  return {
+    prisma,
+    service,
+    salesDocuments,
+    paymentSettlement,
+    aberturasGlossary,
+    parametricPricing,
+    derivedProducts,
+  }
 }
 
 describe('AiService', () => {
@@ -1173,6 +1185,7 @@ describe('AiService', () => {
       { apply: vi.fn(), dispatch: vi.fn() } as never,
       { listGrouped: vi.fn(), getConfig: vi.fn() } as never,
       { searchMatrixDefault: vi.fn() } as never,
+      { invalidateBaseProduct: vi.fn() } as never,
     )
 
     const result = await service.updateRuntimeConfig({
@@ -1224,6 +1237,7 @@ describe('AiService', () => {
       { apply: vi.fn(), dispatch: vi.fn() } as never,
       { listGrouped: vi.fn(), getConfig: vi.fn() } as never,
       { searchMatrixDefault: vi.fn() } as never,
+      { invalidateBaseProduct: vi.fn() } as never,
     )
 
     await service.updateRuntimeConfig({

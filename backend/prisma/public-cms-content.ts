@@ -521,8 +521,6 @@ const buildBudgetCalculatorSection = (
     description,
     productSlug,
     compact: true,
-    showCustomerFields: true,
-    submitLabel: 'Validar y agregar',
     initialWidth: 1,
     initialHeight: 1,
   },
@@ -534,9 +532,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
     path: 'productos/cortinas-roller.html',
     aliases: ['cortinas-roller.html'],
     title: 'Cortinas Roller',
-    summary: 'Calculá tu presupuesto de cortinas roller en línea con selección validada por backend.',
+    summary: 'Calculá el precio de tu cortina roller a medida.',
     seoTitle: 'Cortinas Roller | urucortinas',
-    seoDescription: 'Presupuesto online de cortinas roller con cálculo por backend.',
+    seoDescription: 'Calculá el precio de tu cortina roller a medida.',
     seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
     legacySource: 'knowledge:public-curated',
     budgetProductSlug: 'cortinas-roller',
@@ -548,10 +546,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         sortOrder: 0,
         visible: true,
         settings: {
-          eyebrow: 'Presupuesto online',
+          eyebrow: 'Cortinas a medida',
           title: 'Cortinas roller a medida',
-          description:
-            'Seleccioná el producto, cargá ancho y alto, y obtené un presupuesto validado en backend.',
+          description: 'Elegí el tamaño y calculá el precio al instante.',
           primaryCtaLabel: 'Ver tienda',
           primaryCtaHref: '/shop',
           secondaryCtaLabel: 'Contactar',
@@ -569,38 +566,38 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         },
         blocks: [],
       },
+      buildBudgetCalculatorSection(
+        'Calculá el precio de tu cortina',
+        'Ingresá las medidas y obtené el precio al instante.',
+        'cortinas-roller',
+        1,
+      ),
       {
         type: CmsPageSectionType.RICH_TEXT,
-        key: 'intro',
-        name: 'Introducción',
-        sortOrder: 1,
+        key: 'product-info',
+        name: 'Información útil',
+        sortOrder: 2,
         visible: true,
         settings: {
-          title: 'Configurá tu presupuesto',
+          title: 'Elegí la cortina ideal para tu espacio',
           description:
-            'Este flujo preselecciona el producto actual y conserva un selector de presupuesto para productos equivalentes del mismo catálogo.',
+            'Las roller combinan estética limpia, control de luz y una terminación prolija en ambientes residenciales y comerciales.',
         },
         blocks: [
           {
             type: CmsPageBlockType.RICH_TEXT,
-            key: 'intro-copy',
-          name: 'Copy',
-          sortOrder: 0,
-          visible: true,
-          content: {
-            richText: htmlFragmentToCmsRichTextNodes(
-              '<p>Usá esta página para presupuestar cortinas roller con un recorrido simple: elegís el producto, ingresás ancho y alto, y confirmás la selección.</p><p>El cálculo y la validación se resuelven en backend para evitar diferencias entre el storefront y el panel administrativo.</p>',
-            ),
+            key: 'product-info-copy',
+            name: 'Copy',
+            sortOrder: 0,
+            visible: true,
+            content: {
+              richText: htmlFragmentToCmsRichTextNodes(
+                '<p>Si buscás más luz natural, la tela screen ayuda a mantener el ambiente luminoso sin perder privacidad. Si necesitás oscurecer mejor, blackout es la alternativa más conveniente. Y si querés flexibilidad, la solución doble combina ambas funciones en una sola propuesta.</p><ul><li>Screen: ideal para livings, oficinas y espacios donde querés claridad.</li><li>Blackout: recomendado para dormitorios y ambientes que necesitan mayor oscuridad.</li><li>Doble tela: una opción práctica para alternar luz y privacidad durante el día.</li></ul><p>Medí ancho y alto, calculá el precio y seguí con la compra cuando quieras.</p>',
+              ),
+            },
           },
-        },
-      ],
+        ],
       },
-      buildBudgetCalculatorSection(
-        'Presupuestá tus cortinas roller',
-        'La página se abre con el producto correcto instanciado, pero el selector sigue mostrando todo el universo de productos válidos para presupuesto.',
-        'cortinas-roller',
-        2,
-      ),
       {
         type: CmsPageSectionType.CTA_BANNER,
         key: 'cta',
@@ -608,8 +605,8 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         sortOrder: 3,
         visible: true,
         settings: {
-          title: '¿Querés que revisemos tu caso?',
-          description: 'Si preferís, podemos acompañarte con asesoramiento antes de confirmar el carrito.',
+          title: '¿Querés que te ayudemos a elegir?',
+          description: 'Si querés, podemos revisar tu caso antes de cerrar la compra.',
           actions: [
             { label: 'Contactar', href: '/contacto.html' },
             { label: 'Ver tienda', href: '/shop' },
@@ -623,9 +620,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
     path: 'productos/bandas-verticales.html',
     aliases: ['bandas-verticales.html'],
     title: 'Bandas Verticales',
-    summary: 'Calculá online tus bandas verticales con el mismo flujo de presupuesto validado.',
+    summary: 'Calculá el precio de tus bandas verticales a medida.',
     seoTitle: 'Bandas Verticales | urucortinas',
-    seoDescription: 'Presupuesto online de bandas verticales con cálculo por backend.',
+    seoDescription: 'Calculá el precio de tus bandas verticales a medida.',
     seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/verticals/bandas_verticales_1.jpeg',
     legacySource: 'knowledge:public-curated',
     budgetProductSlug: 'bandas-verticales',
@@ -637,9 +634,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         sortOrder: 0,
         visible: true,
         settings: {
-          eyebrow: 'Presupuesto online',
+          eyebrow: 'Cortinas a medida',
           title: 'Bandas verticales a medida',
-          description: 'Instanciá el presupuesto con el producto correcto y cerrá la compra cuando quieras.',
+          description: 'Elegí el tamaño y calculá el precio al instante.',
           primaryCtaLabel: 'Ver tienda',
           primaryCtaHref: '/shop',
           secondaryCtaLabel: 'Contactar',
@@ -658,8 +655,8 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         blocks: [],
       },
       buildBudgetCalculatorSection(
-        'Presupuestá bandas verticales',
-        'Partimos del producto actual, pero el listado de presupuesto sigue gobernado por backend.',
+        'Calculá el precio de tus bandas verticales',
+        'Ingresá las medidas y obtené el precio al instante.',
         'bandas-verticales',
         1,
       ),
@@ -669,9 +666,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
     path: 'productos/cortinas-de-enrollar-aluminio.html',
     aliases: ['cortinas-de-enrollar-aluminio.html'],
     title: 'Cortinas de enrollar en aluminio',
-    summary: 'Presupuesto online para cortinas de enrollar en aluminio.',
+    summary: 'Calculá el precio de tus cortinas de enrollar en aluminio.',
     seoTitle: 'Cortinas de enrollar en aluminio | urucortinas',
-    seoDescription: 'Presupuesto online de cortinas de enrollar en aluminio con validación backend.',
+    seoDescription: 'Calculá el precio de tus cortinas de enrollar en aluminio.',
     seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/shutters/aluminio/cortina_enrollar_aluminio_1.jpeg',
     legacySource: 'knowledge:public-curated',
     budgetProductSlug: 'cortinas-de-enrollar-aluminio',
@@ -683,9 +680,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         sortOrder: 0,
         visible: true,
         settings: {
-          eyebrow: 'Presupuesto online',
+          eyebrow: 'Cortinas a medida',
           title: 'Cortinas de enrollar en aluminio',
-          description: 'Conservamos el selector y preinstanciamos el producto adecuado para esta página.',
+          description: 'Elegí el tamaño y calculá el precio al instante.',
           primaryCtaLabel: 'Ver tienda',
           primaryCtaHref: '/shop',
           secondaryCtaLabel: 'Contactar',
@@ -704,8 +701,8 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         blocks: [],
       },
       buildBudgetCalculatorSection(
-        'Presupuestá cortinas de enrollar en aluminio',
-        'La configuración de página fija el producto inicial, mientras el backend mantiene la selección válida.',
+        'Calculá el precio de tus cortinas de enrollar en aluminio',
+        'Ingresá las medidas y obtené el precio al instante.',
         'cortinas-de-enrollar-aluminio',
         1,
       ),
@@ -715,9 +712,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
     path: 'productos/cortinas-de-enrollar-pvc.html',
     aliases: ['cortinas-de-enrollar-pvc.html'],
     title: 'Cortinas de enrollar en PVC',
-    summary: 'Presupuesto online para cortinas de enrollar en PVC.',
+    summary: 'Calculá el precio de tus cortinas de enrollar en PVC.',
     seoTitle: 'Cortinas de enrollar en PVC | urucortinas',
-    seoDescription: 'Presupuesto online de cortinas de enrollar en PVC con cálculo backend.',
+    seoDescription: 'Calculá el precio de tus cortinas de enrollar en PVC.',
     seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/shutters/pvc/cortina_enrollar_pvc_1.jpeg',
     legacySource: 'knowledge:public-curated',
     budgetProductSlug: 'cortinas-de-enrollar-pvc',
@@ -729,9 +726,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         sortOrder: 0,
         visible: true,
         settings: {
-          eyebrow: 'Presupuesto online',
+          eyebrow: 'Cortinas a medida',
           title: 'Cortinas de enrollar en PVC',
-          description: 'Producto instanciado para la página, con cálculo validado en backend.',
+          description: 'Elegí el tamaño y calculá el precio al instante.',
           primaryCtaLabel: 'Ver tienda',
           primaryCtaHref: '/shop',
           secondaryCtaLabel: 'Contactar',
@@ -750,8 +747,8 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         blocks: [],
       },
       buildBudgetCalculatorSection(
-        'Presupuestá cortinas de enrollar en PVC',
-        'La página arranca con el producto indicado, pero el catálogo presupuestable sigue siendo el mismo.',
+        'Calculá el precio de tus cortinas de enrollar en PVC',
+        'Ingresá las medidas y obtené el precio al instante.',
         'cortinas-de-enrollar-pvc',
         1,
       ),
@@ -761,9 +758,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
     path: 'productos/venecianas.html',
     aliases: ['venecianas.html'],
     title: 'Venecianas',
-    summary: 'Presupuesto online para venecianas a medida.',
+    summary: 'Calculá el precio de tus venecianas a medida.',
     seoTitle: 'Venecianas | urucortinas',
-    seoDescription: 'Presupuesto online de venecianas con cálculo validado por backend.',
+    seoDescription: 'Calculá el precio de tus venecianas a medida.',
     seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/venecianas/venecianas_1.jpeg',
     legacySource: 'knowledge:public-curated',
     budgetProductSlug: 'venecianas',
@@ -775,9 +772,9 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         sortOrder: 0,
         visible: true,
         settings: {
-          eyebrow: 'Presupuesto online',
+          eyebrow: 'Cortinas a medida',
           title: 'Venecianas a medida',
-          description: 'Preselección correcta y selector de presupuesto alineado al backend.',
+          description: 'Elegí el tamaño y calculá el precio al instante.',
           primaryCtaLabel: 'Ver tienda',
           primaryCtaHref: '/shop',
           secondaryCtaLabel: 'Contactar',
@@ -796,8 +793,8 @@ const budgetLandingPages: BudgetLandingPageSeed[] = [
         blocks: [],
       },
       buildBudgetCalculatorSection(
-        'Presupuestá venecianas',
-        'El selector se inicializa en esta línea y sigue gobernado por el mismo pool de productos válidos.',
+        'Calculá el precio de tus venecianas',
+        'Ingresá las medidas y obtené el precio al instante.',
         'venecianas',
         1,
       ),
@@ -868,6 +865,14 @@ async function ensurePage(prisma: PrismaClient, page: PageSeed) {
         seoDescription: page.seoDescription,
         seoImageUrl: page.seoImageUrl,
         legacySource: page.legacySource,
+      },
+    })
+
+    const seedSectionKeys = page.sections.map((section) => section.key).filter(Boolean)
+    await prisma.cmsPageSection.deleteMany({
+      where: {
+        pageId: existing.id,
+        ...(seedSectionKeys.length ? { key: { notIn: seedSectionKeys } } : {}),
       },
     })
 
@@ -1136,6 +1141,20 @@ async function ensureShopCtaForPublicPages(prisma: PrismaClient) {
   })
 
   for (const page of pages) {
+    const hasBudgetCalculator = page.sections.some(
+      (section) => section.type === CmsPageSectionType.BUDGET_CALCULATOR,
+    )
+
+    if (hasBudgetCalculator) {
+      await prisma.cmsPageSection.deleteMany({
+        where: {
+          pageId: page.id,
+          key: 'shop-cta',
+        },
+      })
+      continue
+    }
+
     if (page.sections.some((section) => section.key === 'shop-cta')) {
       continue
     }

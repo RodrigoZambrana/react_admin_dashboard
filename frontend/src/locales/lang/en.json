@@ -54,6 +54,16 @@
       "expensesConfig": "Expenses Configuration",
       "payments": "Payments"
     },
+    "appsAnalytics": {
+      "analytics": "Analytics",
+      "overview": "Overview",
+      "funnel": "Funnel",
+      "marketing": "Marketing",
+      "products": "Products",
+      "behavior": "Behavior",
+      "conversions": "Conversions",
+      "growthInsights": "Growth & Insights"
+    },
     "appsProducts": {
       "products": "Products",
       "list": "Product List",

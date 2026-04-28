@@ -47,11 +47,13 @@ describe('SalesController SEO product persistence', () => {
   let prisma: ReturnType<typeof createPrismaMock>['prisma']
   let tx: ReturnType<typeof createPrismaMock>['tx']
   let controller: SalesController
+  let derivedProducts: { invalidateBaseProduct: ReturnType<typeof vi.fn> }
 
   beforeEach(() => {
     const mock = createPrismaMock()
     prisma = mock.prisma
     tx = mock.tx
+    derivedProducts = { invalidateBaseProduct: vi.fn().mockResolvedValue(undefined) }
     prisma.systemConfig.findUnique.mockResolvedValue({ value: '22' })
     prisma.product.create.mockResolvedValue({ id: 10, img: null })
     prisma.product.update.mockResolvedValue({ id: 10 })
@@ -69,7 +71,7 @@ describe('SalesController SEO product persistence', () => {
       installationChargeScope: null,
       installationPricePresentationMode: null,
     })
-    controller = new SalesController(prisma as any, {} as any)
+    controller = new SalesController(prisma as any, {} as any, derivedProducts as any)
   })
 
   it('persists SEO fields when creating a product', async () => {

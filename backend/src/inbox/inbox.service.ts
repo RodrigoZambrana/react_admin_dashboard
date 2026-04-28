@@ -229,7 +229,11 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     return this.events.streamEvents(filters)
   }
 
-  async listAccounts(options: { includeInactive?: boolean; channel?: string } = {}) {
+  async listAccounts(options: {
+    includeInactive?: boolean
+    includeUnconfigured?: boolean
+    channel?: string
+  } = {}) {
     const normalizedChannel =
       typeof options.channel === 'string' ? options.channel.trim().toUpperCase() : null
     const where: Prisma.InboxAccountWhereInput | undefined = options.includeInactive
@@ -250,6 +254,10 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
         return true
       }
 
+      if (options.includeInactive || options.includeUnconfigured) {
+        return true
+      }
+
       const validity = getEmailInboxAccountValidity(account, this.configService)
       return Boolean(
         validity.hasStoredConfiguration ||
@@ -257,6 +265,80 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
           validity.hasConnectivityProof,
       )
     })
+  }
+
+  async createAccount(options: {
+    address: string
+    displayName?: string | null
+    active?: boolean
+  }) {
+    const address = this.normalizeAccountAddress(options.address)
+    if (!address) {
+      throw new BadRequestException('Email address is required.')
+    }
+
+    const displayName = this.normalizeAccountLabel(options.displayName) ?? address
+
+    try {
+      return await this.prisma.inboxAccount.create({
+        data: {
+          channel: InboxChannelType.EMAIL,
+          address,
+          displayName,
+          active: options.active ?? true,
+        },
+      })
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('An inbox account for this email already exists.')
+      }
+      throw error
+    }
+  }
+
+  async updateAccount(
+    accountId: string,
+    options: {
+      address?: string | null
+      displayName?: string | null
+      active?: boolean
+    },
+  ) {
+    const existing = await this.getAccountOrThrow(accountId)
+
+    const address = options.address === undefined
+      ? existing.address ?? null
+      : this.normalizeAccountAddress(options.address)
+    const displayName =
+      options.displayName === undefined
+        ? existing.displayName ?? null
+        : this.normalizeAccountLabel(options.displayName)
+
+    try {
+      return await this.prisma.inboxAccount.update({
+        where: { id: existing.id },
+        data: {
+          address,
+          displayName,
+          active: options.active ?? existing.active,
+        },
+      })
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new BadRequestException('An inbox account for this email already exists.')
+      }
+      throw error
+    }
+  }
+
+  async deactivateAccount(accountId: string) {
+    return this.updateAccount(accountId, { active: false })
   }
 
   async listMailboxes(accountId: string) {
@@ -2364,6 +2446,16 @@ export class InboxService implements OnModuleInit, OnModuleDestroy {
     return addresses
       .map((entry) => (entry?.address || '').trim())
       .filter((value) => value.length > 0)
+  }
+
+  private normalizeAccountAddress(value?: string | null) {
+    const normalized = typeof value === 'string' ? value.trim().toLowerCase() : ''
+    return normalized.length > 0 ? normalized : null
+  }
+
+  private normalizeAccountLabel(value?: string | null) {
+    const normalized = typeof value === 'string' ? value.trim() : ''
+    return normalized.length > 0 ? normalized : null
   }
 
   private extractSnippet(body: ChannelMessageBody): string | undefined {

@@ -234,6 +234,90 @@ export default function settingsFakeApi(server: Server, apiPrefix: string) {
 
     server.post(`${apiPrefix}/settings/email/config/test`, () => ({ ok: true }))
 
+    // Inbox accounts
+    server.get(`${apiPrefix}/inbox/accounts`, (schema, request) => {
+        const accounts = (schema.db as any).inboxAccountsData || []
+        const channel = String(request.queryParams?.channel || '').trim().toUpperCase()
+        const includeInactive =
+            request.queryParams?.includeInactive === 'true' ||
+            request.queryParams?.includeInactive === true
+
+        return accounts.filter((account: any) => {
+            if (channel && String(account.channel || '').trim().toUpperCase() !== channel) {
+                return false
+            }
+            if (!includeInactive && account.active === false) {
+                return false
+            }
+            return true
+        })
+    })
+
+    server.post(`${apiPrefix}/inbox/accounts`, (schema, request) => {
+        const body = JSON.parse(request.requestBody || '{}')
+        const collection = (schema.db as any).inboxAccountsData
+        const nextId =
+            collection?.all && typeof collection.all === 'function'
+                ? collection.all().length + 1
+                : Array.isArray(collection)
+                  ? collection.length + 1
+                  : 1
+        const record = {
+            id: `acc_${nextId}`,
+            channel: 'EMAIL',
+            address: String(body.address || '').trim().toLowerCase(),
+            displayName: body.displayName ?? null,
+            active: body.active !== undefined ? Boolean(body.active) : true,
+            metadata: body.metadata ?? null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+        }
+        collection.insert(record)
+        return record
+    })
+
+    server.put(`${apiPrefix}/inbox/accounts/:accountId`, (schema, request) => {
+        const body = JSON.parse(request.requestBody || '{}')
+        const collection = (schema.db as any).inboxAccountsData
+        const existing = collection.findBy({ id: request.params.accountId })
+        if (!existing) {
+            return null
+        }
+        const payload = {
+            ...existing,
+            address:
+                body.address !== undefined
+                    ? String(body.address || '').trim().toLowerCase()
+                    : existing.address,
+            displayName:
+                body.displayName !== undefined
+                    ? body.displayName ?? null
+                    : existing.displayName,
+            active:
+                body.active !== undefined ? Boolean(body.active) : existing.active,
+            metadata:
+                body.metadata !== undefined ? body.metadata ?? null : existing.metadata,
+            updatedAt: new Date().toISOString(),
+        }
+        collection.update({ id: request.params.accountId }, payload)
+        return payload
+    })
+
+    server.del(`${apiPrefix}/inbox/accounts/:accountId`, (schema, request) => {
+        const collection = (schema.db as any).inboxAccountsData
+        const existing = collection.findBy({ id: request.params.accountId })
+        if (!existing) {
+            return null
+        }
+        const payload = {
+            ...existing,
+            active: false,
+            updatedAt: new Date().toISOString(),
+        }
+        collection.update({ id: request.params.accountId }, payload)
+        return payload
+    })
+
     // Email rules
     server.get(`${apiPrefix}/settings/email/rules`, (schema) => {
         return (schema.db as any).emailRoleRulesData || []

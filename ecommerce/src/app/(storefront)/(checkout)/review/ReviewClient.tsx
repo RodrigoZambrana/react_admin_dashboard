@@ -27,6 +27,7 @@ import {
   normalizeMercadoPagoStatus
 } from "@/utils/mercadopago";
 import { buildCheckoutOrderItems } from "@/lib/checkout/order-items";
+import { getAnalyticsContext } from "@/lib/analytics";
 import {
   clearOrderLock,
   readActiveOrderLock,
@@ -461,6 +462,7 @@ export default function ReviewClient() {
 
     setIsSubmitting(true);
     try {
+      const analyticsContext = getAnalyticsContext();
       const nameForConfirmation = [contact.firstName, contact.lastName]
         .filter(Boolean)
         .join(" ")
@@ -502,7 +504,14 @@ export default function ReviewClient() {
         checkoutToken,
         shippingOptionId: shippingOption.id,
         fulfillmentMode,
-        currency: activeCurrency
+        currency: activeCurrency,
+        analytics: {
+          sessionId: analyticsContext.session_id,
+          utmSource: analyticsContext.utm_source,
+          utmMedium: analyticsContext.utm_medium,
+          utmCampaign: analyticsContext.utm_campaign,
+          referrer: analyticsContext.referrer,
+        }
       };
 
       const order = await StorefrontApi.createOrder(payload);

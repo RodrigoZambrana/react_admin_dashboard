@@ -5,6 +5,7 @@ import Grid from "@component/grid/Grid";
 import CheckoutForm from "@sections/checkout/CheckoutForm";
 
 import CheckoutCostSummary from "@/components/cart/CheckoutCostSummary";
+import CheckoutAnalytics from "@/components/analytics/CheckoutAnalytics";
 import { StorefrontApi } from "@/lib/api/storefront";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import AdditionalCommentsPanel from "./AdditionalCommentsPanel";
@@ -21,6 +22,7 @@ export default async function CheckoutDetailsPage() {
 
   return (
     <Grid container flexWrap="wrap-reverse" spacing={6}>
+      <CheckoutAnalytics />
       <Grid item lg={8} md={8} xs={12}>
         <CheckoutForm initialShippingOptions={initialShippingOptions} />
       </Grid>

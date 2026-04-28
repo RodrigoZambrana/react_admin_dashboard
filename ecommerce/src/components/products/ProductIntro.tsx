@@ -50,6 +50,9 @@ type PublishedParametricVariantSummary = NonNullable<Props["publishedParametricO
 const buildLineId = (productId: string | number, variantId?: number) =>
   variantId !== undefined && variantId !== null ? `${String(productId)}:${variantId}` : String(productId);
 
+const buildDerivedLineId = (productId: string | number, sizeId: number) =>
+  `${String(productId)}:DERIVED:${sizeId}`;
+
 const mergeImages = (primary: string[], secondary: string[]): string[] => {
   const merged: string[] = [];
   const seen = new Set<string>();
@@ -225,6 +228,7 @@ interface Props {
   status?: string;
   shortDescription?: string;
   mode?: ProductMode;
+  configuration?: Record<string, unknown> | null;
   publishedParametricOptions?: PublishedParametricOptions;
   onPublishedParametricVariantChange?: (payload: {
     specifications: Array<{ label: string; value: string }>;
@@ -261,6 +265,7 @@ export default function ProductIntro({
   status,
   shortDescription,
   mode = "simple",
+  configuration,
   publishedParametricOptions,
   onPublishedParametricVariantChange,
   variantAttributes,
@@ -439,11 +444,26 @@ export default function ProductIntro({
     return Number.isFinite(numeric) ? numeric : undefined;
   }, [id]);
 
+  const derivedM2Configuration =
+    configuration && typeof configuration === "object"
+      ? (configuration as Record<string, unknown>)
+      : null;
+  const derivedSizeId = useMemo(() => {
+    if (!derivedM2Configuration) {
+      return null;
+    }
+    const candidate = Number(derivedM2Configuration.sizeId ?? derivedM2Configuration.reference);
+    return Number.isFinite(candidate) && candidate > 0 ? candidate : null;
+  }, [derivedM2Configuration]);
+  const isDerivedM2Product = Boolean(derivedM2Configuration?.derived === true && derivedSizeId);
+
   const productBrand = brand ?? t("product.brand.default", { defaultMessage: "Store brand" });
 
   const variantId = selectedVariant?.id;
   const lineId = isPublishedParametricProduct
     ? buildPublishedParametricLineId(id, selectedPublishedParametricVariant?.key ?? "default")
+    : isDerivedM2Product && derivedSizeId
+    ? buildDerivedLineId(id, derivedSizeId)
     : buildLineId(id, variantId);
 
   const currentLineItem = useMemo(
@@ -667,6 +687,13 @@ export default function ProductIntro({
         attributes: variantAttributesForCart,
         configuration: isPublishedParametricProduct
           ? selectedPublishedParametricVariant?.configuration
+          : isDerivedM2Product
+          ? {
+              ...derivedM2Configuration,
+              derived: true,
+              baseProductId: productIdForCart,
+              sizeId: derivedSizeId,
+            }
           : undefined
       },
       1
@@ -688,7 +715,10 @@ export default function ProductIntro({
     isPublishedParametricProduct,
     selectedPublishedParametricSummary,
     selectedPublishedParametricVariant,
-    variantLabel
+    variantLabel,
+    isDerivedM2Product,
+    derivedM2Configuration,
+    derivedSizeId
   ]);
 
   const handleIncreaseQuantity = useCallback(() => {
@@ -752,7 +782,9 @@ export default function ProductIntro({
         </Grid>
 
         <Grid item md={6} xs={12} alignItems="center">
-          <H1 mb="0.75rem">{title}</H1>
+          <H1 data-testid="product-detail-title" mb="0.75rem">
+            {title}
+          </H1>
           {variantLabel ? (
             <SemiSpan color="text.muted" display="block" mb="0.5rem">
               {variantLabel}
@@ -779,7 +811,7 @@ export default function ProductIntro({
           </FlexBox>
 
           <Box mb="24px">
-            <H2 color="primary.main" mb="4px" lineHeight="1">
+            <H2 data-testid="product-detail-price" color="primary.main" mb="4px" lineHeight="1">
               {resolvedDisplayPrice}
             </H2>
             {referencePriceLabel ? (

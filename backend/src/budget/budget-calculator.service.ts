@@ -17,26 +17,10 @@ import type {
   BudgetLeadDto,
   BudgetLeadResult,
   BudgetProductResult,
+  BudgetProductSource,
   BudgetSummaryDto,
   BudgetSummaryResult,
 } from './budget.types'
-
-type BudgetProductRecord = Prisma.ProductGetPayload<{
-  select: {
-    id: true
-    name: true
-    productCode: true
-    img: true
-    description: true
-    salePrice: true
-    currency: true
-    unitOfMeasure: true
-    published: true
-    isBudgetCalculable: true
-    calculationStrategy: true
-    productType: true
-  }
-}>
 
 @Injectable()
 export class BudgetCalculatorService {
@@ -148,7 +132,7 @@ export class BudgetCalculatorService {
     return strategy
   }
 
-  private ensureBudgetEligible(product: BudgetProductRecord) {
+  private ensureBudgetEligible(product: BudgetProductSource) {
     const measurementType = product.unitOfMeasure === SalesUnit.SQUARE_METER ? 'M2' : 'OTHER'
     const isPublic = Boolean(product.published)
     const isBudgetCalculable = Boolean(product.isBudgetCalculable)
@@ -186,7 +170,7 @@ export class BudgetCalculatorService {
     return created.id
   }
 
-  private toProductResult(product: BudgetProductRecord): BudgetProductResult {
+  private toProductResult(product: BudgetProductSource): BudgetProductResult {
     return {
       id: product.id,
       slug: buildProductSlug(product.id, product.name, product.productCode ?? undefined),
@@ -233,7 +217,7 @@ export class BudgetCalculatorService {
     return products.map((product) => this.toProductResult(product))
   }
 
-  private async resolveBudgetProduct(productId: number): Promise<BudgetProductRecord> {
+  private async resolveBudgetProduct(productId: number): Promise<BudgetProductSource> {
     this.assertTenant()
 
     const product = await this.prisma.product.findUnique({
@@ -263,7 +247,7 @@ export class BudgetCalculatorService {
   }
 
   async calculateForProduct(
-    product: BudgetProductRecord,
+    product: BudgetProductSource,
     width: number,
     height: number,
   ): Promise<BudgetCalculationResult> {

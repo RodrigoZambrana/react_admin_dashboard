@@ -28,6 +28,7 @@ import {
   loadPersistedCheckoutState
 } from "@/utils/checkoutStorage";
 import { buildCheckoutOrderItems } from "@/lib/checkout/order-items";
+import { getAnalyticsContext } from "@/lib/analytics";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { CartLineItem } from "@/state/cart-context";
 import { trackPurchase } from "@/lib/analytics";
@@ -376,6 +377,7 @@ function PaymentSuccessContent() {
     setOrderError(null);
 
     try {
+      const analyticsContext = getAnalyticsContext();
       const resolvedCheckoutSnapshot = resolvedPayment.checkoutSnapshot ?? paymentCheckoutSnapshot ?? null;
       const checkoutCustomer = resolvedCheckoutSnapshot?.customer ?? resolvedContact;
       const checkoutCustomerLocale =
@@ -430,7 +432,14 @@ function PaymentSuccessContent() {
         checkoutToken: resolvedCheckoutToken,
         shippingOptionId: checkoutShippingOptionId,
         fulfillmentMode: checkoutFulfillmentMode,
-        currency: checkoutCurrency
+        currency: checkoutCurrency,
+        analytics: {
+          sessionId: analyticsContext.session_id,
+          utmSource: analyticsContext.utm_source,
+          utmMedium: analyticsContext.utm_medium,
+          utmCampaign: analyticsContext.utm_campaign,
+          referrer: analyticsContext.referrer
+        }
       };
 
       const order = await StorefrontApi.createOrder(payload);

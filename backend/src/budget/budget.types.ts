@@ -1,7 +1,23 @@
+import type { Prisma } from '@prisma/client'
 import { IsArray, IsEmail, IsInt, IsNumber, IsOptional, IsPositive, IsString, Min, ValidateNested } from 'class-validator'
 import { Type } from 'class-transformer'
 
 export type BudgetMeasurementType = 'M2'
+
+export type BudgetProductSource = {
+  id: number
+  name: string
+  productCode: string | null
+  img: string | null
+  description: string | null
+  salePrice: Prisma.Decimal | string | number
+  currency: string
+  unitOfMeasure: string
+  published: boolean
+  isBudgetCalculable: boolean
+  calculationStrategy: string | null
+  productType: string
+}
 
 export type BudgetCalculationResult = {
   productId: number

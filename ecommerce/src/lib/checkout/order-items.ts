@@ -102,6 +102,55 @@ const normalizeParametricConfiguration = (
   return { config: normalized };
 };
 
+const normalizeDerivedConfiguration = (
+  item: CartLineItem,
+): { payload?: Pick<CheckoutOrderItemInput, "width" | "height" | "derived" | "reference">; error?: string } => {
+  const raw = item.product.configuration;
+  if (!raw || typeof raw !== "object") {
+    return {
+      error: `Un artículo (“${item.product.name}”) necesita reconfiguración. Actualizá tu carrito y volvé a intentar.`
+    };
+  }
+
+  const config = raw as Record<string, unknown>;
+  if (config.derived !== true) {
+    return { payload: undefined };
+  }
+
+  const coerceNumber = (value: unknown): number | undefined => {
+    if (typeof value === "number" && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === "string") {
+      const parsed = Number.parseFloat(value.replace(",", "."));
+      return Number.isFinite(parsed) ? parsed : undefined;
+    }
+    return undefined;
+  };
+
+  const maybeWidth = coerceNumber(config.width ?? config.widthMm ?? config.width_mm);
+  const maybeHeight = coerceNumber(config.height ?? config.heightMm ?? config.height_mm);
+  const reference = coerceNumber(config.reference ?? config.sizeId);
+
+  const width = maybeWidth !== undefined ? (maybeWidth > 10 ? maybeWidth / 1000 : maybeWidth) : undefined;
+  const height = maybeHeight !== undefined ? (maybeHeight > 10 ? maybeHeight / 1000 : maybeHeight) : undefined;
+
+  if (!width || !height || !reference) {
+    return {
+      error: `Un artículo (“${item.product.name}”) necesita reconfiguración. Actualizá tu carrito y volvé a intentar.`
+    };
+  }
+
+  return {
+    payload: {
+      width,
+      height,
+      derived: true,
+      reference,
+    }
+  };
+};
+
 export const buildCheckoutOrderItems = (items: CartLineItem[]): CheckoutOrderItemsData => {
   let configError: string | null = null;
 
@@ -126,6 +175,25 @@ export const buildCheckoutOrderItems = (items: CartLineItem[]): CheckoutOrderIte
       const hasConfigObject = item.product.configuration && typeof item.product.configuration === "object";
       const looksParametric = isParametricCartLineId(item.product.id);
       const requiresDynamicParametricConfiguration = Boolean(hasConfigObject || looksParametric);
+
+      const { payload: derivedPayload, error: derivedError } = normalizeDerivedConfiguration(item);
+      if (derivedError) {
+        configError = configError ?? derivedError;
+        return null;
+      }
+
+      if (derivedPayload) {
+        return {
+          productId,
+          quantity: Math.max(1, item.quantity),
+          variantId,
+          ...derivedPayload,
+          configuration:
+            item.product.configuration && typeof item.product.configuration === "object"
+              ? (item.product.configuration as Record<string, unknown>)
+              : undefined
+        };
+      }
 
       if (requiresDynamicParametricConfiguration) {
         const { config, error } = normalizeParametricConfiguration(item);
