@@ -1,0 +1,810 @@
+{
+  "meta": {
+    "generatedAt": "2026-04-29T23:46:19.108Z",
+    "scope": "seo-data-driven-report",
+    "sources": {
+      "ga4Panoramic": "/Users/rodrigo/Personal/Proyectos/urucortinas/analitycs/Informe_panorámico.csv",
+      "gscZip": "/Users/rodrigo/Personal/Proyectos/urucortinas/analitycs/https___urucortinas.com.uy_-Performance-on-Search-2026-04-28.zip",
+      "adsKeywords": "/Users/rodrigo/Personal/Proyectos/urucortinas/analitycs/google ads/Palabras_clave_de_búsqueda(2020.07.14-2026.04.28).csv",
+      "adsSearchTerms": "/Users/rodrigo/Personal/Proyectos/urucortinas/analitycs/google ads/Búsquedas(Buscar_2020.07.14-2026.04.28).csv",
+      "adsCampaigns": "/Users/rodrigo/Personal/Proyectos/urucortinas/analitycs/google ads/Campañas(2020.07.14-2026.04.28).csv",
+      "semrushRankings": "/Users/rodrigo/Personal/Proyectos/urucortinas/analitycs/semrush/urucortinas.com.uy_ Rankings Distribution, Position Tracking.mhtml",
+      "semrushCompetitors": "/Users/rodrigo/Personal/Proyectos/urucortinas/analitycs/semrush/urucortinas.com.uy_ Competitors Discovery, Position Tracking.mhtml"
+    }
+  },
+  "resumen_ejecutivo": "La demanda orgánica está concentrada en familias de producto claras: persianas de enrollar, persianas de pvc, persianas, cortinas de enrollar pvc. La marca está bien posicionada: \"urucortinas\" marca posición media 1.03 y CTR de 33.77%, por lo que el problema no es de visibilidad de marca sino de cobertura de intención genérica. Ads concentra gasto en términos con intención clara, pero las conversiones exportadas siguen en cero: eso debe tratarse como un problema de medición o baja confianza, no como pérdida confirmada. GA4 muestra un mix todavía fuertemente pagado: Display 158.933, Paid Video 14.427, Paid Search 12.500, Direct 6.374. Semrush snapshot local detecta competidores visibles como sodimac.com.uy, bork.com.uy, cortiluz.com.uy; la brecha principal no parece de marca sino de arquitectura y cobertura semántica.",
+  "calidad_por_fuente": [
+    {
+      "source": "GA4",
+      "status": "ok",
+      "confidence": 0.9,
+      "note": "Mix de canales y volumen histórico disponibles en el reporte panorámico."
+    },
+    {
+      "source": "Search Console",
+      "status": "ok",
+      "confidence": 0.95,
+      "note": "Queries, clicks, impresiones, CTR y posición a nivel de página y consulta."
+    },
+    {
+      "source": "Google Ads",
+      "status": "warning",
+      "confidence": 0.7,
+      "note": "Las conversiones exportadas aparecen en cero; no usarlas como pérdida confirmada si la medición no está validada."
+    },
+    {
+      "source": "Semrush",
+      "status": "reference",
+      "confidence": 0.55,
+      "note": "Snapshot local para competencia y oportunidades semánticas; no es verdad operativa."
+    }
+  ],
+  "oportunidades_keywords": [
+    {
+      "keyword": "persianas de enrollar",
+      "volumen_estimado": 3661,
+      "fuente": "GSC",
+      "intencion": "transaccional",
+      "estado_actual": "cubierta",
+      "recomendacion": "Crear o mejorar una landing específica para \"persianas de enrollar\" con foco en comparación, precio y uso.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 1
+    },
+    {
+      "keyword": "persianas de pvc",
+      "volumen_estimado": 1889,
+      "fuente": "GSC",
+      "intencion": "transaccional",
+      "estado_actual": "cubierta",
+      "recomendacion": "Crear o mejorar una landing específica para \"persianas de pvc\" con foco en comparación, precio y uso.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 1
+    },
+    {
+      "keyword": "persianas",
+      "volumen_estimado": 1527,
+      "fuente": "GSC",
+      "intencion": "transaccional",
+      "estado_actual": "cubierta",
+      "recomendacion": "Crear o mejorar una landing específica para \"persianas\" con foco en comparación, precio y uso.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 1
+    },
+    {
+      "keyword": "cortinas de enrollar pvc",
+      "volumen_estimado": 1217,
+      "fuente": "GSC",
+      "intencion": "transaccional",
+      "estado_actual": "cubierta",
+      "recomendacion": "Crear o mejorar una landing específica para \"cortinas de enrollar pvc\" con foco en comparación, precio y uso.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 1
+    },
+    {
+      "keyword": "persiana pvc",
+      "volumen_estimado": 579,
+      "fuente": "GSC",
+      "intencion": "transaccional",
+      "estado_actual": "cubierta",
+      "recomendacion": "Crear o mejorar una landing específica para \"persiana pvc\" con foco en comparación, precio y uso.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 1
+    },
+    {
+      "keyword": "persiana de enrollar",
+      "volumen_estimado": 513,
+      "fuente": "GSC",
+      "intencion": "transaccional",
+      "estado_actual": "cubierta",
+      "recomendacion": "Crear o mejorar una landing específica para \"persiana de enrollar\" con foco en comparación, precio y uso.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 1
+    },
+    {
+      "keyword": "cortinas de enrollar",
+      "volumen_estimado": 1019,
+      "fuente": "Ads",
+      "intencion": "transaccional",
+      "estado_actual": "no cubierta",
+      "recomendacion": "Llevar esta intención a SEO con una página dedicada o una mejora fuerte de la landing existente para reducir dependencia del pago.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 2
+    },
+    {
+      "keyword": "cortinas roller",
+      "volumen_estimado": 1380,
+      "fuente": "Ads",
+      "intencion": "transaccional",
+      "estado_actual": "no cubierta",
+      "recomendacion": "Llevar esta intención a SEO con una página dedicada o una mejora fuerte de la landing existente para reducir dependencia del pago.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 2
+    },
+    {
+      "keyword": "cortifast",
+      "volumen_estimado": 1303,
+      "fuente": "Ads",
+      "intencion": "transaccional",
+      "estado_actual": "no cubierta",
+      "recomendacion": "Llevar esta intención a SEO con una página dedicada o una mejora fuerte de la landing existente para reducir dependencia del pago.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 2
+    },
+    {
+      "keyword": "bork cortinas",
+      "volumen_estimado": 574,
+      "fuente": "Ads",
+      "intencion": "transaccional",
+      "estado_actual": "no cubierta",
+      "recomendacion": "Llevar esta intención a SEO con una página dedicada o una mejora fuerte de la landing existente para reducir dependencia del pago.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 2
+    },
+    {
+      "keyword": "cortinas roller black out",
+      "volumen_estimado": 302,
+      "fuente": "Ads",
+      "intencion": "transaccional",
+      "estado_actual": "no cubierta",
+      "recomendacion": "Llevar esta intención a SEO con una página dedicada o una mejora fuerte de la landing existente para reducir dependencia del pago.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 2
+    },
+    {
+      "keyword": "urucortinas",
+      "volumen_estimado": 575,
+      "fuente": "Ads",
+      "intencion": "transaccional",
+      "estado_actual": "no cubierta",
+      "recomendacion": "Llevar esta intención a SEO con una página dedicada o una mejora fuerte de la landing existente para reducir dependencia del pago.",
+      "impacto_estimated": "alto",
+      "esfuerzo_estimated": "medio",
+      "prioridad": 2
+    }
+  ],
+  "propuestas_contenido": [
+    {
+      "objetivo": "Capturar búsquedas de persianas y sus variantes",
+      "keywords_target": [
+        "persianas",
+        "persianas de enrollar",
+        "persianas de pvc",
+        "persianas de aluminio"
+      ],
+      "tipo_contenido": "landing de categoría + FAQ",
+      "por_que": "La demanda existe en Search Console y hoy está parcialmente absorbida por páginas vecinas.",
+      "pagina_sugerida": "/productos/persianas-de-enrollar.html",
+      "contenido_incluir": "tipos, usos, materiales, precios, medidas, instalación y mantenimiento",
+      "resultado_esperado": "Más CTR orgánico y más landings alineadas con intención transaccional."
+    },
+    {
+      "objetivo": "Apropiar la intención de cortinas de enrollar PVC",
+      "keywords_target": [
+        "cortinas de enrollar pvc",
+        "cortinas de enrollar pvc precios",
+        "cortinas de enrollar pvc sin albañilería"
+      ],
+      "tipo_contenido": "landing de producto + comparativa",
+      "por_que": "Hay impresiones y la posición ya está cerca del quick win; falta una página con foco semántico claro.",
+      "pagina_sugerida": "/productos/cortinas-de-enrollar-pvc.html",
+      "contenido_incluir": "beneficios del PVC, comparativa con aluminio, instalación, medidas, precios y casos de uso",
+      "resultado_esperado": "Subir CTR y convertir la página en destino natural de Ads y SEO."
+    },
+    {
+      "objetivo": "Cerrar el gap de aberturas de aluminio",
+      "keywords_target": [
+        "aberturas de aluminio",
+        "ventanas de aluminio",
+        "ventanas de aluminio precios y medidas"
+      ],
+      "tipo_contenido": "landing comercial + guía de compra",
+      "por_que": "La intención es claramente transaccional y ya aparece tanto en Search Console como en Ads.",
+      "pagina_sugerida": "/productos/aberturas-aluminio.html",
+      "contenido_incluir": "tipos de abertura, medidas, terminaciones, precios, instalación y preguntas frecuentes",
+      "resultado_esperado": "Más cobertura de una familia de alto valor comercial y menor fuga a competidores."
+    },
+    {
+      "objetivo": "Capturar búsquedas de reparación",
+      "keywords_target": [
+        "reparacion de cortinas",
+        "arreglo de persianas",
+        "mantenimiento de cortinas"
+      ],
+      "tipo_contenido": "landing de servicio",
+      "por_que": "Es una intención de urgencia con alto valor de conversión cuando la persona busca solución inmediata.",
+      "pagina_sugerida": "/servicios/reparacion-cortinas-y-persianas.html",
+      "contenido_incluir": "tipos de falla, cobertura, tiempos de respuesta, disponibilidad y FAQs",
+      "resultado_esperado": "Aumentar leads de servicio y evitar que esa demanda termine en marcas competidoras."
+    },
+    {
+      "objetivo": "Extender la cobertura de cerramientos y toldos",
+      "keywords_target": [
+        "cerramientos de aluminio",
+        "toldos de enrollar exterior",
+        "toldos",
+        "cerramientos"
+      ],
+      "tipo_contenido": "landing de categoría + casos de uso",
+      "por_que": "La demanda existe en Ads y en búsquedas relacionadas; hoy conviene agruparla en una arquitectura propia.",
+      "pagina_sugerida": "/productos/cerramientos-y-toldos.html",
+      "contenido_incluir": "materiales, aplicaciones, exteriores, instalación, mantenimiento y comparativas",
+      "resultado_esperado": "Mejor relevancia semántica y mejor linking interno entre familias de producto."
+    }
+  ],
+  "mejoras_contenido_existente": [
+    {
+      "page": "https://urucortinas.com.uy/productos/cortinas-de-enrollar.html",
+      "issue": "CTR bajo para el volumen que recibe (1.63%)",
+      "action": "Reescribir title/meta y reforzar el bloque de intención principal arriba del fold.",
+      "expectedResult": "Mejorar el porcentaje de clics sin perder posición."
+    },
+    {
+      "page": "https://urucortinas.com.uy/productos/cortinas-de-enrollar-pvc.html",
+      "issue": "CTR bajo para el volumen que recibe (0.97%)",
+      "action": "Reescribir title/meta y reforzar el bloque de intención principal arriba del fold.",
+      "expectedResult": "Mejorar el porcentaje de clics sin perder posición."
+    },
+    {
+      "page": "https://urucortinas.com.uy/productos/aberturas-aluminio.html",
+      "issue": "CTR bajo para el volumen que recibe (3.08%)",
+      "action": "Reescribir title/meta y reforzar el bloque de intención principal arriba del fold.",
+      "expectedResult": "Mejorar el porcentaje de clics sin perder posición."
+    },
+    {
+      "page": "https://urucortinas.com.uy/servicios/reparacion-cortinas-y-persianas.html",
+      "issue": "CTR bajo para el volumen que recibe (1.57%)",
+      "action": "Reescribir title/meta y reforzar el bloque de intención principal arriba del fold.",
+      "expectedResult": "Mejorar el porcentaje de clics sin perder posición."
+    },
+    {
+      "page": "https://urucortinas.com.uy/productos/toldos-y-cerramientos.html",
+      "issue": "CTR bajo para el volumen que recibe (3.68%)",
+      "action": "Reescribir title/meta y reforzar el bloque de intención principal arriba del fold.",
+      "expectedResult": "Mejorar el porcentaje de clics sin perder posición."
+    },
+    {
+      "page": "https://urucortinas.com.uy/articulos/dvh.html",
+      "issue": "CTR bajo para el volumen que recibe (0.33%)",
+      "action": "Reescribir title/meta y reforzar el bloque de intención principal arriba del fold.",
+      "expectedResult": "Mejorar el porcentaje de clics sin perder posición."
+    },
+    {
+      "page": "https://urucortinas.com.uy/productos/cortinas-metalicas.html",
+      "issue": "CTR bajo para el volumen que recibe (1.23%)",
+      "action": "Reescribir title/meta y reforzar el bloque de intención principal arriba del fold.",
+      "expectedResult": "Mejorar el porcentaje de clics sin perder posición."
+    }
+  ],
+  "mejoras_estructura_sitio": [
+    {
+      "cambio": "Reorganizar Productos por familias",
+      "detalle": "Cortinas de enrollar, Persianas, Aberturas, Toldos y cerramientos, Reparación y mantenimiento.",
+      "por_que": "Las queries y campañas se agrupan por intención; la navegación debería reflejar esa estructura."
+    },
+    {
+      "cambio": "Crear interlinking por intención",
+      "detalle": "Cada landing principal debe enlazar a FAQs, servicios y páginas vecinas de la misma familia.",
+      "por_que": "El usuario llega por una query específica, pero necesita contexto de materiales, precio, instalación y servicio."
+    },
+    {
+      "cambio": "Agregar módulos de comparación y FAQ",
+      "detalle": "Comparativas pvc vs aluminio, precios orientativos, instalación sin albañilería y mantenimiento.",
+      "por_que": "El propio lenguaje de búsqueda delata la intención de compra y las dudas previas a la conversión."
+    }
+  ],
+  "sinergia_seo_ads": {
+    "migrar_a_organico": [
+      "cortinas de enrollar",
+      "cortinas roller",
+      "cortifast",
+      "bork cortinas",
+      "cortinas roller black out",
+      "urucortinas"
+    ],
+    "mantener_en_ads": [
+      "urucortinas",
+      "uru cortinas",
+      "bork cortinas",
+      "cortifast",
+      "gala"
+    ],
+    "observacion": "Las conversiones exportadas aparecen en cero; esto se debe tratar como issue de medición o baja confianza hasta validar el tracking."
+  },
+  "quick_wins": [
+    {
+      "accion": "Actualizar title/meta del top page de cortinas de enrollar",
+      "por_que": "Es la página con más impresiones del sitio en Search Console y CTR bajo para el volumen que recibe.",
+      "impacto": "alto",
+      "esfuerzo": "bajo"
+    },
+    {
+      "accion": "Reforzar el primer bloque visible en la homepage con enlaces a familias principales",
+      "por_que": "La homepage recibe tracción y puede funcionar como hub para transferir autoridad a las landings de mayor intención.",
+      "impacto": "alto",
+      "esfuerzo": "bajo"
+    },
+    {
+      "accion": "Añadir FAQ y schema de preguntas frecuentes en páginas de producto",
+      "por_que": "Las queries muestran dudas repetidas sobre precios, medidas, instalación y materiales.",
+      "impacto": "medio",
+      "esfuerzo": "bajo"
+    },
+    {
+      "accion": "Crear una landing de persianas si no existe una dedicada",
+      "por_que": "La query genérica tiene impresiones relevantes y la posición está en ventana de quick win.",
+      "impacto": "alto",
+      "esfuerzo": "medio"
+    }
+  ],
+  "oportunidades_fuera_de_la_data": [
+    {
+      "idea": "Páginas por material y uso",
+      "detalle": "PVC, aluminio, black out, exterior, sin albañilería, a medida."
+    },
+    {
+      "idea": "Páginas por presupuesto y decisión",
+      "detalle": "Precios, medidas, comparativas, instalación y mantenimiento."
+    },
+    {
+      "idea": "Páginas por servicio inmediato",
+      "detalle": "Reparación, urgencias, cobertura geográfica y tiempos de respuesta."
+    },
+    {
+      "idea": "Páginas por geografía",
+      "detalle": "Montevideo, Canelones y Maldonado como clusters cuando la operación lo justifique."
+    }
+  ],
+  "datos_base": {
+    "gsc_queries": [
+      {
+        "keyword": "persianas de enrollar",
+        "clicks": 64,
+        "impressions": 3661,
+        "ctr": 1.75,
+        "position": 8.32
+      },
+      {
+        "keyword": "persianas de pvc",
+        "clicks": 7,
+        "impressions": 1889,
+        "ctr": 0.37,
+        "position": 12.13
+      },
+      {
+        "keyword": "persianas",
+        "clicks": 13,
+        "impressions": 1527,
+        "ctr": 0.85,
+        "position": 16.51
+      },
+      {
+        "keyword": "cortinas de enrollar pvc",
+        "clicks": 15,
+        "impressions": 1217,
+        "ctr": 1.23,
+        "position": 12.78
+      },
+      {
+        "keyword": "cortinas de enrollar",
+        "clicks": 7,
+        "impressions": 891,
+        "ctr": 0.79,
+        "position": 25.83
+      },
+      {
+        "keyword": "dvh",
+        "clicks": 1,
+        "impressions": 635,
+        "ctr": 0.16,
+        "position": 26.08
+      },
+      {
+        "keyword": "urucortinas",
+        "clicks": 208,
+        "impressions": 616,
+        "ctr": 33.77,
+        "position": 1.03
+      },
+      {
+        "keyword": "persiana pvc",
+        "clicks": 11,
+        "impressions": 579,
+        "ctr": 1.9,
+        "position": 7.65
+      },
+      {
+        "keyword": "cortinas tradicionales",
+        "clicks": 2,
+        "impressions": 536,
+        "ctr": 0.37,
+        "position": 43.39
+      },
+      {
+        "keyword": "persiana de enrollar",
+        "clicks": 11,
+        "impressions": 513,
+        "ctr": 2.14,
+        "position": 7.98
+      },
+      {
+        "keyword": "cortinas metalicas",
+        "clicks": 3,
+        "impressions": 489,
+        "ctr": 0.61,
+        "position": 9.44
+      },
+      {
+        "keyword": "cortinas de enrollar de aluminio",
+        "clicks": 12,
+        "impressions": 477,
+        "ctr": 2.52,
+        "position": 9.78
+      },
+      {
+        "keyword": "persianas de aluminio",
+        "clicks": 10,
+        "impressions": 459,
+        "ctr": 2.18,
+        "position": 8.31
+      },
+      {
+        "keyword": "cortina de enrollar",
+        "clicks": 2,
+        "impressions": 454,
+        "ctr": 0.44,
+        "position": 14.61
+      },
+      {
+        "keyword": "reparación de cortinas",
+        "clicks": 2,
+        "impressions": 430,
+        "ctr": 0.47,
+        "position": 33.92
+      }
+    ],
+    "gsc_pages": [
+      {
+        "page": "https://urucortinas.com.uy/productos/cortinas-de-enrollar.html",
+        "clicks": 452,
+        "impressions": 27776,
+        "ctr": 1.63,
+        "position": 10.92
+      },
+      {
+        "page": "https://urucortinas.com.uy/productos/cortinas-de-enrollar-pvc.html",
+        "clicks": 79,
+        "impressions": 8120,
+        "ctr": 0.97,
+        "position": 13.73
+      },
+      {
+        "page": "https://urucortinas.com.uy/productos/aberturas-aluminio.html",
+        "clicks": 230,
+        "impressions": 7479,
+        "ctr": 3.08,
+        "position": 6.55
+      },
+      {
+        "page": "https://urucortinas.com.uy/servicios/reparacion-cortinas-y-persianas.html",
+        "clicks": 96,
+        "impressions": 6133,
+        "ctr": 1.57,
+        "position": 11.88
+      },
+      {
+        "page": "https://urucortinas.com.uy/productos/toldos-y-cerramientos.html",
+        "clicks": 138,
+        "impressions": 3751,
+        "ctr": 3.68,
+        "position": 15.55
+      },
+      {
+        "page": "https://urucortinas.com.uy/articulos/dvh.html",
+        "clicks": 11,
+        "impressions": 3319,
+        "ctr": 0.33,
+        "position": 13.95
+      },
+      {
+        "page": "https://urucortinas.com.uy/productos/cortinas-metalicas.html",
+        "clicks": 39,
+        "impressions": 3183,
+        "ctr": 1.23,
+        "position": 15.07
+      },
+      {
+        "page": "https://urucortinas.com.uy/",
+        "clicks": 307,
+        "impressions": 2165,
+        "ctr": 14.18,
+        "position": 6.61
+      },
+      {
+        "page": "https://urucortinas.com.uy/productos/cortinas-de-enrollar-aluminio.html",
+        "clicks": 24,
+        "impressions": 1708,
+        "ctr": 1.41,
+        "position": 19
+      },
+      {
+        "page": "https://urucortinas.com.uy/productos/cortinas-roller.html",
+        "clicks": 35,
+        "impressions": 1468,
+        "ctr": 2.38,
+        "position": 16.09
+      }
+    ],
+    "ads_keywords": [
+      {
+        "keyword": "cortinas",
+        "cost": 891.15,
+        "clicks": 2489,
+        "impressions": 0,
+        "ctr": 7.88,
+        "conversions": 0
+      },
+      {
+        "keyword": "cortinas de enrollar",
+        "cost": 295.38,
+        "clicks": 962,
+        "impressions": 0,
+        "ctr": 7.42,
+        "conversions": 0
+      },
+      {
+        "keyword": "cerramientos de aluminio",
+        "cost": 183.35,
+        "clicks": 1025,
+        "impressions": 0,
+        "ctr": 14.57,
+        "conversions": 0
+      },
+      {
+        "keyword": "reparacion de cortinas",
+        "cost": 84.36,
+        "clicks": 345,
+        "impressions": 0,
+        "ctr": 4.75,
+        "conversions": 0
+      },
+      {
+        "keyword": "aberturas de aluminio",
+        "cost": 84.09,
+        "clicks": 437,
+        "impressions": 0,
+        "ctr": 13.84,
+        "conversions": 0
+      },
+      {
+        "keyword": "cortinas roller",
+        "cost": 73.46,
+        "clicks": 216,
+        "impressions": 0,
+        "ctr": 8.44,
+        "conversions": 0
+      },
+      {
+        "keyword": "cortinas de aluminio",
+        "cost": 61.28,
+        "clicks": 222,
+        "impressions": 0,
+        "ctr": 12.29,
+        "conversions": 0
+      },
+      {
+        "keyword": "cortifast cortinas",
+        "cost": 45.55,
+        "clicks": 120,
+        "impressions": 0,
+        "ctr": 8.79,
+        "conversions": 0
+      },
+      {
+        "keyword": "persianas exteriores",
+        "cost": 43.32,
+        "clicks": 182,
+        "impressions": 0,
+        "ctr": 13.1,
+        "conversions": 0
+      },
+      {
+        "keyword": "aberturas de pvc",
+        "cost": 38.88,
+        "clicks": 218,
+        "impressions": 0,
+        "ctr": 17.03,
+        "conversions": 0
+      },
+      {
+        "keyword": "persiana pvc",
+        "cost": 30.42,
+        "clicks": 84,
+        "impressions": 0,
+        "ctr": 12.57,
+        "conversions": 0
+      },
+      {
+        "keyword": "urucortinas",
+        "cost": 29.97,
+        "clicks": 320,
+        "impressions": 0,
+        "ctr": 52.03,
+        "conversions": 0
+      }
+    ],
+    "ads_search_terms": [
+      {
+        "keyword": "cortinas de enrollar",
+        "cost": 60.51,
+        "clicks": 128,
+        "impressions": 1019,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "cortinas roller",
+        "cost": 58.01,
+        "clicks": 136,
+        "impressions": 1380,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "cortifast",
+        "cost": 47.39,
+        "clicks": 124,
+        "impressions": 1303,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "bork cortinas",
+        "cost": 43.05,
+        "clicks": 100,
+        "impressions": 574,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "cortinas roller black out",
+        "cost": 29.68,
+        "clicks": 51,
+        "impressions": 302,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "urucortinas",
+        "cost": 27.28,
+        "clicks": 314,
+        "impressions": 575,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "cortinas",
+        "cost": 19.57,
+        "clicks": 67,
+        "impressions": 742,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "uru cortinas",
+        "cost": 17.09,
+        "clicks": 94,
+        "impressions": 120,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "persianas de pvc",
+        "cost": 15.74,
+        "clicks": 51,
+        "impressions": 402,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "don mario cortinas",
+        "cost": 14.63,
+        "clicks": 19,
+        "impressions": 126,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "cortinas de enrollar pvc",
+        "cost": 14,
+        "clicks": 41,
+        "impressions": 426,
+        "conversions": 0,
+        "queries": []
+      },
+      {
+        "keyword": "cortifast teléfono",
+        "cost": 13.89,
+        "clicks": 10,
+        "impressions": 105,
+        "conversions": 0,
+        "queries": []
+      }
+    ],
+    "ads_campaigns": [
+      {
+        "campaign": "Montevideo Canelones Maldonado",
+        "cost": 9452.25,
+        "clicks": 293607,
+        "ctr": 2.21
+      },
+      {
+        "campaign": "urucortinas-busqueda",
+        "cost": 2652.13,
+        "clicks": 17387,
+        "ctr": 3.48
+      }
+    ],
+    "ga4_channel_mix": [
+      {
+        "channel": "Display",
+        "sessions": 158933
+      },
+      {
+        "channel": "Paid Video",
+        "sessions": 14427
+      },
+      {
+        "channel": "Paid Search",
+        "sessions": 12500
+      },
+      {
+        "channel": "Direct",
+        "sessions": 6374
+      },
+      {
+        "channel": "Organic Search",
+        "sessions": 3879
+      },
+      {
+        "channel": "Cross-network",
+        "sessions": 2113
+      },
+      {
+        "channel": "Unassigned",
+        "sessions": 883
+      },
+      {
+        "channel": "Paid Social",
+        "sessions": 560
+      },
+      {
+        "channel": "Organic Social",
+        "sessions": 514
+      },
+      {
+        "channel": "Referral",
+        "sessions": 223
+      },
+      {
+        "channel": "Organic Video",
+        "sessions": 61
+      }
+    ],
+    "semrush_competitors": [
+      "sodimac.com.uy",
+      "bork.com.uy",
+      "cortiluz.com.uy"
+    ]
+  }
+}
