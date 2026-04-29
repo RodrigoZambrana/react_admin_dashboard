@@ -1,9 +1,20 @@
+import type {
+  AnalyticsEventCategory,
+  AnalyticsEventSource,
+  AnalyticsMeasurementStatus,
+} from './event-taxonomy'
+
 export type AnalyticsEventInput = {
   event: string
   timestamp: string
   session_id: string
   url: string
   user_agent: string
+  category?: AnalyticsEventCategory | null
+  eventCategory?: AnalyticsEventCategory | null
+  source?: AnalyticsEventSource | null
+  measurement_status?: AnalyticsMeasurementStatus | null
+  measurementStatus?: AnalyticsMeasurementStatus | null
   page?: string | null
   path?: string | null
   referrer?: string | null
@@ -14,6 +25,7 @@ export type AnalyticsEventInput = {
   country?: string | null
   value?: number | null
   user_id?: string | null
+  metadata?: Record<string, unknown>
   data?: Record<string, unknown>
   correlation_id?: string | null
 }
@@ -87,6 +99,11 @@ export type AnalyticsInsight = {
 }
 
 export type AnalyticsInsightPriority = 'low' | 'medium' | 'high'
+export type AnalyticsInsightCategory =
+  | 'business_issue'
+  | 'measurement_issue'
+  | 'low_confidence_signal'
+export type AnalyticsInsightSource = 'ga4' | 'ads' | 'search_console' | 'mixed'
 export type AnalyticsInsightType =
   | 'summary'
   | 'acquisition'
@@ -106,12 +123,21 @@ export type AnalyticsInsightPeriod = {
   }
 }
 
+export type AnalyticsMeasurementGate = {
+  conversionMeasurementReady: boolean
+  adsConversionMeasurementReady: boolean
+  qualityStatus: 'ok' | 'warning' | 'error'
+  reasons: string[]
+}
+
 export type AnalyticsAiInsight = {
   id: string
   insightType: AnalyticsInsightType
   title: string
   description: string
   recommendation: string
+  category: AnalyticsInsightCategory
+  source: AnalyticsInsightSource
   impact: AnalyticsInsightPriority
   confidence: number
   evidence: Record<string, unknown>
@@ -122,6 +148,96 @@ export type AnalyticsAiInsight = {
   score: number
   status: 'open'
   createdAt: string
+}
+
+export type AnalyticsInsightBundleDetectedPattern = {
+  type: string
+  severity: 'low' | 'medium' | 'high'
+  category: AnalyticsInsightCategory
+  source: AnalyticsInsightSource
+  evidence: Record<string, unknown>
+}
+
+export type AnalyticsInsightBundle = {
+  timeRange: AnalyticsInsightPeriod
+  kpis: {
+    revenue: ComparisonMetric
+    orders: ComparisonMetric
+    conversionRate: ComparisonMetric
+    cac: ComparisonMetric | null
+    roas: ComparisonMetric
+  }
+  funnel: {
+    view_item: number
+    add_to_cart: number
+    begin_checkout: number
+    purchase: number
+    rates: {
+      viewToCart: number | null
+      cartToCheckout: number | null
+      checkoutToPurchase: number | null
+    }
+  }
+  acquisition: Array<{
+    channel: string
+    sessions: number
+    cost: number
+    revenue: number
+    roas: number
+    conversionRate: number
+    source: AnalyticsInsightSource
+  }>
+  seo: Array<{
+    query: string
+    impressions: number
+    clicks: number
+    ctr: number
+    position: number
+    source: AnalyticsInsightSource
+  }>
+  products: Array<{
+    productId: string
+    views: number
+    addToCart: number
+    purchases: number
+    conversionRate: number
+    source: AnalyticsInsightSource
+  }>
+  detectedPatterns: AnalyticsInsightBundleDetectedPattern[]
+  dataQuality: {
+    status: 'ok' | 'warning' | 'error'
+    confidence: number
+    reasons: string[]
+  }
+  measurement: AnalyticsMeasurementGate
+}
+
+export type AnalyticsAiDecisionInsight = {
+  title: string
+  what_happened: string
+  why_it_matters: string
+  category: AnalyticsInsightCategory
+  source: AnalyticsInsightSource
+  insight_type?: AnalyticsInsightType
+  metric?: string | null
+  segment?: string | null
+  source_report?: string | null
+  evidence: Record<string, unknown>
+  impact: AnalyticsInsightPriority
+  confidence: number
+  recommendation: string
+}
+
+export type AnalyticsAiDecisionOutput = {
+  summary: string
+  insights: AnalyticsAiDecisionInsight[]
+  prioritized_actions: Array<{
+    action: string
+    reason: string
+    expected_impact: AnalyticsInsightPriority
+    priority: number
+    confidence: number
+  }>
 }
 
 export type AnalyticsInsightHistory = {
@@ -139,6 +255,25 @@ export type AnalyticsInsightHistory = {
   score: number
   summary: string | null
   createdAt: string
+}
+
+export type AnalyticsAiInsightRun = {
+  id: string
+  date: string
+  summary: string
+  insightsJson: AnalyticsAiDecisionOutput['insights']
+  actionsJson: AnalyticsAiDecisionOutput['prioritized_actions']
+  confidence: number
+  bundleJson: AnalyticsInsightBundle
+  responseJson: AnalyticsAiDecisionOutput
+  createdAt: string
+}
+
+export type AnalyticsPrioritizedAction = {
+  action: string
+  why: string
+  expectedImpact: AnalyticsInsightPriority
+  confidence: number
 }
 
 export type AnalyticsInsightsQualitySummary = {
@@ -166,6 +301,7 @@ export type AnalyticsInsightsDataset = {
     syncRuns: AnalyticsSyncRun[]
     reportRuns: AnalyticsReportRun[]
     reconciliations: AnalyticsReportReconciliation[]
+    baselineSnapshots: AnalyticsBaselineSnapshot[]
     dataQualityChecks: AnalyticsDataQualityCheck[]
     summaries: AnalyticsInsightsQualitySummary[]
   }
@@ -175,27 +311,33 @@ export type AnalyticsInsightsResponse = {
   summary: string
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
+  measurement: AnalyticsMeasurementGate
   quality: AnalyticsInsightsDataset['quality']
   insights: AnalyticsAiInsight[]
   alerts: AnalyticsAiInsight[]
   opportunities: AnalyticsAiInsight[]
+  prioritizedActions: AnalyticsPrioritizedAction[]
 }
 
 export type AnalyticsSummaryResponse = {
   summary: string
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
+  measurement: AnalyticsMeasurementGate
   quality: AnalyticsInsightsDataset['quality']
   topInsight: AnalyticsAiInsight | null
   totalInsights: number
   alerts: AnalyticsAiInsight[]
+  prioritizedActions: AnalyticsPrioritizedAction[]
 }
 
 export type AnalyticsOpportunitiesResponse = {
   summary: string
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
+  measurement: AnalyticsMeasurementGate
   opportunities: AnalyticsAiInsight[]
+  prioritizedActions: AnalyticsPrioritizedAction[]
 }
 
 export type AnalyticsDataQualityStatus = 'ok' | 'warning' | 'error' | 'missing_baseline'
@@ -281,6 +423,7 @@ export type AnalyticsAdsDailyMetric = {
   cost: number
   conversions: number
   conversionValue: number
+  hasConversionData: boolean
   connectionId: string | null
   syncRunId: string | null
   createdAt: string

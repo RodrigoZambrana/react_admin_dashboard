@@ -2,6 +2,11 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
 import { AnalyticsRepository } from './analytics.repository'
+import {
+  normalizeAnalyticsEventCategory,
+  normalizeAnalyticsEventSource,
+  normalizeAnalyticsMeasurementStatus,
+} from './event-taxonomy'
 import type {
   AnalyticsConnection,
   AnalyticsInsight,
@@ -88,7 +93,22 @@ const extractProductId = (event: AnalyticsEventInput) => {
 
 const extractCategory = (event: AnalyticsEventInput) => {
   const data = event.data ?? {}
-  return asString(data.category) ?? asString(data.product_category)
+  return asString(event.category) ?? asString(event.eventCategory) ?? asString(data.category) ?? asString(data.product_category)
+}
+
+const extractSource = (event: AnalyticsEventInput) => {
+  const data = event.data ?? {}
+  return asString(event.source) ?? asString(data.source)
+}
+
+const extractMeasurementStatus = (event: AnalyticsEventInput) => {
+  const data = event.data ?? {}
+  return (
+    asString(event.measurement_status) ??
+    asString(event.measurementStatus) ??
+    asString(data.measurement_status) ??
+    asString(data.measurementStatus)
+  )
 }
 
 const toDayKey = (value: Date) => value.toISOString().slice(0, 10)
@@ -152,7 +172,36 @@ const normalizeFactRecord = (
   const timestamp = normalizeTimestamp(
     asString(payload?.timestamp) ?? rawEvent.timestamp.toISOString(),
   )
-  const data = (payload?.data as Record<string, unknown> | undefined) ?? {}
+  const data =
+    (payload?.data as Record<string, unknown> | undefined) ??
+    (payload?.metadata as Record<string, unknown> | undefined) ??
+    {}
+  const eventCategory = normalizeAnalyticsEventCategory(
+    asString(payload?.category) ??
+      asString(payload?.eventCategory) ??
+      extractCategory({
+        ...((payload ?? {}) as Record<string, unknown>),
+        data,
+      } as AnalyticsEventInput),
+    event,
+  )
+  const source = normalizeAnalyticsEventSource(
+    asString(payload?.source) ??
+      asString(payload?.eventSource) ??
+      extractSource({
+        ...((payload ?? {}) as Record<string, unknown>),
+        data,
+      } as AnalyticsEventInput),
+  )
+  const measurementStatus = normalizeAnalyticsMeasurementStatus(
+    asString(payload?.measurement_status) ??
+      asString(payload?.measurementStatus) ??
+      extractMeasurementStatus({
+        ...((payload ?? {}) as Record<string, unknown>),
+        data,
+      } as AnalyticsEventInput),
+    eventCategory,
+  )
   const page = asString(payload?.page) ?? asString(data.page)
   const path = asString(payload?.path) ?? asString(data.path)
   const productId =
@@ -164,8 +213,7 @@ const normalizeFactRecord = (
       ...((payload ?? {}) as Record<string, unknown>),
       data,
     } as AnalyticsEventInput)
-  const category =
-    asString(payload?.category) ??
+  const productCategory =
     asString(data.category) ??
     extractCategory({
       ...((payload ?? {}) as Record<string, unknown>),
@@ -185,6 +233,9 @@ const normalizeFactRecord = (
 
   return {
     eventName: event,
+    eventCategory,
+    source,
+    measurementStatus,
     eventTimestamp: timestamp,
     eventDate: normalizeEventDate(timestamp),
     sessionId: asString(payload?.session_id) ?? rawEvent.sessionId,
@@ -192,7 +243,7 @@ const normalizeFactRecord = (
     page,
     path,
     productId,
-    category,
+    category: productCategory,
     utmSource,
     utmMedium,
     utmCampaign,
@@ -483,6 +534,9 @@ export class AnalyticsService {
         country: fact.country,
         value: fact.value !== null && fact.value !== undefined ? new Prisma.Decimal(fact.value) : null,
         sourceEventId: fact.sourceEventId,
+        eventCategory: fact.eventCategory ?? null,
+        source: fact.source ?? null,
+        measurementStatus: fact.measurementStatus ?? null,
       })),
     )
 
@@ -577,6 +631,9 @@ export class AnalyticsService {
           country: fact.country,
           value: fact.value !== null && fact.value !== undefined ? new Prisma.Decimal(fact.value) : null,
           sourceEventId: fact.sourceEventId,
+          eventCategory: fact.eventCategory ?? null,
+          source: fact.source ?? null,
+          measurementStatus: fact.measurementStatus ?? null,
         })),
       )
 

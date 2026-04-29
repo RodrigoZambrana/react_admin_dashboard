@@ -927,6 +927,13 @@
 - La IA trabaja sobre métricas normalizadas, contexto dimensional y evidencia persistida en insights.
 - Razón: los eventos crudos sirven para ingesta y normalización; las decisiones deben salir de datos consistentes, comparables por rango y auditables.
 
+### La IA es el motor de decisión y las reglas son guardrails
+
+- El sistema de analytics debe operar como `datos -> reglas/prefiltro -> bundle semántico -> IA -> decisión final`.
+- Las reglas determinísticas detectan patrones, severidad y calidad de datos, pero no redactan la narrativa final ni la recomendación estratégica.
+- El contrato decisorio vive en `backend/src/analytics/ai-insights.service.ts` y el bundle semántico en `backend/src/analytics/insights.service.ts`.
+- Razón: evitar que el sistema simule IA con lógica rígida y asegurar que la síntesis, priorización y explicación contextual salgan del modelo.
+
 ### El frontend no recibe tokens
 
 - El admin sólo consume `status`, `target`, `lastSyncAt`, `nextSyncAt` e historial de runs/insights.

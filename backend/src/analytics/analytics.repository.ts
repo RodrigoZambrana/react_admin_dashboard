@@ -2,9 +2,15 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
+import {
+  normalizeAnalyticsEventCategory,
+  normalizeAnalyticsEventSource,
+  normalizeAnalyticsMeasurementStatus,
+} from './event-taxonomy'
 import type {
   AnalyticsAdsDailyMetric,
   AnalyticsAiInsight,
+  AnalyticsAiInsightRun,
   AnalyticsConnection,
   AnalyticsConnectionHealth,
   AnalyticsConnectionSource,
@@ -49,6 +55,10 @@ export class AnalyticsRepository {
       analyticsInsightHistory: {
         create: (args?: unknown) => Promise<any>
         createMany: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
+      }
+      analyticsAiInsightRun: {
+        create: (args?: unknown) => Promise<any>
         findMany: (args?: unknown) => Promise<any[]>
       }
       analyticsGa4DailyMetric: {
@@ -267,6 +277,20 @@ export class AnalyticsRepository {
     }
   }
 
+  private mapAiInsightRun(entry: any): AnalyticsAiInsightRun {
+    return {
+      id: entry.id,
+      date: entry.date.toISOString(),
+      summary: entry.summary,
+      insightsJson: (entry.insightsJson as AnalyticsAiInsightRun['insightsJson']) ?? [],
+      actionsJson: (entry.actionsJson as AnalyticsAiInsightRun['actionsJson']) ?? [],
+      confidence: Number(entry.confidence.toString()),
+      bundleJson: (entry.bundleJson as AnalyticsAiInsightRun['bundleJson']) ?? {},
+      responseJson: (entry.responseJson as AnalyticsAiInsightRun['responseJson']) ?? {},
+      createdAt: entry.createdAt.toISOString(),
+    }
+  }
+
   private mapReportingDailyMetric(row: any): AnalyticsReportingDailyMetric {
     return {
       id: row.id.toString(),
@@ -306,6 +330,7 @@ export class AnalyticsRepository {
       cost: Number(row.cost.toString()),
       conversions: row.conversions,
       conversionValue: Number(row.conversionValue.toString()),
+      hasConversionData: row.hasConversionData,
       connectionId: row.connectionId ?? null,
       syncRunId: row.syncRunId ?? null,
       createdAt: row.createdAt.toISOString(),
@@ -583,6 +608,7 @@ export class AnalyticsRepository {
     cost: number
     conversions: number
     conversionValue: number
+    hasConversionData: boolean
     connectionId: string | null
     syncRunId: string | null
   }) {
@@ -599,6 +625,7 @@ export class AnalyticsRepository {
         cost: input.cost,
         conversions: input.conversions,
         conversionValue: input.conversionValue,
+        hasConversionData: input.hasConversionData,
         connectionId: input.connectionId,
         syncRunId: input.syncRunId,
       },
@@ -610,6 +637,7 @@ export class AnalyticsRepository {
         cost: input.cost,
         conversions: input.conversions,
         conversionValue: input.conversionValue,
+        hasConversionData: input.hasConversionData,
         connectionId: input.connectionId,
         syncRunId: input.syncRunId,
       },
@@ -739,9 +767,22 @@ export class AnalyticsRepository {
 
   async saveEvent(input: AnalyticsEventInput) {
     const payload = JSON.parse(JSON.stringify(input)) as Prisma.InputJsonValue
+    const eventName = input.event?.trim() || 'unknown_event'
+    const category = normalizeAnalyticsEventCategory(
+      input.category ?? input.eventCategory ?? (payload as Record<string, unknown>).category,
+      eventName,
+    )
+    const source = normalizeAnalyticsEventSource(input.source ?? (payload as Record<string, unknown>).source)
+    const measurementStatus = normalizeAnalyticsMeasurementStatus(
+      input.measurement_status ?? input.measurementStatus ?? (payload as Record<string, unknown>).measurement_status,
+      category,
+    )
     return this.prisma.analyticsEvent.create({
       data: {
-        eventName: input.event,
+        eventName,
+        eventCategory: category,
+        source,
+        measurementStatus,
         sessionId: input.session_id,
         url: input.url,
         userAgent: input.user_agent,
@@ -750,7 +791,7 @@ export class AnalyticsRepository {
         userId: input.user_id ?? null,
         timestamp: new Date(input.timestamp),
         payload,
-      },
+      } as Prisma.AnalyticsEventCreateInput,
     })
   }
 
@@ -1136,6 +1177,36 @@ export class AnalyticsRepository {
         summary: input.summary ?? null,
       })),
     })
+  }
+
+  async createAiInsightRun(input: {
+    date: Date
+    summary: string
+    insightsJson: Prisma.InputJsonValue
+    actionsJson: Prisma.InputJsonValue
+    confidence: number
+    bundleJson: Prisma.InputJsonValue
+    responseJson: Prisma.InputJsonValue
+  }) {
+    return this.analyticsPrisma.analyticsAiInsightRun.create({
+      data: {
+        date: input.date,
+        summary: input.summary,
+        insightsJson: input.insightsJson,
+        actionsJson: input.actionsJson,
+        confidence: new Prisma.Decimal(input.confidence),
+        bundleJson: input.bundleJson,
+        responseJson: input.responseJson,
+      },
+    })
+  }
+
+  async listAiInsightRuns(limit = 50) {
+    const runs = await this.analyticsPrisma.analyticsAiInsightRun.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      take: limit,
+    })
+    return runs.map((run) => this.mapAiInsightRun(run))
   }
 
   async listReportCatalog() {

@@ -4,6 +4,7 @@ import IconText from '@/components/shared/IconText'
 import { HiMail, HiPhone, HiExternalLink, HiOutlineUser } from 'react-icons/hi'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { trackAnalyticsEvent } from '@/services/AnalyticsEventService'
 
 type CustomerInfoProps = {
     data?: {
@@ -52,6 +53,8 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
     const customerComment = typeof data?.comment === 'string' ? data.comment.trim() : ''
     const previousOrders = data?.previousOrder ?? 0
     const previousBudgets = data?.previousBudgets ?? 0
+    const phone = typeof data?.phone === 'string' ? data.phone.trim() : ''
+    const normalizedPhone = phone.replace(/\D+/g, '')
     return (
         <Card data-testid="admin-order-customer-info">
             <h5 className="mb-4">{t('text.columns.customer')}</h5>
@@ -91,7 +94,32 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
                 <span className="font-semibold">{data?.email}</span>
             </IconText>
             <IconText icon={<HiPhone className="text-xl opacity-70" />}>
-                <span className="font-semibold">{data?.phone}</span>
+                {normalizedPhone ? (
+                    <a
+                        className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                        href={`tel:${normalizedPhone}`}
+                        onClick={() => {
+                            void trackAnalyticsEvent({
+                                event: 'phone_click',
+                                category: 'conversion',
+                                source: 'web',
+                                measurement_status: 'partial',
+                                metadata: {
+                                    page:
+                                        typeof window !== 'undefined'
+                                            ? window.location.pathname
+                                            : null,
+                                    source: 'sales_order_details_customer_info',
+                                    phone,
+                                },
+                            })
+                        }}
+                    >
+                        {phone}
+                    </a>
+                ) : (
+                    <span className="font-semibold">{data?.phone}</span>
+                )}
             </IconText>
             <hr className="my-5" />
             <h6 className="mb-4">{t('text.titles.shippingAddress')}</h6>

@@ -3,17 +3,26 @@ import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 
 import { AnalyticsRepository } from './analytics.repository'
+import { AnalyticsAiInsightsService } from './ai-insights.service'
 import type {
+  AnalyticsAiDecisionOutput,
+  AnalyticsAiDecisionInsight,
   AnalyticsAiInsight,
+  AnalyticsInsightBundle,
+  AnalyticsInsightBundleDetectedPattern,
   AnalyticsInsightHistory,
+  AnalyticsInsightCategory,
+  AnalyticsInsightSource,
   AnalyticsInsightPeriod,
   AnalyticsInsightPriority,
   AnalyticsInsightType,
+  AnalyticsMeasurementGate,
   AnalyticsInsightsDataset,
   AnalyticsInsightsQualitySummary,
   AnalyticsInsightsResponse,
   AnalyticsOpportunitiesResponse,
   AnalyticsSummaryResponse,
+  AnalyticsPrioritizedAction,
   AnalyticsReportingDailyMetric,
   AnalyticsAdsDailyMetric,
   AnalyticsSearchConsoleDailyMetric,
@@ -65,9 +74,21 @@ type SegmentAggregate = {
   previous: MetricTotals
 }
 
-type InsightCandidate = Omit<AnalyticsAiInsight, 'id' | 'createdAt' | 'status'> & {
+type InsightCandidate = Omit<AnalyticsAiInsight, 'id' | 'createdAt' | 'status' | 'category' | 'source'> & {
+  category?: AnalyticsInsightCategory
+  source?: AnalyticsInsightSource
   score: number
   status: 'open'
+}
+
+type InsightDraft = Omit<InsightCandidate, 'score' | 'status' | 'category' | 'source'> & {
+  score?: number
+  category?: AnalyticsInsightCategory
+  source?: AnalyticsInsightSource
+}
+
+type MeasurementState = AnalyticsMeasurementGate & {
+  reasons: string[]
 }
 
 type LoadedSemanticData = {
@@ -83,6 +104,7 @@ type LoadedSemanticData = {
   syncRuns: AnalyticsSyncRun[]
   reportRuns: AnalyticsReportRun[]
   reconciliations: AnalyticsReportReconciliation[]
+  baselineSnapshots: Awaited<ReturnType<AnalyticsRepository['listBaselineSnapshots']>>
   dataQualityChecks: AnalyticsDataQualityCheck[]
   qualitySummaries: AnalyticsInsightsQualitySummary[]
 }
@@ -296,13 +318,16 @@ const scoreInsight = (params: {
     params.kind === 'data_quality' ? 1.15 : params.kind === 'conversion' ? 1.08 : params.kind === 'revenue' ? 1.05 : 1
 
   return decimal(
-    100 *
-      kindBoost *
-      (volumeScore * 0.25 +
-        valueScore * 0.25 +
-        variationScore * 0.25 +
-        qualityScore * 0.1 +
-        easeScore * 0.15),
+    Math.min(
+      100,
+      100 *
+        kindBoost *
+        (volumeScore * 0.25 +
+          valueScore * 0.25 +
+          variationScore * 0.25 +
+          qualityScore * 0.1 +
+          easeScore * 0.15),
+    ),
   )
 }
 
@@ -324,25 +349,57 @@ const periodRangeToJson = (current: DateRange, previous: DateRange): AnalyticsIn
   },
 })
 
-const toJson = (value: Record<string, unknown>) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
+const toJson = (value: unknown) => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
+
+const metricToSource = (sourceReport: string | null): AnalyticsInsightSource => {
+  if (!sourceReport) {
+    return 'mixed'
+  }
+  if (sourceReport.includes('ads')) {
+    return 'ads'
+  }
+  if (sourceReport.includes('search_console')) {
+    return 'search_console'
+  }
+  if (sourceReport.includes('ga4')) {
+    return 'ga4'
+  }
+  return 'mixed'
+}
+
+const measurementQualityStatus = (qualityPressure: number): AnalyticsMeasurementGate['qualityStatus'] => {
+  if (qualityPressure >= 0.45) {
+    return 'error'
+  }
+  if (qualityPressure >= 0.2) {
+    return 'warning'
+  }
+  return 'ok'
+}
 
 @Injectable()
 export class AnalyticsInsightsService {
-  constructor(private readonly repository: AnalyticsRepository) {}
+  constructor(
+    private readonly repository: AnalyticsRepository,
+    private readonly aiInsightsService: AnalyticsAiInsightsService,
+  ) {}
 
   async getInsights(params?: { from?: string; to?: string; reportKey?: string }) {
     const bundle = await this.buildInsightsBundle(params)
-    return this.buildInsightsResponse(bundle)
+    const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
+    return this.buildInsightsResponse(bundle, decision)
   }
 
   async getSummary(params?: { from?: string; to?: string; reportKey?: string }) {
     const bundle = await this.buildInsightsBundle(params)
-    return this.buildSummaryResponse(bundle)
+    const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
+    return this.buildSummaryResponse(bundle, decision)
   }
 
   async getOpportunities(params?: { from?: string; to?: string; reportKey?: string }) {
     const bundle = await this.buildInsightsBundle(params)
-    return this.buildOpportunitiesResponse(bundle)
+    const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
+    return this.buildOpportunitiesResponse(bundle, decision)
   }
 
   async getHistory(limit = 100) {
@@ -354,8 +411,9 @@ export class AnalyticsInsightsService {
 
   async recompute(params?: { from?: string; to?: string; reportKey?: string }) {
     const bundle = await this.buildInsightsBundle(params)
-    await this.persistBundle(bundle)
-    return this.buildInsightsResponse(bundle)
+    const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
+    await this.persistBundle(bundle, decision)
+    return this.buildInsightsResponse(bundle, decision)
   }
 
   private async buildInsightsBundle(params?: { from?: string; to?: string; reportKey?: string }) {
@@ -374,6 +432,7 @@ export class AnalyticsInsightsService {
         this.repository.listReportReconciliations(50, params?.reportKey),
         this.repository.listDataQualityChecks(200, params?.reportKey),
       ])
+    const baselineSnapshots = await this.repository.listBaselineSnapshots(100, params?.reportKey)
 
     const qualitySummaries = this.buildQualitySummaries(dataQualityChecks)
     const dataset: LoadedSemanticData = {
@@ -389,102 +448,137 @@ export class AnalyticsInsightsService {
       syncRuns,
       reportRuns,
       reconciliations,
+      baselineSnapshots,
       dataQualityChecks,
       qualitySummaries,
     }
 
-    const insights = this.detectPatterns(dataset)
-    const sortedInsights = this.sortInsights(insights)
-    const alerts = sortedInsights.filter((insight) => insight.insightType === 'data_quality' || insight.impact === 'high').slice(0, 5)
-    const opportunities = sortedInsights.filter((insight) =>
-      ['acquisition', 'behavior', 'conversion', 'revenue'].includes(insight.insightType),
-    )
-    const summary = this.composeSummary(dataset, sortedInsights)
+    const measurement = this.evaluateMeasurementReadiness(dataset, this.qualityPressure(dataset))
+    const detectedInsights = this.detectPatterns(dataset, measurement)
+    const detectedPatterns = this.toDetectedPatterns(detectedInsights, measurement)
+    const bundle = this.buildSemanticBundle(dataset, measurement, detectedPatterns)
 
     return {
       dataset,
-      insights: sortedInsights,
-      alerts,
-      opportunities,
-      summary,
+      measurement,
+      bundle,
+      detectedInsights,
     }
   }
 
-  private async persistBundle(bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>) {
-    const periodRange = periodRangeToJson(bundle.dataset.currentRange, bundle.dataset.previousRange)
-    const summaryRecord = {
-      date: bundle.dataset.currentRange.to,
-      insightType: 'summary',
-      title: 'Resumen ejecutivo',
-      description: bundle.summary,
-      impact: 'medium',
-      recommendation: bundle.opportunities[0]?.recommendation ?? 'Revisar el insight principal y ejecutar la acción priorizada.',
-      confidence: bundle.insights[0] ? bundle.insights[0].confidence : 0.5,
-      evidence: toJson({
-        summary: bundle.summary,
-        totalInsights: bundle.insights.length,
-        alerts: bundle.alerts.map((insight) => insight.title),
-      }),
-      sourceReport: 'analytics_reporting_daily',
-      periodRange: toJson(periodRange),
-      score: bundle.insights[0]?.score ?? 0,
-      summary: bundle.summary,
-    }
-
-    await this.repository.createInsightHistoryMany([
-      summaryRecord,
-      ...bundle.insights.map((insight) => ({
+  private async persistBundle(
+    bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>,
+    decision: AnalyticsAiDecisionOutput,
+  ) {
+    const periodRange = bundle.bundle.timeRange
+    await Promise.all([
+      this.repository.createAiInsightRun({
         date: bundle.dataset.currentRange.to,
-        insightType: insight.insightType,
-        title: insight.title,
-        description: insight.description,
-        impact: insight.impact,
-        recommendation: insight.recommendation,
-        confidence: insight.confidence,
-        evidence: toJson(insight.evidence),
-        sourceReport: insight.sourceReport,
-        periodRange: toJson(insight.periodRange),
-        score: insight.score,
-        summary: null,
-      })),
+        summary: decision.summary,
+        insightsJson: toJson(decision.insights),
+        actionsJson: toJson(decision.prioritized_actions),
+        confidence: decision.insights.length
+          ? decision.insights.reduce((sum, insight) => sum + insight.confidence, 0) / decision.insights.length
+          : bundle.bundle.dataQuality.confidence,
+        bundleJson: toJson(bundle.bundle),
+        responseJson: toJson(decision),
+      }),
+      this.repository.createInsightHistoryMany([
+        {
+          date: bundle.dataset.currentRange.to,
+          insightType: 'summary',
+          title: 'Resumen ejecutivo',
+          description: decision.summary,
+          impact: 'medium',
+          recommendation: decision.prioritized_actions[0]?.action ?? 'Revisar el insight principal y ejecutar la acción priorizada.',
+          confidence: decision.insights.length
+            ? decision.insights.reduce((sum, insight) => sum + insight.confidence, 0) / decision.insights.length
+            : bundle.bundle.dataQuality.confidence,
+          evidence: toJson({
+            summary: decision.summary,
+            measurement: bundle.measurement,
+            detectedPatterns: bundle.detectedInsights.slice(0, 5).map((insight) => insight.title),
+          }),
+          sourceReport: 'analytics_insights_ai',
+          periodRange: toJson(periodRange),
+          score: decision.prioritized_actions[0]?.priority ?? 0,
+          summary: decision.summary,
+        },
+      ]),
     ])
   }
 
-  private buildInsightsResponse(bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>): AnalyticsInsightsResponse {
+  private buildInsightsResponse(
+    bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>,
+    decision: AnalyticsAiDecisionOutput,
+  ): AnalyticsInsightsResponse {
+    const insights = this.mapDecisionInsights(decision, bundle)
+    const alerts = insights
+      .filter((insight) => insight.category === 'measurement_issue' || insight.impact === 'high')
+      .slice(0, 5)
+    const opportunities = insights.filter((insight) =>
+      ['acquisition', 'behavior', 'conversion', 'revenue'].includes(insight.insightType),
+    )
     return {
-      summary: bundle.summary,
-      periodRange: periodRangeToJson(bundle.dataset.currentRange, bundle.dataset.previousRange),
+      summary: decision.summary,
+      periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
+      measurement: bundle.measurement,
       quality: this.buildQualityContext(bundle.dataset),
-      insights: bundle.insights.map((insight) => this.toResponseInsight(insight, bundle.dataset)),
-      alerts: bundle.alerts.map((insight) => this.toResponseInsight(insight, bundle.dataset)),
-      opportunities: bundle.opportunities.map((insight) => this.toResponseInsight(insight, bundle.dataset)),
+      insights,
+      alerts,
+      opportunities,
+      prioritizedActions: decision.prioritized_actions.map((action) => ({
+        action: action.action,
+        why: action.reason,
+        expectedImpact: action.expected_impact,
+        confidence: action.confidence,
+      })),
     }
   }
 
   private buildSummaryResponse(
     bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>,
+    decision: AnalyticsAiDecisionOutput,
   ): AnalyticsSummaryResponse {
-    const insights = bundle.insights.map((insight) => this.toResponseInsight(insight, bundle.dataset))
+    const insights = this.mapDecisionInsights(decision, bundle)
     return {
-      summary: bundle.summary,
-      periodRange: periodRangeToJson(bundle.dataset.currentRange, bundle.dataset.previousRange),
+      summary: decision.summary,
+      periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
+      measurement: bundle.measurement,
       quality: this.buildQualityContext(bundle.dataset),
       topInsight: insights[0] ?? null,
       totalInsights: insights.length,
       alerts: insights.filter((insight) => insight.impact === 'high').slice(0, 5),
+      prioritizedActions: decision.prioritized_actions.map((action) => ({
+        action: action.action,
+        why: action.reason,
+        expectedImpact: action.expected_impact,
+        confidence: action.confidence,
+      })),
     }
   }
 
   private buildOpportunitiesResponse(
     bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>,
+    decision: AnalyticsAiDecisionOutput,
   ): AnalyticsOpportunitiesResponse {
+    const opportunities = this.mapDecisionInsights(decision, bundle).filter((insight) =>
+      ['acquisition', 'behavior', 'conversion', 'revenue'].includes(insight.insightType),
+    )
     return {
-      summary: bundle.summary,
-      periodRange: periodRangeToJson(bundle.dataset.currentRange, bundle.dataset.previousRange),
+      summary: decision.summary,
+      periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
-      opportunities: bundle.opportunities.map((insight) => this.toResponseInsight(insight, bundle.dataset)),
+      measurement: bundle.measurement,
+      opportunities,
+      prioritizedActions: decision.prioritized_actions.map((action) => ({
+        action: action.action,
+        why: action.reason,
+        expectedImpact: action.expected_impact,
+        confidence: action.confidence,
+      })),
     }
   }
 
@@ -494,9 +588,207 @@ export class AnalyticsInsightsService {
       syncRuns: dataset.syncRuns,
       reportRuns: dataset.reportRuns,
       reconciliations: dataset.reconciliations,
+      baselineSnapshots: dataset.baselineSnapshots,
       dataQualityChecks: dataset.dataQualityChecks,
       summaries: dataset.qualitySummaries,
     }
+  }
+
+  private buildSemanticBundle(
+    dataset: LoadedSemanticData,
+    measurement: MeasurementState,
+    detectedPatterns: AnalyticsInsightBundleDetectedPattern[],
+  ): AnalyticsInsightBundle {
+    const currentTotals = enrichTotals(this.aggregateTotals(dataset.reportingCurrent))
+    const previousTotals = enrichTotals(this.aggregateTotals(dataset.reportingPrevious))
+    const currentFunnel = {
+      view_item: currentTotals.views,
+      add_to_cart: currentTotals.addToCart,
+      begin_checkout: currentTotals.eventCount,
+      purchase: currentTotals.purchase,
+      rates: {
+        viewToCart: ratio(currentTotals.addToCart, Math.max(1, currentTotals.views || currentTotals.sessions)),
+        cartToCheckout: ratio(currentTotals.eventCount, Math.max(1, currentTotals.addToCart || currentTotals.views || currentTotals.sessions)),
+        checkoutToPurchase: ratio(currentTotals.purchase, Math.max(1, currentTotals.eventCount || currentTotals.addToCart || currentTotals.sessions)),
+      },
+    }
+
+    const channelTotals = new Map<
+      string,
+      {
+        sessions: number
+        cost: number
+        revenue: number
+        orders: number
+      }
+    >()
+    for (const row of dataset.reportingCurrent) {
+      const key = row.channel?.trim() || 'unknown-channel'
+      const current = channelTotals.get(key) ?? { sessions: 0, cost: 0, revenue: 0, orders: 0 }
+      current.sessions += row.sessions
+      current.cost += row.cost
+      current.revenue += row.revenue
+      current.orders += row.orders
+      channelTotals.set(key, current)
+    }
+
+    const acquisition = Array.from(channelTotals.entries())
+      .map(([channel, totals]) => ({
+        channel,
+        sessions: totals.sessions,
+        cost: decimal(totals.cost),
+        revenue: decimal(totals.revenue),
+        roas: ratio(totals.revenue, totals.cost),
+        conversionRate: ratio(totals.orders, totals.sessions),
+        source: (channel.toLowerCase().includes('ads') ? 'ads' : 'ga4') as AnalyticsInsightSource,
+      }))
+      .sort((left, right) => right.sessions - left.sessions)
+      .slice(0, 8)
+
+    const seoQueries = new Map<
+      string,
+      { impressions: number; clicks: number; ctrSum: number; positionSum: number; rows: number }
+    >()
+    for (const row of dataset.searchCurrent) {
+      const key = row.query?.trim() || 'unknown-query'
+      const current = seoQueries.get(key) ?? { impressions: 0, clicks: 0, ctrSum: 0, positionSum: 0, rows: 0 }
+      current.impressions += row.impressions
+      current.clicks += row.clicks
+      current.ctrSum += row.ctr
+      current.positionSum += row.position
+      current.rows += 1
+      seoQueries.set(key, current)
+    }
+
+    const seo = Array.from(seoQueries.entries())
+      .map(([query, totals]) => ({
+        query,
+        impressions: totals.impressions,
+        clicks: totals.clicks,
+        ctr: totals.impressions > 0 ? totals.clicks / totals.impressions : totals.ctrSum / Math.max(1, totals.rows),
+        position: totals.rows > 0 ? totals.positionSum / totals.rows : 0,
+        source: 'search_console' as const,
+      }))
+      .sort((left, right) => right.impressions - left.impressions)
+      .slice(0, 8)
+
+    const productSegments = this.collectSegments(dataset).product
+      .map((segment) => {
+        const current = enrichTotals(segment.current)
+        return {
+          productId: segment.key,
+          views: current.views,
+          addToCart: current.addToCart,
+          purchases: current.purchase,
+          conversionRate: ratio(current.purchase, Math.max(1, current.views || current.sessions)),
+          source: 'ga4' as const,
+        }
+      })
+      .sort((left, right) => right.views - left.views)
+      .slice(0, 8)
+
+    const kpiCurrent = {
+      revenue: toComparisonMetric(currentTotals.revenue, previousTotals.revenue),
+      orders: toComparisonMetric(currentTotals.orders, previousTotals.orders),
+      conversionRate: toComparisonMetric(currentTotals.conversionRate, previousTotals.conversionRate),
+      cac: currentTotals.orders > 0
+        ? toComparisonMetric(currentTotals.cost / Math.max(1, currentTotals.orders), previousTotals.orders > 0 ? previousTotals.cost / previousTotals.orders : 0)
+        : null,
+      roas: toComparisonMetric(currentTotals.roas, previousTotals.roas),
+    }
+
+    return {
+      timeRange: periodRangeToJson(dataset.currentRange, dataset.previousRange),
+      kpis: kpiCurrent,
+      funnel: currentFunnel,
+      acquisition,
+      seo,
+      products: productSegments,
+      detectedPatterns,
+      dataQuality: {
+        status: measurement.qualityStatus,
+        confidence: Math.max(0.05, 1 - this.qualityPressure(dataset)),
+        reasons: measurement.reasons,
+      },
+      measurement,
+    }
+  }
+
+  private toDetectedPatterns(
+    insights: InsightCandidate[],
+    measurement: MeasurementState,
+  ): AnalyticsInsightBundleDetectedPattern[] {
+    return insights.map((insight) => ({
+      type: this.detectPatternType(insight),
+      severity:
+        insight.impact === 'high'
+          ? 'high'
+          : insight.impact === 'medium'
+            ? 'medium'
+            : 'low',
+      category: insight.category ?? (measurement.conversionMeasurementReady ? 'business_issue' : 'measurement_issue'),
+      source: insight.source ?? metricToSource(insight.sourceReport),
+      evidence: {
+        ...insight.evidence,
+        title: insight.title,
+        description: insight.description,
+        recommendation: insight.recommendation,
+        metric: insight.metric,
+        segment: insight.segment,
+        score: insight.score,
+      },
+    }))
+  }
+
+  private detectPatternType(insight: InsightCandidate) {
+    const metric = insight.metric.toLowerCase()
+    if (insight.sourceReport?.includes('analytics_data_quality')) {
+      return 'data_quality_gap'
+    }
+    if (insight.sourceReport?.includes('analytics_connections')) {
+      return 'data_quality_gap'
+    }
+    if (insight.sourceReport?.includes('ads') && metric.includes('roas')) {
+      return 'high_cost_low_roas'
+    }
+    if (insight.sourceReport?.includes('ads') && metric.includes('ctr')) {
+      return 'high_impression_low_ctr'
+    }
+    if (metric.includes('purchase') && metric.includes('rate')) {
+      return 'high_add_to_cart_low_purchase'
+    }
+    if (metric.includes('conversion')) {
+      return 'high_traffic_low_conversion'
+    }
+    if (metric.includes('data_quality') || metric.includes('connection')) {
+      return 'data_quality_gap'
+    }
+    if (metric.includes('revenue') || metric.includes('orders') || metric.includes('sessions') || metric.includes('cost')) {
+      return 'abrupt_decline'
+    }
+    return 'high_traffic_low_conversion'
+  }
+
+  private inferInsightTypeFromInsight(insight: AnalyticsAiDecisionInsight): AnalyticsInsightType {
+    if (insight.insight_type) {
+      return insight.insight_type
+    }
+    if (insight.category === 'measurement_issue') {
+      return 'data_quality'
+    }
+    if (insight.category === 'business_issue') {
+      return insight.source === 'search_console' ? 'acquisition' : 'revenue'
+    }
+    return 'summary'
+  }
+
+  private mapDecisionInsights(
+    decision: AnalyticsAiDecisionOutput,
+    bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>,
+  ): AnalyticsAiInsight[] {
+    return decision.insights.map((insight, index) =>
+      this.toResponseInsight(insight, bundle, index, decision.summary),
+    )
   }
 
   private buildQualitySummaries(
@@ -558,6 +850,103 @@ export class AnalyticsInsightsService {
         entry.totalChecks > 0 ? decimal((entry.coverageWeight / entry.totalChecks) * 100) : 0,
       lastCheckedAt: entry.lastCheckedAt,
     }))
+  }
+
+  private evaluateMeasurementReadiness(
+    dataset: LoadedSemanticData,
+    qualityPressure: number,
+  ): MeasurementState {
+    const reasons: string[] = []
+    const qualityStatus = measurementQualityStatus(qualityPressure)
+    const currentTotals = enrichTotals(this.aggregateTotals(dataset.reportingCurrent))
+    const previousTotals = enrichTotals(this.aggregateTotals(dataset.reportingPrevious))
+
+    const currentConversionDays = new Set(
+      dataset.reportingCurrent
+        .filter((row) => row.purchase > 0 || row.ga4PurchaseProxy > 0 || row.orders > 0 || row.keyEvents > 0)
+        .map((row) => row.date.slice(0, 10)),
+    )
+    const previousConversionDays = new Set(
+      dataset.reportingPrevious
+        .filter((row) => row.purchase > 0 || row.ga4PurchaseProxy > 0 || row.orders > 0 || row.keyEvents > 0)
+        .map((row) => row.date.slice(0, 10)),
+    )
+
+    const currentDays = new Set(dataset.reportingCurrent.map((row) => row.date.slice(0, 10)))
+    const previousDays = new Set(dataset.reportingPrevious.map((row) => row.date.slice(0, 10)))
+    const currentConsistency = currentDays.size > 0 ? currentConversionDays.size / currentDays.size : 0
+    const previousConsistency = previousDays.size > 0 ? previousConversionDays.size / previousDays.size : 0
+
+    const hasGa4Signal =
+      currentTotals.keyEvents > 0 ||
+      currentTotals.ga4PurchaseProxy > 0 ||
+      currentTotals.purchase > 0 ||
+      previousTotals.keyEvents > 0 ||
+      previousTotals.ga4PurchaseProxy > 0 ||
+      previousTotals.purchase > 0
+
+    const hasAdsSignal =
+      dataset.adsCurrent.some((row) => row.conversions > 0 || row.conversionValue > 0 || row.cost > 0) ||
+      dataset.adsPrevious.some((row) => row.conversions > 0 || row.conversionValue > 0 || row.cost > 0)
+    const hasAdsConversionData =
+      dataset.adsCurrent.some((row) => row.hasConversionData) ||
+      dataset.adsPrevious.some((row) => row.hasConversionData)
+
+    const stableConversionSignal =
+      currentConsistency >= 0.35 && previousConsistency >= 0.35 && currentConversionDays.size > 0 && previousConversionDays.size > 0
+
+    const alignedQuality =
+      dataset.qualitySummaries.length > 0
+        ? dataset.qualitySummaries.every(
+            (summary) =>
+              summary.coveragePercent >= 90 &&
+              summary.errorCount === 0 &&
+              summary.missingBaselineCount === 0,
+          )
+        : false
+
+    const alignedReconciliation =
+      dataset.reconciliations.length > 0 &&
+      dataset.reconciliations.every((entry) => entry.status === 'aligned' || entry.status === 'partial')
+
+    if (!hasGa4Signal) {
+      reasons.push('GA4 no expone una señal de conversión estable en la ventana comparada.')
+    }
+    if (!stableConversionSignal) {
+      reasons.push('La conversión no aparece de forma consistente en ambas ventanas.')
+    }
+    if (!alignedQuality) {
+      reasons.push('La calidad de datos todavía muestra gaps o cobertura insuficiente.')
+    }
+    if (!alignedReconciliation) {
+      reasons.push('La reconciliación canónica todavía no está suficientemente alineada.')
+    }
+
+    const conversionMeasurementReady =
+      hasGa4Signal && stableConversionSignal && alignedQuality && alignedReconciliation && qualityStatus !== 'error'
+
+    const adsReady =
+      conversionMeasurementReady &&
+      hasAdsSignal &&
+      hasAdsConversionData &&
+      dataset.connections.some((connection) => connection.source === 'ads' && connection.status === 'ready')
+
+    if (!hasAdsSignal) {
+      reasons.push('Google Ads todavía no tiene una señal de conversión persistida en las tablas normalizadas.')
+    }
+    if (!hasAdsConversionData) {
+      reasons.push('Google Ads todavía no expone conversiones confiables en la sincronización actual.')
+    }
+    if (!adsReady) {
+      reasons.push('Ads no cumple todavía el gate de medición para conclusiones de conversiones.')
+    }
+
+    return {
+      conversionMeasurementReady,
+      adsConversionMeasurementReady: adsReady,
+      qualityStatus,
+      reasons,
+    }
   }
 
   private collectSegments(dataset: LoadedSemanticData) {
@@ -718,7 +1107,41 @@ export class AnalyticsInsightsService {
     return Array.from(current.values())
   }
 
-  private detectPatterns(dataset: LoadedSemanticData): InsightCandidate[] {
+  private classifyInsight(
+    input: InsightCandidate,
+    measurement: MeasurementState,
+  ): { category: AnalyticsInsightCategory; source: AnalyticsInsightSource } {
+    const evidence = (input.evidence ?? {}) as Record<string, unknown>
+    const metric = input.metric.toLowerCase()
+    const source = metricToSource(input.sourceReport)
+    const qualityStatus = (evidence.qualityStatus as string | undefined) ?? measurement.qualityStatus
+    const measurementRelated = metric.includes('conversion') || metric.includes('roas') || metric.includes('purchase') || metric.includes('cost')
+    const lowConfidence =
+      qualityStatus === 'error' ||
+      measurement.qualityStatus === 'error' ||
+      Number(input.confidence) < 0.55 ||
+      Number(input.score) < 35
+
+    if (input.insightType === 'data_quality') {
+      return { category: 'measurement_issue', source: 'mixed' }
+    }
+
+    if (measurementRelated && !measurement.conversionMeasurementReady) {
+      return { category: 'measurement_issue', source }
+    }
+
+    if (input.sourceReport?.includes('ads') && !measurement.adsConversionMeasurementReady && metric.includes('conversion')) {
+      return { category: 'measurement_issue', source: 'ads' }
+    }
+
+    if (lowConfidence) {
+      return { category: 'low_confidence_signal', source }
+    }
+
+    return { category: 'business_issue', source }
+  }
+
+  private detectPatterns(dataset: LoadedSemanticData, measurement: MeasurementState): InsightCandidate[] {
     const insights: InsightCandidate[] = []
     const segmentGroups = this.collectSegments(dataset)
     const adSegments = this.collectAdsSegments(dataset)
@@ -780,17 +1203,29 @@ export class AnalyticsInsightsService {
       .sort((left, right) => right.current.cost - left.current.cost)
       .slice(0, 8)
 
-    const pushInsight = (input: Omit<InsightCandidate, 'score' | 'status'> & { score?: number }) => {
-      insights.push({
-        ...input,
-        score: input.score ?? scoreInsight({
+    const pushInsight = (input: InsightDraft) => {
+      const score =
+        input.score ??
+        scoreInsight({
           volume: valueOrZero(input.evidence.volume),
           value: valueOrZero(input.evidence.value),
           variation: valueOrZero(input.evidence.deltaPercent),
           quality: qualityPressure,
           ease: valueOrZero(input.evidence.ease ?? 0.7),
           kind: input.insightType,
-        }),
+        })
+      const normalized = this.classifyInsight(
+        {
+          ...input,
+          score,
+          status: 'open',
+        },
+        measurement,
+      )
+      insights.push({
+        ...input,
+        ...normalized,
+        score,
         status: 'open',
       })
     }
@@ -1307,6 +1742,7 @@ export class AnalyticsInsightsService {
         evidence: {
           qualitySummary: errorSummary ?? null,
           reconciliation: worstReconciliation ?? null,
+          baselineSnapshotCount: dataset.baselineSnapshots.length,
           connectionHealth: dataset.connections.map((connection) => ({
             id: connection.id,
             source: connection.source,
@@ -1402,8 +1838,22 @@ export class AnalyticsInsightsService {
     return totals
   }
 
-  private sortInsights(insights: InsightCandidate[]) {
+  private buildPrioritizedActions(insights: InsightCandidate[]): AnalyticsPrioritizedAction[] {
+    return insights.slice(0, 5).map((insight) => ({
+      action: insight.recommendation,
+      why: insight.description,
+      expectedImpact: insight.impact,
+      confidence: insight.confidence,
+    }))
+  }
+
+  private sortInsights(insights: InsightCandidate[], measurement: MeasurementState) {
+    const scoreBoost = measurement.conversionMeasurementReady ? 1 : 0.92
     return [...insights]
+      .map((insight) => ({
+        ...insight,
+        score: decimal(Math.min(100, insight.score * scoreBoost)),
+      }))
       .sort((left, right) => right.score - left.score || right.confidence - left.confidence)
       .map((insight) => ({
         ...insight,
@@ -1413,16 +1863,67 @@ export class AnalyticsInsightsService {
   }
 
   private toResponseInsight(
-    insight: ReturnType<AnalyticsInsightsService['sortInsights']>[number],
-    dataset: LoadedSemanticData,
+    insight: AnalyticsAiDecisionInsight,
+    bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>,
+    index: number,
+    summary: string,
   ): AnalyticsAiInsight {
+    const periodRange = bundle.bundle.timeRange
+    const evidence = (insight.evidence ?? {}) as Record<string, unknown>
+    const qualityStatus =
+      (evidence.qualityStatus as AnalyticsMeasurementGate['qualityStatus'] | undefined) ??
+      bundle.measurement.qualityStatus
+    const metric = typeof insight.metric === 'string' && insight.metric.trim() ? insight.metric.trim() : 'analysis'
+    const segment = typeof insight.segment === 'string' && insight.segment.trim() ? insight.segment.trim() : null
     return {
-      ...insight,
-      periodRange: periodRangeToJson(dataset.currentRange, dataset.previousRange),
+      id: `ai-insight-${index + 1}`,
+      insightType: insight.insight_type ?? this.inferInsightTypeFromInsight(insight),
+      title: insight.title,
+      description: `${insight.what_happened} ${insight.why_it_matters}`.trim(),
+      recommendation: insight.recommendation,
+      category: insight.category,
+      source: insight.source,
+      impact: insight.impact,
+      confidence: insight.confidence,
+      evidence: {
+        ...evidence,
+        period: periodRange,
+        metric,
+        delta:
+          typeof evidence.deltaPercent === 'number'
+            ? evidence.deltaPercent
+            : typeof evidence.delta === 'number'
+              ? evidence.delta
+              : null,
+        segment,
+        qualityStatus,
+        measurementReady: bundle.measurement.conversionMeasurementReady,
+        summary,
+        what_happened: insight.what_happened,
+        why_it_matters: insight.why_it_matters,
+      },
+      metric,
+      segment,
+      sourceReport: insight.source_report ?? (evidence.sourceReport as string | null) ?? null,
+      periodRange,
+      score: scoreInsight({
+        volume: valueOrZero(evidence.volume),
+        value: valueOrZero(evidence.value),
+        variation: valueOrZero(evidence.deltaPercent),
+        quality: bundle.bundle.dataQuality.confidence,
+        ease: valueOrZero(evidence.ease ?? 0.7),
+        kind: insight.insight_type ?? this.inferInsightTypeFromInsight(insight),
+      }),
+      status: 'open',
+      createdAt: new Date().toISOString(),
     }
   }
 
-  private composeSummary(dataset: LoadedSemanticData, insights: ReturnType<AnalyticsInsightsService['sortInsights']>) {
+  private composeSummary(
+    dataset: LoadedSemanticData,
+    insights: ReturnType<AnalyticsInsightsService['sortInsights']>,
+    measurement: MeasurementState,
+  ) {
     const currentTotals = enrichTotals(this.aggregateTotals(dataset.reportingCurrent))
     const previousTotals = enrichTotals(this.aggregateTotals(dataset.reportingPrevious))
     const topInsight = insights[0] ?? null
@@ -1447,6 +1948,12 @@ export class AnalyticsInsightsService {
     } else if (dataset.reconciliations.length) {
       summaryParts.push(`La reconciliación más reciente quedó en estado ${dataset.reconciliations[0].status}.`)
     }
+
+    summaryParts.push(
+      measurement.conversionMeasurementReady
+        ? 'La medición de conversiones está validada para conclusiones de negocio.'
+        : 'La medición de conversiones todavía no está validada; las señales de conversión se tratan como hipótesis de baja confianza o de medición.',
+    )
 
     return summaryParts.join(' ')
   }

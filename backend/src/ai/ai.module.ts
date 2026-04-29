@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
+import { OpenAiClientModule } from '../common/openai/openai-client.module'
 import { SecureConfigModule } from '../common/security/secure-config.module'
 import { PrismaModule } from '../prisma/prisma.module'
 import { KnowledgeModule } from '../knowledge/knowledge.module'
@@ -18,6 +19,7 @@ import { UsageController } from './usage.controller'
     ConfigModule,
     PrismaModule,
     SecureConfigModule,
+    OpenAiClientModule,
     KnowledgeModule,
     OrdersModule,
     AberturasGlossaryModule,

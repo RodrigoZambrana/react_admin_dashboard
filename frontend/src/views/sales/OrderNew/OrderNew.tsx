@@ -71,6 +71,7 @@ import { calculateLineTotal, getDerivedUnitPrice, resolveSalesUnit } from '@/uti
 import { createSalesDocumentRounder } from '@/utils/salesDocumentCalculations'
 import { sanitizeRichText } from '@/utils/security/inputGuards'
 import { createSalesItemLineId } from '../utils/itemIdentity'
+import { trackAnalyticsEvent } from '@/services/AnalyticsEventService'
 
 type Item = EditableItem
 
@@ -1989,6 +1990,20 @@ const formInitialValues = useMemo(() => {
                     try {
                         const res = await apiCreateSalesOrder<boolean, any>(payload, resource)
                         if ((res as any).data || (res as any) === true) {
+                            void trackAnalyticsEvent({
+                                event: mode === 'budget' ? 'lead_created' : 'purchase_completed',
+                                category: 'conversion',
+                                source: 'web',
+                                measurement_status: 'partial',
+                                metadata: {
+                                    mode,
+                                    resource,
+                                    customer_id: values.customerId || null,
+                                    order_currency: orderCurrencyValue,
+                                    items_count: values.items.length,
+                                    document_id: documentId ?? null,
+                                },
+                            })
                             toast.push(
                                 <Notification
                                     title={docMessage(

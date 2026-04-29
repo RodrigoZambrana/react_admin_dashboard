@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common'
-import { ConfigService } from '@nestjs/config'
 import { parse as parseCsv } from 'csv-parse/sync'
 import { PDFParse } from 'pdf-parse'
 import * as XLSX from 'xlsx'
-import { SecureConfigService } from '../../common/security/secure-config.service'
+import {
+  OpenAiClientService,
+  type OpenAiRuntimeConfig,
+} from '../../common/openai/openai-client.service'
 import { ExtractAiAssetDto } from '../dto/extract-ai-assets.dto'
 import { OpenAiUsageService } from '../openai-usage.service'
 import {
@@ -13,19 +15,10 @@ import {
   ExtractedStructuredRow,
 } from './extracted-asset.types'
 
-type RuntimeConfig = {
-  provider: 'mock' | 'openai' | 'ollama'
-  model: string
-  openAiApiKey?: string | null
-}
-
 @Injectable()
 export class AiAssetExtractionService {
-  private static readonly AI_RUNTIME_CONFIG_KEY = 'AI_RUNTIME_CONFIG'
-
   constructor(
-    private readonly config: ConfigService,
-    private readonly secureConfig: SecureConfigService,
+    private readonly openAiClient: OpenAiClientService,
     private readonly usage: OpenAiUsageService,
   ) {}
 
@@ -304,8 +297,13 @@ export class AiAssetExtractionService {
     buffer: Buffer,
     detectedContentType?: string | null,
   ): Promise<ExtractedAsset> {
-    const runtimeConfig = await this.getRuntimeConfig()
-    if (input.preferAi === false || runtimeConfig.provider !== 'openai' || !runtimeConfig.openAiApiKey) {
+    const runtimeConfig = await this.openAiClient.resolveRuntimeConfig()
+    if (
+      input.preferAi === false ||
+      runtimeConfig.enabled === false ||
+      runtimeConfig.provider !== 'openai' ||
+      !runtimeConfig.openAiApiKey
+    ) {
       return this.buildResult({
         assetType: 'audio',
         fileName: input.fileName ?? null,
@@ -380,8 +378,13 @@ export class AiAssetExtractionService {
     buffer: Buffer,
     detectedContentType?: string | null,
   ): Promise<ExtractedAsset> {
-    const runtimeConfig = await this.getRuntimeConfig()
-    if (input.preferAi === false || runtimeConfig.provider !== 'openai' || !runtimeConfig.openAiApiKey) {
+    const runtimeConfig = await this.openAiClient.resolveRuntimeConfig()
+    if (
+      input.preferAi === false ||
+      runtimeConfig.enabled === false ||
+      runtimeConfig.provider !== 'openai' ||
+      !runtimeConfig.openAiApiKey
+    ) {
       return this.buildResult({
         assetType: 'image',
         fileName: input.fileName ?? null,
@@ -462,35 +465,23 @@ export class AiAssetExtractionService {
     form.append('model', 'whisper-1')
     form.append('response_format', 'text')
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${apiKey}`,
-      },
-      body: form,
-    })
-
-    if (!response.ok) {
-      const body = await response.text()
-      throw new Error(`openai_audio_transcription_${response.status}: ${body}`)
-    }
-
-    return this.normalizeText(await response.text()) ?? ''
+    return this.normalizeText(
+      await this.openAiClient.requestText('/audio/transcriptions', {
+        apiKey,
+        body: form,
+      }),
+    ) ?? ''
   }
 
   private async extractImageTextWithOpenAi(
     buffer: Buffer,
     contentType: string,
-    runtimeConfig: RuntimeConfig,
+    runtimeConfig: OpenAiRuntimeConfig,
   ): Promise<string> {
     const dataUrl = `data:${contentType};base64,${buffer.toString('base64')}`
-    const response = await fetch('https://api.openai.com/v1/responses', {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${runtimeConfig.openAiApiKey}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
+    const payload = await this.openAiClient.requestJson<{ output_text?: string }>('/responses', {
+      apiKey: runtimeConfig.openAiApiKey,
+      body: {
         model: runtimeConfig.model || 'gpt-4o-mini',
         input: [
           {
@@ -507,17 +498,8 @@ export class AiAssetExtractionService {
             ],
           },
         ],
-      }),
+      },
     })
-
-    if (!response.ok) {
-      const body = await response.text()
-      throw new Error(`openai_image_extraction_${response.status}: ${body}`)
-    }
-
-    const payload = (await response.json()) as {
-      output_text?: string
-    }
     return this.normalizeText(payload.output_text ?? '') ?? ''
   }
 
@@ -669,23 +651,5 @@ export class AiAssetExtractionService {
     const message =
       error instanceof Error ? error.message.toLowerCase() : String(error || '').toLowerCase()
     return message.includes('quota exceeded') || message.includes('budget exceeded')
-  }
-
-  private async getRuntimeConfig(): Promise<RuntimeConfig> {
-    const storedRecord = await this.secureConfig.getJson<Partial<RuntimeConfig>>(
-      AiAssetExtractionService.AI_RUNTIME_CONFIG_KEY,
-    )
-    const stored = storedRecord?.value
-    return {
-      provider:
-        stored?.provider ??
-        ((this.config.get<string>('AI_MODEL_PROVIDER') as RuntimeConfig['provider']) ||
-          'openai'),
-      model: stored?.model ?? this.config.get<string>('AI_MODEL_NAME') ?? 'gpt-4o-mini',
-      openAiApiKey:
-        stored?.openAiApiKey !== undefined
-          ? stored.openAiApiKey
-          : this.config.get<string>('OPENAI_API_KEY') ?? '',
-    }
   }
 }

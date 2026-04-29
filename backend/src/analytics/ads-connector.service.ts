@@ -516,6 +516,9 @@ export class AdsConnectorService {
         cost: parseMicrosToDecimal(row.metrics?.costMicros),
         conversions: Math.round(parseMetric(row.metrics?.conversions)),
         conversionValue: Number(parseMetric(row.metrics?.conversionsValue).toFixed(4)),
+        hasConversionData:
+          Math.round(parseMetric(row.metrics?.conversions)) > 0 ||
+          Number(parseMetric(row.metrics?.conversionsValue).toFixed(4)) > 0,
         connectionId,
         syncRunId,
       })

@@ -127,12 +127,13 @@ export type AnalyticsSyncRun = {
 
 export type AnalyticsInsight = {
     id: string
-    source?: string
+    source?: 'ga4' | 'ads' | 'search_console' | 'mixed'
     metric: string
     dimension: string | null
     title: string
     description: string
     recommendation: string
+    category?: 'business_issue' | 'measurement_issue' | 'low_confidence_signal'
     impact: 'low' | 'medium' | 'high' | 'critical'
     confidence: number
     evidence: Record<string, unknown>
@@ -304,17 +305,30 @@ export type AnalyticsInsightsResponse = {
         }
     }
     generatedAt: string
+    measurement: {
+        conversionMeasurementReady: boolean
+        adsConversionMeasurementReady: boolean
+        qualityStatus: 'ok' | 'warning' | 'error'
+        reasons: string[]
+    }
     quality: {
         connections: AnalyticsConnection[]
         syncRuns: AnalyticsSyncRun[]
         reportRuns: AnalyticsReportRun[]
         reconciliations: AnalyticsReportReconciliation[]
+        baselineSnapshots: AnalyticsBaselineSnapshot[]
         dataQualityChecks: AnalyticsDataQualityCheck[]
         summaries: AnalyticsDataQualitySummary[]
     }
     insights: AnalyticsInsight[]
     alerts: AnalyticsInsight[]
     opportunities: AnalyticsInsight[]
+    prioritizedActions: Array<{
+        action: string
+        why: string
+        expectedImpact: 'low' | 'medium' | 'high'
+        confidence: number
+    }>
 }
 
 export type AnalyticsSummaryResponse = {
@@ -330,17 +344,21 @@ export type AnalyticsSummaryResponse = {
         }
     }
     generatedAt: string
+    measurement: AnalyticsInsightsResponse['measurement']
     quality: AnalyticsInsightsResponse['quality']
     topInsight: AnalyticsInsight | null
     totalInsights: number
     alerts: AnalyticsInsight[]
+    prioritizedActions: AnalyticsInsightsResponse['prioritizedActions']
 }
 
 export type AnalyticsOpportunitiesResponse = {
     summary: string
     periodRange: AnalyticsInsightsResponse['periodRange']
     generatedAt: string
+    measurement: AnalyticsInsightsResponse['measurement']
     opportunities: AnalyticsInsight[]
+    prioritizedActions: AnalyticsInsightsResponse['prioritizedActions']
 }
 
 export type AnalyticsInsightHistory = {

@@ -16,6 +16,7 @@ import {
 } from '../store'
 import EditCustomerProfile from './EditCustomerProfile'
 import { useTranslation } from 'react-i18next'
+import { trackAnalyticsEvent } from '@/services/AnalyticsEventService'
 
 const CustomerInfoField = ({
     title,
@@ -164,19 +165,55 @@ const CustomerProfile = ({ data = {} }: { data?: Partial<Customer> }) => {
                     <div>
                         <span>{t('text.labels.phone')}</span>
                         <div className="mt-2 flex items-center gap-2">
-                            <span className="font-semibold">
-                                {phone || '-'}
-                            </span>
+                            {normalizedPhone ? (
+                                <a
+                                    href={`tel:${normalizedPhone}`}
+                                    className="font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                                    aria-label={t('text.labels.phone')}
+                                    onClick={() => {
+                                        void trackAnalyticsEvent({
+                                            event: 'phone_click',
+                                            category: 'conversion',
+                                            source: 'web',
+                                            measurement_status: 'partial',
+                                            metadata: {
+                                                customer_id: data.id ?? null,
+                                                phone,
+                                                page: typeof window !== 'undefined' ? window.location.pathname : null,
+                                                source: 'crm_customer_profile',
+                                            },
+                                        })
+                                    }}
+                                >
+                                    {phone}
+                                </a>
+                            ) : (
+                                <span className="font-semibold">{phone || '-'}</span>
+                            )}
                             {whatsAppHref && (
                                 <a
                                     href={whatsAppHref}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-green-500 text-xl"
-                                    aria-label="WhatsApp"
-                                >
-                                    <FaWhatsapp />
-                                </a>
+                                className="text-green-500 text-xl"
+                                aria-label="WhatsApp"
+                                onClick={() => {
+                                    void trackAnalyticsEvent({
+                                        event: 'whatsapp_click',
+                                        category: 'conversion',
+                                        source: 'web',
+                                        measurement_status: 'partial',
+                                        metadata: {
+                                            customer_id: data.id ?? null,
+                                            phone,
+                                            page: typeof window !== 'undefined' ? window.location.pathname : null,
+                                            source: 'crm_customer_profile',
+                                        },
+                                    })
+                                }}
+                            >
+                                <FaWhatsapp />
+                            </a>
                             )}
                         </div>
                         {phoneNumbers.slice(1).length > 0 && (

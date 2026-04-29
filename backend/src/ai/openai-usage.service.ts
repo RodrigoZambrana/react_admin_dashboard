@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
+import { OpenAiClientService } from '../common/openai/openai-client.service'
 import { SecureConfigService } from '../common/security/secure-config.service'
 import { AiService } from './ai.service'
 
@@ -81,6 +82,7 @@ export class OpenAiUsageService {
   constructor(
     private readonly config: ConfigService,
     private readonly secureConfig: SecureConfigService,
+    private readonly openAiClient: OpenAiClientService,
   ) {}
 
   async getUsage(
@@ -276,23 +278,12 @@ export class OpenAiUsageService {
     let nextPage: string | null = null
 
     do {
-      const query = new URLSearchParams()
-      for (const [key, value] of Object.entries(params)) {
-        if (Array.isArray(value)) {
-          for (const item of value) {
-            query.append(key, item)
-          }
-        } else {
-          query.set(key, String(value))
-        }
-      }
+      const query = { ...params }
       if (nextPage) {
-        query.set('page', nextPage)
+        query.page = nextPage
       }
 
-      const response = await this.fetchJson<OpenAiPage<T>>(
-        `https://api.openai.com/v1${path}?${query.toString()}`,
-      )
+      const response = await this.fetchJson<OpenAiPage<T>>(path, query)
       buckets.push(...(Array.isArray(response.data) ? response.data : []))
       nextPage = response.has_more ? response.next_page ?? null : null
     } while (nextPage)
@@ -300,7 +291,10 @@ export class OpenAiUsageService {
     return buckets
   }
 
-  private async fetchJson<T>(url: string): Promise<T> {
+  private async fetchJson<T>(
+    path: string,
+    query: Record<string, number | string | string[]>,
+  ): Promise<T> {
     const apiKey = await this.resolveApiKey()
     if (!apiKey) {
       throw new Error('openai_usage_api_key_missing')
@@ -308,31 +302,13 @@ export class OpenAiUsageService {
 
     let attempt = 0
     for (;;) {
-      const controller = new AbortController()
-      const timeout = setTimeout(
-        () => controller.abort(),
-        OpenAiUsageService.REQUEST_TIMEOUT_MS,
-      )
       try {
-        const response = await fetch(url, {
-          headers: this.buildHeaders(apiKey),
-          signal: controller.signal,
+        return await this.openAiClient.requestJson<T>(path, {
+          method: 'GET',
+          apiKey,
+          timeoutMs: OpenAiUsageService.REQUEST_TIMEOUT_MS,
+          query,
         })
-
-        if (!response.ok) {
-          const body = await response.text()
-          if (
-            response.status === 429 &&
-            attempt < OpenAiUsageService.MAX_RETRIES
-          ) {
-            attempt += 1
-            await this.delay(250 * attempt)
-            continue
-          }
-          throw new Error(`openai_usage_http_${response.status}:${body}`)
-        }
-
-        return (await response.json()) as T
       } catch (error) {
         if (
           attempt < OpenAiUsageService.MAX_RETRIES &&
@@ -343,8 +319,6 @@ export class OpenAiUsageService {
           continue
         }
         throw error
-      } finally {
-        clearTimeout(timeout)
       }
     }
   }
@@ -362,21 +336,6 @@ export class OpenAiUsageService {
     }
 
     return this.config.get<string>('OPENAI_API_KEY')?.trim() || null
-  }
-
-  private buildHeaders(apiKey: string) {
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${apiKey}`,
-    }
-    const organization = this.config.get<string>('OPENAI_ORGANIZATION_ID')?.trim()
-    const project = this.config.get<string>('OPENAI_PROJECT_ID')?.trim()
-    if (organization) {
-      headers['OpenAI-Organization'] = organization
-    }
-    if (project) {
-      headers['OpenAI-Project'] = project
-    }
-    return headers
   }
 
   private async resolveBudgetLimit() {

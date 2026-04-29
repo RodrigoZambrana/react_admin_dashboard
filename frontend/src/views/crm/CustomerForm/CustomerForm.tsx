@@ -11,6 +11,7 @@ import {
     normalizePhoneNumberList,
     hasDialCodeOnly,
 } from '@/utils/phone'
+import { trackAnalyticsEvent } from '@/services/AnalyticsEventService'
 
 type BaseCustomerInfo = {
     firstName: string
@@ -362,6 +363,17 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
                 values.phoneNumbers = normalizedList.length ? normalizedList : ['']
                 values.phoneNumber = primaryPhone
                 try {
+                    void trackAnalyticsEvent({
+                        event: 'form_submit',
+                        category: 'conversion',
+                        source: 'web',
+                        measurement_status: 'partial',
+                        metadata: {
+                            form: 'crm_customer_form',
+                            has_phone: Boolean(primaryPhone),
+                            has_email: Boolean(values.email?.trim?.()),
+                        },
+                    })
                     await onFormSubmit?.(values)
                 } finally {
                     setSubmitting(false)

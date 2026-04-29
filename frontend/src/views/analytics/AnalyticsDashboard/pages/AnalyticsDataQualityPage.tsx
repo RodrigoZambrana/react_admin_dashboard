@@ -14,6 +14,7 @@ import {
     apiRunGa4BaselineSync,
     apiRunGa4DataQuality,
     apiRunGa4ReportSync,
+    apiRecomputeAnalyticsInsights,
 } from '@/services/AnalyticsService'
 
 const statusTone = (status: string) => {
@@ -83,6 +84,9 @@ const AnalyticsDataQualityPage = () => {
                 { placement: 'top-end' },
             )
             await Promise.all([reload(), reloadOperations()])
+            void apiRecomputeAnalyticsInsights().catch((recomputeError) => {
+                console.error(recomputeError)
+            })
         } catch (syncError) {
             console.error(syncError)
             toast.push(
@@ -111,6 +115,9 @@ const AnalyticsDataQualityPage = () => {
                 { placement: 'top-end' },
             )
             await Promise.all([reload(), reloadOperations()])
+            void apiRecomputeAnalyticsInsights().catch((recomputeError) => {
+                console.error(recomputeError)
+            })
         } catch (baselineError) {
             console.error(baselineError)
             toast.push(
@@ -139,6 +146,9 @@ const AnalyticsDataQualityPage = () => {
                 { placement: 'top-end' },
             )
             await Promise.all([reload(), reloadOperations()])
+            void apiRecomputeAnalyticsInsights().catch((recomputeError) => {
+                console.error(recomputeError)
+            })
         } catch (qualityError) {
             console.error(qualityError)
             toast.push(

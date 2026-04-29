@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { createHash } from 'crypto'
 import { PrismaService } from '../prisma/prisma.service'
+import { OpenAiClientService } from '../common/openai/openai-client.service'
 import { buildKnowledgeDocumentChunks } from './knowledge-chunking'
 
 type EmbeddingProjection = {
@@ -31,6 +32,7 @@ export class KnowledgeEmbeddingsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly openAiClient: OpenAiClientService,
   ) {}
 
   async indexDocument(document: {
@@ -284,7 +286,7 @@ export class KnowledgeEmbeddingsService {
       }
     }
 
-    const provider = this.resolveProvider()
+    const provider = await this.resolveProvider()
     const startedAt = Date.now()
 
     if (provider === 'openai') {
@@ -338,41 +340,23 @@ export class KnowledgeEmbeddingsService {
     input: string,
     contentHash: string,
   ): Promise<EmbeddingProjection | null> {
-    const apiKey = this.resolveOpenAiApiKey()
+    const apiKey = await this.resolveOpenAiApiKey()
     if (!apiKey) {
       return null
     }
 
-    const controller = new AbortController()
-    const timeout = setTimeout(
-      () => controller.abort(),
-      KnowledgeEmbeddingsService.OPENAI_TIMEOUT_MS,
-    )
-
     try {
       const startedAt = Date.now()
-      const response = await fetch('https://api.openai.com/v1/embeddings', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
+      const payload = await this.openAiClient.requestJson<{ data?: Array<{ embedding?: number[] }> }>('/embeddings', {
+        apiKey,
+        timeoutMs: KnowledgeEmbeddingsService.OPENAI_TIMEOUT_MS,
+        body: {
           model: this.getModel('openai'),
           input,
           encoding_format: 'float',
           dimensions: this.getDimensions('openai'),
-        }),
-        signal: controller.signal,
+        },
       })
-      const bodyText = await response.text()
-      if (!response.ok) {
-        throw new Error(`knowledge_embedding_openai_${response.status}:${bodyText}`)
-      }
-
-      const payload = JSON.parse(bodyText) as {
-        data?: Array<{ embedding?: number[] }>
-      }
       const vector = Array.isArray(payload?.data?.[0]?.embedding)
         ? payload.data[0].embedding.filter((value) => typeof value === 'number')
         : []
@@ -393,8 +377,6 @@ export class KnowledgeEmbeddingsService {
     } catch (error) {
       console.warn('[knowledge] Falling back to local embeddings', error)
       return null
-    } finally {
-      clearTimeout(timeout)
     }
   }
 
@@ -403,7 +385,7 @@ export class KnowledgeEmbeddingsService {
     return digest.readUInt32BE(0)
   }
 
-  private resolveProvider() {
+  private async resolveProvider() {
     const configured = String(
       this.config.get<string>('KNOWLEDGE_EMBEDDING_PROVIDER') || 'auto',
     )
@@ -412,11 +394,14 @@ export class KnowledgeEmbeddingsService {
     if (configured === 'local') {
       return 'local'
     }
+    const runtime = await this.openAiClient.resolveRuntimeConfig()
+    const openAiReady =
+      runtime.enabled !== false && runtime.provider === 'openai' && runtime.openAiApiKey
     if (configured === 'openai') {
-      return this.resolveOpenAiApiKey() ? 'openai' : 'local'
+      return openAiReady ? 'openai' : 'local'
     }
 
-    return this.resolveOpenAiApiKey() ? 'openai' : 'local'
+    return openAiReady ? 'openai' : 'local'
   }
 
   private getModel(provider: 'local' | 'openai') {
@@ -438,8 +423,11 @@ export class KnowledgeEmbeddingsService {
     return Number.isFinite(raw) && raw > 0 ? raw : fallback
   }
 
-  private resolveOpenAiApiKey() {
-    return this.config.get<string>('OPENAI_API_KEY')?.trim() || null
+  private async resolveOpenAiApiKey() {
+    const runtime = await this.openAiClient.resolveRuntimeConfig()
+    return runtime.enabled !== false && runtime.provider === 'openai'
+      ? runtime.openAiApiKey?.trim() || null
+      : null
   }
 
   private memoizeProjection(

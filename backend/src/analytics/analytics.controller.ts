@@ -201,16 +201,48 @@ export class AnalyticsController {
     @Query() query: { state?: string; code?: string; error?: string; error_description?: string },
   ) {
     try {
-      const result = await this.ga4Connector.completeOAuth(query)
-      const returnUrl = resolveRedirectUrl(
-        result.returnPath,
-        result.frontendOrigin,
-        '/app/analytics/connections',
-      )
-      const separator = returnUrl.includes('?') ? '&' : '?'
-      return {
-        url: `${returnUrl}${separator}ga4=connected&connectionId=${encodeURIComponent(result.connectionId)}`,
+      const sources = [
+        {
+          key: 'ga4',
+          complete: () => this.ga4Connector.completeOAuth(query),
+        },
+        {
+          key: 'ads',
+          complete: () => this.adsConnector.completeOAuth(query),
+        },
+        {
+          key: 'search_console',
+          complete: () => this.searchConsoleConnector.completeOAuth(query),
+        },
+      ] as const
+
+      let lastError: unknown = null
+      for (const source of sources) {
+        try {
+          const result = await source.complete()
+          const returnUrl = resolveRedirectUrl(
+            result.returnPath,
+            result.frontendOrigin,
+            '/app/analytics/connections',
+          )
+          const separator = returnUrl.includes('?') ? '&' : '?'
+          return {
+            url: `${returnUrl}${separator}${source.key}=connected&connectionId=${encodeURIComponent(result.connectionId)}`,
+          }
+        } catch (error) {
+          lastError = error
+          const message = error instanceof Error ? error.message : String(error)
+          if (
+            !/OAuth session not found or expired|Missing OAuth state|OAuth session expired/iu.test(
+              message,
+            )
+          ) {
+            throw error
+          }
+        }
       }
+
+      throw lastError instanceof Error ? lastError : new Error('Unable to complete OAuth flow.')
     } catch (error) {
       return {
         url: '/app/analytics/connections?ga4=error',

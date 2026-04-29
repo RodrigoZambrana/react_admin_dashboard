@@ -3,21 +3,15 @@ import * as XLSX from 'xlsx'
 import { AiAssetExtractionService } from '../ai-asset-extraction.service'
 
 describe('AiAssetExtractionService', () => {
-  const config = {
-    get: vi.fn((key: string) => {
-      if (key === 'AI_MODEL_PROVIDER') return 'openai'
-      if (key === 'AI_MODEL_NAME') return 'gpt-4o-mini'
-      if (key === 'OPENAI_API_KEY') return 'env-test-key'
-      return undefined
-    }),
-  }
-
-  const secureConfig = {
-    getJson: vi.fn(async () => ({
+  const openAiClient = {
+    resolveRuntimeConfig: vi.fn(async () => ({
+      enabled: true,
       provider: 'openai',
       model: 'gpt-4o-mini',
       openAiApiKey: 'db-test-key',
     })),
+    requestJson: vi.fn(),
+    requestText: vi.fn(),
   }
   const usage = {
     assertQuotaAvailable: vi.fn(async () => ({
@@ -36,11 +30,10 @@ describe('AiAssetExtractionService', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     usage.assertQuotaAvailable.mockClear()
-    service = new AiAssetExtractionService(
-      config as never,
-      secureConfig as never,
-      usage as never,
-    )
+    openAiClient.resolveRuntimeConfig.mockClear()
+    openAiClient.requestJson.mockClear()
+    openAiClient.requestText.mockClear()
+    service = new AiAssetExtractionService(openAiClient as never, usage as never)
   })
 
   it('extracts deterministic rows from csv', async () => {
@@ -94,8 +87,6 @@ describe('AiAssetExtractionService', () => {
   })
 
   it('uses provided transcript text for audio without needing an external call', async () => {
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
-
     const result = await service.extractOne({
       assetType: 'audio',
       fileName: 'nota.webm',
@@ -105,16 +96,14 @@ describe('AiAssetExtractionService', () => {
 
     expect(result.source).toBe('provided_text')
     expect(result.rawText).toContain('Necesito registrar un cliente nuevo')
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(openAiClient.requestJson).not.toHaveBeenCalled()
+    expect(openAiClient.requestText).not.toHaveBeenCalled()
   })
 
   it('uses OpenAI for image text extraction when configured', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        output_text: 'Corrediza 2h2g serie probba blanco v4mm cierre fenix 110 x 120 usd 234',
-      }),
-    } as never)
+    openAiClient.requestJson.mockResolvedValueOnce({
+      output_text: 'Corrediza 2h2g serie probba blanco v4mm cierre fenix 110 x 120 usd 234',
+    })
 
     const result = await service.extractOne({
       assetType: 'image',
@@ -131,7 +120,6 @@ describe('AiAssetExtractionService', () => {
 
   it('skips OpenAI extraction when quota is exceeded', async () => {
     usage.assertQuotaAvailable.mockRejectedValueOnce(new Error('Quota exceeded'))
-    const fetchSpy = vi.spyOn(globalThis, 'fetch')
 
     const result = await service.extractOne({
       assetType: 'image',
@@ -144,6 +132,7 @@ describe('AiAssetExtractionService', () => {
     expect(result.stage).toBe('failed')
     expect(result.debug.reason).toBe('budget_exceeded')
     expect(result.debug.usedOpenAi).toBe(false)
-    expect(fetchSpy).not.toHaveBeenCalled()
+    expect(openAiClient.requestJson).not.toHaveBeenCalled()
+    expect(openAiClient.requestText).not.toHaveBeenCalled()
   })
 })

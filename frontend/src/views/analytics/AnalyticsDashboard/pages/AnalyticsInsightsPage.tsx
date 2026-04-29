@@ -43,6 +43,19 @@ const typeTone = (type?: string) => {
     }
 }
 
+const sourceTone = (source?: string) => {
+    switch (source) {
+        case 'ads':
+            return 'bg-orange-100 text-orange-700'
+        case 'search_console':
+            return 'bg-cyan-100 text-cyan-700'
+        case 'ga4':
+            return 'bg-indigo-100 text-indigo-700'
+        default:
+            return 'bg-gray-100 text-gray-700'
+    }
+}
+
 const formatDateTime = (value?: string | null) => {
     if (!value) {
         return 'n/a'
@@ -105,6 +118,8 @@ const AnalyticsInsightsPage = () => {
     const topInsight = data.summary?.topInsight ?? bundleInsights[0] ?? null
     const periodRange = data.summary?.periodRange ?? data.bundle?.periodRange ?? null
     const generatedAt = data.summary?.generatedAt ?? data.bundle?.generatedAt ?? null
+    const measurement = data.summary?.measurement ?? data.bundle?.measurement ?? null
+    const prioritizedActions = data.summary?.prioritizedActions ?? data.bundle?.prioritizedActions ?? []
 
     const qualityHighlights = [
         `Conexiones: ${quality?.connections?.length ?? 0}`,
@@ -173,6 +188,30 @@ const AnalyticsInsightsPage = () => {
                                     {qualityHighlights.map((item) => (
                                         <span key={item}>{item}</span>
                                     ))}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                    <Badge
+                                        content={
+                                            measurement?.conversionMeasurementReady
+                                                ? 'conversion_measurement_ready=true'
+                                                : 'conversion_measurement_ready=false'
+                                        }
+                                        innerClass={
+                                            measurement?.conversionMeasurementReady
+                                                ? 'bg-emerald-100 text-emerald-700'
+                                                : 'bg-amber-100 text-amber-700'
+                                        }
+                                    />
+                                    <Badge
+                                        content={`quality=${measurement?.qualityStatus ?? 'n/a'}`}
+                                        innerClass={
+                                            measurement?.qualityStatus === 'error'
+                                                ? 'bg-rose-100 text-rose-700'
+                                                : measurement?.qualityStatus === 'warning'
+                                                    ? 'bg-amber-100 text-amber-700'
+                                                    : 'bg-emerald-100 text-emerald-700'
+                                        }
+                                    />
                                 </div>
                             </div>
 
@@ -298,8 +337,12 @@ const AnalyticsInsightsPage = () => {
                                                 </div>
                                                 <div className="flex flex-wrap gap-2">
                                                     <Badge
-                                                        content={insight.insightType ?? 'insight'}
-                                                        innerClass={typeTone(insight.insightType)}
+                                                        content={insight.category ?? 'business_issue'}
+                                                        innerClass={typeTone(insight.category)}
+                                                    />
+                                                    <Badge
+                                                        content={insight.source ?? 'mixed'}
+                                                        innerClass={sourceTone(insight.source)}
                                                     />
                                                     <Badge
                                                         content={insight.impact}
@@ -325,6 +368,45 @@ const AnalyticsInsightsPage = () => {
                                 ) : (
                                     <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500 dark:bg-gray-700/40">
                                         No hay insights activos para este período.
+                                    </div>
+                                )}
+                            </div>
+                        </Card>
+
+                        <Card>
+                            <div className="mb-4">
+                                <h5 className="mb-1">Acciones priorizadas</h5>
+                                <p className="text-sm text-gray-500">
+                                    Traducción directa de los hallazgos en próximos pasos.
+                                </p>
+                            </div>
+                            <div className="space-y-3">
+                                {prioritizedActions.length ? (
+                                    prioritizedActions.map((action, index) => (
+                                        <div
+                                            key={`${action.action}-${index}`}
+                                            className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-700/40"
+                                        >
+                                            <div className="flex items-start justify-between gap-3">
+                                                <div>
+                                                    <div className="font-medium">{action.action}</div>
+                                                    <div className="mt-1 text-xs text-gray-500">
+                                                        {action.why}
+                                                    </div>
+                                                </div>
+                                                <Badge
+                                                    content={action.expectedImpact}
+                                                    innerClass={impactTone(action.expectedImpact)}
+                                                />
+                                            </div>
+                                            <div className="mt-2 text-xs text-gray-500">
+                                                Confianza {Math.round(action.confidence * 100)}%
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500 dark:bg-gray-700/40">
+                                        No hay acciones priorizadas todavía.
                                     </div>
                                 )}
                             </div>

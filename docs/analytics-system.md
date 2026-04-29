@@ -347,8 +347,9 @@
 - `tracking` interno y conectores externos no se mezclan.
 - `Growth & Insights` sigue siendo la pantalla de configuración de medición.
 - Los conectores OAuth, sincronización y salud viven dentro de `AnalyticsModule`.
-- La IA no calcula métricas y no consume JSON crudo.
-- La IA solo consume métricas normalizadas, contexto y evidencia.
+- La IA no calcula métricas crudas ni consume JSON de eventos como verdad operativa.
+- La IA consume un `analytics_insight_bundle` construido desde métricas normalizadas, comparación temporal, calidad de datos y patrones detectados.
+- Las reglas determinísticas actúan como prefiltro y guardrail; la síntesis final la produce el modelo de IA.
 
 ### Capa semántica de insights
 
@@ -364,7 +365,11 @@
 - La comparación temporal es explícita:
   - período actual
   - período previo del mismo tamaño
-- La IA genera reglas determinísticas antes de cualquier capa generativa.
+- El pipeline real es:
+  - detección determinística
+  - armado del bundle semántico
+  - decisión IA
+  - respuesta API
 - Las reglas cubren:
   - tráfico alto + conversión baja
   - costo alto + ROAS bajo
@@ -372,7 +377,9 @@
   - add_to_cart alto + compra baja
   - caídas abruptas en métricas clave
   - desacople baseline/sync cuando la calidad de datos es mala
-- Cada insight persiste evidencia, período comparado, métrica afectada y recomendación accionable.
+- La IA explica qué pasó, por qué importa y qué acción tomar.
+- Cada insight persiste evidencia, período comparado, métrica afectada, categoría, confianza y recomendación accionable.
+- Los resultados del modelo se guardan en `analytics_ai_insights`.
 - El historial se guarda en `analytics_insights_history`.
 - La prioridad final combina:
   - volumen

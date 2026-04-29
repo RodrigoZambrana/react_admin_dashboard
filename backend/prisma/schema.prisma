@@ -1330,6 +1330,9 @@ model OrderTimelineEvent {
 model AnalyticsEvent {
   id            String   @id @default(cuid())
   eventName     String   @map("event_name")
+  eventCategory String?  @map("event_category")
+  source        String?
+  measurementStatus String? @map("measurement_status")
   sessionId     String   @map("session_id")
   correlationId String?  @map("correlation_id")
   userId        String?  @map("user_id")
@@ -1354,6 +1357,9 @@ model AnalyticsEvent {
 model EventFact {
   id             BigInt   @id @default(autoincrement())
   eventName      String   @map("event_name")
+  eventCategory  String?  @map("event_category")
+  source         String?
+  measurementStatus String? @map("measurement_status")
   eventTimestamp DateTime  @map("event_timestamp")
   eventDate      DateTime  @db.Date @map("event_date")
   sessionId      String   @map("session_id")
@@ -1486,6 +1492,7 @@ model AnalyticsAdsDailyMetric {
   cost         Decimal  @default(0) @db.Decimal(18, 4)
   conversions  Int      @default(0)
   conversionValue Decimal  @default(0) @db.Decimal(18, 4) @map("conversion_value")
+  hasConversionData Boolean @default(false) @map("has_conversion_data")
   connectionId String?  @map("connection_id")
   syncRunId    String?  @map("sync_run_id")
   createdAt    DateTime @default(now()) @map("created_at")
@@ -1586,6 +1593,21 @@ model AnalyticsInsightHistory {
   @@index([date, insightType])
   @@index([sourceReport, createdAt])
   @@map("analytics_insights_history")
+}
+
+model AnalyticsAiInsightRun {
+  id            String   @id @default(cuid())
+  date          DateTime @db.Date
+  summary       String
+  insightsJson  Json     @db.JsonB @map("insights_json")
+  actionsJson   Json     @db.JsonB @map("actions_json")
+  confidence    Decimal  @db.Decimal(5, 4)
+  bundleJson    Json     @db.JsonB @map("bundle_json")
+  responseJson  Json     @db.JsonB @map("response_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([date, createdAt])
+  @@map("analytics_ai_insights")
 }
 
 model AnalyticsReportCatalog {
