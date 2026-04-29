@@ -136,6 +136,10 @@ export type AnalyticsAiInsight = {
   title: string
   description: string
   recommendation: string
+  page: string | null
+  pageReason: string | null
+  contentToInclude: string | null
+  expectedResult: string | null
   category: AnalyticsInsightCategory
   source: AnalyticsInsightSource
   impact: AnalyticsInsightPriority
@@ -222,10 +226,22 @@ export type AnalyticsAiDecisionInsight = {
   metric?: string | null
   segment?: string | null
   source_report?: string | null
+  page?: string | null
+  page_reason?: string | null
+  content_to_include?: string | null
+  expected_result?: string | null
   evidence: Record<string, unknown>
   impact: AnalyticsInsightPriority
   confidence: number
   recommendation: string
+}
+
+export type AnalyticsSourceQuality = {
+  source: Exclude<AnalyticsInsightSource, 'mixed'>
+  status: 'ok' | 'warning' | 'error'
+  confidence: number
+  issues: string[]
+  summary: string
 }
 
 export type AnalyticsAiDecisionOutput = {
@@ -238,6 +254,9 @@ export type AnalyticsAiDecisionOutput = {
     priority: number
     confidence: number
   }>
+  quality_by_source: AnalyticsSourceQuality[]
+  generatedBy?: 'ai' | 'fallback'
+  generationReason?: string | null
 }
 
 export type AnalyticsInsightHistory = {
@@ -309,10 +328,13 @@ export type AnalyticsInsightsDataset = {
 
 export type AnalyticsInsightsResponse = {
   summary: string
+  generatedBy?: 'ai' | 'fallback'
+  generationReason?: string | null
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
   measurement: AnalyticsMeasurementGate
   quality: AnalyticsInsightsDataset['quality']
+  qualityBySource: AnalyticsSourceQuality[]
   insights: AnalyticsAiInsight[]
   alerts: AnalyticsAiInsight[]
   opportunities: AnalyticsAiInsight[]
@@ -321,10 +343,13 @@ export type AnalyticsInsightsResponse = {
 
 export type AnalyticsSummaryResponse = {
   summary: string
+  generatedBy?: 'ai' | 'fallback'
+  generationReason?: string | null
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
   measurement: AnalyticsMeasurementGate
   quality: AnalyticsInsightsDataset['quality']
+  qualityBySource: AnalyticsSourceQuality[]
   topInsight: AnalyticsAiInsight | null
   totalInsights: number
   alerts: AnalyticsAiInsight[]
@@ -333,9 +358,12 @@ export type AnalyticsSummaryResponse = {
 
 export type AnalyticsOpportunitiesResponse = {
   summary: string
+  generatedBy?: 'ai' | 'fallback'
+  generationReason?: string | null
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
   measurement: AnalyticsMeasurementGate
+  qualityBySource: AnalyticsSourceQuality[]
   opportunities: AnalyticsAiInsight[]
   prioritizedActions: AnalyticsPrioritizedAction[]
 }

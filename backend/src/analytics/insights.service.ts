@@ -74,17 +74,31 @@ type SegmentAggregate = {
   previous: MetricTotals
 }
 
-type InsightCandidate = Omit<AnalyticsAiInsight, 'id' | 'createdAt' | 'status' | 'category' | 'source'> & {
+type InsightCandidate = Omit<
+  AnalyticsAiInsight,
+  'id' | 'createdAt' | 'status' | 'category' | 'source' | 'page' | 'pageReason' | 'contentToInclude' | 'expectedResult'
+> & {
   category?: AnalyticsInsightCategory
   source?: AnalyticsInsightSource
+  page?: string | null
+  pageReason?: string | null
+  contentToInclude?: string | null
+  expectedResult?: string | null
   score: number
   status: 'open'
 }
 
-type InsightDraft = Omit<InsightCandidate, 'score' | 'status' | 'category' | 'source'> & {
+type InsightDraft = Omit<
+  InsightCandidate,
+  'score' | 'status' | 'category' | 'source' | 'page' | 'pageReason' | 'contentToInclude' | 'expectedResult'
+> & {
   score?: number
   category?: AnalyticsInsightCategory
   source?: AnalyticsInsightSource
+  page?: string | null
+  pageReason?: string | null
+  contentToInclude?: string | null
+  expectedResult?: string | null
 }
 
 type MeasurementState = AnalyticsMeasurementGate & {
@@ -107,6 +121,11 @@ type LoadedSemanticData = {
   baselineSnapshots: Awaited<ReturnType<AnalyticsRepository['listBaselineSnapshots']>>
   dataQualityChecks: AnalyticsDataQualityCheck[]
   qualitySummaries: AnalyticsInsightsQualitySummary[]
+}
+
+type PersistedAiDecision = {
+  bundle: Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>
+  decision: AnalyticsAiDecisionOutput
 }
 
 const DAY_MS = 86_400_000
@@ -385,18 +404,36 @@ export class AnalyticsInsightsService {
   ) {}
 
   async getInsights(params?: { from?: string; to?: string; reportKey?: string }) {
+    if (!params?.from && !params?.to && !params?.reportKey) {
+      const persisted = await this.loadLatestPersistedDecision()
+      if (persisted) {
+        return this.buildInsightsResponseFromPersisted(persisted)
+      }
+    }
     const bundle = await this.buildInsightsBundle(params)
     const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
     return this.buildInsightsResponse(bundle, decision)
   }
 
   async getSummary(params?: { from?: string; to?: string; reportKey?: string }) {
+    if (!params?.from && !params?.to && !params?.reportKey) {
+      const persisted = await this.loadLatestPersistedDecision()
+      if (persisted) {
+        return this.buildSummaryResponseFromPersisted(persisted)
+      }
+    }
     const bundle = await this.buildInsightsBundle(params)
     const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
     return this.buildSummaryResponse(bundle, decision)
   }
 
   async getOpportunities(params?: { from?: string; to?: string; reportKey?: string }) {
+    if (!params?.from && !params?.to && !params?.reportKey) {
+      const persisted = await this.loadLatestPersistedDecision()
+      if (persisted) {
+        return this.buildOpportunitiesResponseFromPersisted(persisted)
+      }
+    }
     const bundle = await this.buildInsightsBundle(params)
     const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
     return this.buildOpportunitiesResponse(bundle, decision)
@@ -410,10 +447,82 @@ export class AnalyticsInsightsService {
   }
 
   async recompute(params?: { from?: string; to?: string; reportKey?: string }) {
+    if (!params?.from && !params?.to && !params?.reportKey) {
+      const persisted = await this.loadLatestPersistedDecision()
+      if (persisted) {
+        const decision = await this.aiInsightsService.generateDecision(persisted.bundle.bundle)
+        await this.persistBundle(
+          {
+            dataset: persisted.bundle.dataset,
+            measurement: persisted.bundle.measurement,
+            bundle: persisted.bundle.bundle,
+            detectedInsights: [],
+          },
+          decision,
+        )
+        return this.buildInsightsResponse(persisted.bundle, decision)
+      }
+    }
+
     const bundle = await this.buildInsightsBundle(params)
     const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
     await this.persistBundle(bundle, decision)
     return this.buildInsightsResponse(bundle, decision)
+  }
+
+  private async loadLatestPersistedDecision(): Promise<PersistedAiDecision | null> {
+    const latestRun = (await this.repository.listAiInsightRuns(1))[0] ?? null
+    if (!latestRun) {
+      return null
+    }
+
+    const bundle = latestRun.bundleJson as AnalyticsInsightBundle
+    const response = latestRun.responseJson as AnalyticsAiDecisionOutput
+    if (!bundle || !response) {
+      return null
+    }
+
+    return {
+      bundle: this.toPersistedBundle(bundle),
+      decision: response,
+    }
+  }
+
+  private toPersistedBundle(bundle: AnalyticsInsightBundle) {
+    return {
+      dataset: {
+        currentRange: bundle.timeRange.current,
+        previousRange: bundle.timeRange.previous,
+        connections: [],
+        syncRuns: [],
+        reportRuns: [],
+        reconciliations: [],
+        baselineSnapshots: [],
+        dataQualityChecks: [],
+        summaries: [],
+      },
+      measurement: bundle.measurement,
+      bundle,
+      detectedInsights: [],
+    } as unknown as Awaited<ReturnType<AnalyticsInsightsService['buildInsightsBundle']>>
+  }
+
+  private buildInsightsResponseFromPersisted(
+    persisted: PersistedAiDecision,
+  ): AnalyticsInsightsResponse {
+    return this.buildInsightsResponse(persisted.bundle, persisted.decision)
+  }
+
+  private buildSummaryResponseFromPersisted(
+    persisted: PersistedAiDecision,
+  ): AnalyticsSummaryResponse {
+    return this.buildSummaryResponse(persisted.bundle, persisted.decision)
+  }
+
+  private buildOpportunitiesResponseFromPersisted(
+    persisted: PersistedAiDecision,
+  ): AnalyticsOpportunitiesResponse {
+    return this.buildOpportunitiesResponse(persisted.bundle, persisted.decision)
   }
 
   private async buildInsightsBundle(params?: { from?: string; to?: string; reportKey?: string }) {
@@ -471,9 +580,10 @@ export class AnalyticsInsightsService {
     decision: AnalyticsAiDecisionOutput,
   ) {
     const periodRange = bundle.bundle.timeRange
+    const currentTo = bundle.dataset.currentRange?.to ?? bundle.bundle.timeRange.current.to
     await Promise.all([
       this.repository.createAiInsightRun({
-        date: bundle.dataset.currentRange.to,
+        date: currentTo,
         summary: decision.summary,
         insightsJson: toJson(decision.insights),
         actionsJson: toJson(decision.prioritized_actions),
@@ -485,7 +595,7 @@ export class AnalyticsInsightsService {
       }),
       this.repository.createInsightHistoryMany([
         {
-          date: bundle.dataset.currentRange.to,
+          date: currentTo,
           insightType: 'summary',
           title: 'Resumen ejecutivo',
           description: decision.summary,
@@ -521,10 +631,13 @@ export class AnalyticsInsightsService {
     )
     return {
       summary: decision.summary,
+      generatedBy: decision.generatedBy,
+      generationReason: decision.generationReason,
       periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
       measurement: bundle.measurement,
       quality: this.buildQualityContext(bundle.dataset),
+      qualityBySource: decision.quality_by_source,
       insights,
       alerts,
       opportunities,
@@ -544,10 +657,13 @@ export class AnalyticsInsightsService {
     const insights = this.mapDecisionInsights(decision, bundle)
     return {
       summary: decision.summary,
+      generatedBy: decision.generatedBy,
+      generationReason: decision.generationReason,
       periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
       measurement: bundle.measurement,
       quality: this.buildQualityContext(bundle.dataset),
+      qualityBySource: decision.quality_by_source,
       topInsight: insights[0] ?? null,
       totalInsights: insights.length,
       alerts: insights.filter((insight) => insight.impact === 'high').slice(0, 5),
@@ -569,9 +685,12 @@ export class AnalyticsInsightsService {
     )
     return {
       summary: decision.summary,
+      generatedBy: decision.generatedBy,
+      generationReason: decision.generationReason,
       periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
       measurement: bundle.measurement,
+      qualityBySource: decision.quality_by_source,
       opportunities,
       prioritizedActions: decision.prioritized_actions.map((action) => ({
         action: action.action,
@@ -1881,6 +2000,10 @@ export class AnalyticsInsightsService {
       title: insight.title,
       description: `${insight.what_happened} ${insight.why_it_matters}`.trim(),
       recommendation: insight.recommendation,
+      page: insight.page ?? null,
+      pageReason: insight.page_reason ?? null,
+      contentToInclude: insight.content_to_include ?? null,
+      expectedResult: insight.expected_result ?? null,
       category: insight.category,
       source: insight.source,
       impact: insight.impact,

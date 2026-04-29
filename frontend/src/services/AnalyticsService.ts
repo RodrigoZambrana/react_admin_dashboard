@@ -133,6 +133,10 @@ export type AnalyticsInsight = {
     title: string
     description: string
     recommendation: string
+    page?: string | null
+    pageReason?: string | null
+    contentToInclude?: string | null
+    expectedResult?: string | null
     category?: 'business_issue' | 'measurement_issue' | 'low_confidence_signal'
     impact: 'low' | 'medium' | 'high' | 'critical'
     confidence: number
@@ -294,6 +298,8 @@ export type AnalyticsAdsSyncResult = {
 
 export type AnalyticsInsightsResponse = {
     summary: string
+    generatedBy?: 'ai' | 'fallback'
+    generationReason?: string | null
     periodRange: {
         current: {
             from: string
@@ -320,6 +326,13 @@ export type AnalyticsInsightsResponse = {
         dataQualityChecks: AnalyticsDataQualityCheck[]
         summaries: AnalyticsDataQualitySummary[]
     }
+    qualityBySource: Array<{
+        source: 'ga4' | 'ads' | 'search_console'
+        status: 'ok' | 'warning' | 'error'
+        confidence: number
+        issues: string[]
+        summary: string
+    }>
     insights: AnalyticsInsight[]
     alerts: AnalyticsInsight[]
     opportunities: AnalyticsInsight[]
@@ -333,6 +346,8 @@ export type AnalyticsInsightsResponse = {
 
 export type AnalyticsSummaryResponse = {
     summary: string
+    generatedBy?: 'ai' | 'fallback'
+    generationReason?: string | null
     periodRange: {
         current: {
             from: string
@@ -346,6 +361,7 @@ export type AnalyticsSummaryResponse = {
     generatedAt: string
     measurement: AnalyticsInsightsResponse['measurement']
     quality: AnalyticsInsightsResponse['quality']
+    qualityBySource: AnalyticsInsightsResponse['qualityBySource']
     topInsight: AnalyticsInsight | null
     totalInsights: number
     alerts: AnalyticsInsight[]
@@ -354,9 +370,12 @@ export type AnalyticsSummaryResponse = {
 
 export type AnalyticsOpportunitiesResponse = {
     summary: string
+    generatedBy?: 'ai' | 'fallback'
+    generationReason?: string | null
     periodRange: AnalyticsInsightsResponse['periodRange']
     generatedAt: string
     measurement: AnalyticsInsightsResponse['measurement']
+    qualityBySource: AnalyticsInsightsResponse['qualityBySource']
     opportunities: AnalyticsInsight[]
     prioritizedActions: AnalyticsInsightsResponse['prioritizedActions']
 }

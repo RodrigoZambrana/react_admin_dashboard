@@ -56,6 +56,23 @@ const sourceTone = (source?: string) => {
     }
 }
 
+const originTone = (origin?: string | null) => {
+    switch (origin) {
+        case 'ai':
+            return 'bg-emerald-100 text-emerald-700'
+        case 'fallback':
+            return 'bg-amber-100 text-amber-700'
+        default:
+            return 'bg-gray-100 text-gray-700'
+    }
+}
+
+const originLabel = (origin?: string | null) => {
+    if (origin === 'ai') return 'IA'
+    if (origin === 'fallback') return 'Sistema'
+    return 'Interno'
+}
+
 const formatDateTime = (value?: string | null) => {
     if (!value) {
         return 'n/a'
@@ -114,6 +131,8 @@ const AnalyticsInsightsPage = () => {
     )
 
     const summary = data.summary?.summary ?? data.bundle?.summary ?? 'Sin resumen disponible.'
+    const summaryOrigin = data.summary?.generatedBy ?? data.bundle?.generatedBy ?? null
+    const summaryOriginReason = data.summary?.generationReason ?? data.bundle?.generationReason ?? null
     const quality = data.bundle?.quality ?? data.summary?.quality ?? null
     const topInsight = data.summary?.topInsight ?? bundleInsights[0] ?? null
     const periodRange = data.summary?.periodRange ?? data.bundle?.periodRange ?? null
@@ -245,16 +264,27 @@ const AnalyticsInsightsPage = () => {
                                         {generatedAt ? `Generado ${formatDateTime(generatedAt)}` : 'Generado en tiempo real'}
                                     </p>
                                 </div>
-                                {topInsight ? (
+                                <div className="flex flex-wrap gap-2">
                                     <Badge
-                                        content={topInsight.insightType ?? 'insight'}
-                                        innerClass={typeTone(topInsight.insightType)}
+                                        content={originLabel(summaryOrigin)}
+                                        innerClass={originTone(summaryOrigin)}
                                     />
-                                ) : null}
+                                    {topInsight ? (
+                                        <Badge
+                                            content={topInsight.insightType ?? 'insight'}
+                                            innerClass={typeTone(topInsight.insightType)}
+                                        />
+                                    ) : null}
+                                </div>
                             </div>
                             <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
                                 {summary}
                             </p>
+                            {summaryOriginReason ? (
+                                <p className="mt-2 text-xs text-gray-500">
+                                    {summaryOriginReason}
+                                </p>
+                            ) : null}
                             {topInsight ? (
                                 <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-700/40">
                                     <div className="flex flex-wrap items-center gap-2">

@@ -29,7 +29,19 @@ export class OpenAiClientService {
   async resolveRuntimeConfig(
     configKey: string = OpenAiClientService.AI_RUNTIME_CONFIG_KEY,
   ): Promise<OpenAiRuntimeConfig> {
-    const stored = await this.secureConfig.getJson<OpenAiRuntimeConfig>(configKey)
+    let stored: { value: OpenAiRuntimeConfig; updatedAt: Date } | null = null
+    try {
+      stored = await this.secureConfig.getJson<OpenAiRuntimeConfig>(configKey)
+    } catch {
+      stored = null
+    }
+    const envApiKey =
+      this.config.get<string>('API_KEY_OPEN_IA')?.trim() ||
+      this.config.get<string>('API_KEY_OPEN_IA_NEW')?.trim() ||
+      this.config.get<string>('OPENAI_API_KEY')?.trim() ||
+      this.config.get<string>('API_KEY_OPEM_IA')?.trim() ||
+      ''
+    const storedApiKey = stored?.value?.openAiApiKey?.trim() ?? ''
     return {
       enabled:
         stored?.value?.enabled ??
@@ -42,10 +54,7 @@ export class OpenAiClientService {
         stored?.value?.model ??
         this.config.get<string>('AI_MODEL_NAME') ??
         'gpt-4o-mini',
-      openAiApiKey:
-        stored?.value?.openAiApiKey !== undefined
-          ? stored.value.openAiApiKey
-          : this.config.get<string>('OPENAI_API_KEY') ?? '',
+      openAiApiKey: storedApiKey.length ? storedApiKey : envApiKey,
     }
   }
 

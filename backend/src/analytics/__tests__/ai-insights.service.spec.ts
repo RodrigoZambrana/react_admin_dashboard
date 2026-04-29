@@ -75,20 +75,8 @@ describe('AnalyticsAiInsightsService', () => {
         {
           message: {
             content: JSON.stringify({
-              summary: {
-                currentPeriod: {
-                  sessions: 300,
-                  revenue: 1200,
-                  conversionRate: 0.9,
-                },
-                previousPeriod: {
-                  sessions: 240,
-                  revenue: 1000,
-                  conversionRate: 1.2,
-                },
-                trafficChange: 'El tráfico creció, pero la conversión cayó.',
-                dataQuality: 'warning',
-              },
+              summary:
+                'La prioridad inmediata es riesgo de calidad de datos en active_users_trend_30_7_1 reconciliación gap. La medición de conversiones todavía no está validada; las señales de conversión se tratan como hipótesis de baja confianza o de medición.',
               insights: [
                 {
                   type: 'conversion',
@@ -120,16 +108,17 @@ describe('AnalyticsAiInsightsService', () => {
 
     const result = await service.generateDecision(bundle)
 
-    expect(result.summary).toContain('Período actual')
-    expect(result.summary).toContain('El tráfico creció, pero la conversión cayó.')
+    expect(result.summary).toContain('La lectura del negocio todavía depende de una medición que no está validada')
+    expect(result.summary).not.toContain('active_users_trend_30_7_1')
+    expect(result.summary).not.toContain('reconciliación gap')
     expect(result.insights).toHaveLength(1)
     expect(result.insights[0]).toMatchObject({
-      title: 'Tráfico alto con conversión baja',
+      title: 'La medición de conversiones todavía no está lista',
       source: 'mixed',
       category: 'measurement_issue',
       impact: 'high',
       confidence: 0.81,
-      recommendation: 'Revisar checkout en mobile',
+      recommendation: 'Validar la medición antes de concluir sobre performance y recién después priorizar acciones de negocio.',
     })
     expect(result.insights[0].metric).toBe('conversionRate')
     expect(result.insights[0].segment).toBe('mobile')
@@ -140,5 +129,17 @@ describe('AnalyticsAiInsightsService', () => {
       priority: 1,
       confidence: 0.73,
     })
+  })
+
+  it('keeps the fallback summary executive when the provider fails', async () => {
+    openAiClient.requestJson.mockRejectedValueOnce(new Error('openai_http_429 insufficient_quota'))
+
+    const result = await service.generateDecision(bundle)
+
+    expect(result.summary).toContain('La lectura del negocio todavía depende de una medición que no está validada')
+    expect(result.summary).not.toContain('openai_http_429')
+    expect(result.summary).not.toContain('insufficient_quota')
+    expect(result.summary).not.toContain('quota')
+    expect(result.insights[0]?.title).toBe('La medición de conversiones todavía no está lista')
   })
 })

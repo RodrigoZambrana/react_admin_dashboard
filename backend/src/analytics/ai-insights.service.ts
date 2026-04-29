@@ -3,6 +3,7 @@ import {
   OpenAiClientService,
   type OpenAiRuntimeConfig,
 } from '../common/openai/openai-client.service'
+import { ANALYTICS_AI_SYSTEM_PROMPT } from './analytics-ai-prompt'
 import type {
   AnalyticsAiDecisionOutput,
   AnalyticsInsightBundle,
@@ -11,22 +12,8 @@ import type {
   AnalyticsInsightSource,
   AnalyticsInsightType,
   AnalyticsMeasurementGate,
+  AnalyticsSourceQuality,
 } from './analytics.types'
-
-const SYSTEM_PROMPT = [
-  'Sos un analista senior de crecimiento en ecommerce.',
-  'Tu trabajo es analizar datos normalizados, calidad de datos y comparación temporal para generar decisiones claras basadas en evidencia.',
-  'No inventes datos ni hagas afirmaciones sin evidencia explícita.',
-  'Prioriza el impacto económico, explica causas probables y recomienda acciones concretas y ejecutables.',
-  'No confundas performance con medición.',
-  'Si conversion_measurement_ready es false, no clasifiques conversiones cero como desperdicio confirmado.',
-  'En ese caso, usa measurement_issue o low_confidence_signal.',
-  'El input llega como un analytics_insight_bundle con timeRange, kpis, funnel, acquisition, seo, products, detectedPatterns, dataQuality y measurement.',
-  'Devolvé exclusivamente un JSON válido con esta estructura exacta:',
-  '{"summary":"string","insights":[{"title":"string","what_happened":"string","why_it_matters":"string","category":"business_issue|measurement_issue|low_confidence_signal","source":"ga4|ads|search_console|mixed","insight_type":"summary|acquisition|behavior|conversion|revenue|data_quality","metric":"string|null","segment":"string|null","source_report":"string|null","evidence":{},"impact":"high|medium|low","confidence":0.0,"recommendation":"string"}],"prioritized_actions":[{"action":"string","reason":"string","expected_impact":"high|medium|low","priority":1,"confidence":0.0}]}',
-  'Si algún dato no está disponible, usá null, cadena vacía o evidencia vacía, pero mantené las claves.',
-  'Devolvé exclusivamente JSON válido, sin markdown ni texto fuera del contrato.',
-].join(' ')
 
 const CATEGORY_PRIORITY: Record<AnalyticsInsightCategory, number> = {
   business_issue: 3,
@@ -41,6 +28,7 @@ const IMPACT_PRIORITY: Record<AnalyticsInsightPriority, number> = {
 }
 
 const DEFAULT_SOURCE: AnalyticsInsightSource = 'mixed'
+type ReportSource = Exclude<AnalyticsInsightSource, 'mixed'>
 
 @Injectable()
 export class AnalyticsAiInsightsService {
@@ -51,13 +39,17 @@ export class AnalyticsAiInsightsService {
     if (runtime.enabled !== false && runtime.provider === 'openai' && runtime.openAiApiKey) {
       try {
         const decision = await this.requestOpenAiDecision(bundle, runtime)
-        return this.normalizeDecision(decision, bundle)
+        return {
+          ...this.normalizeDecision(decision, bundle),
+          generatedBy: 'ai',
+          generationReason: 'Síntesis generada por el modelo de IA a partir del bundle semántico.',
+        }
       } catch (error) {
-        return this.fallbackDecision(bundle, error instanceof Error ? error.message : 'ai_decision_failed')
+        return this.fallbackDecision(bundle)
       }
     }
 
-    return this.fallbackDecision(bundle, 'ai_provider_unavailable')
+    return this.fallbackDecision(bundle)
   }
 
   private async requestOpenAiDecision(
@@ -78,10 +70,10 @@ export class AnalyticsAiInsightsService {
         temperature: 0.2,
         response_format: { type: 'json_object' },
         messages: [
-          {
-            role: 'system',
-            content: SYSTEM_PROMPT,
-          },
+            {
+              role: 'system',
+              content: ANALYTICS_AI_SYSTEM_PROMPT,
+            },
           {
             role: 'user',
             content: JSON.stringify(bundle),
@@ -119,60 +111,66 @@ export class AnalyticsAiInsightsService {
     decision: unknown,
     bundle: AnalyticsInsightBundle,
   ): AnalyticsAiDecisionOutput {
-    const summary = this.extractValue(decision, 'summary')
     const insights = this.extractArray(decision, 'insights')
+      .map((insight) => this.normalizeInsight(insight, bundle))
+      .filter((insight): insight is AnalyticsAiDecisionOutput['insights'][number] => insight !== null)
+      .sort((left, right) => {
+        const leftScore =
+          CATEGORY_PRIORITY[left.category] * 2 + IMPACT_PRIORITY[left.impact] + left.confidence
+        const rightScore =
+          CATEGORY_PRIORITY[right.category] * 2 + IMPACT_PRIORITY[right.impact] + right.confidence
+        return rightScore - leftScore
+      })
     const prioritizedActions = this.extractArray(decision, 'prioritized_actions')
+    const qualityBySource =
+      this.normalizeQualityBySource(this.extractArray(decision, 'quality_by_source'), bundle) ??
+      this.buildQualityBySource(bundle)
 
     return {
-      summary: this.normalizeSummary(summary, bundle, decision),
-      insights: insights
-        .map((insight) => this.normalizeInsight(insight, bundle))
-        .filter((insight): insight is AnalyticsAiDecisionOutput['insights'][number] => insight !== null)
-        .sort((left, right) => {
-          const leftScore =
-            CATEGORY_PRIORITY[left.category] * 2 + IMPACT_PRIORITY[left.impact] + left.confidence
-          const rightScore =
-            CATEGORY_PRIORITY[right.category] * 2 + IMPACT_PRIORITY[right.impact] + right.confidence
-          return rightScore - leftScore
-        }),
+      summary: this.normalizeSummary(this.extractValue(decision, 'summary'), bundle, decision, insights),
+      insights,
       prioritized_actions: prioritizedActions
         .map((action, index) => this.normalizeAction(action, bundle, index))
         .filter((action): action is AnalyticsAiDecisionOutput['prioritized_actions'][number] => action !== null)
         .sort((left, right) => left.priority - right.priority),
+      quality_by_source: qualityBySource,
     }
   }
 
   private fallbackDecision(
     bundle: AnalyticsInsightBundle,
-    reason: string,
   ): AnalyticsAiDecisionOutput {
     const topPattern = bundle.detectedPatterns[0] ?? null
-    const baseSummary = topPattern
-      ? `La señal dominante es ${topPattern.type} con severidad ${topPattern.severity}. La calidad de datos está en estado ${bundle.dataQuality.status}.`
-      : `La calidad de datos está en estado ${bundle.dataQuality.status} y no se detectaron patrones fuertes.`
+    const fallbackInsights = topPattern
+      ? [
+          {
+            title: this.patternTitle(topPattern.type),
+            what_happened: `Se detectó ${topPattern.type} en el período comparado.`,
+            why_it_matters: 'Afecta la priorización del análisis y puede indicar una fuga de valor o una señal de medición.',
+            category: topPattern.category,
+            source: topPattern.source,
+            insight_type: this.inferInsightType(topPattern.type) as AnalyticsInsightType | undefined,
+            metric: this.patternMetric(topPattern.type),
+            segment: this.patternSegment(topPattern.evidence),
+            source_report: this.patternSource(topPattern.type),
+            evidence: topPattern.evidence,
+            impact: (topPattern.severity === 'high'
+              ? 'high'
+              : topPattern.severity === 'medium'
+                ? 'medium'
+                : 'low') as AnalyticsInsightPriority,
+            confidence: this.bundleConfidence(bundle),
+            recommendation: this.recommendationFromPattern(topPattern.type, bundle.measurement),
+          },
+        ]
+      : []
+    const baseSummary = this.buildExecutiveSummary(bundle, fallbackInsights)
 
-    return this.normalizeDecision(
+    return {
+      ...this.normalizeDecision(
       {
-        summary: `${baseSummary} (${reason})`,
-        insights: topPattern
-          ? [
-              {
-                title: this.patternTitle(topPattern.type),
-                what_happened: `Se detectó ${topPattern.type} en el período comparado.`,
-                why_it_matters: 'Afecta la priorización del análisis y puede indicar una fuga de valor o una señal de medición.',
-                category: topPattern.category,
-                source: topPattern.source,
-                insight_type: this.inferInsightType(topPattern.type),
-                metric: this.patternMetric(topPattern.type),
-                segment: this.patternSegment(topPattern.evidence),
-                source_report: this.patternSource(topPattern.type),
-                evidence: topPattern.evidence,
-                impact: topPattern.severity === 'high' ? 'high' : topPattern.severity === 'medium' ? 'medium' : 'low',
-                confidence: this.bundleConfidence(bundle),
-                recommendation: this.recommendationFromPattern(topPattern.type, bundle.measurement),
-              },
-            ]
-          : [],
+        summary: baseSummary,
+        insights: fallbackInsights,
         prioritized_actions: topPattern
           ? [
               {
@@ -191,23 +189,52 @@ export class AnalyticsAiInsightsService {
                 priority: 1,
                 confidence: this.bundleConfidence(bundle),
               },
-            ],
+        ],
+        quality_by_source: this.buildQualityBySource(bundle),
       },
       bundle,
-    )
+      ),
+      generatedBy: 'fallback',
+      generationReason: bundle.measurement.conversionMeasurementReady
+        ? 'Se usó fallback por indisponibilidad temporal de la síntesis IA.'
+        : 'Se usó fallback conservador porque la medición todavía no está validada.',
+    }
   }
 
-  private normalizeSummary(summary: unknown, bundle: AnalyticsInsightBundle, rawDecision?: unknown) {
+  private normalizeSummary(
+    summary: unknown,
+    bundle: AnalyticsInsightBundle,
+    rawDecision?: unknown,
+    insights: AnalyticsAiDecisionOutput['insights'] = [],
+  ) {
     const text = this.normalizeText(summary)
     if (text) {
-      return text
+      if (this.shouldRewriteExecutiveSummary(text)) {
+        const executiveText = this.buildExecutiveSummary(bundle, insights)
+        if (executiveText) {
+          return executiveText
+        }
+      }
+      const executiveText = this.cleanExecutiveSummary(text)
+      if (executiveText) {
+        return executiveText
+      }
     }
 
     const nestedText = this.normalizeText(this.extractValue(summary, 'text'))
       ?? this.normalizeText(this.extractValue(summary, 'description'))
       ?? this.normalizeText(this.extractValue(summary, 'message'))
     if (nestedText) {
-      return nestedText
+      if (this.shouldRewriteExecutiveSummary(nestedText)) {
+        const executiveText = this.buildExecutiveSummary(bundle, insights)
+        if (executiveText) {
+          return executiveText
+        }
+      }
+      const executiveText = this.cleanExecutiveSummary(nestedText)
+      if (executiveText) {
+        return executiveText
+      }
     }
 
     const currentPeriod = this.extractValue(summary, 'currentPeriod') ?? this.extractValue(summary, 'current')
@@ -220,8 +247,8 @@ export class AnalyticsAiInsightsService {
     const previousText = this.formatPeriodSummary('Período previo', previousPeriod)
     if (currentText) pieces.push(currentText)
     if (previousText) pieces.push(previousText)
-    if (trafficChange) pieces.push(trafficChange)
-    if (dataQuality) pieces.push(`Calidad de datos: ${dataQuality}.`)
+    if (trafficChange) pieces.push(this.cleanExecutiveSummary(trafficChange) ?? trafficChange)
+    if (dataQuality) pieces.push(`Calidad de datos: ${this.cleanExecutiveSummary(dataQuality) ?? dataQuality}.`)
 
     if (pieces.length > 0) {
       return pieces.join(' ').replace(/\s+/g, ' ').trim()
@@ -229,11 +256,25 @@ export class AnalyticsAiInsightsService {
 
     const rawText = this.normalizeText(this.extractValue(rawDecision, 'summaryText'))
     if (rawText) {
-      return rawText
+      if (this.shouldRewriteExecutiveSummary(rawText)) {
+        const executiveText = this.buildExecutiveSummary(bundle, insights)
+        if (executiveText) {
+          return executiveText
+        }
+      }
+      const executiveText = this.cleanExecutiveSummary(rawText)
+      if (executiveText) {
+        return executiveText
+      }
+    }
+
+    const executiveFallback = this.buildExecutiveSummary(bundle, insights)
+    if (executiveFallback) {
+      return executiveFallback
     }
 
     if (bundle.dataQuality.status === 'error') {
-      return 'La calidad de datos limita la confianza del análisis y obliga a priorizar validación antes de decisiones agresivas.'
+      return 'La confianza del análisis es baja porque la calidad de datos no está resuelta; antes de tomar decisiones agresivas hay que validar la señal.'
     }
     return 'La IA no pudo sintetizar un resumen confiable y se debe revisar la disponibilidad del modelo.'
   }
@@ -283,15 +324,59 @@ export class AnalyticsAiInsightsService {
       this.normalizeText(this.extractValue(insight, 'recommended_action')) ??
       this.normalizeText(this.extractValue(insight, 'action')) ??
       ''
+    const page =
+      this.normalizeText(this.extractValue(insight, 'page')) ??
+      this.inferSeoPage(insight, bundle)
+    const pageReason =
+      this.normalizeText(this.extractValue(insight, 'page_reason')) ??
+      this.inferSeoPageReason(insight, bundle)
+    const contentToInclude =
+      this.normalizeText(this.extractValue(insight, 'content_to_include')) ??
+      this.inferSeoContent(insight, bundle)
+    const expectedResult =
+      this.normalizeText(this.extractValue(insight, 'expected_result')) ??
+      this.inferSeoExpectedResult(insight, bundle)
 
     if (!title && !whatHappened && !recommendation) {
       return null
     }
 
+    const sourceReport =
+      this.normalizeText(this.extractValue(insight, 'source_report')) ??
+      this.normalizeText(this.extractValue(insight, 'sourceReport')) ??
+      null
+
     return {
-      title,
-      what_happened: whatHappened,
-      why_it_matters: whyItMatters,
+      title: this.cleanInsightText(title, {
+        category,
+        source,
+        metric:
+          this.normalizeText(this.extractValue(insight, 'metric')) ??
+          this.normalizeText(evidence?.metric) ??
+          null,
+        field: 'title',
+        sourceReport,
+      }),
+      what_happened: this.cleanInsightText(whatHappened, {
+        category,
+        source,
+        metric:
+          this.normalizeText(this.extractValue(insight, 'metric')) ??
+          this.normalizeText(evidence?.metric) ??
+          null,
+        field: 'what_happened',
+        sourceReport,
+      }),
+      why_it_matters: this.cleanInsightText(whyItMatters, {
+        category,
+        source,
+        metric:
+          this.normalizeText(this.extractValue(insight, 'metric')) ??
+          this.normalizeText(evidence?.metric) ??
+          null,
+        field: 'why_it_matters',
+        sourceReport,
+      }),
       category,
       source,
       insight_type: insightType,
@@ -300,14 +385,24 @@ export class AnalyticsAiInsightsService {
         this.normalizeText(evidence?.metric) ??
         null,
       segment,
-      source_report:
-        this.normalizeText(this.extractValue(insight, 'source_report')) ??
-        this.normalizeText(this.extractValue(insight, 'sourceReport')) ??
-        null,
+      source_report: sourceReport,
+      page,
+      page_reason: pageReason,
+      content_to_include: contentToInclude,
+      expected_result: expectedResult,
       evidence: evidence ?? {},
       impact,
       confidence,
-      recommendation,
+      recommendation: this.cleanInsightText(recommendation, {
+        category,
+        source,
+        metric:
+          this.normalizeText(this.extractValue(insight, 'metric')) ??
+          this.normalizeText(evidence?.metric) ??
+          null,
+        field: 'recommendation',
+        sourceReport,
+      }),
     }
   }
 
@@ -342,8 +437,8 @@ export class AnalyticsAiInsightsService {
     }
 
     return {
-      action: actionText,
-      reason,
+      action: this.cleanExecutiveSummary(actionText) ?? actionText,
+      reason: this.cleanExecutiveSummary(reason) ?? reason,
       expected_impact: expectedImpact,
       priority,
       confidence,
@@ -437,6 +532,182 @@ export class AnalyticsAiInsightsService {
     return index + 1
   }
 
+  private normalizeQualityBySource(
+    value: unknown[],
+    bundle: AnalyticsInsightBundle,
+  ): AnalyticsSourceQuality[] | null {
+    if (!Array.isArray(value) || value.length === 0) {
+      return null
+    }
+
+    const normalized = value
+      .map((entry) => {
+        const source = this.normalizeSource(this.extractValue(entry, 'source'))
+        if (source === 'mixed') {
+          return null
+        }
+        const reportSource = source as ReportSource
+        const status = this.normalizeSourceQualityStatus(this.extractValue(entry, 'status'))
+        const confidence = this.normalizeConfidence(this.extractValue(entry, 'confidence'), bundle)
+        const issues = this.extractArray(entry, 'issues')
+          .map((issue) => this.normalizeText(issue))
+          .filter((issue): issue is string => Boolean(issue))
+        const summary =
+          this.normalizeText(this.extractValue(entry, 'summary')) ??
+          this.sourceQualitySummary(reportSource, status, bundle)
+        return {
+          source: reportSource,
+          status,
+          confidence,
+          issues,
+          summary,
+        }
+      })
+      .filter((entry): entry is AnalyticsSourceQuality => entry !== null)
+
+    return normalized.length ? normalized : null
+  }
+
+  private buildQualityBySource(bundle: AnalyticsInsightBundle): AnalyticsSourceQuality[] {
+    const sources: ReportSource[] = ['ga4', 'ads', 'search_console']
+    return sources.map((source) => {
+      if (source === 'ga4') {
+        const status = bundle.measurement.conversionMeasurementReady
+          ? 'ok'
+          : bundle.measurement.qualityStatus === 'error'
+            ? 'error'
+            : 'warning'
+        return {
+          source,
+          status,
+          confidence: this.bundleConfidence(bundle),
+          issues: bundle.measurement.reasons.filter((reason) =>
+            /GA4|reconciliación|baseline|medición|quality/iu.test(reason),
+          ),
+          summary: this.sourceQualitySummary(source, status, bundle),
+        }
+      }
+
+      if (source === 'ads') {
+        const status = bundle.measurement.adsConversionMeasurementReady
+          ? 'ok'
+          : bundle.measurement.conversionMeasurementReady
+            ? 'warning'
+            : 'error'
+        return {
+          source,
+          status,
+          confidence: bundle.measurement.adsConversionMeasurementReady
+            ? this.bundleConfidence(bundle)
+            : Math.max(0.25, this.bundleConfidence(bundle) - 0.2),
+          issues: bundle.measurement.reasons.filter((reason) =>
+            /Ads|Google Ads|conversion/i.test(reason),
+          ),
+          summary: this.sourceQualitySummary(source, status, bundle),
+        }
+      }
+
+      const searchQualityIssue =
+        bundle.seo.length === 0 ||
+        bundle.seo.every((item) => item.impressions <= 0) ||
+        bundle.seo.every((item) => item.ctr < 0.01)
+      const status = searchQualityIssue
+        ? bundle.dataQuality.status === 'error'
+          ? 'error'
+          : 'warning'
+        : 'ok'
+      return {
+        source,
+        status,
+        confidence: searchQualityIssue ? Math.max(0.3, bundle.dataQuality.confidence - 0.1) : bundle.dataQuality.confidence,
+        issues: searchQualityIssue
+          ? ['Las consultas no muestran aún una señal clara de posicionamiento o CTR defendible.']
+          : [],
+        summary: this.sourceQualitySummary(source, status, bundle),
+      }
+    })
+  }
+
+  private normalizeSourceQualityStatus(value: unknown): AnalyticsSourceQuality['status'] {
+    return value === 'ok' || value === 'warning' || value === 'error' ? value : 'warning'
+  }
+
+  private sourceQualitySummary(
+    source: ReportSource,
+    status: AnalyticsSourceQuality['status'],
+    bundle: AnalyticsInsightBundle,
+  ) {
+    const ready = status === 'ok'
+    switch (source) {
+      case 'ga4':
+        return ready
+          ? 'GA4 muestra señal suficiente para analizar negocio y priorizar oportunidades.'
+          : 'GA4 todavía no da una señal estable para conclusiones fuertes; conviene validar medición y reconciliación.'
+      case 'ads':
+        return ready
+          ? 'Ads tiene cobertura suficiente para evaluar inversión y eficiencia.'
+          : 'Ads todavía no tiene medición lista para concluir pérdida confirmada; la lectura sigue siendo cauta.'
+      case 'search_console':
+        return ready
+          ? 'Search Console muestra oportunidades claras para acciones SEO concretas.'
+          : bundle.seo.length
+            ? 'Search Console tiene señal parcial; hay oportunidades, pero todavía faltan páginas o CTR más sólidos.'
+            : 'Search Console no muestra todavía una señal SEO defendible en la ventana analizada.'
+      default:
+        return 'Calidad de fuente no determinada.'
+    }
+  }
+
+  private inferSeoPage(insight: unknown, bundle: AnalyticsInsightBundle) {
+    const source = this.normalizeSource(this.extractValue(insight, 'source'))
+    const sourceReport = this.normalizeText(this.extractValue(insight, 'source_report'))
+    if (source !== 'search_console' && sourceReport !== 'analytics_search_console_daily_metrics') {
+      return null
+    }
+
+    const segment =
+      this.normalizeText(this.extractValue(insight, 'segment')) ??
+      this.normalizeText(this.extractValue(insight, 'title'))
+    if (!segment) {
+      return 'Landing SEO dedicada'
+    }
+    return `Landing SEO para ${segment}`
+  }
+
+  private inferSeoPageReason(insight: unknown, bundle: AnalyticsInsightBundle) {
+    const source = this.normalizeSource(this.extractValue(insight, 'source'))
+    const sourceReport = this.normalizeText(this.extractValue(insight, 'source_report'))
+    if (source !== 'search_console' && sourceReport !== 'analytics_search_console_daily_metrics') {
+      return null
+    }
+
+    const segment =
+      this.normalizeText(this.extractValue(insight, 'segment')) ??
+      this.normalizeText(this.extractValue(insight, 'title')) ??
+      'la consulta detectada'
+    return `La demanda existe pero el CTR no está capturando suficiente clic sobre ${segment}.`
+  }
+
+  private inferSeoContent(insight: unknown, bundle: AnalyticsInsightBundle) {
+    const source = this.normalizeSource(this.extractValue(insight, 'source'))
+    const sourceReport = this.normalizeText(this.extractValue(insight, 'source_report'))
+    if (source !== 'search_console' && sourceReport !== 'analytics_search_console_daily_metrics') {
+      return null
+    }
+
+    return 'Título alineado con la consulta, meta description clara, propuesta de valor, respuesta directa a la intención, prueba social y llamada a la acción.'
+  }
+
+  private inferSeoExpectedResult(insight: unknown, bundle: AnalyticsInsightBundle) {
+    const source = this.normalizeSource(this.extractValue(insight, 'source'))
+    const sourceReport = this.normalizeText(this.extractValue(insight, 'source_report'))
+    if (source !== 'search_console' && sourceReport !== 'analytics_search_console_daily_metrics') {
+      return null
+    }
+
+    return 'Más clics orgánicos, mejor CTR y más sesiones calificadas sobre esa intención.'
+  }
+
   private formatPeriodSummary(label: string, period: unknown) {
     const record = this.asRecord(period)
     if (!record) {
@@ -499,6 +770,180 @@ export class AnalyticsAiInsightsService {
     const quality = bundle.dataQuality.confidence
     const measurementPenalty = bundle.measurement.conversionMeasurementReady ? 0 : 0.22
     return Number(Math.max(0.05, Math.min(0.98, quality - measurementPenalty)).toFixed(4))
+  }
+
+  private buildExecutiveSummary(
+    bundle: AnalyticsInsightBundle,
+    insights: AnalyticsAiDecisionOutput['insights'] = [],
+  ) {
+    const topInsight = insights[0] ?? null
+    const businessInsight =
+      insights.find((item) => item.category === 'business_issue' && item.insight_type !== 'data_quality') ??
+      insights.find((item) => item.insight_type === 'acquisition' || item.insight_type === 'conversion' || item.insight_type === 'revenue') ??
+      null
+
+    const pieces: string[] = []
+    if (bundle.measurement.conversionMeasurementReady) {
+      pieces.push('La señal de negocio está lista para tomar decisiones.')
+    } else {
+      pieces.push('La lectura del negocio todavía depende de una medición que no está validada.')
+    }
+
+    if (topInsight) {
+      pieces.push(`La prioridad inmediata es ${this.executiveInsightPhrase(topInsight)}.`)
+    }
+
+    if (businessInsight && businessInsight !== topInsight) {
+      pieces.push(`La mejor oportunidad visible hoy es ${this.executiveInsightPhrase(businessInsight)}.`)
+    }
+
+    if (!bundle.measurement.conversionMeasurementReady) {
+      pieces.push('Antes de concluir pérdida de negocio, hay que validar la señal y recién después decidir sobre campañas, landings o conversión.')
+    }
+
+    return this.cleanExecutiveSummary(pieces.join(' '))
+  }
+
+  private executiveInsightPhrase(insight: AnalyticsAiDecisionOutput['insights'][number]) {
+    if (insight.page) {
+      return `mejorar ${insight.page}`
+    }
+
+    if (insight.category === 'measurement_issue') {
+      return 'validar la calidad de la medición'
+    }
+
+    if (insight.insight_type === 'acquisition') {
+      return 'optimizar la adquisición y el contenido que no está capturando clics'
+    }
+
+    if (insight.insight_type === 'conversion') {
+      return 'reducir la fuga en el funnel y corregir la fricción de conversión'
+    }
+
+    if (insight.insight_type === 'revenue') {
+      return 'proteger la rentabilidad de los canales que más aportan revenue'
+    }
+
+    return insight.title.toLowerCase()
+  }
+
+  private cleanExecutiveSummary(value: string) {
+    const trimmed = value.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    const technicalPattern =
+      /(active_[a-z0-9_]+|query hash|reportkey|sync run|baseline|reconciliaci[oó]n|row count|delta percent|data_quality_checks|openai_http_[0-9]+|insufficient_quota|you exceeded your current quota|chat\/completions|responses)/i
+    if (!technicalPattern.test(trimmed)) {
+      return this.normalizeText(trimmed)
+    }
+
+    return this.normalizeText(
+      trimmed
+        .replace(/\bactive_[a-z0-9_]+\b/gi, 'la señal de negocio')
+        .replace(/\breportkey\b/gi, 'reporte')
+        .replace(/\bquery hash\b/gi, 'consulta técnica')
+        .replace(/\bsync run(s)?\b/gi, 'última sincronización')
+        .replace(/\bbaseline\b/gi, 'referencia base')
+        .replace(/\breconciliaci[oó]n\b/gi, 'validación')
+        .replace(/\brow count\b/gi, 'volumen')
+        .replace(/\bdelta percent\b/gi, 'desvío')
+        .replace(/\bdata_quality_checks\b/gi, 'chequeos de calidad')
+        .replace(/\bopenai_http_[0-9]+\b/gi, '')
+        .replace(/\binsufficient_quota\b/gi, 'cuota de uso agotada')
+        .replace(/you exceeded your current quota/gi, 'la cuota de uso está agotada')
+        .replace(/\bchat\/completions\b/gi, 'respuesta del modelo')
+        .replace(/\bresponses\b/gi, 'respuesta del modelo')
+        .replace(/\s+/g, ' '),
+    )
+  }
+
+  private shouldRewriteExecutiveSummary(value: string) {
+    return /(active_[a-z0-9_]+|query hash|reportkey|sync run|baseline|reconciliaci[oó]n gap|row count|delta percent|data_quality_checks|openai_http_[0-9]+|insufficient_quota|you exceeded your current quota|chat\/completions|responses|high_traffic_low_conversion|high_cost_low_roas|high_impression_low_ctr|high_add_to_cart_low_purchase|abrupt_decline|data_quality_gap)/i.test(
+      value,
+    )
+  }
+
+  private cleanInsightText(
+    value: string,
+    context: {
+      category: AnalyticsInsightCategory
+      source: AnalyticsInsightSource
+      metric: string | null
+      field: 'title' | 'what_happened' | 'why_it_matters' | 'recommendation'
+      sourceReport: string | null
+    },
+  ) {
+    const cleaned = this.cleanExecutiveSummary(value)
+    if (!cleaned) {
+      return this.fallbackInsightText(context)
+    }
+
+    if (context.category === 'measurement_issue' || context.sourceReport?.includes('analytics_data_quality')) {
+      if (context.field === 'title') {
+        return context.metric?.includes('conversion')
+          ? 'La medición de conversiones todavía no está lista'
+          : 'Riesgo de calidad de datos'
+      }
+      if (context.field === 'what_happened') {
+        return 'La señal analizada sigue afectada por una desalineación de calidad y no conviene tomarla como pérdida confirmada.'
+      }
+      if (context.field === 'why_it_matters') {
+        return 'Mientras la señal siga inestable, cualquier decisión sobre campañas, landings o conversión puede estar sesgada.'
+      }
+      if (context.field === 'recommendation') {
+        return 'Validar la medición antes de concluir sobre performance y recién después priorizar acciones de negocio.'
+      }
+    }
+
+    return cleaned
+  }
+
+  private fallbackInsightText(context: {
+    category: AnalyticsInsightCategory
+    source: AnalyticsInsightSource
+    metric: string | null
+    field: 'title' | 'what_happened' | 'why_it_matters' | 'recommendation'
+    sourceReport: string | null
+  }) {
+    if (context.category === 'measurement_issue') {
+      switch (context.field) {
+        case 'title':
+          return 'Riesgo de calidad de datos'
+        case 'what_happened':
+          return 'La señal analizada no alcanza para concluir un problema de negocio con confianza.'
+        case 'why_it_matters':
+          return 'Tomar decisiones con esta señal puede llevar a conclusiones equivocadas sobre performance o conversión.'
+        case 'recommendation':
+          return 'Validar primero la medición y luego decidir sobre campañas, landings o conversión.'
+      }
+    }
+
+    if (context.category === 'business_issue') {
+      switch (context.field) {
+        case 'title':
+          return 'Oportunidad de negocio'
+        case 'what_happened':
+          return 'La señal detectada muestra una oportunidad concreta para mejorar resultado comercial.'
+        case 'why_it_matters':
+          return 'Atender esta oportunidad puede mover ingresos, eficiencia o captación de demanda.'
+        case 'recommendation':
+          return 'Priorizar la acción que mejor relación tenga entre impacto económico y facilidad de ejecución.'
+      }
+    }
+
+    switch (context.field) {
+      case 'title':
+        return 'Señal de baja confianza'
+      case 'what_happened':
+        return 'La señal no alcanza para una conclusión fuerte.'
+      case 'why_it_matters':
+        return 'Conviene usarla solo como referencia exploratoria.'
+      case 'recommendation':
+        return 'Revisar la calidad de la información antes de actuar.'
+    }
   }
 
   private patternTitle(type: string) {
