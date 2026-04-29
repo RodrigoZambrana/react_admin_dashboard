@@ -128,7 +128,19 @@
 - Google Ads was added as the second operational connector in this slice because the local backend environment already provides the OAuth, developer token and customer ID required to run reporting-only syncs
 - The connector is intentionally read-only: it reads campaign performance but does not mutate bids, budgets or creatives
 - Reason: once GA4 proves the session and funnel contract, Ads gives immediate CAC / ROAS visibility with the least additional surface area
-- Search Console remains deferred until the Ads slice is validated end-to-end
+- Search Console is the third operational connector and now follows the same read-only reporting pattern once a property is selected
+
+### Search Console is the third operational connector and follows the same backend-only contract
+
+- Search Console sync now uses the same backend OAuth / token storage / incremental sync pattern as GA4 and Ads
+- The connector reads query, page, clicks, impressions, CTR and position only; it does not mutate site settings
+- Reason: SEO and demand organic visibility complete the first operational triad without mixing it with tracking configuration
+
+### Analytics sync runs automatically by source when a connection is due
+
+- A lightweight backend scheduler checks due `analytics_connections` and triggers incremental sync for GA4, Ads and Search Console
+- Manual sync, backfill and repair remain available, but the normal steady state is automatic incremental refresh
+- Reason: keep the system productive without relying on operator-triggered refresh loops
 
 ### Analytics connectors live in `AnalyticsModule`
 
@@ -141,6 +153,21 @@
 - Generative analysis must sit on top of reporting tables, insights and context
 - Raw event JSON is allowed for ingestion and normalization only
 - Reason: make explanations auditable and keep the model from reasoning on unstable event payloads
+
+### AI insights are derived from explicit period comparisons
+
+- The insights layer compares a current period against a previous period of the same size
+- Inputs come from `analytics_reporting_daily`, `analytics_report_reconciliations`, `analytics_report_runs`, `analytics_connections`, `analytics_sync_runs`, `analytics_baseline_snapshots`, and `analytics_data_quality_checks`
+- Deterministic rules fire before any generative explanation
+- Evidence, source report and period range must be stored with every insight snapshot
+- Reason: keep insight generation explainable, reproducible and resistant to noisy event payloads
+
+### Analytics insights keep an explicit history table
+
+- Current operational insights can be recomputed, but every recompute must also append to `analytics_insights_history`
+- `analytics_insights_history` stores date, insight type, title, description, impact, recommendation, confidence, evidence, source report, period range, score and optional summary text
+- The history table is the source for auditability and trend review; the operational bundle is the source for the UI
+- Reason: insights are derived data and must be traceable across syncs, reconciliations and baseline corrections
 
 ### Frontend never receives tokens
 

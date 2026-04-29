@@ -46,7 +46,18 @@
   - repair
   - health / retry
   - visibilidad en el panel operativo
-- Search Console sigue pendiente para una iteración posterior.
+- Search Console ya quedó montado como conector read-only de reporting:
+  - inicio de OAuth
+  - callback seguro
+  - storage cifrado de credenciales
+  - selección de property
+  - initial sync trazable
+  - incremental sync
+  - backfill
+  - repair
+  - health / retry
+  - visibilidad en el panel operativo
+- Un scheduler interno automático revisa conexiones listas o en retry y dispara incremental sync por fuente sin intervención manual.
 
 ## Decisiones de integración
 
@@ -315,7 +326,13 @@
 
 ### Search Console
 
-- Pendiente de implementación.
+1. `POST /api/analytics/connections/search-console/start`
+2. OAuth en Google con PKCE
+3. `GET /api/analytics/connections/search-console/callback`
+4. Guardado cifrado de `refresh_token` y `access_token`
+5. Selección de property/site
+6. Initial sync
+7. Incremental / backfill / repair
 
 ## Nota de implementación
 
@@ -332,6 +349,38 @@
 - Los conectores OAuth, sincronización y salud viven dentro de `AnalyticsModule`.
 - La IA no calcula métricas y no consume JSON crudo.
 - La IA solo consume métricas normalizadas, contexto y evidencia.
+
+### Capa semántica de insights
+
+- La capa de IA opera sobre datos normalizados y persistidos, no sobre raw events ni sobre CSV manual.
+- Inputs operativos:
+  - `analytics_reporting_daily`
+  - `analytics_report_reconciliations`
+  - `analytics_report_runs`
+  - `analytics_connections`
+  - `analytics_sync_runs`
+  - `analytics_data_quality_checks`
+  - `analytics_baseline_snapshots`
+- La comparación temporal es explícita:
+  - período actual
+  - período previo del mismo tamaño
+- La IA genera reglas determinísticas antes de cualquier capa generativa.
+- Las reglas cubren:
+  - tráfico alto + conversión baja
+  - costo alto + ROAS bajo
+  - impresiones altas + CTR bajo
+  - add_to_cart alto + compra baja
+  - caídas abruptas en métricas clave
+  - desacople baseline/sync cuando la calidad de datos es mala
+- Cada insight persiste evidencia, período comparado, métrica afectada y recomendación accionable.
+- El historial se guarda en `analytics_insights_history`.
+- La prioridad final combina:
+  - volumen
+  - valor económico
+  - variación
+  - calidad de datos
+  - facilidad de acción
+- El frontend consume el resumen ejecutivo, la lista priorizada, oportunidades, alertas y el historial.
 
 ### Contratos backend agregados
 
@@ -355,13 +404,36 @@
   - devuelve historial de ejecuciones de sincronización
   - útil para auditar fallas, reintentos y cobertura
 - `GET /api/analytics/insights`
-  - devuelve insights persistidos y listos para mostrar
-  - contrato base para la futura capa IA
+  - devuelve el bundle actual de insights priorizados sobre métricas normalizadas
+- `GET /api/analytics/summary`
+  - devuelve el resumen ejecutivo del período
+- `GET /api/analytics/opportunities`
+  - devuelve oportunidades accionables priorizadas
+- `GET /api/analytics/insights/history`
+  - devuelve el historial persistido de insights y resúmenes
+- `POST /api/analytics/insights/recompute`
+  - recalcula y persiste un nuevo snapshot de insights
 - `POST /api/analytics/connections/:connectionId/ga4/incremental-sync`
   - ejecuta sync incremental con overlap
 - `POST /api/analytics/connections/:connectionId/ga4/backfill`
   - reprocesa un rango histórico explícito
 - `POST /api/analytics/connections/:connectionId/ga4/repair`
+  - reintenta la última ventana fallida o una ventana explícita
+- `POST /api/analytics/connections/search-console/start`
+  - inicia OAuth programático para Search Console
+- `GET /api/analytics/connections/search-console/callback`
+  - completa OAuth y deja la conexión lista para selección de property
+- `GET /api/analytics/connections/:connectionId/search-console/properties`
+  - lista properties accesibles para el sitio autenticado
+- `PUT /api/analytics/connections/:connectionId/search-console/property`
+  - selecciona property/site URL y dispara initial sync
+- `POST /api/analytics/connections/:connectionId/search-console/initial-sync`
+  - ejecuta la primera lectura operativa de Search Console
+- `POST /api/analytics/connections/:connectionId/search-console/incremental-sync`
+  - ejecuta sync incremental con overlap
+- `POST /api/analytics/connections/:connectionId/search-console/backfill`
+  - reprocesa un rango histórico explícito
+- `POST /api/analytics/connections/:connectionId/search-console/repair`
   - reintenta la última ventana fallida o una ventana explícita
 
 ### Modelo persistente agregado
@@ -373,6 +445,7 @@
 - `analytics_ads_daily_metrics`
 - `analytics_search_console_daily_metrics`
 - `analytics_reporting_daily`
+- `analytics_insights_history`
 - `analytics_insights`
 - `analytics_ga4_daily_metrics` ya incluye:
   - `event_count`
@@ -392,6 +465,13 @@
   - `last_successful_sync_at`
   - `last_sync_error_message`
   - `last_sync_error_at`
+- `analytics_search_console_daily_metrics` ya incluye:
+  - `query`
+  - `page`
+  - `clicks`
+  - `impressions`
+  - `ctr`
+  - `position`
 
 ### Acuerdos
 
@@ -401,6 +481,7 @@
 - Las credenciales sólo existen cifradas en backend.
 - El frontend sólo recibe `status`, `sync state`, `target` y fechas.
 - El panel operativo actual muestra conexiones, sync runs e insights; no expone tokens ni secretos.
+- La vista de insights IA muestra resumen, oportunidades, alertas y trazabilidad histórica.
 
 ### Prioridad de fuentes
 
@@ -424,12 +505,11 @@
 
 ### Pendientes
 
-- Implementar OAuth real para Google Ads y Search Console.
-- Validar manualmente el OAuth GA4 contra una cuenta viva si faltara confirmar algún escenario extremo.
+- Validar manualmente el OAuth GA4 y Search Console contra cuentas vivas si faltara confirmar algún escenario extremo.
 - Poblar `analytics_reporting_daily` desde fuentes normalizadas.
 - Generar insights persistidos por regla y score.
 - Conectar IA generativa sobre insights, no sobre eventos crudos.
-- Conectar la UI operativa con estados reales de sincronización y reauth.
+- Conectar la UI operativa con estados reales de sincronización, property selection y reauth.
 
 ## Paridad GA4
 
@@ -462,7 +542,8 @@
   - qué reportes del baseline se reproducen por API
   - qué reportes tienen delta
   - qué reportes aún requieren cobertura o ajuste
+- La capa de insights IA usa esas señales para bajar confianza cuando la calidad de datos es mala.
 - Próximo ajuste recomendado:
   - automatizar la programación del baseline diario
   - automatizar la programación de data quality post-sync
-  - usar `GET /api/analytics/insights/input` como input para la futura capa IA
+  - disparar `POST /api/analytics/insights/recompute` después de syncs y reconciliaciones relevantes

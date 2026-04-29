@@ -3,14 +3,19 @@ import { Prisma } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import type {
+  AnalyticsAdsDailyMetric,
+  AnalyticsAiInsight,
   AnalyticsConnection,
   AnalyticsConnectionHealth,
   AnalyticsConnectionSource,
   AnalyticsInsight,
+  AnalyticsInsightHistory,
   AnalyticsBaselineSnapshot,
   AnalyticsDataQualityCheck,
   AnalyticsDataQualityStatus,
   AnalyticsEventInput,
+  AnalyticsReportingDailyMetric,
+  AnalyticsSearchConsoleDailyMetric,
   AnalyticsReportCatalogEntry,
   AnalyticsReportDataSource,
   AnalyticsReportReconciliation,
@@ -41,14 +46,26 @@ export class AnalyticsRepository {
         delete: (args?: unknown) => Promise<any>
       }
       analyticsInsight: { findMany: (args?: unknown) => Promise<any[]> }
+      analyticsInsightHistory: {
+        create: (args?: unknown) => Promise<any>
+        createMany: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
+      }
       analyticsGa4DailyMetric: {
         upsert: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
       }
       analyticsAdsDailyMetric: {
         upsert: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
+      }
+      analyticsSearchConsoleDailyMetric: {
+        upsert: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
       }
       analyticsReportingDaily: {
         upsert: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
       }
       analyticsReportCatalog: {
         findMany: (args?: unknown) => Promise<any[]>
@@ -228,6 +245,89 @@ export class AnalyticsRepository {
     }
   }
 
+  private mapInsightHistory(entry: any): AnalyticsInsightHistory {
+    return {
+      id: entry.id,
+      date: entry.date.toISOString(),
+      insightType: entry.insightType,
+      title: entry.title,
+      description: entry.description,
+      impact: entry.impact,
+      recommendation: entry.recommendation,
+      confidence: Number(entry.confidence.toString()),
+      evidence: (entry.evidence as Record<string, unknown>) ?? {},
+      sourceReport: entry.sourceReport ?? null,
+      periodRange: (entry.periodRange as AnalyticsInsightHistory['periodRange']) ?? {
+        current: { from: entry.date.toISOString(), to: entry.date.toISOString() },
+        previous: { from: entry.date.toISOString(), to: entry.date.toISOString() },
+      },
+      score: Number(entry.score.toString()),
+      summary: entry.summary ?? null,
+      createdAt: entry.createdAt.toISOString(),
+    }
+  }
+
+  private mapReportingDailyMetric(row: any): AnalyticsReportingDailyMetric {
+    return {
+      id: row.id.toString(),
+      date: row.date.toISOString(),
+      channel: row.channel,
+      source: row.source ?? null,
+      medium: row.medium ?? null,
+      campaign: row.campaign ?? null,
+      productId: row.productId ?? null,
+      landingPage: row.landingPage ?? null,
+      device: row.device ?? null,
+      country: row.country ?? null,
+      sessions: row.sessions,
+      users: row.users,
+      revenue: Number(row.revenue.toString()),
+      orders: row.orders,
+      cost: Number(row.cost.toString()),
+      impressions: row.impressions,
+      clicks: row.clicks,
+      views: row.views,
+      addToCart: row.addToCart,
+      eventCount: row.eventCount,
+      keyEvents: row.keyEvents,
+      ga4PurchaseProxy: row.ga4PurchaseProxy,
+      purchase: row.purchase,
+      createdAt: row.createdAt.toISOString(),
+    }
+  }
+
+  private mapAdsDailyMetric(row: any): AnalyticsAdsDailyMetric {
+    return {
+      id: row.id.toString(),
+      date: row.date.toISOString(),
+      campaign: row.campaign,
+      clicks: row.clicks,
+      impressions: row.impressions,
+      cost: Number(row.cost.toString()),
+      conversions: row.conversions,
+      conversionValue: Number(row.conversionValue.toString()),
+      connectionId: row.connectionId ?? null,
+      syncRunId: row.syncRunId ?? null,
+      createdAt: row.createdAt.toISOString(),
+    }
+  }
+
+  private mapSearchConsoleDailyMetric(row: any): AnalyticsSearchConsoleDailyMetric {
+    return {
+      id: row.id.toString(),
+      date: row.date.toISOString(),
+      query: row.query,
+      page: row.page ?? null,
+      clicks: row.clicks,
+      impressions: row.impressions,
+      ctr: Number(row.ctr.toString()),
+      position: Number(row.position.toString()),
+      connectionId: row.connectionId ?? null,
+      syncRunId: row.syncRunId ?? null,
+      createdAt: row.createdAt.toISOString(),
+    }
+  }
+
   private mapBaselineSnapshot(snapshot: any): AnalyticsBaselineSnapshot {
     return {
       id: snapshot.id,
@@ -314,6 +414,19 @@ export class AnalyticsRepository {
   }) {
     return this.createConnection({
       source: 'ads',
+      displayName: input.displayName,
+      status: input.status,
+      needsReauth: input.needsReauth,
+    })
+  }
+
+  async createSearchConsoleConnection(input: {
+    displayName: string
+    status?: string
+    needsReauth?: boolean
+  }) {
+    return this.createConnection({
+      source: 'search_console',
       displayName: input.displayName,
       status: input.status,
       needsReauth: input.needsReauth,
@@ -499,6 +612,47 @@ export class AnalyticsRepository {
         conversionValue: input.conversionValue,
         connectionId: input.connectionId,
         syncRunId: input.syncRunId,
+      },
+    })
+  }
+
+  async upsertSearchConsoleDailyMetric(input: {
+    date: Date
+    query: string
+    page: string | null
+    clicks: number
+    impressions: number
+    ctr: number
+    position: number
+    connectionId?: string | null
+    syncRunId?: string | null
+  }) {
+    return this.analyticsPrisma.analyticsSearchConsoleDailyMetric.upsert({
+      where: {
+        date_query_page: {
+          date: input.date,
+          query: input.query,
+          page: input.page,
+        },
+      },
+      update: {
+        clicks: input.clicks,
+        impressions: input.impressions,
+        ctr: input.ctr,
+        position: input.position,
+        connectionId: input.connectionId ?? null,
+        syncRunId: input.syncRunId ?? null,
+      },
+      create: {
+        date: input.date,
+        query: input.query,
+        page: input.page,
+        clicks: input.clicks,
+        impressions: input.impressions,
+        ctr: input.ctr,
+        position: input.position,
+        connectionId: input.connectionId ?? null,
+        syncRunId: input.syncRunId ?? null,
       },
     })
   }
@@ -828,6 +982,48 @@ export class AnalyticsRepository {
     return connections.map((connection) => this.mapConnection(connection))
   }
 
+  async listReportingDaily(from: Date, to: Date) {
+    const rows = await this.analyticsPrisma.analyticsReportingDaily.findMany({
+      where: {
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      orderBy: [{ date: 'asc' }, { channel: 'asc' }, { campaign: 'asc' }],
+    })
+
+    return rows.map((row) => this.mapReportingDailyMetric(row))
+  }
+
+  async listAdsDailyMetrics(from: Date, to: Date) {
+    const rows = await this.analyticsPrisma.analyticsAdsDailyMetric.findMany({
+      where: {
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      orderBy: [{ date: 'asc' }, { campaign: 'asc' }],
+    })
+
+    return rows.map((row) => this.mapAdsDailyMetric(row))
+  }
+
+  async listSearchConsoleDailyMetrics(from: Date, to: Date) {
+    const rows = await this.analyticsPrisma.analyticsSearchConsoleDailyMetric.findMany({
+      where: {
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      orderBy: [{ date: 'asc' }, { query: 'asc' }],
+    })
+
+    return rows.map((row) => this.mapSearchConsoleDailyMetric(row))
+  }
+
   async listSyncRuns(limit = 50) {
     const runs = await this.analyticsPrisma.analyticsSyncRun.findMany({
       orderBy: [{ createdAt: 'desc' }],
@@ -860,6 +1056,86 @@ export class AnalyticsRepository {
       take: limit,
     })
     return insights.map((insight) => this.mapInsight(insight))
+  }
+
+  async listInsightHistory(limit = 100, insightType?: string) {
+    const history = await this.analyticsPrisma.analyticsInsightHistory.findMany({
+      where: insightType ? { insightType } : undefined,
+      orderBy: [{ createdAt: 'desc' }],
+      take: limit,
+    })
+
+    return history.map((entry) => this.mapInsightHistory(entry))
+  }
+
+  async createInsightHistory(input: {
+    date: Date
+    insightType: string
+    title: string
+    description: string
+    impact: string
+    recommendation: string
+    confidence: number
+    evidence: Prisma.InputJsonValue
+    sourceReport?: string | null
+    periodRange: Prisma.InputJsonValue
+    score: number
+    summary?: string | null
+  }) {
+    return this.analyticsPrisma.analyticsInsightHistory.create({
+      data: {
+        date: input.date,
+        insightType: input.insightType,
+        title: input.title,
+        description: input.description,
+        impact: input.impact,
+        recommendation: input.recommendation,
+        confidence: new Prisma.Decimal(input.confidence),
+        evidence: input.evidence,
+        sourceReport: input.sourceReport ?? null,
+        periodRange: input.periodRange,
+        score: new Prisma.Decimal(input.score),
+        summary: input.summary ?? null,
+      },
+    })
+  }
+
+  async createInsightHistoryMany(
+    inputs: Array<{
+      date: Date
+      insightType: string
+      title: string
+      description: string
+      impact: string
+      recommendation: string
+      confidence: number
+      evidence: Prisma.InputJsonValue
+      sourceReport?: string | null
+      periodRange: Prisma.InputJsonValue
+      score: number
+      summary?: string | null
+    }>,
+  ) {
+    if (!inputs.length) {
+      return { count: 0 }
+    }
+
+    return this.analyticsPrisma.analyticsInsightHistory.createMany({
+      data: inputs.map((input) => ({
+        date: input.date,
+        insightType: input.insightType,
+        title: input.title,
+        description: input.description,
+        impact: input.impact,
+        recommendation: input.recommendation,
+        confidence: new Prisma.Decimal(input.confidence),
+        evidence: input.evidence,
+        sourceReport: input.sourceReport ?? null,
+        periodRange: input.periodRange,
+        score: new Prisma.Decimal(input.score),
+        summary: input.summary ?? null,
+      })),
+    })
   }
 
   async listReportCatalog() {

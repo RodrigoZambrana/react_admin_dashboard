@@ -13,6 +13,7 @@ import AnalyticsPageLayout from '../components/AnalyticsPageLayout'
 import { useAnalyticsOperationsData } from '../hooks/useAnalyticsOperationsData'
 import {
     apiGetGa4Properties,
+    apiGetSearchConsoleProperties,
     apiRunAdsBackfill,
     apiRunAdsInitialSync,
     apiRunAdsIncrementalSync,
@@ -21,12 +22,20 @@ import {
     apiRunGa4IncrementalSync,
     apiRunGa4InitialSync,
     apiRunGa4Repair,
+    apiRunSearchConsoleBackfill,
+    apiRunSearchConsoleIncrementalSync,
+    apiRunSearchConsoleInitialSync,
+    apiRunSearchConsoleRepair,
     apiSelectGa4Property,
+    apiSelectSearchConsoleProperty,
     apiStartAdsOAuth,
     apiStartGa4OAuth,
+    apiStartSearchConsoleOAuth,
     type AnalyticsGa4Property,
+    type AnalyticsSearchConsoleProperty,
     type AnalyticsAdsSyncResult,
     type AnalyticsGa4SyncResult,
+    type AnalyticsSearchConsoleSyncResult,
 } from '@/services/AnalyticsService'
 
 const sourceLabel: Record<string, string> = {
@@ -115,12 +124,20 @@ const AnalyticsConnectionsPage = () => {
     const [propertiesLoading, setPropertiesLoading] = useState(false)
     const [ga4OauthLoading, setGa4OauthLoading] = useState(false)
     const [adsOauthLoading, setAdsOauthLoading] = useState(false)
+    const [searchConsoleOauthLoading, setSearchConsoleOauthLoading] = useState(false)
     const [ga4SyncLoading, setGa4SyncLoading] = useState(false)
     const [adsSyncLoading, setAdsSyncLoading] = useState(false)
+    const [searchConsoleSyncLoading, setSearchConsoleSyncLoading] = useState(false)
     const [backfillLoading, setBackfillLoading] = useState(false)
     const [repairLoading, setRepairLoading] = useState(false)
     const [ga4Properties, setGa4Properties] = useState<AnalyticsGa4Property[]>([])
+    const [searchConsoleProperties, setSearchConsoleProperties] = useState<
+        AnalyticsSearchConsoleProperty[]
+    >([])
     const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null)
+    const [selectedSearchConsolePropertyId, setSelectedSearchConsolePropertyId] = useState<
+        string | null
+    >(null)
 
     const connections = data.connections
     const runs = data.runs
@@ -134,6 +151,10 @@ const AnalyticsConnectionsPage = () => {
     )
     const adsConnection = useMemo(
         () => connections.find((connection) => connection.source === 'ads') ?? null,
+        [connections],
+    )
+    const searchConsoleConnection = useMemo(
+        () => connections.find((connection) => connection.source === 'search_console') ?? null,
         [connections],
     )
 
@@ -165,6 +186,37 @@ const AnalyticsConnectionsPage = () => {
         }
         void loadProperties(ga4Connection.id)
     }, [ga4Connection])
+
+    const loadSearchConsoleProperties = async (connectionId: string) => {
+        setPropertiesLoading(true)
+        try {
+            const response = await apiGetSearchConsoleProperties<{
+                properties: AnalyticsSearchConsoleProperty[]
+            }>(connectionId)
+            setSearchConsoleProperties(response.data.properties ?? [])
+            setSelectedSearchConsolePropertyId(
+                (current) => current ?? response.data.properties?.[0]?.siteUrl ?? null,
+            )
+        } catch (loadError) {
+            console.error(loadError)
+            setSearchConsoleProperties([])
+            toast.push(
+                <Notification title="No fue posible cargar properties de Search Console" type="danger">
+                    Revisá la autenticación y volvé a intentar.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setPropertiesLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        if (!searchConsoleConnection || searchConsoleConnection.target.id) {
+            return
+        }
+        void loadSearchConsoleProperties(searchConsoleConnection.id)
+    }, [searchConsoleConnection])
 
     const handleStartOAuth = async (source: 'ga4' | 'ads') => {
         if (source === 'ga4') {
@@ -203,6 +255,194 @@ const AnalyticsConnectionsPage = () => {
             } else {
                 setAdsOauthLoading(false)
             }
+        }
+    }
+
+    const handleSearchConsoleOAuth = async () => {
+        setSearchConsoleOauthLoading(true)
+        try {
+            const response = await apiStartSearchConsoleOAuth<{ url: string }>(
+                buildConnectionsReturnPath(),
+            )
+            const authUrl = response.data.url
+            if (!authUrl) {
+                throw new Error('Google OAuth no devolvió una URL válida.')
+            }
+            window.location.href = authUrl
+        } catch (startError) {
+            console.error(startError)
+            toast.push(
+                <Notification title="No fue posible iniciar Search Console" type="danger">
+                    Verificá la configuración de Google OAuth en backend.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setSearchConsoleOauthLoading(false)
+        }
+    }
+
+    const handleSearchConsolePropertySelection = async () => {
+        if (!searchConsoleConnection?.id || !selectedSearchConsolePropertyId) {
+            return
+        }
+
+        setSearchConsoleSyncLoading(true)
+        try {
+            await apiSelectSearchConsoleProperty<AnalyticsSearchConsoleSyncResult>(
+                searchConsoleConnection.id,
+                selectedSearchConsolePropertyId,
+            )
+            toast.push(
+                <Notification title="Search Console sincronizado" type="success">
+                    Se seleccionó la property y se lanzó el initial sync.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+            await reload()
+            setSearchConsoleProperties([])
+        } catch (selectionError) {
+            console.error(selectionError)
+            toast.push(
+                <Notification title="No fue posible guardar la property" type="danger">
+                    Revisá la cuenta de Search Console y volvé a intentar.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setSearchConsoleSyncLoading(false)
+        }
+    }
+
+    const handleSearchConsoleInitialSync = async () => {
+        if (!searchConsoleConnection?.id) {
+            return
+        }
+
+        setSearchConsoleSyncLoading(true)
+        try {
+            await apiRunSearchConsoleInitialSync<AnalyticsSearchConsoleSyncResult>(
+                searchConsoleConnection.id,
+            )
+            toast.push(
+                <Notification title="Initial sync Search Console ejecutado" type="success">
+                    Se disparó la primera lectura de reporting de Search Console.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+            await reload()
+        } catch (syncError) {
+            console.error(syncError)
+            toast.push(
+                <Notification title="No fue posible sincronizar Search Console" type="danger">
+                    Revisá la conexión de Search Console.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setSearchConsoleSyncLoading(false)
+        }
+    }
+
+    const handleSearchConsoleIncrementalSync = async () => {
+        if (!searchConsoleConnection?.id) {
+            return
+        }
+
+        setSearchConsoleSyncLoading(true)
+        try {
+            await apiRunSearchConsoleIncrementalSync<AnalyticsSearchConsoleSyncResult>(
+                searchConsoleConnection.id,
+            )
+            toast.push(
+                <Notification title="Incremental Search Console ejecutado" type="success">
+                    Se actualizó la ventana incremental de Search Console.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+            await reload()
+        } catch (syncError) {
+            console.error(syncError)
+            toast.push(
+                <Notification title="No fue posible ejecutar incremental Search Console" type="danger">
+                    Revisá la conexión de Search Console.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setSearchConsoleSyncLoading(false)
+        }
+    }
+
+    const handleSearchConsoleBackfill = async () => {
+        if (!searchConsoleConnection?.id) {
+            return
+        }
+
+        const from = window.prompt('Backfill Search Console - fecha desde (YYYY-MM-DD)', '')
+        const to = window.prompt('Backfill Search Console - fecha hasta (YYYY-MM-DD)', '')
+        if (!from || !to) {
+            return
+        }
+
+        setSearchConsoleSyncLoading(true)
+        setBackfillLoading(true)
+        try {
+            await apiRunSearchConsoleBackfill<AnalyticsSearchConsoleSyncResult>(
+                searchConsoleConnection.id,
+                from,
+                to,
+            )
+            toast.push(
+                <Notification title="Backfill Search Console ejecutado" type="success">
+                    Se reprocesó el rango solicitado.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+            await reload()
+        } catch (syncError) {
+            console.error(syncError)
+            toast.push(
+                <Notification title="No fue posible ejecutar backfill Search Console" type="danger">
+                    Revisá el rango y la conexión de Search Console.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setBackfillLoading(false)
+            setSearchConsoleSyncLoading(false)
+        }
+    }
+
+    const handleSearchConsoleRepair = async () => {
+        if (!searchConsoleConnection?.id) {
+            return
+        }
+
+        setSearchConsoleSyncLoading(true)
+        setRepairLoading(true)
+        try {
+            await apiRunSearchConsoleRepair<AnalyticsSearchConsoleSyncResult>(
+                searchConsoleConnection.id,
+            )
+            toast.push(
+                <Notification title="Repair Search Console ejecutado" type="success">
+                    Se reintentó la última ventana fallida o el último rango útil.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+            await reload()
+        } catch (syncError) {
+            console.error(syncError)
+            toast.push(
+                <Notification title="No fue posible ejecutar repair Search Console" type="danger">
+                    Revisá el estado de la conexión Search Console.
+                </Notification>,
+                { placement: 'top-end' },
+            )
+        } finally {
+            setRepairLoading(false)
+            setSearchConsoleSyncLoading(false)
         }
     }
 
@@ -489,6 +729,10 @@ const AnalyticsConnectionsPage = () => {
         label: `${property.propertyName} · ${property.accountName}`,
         value: property.propertyId,
     }))
+    const searchConsolePropertyOptions: PropertyOption[] = searchConsoleProperties.map((property) => ({
+        label: `${property.siteUrl}${property.permissionLevel ? ` · ${property.permissionLevel}` : ''}`,
+        value: property.siteUrl,
+    }))
 
     return (
         <AnalyticsPageLayout
@@ -530,10 +774,10 @@ const AnalyticsConnectionsPage = () => {
                                     variant="plain"
                                     icon={<HiOutlineExternalLink />}
                                     onClick={() => {
-                                        window.location.href = '/app/analytics/growth-insights'
+                                        window.location.href = '/app/analytics/insights'
                                     }}
                                 >
-                                    Growth & Insights
+                                    Insights IA
                                 </Button>
                                 <Button
                                     size="sm"
@@ -550,6 +794,14 @@ const AnalyticsConnectionsPage = () => {
                                     loading={adsOauthLoading}
                                 >
                                     Conectar Google Ads
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="solid"
+                                    onClick={() => void handleSearchConsoleOAuth()}
+                                    loading={searchConsoleOauthLoading}
+                                >
+                                    Conectar Search Console
                                 </Button>
                                 <Button
                                     size="sm"
@@ -579,7 +831,9 @@ const AnalyticsConnectionsPage = () => {
                                 {connections.length ? (
                                     connections.map((connection) => {
                                         const awaitingProperty =
-                                            connection.source === 'ga4' && !connection.target.id
+                                            (connection.source === 'ga4' ||
+                                                connection.source === 'search_console') &&
+                                            !connection.target.id
                                         return (
                                             <div
                                                 key={connection.id}
@@ -640,7 +894,7 @@ const AnalyticsConnectionsPage = () => {
                                                     </div>
                                                 </div>
 
-                                                {awaitingProperty ? (
+                                                {awaitingProperty && connection.source === 'ga4' ? (
                                                     <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
                                                         <div>
                                                             <div className="mb-2 text-sm font-medium text-gray-700">
@@ -692,6 +946,68 @@ const AnalyticsConnectionsPage = () => {
                                                             >
                                                                 Recargar properties
                                                             </Button>
+                                                            </div>
+                                                        </div>
+                                                ) : awaitingProperty && connection.source === 'search_console' ? (
+                                                    <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                                                        <div>
+                                                            <div className="mb-2 text-sm font-medium text-gray-700">
+                                                                Seleccionar property Search Console
+                                                            </div>
+                                                            <Select<PropertyOption>
+                                                                options={searchConsolePropertyOptions}
+                                                                value={
+                                                                    searchConsolePropertyOptions.find(
+                                                                        (option) =>
+                                                                            option.value ===
+                                                                            selectedSearchConsolePropertyId,
+                                                                    ) ?? null
+                                                                }
+                                                                onChange={(option) =>
+                                                                    setSelectedSearchConsolePropertyId(
+                                                                        option?.value ?? null,
+                                                                    )
+                                                                }
+                                                                isSearchable
+                                                                size="sm"
+                                                                placeholder={
+                                                                    propertiesLoading
+                                                                        ? 'Cargando properties...'
+                                                                        : 'Elegí una property'
+                                                                }
+                                                                isDisabled={
+                                                                    propertiesLoading ||
+                                                                    !searchConsolePropertyOptions.length
+                                                                }
+                                                            />
+                                                            <div className="mt-2 text-xs text-gray-500">
+                                                                {propertiesLoading
+                                                                    ? 'Consultando propiedades accesibles en Google.'
+                                                                    : searchConsolePropertyOptions.length
+                                                                      ? `${searchConsolePropertyOptions.length} properties disponibles.`
+                                                                      : 'No hay properties cargadas todavía.'}
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="solid"
+                                                                onClick={() => void handleSearchConsolePropertySelection()}
+                                                                loading={searchConsoleSyncLoading}
+                                                                disabled={!selectedSearchConsolePropertyId}
+                                                            >
+                                                                Guardar y sincronizar
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="plain"
+                                                                onClick={() =>
+                                                                    void loadSearchConsoleProperties(connection.id)
+                                                                }
+                                                                loading={propertiesLoading}
+                                                            >
+                                                                Recargar properties
+                                                            </Button>
                                                         </div>
                                                     </div>
                                                 ) : connection.source === 'ga4' ? (
@@ -732,6 +1048,54 @@ const AnalyticsConnectionsPage = () => {
                                                             size="sm"
                                                             variant="default"
                                                             onClick={() => void handleRepair()}
+                                                            loading={repairLoading}
+                                                        >
+                                                            Repair
+                                                        </Button>
+                                                    </div>
+                                                ) : connection.source === 'search_console' ? (
+                                                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                                                        <div className="rounded-full bg-violet-50 px-3 py-2 text-xs text-violet-700 dark:bg-violet-500/10 dark:text-violet-100">
+                                                            Reporting-only de SEO y demanda orgánica.
+                                                        </div>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="plain"
+                                                            onClick={() =>
+                                                                void loadSearchConsoleProperties(connection.id)
+                                                            }
+                                                            loading={propertiesLoading}
+                                                        >
+                                                            Recargar properties
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="solid"
+                                                            onClick={() => void handleSearchConsoleInitialSync()}
+                                                            loading={searchConsoleSyncLoading}
+                                                        >
+                                                            Ejecutar initial sync
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="default"
+                                                            onClick={() => void handleSearchConsoleIncrementalSync()}
+                                                            loading={searchConsoleSyncLoading}
+                                                        >
+                                                            Incremental sync
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="default"
+                                                            onClick={() => void handleSearchConsoleBackfill()}
+                                                            loading={backfillLoading}
+                                                        >
+                                                            Backfill
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="default"
+                                                            onClick={() => void handleSearchConsoleRepair()}
                                                             loading={repairLoading}
                                                         >
                                                             Repair

@@ -1567,6 +1567,27 @@ model AnalyticsInsight {
   @@map("analytics_insights")
 }
 
+model AnalyticsInsightHistory {
+  id             String   @id @default(cuid())
+  date           DateTime @db.Date
+  insightType    String   @map("insight_type")
+  title          String
+  description    String
+  impact         String
+  recommendation String
+  confidence     Decimal  @db.Decimal(5, 4)
+  evidence       Json     @db.JsonB
+  sourceReport   String?  @map("source_report")
+  periodRange    Json     @db.JsonB @map("period_range")
+  score          Decimal  @db.Decimal(10, 4)
+  summary        String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([date, insightType])
+  @@index([sourceReport, createdAt])
+  @@map("analytics_insights_history")
+}
+
 model AnalyticsReportCatalog {
   key               String   @id
   source            String   @default("ga4")

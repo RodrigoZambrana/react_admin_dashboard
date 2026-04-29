@@ -243,6 +243,15 @@ const baseAppsRoute: Routes = [
         },
     },
     {
+        key: 'appsAnalytics.insights',
+        path: `${APP_PREFIX_PATH}/analytics/insights`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsInsightsPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Insights IA',
+        },
+    },
+    {
         key: 'appsAnalytics.dataQuality',
         path: `${APP_PREFIX_PATH}/analytics/data-quality`,
         component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsDataQualityPage')),

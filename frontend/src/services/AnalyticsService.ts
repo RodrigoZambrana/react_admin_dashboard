@@ -127,7 +127,7 @@ export type AnalyticsSyncRun = {
 
 export type AnalyticsInsight = {
     id: string
-    source: string
+    source?: string
     metric: string
     dimension: string | null
     title: string
@@ -136,9 +136,23 @@ export type AnalyticsInsight = {
     impact: 'low' | 'medium' | 'high' | 'critical'
     confidence: number
     evidence: Record<string, unknown>
-    createdAt: string
-    resolvedAt: string | null
-    status: 'open' | 'resolved' | 'dismissed'
+    createdAt?: string
+    resolvedAt?: string | null
+    status?: 'open' | 'resolved' | 'dismissed'
+    insightType?: 'summary' | 'acquisition' | 'behavior' | 'conversion' | 'revenue' | 'data_quality'
+    sourceReport?: string | null
+    periodRange?: {
+        current: {
+            from: string
+            to: string
+        }
+        previous: {
+            from: string
+            to: string
+        }
+    }
+    score?: number
+    segment?: string | null
 }
 
 export type AnalyticsBaselineSnapshot = {
@@ -277,6 +291,94 @@ export type AnalyticsAdsSyncResult = {
     adsRowsUpserted: number
 }
 
+export type AnalyticsInsightsResponse = {
+    summary: string
+    periodRange: {
+        current: {
+            from: string
+            to: string
+        }
+        previous: {
+            from: string
+            to: string
+        }
+    }
+    generatedAt: string
+    quality: {
+        connections: AnalyticsConnection[]
+        syncRuns: AnalyticsSyncRun[]
+        reportRuns: AnalyticsReportRun[]
+        reconciliations: AnalyticsReportReconciliation[]
+        dataQualityChecks: AnalyticsDataQualityCheck[]
+        summaries: AnalyticsDataQualitySummary[]
+    }
+    insights: AnalyticsInsight[]
+    alerts: AnalyticsInsight[]
+    opportunities: AnalyticsInsight[]
+}
+
+export type AnalyticsSummaryResponse = {
+    summary: string
+    periodRange: {
+        current: {
+            from: string
+            to: string
+        }
+        previous: {
+            from: string
+            to: string
+        }
+    }
+    generatedAt: string
+    quality: AnalyticsInsightsResponse['quality']
+    topInsight: AnalyticsInsight | null
+    totalInsights: number
+    alerts: AnalyticsInsight[]
+}
+
+export type AnalyticsOpportunitiesResponse = {
+    summary: string
+    periodRange: AnalyticsInsightsResponse['periodRange']
+    generatedAt: string
+    opportunities: AnalyticsInsight[]
+}
+
+export type AnalyticsInsightHistory = {
+    id: string
+    date: string
+    insightType: 'summary' | 'acquisition' | 'behavior' | 'conversion' | 'revenue' | 'data_quality'
+    title: string
+    description: string
+    impact: 'low' | 'medium' | 'high'
+    recommendation: string
+    confidence: number
+    evidence: Record<string, unknown>
+    sourceReport: string | null
+    periodRange: AnalyticsInsightsResponse['periodRange']
+    score: number
+    summary: string | null
+    createdAt: string
+}
+
+export type AnalyticsSearchConsoleProperty = {
+    siteUrl: string
+    permissionLevel: string | null
+    siteType: string
+}
+
+export type AnalyticsSearchConsoleOAuthStartResult = {
+    connectionId: string
+    state: string
+    expiresAt: string
+    url: string
+}
+
+export type AnalyticsSearchConsoleSyncResult = {
+    connectionId: string
+    syncRun: AnalyticsSyncRun
+    searchConsoleRowsUpserted: number
+}
+
 const buildQueryString = (params?: Record<string, string | undefined>) => {
     const searchParams = new URLSearchParams()
     Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -321,11 +423,45 @@ export async function apiGetAnalyticsSyncRuns<T>(limit?: number) {
     })
 }
 
-export async function apiGetAnalyticsInsights<T>(limit?: number) {
+export async function apiGetAnalyticsInsights<T>(_limit?: number) {
+    return ApiService.fetchData<T>({
+        url: '/analytics/insights',
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsSummary<T, U extends Record<string, string | undefined>>(
+    params?: U,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/summary${buildQueryString(params)}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsOpportunities<T, U extends Record<string, string | undefined>>(
+    params?: U,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/opportunities${buildQueryString(params)}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsInsightsHistory<T>(limit?: number) {
     const query = typeof limit === 'number' && Number.isFinite(limit) ? `?limit=${limit}` : ''
     return ApiService.fetchData<T>({
-        url: `/analytics/insights${query}`,
+        url: `/analytics/insights/history${query}`,
         method: 'get',
+    })
+}
+
+export async function apiRecomputeAnalyticsInsights<T, U extends Record<string, string | undefined>>(
+    params?: U,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/insights/recompute${buildQueryString(params)}`,
+        method: 'post',
     })
 }
 
@@ -345,6 +481,14 @@ export async function apiStartAdsOAuth<T>(returnPath?: string) {
     })
 }
 
+export async function apiStartSearchConsoleOAuth<T>(returnPath?: string) {
+    return ApiService.fetchData<T>({
+        url: '/analytics/connections/search-console/start',
+        method: 'post',
+        data: returnPath ? { returnPath } : {},
+    })
+}
+
 export async function apiGetGa4Properties<T>(connectionId: string) {
     return ApiService.fetchData<T>({
         url: `/analytics/connections/${connectionId}/ga4/properties`,
@@ -355,6 +499,21 @@ export async function apiGetGa4Properties<T>(connectionId: string) {
 export async function apiSelectGa4Property<T>(connectionId: string, propertyId: string) {
     return ApiService.fetchData<T>({
         url: `/analytics/connections/${connectionId}/ga4/property`,
+        method: 'put',
+        data: { propertyId },
+    })
+}
+
+export async function apiGetSearchConsoleProperties<T>(connectionId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/search-console/properties`,
+        method: 'get',
+    })
+}
+
+export async function apiSelectSearchConsoleProperty<T>(connectionId: string, propertyId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/search-console/property`,
         method: 'put',
         data: { propertyId },
     })
@@ -553,6 +712,39 @@ export async function apiRunGa4Backfill<T>(connectionId: string, from: string, t
 export async function apiRunGa4Repair<T>(connectionId: string, from?: string, to?: string) {
     return ApiService.fetchData<T>({
         url: `/analytics/connections/${connectionId}/ga4/repair`,
+        method: 'post',
+        data: {
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+        },
+    })
+}
+
+export async function apiRunSearchConsoleInitialSync<T>(connectionId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/search-console/initial-sync`,
+        method: 'post',
+    })
+}
+
+export async function apiRunSearchConsoleIncrementalSync<T>(connectionId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/search-console/incremental-sync`,
+        method: 'post',
+    })
+}
+
+export async function apiRunSearchConsoleBackfill<T>(connectionId: string, from: string, to: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/search-console/backfill`,
+        method: 'post',
+        data: { from, to },
+    })
+}
+
+export async function apiRunSearchConsoleRepair<T>(connectionId: string, from?: string, to?: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/search-console/repair`,
         method: 'post',
         data: {
             ...(from ? { from } : {}),

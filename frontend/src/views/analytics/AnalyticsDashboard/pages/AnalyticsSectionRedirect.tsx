@@ -8,6 +8,7 @@ const redirects: Record<string, string> = {
     behavior: '/app/analytics/behavior',
     conversions: '/app/analytics/conversions',
     connections: '/app/analytics/connections',
+    insights: '/app/analytics/insights',
     'data-quality': '/app/analytics/data-quality',
     parity: '/app/analytics/data-quality',
     'growth-insights': '/app/analytics/growth-insights',

@@ -15,8 +15,10 @@ import type { FastifyRequest } from 'fastify'
 
 import type { AnalyticsEventInput } from './analytics.types'
 import { AnalyticsService } from './analytics.service'
+import { AnalyticsInsightsService } from './insights.service'
 import { AnalyticsBaselineService } from './baseline.service'
 import { AdsConnectorService } from './ads-connector.service'
+import { SearchConsoleConnectorService } from './search-console-connector.service'
 import { BackfillEventsJob } from './pipelines/backfill-events.job'
 import { BackfillJob } from './pipelines/backfill.job'
 import { BaselineSyncJob } from './pipelines/baseline-sync.job'
@@ -63,6 +65,7 @@ const resolveRedirectUrl = (
 export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsService,
+    private readonly analyticsInsightsService: AnalyticsInsightsService,
     private readonly baselineService: AnalyticsBaselineService,
     private readonly normalizeEventsJob: NormalizeEventsJob,
     private readonly backfillEventsJob: BackfillEventsJob,
@@ -71,6 +74,7 @@ export class AnalyticsController {
     private readonly backfillJob: BackfillJob,
     private readonly adsConnector: AdsConnectorService,
     private readonly ga4Connector: Ga4ConnectorService,
+    private readonly searchConsoleConnector: SearchConsoleConnectorService,
     private readonly reportParity: AnalyticsReportingService,
   ) {}
 
@@ -124,9 +128,55 @@ export class AnalyticsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
   @Get('insights')
-  getInsights(@Query() query: { limit?: string }) {
-    const limit = Number(query.limit ?? 50)
-    return this.analyticsService.getInsights(Number.isFinite(limit) && limit > 0 ? limit : 50)
+  getInsights(
+    @Query() query: { from?: string; to?: string; reportKey?: string },
+  ) {
+    return this.analyticsInsightsService.getInsights({
+      from: query.from,
+      to: query.to,
+      reportKey: query.reportKey,
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('summary')
+  getSummary(@Query() query: { from?: string; to?: string; reportKey?: string }) {
+    return this.analyticsInsightsService.getSummary({
+      from: query.from,
+      to: query.to,
+      reportKey: query.reportKey,
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('opportunities')
+  getOpportunities(@Query() query: { from?: string; to?: string; reportKey?: string }) {
+    return this.analyticsInsightsService.getOpportunities({
+      from: query.from,
+      to: query.to,
+      reportKey: query.reportKey,
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('insights/history')
+  getInsightsHistory(@Query() query: { limit?: string }) {
+    const limit = Number(query.limit ?? 100)
+    return this.analyticsInsightsService.getHistory(Number.isFinite(limit) && limit > 0 ? limit : 100)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Post('insights/recompute')
+  recomputeInsights(@Body() body?: { from?: string; to?: string; reportKey?: string }) {
+    return this.analyticsInsightsService.recompute({
+      from: body?.from,
+      to: body?.to,
+      reportKey: body?.reportKey,
+    })
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -375,6 +425,93 @@ export class AnalyticsController {
     @Body() body: { from?: string; to?: string },
   ) {
     return this.adsConnector.runRepair(connectionId, body?.from, body?.to)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Post('connections/search-console/start')
+  startSearchConsoleOAuth(@Body() body?: { returnPath?: string }, @Req() req?: FastifyRequest) {
+    const frontendOrigin = typeof req?.headers.origin === 'string' ? req.headers.origin : null
+    return this.searchConsoleConnector.startOAuth(body?.returnPath, frontendOrigin)
+  }
+
+  @Redirect()
+  @Get('connections/search-console/callback')
+  async completeSearchConsoleOAuth(
+    @Query() query: { state?: string; code?: string; error?: string; error_description?: string },
+  ) {
+    try {
+      const result = await this.searchConsoleConnector.completeOAuth(query)
+      const returnUrl = resolveRedirectUrl(
+        result.returnPath,
+        result.frontendOrigin,
+        '/app/analytics/connections',
+      )
+      const separator = returnUrl.includes('?') ? '&' : '?'
+      return {
+        url: `${returnUrl}${separator}search_console=connected&connectionId=${encodeURIComponent(result.connectionId)}`,
+      }
+    } catch (error) {
+      return {
+        url: '/app/analytics/connections?search_console=error',
+      }
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('connections/:connectionId/search-console/properties')
+  async getSearchConsoleProperties(@Param('connectionId') connectionId: string) {
+    return {
+      properties: await this.searchConsoleConnector.listProperties(connectionId),
+    }
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Put('connections/:connectionId/search-console/property')
+  selectSearchConsoleProperty(
+    @Param('connectionId') connectionId: string,
+    @Body() body: { propertyId?: string },
+  ) {
+    if (!body.propertyId) {
+      throw new BadRequestException('propertyId is required')
+    }
+    return this.searchConsoleConnector.selectProperty(connectionId, body.propertyId)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Post('connections/:connectionId/search-console/initial-sync')
+  runSearchConsoleInitialSync(@Param('connectionId') connectionId: string) {
+    return this.searchConsoleConnector.runInitialSync(connectionId)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Post('connections/:connectionId/search-console/incremental-sync')
+  runSearchConsoleIncrementalSync(@Param('connectionId') connectionId: string) {
+    return this.searchConsoleConnector.runIncrementalSync(connectionId)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Post('connections/:connectionId/search-console/backfill')
+  runSearchConsoleBackfill(
+    @Param('connectionId') connectionId: string,
+    @Body() body: { from?: string; to?: string },
+  ) {
+    return this.searchConsoleConnector.runBackfill(connectionId, body?.from, body?.to)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Post('connections/:connectionId/search-console/repair')
+  runSearchConsoleRepair(
+    @Param('connectionId') connectionId: string,
+    @Body() body: { from?: string; to?: string },
+  ) {
+    return this.searchConsoleConnector.runRepair(connectionId, body?.from, body?.to)
   }
 
   @Get('overview')

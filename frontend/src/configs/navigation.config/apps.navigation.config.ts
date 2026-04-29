@@ -524,6 +524,16 @@ const appsNavigationConfig: NavigationTree[] = [
                         subMenu: [],
                     },
                     {
+                        key: 'appsAnalytics.insights',
+                        path: `${APP_PREFIX_PATH}/analytics/insights`,
+                        title: 'Insights IA',
+                        translateKey: 'nav.appsAnalytics.insights',
+                        icon: '',
+                        type: NAV_ITEM_TYPE_ITEM,
+                        authority: getRolesForFeature(FEATURES.SETTINGS),
+                        subMenu: [],
+                    },
+                    {
                         key: 'appsAnalytics.dataQuality',
                         path: `${APP_PREFIX_PATH}/analytics/data-quality`,
                         title: 'Calidad de datos',

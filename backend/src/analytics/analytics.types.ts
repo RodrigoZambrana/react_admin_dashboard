@@ -86,6 +86,118 @@ export type AnalyticsInsight = {
   status: 'open' | 'resolved' | 'dismissed'
 }
 
+export type AnalyticsInsightPriority = 'low' | 'medium' | 'high'
+export type AnalyticsInsightType =
+  | 'summary'
+  | 'acquisition'
+  | 'behavior'
+  | 'conversion'
+  | 'revenue'
+  | 'data_quality'
+
+export type AnalyticsInsightPeriod = {
+  current: {
+    from: string
+    to: string
+  }
+  previous: {
+    from: string
+    to: string
+  }
+}
+
+export type AnalyticsAiInsight = {
+  id: string
+  insightType: AnalyticsInsightType
+  title: string
+  description: string
+  recommendation: string
+  impact: AnalyticsInsightPriority
+  confidence: number
+  evidence: Record<string, unknown>
+  metric: string
+  segment: string | null
+  sourceReport: string | null
+  periodRange: AnalyticsInsightPeriod
+  score: number
+  status: 'open'
+  createdAt: string
+}
+
+export type AnalyticsInsightHistory = {
+  id: string
+  date: string
+  insightType: AnalyticsInsightType
+  title: string
+  description: string
+  impact: AnalyticsInsightPriority
+  recommendation: string
+  confidence: number
+  evidence: Record<string, unknown>
+  sourceReport: string | null
+  periodRange: AnalyticsInsightPeriod
+  score: number
+  summary: string | null
+  createdAt: string
+}
+
+export type AnalyticsInsightsQualitySummary = {
+  reportKey: string
+  totalChecks: number
+  okCount: number
+  warningCount: number
+  errorCount: number
+  missingBaselineCount: number
+  averageDiffPercent: number
+  coveragePercent: number
+  lastCheckedAt: string | null
+}
+
+export type AnalyticsInsightsDataset = {
+  periodRange: AnalyticsInsightPeriod
+  generatedAt: string
+  totals: {
+    current: Record<string, number>
+    previous: Record<string, number>
+  }
+  comparisons: Record<string, ComparisonMetric>
+  quality: {
+    connections: AnalyticsConnection[]
+    syncRuns: AnalyticsSyncRun[]
+    reportRuns: AnalyticsReportRun[]
+    reconciliations: AnalyticsReportReconciliation[]
+    dataQualityChecks: AnalyticsDataQualityCheck[]
+    summaries: AnalyticsInsightsQualitySummary[]
+  }
+}
+
+export type AnalyticsInsightsResponse = {
+  summary: string
+  periodRange: AnalyticsInsightPeriod
+  generatedAt: string
+  quality: AnalyticsInsightsDataset['quality']
+  insights: AnalyticsAiInsight[]
+  alerts: AnalyticsAiInsight[]
+  opportunities: AnalyticsAiInsight[]
+}
+
+export type AnalyticsSummaryResponse = {
+  summary: string
+  periodRange: AnalyticsInsightPeriod
+  generatedAt: string
+  quality: AnalyticsInsightsDataset['quality']
+  topInsight: AnalyticsAiInsight | null
+  totalInsights: number
+  alerts: AnalyticsAiInsight[]
+}
+
+export type AnalyticsOpportunitiesResponse = {
+  summary: string
+  periodRange: AnalyticsInsightPeriod
+  generatedAt: string
+  opportunities: AnalyticsAiInsight[]
+}
+
 export type AnalyticsDataQualityStatus = 'ok' | 'warning' | 'error' | 'missing_baseline'
 
 export type AnalyticsBaselineSnapshot = {
@@ -131,6 +243,61 @@ export type AnalyticsDataQualitySummary = {
   averageDiffPercent: number
   coveragePercent: number
   lastCheckedAt: string | null
+}
+
+export type AnalyticsReportingDailyMetric = {
+  id: string
+  date: string
+  channel: string
+  source: string | null
+  medium: string | null
+  campaign: string | null
+  productId: string | null
+  landingPage: string | null
+  device: string | null
+  country: string | null
+  sessions: number
+  users: number
+  revenue: number
+  orders: number
+  cost: number
+  impressions: number
+  clicks: number
+  views: number
+  addToCart: number
+  eventCount: number
+  keyEvents: number
+  ga4PurchaseProxy: number
+  purchase: number
+  createdAt: string
+}
+
+export type AnalyticsAdsDailyMetric = {
+  id: string
+  date: string
+  campaign: string
+  clicks: number
+  impressions: number
+  cost: number
+  conversions: number
+  conversionValue: number
+  connectionId: string | null
+  syncRunId: string | null
+  createdAt: string
+}
+
+export type AnalyticsSearchConsoleDailyMetric = {
+  id: string
+  date: string
+  query: string
+  page: string | null
+  clicks: number
+  impressions: number
+  ctr: number
+  position: number
+  connectionId: string | null
+  syncRunId: string | null
+  createdAt: string
 }
 
 export type AnalyticsReportEquivalenceStatus = 'exact' | 'partial' | 'gap'
@@ -223,6 +390,25 @@ export type AnalyticsGa4SyncResult = {
   syncRun: AnalyticsSyncRun
   ga4RowsUpserted: number
   reportingRowsUpserted: number
+}
+
+export type AnalyticsSearchConsoleProperty = {
+  siteUrl: string
+  permissionLevel: string | null
+  siteType: string
+}
+
+export type AnalyticsSearchConsoleOAuthStartResult = {
+  connectionId: string
+  state: string
+  expiresAt: string
+  url: string
+}
+
+export type AnalyticsSearchConsoleSyncResult = {
+  connectionId: string
+  syncRun: AnalyticsSyncRun
+  searchConsoleRowsUpserted: number
 }
 
 export type AnalyticsAdsOAuthStartResult = {

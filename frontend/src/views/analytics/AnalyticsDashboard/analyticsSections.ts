@@ -67,6 +67,12 @@ export const analyticsSections: AnalyticsSection[] = [
         subtitle: 'Fuentes externas, sync runs e insights operativos.',
     },
     {
+        key: 'insights',
+        path: '/app/analytics/insights',
+        title: 'Insights IA',
+        subtitle: 'Resumen ejecutivo, oportunidades y evidencia priorizada.',
+    },
+    {
         key: 'dataQuality',
         path: '/app/analytics/data-quality',
         title: 'Calidad de datos',
