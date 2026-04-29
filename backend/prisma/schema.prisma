@@ -1392,6 +1392,320 @@ model AnalyticsSession {
   @@map("sessions")
 }
 
+model AnalyticsConnection {
+  id                  String   @id @default(cuid())
+  source              String
+  status              String   @default("needs_auth")
+  externalAccountId   String?  @map("external_account_id")
+  externalPropertyId  String?  @map("external_property_id")
+  displayName         String   @map("display_name")
+  syncIntervalMinutes Int      @default(60) @map("sync_interval_minutes")
+  lastAttemptedSyncAt DateTime? @map("last_attempted_sync_at")
+  lastSyncedAt        DateTime? @map("last_synced_at")
+  lastSuccessfulSyncAt DateTime? @map("last_successful_sync_at")
+  lastSyncErrorMessage String?  @map("last_sync_error_message")
+  lastSyncErrorAt     DateTime? @map("last_sync_error_at")
+  nextSyncAt          DateTime? @map("next_sync_at")
+  needsReauth         Boolean  @default(false) @map("needs_reauth")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  credential          AnalyticsConnectionCredential?
+  syncRuns            AnalyticsSyncRun[]
+  baselineSnapshots   AnalyticsBaselineSnapshot[]
+  dataQualityChecks   AnalyticsDataQualityCheck[]
+
+  @@index([source, status])
+  @@index([nextSyncAt])
+  @@map("analytics_connections")
+}
+
+model AnalyticsConnectionCredential {
+  connectionId           String   @id @map("connection_id")
+  connection             AnalyticsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  refreshTokenEncrypted  String?  @map("refresh_token_encrypted")
+  accessTokenEncrypted    String?  @map("access_token_encrypted")
+  expiresAt              DateTime? @map("expires_at")
+  scopes                 String[]  @default([])
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  @@map("analytics_connection_credentials")
+}
+
+model AnalyticsSyncRun {
+  id              String   @id @default(cuid())
+  connectionId    String   @map("connection_id")
+  connection      AnalyticsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  jobType         String   @map("job_type")
+  fromDate        DateTime? @map("from_date")
+  toDate          DateTime? @map("to_date")
+  status          String
+  recordsFetched  Int      @default(0) @map("records_fetched")
+  recordsUpserted Int      @default(0) @map("records_upserted")
+  errorMessage    String?  @map("error_message")
+  startedAt       DateTime @default(now()) @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  dataQualityChecks AnalyticsDataQualityCheck[] @relation("syncRun")
+
+  @@index([connectionId, createdAt])
+  @@index([jobType, status])
+  @@map("analytics_sync_runs")
+}
+
+model AnalyticsGa4DailyMetric {
+  id         BigInt   @id @default(autoincrement())
+  date       DateTime @db.Date
+  source     String
+  medium     String?
+  campaign   String?
+  sessions   Int      @default(0)
+  users      Int      @default(0)
+  eventCount Int      @default(0) @map("event_count")
+  keyEvents  Int      @default(0) @map("key_events")
+  purchases  Int      @default(0)
+  revenue    Decimal  @default(0) @db.Decimal(18, 4)
+  connectionId String? @map("connection_id")
+  syncRunId   String?  @map("sync_run_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([date, source, medium, campaign], map: "analytics_ga4_daily_metrics_natural_key")
+  @@index([source, campaign])
+  @@index([date])
+  @@map("analytics_ga4_daily_metrics")
+}
+
+model AnalyticsAdsDailyMetric {
+  id           BigInt   @id @default(autoincrement())
+  date         DateTime @db.Date
+  campaign     String
+  clicks       Int      @default(0)
+  impressions  Int      @default(0)
+  cost         Decimal  @default(0) @db.Decimal(18, 4)
+  conversions  Int      @default(0)
+  conversionValue Decimal  @default(0) @db.Decimal(18, 4) @map("conversion_value")
+  connectionId String?  @map("connection_id")
+  syncRunId    String?  @map("sync_run_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([date, campaign], map: "analytics_ads_daily_metrics_natural_key")
+  @@index([campaign])
+  @@index([date])
+  @@map("analytics_ads_daily_metrics")
+}
+
+model AnalyticsSearchConsoleDailyMetric {
+  id           BigInt   @id @default(autoincrement())
+  date         DateTime @db.Date
+  query        String
+  page         String?
+  clicks       Int      @default(0)
+  impressions  Int      @default(0)
+  ctr          Decimal  @default(0) @db.Decimal(18, 6)
+  position     Decimal  @default(0) @db.Decimal(18, 6)
+  connectionId String?  @map("connection_id")
+  syncRunId    String?  @map("sync_run_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([date, query, page], map: "analytics_search_console_daily_metrics_natural_key")
+  @@index([query])
+  @@index([date])
+  @@map("analytics_search_console_daily_metrics")
+}
+
+model AnalyticsReportingDaily {
+  id           BigInt   @id @default(autoincrement())
+  date         DateTime @db.Date
+  channel      String
+  source       String?  @map("source")
+  medium       String?  @map("medium")
+  campaign     String?
+  productId    String?  @map("product_id")
+  landingPage  String?  @map("landing_page")
+  device       String?
+  country      String?
+  sessions     Int      @default(0)
+  users        Int      @default(0)
+  revenue      Decimal  @default(0) @db.Decimal(18, 4)
+  orders       Int      @default(0)
+  cost         Decimal  @default(0) @db.Decimal(18, 4)
+  impressions  Int      @default(0)
+  clicks       Int      @default(0)
+  views        Int      @default(0)
+  addToCart    Int      @default(0) @map("add_to_cart")
+  eventCount   Int      @default(0) @map("event_count")
+  keyEvents    Int      @default(0) @map("key_events")
+  ga4PurchaseProxy Int  @default(0) @map("ga4_purchase_proxy")
+  purchase     Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([date, channel, source, medium, campaign, productId, landingPage, device, country], map: "analytics_reporting_daily_natural_key")
+  @@index([channel, campaign])
+  @@index([date])
+  @@map("analytics_reporting_daily")
+}
+
+model AnalyticsInsight {
+  id             String   @id @default(cuid())
+  source         String
+  metric         String
+  dimension      String?
+  title          String
+  description    String
+  recommendation String
+  impact         String
+  confidence     Decimal  @db.Decimal(5, 4)
+  evidence       Json     @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at")
+  resolvedAt     DateTime? @map("resolved_at")
+  status         String   @default("open")
+
+  @@index([source, metric, status])
+  @@index([impact, confidence])
+  @@map("analytics_insights")
+}
+
+model AnalyticsReportCatalog {
+  key               String   @id
+  source            String   @default("ga4")
+  title             String
+  description       String?
+  baselineHeader    String   @map("baseline_header")
+  baselineTitle     String?  @map("baseline_title")
+  equivalenceStatus String   @default("exact") @map("equivalence_status")
+  rowKeyStrategy    String   @default("row_index") @map("row_key_strategy")
+  dimensionLabels   String[] @default([]) @map("dimension_labels")
+  metricLabels      String[] @default([]) @map("metric_labels")
+  apiDefinition     Json?    @db.JsonB @map("api_definition")
+  notes             String?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  runs              AnalyticsReportRun[]
+
+  @@map("analytics_report_catalog")
+}
+
+model AnalyticsReportRun {
+  id           String   @id @default(cuid())
+  reportKey    String   @map("report_key")
+  report       AnalyticsReportCatalog @relation(fields: [reportKey], references: [key], onDelete: Cascade)
+  source       String
+  status       String
+  fromDate     DateTime? @map("from_date")
+  toDate       DateTime? @map("to_date")
+  rowCount     Int      @default(0) @map("row_count")
+  errorMessage String?  @map("error_message")
+  metadata     Json?    @db.JsonB
+  startedAt    DateTime @default(now()) @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  rows         AnalyticsReportRow[]
+  baselineReconciliations AnalyticsReportReconciliation[] @relation("baselineRun")
+  syncReconciliations     AnalyticsReportReconciliation[] @relation("syncRun")
+
+  @@index([reportKey, source, status])
+  @@index([createdAt])
+  @@map("analytics_report_runs")
+}
+
+model AnalyticsReportRow {
+  id          BigInt   @id @default(autoincrement())
+  reportRunId String   @map("report_run_id")
+  reportRun   AnalyticsReportRun @relation(fields: [reportRunId], references: [id], onDelete: Cascade)
+  reportKey   String   @map("report_key")
+  source      String
+  rowType     String   @map("row_type")
+  rowIndex    Int      @map("row_index")
+  rowKey      String   @map("row_key")
+  dimensions  Json?    @db.JsonB
+  metrics     Json?    @db.JsonB
+  raw         Json?    @db.JsonB
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([reportRunId, rowKey, source], map: "analytics_report_rows_unique")
+  @@index([reportKey, source])
+  @@index([reportRunId])
+  @@map("analytics_report_rows")
+}
+
+model AnalyticsReportReconciliation {
+  id               String   @id @default(cuid())
+  reportKey        String   @map("report_key")
+  baselineRunId    String?  @map("baseline_run_id")
+  baselineRun      AnalyticsReportRun? @relation("baselineRun", fields: [baselineRunId], references: [id], onDelete: SetNull)
+  syncRunId        String?  @map("sync_run_id")
+  syncRun          AnalyticsReportRun? @relation("syncRun", fields: [syncRunId], references: [id], onDelete: SetNull)
+  status           String
+  baselineRowCount Int      @default(0) @map("baseline_row_count")
+  syncRowCount     Int      @default(0) @map("sync_row_count")
+  matchedRowCount  Int      @default(0) @map("matched_row_count")
+  baselineOnlyRowCount Int  @default(0) @map("baseline_only_row_count")
+  syncOnlyRowCount  Int      @default(0) @map("sync_only_row_count")
+  deltaPercent     Decimal  @default(0) @db.Decimal(10, 4) @map("delta_percent")
+  summary          String
+  evidence         Json?    @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([reportKey, status])
+  @@index([createdAt])
+  @@map("analytics_report_reconciliations")
+}
+
+model AnalyticsBaselineSnapshot {
+  id             String   @id @default(cuid())
+  connectionId   String   @map("connection_id")
+  connection     AnalyticsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  source         String   @default("ga4")
+  reportKey      String   @map("report_key")
+  date           DateTime @db.Date
+  metricName     String   @map("metric_name")
+  dimensionHash  String   @map("dimension_hash")
+  dimensionValues Json?   @db.JsonB @map("dimension_values")
+  value          Decimal  @db.Decimal(18, 6)
+  queryHash      String   @map("query_hash")
+  raw            Json?    @db.JsonB
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  qualityChecks  AnalyticsDataQualityCheck[] @relation("baselineSnapshot")
+
+  @@unique([connectionId, source, reportKey, date, metricName, dimensionHash, queryHash], map: "analytics_baseline_snapshots_natural_key")
+  @@index([reportKey, date])
+  @@index([queryHash])
+  @@map("analytics_baseline_snapshots")
+}
+
+model AnalyticsDataQualityCheck {
+  id               String   @id @default(cuid())
+  connectionId     String   @map("connection_id")
+  connection       AnalyticsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  reportKey        String   @map("report_key")
+  date             DateTime @db.Date
+  metricName       String   @map("metric_name")
+  dimensionHash    String   @map("dimension_hash")
+  baselineValue    Decimal  @db.Decimal(18, 6) @map("baseline_value")
+  syncedValue      Decimal  @db.Decimal(18, 6) @map("synced_value")
+  diff             Decimal  @db.Decimal(18, 6)
+  diffPercent      Decimal  @db.Decimal(10, 4) @map("diff_percent")
+  status           String
+  baselineSnapshotId String? @map("baseline_snapshot_id")
+  baselineSnapshot AnalyticsBaselineSnapshot? @relation("baselineSnapshot", fields: [baselineSnapshotId], references: [id], onDelete: SetNull)
+  syncRunId        String?  @map("sync_run_id")
+  syncRun          AnalyticsSyncRun? @relation("syncRun", fields: [syncRunId], references: [id], onDelete: SetNull)
+  queryHash        String   @map("query_hash")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([connectionId, reportKey, date, metricName, dimensionHash, queryHash], map: "analytics_data_quality_checks_natural_key")
+  @@index([connectionId, reportKey, date, status])
+  @@index([syncRunId])
+  @@index([queryHash])
+  @@map("analytics_data_quality_checks")
+}
+
 model OrderItem {
   id                      Int             @id @default(autoincrement())
   orderId                 Int

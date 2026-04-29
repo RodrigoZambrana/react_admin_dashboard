@@ -102,6 +102,111 @@
 - Tracking artifact:
   - `docs/endpoint-protection-audit-matrix.md` is the canonical audit matrix for status by module and endpoint group
 
+### Analytics configuration stays separate from analytics operation
+
+- `Growth & Insights` remains the configuration surface for tracking, pixels and measurement settings
+- `Analytics` is the operational surface for connections, sync runs, reporting and insights
+- The two surfaces must remain linked in navigation but separated in responsibility
+- Reason: avoid mixing measurement setup with business consumption, and keep the admin mental model stable as connectors grow
+
+### Admin login is local product authentication, not Google authentication
+
+- The admin session on `localhost:8080` is handled by the local app auth flow (`/sign-in`, `/auth/session`, cookies)
+- The Google account `desarrollo@software-strategy.com` is an admin user in the local database, not a Google OAuth requirement for the admin panel
+- Google is only used for external connector OAuth flows inside `AnalyticsModule`
+- Reason: prevent mental-model drift between product authentication and external source integration
+
+### GA4 is the first operational connector in this slice
+
+- Google Analytics 4 is the first source to operationalize in this iteration
+- Reason: the current dashboard slice prioritizes behavior, onsite funnel validation and session-level attribution
+- Google Ads and Search Console stay planned but deferred until GA4 proves the end-to-end flow
+- The local Google export folder is reference material only; it is not an ingestion source
+
+### Google Ads enters after GA4 because the environment already supports read-only reporting
+
+- Google Ads was added as the second operational connector in this slice because the local backend environment already provides the OAuth, developer token and customer ID required to run reporting-only syncs
+- The connector is intentionally read-only: it reads campaign performance but does not mutate bids, budgets or creatives
+- Reason: once GA4 proves the session and funnel contract, Ads gives immediate CAC / ROAS visibility with the least additional surface area
+- Search Console remains deferred until the Ads slice is validated end-to-end
+
+### Analytics connectors live in `AnalyticsModule`
+
+- OAuth, secure credential storage, property selection, sync runs and reporting belong to `AnalyticsModule`
+- `GrowthModule` must not absorb connector logic
+- Reason: isolate external source integration from tracking configuration and preserve a clean path toward a standalone analytics service later
+
+### IA consumes normalized metrics and evidence, not raw events
+
+- Generative analysis must sit on top of reporting tables, insights and context
+- Raw event JSON is allowed for ingestion and normalization only
+- Reason: make explanations auditable and keep the model from reasoning on unstable event payloads
+
+### Frontend never receives tokens
+
+- OAuth tokens, refresh tokens and secret material remain backend-only
+- The UI may receive connection status, readiness, sync timing and target metadata
+- Reason: reduce exposure and keep credential handling centralised and auditable
+
+### GA4 reporting must separate business purchases from GA4 proxies
+
+- `analytics_reporting_daily.ga4_purchase_proxy` is the explicit GA4 conversion proxy
+- `purchase` remains reserved for consolidated business purchase semantics
+- Reason: prevent accidental interpretation of GA4 key events as real ecommerce revenue or orders
+
+### GA4 parity uses offline baseline as reference, not as runtime input
+
+- The exported Google report (`Informe_panoramico.csv`) is reference material only
+- The canonical baseline for future data-quality checks is a reproducible GA4 API query, not the UI export
+- Runtime syncs always come from the GA4 API and are persisted independently of the CSV
+- Reason: keep the operational system API-driven while still being able to prove coverage and deltas against a reproducible baseline
+
+### Baseline snapshots and data quality are the canonical parity layer
+
+- `analytics_baseline_snapshots` stores reproducible GA4 API snapshots keyed by query hash
+- `analytics_data_quality_checks` stores deterministic comparisons between baseline snapshots and synced rows
+- CSV parity remains a reference-only aid; it is no longer the operational truth source
+- Reason: parity must converge from exploratory comparison into auditable, repeatable data quality
+
+### GA4 report reconciliation must be explicit about partial overlap
+
+- Report reconciliation states are:
+  - `aligned` only when every comparable row and metric matches
+  - `partial` when there is overlap but values or rows diverge
+  - `gap` when the comparison is not meaningfully aligned
+  - `missing` when no baseline exists
+- Reason: avoid overstating parity when only a subset of rows or metrics match
+
+### Daily GA4 report parity is normalized by day offset, not by raw row order
+
+- Daily report rows are compared using a day-offset key derived from the sync range start
+- Reason: GA4 API returns aggregated rows in a different order than the exported baseline, so row order alone is not a stable reconciliation key
+
+### CSV parity is transitional until API baseline snapshots exist
+
+- The current CSV-based report parity layer remains a transitional reference implementation
+- The canonical layer is now `analytics_baseline_snapshots` plus `analytics_data_quality_checks`
+- Reason: align the repo with the reproducible-baseline design where the GA API is the truth source and the UI export is only a secondary sanity check
+
+### Parity sync stays backend-only
+
+- The frontend only triggers backend operations and reads status
+- The backend owns OAuth, token storage, report sync and reconciliation
+- Reason: preserve the no-secrets-in-browser rule and keep connector validation programmatic
+
+### Google Ads conversion value is not business revenue
+
+- `analytics_ads_daily_metrics.conversion_value` stores the value reported by Google Ads
+- It is a platform metric, not a consolidated business revenue number
+- Reason: keep CAC / ROAS math auditable and avoid mixing attribution value with booked ecommerce revenue
+
+### GA4 sync lifecycle includes incremental, backfill and repair
+
+- Initial sync is only the first operational step
+- Incremental sync must overlap recent history to catch late GA4 updates
+- Backfill and repair are manual maintenance modes and must remain traceable in sync runs
+- Reason: GA4 data can arrive late or need reprocessing without mutating the raw ingestion contract
+
 ### Unified inbox replies must preserve transport traceability
 
 - Email replies sent from `conversations` must still persist through `InboxMessage` / `InboxMessageEvent`
@@ -774,3 +879,48 @@
   - bucket diagnóstico
   - tipo de fix propuesto
   La referencia operativa queda en [AI_ERROR_FLOW_CAPTURE_SCHEMA.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/AI_ERROR_FLOW_CAPTURE_SCHEMA.md).
+
+## Analytics
+
+### Growth & Insights queda separado de Analytics operativo
+
+- `Growth & Insights` permanece como pantalla de configuración de tracking, tags, medición y conectores de marketing.
+- `Analytics` es la superficie de consumo y operación del negocio: overview, funnel, conexiones, sync runs e insights.
+- Razón: separar la configuración del instrumento de la lectura del negocio evita mezclar responsabilidades, reduce errores de UX y deja el sistema listo para evolucionar a microservicio.
+
+### Los conectores viven en `AnalyticsModule`
+
+- OAuth, estado de conexión, credenciales cifradas, runs de sincronización, reporting y insights quedan dentro de `backend/src/analytics`.
+- `GrowthModule` no absorbe esa lógica.
+- Razón: los conectores forman parte de la cadena operativa de analítica, no de la edición de tracking, y necesitan trazabilidad, jobs y reporting normalizado.
+
+### La IA consume métricas normalizadas y evidencia
+
+- La IA no debe leer raw events ni JSON crudo como fuente primaria.
+- La IA trabaja sobre métricas normalizadas, contexto dimensional y evidencia persistida en insights.
+- Razón: los eventos crudos sirven para ingesta y normalización; las decisiones deben salir de datos consistentes, comparables por rango y auditables.
+
+### El frontend no recibe tokens
+
+- El admin sólo consume `status`, `target`, `lastSyncAt`, `nextSyncAt` e historial de runs/insights.
+- Los `refresh_token` y `access_token` quedan cifrados en backend.
+- Razón: reducir superficie de fuga de credenciales y evitar que la UI mezcle visualización con secretos operativos.
+
+### La prioridad de fuentes depende del objetivo de negocio, pero el primer slice es GA4
+
+- Si el foco es comportamiento y funnel onsite, la primera fuente es `GA4`.
+- Si el foco es CAC o ROAS, la primera fuente es `Google Ads`.
+- Si el foco es SEO y demanda orgánica, la primera fuente es `Search Console`.
+- Para este repo, el primer slice prioriza `GA4` porque el dashboard actual ya valora overview/funnel y la materia prima existente vive en eventos normalizados.
+- Razón: maximizar valor temprano sin perder la capacidad de reordenar la roadmap cuando cambie la pregunta de negocio.
+
+### Los insights visibles deben ser trazables
+
+- Cada insight visible debe conservar `metric`, `dimension`, `confidence`, `impact` y `evidence`.
+- Razón: una recomendación sin evidencia no puede ser auditada ni defendida operativamente.
+
+### Los exports locales de Google son referencia, no fuente operacional
+
+- El material exportado localmente desde Google Ads / Search Console / informes mixtos se puede usar para entender negocio y calibrar decisiones.
+- Ese material no debe tratarse como input productivo mientras no exista un pipeline explícito de ingesta y normalización.
+- Razón: evitar que una carpeta local o un ZIP manual se confunda con una fuente viva del sistema.

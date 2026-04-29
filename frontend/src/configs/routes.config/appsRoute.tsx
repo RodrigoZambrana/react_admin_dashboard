@@ -173,19 +173,109 @@ const baseAppsRoute: Routes = [
     {
         key: 'appsAnalytics.home',
         path: `${APP_PREFIX_PATH}/analytics`,
-        component: createRedirect(`${APP_PREFIX_PATH}/analytics/overview`),
-        authority: getRolesForFeature(FEATURES.SETTINGS),
-        meta: {
-            header: 'Analytics',
-        },
-    },
-    {
-        key: 'appsAnalytics.section',
-        path: `${APP_PREFIX_PATH}/analytics/:section`,
         component: lazy(() => import('@/views/analytics/AnalyticsDashboard')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
         meta: {
-            header: 'Analytics',
+            header: 'Analítica',
+        },
+    },
+    {
+        key: 'appsAnalytics.overview',
+        path: `${APP_PREFIX_PATH}/analytics/overview`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsOverviewPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Resumen',
+        },
+    },
+    {
+        key: 'appsAnalytics.funnel',
+        path: `${APP_PREFIX_PATH}/analytics/funnel`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsFunnelPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Embudo',
+        },
+    },
+    {
+        key: 'appsAnalytics.marketing',
+        path: `${APP_PREFIX_PATH}/analytics/marketing`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsMarketingPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Marketing',
+        },
+    },
+    {
+        key: 'appsAnalytics.products',
+        path: `${APP_PREFIX_PATH}/analytics/products`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsProductsPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Productos',
+        },
+    },
+    {
+        key: 'appsAnalytics.behavior',
+        path: `${APP_PREFIX_PATH}/analytics/behavior`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsBehaviorPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Comportamiento',
+        },
+    },
+    {
+        key: 'appsAnalytics.conversions',
+        path: `${APP_PREFIX_PATH}/analytics/conversions`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsConversionsPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Conversiones',
+        },
+    },
+    {
+        key: 'appsAnalytics.connections',
+        path: `${APP_PREFIX_PATH}/analytics/connections`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsConnectionsPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Conexiones',
+        },
+    },
+    {
+        key: 'appsAnalytics.dataQuality',
+        path: `${APP_PREFIX_PATH}/analytics/data-quality`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsDataQualityPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Calidad de datos',
+        },
+    },
+    {
+        key: 'appsAnalytics.parity',
+        path: `${APP_PREFIX_PATH}/analytics/parity`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsSectionRedirect')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Paridad GA4',
+        },
+    },
+    {
+        key: 'appsAnalytics.growthInsights',
+        path: `${APP_PREFIX_PATH}/analytics/growth-insights`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsGrowthInsightsPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Growth & Insights',
+        },
+    },
+    {
+        key: 'appsAnalytics.sectionLegacy',
+        path: `${APP_PREFIX_PATH}/analytics/:section`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsSectionRedirect')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Analítica',
         },
     },
     {

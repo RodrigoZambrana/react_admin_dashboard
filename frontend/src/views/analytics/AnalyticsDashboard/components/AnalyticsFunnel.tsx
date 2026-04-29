@@ -39,27 +39,27 @@ const AnalyticsFunnel = ({ data }: AnalyticsFunnelProps) => {
     const checkoutDeltaPercent = comparison?.rates.checkoutToPurchase.deltaPercent
     const comparisonText =
         checkoutDeltaPercent === null || checkoutDeltaPercent === undefined
-            ? 'No comparison'
-            : `${checkoutDeltaPercent >= 0 ? '+' : ''}${checkoutDeltaPercent}% vs previous`
+            ? 'Sin comparación'
+            : `${checkoutDeltaPercent >= 0 ? '+' : ''}${checkoutDeltaPercent}% vs período anterior`
 
     return (
         <div className="flex flex-col gap-4">
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 {[
                     {
-                        label: 'View item',
+                        label: 'Vista de producto',
                         value: data?.steps.find((step) => step.eventName === 'view_item')?.sessions ?? 0,
                     },
                     {
-                        label: 'Add to cart',
+                        label: 'Agregar al carrito',
                         value: data?.steps.find((step) => step.eventName === 'add_to_cart')?.sessions ?? 0,
                     },
                     {
-                        label: 'Begin checkout',
+                        label: 'Iniciar checkout',
                         value: data?.steps.find((step) => step.eventName === 'begin_checkout')?.sessions ?? 0,
                     },
                     {
-                        label: 'Purchase',
+                        label: 'Compra',
                         value: data?.steps.find((step) => step.eventName === 'purchase')?.sessions ?? 0,
                     },
                 ].map((step) => (
@@ -75,9 +75,9 @@ const AnalyticsFunnel = ({ data }: AnalyticsFunnelProps) => {
             <Card>
                 <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                        <h5 className="mb-1">Funnel flow</h5>
+                        <h5 className="mb-1">Flujo del embudo</h5>
                         <p className="text-sm text-gray-500">
-                            Normalized sessions by step, using event_facts instead of raw JSON.
+                            Sesiones normalizadas por paso, usando `event_facts` en lugar de JSON crudo.
                         </p>
                     </div>
                     <Badge
@@ -112,9 +112,9 @@ const AnalyticsFunnel = ({ data }: AnalyticsFunnelProps) => {
             <div className="grid gap-4 xl:grid-cols-2">
                 <Card>
                     <div className="mb-4">
-                        <h5 className="mb-1">Step conversions</h5>
+                        <h5 className="mb-1">Conversión por etapa</h5>
                         <p className="text-sm text-gray-500">
-                            Conversion by step and previous period comparison.
+                            Conversión por etapa y comparación contra el período anterior.
                         </p>
                     </div>
                     <div className="space-y-3">
@@ -127,7 +127,7 @@ const AnalyticsFunnel = ({ data }: AnalyticsFunnelProps) => {
                                         <div>
                                             <div className="font-medium">{step.eventName}</div>
                                             <div className="text-xs text-gray-500">
-                                                {step.sessions} sessions, {step.events} events
+                                                {step.sessions} sesiones, {step.events} eventos
                                             </div>
                                         </div>
                                         <div className="text-right">
@@ -135,7 +135,7 @@ const AnalyticsFunnel = ({ data }: AnalyticsFunnelProps) => {
                                                 {formatPercent(step.conversionFromPrevious)}
                                             </div>
                                             <div className="text-xs text-gray-500">
-                                                from previous step
+                                                desde la etapa anterior
                                             </div>
                                         </div>
                                     </div>
@@ -146,9 +146,9 @@ const AnalyticsFunnel = ({ data }: AnalyticsFunnelProps) => {
                                         />
                                     </div>
                                     <div className="mt-2 flex items-center justify-between text-xs text-gray-500">
-                                        <span>From start: {formatPercent(step.conversionFromStart)}</span>
+                                        <span>Desde el inicio: {formatPercent(step.conversionFromStart)}</span>
                                         <span>
-                                            Prev: {comparisonMetric?.previous ?? 0} | Current: {comparisonMetric?.current ?? step.sessions}
+                                            Previo: {comparisonMetric?.previous ?? 0} | Actual: {comparisonMetric?.current ?? step.sessions}
                                         </span>
                                     </div>
                                 </div>
@@ -159,17 +159,17 @@ const AnalyticsFunnel = ({ data }: AnalyticsFunnelProps) => {
 
                 <Card>
                     <div className="mb-4">
-                        <h5 className="mb-1">Prepared segmentation</h5>
+                        <h5 className="mb-1">Segmentación preparada</h5>
                         <p className="text-sm text-gray-500">
-                            Placeholder for future channel and device splits.
+                            Placeholder para futuros cortes por canal y dispositivo.
                         </p>
                     </div>
                     <div className="space-y-3">
                         <div className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-600">
-                            Channel segmentation can be layered over the same normalized facts.
+                            La segmentación por canal puede construirse sobre las mismas facts normalizadas.
                         </div>
                         <div className="rounded-xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-600">
-                            Device and country breakdowns are already captured in `event_facts`.
+                            Los cortes por dispositivo y país ya quedan capturados en `event_facts`.
                         </div>
                     </div>
                 </Card>

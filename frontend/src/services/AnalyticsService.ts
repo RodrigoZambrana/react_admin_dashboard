@@ -90,6 +90,193 @@ export type AnalyticsFunnelResponse = {
     comparison?: AnalyticsFunnelComparison | null
 }
 
+export type AnalyticsConnection = {
+    id: string
+    source: 'ga4' | 'ads' | 'search_console'
+    status: 'needs_auth' | 'ready' | 'syncing' | 'error' | 'disabled'
+    target: {
+        id: string | null
+        name: string
+    }
+    lastSyncAt: string | null
+    nextSyncAt: string | null
+    needsReauth: boolean
+    health: {
+        lagMinutes: number | null
+        lastAttemptedSyncAt: string | null
+        lastSuccessfulSyncAt: string | null
+        lastErrorMessage: string | null
+        lastErrorAt: string | null
+    }
+}
+
+export type AnalyticsSyncRun = {
+    id: string
+    connectionId: string
+    jobType: 'initial_sync' | 'incremental_sync' | 'backfill' | 'repair'
+    fromDate: string | null
+    toDate: string | null
+    status: 'pending' | 'running' | 'success' | 'failed'
+    recordsFetched: number
+    recordsUpserted: number
+    errorMessage: string | null
+    startedAt: string
+    finishedAt: string | null
+    createdAt: string
+}
+
+export type AnalyticsInsight = {
+    id: string
+    source: string
+    metric: string
+    dimension: string | null
+    title: string
+    description: string
+    recommendation: string
+    impact: 'low' | 'medium' | 'high' | 'critical'
+    confidence: number
+    evidence: Record<string, unknown>
+    createdAt: string
+    resolvedAt: string | null
+    status: 'open' | 'resolved' | 'dismissed'
+}
+
+export type AnalyticsBaselineSnapshot = {
+    id: string
+    connectionId: string
+    source: 'ga4'
+    reportKey: string
+    date: string
+    metricName: string
+    dimensionHash: string
+    dimensionValues: Record<string, unknown> | null
+    value: number
+    queryHash: string
+    raw: Record<string, unknown> | null
+    createdAt: string
+}
+
+export type AnalyticsDataQualityStatus = 'ok' | 'warning' | 'error' | 'missing_baseline'
+
+export type AnalyticsDataQualityCheck = {
+    id: string
+    connectionId: string
+    reportKey: string
+    date: string
+    metricName: string
+    dimensionHash: string
+    baselineValue: number
+    syncedValue: number
+    diff: number
+    diffPercent: number
+    status: AnalyticsDataQualityStatus
+    baselineSnapshotId: string | null
+    syncRunId: string | null
+    queryHash: string
+    createdAt: string
+}
+
+export type AnalyticsDataQualitySummary = {
+    reportKey: string
+    totalChecks: number
+    okCount: number
+    warningCount: number
+    errorCount: number
+    missingBaselineCount: number
+    averageDiffPercent: number
+    coveragePercent: number
+    lastCheckedAt: string | null
+}
+
+export type AnalyticsDataQualityResponse = {
+    checks: AnalyticsDataQualityCheck[]
+    summaries: AnalyticsDataQualitySummary[]
+}
+
+export type AnalyticsReportCatalogEntry = {
+    key: string
+    source: string
+    title: string
+    description: string | null
+    baselineHeader: string
+    baselineTitle: string | null
+    equivalenceStatus: 'exact' | 'partial' | 'gap'
+    rowKeyStrategy: 'row_index' | 'dimensions'
+    dimensionLabels: string[]
+    metricLabels: string[]
+    apiDefinition: Record<string, unknown> | null
+    notes: string | null
+    createdAt: string
+    updatedAt: string
+}
+
+export type AnalyticsReportRun = {
+    id: string
+    reportKey: string
+    source: 'baseline_import' | 'ga4_sync'
+    status: 'pending' | 'running' | 'success' | 'failed'
+    fromDate: string | null
+    toDate: string | null
+    rowCount: number
+    errorMessage: string | null
+    metadata: Record<string, unknown> | null
+    startedAt: string
+    finishedAt: string | null
+    createdAt: string
+}
+
+export type AnalyticsReportReconciliation = {
+    id: string
+    reportKey: string
+    baselineRunId: string | null
+    syncRunId: string | null
+    status: 'aligned' | 'partial' | 'gap' | 'missing'
+    baselineRowCount: number
+    syncRowCount: number
+    matchedRowCount: number
+    baselineOnlyRowCount: number
+    syncOnlyRowCount: number
+    deltaPercent: number
+    summary: string
+    evidence: Record<string, unknown> | null
+    createdAt: string
+    updatedAt: string
+}
+
+export type AnalyticsGa4Property = {
+    accountId: string
+    accountName: string
+    propertyId: string
+    propertyName: string
+}
+
+export type AnalyticsGa4OAuthStartResult = {
+    connectionId: string
+    state: string
+    expiresAt: string
+    url: string
+}
+
+export type AnalyticsGa4SyncResult = {
+    connectionId: string
+    syncRun: AnalyticsSyncRun
+    ga4RowsUpserted: number
+    reportingRowsUpserted: number
+}
+
+export type AnalyticsAdsOAuthStartResult = {
+    connectionId: string
+    state: string
+    expiresAt: string
+    url: string
+}
+
+export type AnalyticsAdsSyncResult = {
+    connectionId: string
+    syncRun: AnalyticsSyncRun
+    adsRowsUpserted: number
+}
+
 const buildQueryString = (params?: Record<string, string | undefined>) => {
     const searchParams = new URLSearchParams()
     Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -119,3 +306,293 @@ export async function apiGetAnalyticsFunnelData<T, U extends Record<string, stri
     })
 }
 
+export async function apiGetAnalyticsConnections<T>() {
+    return ApiService.fetchData<T>({
+        url: '/analytics/connections',
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsSyncRuns<T>(limit?: number) {
+    const query = typeof limit === 'number' && Number.isFinite(limit) ? `?limit=${limit}` : ''
+    return ApiService.fetchData<T>({
+        url: `/analytics/sync-runs${query}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsInsights<T>(limit?: number) {
+    const query = typeof limit === 'number' && Number.isFinite(limit) ? `?limit=${limit}` : ''
+    return ApiService.fetchData<T>({
+        url: `/analytics/insights${query}`,
+        method: 'get',
+    })
+}
+
+export async function apiStartGa4OAuth<T>(returnPath?: string) {
+    return ApiService.fetchData<T>({
+        url: '/analytics/connections/ga4/start',
+        method: 'post',
+        data: returnPath ? { returnPath } : {},
+    })
+}
+
+export async function apiStartAdsOAuth<T>(returnPath?: string) {
+    return ApiService.fetchData<T>({
+        url: '/analytics/connections/ads/start',
+        method: 'post',
+        data: returnPath ? { returnPath } : {},
+    })
+}
+
+export async function apiGetGa4Properties<T>(connectionId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/properties`,
+        method: 'get',
+    })
+}
+
+export async function apiSelectGa4Property<T>(connectionId: string, propertyId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/property`,
+        method: 'put',
+        data: { propertyId },
+    })
+}
+
+export async function apiRunGa4ReportSync<T>(connectionId: string, from?: string, to?: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/report-sync`,
+        method: 'post',
+        data: {
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+        },
+    })
+}
+
+export async function apiGetAnalyticsReportCatalog<T>() {
+    return ApiService.fetchData<T>({
+        url: '/analytics/reports/catalog',
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsReportRuns<T>(limit?: number, reportKey?: string) {
+    const params = new URLSearchParams()
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+        params.set('limit', String(limit))
+    }
+    if (reportKey) {
+        params.set('reportKey', reportKey)
+    }
+    const query = params.toString()
+    return ApiService.fetchData<T>({
+        url: `/analytics/reports/runs${query ? `?${query}` : ''}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsReportReconciliations<T>(limit?: number, reportKey?: string) {
+    const params = new URLSearchParams()
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+        params.set('limit', String(limit))
+    }
+    if (reportKey) {
+        params.set('reportKey', reportKey)
+    }
+    const query = params.toString()
+    return ApiService.fetchData<T>({
+        url: `/analytics/reports/reconciliations${query ? `?${query}` : ''}`,
+        method: 'get',
+    })
+}
+
+export async function apiImportAnalyticsReportBaseline<T>(filePath: string) {
+    return ApiService.fetchData<T>({
+        url: '/analytics/reports/import-baseline',
+        method: 'post',
+        data: { filePath },
+    })
+}
+
+export async function apiReconcileAnalyticsReports<T>(reportKey?: string) {
+    return ApiService.fetchData<T>({
+        url: '/analytics/reports/reconcile',
+        method: 'post',
+        data: reportKey ? { reportKey } : {},
+    })
+}
+
+export async function apiGetAnalyticsBaselineSnapshots<T>(limit?: number, reportKey?: string) {
+    const params = new URLSearchParams()
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+        params.set('limit', String(limit))
+    }
+    if (reportKey) {
+        params.set('reportKey', reportKey)
+    }
+    const query = params.toString()
+    return ApiService.fetchData<T>({
+        url: `/analytics/baseline-snapshots${query ? `?${query}` : ''}`,
+        method: 'get',
+    })
+}
+
+export async function apiRunGa4BaselineSync<T>(
+    connectionId: string,
+    from?: string,
+    to?: string,
+    reportKey?: string,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/baseline-sync`,
+        method: 'post',
+        data: {
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+            ...(reportKey ? { reportKey } : {}),
+        },
+    })
+}
+
+export async function apiRunGa4DataQuality<T>(
+    connectionId: string,
+    from?: string,
+    to?: string,
+    reportKey?: string,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/data-quality`,
+        method: 'post',
+        data: {
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+            ...(reportKey ? { reportKey } : {}),
+        },
+    })
+}
+
+export async function apiRunGa4BackfillQuality<T>(
+    connectionId: string,
+    from: string,
+    to: string,
+    reportKey?: string,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/backfill-quality`,
+        method: 'post',
+        data: {
+            from,
+            to,
+            ...(reportKey ? { reportKey } : {}),
+        },
+    })
+}
+
+export async function apiGetAnalyticsDataQuality<T>(limit?: number, reportKey?: string) {
+    const params = new URLSearchParams()
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+        params.set('limit', String(limit))
+    }
+    if (reportKey) {
+        params.set('reportKey', reportKey)
+    }
+    const query = params.toString()
+    return ApiService.fetchData<T>({
+        url: `/analytics/data-quality${query ? `?${query}` : ''}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsInsightsInput<T>(
+    connectionId: string,
+    from?: string,
+    to?: string,
+    reportKey?: string,
+) {
+    const params = new URLSearchParams()
+    params.set('connectionId', connectionId)
+    if (from) {
+        params.set('from', from)
+    }
+    if (to) {
+        params.set('to', to)
+    }
+    if (reportKey) {
+        params.set('reportKey', reportKey)
+    }
+    return ApiService.fetchData<T>({
+        url: `/analytics/insights/input?${params.toString()}`,
+        method: 'get',
+    })
+}
+
+export async function apiRunGa4InitialSync<T>(connectionId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/initial-sync`,
+        method: 'post',
+    })
+}
+
+export async function apiRunGa4IncrementalSync<T>(connectionId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/incremental-sync`,
+        method: 'post',
+    })
+}
+
+export async function apiRunGa4Backfill<T>(connectionId: string, from: string, to: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/backfill`,
+        method: 'post',
+        data: { from, to },
+    })
+}
+
+export async function apiRunGa4Repair<T>(connectionId: string, from?: string, to?: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ga4/repair`,
+        method: 'post',
+        data: {
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+        },
+    })
+}
+
+export async function apiRunAdsInitialSync<T>(connectionId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ads/initial-sync`,
+        method: 'post',
+    })
+}
+
+export async function apiRunAdsIncrementalSync<T>(connectionId: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ads/incremental-sync`,
+        method: 'post',
+    })
+}
+
+export async function apiRunAdsBackfill<T>(connectionId: string, from?: string, to?: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ads/backfill`,
+        method: 'post',
+        data: {
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+        },
+    })
+}
+
+export async function apiRunAdsRepair<T>(connectionId: string, from?: string, to?: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/connections/${connectionId}/ads/repair`,
+        method: 'post',
+        data: {
+            ...(from ? { from } : {}),
+            ...(to ? { to } : {}),
+        },
+    })
+}

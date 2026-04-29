@@ -62,6 +62,8 @@
       "products": "Products",
       "behavior": "Behavior",
       "conversions": "Conversions",
+      "connections": "Connections",
+      "dataQuality": "Data Quality",
       "growthInsights": "Growth & Insights"
     },
     "appsProducts": {

@@ -3,10 +3,13 @@ import { Prisma } from '@prisma/client'
 
 import { AnalyticsRepository } from './analytics.repository'
 import type {
+  AnalyticsConnection,
+  AnalyticsInsight,
   AnalyticsEventInput,
   DashboardMetrics,
   ComparisonMetric,
   ComparisonSeries,
+  AnalyticsSyncRun,
   FunnelMetrics,
   FunnelComparison,
 } from './analytics.types'
@@ -207,6 +210,24 @@ export class AnalyticsService {
 
   async processEvent(event: AnalyticsEventInput) {
     return this.repository.saveEvent(event)
+  }
+
+  async getConnections(): Promise<{ connections: AnalyticsConnection[] }> {
+    return {
+      connections: await this.repository.listConnections(),
+    }
+  }
+
+  async getSyncRuns(limit = 50): Promise<{ runs: AnalyticsSyncRun[] }> {
+    return {
+      runs: await this.repository.listSyncRuns(limit),
+    }
+  }
+
+  async getInsights(limit = 50): Promise<{ insights: AnalyticsInsight[] }> {
+    return {
+      insights: await this.repository.listInsights(limit),
+    }
   }
 
   private async buildOverviewMetrics(from: Date, to: Date) {

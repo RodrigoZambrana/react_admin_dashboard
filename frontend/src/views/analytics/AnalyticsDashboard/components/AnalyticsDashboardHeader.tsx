@@ -26,9 +26,14 @@ type RangeOption = {
 type AnalyticsDashboardHeaderProps = {
     title: string
     subtitle: string
+    showControls?: boolean
 }
 
-const AnalyticsDashboardHeader = ({ title, subtitle }: AnalyticsDashboardHeaderProps) => {
+const AnalyticsDashboardHeader = ({
+    title,
+    subtitle,
+    showControls = true,
+}: AnalyticsDashboardHeaderProps) => {
     const dispatch = useAppDispatch()
 
     const fallbackRange = useMemo(() => resolvePresetRange('last7Days'), [])
@@ -53,11 +58,11 @@ const AnalyticsDashboardHeader = ({ title, subtitle }: AnalyticsDashboardHeaderP
 
     const rangeOptions: RangeOption[] = useMemo(
         () => [
-            { value: 'today', label: 'Today' },
-            { value: 'last7Days', label: 'Last 7 days' },
-            { value: 'last30Days', label: 'Last 30 days' },
-            { value: 'last12Months', label: 'Last 12 months' },
-            { value: 'custom', label: 'Custom' },
+            { value: 'today', label: 'Hoy' },
+            { value: 'last7Days', label: 'Últimos 7 días' },
+            { value: 'last30Days', label: 'Últimos 30 días' },
+            { value: 'last12Months', label: 'Últimos 12 meses' },
+            { value: 'custom', label: 'Personalizado' },
         ],
         [],
     )
@@ -109,41 +114,45 @@ const AnalyticsDashboardHeader = ({ title, subtitle }: AnalyticsDashboardHeaderP
                     <h2 className="m-0">{title}</h2>
                 </div>
                 <p className="max-w-2xl text-sm text-gray-500">{subtitle}</p>
-                <div className="text-xs text-gray-400">
-                    Current range: {formatRangeLabel(startDate, endDate)}
-                </div>
+                {showControls && (
+                    <div className="text-xs text-gray-400">
+                        Rango actual: {formatRangeLabel(startDate, endDate)}
+                    </div>
+                )}
             </div>
 
-            <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                        Period
-                    </span>
-                    <Select<RangeOption>
-                        options={rangeOptions}
-                        value={selectedOption}
-                        size="sm"
-                        className="min-w-[180px]"
-                        onChange={handleRangeChange}
-                        isSearchable={false}
-                    />
+            {showControls && (
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+                    <div className="flex flex-col gap-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                            Período
+                        </span>
+                        <Select<RangeOption>
+                            options={rangeOptions}
+                            value={selectedOption}
+                            size="sm"
+                            className="min-w-[180px]"
+                            onChange={handleRangeChange}
+                            isSearchable={false}
+                        />
+                    </div>
+                    {dateRangePreset === 'custom' && (
+                        <DatePickerRange
+                            value={[
+                                dayjs.unix(startDate).toDate(),
+                                dayjs.unix(endDate).toDate(),
+                            ]}
+                            inputFormat={dateFormat}
+                            size="sm"
+                            onChange={handleDateChange}
+                            dateViewCount={2}
+                        />
+                    )}
+                    <Button size="sm" icon={<HiOutlineFilter />} onClick={onFilter}>
+                        Aplicar
+                    </Button>
                 </div>
-                {dateRangePreset === 'custom' && (
-                    <DatePickerRange
-                        value={[
-                            dayjs.unix(startDate).toDate(),
-                            dayjs.unix(endDate).toDate(),
-                        ]}
-                        inputFormat={dateFormat}
-                        size="sm"
-                        onChange={handleDateChange}
-                        dateViewCount={2}
-                    />
-                )}
-                <Button size="sm" icon={<HiOutlineFilter />} onClick={onFilter}>
-                    Apply
-                </Button>
-            </div>
+            )}
         </div>
     )
 }

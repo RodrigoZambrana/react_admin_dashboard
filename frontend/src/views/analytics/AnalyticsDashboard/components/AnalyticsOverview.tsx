@@ -30,22 +30,22 @@ const AnalyticsOverview = ({ data }: AnalyticsOverviewProps) => {
 
     const kpis = [
         {
-            label: 'Revenue',
+            label: 'Ingresos',
             value: formatCompactNumber(data?.revenue ?? 0, i18n.language),
             delta: comparison?.revenue.deltaPercent,
         },
         {
-            label: 'Orders',
+            label: 'Órdenes',
             value: formatCompactNumber(data?.orders ?? 0, i18n.language),
             delta: comparison?.orders.deltaPercent,
         },
         {
-            label: 'Conversion rate',
+            label: 'Tasa de conversión',
             value: `${((data?.conversionRate ?? 0) * 100).toFixed(2)}%`,
             delta: comparison?.conversionRate.deltaPercent,
         },
         {
-            label: 'Avg ticket',
+            label: 'Ticket promedio',
             value: formatCompactNumber(data?.avgTicket ?? 0, i18n.language),
             delta: comparison?.avgTicket.deltaPercent,
         },
@@ -70,8 +70,8 @@ const AnalyticsOverview = ({ data }: AnalyticsOverviewProps) => {
     const revenueDeltaPercent = comparison?.revenue.deltaPercent
     const revenueComparisonText =
         revenueDeltaPercent === null || revenueDeltaPercent === undefined
-            ? 'No comparison'
-            : `${revenueDeltaPercent >= 0 ? '+' : ''}${revenueDeltaPercent}% vs previous`
+            ? 'Sin comparación'
+            : `${revenueDeltaPercent >= 0 ? '+' : ''}${revenueDeltaPercent}% vs período anterior`
 
     return (
         <div className="flex flex-col gap-4">
@@ -102,9 +102,9 @@ const AnalyticsOverview = ({ data }: AnalyticsOverviewProps) => {
                 <Card className="xl:col-span-2">
                     <div className="mb-4 flex items-center justify-between gap-3">
                         <div>
-                            <h5 className="mb-1">Revenue over time</h5>
+                            <h5 className="mb-1">Revenue en el tiempo</h5>
                             <p className="text-sm text-gray-500">
-                                Current period vs selected range with business context.
+                                Evolución del período actual con comparación contra el rango anterior.
                             </p>
                         </div>
                     <Badge
@@ -135,9 +135,9 @@ const AnalyticsOverview = ({ data }: AnalyticsOverviewProps) => {
 
                 <div className="flex flex-col gap-4">
                     <Card>
-                        <div className="mb-2 text-sm text-gray-500">Top channel</div>
+                        <div className="mb-2 text-sm text-gray-500">Canal principal</div>
                         <div className="text-lg font-semibold">
-                            {bestChannel?.utmSource ?? data?.topChannel ?? 'Unknown'}
+                            {bestChannel?.utmSource ?? data?.topChannel ?? 'Desconocido'}
                         </div>
                         <div className="mt-3 text-sm text-gray-500">
                             Revenue: {formatCompactNumber(bestChannel?.revenue ?? 0, i18n.language)}
@@ -147,9 +147,9 @@ const AnalyticsOverview = ({ data }: AnalyticsOverviewProps) => {
                         </div>
                     </Card>
                     <Card>
-                        <div className="mb-2 text-sm text-gray-500">Top product</div>
+                        <div className="mb-2 text-sm text-gray-500">Producto principal</div>
                         <div className="text-lg font-semibold">
-                            {bestProduct?.name ?? bestProduct?.productId ?? data?.topProduct ?? 'Unknown'}
+                            {bestProduct?.name ?? bestProduct?.productId ?? data?.topProduct ?? 'Desconocido'}
                         </div>
                         <div className="mt-3 text-sm text-gray-500">
                             Revenue: {formatCompactNumber(bestProduct?.revenue ?? 0, i18n.language)}
@@ -164,9 +164,9 @@ const AnalyticsOverview = ({ data }: AnalyticsOverviewProps) => {
             <div className="grid gap-4 xl:grid-cols-2">
                 <Card>
                     <div className="mb-4">
-                        <h5 className="mb-1">Channel mix</h5>
-                        <p className="text-sm text-gray-500">
-                            Revenue and orders by UTM source.
+                        <h5 className="mb-1">Mix por canal</h5>
+                            <p className="text-sm text-gray-500">
+                            Revenue y órdenes por fuente UTM.
                         </p>
                     </div>
                     <div className="space-y-3">
@@ -196,9 +196,9 @@ const AnalyticsOverview = ({ data }: AnalyticsOverviewProps) => {
 
                 <Card>
                     <div className="mb-4">
-                        <h5 className="mb-1">Business insights</h5>
+                        <h5 className="mb-1">Insights de negocio</h5>
                         <p className="text-sm text-gray-500">
-                            Rule-based signals generated from normalized data.
+                            Señales generadas desde datos normalizados.
                         </p>
                     </div>
                     <div className="space-y-3">
@@ -226,7 +226,7 @@ const AnalyticsOverview = ({ data }: AnalyticsOverviewProps) => {
                             ))
                         ) : (
                             <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500 dark:bg-gray-700/40">
-                                No active insight rules for this range.
+                                No hay reglas de insights activas para este rango.
                             </div>
                         )}
                     </div>

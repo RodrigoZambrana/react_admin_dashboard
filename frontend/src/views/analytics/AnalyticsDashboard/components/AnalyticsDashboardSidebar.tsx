@@ -1,12 +1,7 @@
 import classNames from 'classnames'
 import { Link, useLocation } from 'react-router-dom'
 
-type AnalyticsSection = {
-    key: string
-    path: string
-    title: string
-    subtitle: string
-}
+import type { AnalyticsSection } from '../analyticsSections'
 
 type AnalyticsDashboardSidebarProps = {
     sections: readonly AnalyticsSection[]
@@ -21,9 +16,9 @@ const AnalyticsDashboardSidebar = ({ sections }: AnalyticsDashboardSidebarProps)
                 <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                     <div className="mb-4">
                         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">
-                            Analytics
+                            Analítica
                         </p>
-                        <h4 className="mt-1 mb-1">Business cockpit</h4>
+                        <h4 className="mt-1 mb-1">Cabina de negocio</h4>
                         <p className="text-sm text-gray-500">
                             Separación clara entre consumo de métricas y configuración de instrumentos.
                         </p>
@@ -31,8 +26,10 @@ const AnalyticsDashboardSidebar = ({ sections }: AnalyticsDashboardSidebarProps)
                     <div className="space-y-2">
                         {sections.map((section) => {
                             const isActive =
-                                location.pathname === section.path ||
-                                location.pathname.startsWith(`${section.path}/`)
+                                section.key === 'home'
+                                    ? location.pathname === section.path
+                                    : location.pathname === section.path ||
+                                      location.pathname.startsWith(`${section.path}/`)
 
                             return (
                                 <Link

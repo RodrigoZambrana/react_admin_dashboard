@@ -16,7 +16,7 @@ const AnalyticsSectionPlaceholder = ({
             <div className="space-y-3">
                 <div>
                     <h5 className="mb-1">{title}</h5>
-                    <p className="text-sm text-gray-500">{subtitle}</p>
+                        <p className="text-sm text-gray-500">{subtitle}</p>
                 </div>
                 <div className="grid gap-2 md:grid-cols-2">
                     {bullets.map((bullet) => (

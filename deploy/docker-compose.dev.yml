@@ -5,6 +5,8 @@ x-backend-common: &backend-common
     - path: ./env/backend.dev.env
     - path: ./env/.env.backend.dev.local
       required: false
+    - path: ../backend/.env.analytics.local
+      required: false
   environment:
     CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
     PORT: ${BACKEND_PORT:-4000}
