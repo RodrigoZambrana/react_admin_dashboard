@@ -50,6 +50,13 @@ type GrowthPublicConfig = {
       enabled: boolean
       pixelId: string | null
     }
+    connection: {
+      mode: 'backend_token'
+      pixelConfigured: boolean
+      conversionsApiConfigured: boolean
+      adsAccountIdConfigured: boolean
+      ready: boolean
+    }
   }
   insights: {
     content: {
@@ -69,16 +76,14 @@ export class GrowthService {
 
   async getOverview() {
     const record = await this.getStoredConfigRecord()
-    const config = this.normalizeConfig({
-      ...this.getEnvFallbackConfig(),
-      ...(record?.value ?? {}),
-    })
+    const source: GrowthConfigSource = record ? 'database' : 'environment'
+    const config = this.resolveConfig(record)
     const publicConfig = this.toPublicConfig(config)
 
     return {
       config,
       meta: {
-        source: record?.value ? ('database' satisfies GrowthConfigSource) : ('environment' satisfies GrowthConfigSource),
+        source,
         updatedAt: record?.updatedAt?.toISOString() ?? null,
       },
       readiness: {
@@ -94,6 +99,14 @@ export class GrowthService {
         metaPixelReady: !config.metaPixelEnabled || Boolean(config.metaPixelId),
         metaConversionsApiReady:
           !config.metaConversionsApiEnabled || Boolean(config.metaConversionsApiToken),
+        metaBackendConnectionReady:
+          !config.metaPixelEnabled &&
+          !config.metaConversionsApiEnabled &&
+          !config.metaAdsAccountId
+            ? false
+            : Boolean(config.metaPixelId) &&
+              Boolean(config.metaConversionsApiToken) &&
+              Boolean(config.metaAdsAccountId),
       },
       publicConfig,
     }
@@ -111,10 +124,7 @@ export class GrowthService {
 
   async getConfig() {
     const record = await this.getStoredConfigRecord()
-    return this.normalizeConfig({
-      ...this.getEnvFallbackConfig(),
-      ...(record?.value ?? {}),
-    })
+    return this.resolveConfig(record)
   }
 
   async getPublicConfig(): Promise<GrowthPublicConfig> {
@@ -123,6 +133,14 @@ export class GrowthService {
 
   private async getStoredConfigRecord() {
     return this.secureConfig.getJson<GrowthStoredConfig>(GROWTH_CONFIG_KEY)
+  }
+
+  private resolveConfig(record: { value: GrowthStoredConfig; updatedAt: Date } | null) {
+    if (record) {
+      return this.normalizeConfig(record.value)
+    }
+
+    return this.normalizeConfig(this.getEnvFallbackConfig())
   }
 
   private normalizeConfig(raw: GrowthConfigInput): GrowthStoredConfig {
@@ -219,6 +237,16 @@ export class GrowthService {
         pixel: {
           enabled: config.metaPixelEnabled && Boolean(config.metaPixelId),
           pixelId: config.metaPixelId,
+        },
+        connection: {
+          mode: 'backend_token',
+          pixelConfigured: Boolean(config.metaPixelId),
+          conversionsApiConfigured: Boolean(config.metaConversionsApiToken),
+          adsAccountIdConfigured: Boolean(config.metaAdsAccountId),
+          ready:
+            Boolean(config.metaPixelId) &&
+            Boolean(config.metaConversionsApiToken) &&
+            Boolean(config.metaAdsAccountId),
         },
       },
       insights: {

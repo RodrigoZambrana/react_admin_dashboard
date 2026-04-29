@@ -16,6 +16,8 @@ All 3 sources completed manual incremental sync successfully through backend pro
 - Brand demand exists, but there is still room to strengthen positioning so branded searches translate into better capture.
 - Ads is useful today for acquisition analysis, but not yet strong enough to judge final ROI because conversion measurement is still incomplete.
 - The operational question now is not "do we have data?" but "are we turning the available demand into captured opportunities?"
+- Meta is now configured as a backend-driven connection path: Pixel ID, Conversions API token and Meta Ads Account ID are managed in `Growth & Insights`, so the system does not depend on an OAuth login handshake with Meta to be operable.
+- Persisted `growth_config` is the primary source of truth for Meta. ENV only acts as fallback when there is no stored config yet.
 
 ## Executive Actions
 

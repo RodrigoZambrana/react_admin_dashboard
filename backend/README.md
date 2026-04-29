@@ -130,6 +130,31 @@ Auth
 - POST `/api/sign-up` { name, lastName?, email, password }
 - Passwords must be 8-128 chars and include at least one uppercase letter, one lowercase letter, one number, and one special character. The same policy applies to self-service and administrative resets.
 
+Phone OTP + account recovery
+- POST `/api/auth/register`
+  - Body: `{ phone, email?, password, name?, lastName?, locale? }`
+  - Creates the account in `pending_verification`, persists the OTP hash and sends the code by SMS.
+- POST `/api/auth/send-otp`
+  - Body: `{ phone, type?: "verification" | "recovery" }`
+  - Re-sends the OTP for registration or recovery.
+- POST `/api/auth/verify-otp`
+  - Body: `{ phone, code }`
+  - Marks the account as `active` after a valid verification OTP.
+- POST `/api/auth/recover`
+  - Body: `{ method: "sms" | "email", phone?, email? }`
+  - Sends a recovery OTP by SMS or a reset link by email.
+- POST `/api/auth/reset-password`
+  - Body for SMS: `{ method: "sms", phone, code, password }`
+  - Body for email: `{ method: "email", token, password }`
+
+Operational notes
+- OTPs live in `otp_codes` with a 5 minute TTL and a maximum of 5 attempts.
+- Rate limiting uses Redis when `AUTH_REDIS_URL`, `QUEUE_REDIS_URL` or `REDIS_URL` is configured.
+- SMS provider selection is controlled by `SMS_PROVIDER=textbee|twilio`.
+  - Textbee requires `TEXTBEE_API_KEY` and `TEXTBEE_DEVICE_ID`.
+  - Twilio is supported in code as a future adapter, but it is optional for the current rollout and does not need configuration until you switch `SMS_PROVIDER=twilio`.
+- Recovery email links are generated from `AUTH_PASSWORD_RESET_URL` when present, otherwise the service falls back to `STOREFRONT_BASE_URL` or `APP_PUBLIC_URL`.
+
 Key Modules
 - Users: `/api/users`
 - Customers: `/api/customers/*`

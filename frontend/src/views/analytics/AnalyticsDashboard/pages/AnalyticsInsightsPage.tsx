@@ -138,6 +138,8 @@ const AnalyticsInsightsPage = () => {
     const periodRange = data.summary?.periodRange ?? data.bundle?.periodRange ?? null
     const generatedAt = data.summary?.generatedAt ?? data.bundle?.generatedAt ?? null
     const measurement = data.summary?.measurement ?? data.bundle?.measurement ?? null
+    const trust = data.summary?.trust ?? data.bundle?.trust ?? null
+    const freshness = data.summary?.freshness ?? data.bundle?.freshness ?? null
     const prioritizedActions = data.summary?.prioritizedActions ?? data.bundle?.prioritizedActions ?? []
 
     const qualityHighlights = [
@@ -230,6 +232,20 @@ const AnalyticsInsightsPage = () => {
                                                     ? 'bg-amber-100 text-amber-700'
                                                     : 'bg-emerald-100 text-emerald-700'
                                         }
+                                    />
+                                    <Badge
+                                        content={`trust=${trust?.status ?? 'n/a'}`}
+                                        innerClass={
+                                            trust?.status === 'fail'
+                                                ? 'bg-rose-100 text-rose-700'
+                                                : trust?.status === 'warning'
+                                                    ? 'bg-amber-100 text-amber-700'
+                                                    : 'bg-emerald-100 text-emerald-700'
+                                        }
+                                    />
+                                    <Badge
+                                        content={`confidence=${Math.round((data.summary?.confidence ?? data.bundle?.confidence ?? 0) * 100)}%`}
+                                        innerClass="bg-slate-100 text-slate-700"
                                     />
                                 </div>
                             </div>
@@ -332,6 +348,24 @@ const AnalyticsInsightsPage = () => {
                                     <div className="text-xs uppercase tracking-[0.18em] text-gray-500">Alertas</div>
                                     <div className="mt-1 font-medium text-gray-900 dark:text-gray-100">
                                         {alerts.length} señales críticas
+                                    </div>
+                                </div>
+                                <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-700/40">
+                                    <div className="text-xs uppercase tracking-[0.18em] text-gray-500">Data trust</div>
+                                    <div className="mt-1 font-medium text-gray-900 dark:text-gray-100">
+                                        {trust ? trust.summary : 'Sin señal de trust'}
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-500">
+                                        {trust?.updatedAt ? `Actualizado ${formatDateTime(trust.updatedAt)}` : 'Sin actualización reciente'}
+                                    </div>
+                                </div>
+                                <div className="rounded-xl bg-gray-50 px-4 py-3 dark:bg-gray-700/40">
+                                    <div className="text-xs uppercase tracking-[0.18em] text-gray-500">Freshness</div>
+                                    <div className="mt-1 font-medium text-gray-900 dark:text-gray-100">
+                                        Sync lag: {freshness?.syncLagMinutes ?? 'n/a'} min
+                                    </div>
+                                    <div className="mt-1 text-xs text-gray-500">
+                                        Report lag: {freshness?.reportLagMinutes ?? 'n/a'} min
                                     </div>
                                 </div>
                             </div>

@@ -500,6 +500,27 @@ enum PasswordResetChannel {
   GOOGLE
 }
 
+enum UserStatus {
+  PENDING_VERIFICATION
+  ACTIVE
+  BLOCKED
+}
+
+enum OtpCodeType {
+  VERIFICATION
+  RECOVERY
+}
+
+enum SecurityEventType {
+  OTP_SENT
+  OTP_VERIFIED
+  OTP_FAILED
+  ACCOUNT_REGISTERED
+  PASSWORD_RESET_REQUESTED
+  PASSWORD_RESET_COMPLETED
+  PROVIDER_FAILURE
+}
+
 // Notifications
 model Notification {
   id                  Int                        @id @default(autoincrement())
@@ -561,8 +582,10 @@ model User {
   name                           String?
   lastName                       String?
   email                          String                     @unique
+  phone                          String?                    @unique
   img                            String?
   role                           Role                       @default(USER)
+  status                         UserStatus                 @default(ACTIVE)
   capabilityGroups               UserCapabilityGroup[]      @default([])
   directCapabilities             UserCapability[]           @default([])
   lang                           String                     @default("en")
@@ -584,6 +607,8 @@ model User {
   convertedOrders                Order[]                    @relation("OrderConvertedBy")
   assignedProductionOrders       ProductionOrder[]          @relation("ProductionOrderAssignedTo")
   passwordResetTokens            PasswordResetToken[]
+  otpCodes                      OtpCode[]
+  securityEvents                SecurityEvent[]
   assignedConversations          Conversation[]             @relation("ConversationAssignedOperator")
   conversationParticipants       ConversationParticipant[]  @relation("ConversationParticipantUser")
   authoredConversationMessages   ConversationMessage[]      @relation("ConversationMessageAuthorUser")
@@ -632,6 +657,43 @@ model UserActivity {
   device      UserDevice?      @relation(fields: [deviceId], references: [id], onDelete: SetNull)
   performedAt DateTime         @default(now())
   createdAt   DateTime         @default(now())
+}
+
+model OtpCode {
+  id          Int           @id @default(autoincrement())
+  userId      Int
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash    String
+  type        OtpCodeType
+  expiresAt   DateTime
+  attempts    Int           @default(0)
+  consumedAt  DateTime?
+  target      String?
+  channel     String?
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([userId, type, createdAt])
+  @@index([expiresAt])
+  @@index([target])
+  @@map("otp_codes")
+}
+
+model SecurityEvent {
+  id          Int               @id @default(autoincrement())
+  userId      Int?
+  user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  eventType   SecurityEventType
+  channel     String?
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@map("security_events")
 }
 
 // CRM Customer
@@ -1333,9 +1395,17 @@ model AnalyticsEvent {
   eventCategory String?  @map("event_category")
   source        String?
   measurementStatus String? @map("measurement_status")
+  conversionFlag Boolean  @default(false) @map("conversion_flag")
+  eventId       String?  @map("event_id")
   sessionId     String   @map("session_id")
   correlationId String?  @map("correlation_id")
   userId        String?  @map("user_id")
+  fbp           String?
+  fbc           String?
+  externalTargets Json?  @db.JsonB @map("external_targets")
+  metaSentAt    DateTime? @map("meta_sent_at")
+  metaEventId   String?  @map("meta_event_id")
+  metaStatus    String?  @map("meta_status")
   url           String
   referrer      String?
   userAgent     String   @map("user_agent")
@@ -1350,6 +1420,8 @@ model AnalyticsEvent {
   @@index([sessionId, timestamp])
   @@index([processed, timestamp])
   @@index([correlationId])
+  @@index([eventId])
+  @@index([metaStatus])
   @@index([createdAt])
   @@map("events")
 }
@@ -1360,6 +1432,8 @@ model EventFact {
   eventCategory  String?  @map("event_category")
   source         String?
   measurementStatus String? @map("measurement_status")
+  conversionFlag Boolean  @default(false) @map("conversion_flag")
+  eventId        String?  @map("event_id")
   eventTimestamp DateTime  @map("event_timestamp")
   eventDate      DateTime  @db.Date @map("event_date")
   sessionId      String   @map("session_id")
@@ -1371,16 +1445,26 @@ model EventFact {
   utmSource      String?  @map("utm_source")
   utmMedium      String?  @map("utm_medium")
   utmCampaign    String?  @map("utm_campaign")
+  utmTerm        String?  @map("utm_term")
+  utmContent     String?  @map("utm_content")
+  landingPage    String?  @map("landing_page")
   referrer       String?
   device         String?
   country        String?
   value          Decimal? @db.Decimal(18, 4)
   sourceEventId  String   @unique @map("source_event_id")
+  fbp            String?
+  fbc            String?
+  externalTargets Json?   @db.JsonB @map("external_targets")
+  metaSentAt     DateTime? @map("meta_sent_at")
+  metaEventId    String?   @map("meta_event_id")
+  metaStatus     String?   @map("meta_status")
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([eventName, eventDate])
   @@index([sessionId, eventDate])
   @@index([utmSource, utmCampaign])
+  @@index([eventId])
   @@map("event_facts")
 }
 
@@ -1447,6 +1531,10 @@ model AnalyticsSyncRun {
   fromDate        DateTime? @map("from_date")
   toDate          DateTime? @map("to_date")
   status          String
+  queuedAt        DateTime? @map("queued_at")
+  retryCount      Int      @default(0) @map("retry_count")
+  partialFailureFlag Boolean @default(false) @map("partial_failure_flag")
+  durationMs      Int?     @map("duration_ms")
   recordsFetched  Int      @default(0) @map("records_fetched")
   recordsUpserted Int      @default(0) @map("records_upserted")
   errorMessage    String?  @map("error_message")
@@ -1701,8 +1789,8 @@ model AnalyticsReportReconciliation {
 
 model AnalyticsBaselineSnapshot {
   id             String   @id @default(cuid())
-  connectionId   String   @map("connection_id")
-  connection     AnalyticsConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId   String?  @map("connection_id")
+  connection     AnalyticsConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
   source         String   @default("ga4")
   reportKey      String   @map("report_key")
   date           DateTime @db.Date
@@ -1711,6 +1799,8 @@ model AnalyticsBaselineSnapshot {
   dimensionValues Json?   @db.JsonB @map("dimension_values")
   value          Decimal  @db.Decimal(18, 6)
   queryHash      String   @map("query_hash")
+  origin         String   @default("api")
+  snapshotGroup  String   @default("") @map("snapshot_group")
   raw            Json?    @db.JsonB
   createdAt      DateTime @default(now()) @map("created_at")
 
@@ -1718,8 +1808,113 @@ model AnalyticsBaselineSnapshot {
 
   @@unique([connectionId, source, reportKey, date, metricName, dimensionHash, queryHash], map: "analytics_baseline_snapshots_natural_key")
   @@index([reportKey, date])
+  @@index([source, metricName, origin, snapshotGroup, date])
   @@index([queryHash])
   @@map("analytics_baseline_snapshots")
+}
+
+model AnalyticsDataParityCheck {
+  id            String   @id @default(cuid())
+  source        String
+  metric        String
+  dateFrom      DateTime @db.Date @map("date_from")
+  dateTo        DateTime @db.Date @map("date_to")
+  apiValue      Decimal  @db.Decimal(18, 6) @map("api_value")
+  baselineValue Decimal  @db.Decimal(18, 6) @map("baseline_value")
+  deltaAbs      Decimal  @db.Decimal(18, 6) @map("delta_abs")
+  deltaPercent  Decimal  @db.Decimal(10, 4) @map("delta_percent")
+  status        String
+  snapshotGroup String   @default("") @map("snapshot_group")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([source, status])
+  @@index([snapshotGroup, createdAt])
+  @@map("analytics_data_parity_checks")
+}
+
+model AnalyticsUsageEvent {
+  id            String   @id @default(cuid())
+  endpoint      String
+  userId        Int?     @map("user_id")
+  timeRange     String   @map("time_range")
+  filters       Json?    @db.JsonB
+  responseTimeMs Int     @map("response_time_ms")
+  responseSize  Int      @map("response_size")
+  trustLevel    String   @map("trust_level")
+  hasData       Boolean  @map("has_data")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([endpoint, createdAt])
+  @@index([userId, createdAt])
+  @@map("analytics_usage_events")
+}
+
+model AnalyticsEndpointUsage {
+  id           String   @id @default(cuid())
+  endpoint     String
+  userId       String?  @map("user_id")
+  statusCode   Int      @map("status_code")
+  durationMs   Int      @map("duration_ms")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([endpoint, createdAt])
+  @@index([statusCode, createdAt])
+  @@index([userId, createdAt])
+  @@map("analytics_endpoint_usage")
+}
+
+model AnalyticsBaselineCheck {
+  id              String   @id @default(cuid())
+  date            DateTime @db.Date
+  source          String
+  metric          String
+  comparisonKind  String   @map("comparison_kind")
+  expectedValue   Decimal  @db.Decimal(18, 6) @map("expected_value")
+  actualValue     Decimal  @db.Decimal(18, 6) @map("actual_value")
+  diffPct         Decimal  @db.Decimal(10, 4) @map("diff_pct")
+  status          String
+  snapshotGroup   String   @map("snapshot_group")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([source, metric, date])
+  @@index([comparisonKind, createdAt])
+  @@index([snapshotGroup, createdAt])
+  @@map("analytics_baseline_checks")
+}
+
+model AnalyticsDataAnomaly {
+  id          String   @id @default(cuid())
+  type        String
+  source      String
+  metric      String?
+  description String
+  severity    String
+  detectedAt  DateTime @default(now()) @map("detected_at")
+
+  @@index([source, detectedAt])
+  @@index([type, severity])
+  @@map("analytics_data_anomalies")
+}
+
+model AnalyticsExportRun {
+  id          String   @id @default(cuid())
+  exportType  String   @map("export_type")
+  source      String?
+  dateFrom    DateTime @db.Date @map("date_from")
+  dateTo      DateTime @db.Date @map("date_to")
+  filters     Json?    @db.JsonB
+  rowCount    Int?     @map("row_count")
+  fileFormat  String   @map("file_format")
+  status      String
+  errorMessage String? @map("error_message")
+  durationMs  Int?     @map("duration_ms")
+  fileSize    Int?     @map("file_size")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([exportType, createdAt])
+  @@index([source, createdAt])
+  @@index([status, createdAt])
+  @@map("analytics_export_runs")
 }
 
 model AnalyticsDataQualityCheck {
@@ -1747,6 +1942,50 @@ model AnalyticsDataQualityCheck {
   @@index([syncRunId])
   @@index([queryHash])
   @@map("analytics_data_quality_checks")
+}
+
+model AnalyticsHealthCheck {
+  id          String   @id @default(cuid())
+  status      String
+  environment String
+  summary     String
+  detailsJson Json     @db.JsonB @map("details_json")
+  durationMs  Int      @map("duration_ms")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([environment, createdAt])
+  @@index([status, createdAt])
+  @@map("analytics_health_checks")
+}
+
+model AnalyticsDataTrustCheck {
+  id            String   @id @default(cuid())
+  environment   String
+  checkName     String   @map("check_name")
+  status        String
+  metricValue   Decimal? @db.Decimal(18, 6) @map("metric_value")
+  expectedRange String   @map("expected_range")
+  detailsJson   Json     @db.JsonB @map("details_json")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([environment, createdAt])
+  @@index([checkName, createdAt])
+  @@map("analytics_data_trust_checks")
+}
+
+model AnalyticsHealthAlertState {
+  id            String    @id @default(cuid())
+  environment   String    @unique
+  lastStatus    String    @map("last_status")
+  lastSignature String?   @map("last_signature")
+  lastAlertedAt DateTime? @map("last_alerted_at")
+  lastSummaryAt DateTime? @map("last_summary_at")
+  lastDigestAt  DateTime? @map("last_digest_at")
+  lastDigestSignature String? @map("last_digest_signature")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@map("analytics_health_alert_state")
 }
 
 model OrderItem {

@@ -92,7 +92,7 @@ export type AnalyticsFunnelResponse = {
 
 export type AnalyticsConnection = {
     id: string
-    source: 'ga4' | 'ads' | 'search_console'
+    source: 'ga4' | 'ads' | 'search_console' | 'meta'
     status: 'needs_auth' | 'ready' | 'syncing' | 'error' | 'disabled'
     target: {
         id: string | null
@@ -162,8 +162,8 @@ export type AnalyticsInsight = {
 
 export type AnalyticsBaselineSnapshot = {
     id: string
-    connectionId: string
-    source: 'ga4'
+    connectionId: string | null
+    source: 'ga4' | 'ads' | 'search_console'
     reportKey: string
     date: string
     metricName: string
@@ -171,8 +171,133 @@ export type AnalyticsBaselineSnapshot = {
     dimensionValues: Record<string, unknown> | null
     value: number
     queryHash: string
+    origin?: 'api' | 'csv'
+    snapshotGroup?: string
     raw: Record<string, unknown> | null
     createdAt: string
+}
+
+export type AnalyticsDataParityStatus = 'aligned' | 'warning' | 'mismatch' | 'missing'
+
+export type AnalyticsDataParityCheck = {
+    id: string
+    source: 'ga4' | 'ads' | 'search_console'
+    metric: string
+    dateFrom: string
+    dateTo: string
+    apiValue: number
+    baselineValue: number
+    deltaAbs: number
+    deltaPercent: number
+    status: AnalyticsDataParityStatus
+    snapshotGroup: string
+    createdAt: string
+}
+
+export type AnalyticsBaselineParityRow = {
+    date: string
+    source: 'ga4' | 'ads' | 'search_console'
+    metric: string
+    apiValue: number | null
+    importValue: number | null
+    exportValue: number | null
+    diffPercent: number
+    status: AnalyticsDataParityStatus
+    snapshotGroup: string
+    createdAt: string
+}
+
+export type AnalyticsDataParityResponse = {
+    summary: {
+        aligned: number
+        warning: number
+        mismatch: number
+        missing: number
+        total: number
+    }
+    baselineChecks: AnalyticsBaselineParityRow[]
+    bySource: {
+        ga4: AnalyticsDataParityCheck[]
+        ads: AnalyticsDataParityCheck[]
+        search_console: AnalyticsDataParityCheck[]
+    }
+    lastRunAt: string | null
+    overallStatus: 'ok' | 'degraded' | 'fail'
+    history: AnalyticsDataParityCheck[]
+    anomalies: AnalyticsDataAnomaly[]
+}
+
+export type AnalyticsDataAnomaly = {
+    id: string
+    type: string
+    source: string
+    metric: string | null
+    description: string
+    severity: string
+    detectedAt: string
+}
+
+export type AnalyticsEndpointUsage = {
+    id: string
+    endpoint: string
+    userId: string | null
+    statusCode: number
+    durationMs: number
+    createdAt: string
+}
+
+export type AnalyticsUsageResponse = {
+    endpoints: Array<{
+        endpoint: string
+        calls: number
+        avgLatency: number
+        errorRate: number
+        lastCalledAt: string | null
+    }>
+    requestsByDay: Array<{
+        date: string
+        calls: number
+        errorRate: number
+    }>
+    unusedEndpoints: string[]
+    history: AnalyticsEndpointUsage[]
+}
+
+export type AnalyticsCanonicalExportSource = 'ga4' | 'ads' | 'search_console' | 'all'
+export type AnalyticsReportExportName = 'ga4_overview' | 'ads_campaigns' | 'seo_pages'
+
+export type AnalyticsCanonicalExportParams = {
+    from: string
+    to: string
+    source?: AnalyticsCanonicalExportSource
+    granularity?: 'daily'
+}
+
+export type AnalyticsReportExportParams = {
+    report: AnalyticsReportExportName
+    from: string
+    to: string
+}
+
+export type AnalyticsExportRun = {
+    id: string
+    exportType: string
+    source: string | null
+    dateFrom: string
+    dateTo: string
+    filters: Record<string, unknown> | null
+    rowCount: number | null
+    fileFormat: string
+    status: string
+    errorMessage: string | null
+    durationMs: number | null
+    fileSize: number | null
+    createdAt: string
+}
+
+export type AnalyticsExportRunsResponse = {
+    total: number
+    items: AnalyticsExportRun[]
 }
 
 export type AnalyticsDataQualityStatus = 'ok' | 'warning' | 'error' | 'missing_baseline'
@@ -314,6 +439,7 @@ export type AnalyticsInsightsResponse = {
     measurement: {
         conversionMeasurementReady: boolean
         adsConversionMeasurementReady: boolean
+        metaConversionMeasurementReady: boolean
         qualityStatus: 'ok' | 'warning' | 'error'
         reasons: string[]
     }
@@ -327,7 +453,7 @@ export type AnalyticsInsightsResponse = {
         summaries: AnalyticsDataQualitySummary[]
     }
     qualityBySource: Array<{
-        source: 'ga4' | 'ads' | 'search_console'
+        source: 'ga4' | 'ads' | 'search_console' | 'meta'
         status: 'ok' | 'warning' | 'error'
         confidence: number
         issues: string[]
@@ -416,6 +542,107 @@ export type AnalyticsSearchConsoleSyncResult = {
     searchConsoleRowsUpserted: number
 }
 
+export type AnalyticsMetaMarketingResponse = {
+    range: {
+        from: string
+        to: string
+    }
+    connection: AnalyticsConnection | null
+    measurementStatus: 'not_ready' | 'partial' | 'ready'
+    matchQuality: number
+    traffic: {
+        events: number
+        sessions: number
+    }
+    meta_ads: {
+        spend: number
+        clicks: number
+        impressions: number
+        events: {
+            view_content: number
+            lead: number
+            purchase: number
+        }
+    }
+}
+
+export type AnalyticsHealthCheckRecord = {
+    name: string
+    status: 'ok' | 'warning' | 'fail'
+    severity: 'info' | 'warning' | 'critical'
+    details: Record<string, unknown>
+}
+
+export type AnalyticsHealthComponentStatus = 'ok' | 'warning' | 'fail' | null
+
+export type AnalyticsHealthHistoryItem = {
+    id: string
+    status: 'ok' | 'warning' | 'fail'
+    environment: string
+    summary: string
+    durationMs: number
+    createdAt: string
+    details: Record<string, unknown>
+    checks: AnalyticsHealthCheckRecord[]
+}
+
+export type AnalyticsHealthOverviewResponse = {
+    status: 'ok' | 'warning' | 'fail'
+    environment: string
+    updatedAt: string | null
+    summary: string
+    degraded: boolean
+    latest: AnalyticsHealthHistoryItem | null
+    history: AnalyticsHealthHistoryItem[]
+    lastChecks: AnalyticsHealthCheckRecord[]
+    components: {
+        ingestion: AnalyticsHealthComponentStatus
+        sync: AnalyticsHealthComponentStatus
+        queue: AnalyticsHealthComponentStatus
+        attribution: AnalyticsHealthComponentStatus
+        meta: AnalyticsHealthComponentStatus
+        data_trust: AnalyticsHealthComponentStatus
+        data_parity: AnalyticsHealthComponentStatus
+        exports: AnalyticsHealthComponentStatus
+    }
+}
+
+export type AnalyticsHealthStatusResponse = {
+    status: 'ok' | 'warning' | 'fail'
+    updatedAt: string | null
+    environment: string
+}
+
+export type AnalyticsDataTrustCheck = {
+    check: string
+    status: 'ok' | 'warning' | 'fail'
+    value: number | null
+    expected: string
+    impact: string
+    details: Record<string, unknown>
+}
+
+export type AnalyticsDataTrustResponse = {
+    status: 'ok' | 'warning' | 'fail'
+    environment: string
+    summary: string
+    updatedAt: string
+    metrics: Record<string, number | null>
+    trend: {
+        direction: 'up' | 'down' | 'flat'
+        currentValue: number
+        previousValue: number
+        deltaPct: number | null
+    }
+    checks: AnalyticsDataTrustCheck[]
+    history: Array<{
+        status: 'ok' | 'warning' | 'fail'
+        summary: string
+        createdAt: string
+        environment: string
+    }>
+}
+
 const buildQueryString = (params?: Record<string, string | undefined>) => {
     const searchParams = new URLSearchParams()
     Object.entries(params ?? {}).forEach(([key, value]) => {
@@ -432,6 +659,15 @@ export async function apiGetAnalyticsOverviewData<T, U extends Record<string, st
 ) {
     return ApiService.fetchData<T>({
         url: `/analytics/overview${buildQueryString(params)}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsMetaMarketingData<T, U extends Record<string, string | undefined>>(
+    params?: U,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/marketing/meta${buildQueryString(params)}`,
         method: 'get',
     })
 }
@@ -467,6 +703,15 @@ export async function apiGetAnalyticsInsights<T>(_limit?: number) {
     })
 }
 
+export async function apiGetAnalyticsInsightsBundle<T, U extends Record<string, string | undefined>>(
+    params?: U,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/insights/bundle${buildQueryString(params)}`,
+        method: 'get',
+    })
+}
+
 export async function apiGetAnalyticsSummary<T, U extends Record<string, string | undefined>>(
     params?: U,
 ) {
@@ -481,6 +726,38 @@ export async function apiGetAnalyticsOpportunities<T, U extends Record<string, s
 ) {
     return ApiService.fetchData<T>({
         url: `/analytics/opportunities${buildQueryString(params)}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsHealth<T, U extends Record<string, string | undefined>>(
+    params?: U,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/health${buildQueryString(params)}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsHealthStatus<T>() {
+    return ApiService.fetchData<T>({
+        url: '/analytics/health/status',
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsHealthHistory<T>(limit?: number) {
+    const query = typeof limit === 'number' && Number.isFinite(limit) ? `?limit=${limit}` : ''
+    return ApiService.fetchData<T>({
+        url: `/analytics/health/history${query}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsDataTrust<T>(limit?: number) {
+    const query = typeof limit === 'number' && Number.isFinite(limit) ? `?limit=${limit}` : ''
+    return ApiService.fetchData<T>({
+        url: `/analytics/data-trust${query}`,
         method: 'get',
     })
 }
@@ -631,6 +908,71 @@ export async function apiGetAnalyticsBaselineSnapshots<T>(limit?: number, report
     const query = params.toString()
     return ApiService.fetchData<T>({
         url: `/analytics/baseline-snapshots${query ? `?${query}` : ''}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsDataParity<T>(limit?: number) {
+    const params = new URLSearchParams()
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+        params.set('limit', String(limit))
+    }
+    const query = params.toString()
+    return ApiService.fetchData<T>({
+        url: `/analytics/data-parity${query ? `?${query}` : ''}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsUsage<T>(limit?: number) {
+    const params = new URLSearchParams()
+    if (typeof limit === 'number' && Number.isFinite(limit)) {
+        params.set('limit', String(limit))
+    }
+    const query = params.toString()
+    return ApiService.fetchData<T>({
+        url: `/analytics/usage${query ? `?${query}` : ''}`,
+        method: 'get',
+    })
+}
+
+export async function apiExportAnalyticsCanonical(params: AnalyticsCanonicalExportParams) {
+    const query = new URLSearchParams()
+    query.set('from', params.from)
+    query.set('to', params.to)
+    query.set('source', params.source ?? 'all')
+    query.set('granularity', params.granularity ?? 'daily')
+    return ApiService.fetchData<Blob>({
+        url: `/analytics/export/canonical?${query.toString()}`,
+        method: 'get',
+        responseType: 'blob',
+    })
+}
+
+export async function apiExportAnalyticsReport(params: AnalyticsReportExportParams) {
+    const query = new URLSearchParams()
+    query.set('report', params.report)
+    query.set('from', params.from)
+    query.set('to', params.to)
+    return ApiService.fetchData<Blob>({
+        url: `/analytics/export/report?${query.toString()}`,
+        method: 'get',
+        responseType: 'blob',
+    })
+}
+
+export async function apiGetAnalyticsExportRuns<T, U extends Record<string, string | undefined>>(
+    params?: U,
+) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/export/runs${buildQueryString(params)}`,
+        method: 'get',
+    })
+}
+
+export async function apiGetAnalyticsExportRun<T>(id: string) {
+    return ApiService.fetchData<T>({
+        url: `/analytics/export/runs/${id}`,
         method: 'get',
     })
 }

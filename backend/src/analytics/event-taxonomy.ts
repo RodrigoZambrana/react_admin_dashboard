@@ -9,7 +9,7 @@ export const CONVERSION_EVENT_NAMES = [
 export type AnalyticsConversionEventName = (typeof CONVERSION_EVENT_NAMES)[number]
 
 export type AnalyticsEventCategory = 'conversion' | 'engagement'
-export type AnalyticsEventSource = 'web' | 'ads' | 'ga4'
+export type AnalyticsEventSource = 'web' | 'ads' | 'ga4' | 'meta'
 export type AnalyticsMeasurementStatus = 'not_ready' | 'partial' | 'ready'
 
 export const isConversionEventName = (value: string | null | undefined) =>
@@ -26,8 +26,20 @@ export const normalizeAnalyticsEventCategory = (
 }
 
 export const normalizeAnalyticsEventSource = (value: unknown): AnalyticsEventSource => {
-  if (value === 'web' || value === 'ads' || value === 'ga4') {
+  if (value === 'web' || value === 'ads' || value === 'ga4' || value === 'meta') {
     return value
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (['facebook', 'fb', 'instagram', 'ig', 'meta'].includes(normalized)) {
+      return 'meta'
+    }
+    if (['google_ads', 'google-ads', 'googleads', 'gads', 'ads'].includes(normalized)) {
+      return 'ads'
+    }
+    if (['google_analytics_4', 'google-analytics-4', 'analytics', 'ga'].includes(normalized)) {
+      return 'ga4'
+    }
   }
   return 'web'
 }

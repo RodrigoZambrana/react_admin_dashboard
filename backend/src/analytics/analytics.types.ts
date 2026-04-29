@@ -10,6 +10,8 @@ export type AnalyticsEventInput = {
   session_id: string
   url: string
   user_agent: string
+  client_ip_address?: string | null
+  event_id?: string | null
   category?: AnalyticsEventCategory | null
   eventCategory?: AnalyticsEventCategory | null
   source?: AnalyticsEventSource | null
@@ -25,12 +27,15 @@ export type AnalyticsEventInput = {
   country?: string | null
   value?: number | null
   user_id?: string | null
+  fbp?: string | null
+  fbc?: string | null
+  external_targets?: string[] | null
   metadata?: Record<string, unknown>
   data?: Record<string, unknown>
   correlation_id?: string | null
 }
 
-export type AnalyticsConnectionSource = 'ga4' | 'ads' | 'search_console'
+export type AnalyticsConnectionSource = 'ga4' | 'ads' | 'search_console' | 'meta'
 
 export type AnalyticsConnectionStatus =
   | 'needs_auth'
@@ -74,6 +79,10 @@ export type AnalyticsSyncRun = {
   fromDate: string | null
   toDate: string | null
   status: AnalyticsSyncRunStatus
+  queuedAt: string | null
+  retryCount: number
+  partialFailureFlag: boolean
+  durationMs: number | null
   recordsFetched: number
   recordsUpserted: number
   errorMessage: string | null
@@ -103,7 +112,7 @@ export type AnalyticsInsightCategory =
   | 'business_issue'
   | 'measurement_issue'
   | 'low_confidence_signal'
-export type AnalyticsInsightSource = 'ga4' | 'ads' | 'search_console' | 'mixed'
+export type AnalyticsInsightSource = 'ga4' | 'ads' | 'search_console' | 'meta' | 'mixed'
 export type AnalyticsInsightType =
   | 'summary'
   | 'acquisition'
@@ -126,8 +135,20 @@ export type AnalyticsInsightPeriod = {
 export type AnalyticsMeasurementGate = {
   conversionMeasurementReady: boolean
   adsConversionMeasurementReady: boolean
+  metaConversionMeasurementReady: boolean
   qualityStatus: 'ok' | 'warning' | 'error'
   reasons: string[]
+}
+
+export type AnalyticsMetaAdsMetrics = {
+  spend: number
+  clicks: number
+  impressions: number
+  events: {
+    view_content: number
+    lead: number
+    purchase: number
+  }
 }
 
 export type AnalyticsAiInsight = {
@@ -152,6 +173,7 @@ export type AnalyticsAiInsight = {
   score: number
   status: 'open'
   createdAt: string
+  isBaselineVerified?: boolean
 }
 
 export type AnalyticsInsightBundleDetectedPattern = {
@@ -160,6 +182,37 @@ export type AnalyticsInsightBundleDetectedPattern = {
   category: AnalyticsInsightCategory
   source: AnalyticsInsightSource
   evidence: Record<string, unknown>
+}
+
+export type AnalyticsInsightBundleTrust = {
+  status: 'ok' | 'warning' | 'fail'
+  degraded: boolean
+  summary: string
+  updatedAt: string | null
+  checks: Array<{
+    check: string
+    status: 'ok' | 'warning' | 'fail'
+    value: number | null
+    expected: string
+    impact: string
+  }>
+}
+
+export type AnalyticsInsightBundleFreshness = {
+  generatedAt: string
+  currentWindow: AnalyticsInsightPeriod['current']
+  previousWindow: AnalyticsInsightPeriod['previous']
+  latestSyncAt: string | null
+  latestReportAt: string | null
+  syncLagMinutes: number | null
+  reportLagMinutes: number | null
+}
+
+export type AnalyticsInsightBundleBusinessContext = {
+  clientSlug: string | null
+  reportKey: string | null
+  primaryCurrency: string | null
+  timezone: string | null
 }
 
 export type AnalyticsInsightBundle = {
@@ -207,6 +260,7 @@ export type AnalyticsInsightBundle = {
     conversionRate: number
     source: AnalyticsInsightSource
   }>
+  meta_ads: AnalyticsMetaAdsMetrics
   detectedPatterns: AnalyticsInsightBundleDetectedPattern[]
   dataQuality: {
     status: 'ok' | 'warning' | 'error'
@@ -214,6 +268,9 @@ export type AnalyticsInsightBundle = {
     reasons: string[]
   }
   measurement: AnalyticsMeasurementGate
+  trust?: AnalyticsInsightBundleTrust | null
+  freshness?: AnalyticsInsightBundleFreshness | null
+  businessContext?: AnalyticsInsightBundleBusinessContext | null
 }
 
 export type AnalyticsAiDecisionInsight = {
@@ -255,6 +312,7 @@ export type AnalyticsAiDecisionOutput = {
     confidence: number
   }>
   quality_by_source: AnalyticsSourceQuality[]
+  confidence?: number
   generatedBy?: 'ai' | 'fallback'
   generationReason?: string | null
 }
@@ -330,9 +388,12 @@ export type AnalyticsInsightsResponse = {
   summary: string
   generatedBy?: 'ai' | 'fallback'
   generationReason?: string | null
+  confidence?: number
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
   measurement: AnalyticsMeasurementGate
+  trust?: AnalyticsInsightBundleTrust | null
+  freshness?: AnalyticsInsightBundleFreshness | null
   quality: AnalyticsInsightsDataset['quality']
   qualityBySource: AnalyticsSourceQuality[]
   insights: AnalyticsAiInsight[]
@@ -345,9 +406,12 @@ export type AnalyticsSummaryResponse = {
   summary: string
   generatedBy?: 'ai' | 'fallback'
   generationReason?: string | null
+  confidence?: number
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
   measurement: AnalyticsMeasurementGate
+  trust?: AnalyticsInsightBundleTrust | null
+  freshness?: AnalyticsInsightBundleFreshness | null
   quality: AnalyticsInsightsDataset['quality']
   qualityBySource: AnalyticsSourceQuality[]
   topInsight: AnalyticsAiInsight | null
@@ -360,9 +424,12 @@ export type AnalyticsOpportunitiesResponse = {
   summary: string
   generatedBy?: 'ai' | 'fallback'
   generationReason?: string | null
+  confidence?: number
   periodRange: AnalyticsInsightPeriod
   generatedAt: string
   measurement: AnalyticsMeasurementGate
+  trust?: AnalyticsInsightBundleTrust | null
+  freshness?: AnalyticsInsightBundleFreshness | null
   qualityBySource: AnalyticsSourceQuality[]
   opportunities: AnalyticsAiInsight[]
   prioritizedActions: AnalyticsPrioritizedAction[]
@@ -372,8 +439,8 @@ export type AnalyticsDataQualityStatus = 'ok' | 'warning' | 'error' | 'missing_b
 
 export type AnalyticsBaselineSnapshot = {
   id: string
-  connectionId: string
-  source: 'ga4'
+  connectionId: string | null
+  source: 'ga4' | 'ads' | 'search_console'
   reportKey: string
   date: string
   metricName: string
@@ -381,8 +448,142 @@ export type AnalyticsBaselineSnapshot = {
   dimensionValues: Record<string, unknown> | null
   value: number
   queryHash: string
+  origin?: 'api' | 'csv'
+  snapshotGroup?: string
   raw: Record<string, unknown> | null
   createdAt: string
+}
+
+export type AnalyticsDataParityStatus = 'aligned' | 'warning' | 'mismatch' | 'missing'
+
+export type AnalyticsDataParityCheck = {
+  id: string
+  source: 'ga4' | 'ads' | 'search_console'
+  metric: string
+  dateFrom: string
+  dateTo: string
+  apiValue: number
+  baselineValue: number
+  deltaAbs: number
+  deltaPercent: number
+  status: AnalyticsDataParityStatus
+  snapshotGroup: string
+  createdAt: string
+}
+
+export type AnalyticsDataParityResponse = {
+    summary: {
+        aligned: number
+        warning: number
+        mismatch: number
+        missing: number
+        total: number
+    }
+    baselineChecks: Array<{
+        date: string
+        source: 'ga4' | 'ads' | 'search_console'
+        metric: string
+        apiValue: number | null
+        importValue: number | null
+        exportValue: number | null
+        diffPercent: number
+        status: AnalyticsDataParityStatus
+        snapshotGroup: string
+        createdAt: string
+    }>
+    bySource: {
+        ga4: AnalyticsDataParityCheck[]
+        ads: AnalyticsDataParityCheck[]
+        search_console: AnalyticsDataParityCheck[]
+    }
+    lastRunAt: string | null
+    overallStatus: 'ok' | 'degraded' | 'fail'
+    history: AnalyticsDataParityCheck[]
+    anomalies: AnalyticsDataAnomaly[]
+}
+
+export type AnalyticsUsageEvent = {
+    id: string
+    endpoint: string
+    userId: number | null
+  timeRange: string
+  filters: Record<string, unknown> | null
+  responseTimeMs: number
+  responseSize: number
+  trustLevel: string
+    hasData: boolean
+    createdAt: string
+}
+
+export type AnalyticsEndpointUsage = {
+    id: string
+    endpoint: string
+    userId: string | null
+    statusCode: number
+    durationMs: number
+    createdAt: string
+}
+
+export type AnalyticsUsageResponse = {
+    endpoints: Array<{
+        endpoint: string
+        calls: number
+        avgLatency: number
+        errorRate: number
+        lastCalledAt: string | null
+    }>
+    requestsByDay: Array<{
+        date: string
+        calls: number
+        errorRate: number
+    }>
+    unusedEndpoints: string[]
+    history: AnalyticsEndpointUsage[]
+}
+
+export type AnalyticsExportRun = {
+  id: string
+  exportType: string
+  source: string | null
+  dateFrom: string
+  dateTo: string
+  filters: Record<string, unknown> | null
+  rowCount: number | null
+  fileFormat: string
+  status: string
+  errorMessage: string | null
+  durationMs: number | null
+  fileSize: number | null
+  createdAt: string
+}
+
+export type AnalyticsExportRunsResponse = {
+    total: number
+    items: AnalyticsExportRun[]
+}
+
+export type AnalyticsBaselineCheck = {
+    id: string
+    date: string
+    source: 'ga4' | 'ads' | 'search_console'
+    metric: string
+    comparisonKind: 'api_vs_import' | 'export_vs_import'
+    expectedValue: number
+    actualValue: number
+    diffPct: number
+    status: 'ok' | 'warning' | 'mismatch'
+    snapshotGroup: string
+    createdAt: string
+}
+
+export type AnalyticsDataAnomaly = {
+    id: string
+    type: string
+    source: string
+    metric: string | null
+    description: string
+    severity: string
+    detectedAt: string
 }
 
 export type AnalyticsDataQualityCheck = {

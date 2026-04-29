@@ -17,6 +17,11 @@ import type {
   AnalyticsInsight,
   AnalyticsInsightHistory,
   AnalyticsBaselineSnapshot,
+  AnalyticsBaselineCheck,
+  AnalyticsDataAnomaly,
+  AnalyticsExportRun,
+  AnalyticsDataParityCheck,
+  AnalyticsDataParityStatus,
   AnalyticsDataQualityCheck,
   AnalyticsDataQualityStatus,
   AnalyticsEventInput,
@@ -30,7 +35,47 @@ import type {
   AnalyticsReportRunSource,
   AnalyticsReportReconciliationStatus,
   AnalyticsSyncRun,
+  AnalyticsEndpointUsage,
+  AnalyticsUsageEvent,
 } from './analytics.types'
+
+const asString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length ? trimmed : null
+}
+
+const extractEventId = (input: AnalyticsEventInput) => {
+  const data = input.data ?? {}
+  return (
+    asString(input.event_id) ??
+    asString((data as Record<string, unknown>).event_id) ??
+    asString((data as Record<string, unknown>).eventId)
+  )
+}
+
+const extractFbp = (input: AnalyticsEventInput) => {
+  const data = input.data ?? {}
+  return asString(input.fbp) ?? asString((data as Record<string, unknown>).fbp)
+}
+
+const extractFbc = (input: AnalyticsEventInput) => {
+  const data = input.data ?? {}
+  return asString(input.fbc) ?? asString((data as Record<string, unknown>).fbc)
+}
+
+const extractExternalTargets = (input: AnalyticsEventInput) => {
+  const data = input.data ?? {}
+  const fromInput = input.external_targets ?? (data as Record<string, unknown>).external_targets
+  if (!Array.isArray(fromInput)) {
+    return null
+  }
+  return fromInput
+    .map((value) => asString(value))
+    .filter((value): value is string => Boolean(value))
+}
 
 @Injectable()
 export class AnalyticsRepository {
@@ -102,6 +147,36 @@ export class AnalyticsRepository {
         upsert: (args?: unknown) => Promise<any>
         findMany: (args?: unknown) => Promise<any[]>
         findFirst: (args?: unknown) => Promise<any | null>
+      }
+      analyticsDataParityCheck: {
+        create: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
+        findFirst: (args?: unknown) => Promise<any | null>
+      }
+      analyticsUsageEvent: {
+        create: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
+      }
+      analyticsEndpointUsage: {
+        create: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
+        count: (args?: unknown) => Promise<number>
+      }
+      analyticsBaselineCheck: {
+        create: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
+        count: (args?: unknown) => Promise<number>
+      }
+      analyticsDataAnomaly: {
+        create: (args?: unknown) => Promise<any>
+        findMany: (args?: unknown) => Promise<any[]>
+      }
+      analyticsExportRun: {
+        create: (args?: unknown) => Promise<any>
+        update: (args?: unknown) => Promise<any>
+        findUnique: (args?: unknown) => Promise<any | null>
+        findMany: (args?: unknown) => Promise<any[]>
+        count: (args?: unknown) => Promise<number>
       }
       analyticsDataQualityCheck: {
         create: (args?: unknown) => Promise<any>
@@ -228,6 +303,10 @@ export class AnalyticsRepository {
       fromDate: run.fromDate?.toISOString() ?? null,
       toDate: run.toDate?.toISOString() ?? null,
       status: run.status as AnalyticsSyncRun['status'],
+      queuedAt: run.queuedAt?.toISOString() ?? null,
+      retryCount: run.retryCount ?? 0,
+      partialFailureFlag: run.partialFailureFlag ?? false,
+      durationMs: run.durationMs ?? null,
       recordsFetched: run.recordsFetched,
       recordsUpserted: run.recordsUpserted,
       errorMessage: run.errorMessage ?? null,
@@ -356,7 +435,7 @@ export class AnalyticsRepository {
   private mapBaselineSnapshot(snapshot: any): AnalyticsBaselineSnapshot {
     return {
       id: snapshot.id,
-      connectionId: snapshot.connectionId,
+      connectionId: snapshot.connectionId ?? null,
       source: snapshot.source as AnalyticsBaselineSnapshot['source'],
       reportKey: snapshot.reportKey,
       date: snapshot.date.toISOString(),
@@ -365,8 +444,112 @@ export class AnalyticsRepository {
       dimensionValues: (snapshot.dimensionValues as Record<string, unknown>) ?? null,
       value: Number(snapshot.value.toString()),
       queryHash: snapshot.queryHash,
+      origin: snapshot.origin ?? 'api',
+      snapshotGroup: snapshot.snapshotGroup ?? '',
       raw: (snapshot.raw as Record<string, unknown>) ?? null,
       createdAt: snapshot.createdAt.toISOString(),
+    }
+  }
+
+  private mapDataParityCheck(check: any): {
+    id: string
+    source: AnalyticsDataParityCheck['source']
+    metric: string
+    dateFrom: string
+    dateTo: string
+    apiValue: number
+    baselineValue: number
+    deltaAbs: number
+    deltaPercent: number
+    status: AnalyticsDataParityStatus
+    snapshotGroup: string
+    createdAt: string
+  } {
+    return {
+      id: check.id,
+      source: check.source as AnalyticsDataParityCheck['source'],
+      metric: check.metric,
+      dateFrom: check.dateFrom.toISOString(),
+      dateTo: check.dateTo.toISOString(),
+      apiValue: Number(check.apiValue.toString()),
+      baselineValue: Number(check.baselineValue.toString()),
+      deltaAbs: Number(check.deltaAbs.toString()),
+      deltaPercent: Number(check.deltaPercent.toString()),
+      status: check.status as AnalyticsDataParityStatus,
+      snapshotGroup: check.snapshotGroup ?? '',
+      createdAt: check.createdAt.toISOString(),
+    }
+  }
+
+  private mapUsageEvent(event: any): AnalyticsUsageEvent {
+    return {
+      id: event.id,
+      endpoint: event.endpoint,
+      userId: event.userId ?? null,
+      timeRange: event.timeRange,
+      filters: (event.filters as Record<string, unknown>) ?? null,
+      responseTimeMs: event.responseTimeMs,
+      responseSize: event.responseSize,
+      trustLevel: event.trustLevel,
+      hasData: event.hasData,
+      createdAt: event.createdAt.toISOString(),
+    }
+  }
+
+  private mapEndpointUsage(event: any): AnalyticsEndpointUsage {
+    return {
+      id: event.id,
+      endpoint: event.endpoint,
+      userId: event.userId ?? null,
+      statusCode: event.statusCode,
+      durationMs: event.durationMs,
+      createdAt: event.createdAt.toISOString(),
+    }
+  }
+
+  private mapBaselineCheck(check: any): AnalyticsBaselineCheck {
+    return {
+      id: check.id,
+      date: check.date.toISOString(),
+      source: check.source as AnalyticsBaselineCheck['source'],
+      metric: check.metric,
+      comparisonKind: check.comparisonKind as AnalyticsBaselineCheck['comparisonKind'],
+      expectedValue: Number(check.expectedValue.toString()),
+      actualValue: Number(check.actualValue.toString()),
+      diffPct: Number(check.diffPct.toString()),
+      status: check.status as AnalyticsBaselineCheck['status'],
+      snapshotGroup: check.snapshotGroup,
+      createdAt: check.createdAt.toISOString(),
+    }
+  }
+
+  private mapDataAnomaly(anomaly: any): AnalyticsDataAnomaly {
+    return {
+      id: anomaly.id,
+      type: anomaly.type,
+      source: anomaly.source,
+      metric: anomaly.metric ?? null,
+      description: anomaly.description,
+      severity: anomaly.severity,
+      detectedAt: anomaly.detectedAt.toISOString(),
+    }
+  }
+
+  private mapExportRun(run: any): AnalyticsExportRun {
+    return {
+      id: run.id,
+      exportType: run.exportType,
+      source: run.source ?? null,
+      dateFrom: run.dateFrom.toISOString(),
+      dateTo: run.dateTo.toISOString(),
+      filters: (run.filters as Record<string, unknown>) ?? null,
+      rowCount: run.rowCount ?? null,
+      fileFormat: run.fileFormat,
+      status: run.status,
+      errorMessage: run.errorMessage ?? null,
+      durationMs: run.durationMs ?? null,
+      fileSize: run.fileSize ?? null,
+      createdAt: run.createdAt.toISOString(),
     }
   }
 
@@ -520,6 +703,9 @@ export class AnalyticsRepository {
     fromDate?: Date | null
     toDate?: Date | null
     status?: string
+    queuedAt?: Date | null
+    retryCount?: number
+    partialFailureFlag?: boolean
   }) {
     return this.analyticsPrisma.analyticsSyncRun.create({
       data: {
@@ -528,14 +714,45 @@ export class AnalyticsRepository {
         fromDate: input.fromDate ?? null,
         toDate: input.toDate ?? null,
         status: input.status ?? 'running',
+        queuedAt: input.queuedAt ?? null,
+        retryCount: input.retryCount ?? 0,
+        partialFailureFlag: input.partialFailureFlag ?? false,
       },
     })
+  }
+
+  async findSyncRunById(syncRunId: string) {
+    const run = await this.analyticsPrisma.analyticsSyncRun.findUnique({
+      where: { id: syncRunId },
+    })
+    return run ? this.mapSyncRun(run) : null
+  }
+
+  async hasActiveSyncRun(connectionId: string) {
+    const run = await this.analyticsPrisma.analyticsSyncRun.findFirst({
+      where: {
+        connectionId,
+        status: {
+          in: ['pending', 'running'],
+        },
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      select: {
+        id: true,
+      },
+    })
+    return Boolean(run)
   }
 
   async updateSyncRun(
     syncRunId: string,
     data: Partial<{
       status: string
+      queuedAt: Date | null
+      retryCount: number
+      partialFailureFlag: boolean
+      durationMs: number | null
+      startedAt: Date | null
       recordsFetched: number
       recordsUpserted: number
       errorMessage: string | null
@@ -777,13 +994,25 @@ export class AnalyticsRepository {
       input.measurement_status ?? input.measurementStatus ?? (payload as Record<string, unknown>).measurement_status,
       category,
     )
+    const eventId = extractEventId(input)
+    const fbp = extractFbp(input)
+    const fbc = extractFbc(input)
+    const externalTargets = extractExternalTargets(input)
     return this.prisma.analyticsEvent.create({
       data: {
         eventName,
         eventCategory: category,
         source,
         measurementStatus,
+        conversionFlag: category === 'conversion',
+        eventId,
         sessionId: input.session_id,
+        fbp,
+        fbc,
+        externalTargets: externalTargets ? (externalTargets as Prisma.InputJsonValue) : null,
+        metaSentAt: null,
+        metaEventId: null,
+        metaStatus: null,
         url: input.url,
         userAgent: input.user_agent,
         referrer: input.referrer ?? null,
@@ -792,6 +1021,26 @@ export class AnalyticsRepository {
         timestamp: new Date(input.timestamp),
         payload,
       } as Prisma.AnalyticsEventCreateInput,
+    })
+  }
+
+  async updateEventMetaDelivery(
+    id: string,
+    input: {
+      metaStatus: string | null
+      metaEventId: string | null
+      metaSentAt: Date | null
+      externalTargets?: Prisma.InputJsonValue | null
+    },
+  ) {
+    return this.prisma.analyticsEvent.update({
+      where: { id },
+      data: {
+        externalTargets: input.externalTargets ?? undefined,
+        metaStatus: input.metaStatus,
+        metaEventId: input.metaEventId,
+        metaSentAt: input.metaSentAt,
+      },
     })
   }
 
@@ -1037,6 +1286,22 @@ export class AnalyticsRepository {
     return rows.map((row) => this.mapReportingDailyMetric(row))
   }
 
+  async listReportingDailyBatch(from: Date, to: Date, limit = 1000, cursorId?: bigint | null) {
+    const rows = await this.analyticsPrisma.analyticsReportingDaily.findMany({
+      where: {
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      orderBy: [{ id: 'asc' }],
+      take: limit,
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+    })
+
+    return rows.map((row) => this.mapReportingDailyMetric(row))
+  }
+
   async listAdsDailyMetrics(from: Date, to: Date) {
     const rows = await this.analyticsPrisma.analyticsAdsDailyMetric.findMany({
       where: {
@@ -1051,6 +1316,22 @@ export class AnalyticsRepository {
     return rows.map((row) => this.mapAdsDailyMetric(row))
   }
 
+  async listAdsDailyMetricsBatch(from: Date, to: Date, limit = 1000, cursorId?: bigint | null) {
+    const rows = await this.analyticsPrisma.analyticsAdsDailyMetric.findMany({
+      where: {
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      orderBy: [{ id: 'asc' }],
+      take: limit,
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+    })
+
+    return rows.map((row) => this.mapAdsDailyMetric(row))
+  }
+
   async listSearchConsoleDailyMetrics(from: Date, to: Date) {
     const rows = await this.analyticsPrisma.analyticsSearchConsoleDailyMetric.findMany({
       where: {
@@ -1060,6 +1341,27 @@ export class AnalyticsRepository {
         },
       },
       orderBy: [{ date: 'asc' }, { query: 'asc' }],
+    })
+
+    return rows.map((row) => this.mapSearchConsoleDailyMetric(row))
+  }
+
+  async listSearchConsoleDailyMetricsBatch(
+    from: Date,
+    to: Date,
+    limit = 1000,
+    cursorId?: bigint | null,
+  ) {
+    const rows = await this.analyticsPrisma.analyticsSearchConsoleDailyMetric.findMany({
+      where: {
+        date: {
+          gte: from,
+          lte: to,
+        },
+      },
+      orderBy: [{ id: 'asc' }],
+      take: limit,
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
     })
 
     return rows.map((row) => this.mapSearchConsoleDailyMetric(row))
@@ -1440,8 +1742,8 @@ export class AnalyticsRepository {
   }
 
   async upsertBaselineSnapshot(input: {
-    connectionId: string
-    source: 'ga4'
+    connectionId?: string | null
+    source: 'ga4' | 'ads' | 'search_console'
     reportKey: string
     date: Date
     metricName: string
@@ -1449,6 +1751,8 @@ export class AnalyticsRepository {
     dimensionValues: Prisma.InputJsonValue | null
     value: number
     queryHash: string
+    origin?: 'api' | 'csv' | 'export'
+    snapshotGroup?: string | null
     raw?: Prisma.InputJsonValue | null
   }) {
     return this.analyticsPrisma.analyticsBaselineSnapshot.upsert({
@@ -1466,10 +1770,12 @@ export class AnalyticsRepository {
       update: {
         dimensionValues: input.dimensionValues,
         value: new Prisma.Decimal(input.value),
+        origin: input.origin ?? 'api',
+        snapshotGroup: input.snapshotGroup ?? '',
         raw: input.raw ?? null,
       },
       create: {
-        connectionId: input.connectionId,
+        connectionId: input.connectionId ?? null,
         source: input.source,
         reportKey: input.reportKey,
         date: input.date,
@@ -1478,19 +1784,411 @@ export class AnalyticsRepository {
         dimensionValues: input.dimensionValues,
         value: new Prisma.Decimal(input.value),
         queryHash: input.queryHash,
+        origin: input.origin ?? 'api',
+        snapshotGroup: input.snapshotGroup ?? '',
         raw: input.raw ?? null,
       },
     })
   }
 
-  async listBaselineSnapshots(limit = 50, reportKey?: string) {
+  async listBaselineSnapshots(
+    limit = 50,
+    reportKey?: string,
+    filters?: { origin?: 'api' | 'csv' | 'export'; snapshotGroup?: string },
+  ) {
     const snapshots = await this.analyticsPrisma.analyticsBaselineSnapshot.findMany({
-      where: reportKey ? { reportKey } : undefined,
+      where: {
+        ...(reportKey ? { reportKey } : {}),
+        ...(filters?.origin ? { origin: filters.origin } : {}),
+        ...(filters?.snapshotGroup ? { snapshotGroup: filters.snapshotGroup } : {}),
+      },
       orderBy: [{ createdAt: 'desc' }],
       take: limit,
     })
 
     return snapshots.map((snapshot) => this.mapBaselineSnapshot(snapshot))
+  }
+
+  async createDataParityCheck(input: {
+    source: 'ga4' | 'ads' | 'search_console'
+    metric: string
+    dateFrom: Date
+    dateTo: Date
+    apiValue: number
+    baselineValue: number
+    deltaAbs: number
+    deltaPercent: number
+    status: AnalyticsDataParityStatus
+    snapshotGroup?: string | null
+  }) {
+    return this.analyticsPrisma.analyticsDataParityCheck.create({
+      data: {
+        source: input.source,
+        metric: input.metric,
+        dateFrom: input.dateFrom,
+        dateTo: input.dateTo,
+        apiValue: new Prisma.Decimal(input.apiValue),
+        baselineValue: new Prisma.Decimal(input.baselineValue),
+        deltaAbs: new Prisma.Decimal(input.deltaAbs),
+        deltaPercent: new Prisma.Decimal(input.deltaPercent),
+        status: input.status,
+        snapshotGroup: input.snapshotGroup ?? '',
+      },
+    })
+  }
+
+  async listDataParityChecks(limit = 100, source?: 'ga4' | 'ads' | 'search_console') {
+    const checks = await this.analyticsPrisma.analyticsDataParityCheck.findMany({
+      where: source ? { source } : undefined,
+      orderBy: [{ createdAt: 'desc' }],
+      take: limit,
+    })
+    return checks.map((check) => this.mapDataParityCheck(check))
+  }
+
+  async listLatestDataParityChecks() {
+    const checks = await this.analyticsPrisma.analyticsDataParityCheck.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      take: 50,
+    })
+    return checks.map((check) => this.mapDataParityCheck(check))
+  }
+
+  async createUsageEvent(input: {
+    endpoint: string
+    userId?: number | null
+    timeRange: string
+    filters?: Prisma.InputJsonValue | null
+    responseTimeMs: number
+    responseSize: number
+    trustLevel: string
+    hasData: boolean
+  }) {
+    return this.analyticsPrisma.analyticsUsageEvent.create({
+      data: {
+        endpoint: input.endpoint,
+        userId: input.userId ?? null,
+        timeRange: input.timeRange,
+        filters: input.filters ?? null,
+        responseTimeMs: input.responseTimeMs,
+        responseSize: input.responseSize,
+        trustLevel: input.trustLevel,
+        hasData: input.hasData,
+      },
+    })
+  }
+
+  async createEndpointUsage(input: {
+    endpoint: string
+    userId?: string | null
+    statusCode: number
+    durationMs: number
+  }) {
+    return this.analyticsPrisma.analyticsEndpointUsage.create({
+      data: {
+        endpoint: input.endpoint,
+        userId: input.userId ?? null,
+        statusCode: input.statusCode,
+        durationMs: input.durationMs,
+      },
+    })
+  }
+
+  async listEndpointUsage(limit = 100) {
+    const rows = await this.analyticsPrisma.analyticsEndpointUsage.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      take: limit,
+    })
+    return rows.map((row) => this.mapEndpointUsage(row))
+  }
+
+  async listEndpointUsageByEndpoint(limit = 100) {
+    const rows = await this.listEndpointUsage(limit)
+    const aggregates = new Map<
+      string,
+      {
+        endpoint: string
+        calls: number
+        latencySum: number
+        errorCount: number
+        lastCalledAt: string | null
+      }
+    >()
+
+    for (const row of rows) {
+      const current =
+        aggregates.get(row.endpoint) ?? {
+          endpoint: row.endpoint,
+          calls: 0,
+          latencySum: 0,
+          errorCount: 0,
+          lastCalledAt: null,
+        }
+      current.calls += 1
+      current.latencySum += row.durationMs
+      if (row.statusCode >= 400) {
+        current.errorCount += 1
+      }
+      current.lastCalledAt = !current.lastCalledAt || current.lastCalledAt < row.createdAt ? row.createdAt : current.lastCalledAt
+      aggregates.set(row.endpoint, current)
+    }
+
+    return [...aggregates.values()]
+      .map((entry) => ({
+        endpoint: entry.endpoint,
+        calls: entry.calls,
+        avgLatency: entry.calls > 0 ? Number((entry.latencySum / entry.calls).toFixed(2)) : 0,
+        errorRate: entry.calls > 0 ? Number((entry.errorCount / entry.calls).toFixed(4)) : 0,
+        lastCalledAt: entry.lastCalledAt,
+      }))
+      .sort((left, right) => right.calls - left.calls)
+  }
+
+  async listEndpointUsageDaily(limit = 30) {
+    const rows = await this.listEndpointUsage(5000)
+    const aggregates = new Map<string, { calls: number; errors: number }>()
+    for (const row of rows) {
+      const key = row.createdAt.slice(0, 10)
+      const current = aggregates.get(key) ?? { calls: 0, errors: 0 }
+      current.calls += 1
+      if (row.statusCode >= 400) {
+        current.errors += 1
+      }
+      aggregates.set(key, current)
+    }
+    return [...aggregates.entries()]
+      .map(([date, value]) => ({
+        date,
+        calls: value.calls,
+        errorRate: value.calls > 0 ? Number((value.errors / value.calls).toFixed(4)) : 0,
+      }))
+      .sort((left, right) => right.date.localeCompare(left.date))
+      .slice(0, limit)
+  }
+
+  async countEndpointUsage(limit = 100) {
+    return this.analyticsPrisma.analyticsEndpointUsage.count({
+      take: limit,
+    })
+  }
+
+  async listUsageEvents(limit = 100) {
+    const events = await this.analyticsPrisma.analyticsUsageEvent.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      take: limit,
+    })
+    return events.map((event) => this.mapUsageEvent(event))
+  }
+
+  async listUsageByEndpoint(limit = 100) {
+    const events = await this.listUsageEvents(limit)
+    const aggregates = new Map<
+      string,
+      {
+        endpoint: string
+        calls: number
+        latencySum: number
+        emptyCount: number
+        trustLevels: Record<string, number>
+        lastCalledAt: string | null
+      }
+    >()
+
+    for (const event of events) {
+      const current =
+        aggregates.get(event.endpoint) ??
+        {
+          endpoint: event.endpoint,
+          calls: 0,
+          latencySum: 0,
+          emptyCount: 0,
+          trustLevels: {},
+          lastCalledAt: null,
+        }
+      current.calls += 1
+      current.latencySum += event.responseTimeMs
+      if (!event.hasData) {
+        current.emptyCount += 1
+      }
+      current.trustLevels[event.trustLevel] = (current.trustLevels[event.trustLevel] ?? 0) + 1
+      current.lastCalledAt =
+        !current.lastCalledAt || current.lastCalledAt < event.createdAt ? event.createdAt : current.lastCalledAt
+      aggregates.set(event.endpoint, current)
+    }
+
+    return [...aggregates.values()]
+      .map((entry) => ({
+        endpoint: entry.endpoint,
+        calls: entry.calls,
+        avgLatency: entry.calls > 0 ? Number((entry.latencySum / entry.calls).toFixed(2)) : 0,
+        emptyRate: entry.calls > 0 ? Number((entry.emptyCount / entry.calls).toFixed(4)) : 0,
+        trustLevels: entry.trustLevels,
+        lastCalledAt: entry.lastCalledAt,
+      }))
+      .sort((left, right) => right.calls - left.calls)
+  }
+
+  async createBaselineCheck(input: {
+    date: Date
+    source: 'ga4' | 'ads' | 'search_console'
+    metric: string
+    comparisonKind: 'api_vs_import' | 'export_vs_import'
+    expectedValue: number
+    actualValue: number
+    diffPct: number
+    status: 'ok' | 'warning' | 'mismatch'
+    snapshotGroup: string
+  }) {
+    const check = await this.analyticsPrisma.analyticsBaselineCheck.create({
+      data: {
+        date: input.date,
+        source: input.source,
+        metric: input.metric,
+        comparisonKind: input.comparisonKind,
+        expectedValue: new Prisma.Decimal(input.expectedValue),
+        actualValue: new Prisma.Decimal(input.actualValue),
+        diffPct: new Prisma.Decimal(input.diffPct),
+        status: input.status,
+        snapshotGroup: input.snapshotGroup,
+      },
+    })
+    return this.mapBaselineCheck(check)
+  }
+
+  async listBaselineChecks(limit = 100, filters?: { source?: 'ga4' | 'ads' | 'search_console'; comparisonKind?: string }) {
+    const rows = await this.analyticsPrisma.analyticsBaselineCheck.findMany({
+      where: {
+        ...(filters?.source ? { source: filters.source } : {}),
+        ...(filters?.comparisonKind ? { comparisonKind: filters.comparisonKind } : {}),
+      },
+      orderBy: [{ createdAt: 'desc' }],
+      take: limit,
+    })
+    return rows.map((row) => this.mapBaselineCheck(row))
+  }
+
+  async countBaselineChecks() {
+    return this.analyticsPrisma.analyticsBaselineCheck.count()
+  }
+
+  async createDataAnomaly(input: {
+    type: string
+    source: string
+    metric?: string | null
+    description: string
+    severity: string
+  }) {
+    const anomaly = await this.analyticsPrisma.analyticsDataAnomaly.create({
+      data: {
+        type: input.type,
+        source: input.source,
+        metric: input.metric ?? null,
+        description: input.description,
+        severity: input.severity,
+      },
+    })
+    return this.mapDataAnomaly(anomaly)
+  }
+
+  async listDataAnomalies(limit = 100) {
+    const rows = await this.analyticsPrisma.analyticsDataAnomaly.findMany({
+      orderBy: [{ detectedAt: 'desc' }],
+      take: limit,
+    })
+    return rows.map((row) => this.mapDataAnomaly(row))
+  }
+
+  async createExportRun(input: {
+    exportType: string
+    source?: string | null
+    dateFrom: Date
+    dateTo: Date
+    filters?: Prisma.InputJsonValue | null
+    rowCount?: number | null
+    fileFormat: string
+    status: string
+    errorMessage?: string | null
+    durationMs?: number | null
+    fileSize?: number | null
+  }) {
+    const run = await this.analyticsPrisma.analyticsExportRun.create({
+      data: {
+        exportType: input.exportType,
+        source: input.source ?? null,
+        dateFrom: input.dateFrom,
+        dateTo: input.dateTo,
+        filters: input.filters ?? null,
+        rowCount: input.rowCount ?? null,
+        fileFormat: input.fileFormat,
+        status: input.status,
+        errorMessage: input.errorMessage ?? null,
+        durationMs: input.durationMs ?? null,
+        fileSize: input.fileSize ?? null,
+      },
+    })
+
+    return this.mapExportRun(run)
+  }
+
+  async updateExportRun(
+    id: string,
+    input: Partial<{
+      rowCount: number | null
+      status: string
+      errorMessage: string | null
+      durationMs: number | null
+      fileSize: number | null
+    }>,
+  ) {
+    const run = await this.analyticsPrisma.analyticsExportRun.update({
+      where: { id },
+      data: {
+        ...(input.rowCount !== undefined ? { rowCount: input.rowCount } : {}),
+        ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.errorMessage !== undefined ? { errorMessage: input.errorMessage } : {}),
+        ...(input.durationMs !== undefined ? { durationMs: input.durationMs } : {}),
+        ...(input.fileSize !== undefined ? { fileSize: input.fileSize } : {}),
+      },
+    })
+
+    return this.mapExportRun(run)
+  }
+
+  async listExportRuns(input: {
+    limit: number
+    offset: number
+    exportType?: string | null
+    source?: string | null
+    status?: string | null
+  }) {
+    const where = {
+      ...(input.exportType ? { exportType: input.exportType } : {}),
+      ...(input.source ? { source: input.source } : {}),
+      ...(input.status ? { status: input.status } : {}),
+    }
+
+    const [total, items] = await Promise.all([
+      this.analyticsPrisma.analyticsExportRun.count({ where }),
+      this.analyticsPrisma.analyticsExportRun.findMany({
+        where,
+        orderBy: [{ createdAt: 'desc' }],
+        skip: input.offset,
+        take: input.limit,
+      }),
+    ])
+
+    return {
+      total,
+      items: items.map((item) => this.mapExportRun(item)),
+    }
+  }
+
+  async getExportRunById(id: string) {
+    const run = await this.analyticsPrisma.analyticsExportRun.findUnique({
+      where: { id },
+    })
+
+    return run ? this.mapExportRun(run) : null
   }
 
   async findLatestBaselineQuery(reportKey: string, queryHash: string) {

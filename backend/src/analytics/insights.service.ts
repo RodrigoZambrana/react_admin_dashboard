@@ -3,7 +3,8 @@ import { Prisma } from '@prisma/client'
 import { randomUUID } from 'crypto'
 
 import { AnalyticsRepository } from './analytics.repository'
-import { AnalyticsAiInsightsService } from './ai-insights.service'
+import { AnalyticsInsightAiService } from './analytics-insight-ai.service'
+import { AnalyticsDataTrustService } from './data-trust/analytics-data-trust.service'
 import type {
   AnalyticsAiDecisionOutput,
   AnalyticsAiDecisionInsight,
@@ -400,7 +401,8 @@ const measurementQualityStatus = (qualityPressure: number): AnalyticsMeasurement
 export class AnalyticsInsightsService {
   constructor(
     private readonly repository: AnalyticsRepository,
-    private readonly aiInsightsService: AnalyticsAiInsightsService,
+    private readonly analyticsInsightAiService: AnalyticsInsightAiService,
+    private readonly dataTrustService: AnalyticsDataTrustService,
   ) {}
 
   async getInsights(params?: { from?: string; to?: string; reportKey?: string }) {
@@ -411,7 +413,7 @@ export class AnalyticsInsightsService {
       }
     }
     const bundle = await this.buildInsightsBundle(params)
-    const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
+    const decision = await this.analyticsInsightAiService.generateDecision(bundle.bundle)
     return this.buildInsightsResponse(bundle, decision)
   }
 
@@ -423,7 +425,7 @@ export class AnalyticsInsightsService {
       }
     }
     const bundle = await this.buildInsightsBundle(params)
-    const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
+    const decision = await this.analyticsInsightAiService.generateDecision(bundle.bundle)
     return this.buildSummaryResponse(bundle, decision)
   }
 
@@ -435,8 +437,12 @@ export class AnalyticsInsightsService {
       }
     }
     const bundle = await this.buildInsightsBundle(params)
-    const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
+    const decision = await this.analyticsInsightAiService.generateDecision(bundle.bundle)
     return this.buildOpportunitiesResponse(bundle, decision)
+  }
+
+  async getInsightBundle(params?: { from?: string; to?: string; reportKey?: string }) {
+    return this.buildInsightsBundle(params)
   }
 
   async getHistory(limit = 100) {
@@ -450,7 +456,7 @@ export class AnalyticsInsightsService {
     if (!params?.from && !params?.to && !params?.reportKey) {
       const persisted = await this.loadLatestPersistedDecision()
       if (persisted) {
-        const decision = await this.aiInsightsService.generateDecision(persisted.bundle.bundle)
+        const trustAwareDecision = await this.analyticsInsightAiService.generateDecision(persisted.bundle.bundle)
         await this.persistBundle(
           {
             dataset: persisted.bundle.dataset,
@@ -458,14 +464,14 @@ export class AnalyticsInsightsService {
             bundle: persisted.bundle.bundle,
             detectedInsights: [],
           },
-          decision,
+          trustAwareDecision,
         )
-        return this.buildInsightsResponse(persisted.bundle, decision)
+        return this.buildInsightsResponse(persisted.bundle, trustAwareDecision)
       }
     }
 
     const bundle = await this.buildInsightsBundle(params)
-    const decision = await this.aiInsightsService.generateDecision(bundle.bundle)
+    const decision = await this.analyticsInsightAiService.generateDecision(bundle.bundle)
     await this.persistBundle(bundle, decision)
     return this.buildInsightsResponse(bundle, decision)
   }
@@ -542,6 +548,7 @@ export class AnalyticsInsightsService {
         this.repository.listDataQualityChecks(200, params?.reportKey),
       ])
     const baselineSnapshots = await this.repository.listBaselineSnapshots(100, params?.reportKey)
+    const trustOverview = await this.dataTrustService.getOverview(10)
 
     const qualitySummaries = this.buildQualitySummaries(dataQualityChecks)
     const dataset: LoadedSemanticData = {
@@ -565,7 +572,13 @@ export class AnalyticsInsightsService {
     const measurement = this.evaluateMeasurementReadiness(dataset, this.qualityPressure(dataset))
     const detectedInsights = this.detectPatterns(dataset, measurement)
     const detectedPatterns = this.toDetectedPatterns(detectedInsights, measurement)
-    const bundle = this.buildSemanticBundle(dataset, measurement, detectedPatterns)
+    const bundle = this.buildSemanticBundle(
+      dataset,
+      measurement,
+      detectedPatterns,
+      trustOverview,
+      params?.reportKey ?? null,
+    )
 
     return {
       dataset,
@@ -587,9 +600,11 @@ export class AnalyticsInsightsService {
         summary: decision.summary,
         insightsJson: toJson(decision.insights),
         actionsJson: toJson(decision.prioritized_actions),
-        confidence: decision.insights.length
-          ? decision.insights.reduce((sum, insight) => sum + insight.confidence, 0) / decision.insights.length
-          : bundle.bundle.dataQuality.confidence,
+        confidence:
+          decision.confidence ??
+          (decision.insights.length
+            ? decision.insights.reduce((sum, insight) => sum + insight.confidence, 0) / decision.insights.length
+            : bundle.bundle.dataQuality.confidence),
         bundleJson: toJson(bundle.bundle),
         responseJson: toJson(decision),
       }),
@@ -601,9 +616,11 @@ export class AnalyticsInsightsService {
           description: decision.summary,
           impact: 'medium',
           recommendation: decision.prioritized_actions[0]?.action ?? 'Revisar el insight principal y ejecutar la acción priorizada.',
-          confidence: decision.insights.length
-            ? decision.insights.reduce((sum, insight) => sum + insight.confidence, 0) / decision.insights.length
-            : bundle.bundle.dataQuality.confidence,
+          confidence:
+            decision.confidence ??
+            (decision.insights.length
+              ? decision.insights.reduce((sum, insight) => sum + insight.confidence, 0) / decision.insights.length
+              : bundle.bundle.dataQuality.confidence),
           evidence: toJson({
             summary: decision.summary,
             measurement: bundle.measurement,
@@ -633,9 +650,12 @@ export class AnalyticsInsightsService {
       summary: decision.summary,
       generatedBy: decision.generatedBy,
       generationReason: decision.generationReason,
+      confidence: decision.confidence,
       periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
       measurement: bundle.measurement,
+      trust: bundle.bundle.trust ?? null,
+      freshness: bundle.bundle.freshness ?? null,
       quality: this.buildQualityContext(bundle.dataset),
       qualityBySource: decision.quality_by_source,
       insights,
@@ -659,9 +679,12 @@ export class AnalyticsInsightsService {
       summary: decision.summary,
       generatedBy: decision.generatedBy,
       generationReason: decision.generationReason,
+      confidence: decision.confidence,
       periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
       measurement: bundle.measurement,
+      trust: bundle.bundle.trust ?? null,
+      freshness: bundle.bundle.freshness ?? null,
       quality: this.buildQualityContext(bundle.dataset),
       qualityBySource: decision.quality_by_source,
       topInsight: insights[0] ?? null,
@@ -687,9 +710,12 @@ export class AnalyticsInsightsService {
       summary: decision.summary,
       generatedBy: decision.generatedBy,
       generationReason: decision.generationReason,
+      confidence: decision.confidence,
       periodRange: bundle.bundle.timeRange,
       generatedAt: new Date().toISOString(),
       measurement: bundle.measurement,
+      trust: bundle.bundle.trust ?? null,
+      freshness: bundle.bundle.freshness ?? null,
       qualityBySource: decision.quality_by_source,
       opportunities,
       prioritizedActions: decision.prioritized_actions.map((action) => ({
@@ -717,6 +743,8 @@ export class AnalyticsInsightsService {
     dataset: LoadedSemanticData,
     measurement: MeasurementState,
     detectedPatterns: AnalyticsInsightBundleDetectedPattern[],
+    trustOverview: Awaited<ReturnType<AnalyticsDataTrustService['getOverview']>>,
+    reportKey: string | null,
   ): AnalyticsInsightBundle {
     const currentTotals = enrichTotals(this.aggregateTotals(dataset.reportingCurrent))
     const previousTotals = enrichTotals(this.aggregateTotals(dataset.reportingPrevious))
@@ -806,6 +834,46 @@ export class AnalyticsInsightsService {
       .sort((left, right) => right.views - left.views)
       .slice(0, 8)
 
+    const metaSources = new Set(['meta', 'facebook', 'instagram', 'fb', 'ig'])
+    const metaRows = dataset.reportingCurrent.filter((row) => {
+      const channel = row.channel?.toLowerCase() ?? ''
+      const source = row.source?.toLowerCase() ?? ''
+      return metaSources.has(channel) || metaSources.has(source) || channel.includes('meta') || channel.includes('facebook') || channel.includes('instagram')
+    })
+    const metaPreviousRows = dataset.reportingPrevious.filter((row) => {
+      const channel = row.channel?.toLowerCase() ?? ''
+      const source = row.source?.toLowerCase() ?? ''
+      return metaSources.has(channel) || metaSources.has(source) || channel.includes('meta') || channel.includes('facebook') || channel.includes('instagram')
+    })
+    const metaTotals = [...metaRows, ...metaPreviousRows].reduce(
+      (acc, row) => {
+        acc.spend += row.cost
+        acc.clicks += row.clicks
+        acc.impressions += row.impressions
+        return acc
+      },
+      {
+        spend: 0,
+        clicks: 0,
+        impressions: 0,
+      },
+    )
+    const metaEvents = {
+      view_content: metaRows.filter((row) => row.views > 0).reduce((sum, row) => sum + row.views, 0),
+      lead: metaRows.filter((row) => row.keyEvents > 0).reduce((sum, row) => sum + row.keyEvents, 0),
+      purchase: metaRows.filter((row) => row.purchase > 0).reduce((sum, row) => sum + row.purchase, 0),
+    }
+    const latestSyncAt = [...dataset.syncRuns]
+      .map((run) => run.finishedAt ?? run.startedAt ?? null)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? null
+    const latestReportAt = [...dataset.reportRuns]
+      .map((run) => run.finishedAt ?? run.startedAt ?? null)
+      .filter((value): value is string => Boolean(value))
+      .sort()
+      .at(-1) ?? null
+
     const kpiCurrent = {
       revenue: toComparisonMetric(currentTotals.revenue, previousTotals.revenue),
       orders: toComparisonMetric(currentTotals.orders, previousTotals.orders),
@@ -823,6 +891,12 @@ export class AnalyticsInsightsService {
       acquisition,
       seo,
       products: productSegments,
+      meta_ads: {
+        spend: decimal(metaTotals.spend),
+        clicks: metaTotals.clicks,
+        impressions: metaTotals.impressions,
+        events: metaEvents,
+      },
       detectedPatterns,
       dataQuality: {
         status: measurement.qualityStatus,
@@ -830,6 +904,40 @@ export class AnalyticsInsightsService {
         reasons: measurement.reasons,
       },
       measurement,
+      trust: {
+        status: trustOverview.status,
+        degraded: trustOverview.status !== 'ok',
+        summary: trustOverview.summary,
+        updatedAt: trustOverview.updatedAt,
+        checks: trustOverview.checks.map((check) => ({
+          check: check.check,
+          status: check.status,
+          value: null,
+          expected: check.expected,
+          impact: check.impact,
+        })),
+      },
+      freshness: {
+        generatedAt: new Date().toISOString(),
+        currentWindow: {
+          from: dataset.currentRange.from.toISOString(),
+          to: dataset.currentRange.to.toISOString(),
+        },
+        previousWindow: {
+          from: dataset.previousRange.from.toISOString(),
+          to: dataset.previousRange.to.toISOString(),
+        },
+        latestSyncAt,
+        latestReportAt,
+        syncLagMinutes: latestSyncAt ? Math.max(0, Math.round((Date.now() - new Date(latestSyncAt).getTime()) / 60000)) : null,
+        reportLagMinutes: latestReportAt ? Math.max(0, Math.round((Date.now() - new Date(latestReportAt).getTime()) / 60000)) : null,
+      },
+      businessContext: {
+        clientSlug: process.env.CLIENT_SLUG ?? null,
+        reportKey,
+        primaryCurrency: null,
+        timezone: 'UTC',
+      },
     }
   }
 
@@ -1010,6 +1118,22 @@ export class AnalyticsInsightsService {
     const hasAdsConversionData =
       dataset.adsCurrent.some((row) => row.hasConversionData) ||
       dataset.adsPrevious.some((row) => row.hasConversionData)
+    const hasMetaSignal =
+      dataset.reportingCurrent.some((row) =>
+        ['meta', 'facebook', 'instagram', 'fb', 'ig'].some((candidate) => {
+          const channel = row.channel?.toLowerCase() ?? ''
+          const source = row.source?.toLowerCase() ?? ''
+          return channel.includes(candidate) || source.includes(candidate)
+        }),
+      ) ||
+      dataset.reportingPrevious.some((row) =>
+        ['meta', 'facebook', 'instagram', 'fb', 'ig'].some((candidate) => {
+          const channel = row.channel?.toLowerCase() ?? ''
+          const source = row.source?.toLowerCase() ?? ''
+          return channel.includes(candidate) || source.includes(candidate)
+        }),
+      )
+    const hasMetaConnection = dataset.connections.some((connection) => connection.source === 'meta' && connection.status === 'ready')
 
     const stableConversionSignal =
       currentConsistency >= 0.35 && previousConsistency >= 0.35 && currentConversionDays.size > 0 && previousConversionDays.size > 0
@@ -1059,10 +1183,19 @@ export class AnalyticsInsightsService {
     if (!adsReady) {
       reasons.push('Ads no cumple todavía el gate de medición para conclusiones de conversiones.')
     }
+    if (!hasMetaSignal) {
+      reasons.push('Meta todavía no aporta tráfico o conversiones persistidas en las tablas normalizadas.')
+    }
+    if (!hasMetaConnection) {
+      reasons.push('Meta todavía no tiene una conexión operacional lista en la configuración de crecimiento.')
+    }
+
+    const metaReady = conversionMeasurementReady && hasMetaSignal && hasMetaConnection
 
     return {
       conversionMeasurementReady,
       adsConversionMeasurementReady: adsReady,
+      metaConversionMeasurementReady: metaReady,
       qualityStatus,
       reasons,
     }
@@ -2039,6 +2172,8 @@ export class AnalyticsInsightsService {
       }),
       status: 'open',
       createdAt: new Date().toISOString(),
+      isBaselineVerified:
+        bundle.bundle.trust?.status === 'ok' && bundle.bundle.dataQuality.status === 'ok',
     }
   }
 

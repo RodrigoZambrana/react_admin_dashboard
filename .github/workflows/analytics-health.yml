@@ -1,0 +1,131 @@
+name: analytics-health
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: react_admin_dashboard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d react_admin_dashboard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:5432/react_admin_dashboard?schema=public
+      ANALYTICS_QUEUE_URL: redis://127.0.0.1:6379
+      QUEUE_REDIS_URL: redis://127.0.0.1:6379
+      ANALYTICS_QUEUE_NAME: analytics-pipeline
+      ANALYTICS_HEALTH_BASE_URL: http://127.0.0.1:4000
+      ANALYTICS_HEALTH_MODE: ci
+      ANALYTICS_HEALTH_INTERVAL_MINUTES: 15
+      ANALYTICS_HEALTH_ALERT_COOLDOWN_MINUTES: 30
+      ANALYTICS_HEALTH_WAITING_WARNING_THRESHOLD: 10
+      ANALYTICS_HEALTH_WAITING_CRITICAL_THRESHOLD: 50
+      ANALYTICS_HEALTH_FAILED_CRITICAL_THRESHOLD: 5
+      ANALYTICS_HEALTH_MAX_SYNC_LAG_HOURS: 36
+      ANALYTICS_HEALTH_MIN_EVENT_ROWS_24H: 1
+      ANALYTICS_HEALTH_MAX_ATTRIBUTION_MISMATCH_PCT: 20
+      DEFAULT_ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      ALLOWED_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      CONFIG_ENCRYPTION_KEY: ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci-ci
+      JWT_SECRET: ci-jwt-secret
+      COOKIE_SECRET: ci-cookie-secret
+      GOOGLE_CLIENT_ID: ci-google-client-id
+      GOOGLE_CLIENT_SECRET: ci-google-client-secret
+      GOOGLE_ADS_DEVELOPER_TOKEN: ci-google-ads-token
+      META_ACCESS_TOKEN: ci-meta-access-token
+      META_PIXEL_ID: ci-meta-pixel-id
+      DEFAULT_ADMIN_EMAIL: desarrollo@software-strategy.com
+      DEFAULT_ADMIN_PASSWORD: ci-admin-password
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Generate Prisma client
+        working-directory: backend
+        run: npm run prisma:generate
+
+      - name: Apply database migrations
+        working-directory: backend
+        run: npm run prisma:migrate
+
+      - name: Build backend
+        working-directory: backend
+        run: npm run build
+
+      - name: Start backend and analytics worker
+        working-directory: backend
+        run: |
+          nohup npm run start:prod > /tmp/analytics-backend.log 2>&1 &
+          echo $! > /tmp/analytics-backend.pid
+          nohup npm run analytics:worker > /tmp/analytics-worker.log 2>&1 &
+          echo $! > /tmp/analytics-worker.pid
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4000/api/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "backend did not become ready"
+          cat /tmp/analytics-backend.log
+          cat /tmp/analytics-worker.log
+          exit 1
+
+      - name: Run analytics health check
+        working-directory: backend
+        run: |
+          set -euo pipefail
+          for attempt in 1 2; do
+            if npm run analytics:health -- --mode=ci --base-url http://127.0.0.1:4000; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "analytics health failed"
+          cat /tmp/analytics-backend.log
+          cat /tmp/analytics-worker.log
+          exit 1
+
+      - name: Dump backend logs on failure
+        if: failure()
+        run: |
+          cat /tmp/analytics-backend.log || true
+          cat /tmp/analytics-worker.log || true

@@ -28,6 +28,8 @@ const sourceTone = (source?: string | null) => {
             return 'bg-cyan-100 text-cyan-700'
         case 'ga4':
             return 'bg-indigo-100 text-indigo-700'
+        case 'meta':
+            return 'bg-fuchsia-100 text-fuchsia-700'
         default:
             return 'bg-gray-100 text-gray-700'
     }

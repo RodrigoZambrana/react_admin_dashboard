@@ -6,6 +6,8 @@ x-backend-common: &backend-common
     NODE_ENV: production
     PORT: 3000
     PRISMA_APPLY_MIGRATIONS: ${PRISMA_APPLY_MIGRATIONS:-false}
+    ANALYTICS_QUEUE_URL: ${ANALYTICS_QUEUE_URL:-redis://redis:6379}
+    QUEUE_REDIS_URL: ${QUEUE_REDIS_URL:-redis://redis:6379}
 
 x-frontend-common: &frontend-common
   restart: unless-stopped
@@ -51,6 +53,63 @@ services:
         CLIENT_SLUG: ${CLIENT_SLUG:-core}
     ports:
       - "4000:3000"
+    depends_on:
+      - redis
+  analytics-worker:
+    <<: *backend-common
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        CLIENT_SLUG: ${CLIENT_SLUG:-core}
+    command: node dist/src/analytics/analytics.worker.js
+    environment:
+      NODE_ENV: production
+      ANALYTICS_QUEUE_WORKER: "true"
+      ANALYTICS_QUEUE_URL: ${ANALYTICS_QUEUE_URL:-redis://redis:6379}
+      QUEUE_REDIS_URL: ${QUEUE_REDIS_URL:-redis://redis:6379}
+      PORT: 3000
+    depends_on:
+      - redis
+      - backend
+  analytics-health-monitor:
+    <<: *backend-common
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        CLIENT_SLUG: ${CLIENT_SLUG:-core}
+    command: npm run analytics:health:monitor -- --interval-minutes ${ANALYTICS_HEALTH_INTERVAL_MINUTES:-15} --base-url ${ANALYTICS_HEALTH_BASE_URL:-http://backend:3000} --queue-name ${ANALYTICS_QUEUE_NAME:-analytics-pipeline}
+    environment:
+      NODE_ENV: production
+      ANALYTICS_QUEUE_WORKER: "false"
+      ANALYTICS_QUEUE_URL: ${ANALYTICS_QUEUE_URL:-redis://redis:6379}
+      QUEUE_REDIS_URL: ${QUEUE_REDIS_URL:-redis://redis:6379}
+      ANALYTICS_HEALTH_BASE_URL: ${ANALYTICS_HEALTH_BASE_URL:-http://backend:3000}
+      ANALYTICS_HEALTH_INTERVAL_MINUTES: ${ANALYTICS_HEALTH_INTERVAL_MINUTES:-15}
+      ANALYTICS_HEALTH_SUMMARY_INTERVAL_MINUTES: ${ANALYTICS_HEALTH_SUMMARY_INTERVAL_MINUTES:-60}
+      ANALYTICS_HEALTH_DIGEST_WINDOW_HOURS: ${ANALYTICS_HEALTH_DIGEST_WINDOW_HOURS:-24}
+      ANALYTICS_HEALTH_DIGEST_LIMIT: ${ANALYTICS_HEALTH_DIGEST_LIMIT:-20}
+      ANALYTICS_HEALTH_DIGEST_COOLDOWN_HOURS: ${ANALYTICS_HEALTH_DIGEST_COOLDOWN_HOURS:-24}
+      ANALYTICS_HEALTH_SLACK_WEBHOOK_URL: ${ANALYTICS_HEALTH_SLACK_WEBHOOK_URL:-}
+      ANALYTICS_HEALTH_ALERT_COOLDOWN_MINUTES: ${ANALYTICS_HEALTH_ALERT_COOLDOWN_MINUTES:-30}
+      ANALYTICS_HEALTH_WAITING_WARNING_THRESHOLD: ${ANALYTICS_HEALTH_WAITING_WARNING_THRESHOLD:-10}
+      ANALYTICS_HEALTH_WAITING_CRITICAL_THRESHOLD: ${ANALYTICS_HEALTH_WAITING_CRITICAL_THRESHOLD:-50}
+      ANALYTICS_HEALTH_FAILED_CRITICAL_THRESHOLD: ${ANALYTICS_HEALTH_FAILED_CRITICAL_THRESHOLD:-5}
+      ANALYTICS_HEALTH_MAX_SYNC_LAG_HOURS: ${ANALYTICS_HEALTH_MAX_SYNC_LAG_HOURS:-36}
+      ANALYTICS_HEALTH_MIN_EVENT_ROWS_24H: ${ANALYTICS_HEALTH_MIN_EVENT_ROWS_24H:-1}
+      ANALYTICS_HEALTH_MAX_ATTRIBUTION_MISMATCH_PCT: ${ANALYTICS_HEALTH_MAX_ATTRIBUTION_MISMATCH_PCT:-20}
+      ANALYTICS_DATA_TRUST_LOOKBACK_DAYS: ${ANALYTICS_DATA_TRUST_LOOKBACK_DAYS:-7}
+      ANALYTICS_DATA_TRUST_SILENCE_WINDOW_HOURS: ${ANALYTICS_DATA_TRUST_SILENCE_WINDOW_HOURS:-24}
+      ANALYTICS_DATA_TRUST_MIN_CONVERSION_COUNT: ${ANALYTICS_DATA_TRUST_MIN_CONVERSION_COUNT:-1}
+      ANALYTICS_DATA_TRUST_ZERO_CONVERSION_CRITICAL_TRAFFIC: ${ANALYTICS_DATA_TRUST_ZERO_CONVERSION_CRITICAL_TRAFFIC:-100}
+      ANALYTICS_DATA_TRUST_ATTRIBUTION_MINIMUM_PERCENT: ${ANALYTICS_DATA_TRUST_ATTRIBUTION_MINIMUM_PERCENT:-70}
+      ANALYTICS_DATA_TRUST_GA4_TOLERANCE_PERCENT: ${ANALYTICS_DATA_TRUST_GA4_TOLERANCE_PERCENT:-20}
+      ANALYTICS_DATA_TRUST_TRAFFIC_DROP_THRESHOLD_PERCENT: ${ANALYTICS_DATA_TRUST_TRAFFIC_DROP_THRESHOLD_PERCENT:-40}
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - backend
   storefront:
     <<: *storefront-common
     build:
@@ -93,6 +152,18 @@ services:
       timeout: 5s
       retries: 3
 
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data_prod:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -112,3 +183,4 @@ services:
 
 volumes:
   postgres_data_prod:
+  redis_data_prod:

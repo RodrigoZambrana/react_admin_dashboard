@@ -10,6 +10,7 @@ import { randomBytes, createHash } from 'crypto'
 import { AnalyticsGoogleOAuthConfigService } from '../common/integrations/analytics-google-oauth-config.service'
 import { ConfigEncryptionService } from '../common/security/config-encryption.service'
 import { SecureConfigService } from '../common/security/secure-config.service'
+import { AnalyticsQueueService } from './analytics-queue.service'
 import { AnalyticsRepository } from './analytics.repository'
 import { AnalyticsReportingService } from './reporting/analytics-reporting.service'
 import { GA4_REPORT_CATALOG } from './reports/ga4-report-catalog'
@@ -150,6 +151,7 @@ export class Ga4ConnectorService {
     private readonly secureConfig: SecureConfigService,
     private readonly encryption: ConfigEncryptionService,
     private readonly reportParity: AnalyticsReportingService,
+    private readonly analyticsQueue: AnalyticsQueueService,
   ) {}
 
   async startOAuth(
@@ -350,11 +352,26 @@ export class Ga4ConnectorService {
 
   async runInitialSync(connectionId: string): Promise<AnalyticsGa4SyncResult> {
     const fromDate = addDaysUtc(new Date(), -(INITIAL_SYNC_DAYS - 1))
-    return this.runGa4Sync(connectionId, {
-      jobType: 'initial_sync',
+    return this.analyticsQueue.enqueueInitialSync('ga4', connectionId, {
       fromDate,
       toDate: new Date(),
     })
+  }
+
+  async executeQueuedSync(input: {
+    connectionId: string
+    jobType: AnalyticsSyncJobType
+    fromDate: Date
+    toDate: Date
+    syncRunId: string
+    startedAt: Date
+    retries: number
+  }): Promise<AnalyticsGa4SyncResult> {
+    return this.runGa4Sync(input.connectionId, {
+      jobType: input.jobType,
+      fromDate: input.fromDate,
+      toDate: input.toDate,
+    }, input.syncRunId, input.startedAt, input.retries)
   }
 
   async runIncrementalSync(connectionId: string): Promise<AnalyticsGa4SyncResult> {
@@ -368,8 +385,7 @@ export class Ga4ConnectorService {
       ? addDaysUtc(startOfDayUtc(lastSuccessfulSyncAt), -INCREMENTAL_OVERLAP_DAYS)
       : addDaysUtc(new Date(), -(INITIAL_SYNC_DAYS - 1))
 
-    return this.runGa4Sync(connectionId, {
-      jobType: 'incremental_sync',
+    return this.analyticsQueue.enqueueIncrementalSync('ga4', connectionId, {
       fromDate,
       toDate: new Date(),
     })
@@ -384,8 +400,7 @@ export class Ga4ConnectorService {
       throw new BadRequestException('Backfill requires from and to dates.')
     }
 
-    return this.runGa4Sync(connectionId, {
-      jobType: 'backfill',
+    return this.analyticsQueue.enqueueBackfillSync('ga4', connectionId, {
       fromDate: normalizeTimestamp(from),
       toDate: normalizeTimestamp(to),
     })
@@ -419,8 +434,7 @@ export class Ga4ConnectorService {
       throw new BadRequestException('Repair requires a previous failed run or explicit from/to range.')
     }
 
-    return this.runGa4Sync(connectionId, {
-      jobType: 'repair',
+    return this.analyticsQueue.enqueueRepairSync('ga4', connectionId, {
       fromDate,
       toDate,
     })
@@ -567,6 +581,9 @@ export class Ga4ConnectorService {
       fromDate: Date
       toDate: Date
     },
+    syncRunId?: string,
+    startedAt?: Date,
+    retryCount = 0,
   ): Promise<AnalyticsGa4SyncResult> {
     const connection = await this.repository.findConnectionById(connectionId)
     if (!connection || connection.source !== 'ga4') {
@@ -577,13 +594,34 @@ export class Ga4ConnectorService {
     }
 
     const now = new Date()
-    const syncRun = await this.repository.createSyncRun({
-      connectionId,
-      jobType: input.jobType,
-      fromDate: input.fromDate,
-      toDate: input.toDate,
-      status: 'running',
-    })
+    const syncRun: any = syncRunId
+      ? {
+          id: syncRunId,
+          connectionId,
+          jobType: input.jobType,
+          fromDate: input.fromDate,
+          toDate: input.toDate,
+          status: 'running' as const,
+          queuedAt: startedAt ?? now,
+          retryCount,
+          partialFailureFlag: false,
+          durationMs: null as number | null,
+          recordsFetched: 0,
+          recordsUpserted: 0,
+          errorMessage: null as string | null,
+          startedAt: startedAt ?? now,
+          finishedAt: null as Date | null,
+          createdAt: startedAt ?? now,
+        }
+      : await this.repository.createSyncRun({
+          connectionId,
+          jobType: input.jobType,
+          fromDate: input.fromDate,
+          toDate: input.toDate,
+          status: 'running',
+          queuedAt: now,
+          retryCount,
+        })
 
     await this.repository.updateConnection(connectionId, {
       status: 'syncing',
@@ -631,6 +669,7 @@ export class Ga4ConnectorService {
       )
 
       const finishedAt = new Date()
+      const durationMs = startedAt ? finishedAt.getTime() - startedAt.getTime() : null
       const nextSyncAt =
         input.jobType === 'repair'
           ? connection.nextSyncAt ?? new Date(Date.now() + (connection.syncIntervalMinutes ?? 60) * 60 * 1000)
@@ -638,6 +677,7 @@ export class Ga4ConnectorService {
 
       await this.repository.updateSyncRun(syncRun.id, {
         status: 'success',
+        durationMs,
         recordsFetched: baseRows.length + detailRows.length,
         recordsUpserted: ga4RowsUpserted + reportingRowsUpserted,
         finishedAt,
@@ -662,6 +702,10 @@ export class Ga4ConnectorService {
           fromDate: input.fromDate.toISOString(),
           toDate: input.toDate.toISOString(),
           status: 'success',
+          queuedAt: (syncRun.queuedAt ?? startedAt ?? now).toISOString(),
+          retryCount: syncRun.retryCount,
+          partialFailureFlag: false,
+          durationMs,
           recordsFetched: baseRows.length + detailRows.length,
           recordsUpserted: ga4RowsUpserted + reportingRowsUpserted,
           errorMessage: null,
@@ -680,6 +724,8 @@ export class Ga4ConnectorService {
         status: 'failed',
         errorMessage: message,
         finishedAt: failedAt,
+        durationMs: startedAt ? failedAt.getTime() - startedAt.getTime() : null,
+        partialFailureFlag: false,
       })
       await this.repository.updateConnection(connectionId, {
         status: 'error',

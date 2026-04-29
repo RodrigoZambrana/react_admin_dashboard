@@ -42,6 +42,7 @@ const sourceLabel: Record<string, string> = {
     ga4: 'Google Analytics 4',
     ads: 'Google Ads',
     search_console: 'Search Console',
+    meta: 'Meta Ads',
 }
 
 const statusTone = (status: string) => {

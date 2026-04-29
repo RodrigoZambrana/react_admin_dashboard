@@ -3,20 +3,25 @@ import {
   BadRequestException,
   Controller,
   Get,
+  Header,
+  NotFoundException,
   Param,
   Post,
   Put,
   Query,
+  Res,
   Redirect,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common'
-import type { FastifyRequest } from 'fastify'
+import type { FastifyReply, FastifyRequest } from 'fastify'
 
-import type { AnalyticsEventInput } from './analytics.types'
+import type { AnalyticsEventInput, AnalyticsExportRunsResponse } from './analytics.types'
 import { AnalyticsService } from './analytics.service'
 import { AnalyticsInsightsService } from './insights.service'
 import { AnalyticsBaselineService } from './baseline.service'
+import { AnalyticsDataParityService } from './data-parity/analytics-data-parity.service'
 import { AdsConnectorService } from './ads-connector.service'
 import { SearchConsoleConnectorService } from './search-console-connector.service'
 import { BackfillEventsJob } from './pipelines/backfill-events.job'
@@ -26,6 +31,11 @@ import { DataQualityJob } from './pipelines/data-quality.job'
 import { NormalizeEventsJob } from './pipelines/normalize-events.job'
 import { Ga4ConnectorService } from './ga4-connector.service'
 import { AnalyticsReportingService } from './reporting/analytics-reporting.service'
+import { AnalyticsHealthService } from './analytics-health.service'
+import { AnalyticsDataTrustService } from './data-trust/analytics-data-trust.service'
+import { AnalyticsUsageService } from './analytics-usage.service'
+import { AnalyticsExportService } from './analytics-export.service'
+import { AnalyticsEndpointUsageInterceptor } from './analytics-endpoint-usage.interceptor'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles, ROLES } from '../auth/roles.decorator'
@@ -62,11 +72,13 @@ const resolveRedirectUrl = (
 }
 
 @Controller('analytics')
+@UseInterceptors(AnalyticsEndpointUsageInterceptor)
 export class AnalyticsController {
   constructor(
     private readonly analyticsService: AnalyticsService,
     private readonly analyticsInsightsService: AnalyticsInsightsService,
     private readonly baselineService: AnalyticsBaselineService,
+    private readonly analyticsDataParityService: AnalyticsDataParityService,
     private readonly normalizeEventsJob: NormalizeEventsJob,
     private readonly backfillEventsJob: BackfillEventsJob,
     private readonly baselineSyncJob: BaselineSyncJob,
@@ -76,11 +88,29 @@ export class AnalyticsController {
     private readonly ga4Connector: Ga4ConnectorService,
     private readonly searchConsoleConnector: SearchConsoleConnectorService,
     private readonly reportParity: AnalyticsReportingService,
+    private readonly healthService: AnalyticsHealthService,
+    private readonly dataTrustService: AnalyticsDataTrustService,
+    private readonly analyticsUsageService: AnalyticsUsageService,
+    private readonly analyticsExportService: AnalyticsExportService,
   ) {}
 
   @Post('events')
-  ingestEvent(@Body() body: AnalyticsEventInput) {
-    return this.analyticsService.processEvent(body)
+  ingestEvent(@Body() body: AnalyticsEventInput, @Req() req: FastifyRequest) {
+    const forwardedFor = typeof req.headers['x-forwarded-for'] === 'string' ? req.headers['x-forwarded-for'] : null
+    const realIp = typeof req.headers['x-real-ip'] === 'string' ? req.headers['x-real-ip'] : null
+    const connectingIp =
+      typeof req.headers['cf-connecting-ip'] === 'string' ? req.headers['cf-connecting-ip'] : null
+    const clientIp =
+      forwardedFor?.split(',')[0]?.trim() ||
+      realIp?.trim() ||
+      connectingIp?.trim() ||
+      req.ip ||
+      null
+
+    return this.analyticsService.processEvent({
+      ...body,
+      client_ip_address: body.client_ip_address ?? clientIp,
+    })
   }
 
   @Get('metrics/funnel')
@@ -112,6 +142,16 @@ export class AnalyticsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('marketing/meta')
+  getMetaMarketingMetrics(@Query() query: { from?: string; to?: string }) {
+    return this.analyticsService.getMetaMarketingMetrics({
+      from: query.from,
+      to: query.to,
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
   @Get('connections')
   getConnections() {
     return this.analyticsService.getConnections()
@@ -128,36 +168,144 @@ export class AnalyticsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
   @Get('insights')
-  getInsights(
+  async getInsights(
     @Query() query: { from?: string; to?: string; reportKey?: string },
   ) {
-    return this.analyticsInsightsService.getInsights({
+    const result = await this.analyticsInsightsService.getInsights({
       from: query.from,
       to: query.to,
       reportKey: query.reportKey,
     })
+    return result
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
   @Get('summary')
-  getSummary(@Query() query: { from?: string; to?: string; reportKey?: string }) {
-    return this.analyticsInsightsService.getSummary({
+  async getSummary(@Query() query: { from?: string; to?: string; reportKey?: string }) {
+    const result = await this.analyticsInsightsService.getSummary({
       from: query.from,
       to: query.to,
       reportKey: query.reportKey,
     })
+    return result
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
   @Get('opportunities')
-  getOpportunities(@Query() query: { from?: string; to?: string; reportKey?: string }) {
-    return this.analyticsInsightsService.getOpportunities({
+  async getOpportunities(
+    @Query() query: { from?: string; to?: string; reportKey?: string },
+  ) {
+    const result = await this.analyticsInsightsService.getOpportunities({
       from: query.from,
       to: query.to,
       reportKey: query.reportKey,
     })
+    return result
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('data-parity')
+  getDataParity(@Query() query: { limit?: string }) {
+    const limit = Number(query.limit ?? 100)
+    return this.analyticsDataParityService.getParityOverview(Number.isFinite(limit) && limit > 0 ? limit : 100)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('usage')
+  getUsage(@Query() query: { limit?: string }) {
+    const limit = Number(query.limit ?? 100)
+    return this.analyticsUsageService.getUsageOverview(Number.isFinite(limit) && limit > 0 ? limit : 100)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('export/canonical')
+  async exportCanonical(
+    @Query()
+    query: { from?: string; to?: string; source?: 'ga4' | 'ads' | 'search_console' | 'all'; granularity?: 'daily' },
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    if (!query.from || !query.to) {
+      throw new BadRequestException('from and to are required')
+    }
+
+    const { stream, filename, metadata } = await this.analyticsExportService.exportCanonical({
+      from: query.from,
+      to: query.to,
+      source: query.source ?? 'all',
+      granularity: query.granularity ?? 'daily',
+    })
+
+    reply.header('Content-Type', 'text/csv; charset=utf-8')
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`)
+    reply.header('X-Analytics-Export-Metadata', JSON.stringify(metadata))
+    return reply.send(stream)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('export/report')
+  async exportReport(
+    @Query()
+    query: { report?: 'ga4_overview' | 'ads_campaigns' | 'seo_pages'; from?: string; to?: string },
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
+    if (!query.report) {
+      throw new BadRequestException('report is required')
+    }
+    if (!query.from || !query.to) {
+      throw new BadRequestException('from and to are required')
+    }
+
+    const { stream, filename, metadata } = await this.analyticsExportService.exportReport({
+      report: query.report,
+      from: query.from,
+      to: query.to,
+    })
+
+    reply.header('Content-Type', 'text/csv; charset=utf-8')
+    reply.header('Content-Disposition', `attachment; filename="${filename}"`)
+    reply.header('X-Analytics-Export-Metadata', JSON.stringify(metadata))
+    return reply.send(stream)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('export/runs')
+  getExportRuns(
+    @Query()
+    query: {
+      limit?: string
+      offset?: string
+      exportType?: 'canonical' | 'report'
+      source?: 'ga4' | 'ads' | 'search_console' | 'unified'
+      status?: 'running' | 'success' | 'error'
+    },
+  ): Promise<AnalyticsExportRunsResponse> {
+    const limit = Number(query.limit ?? 20)
+    const offset = Number(query.offset ?? 0)
+    return this.analyticsExportService.listRuns({
+      limit: Number.isFinite(limit) && limit > 0 ? Math.min(limit, 100) : 20,
+      offset: Number.isFinite(offset) && offset >= 0 ? offset : 0,
+      exportType: query.exportType ?? null,
+      source: query.source ?? null,
+      status: query.status ?? null,
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('export/runs/:id')
+  async getExportRun(@Param('id') id: string) {
+    const run = await this.analyticsExportService.getRun(id)
+    if (!run) {
+      throw new NotFoundException('Export run not found')
+    }
+    return run
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -176,6 +324,17 @@ export class AnalyticsController {
       from: body?.from,
       to: body?.to,
       reportKey: body?.reportKey,
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('insights/bundle')
+  getInsightsBundle(@Query() query: { from?: string; to?: string; reportKey?: string }) {
+    return this.analyticsInsightsService.getInsightBundle({
+      from: query.from,
+      to: query.to,
+      reportKey: query.reportKey,
     })
   }
 
@@ -592,6 +751,35 @@ export class AnalyticsController {
       Number.isFinite(limit) && limit > 0 ? limit : 50,
       query.reportKey,
     )
+  }
+
+  @Get('health')
+  getHealth(@Query() query: { limit?: string }) {
+    const limit = Number(query.limit ?? 20)
+    return this.healthService.getHealthOverview(Number.isFinite(limit) && limit > 0 ? limit : 20)
+  }
+
+  @Get('health/status')
+  getHealthStatus() {
+    return this.healthService.getHealthStatus()
+  }
+
+  @Header('Content-Type', 'image/svg+xml; charset=utf-8')
+  @Get('health/badge')
+  getHealthBadge() {
+    return this.healthService.getHealthBadge()
+  }
+
+  @Get('health/history')
+  getHealthHistory(@Query() query: { limit?: string }) {
+    const limit = Number(query.limit ?? 50)
+    return this.healthService.getHealthHistory(Number.isFinite(limit) && limit > 0 ? limit : 50)
+  }
+
+  @Get('data-trust')
+  getDataTrust(@Query() query: { limit?: string }) {
+    const limit = Number(query.limit ?? 10)
+    return this.dataTrustService.getOverview(Number.isFinite(limit) && limit > 0 ? limit : 10)
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)

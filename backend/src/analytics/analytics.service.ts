@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 
 import { AnalyticsRepository } from './analytics.repository'
+import { MetaCapiService } from './meta-capi.service'
 import {
   normalizeAnalyticsEventCategory,
   normalizeAnalyticsEventSource,
@@ -202,8 +203,23 @@ const normalizeFactRecord = (
       } as AnalyticsEventInput),
     eventCategory,
   )
+  const conversionFlag = eventCategory === 'conversion'
   const page = asString(payload?.page) ?? asString(data.page)
   const path = asString(payload?.path) ?? asString(data.path)
+  const landingPage =
+    asString(payload?.landing_page) ??
+    asString(payload?.landingPage) ??
+    asString(data.landing_page) ??
+    asString(data.landingPage) ??
+    page ??
+    path ??
+    (() => {
+      try {
+        return new URL(rawEvent.url).pathname || rawEvent.url
+      } catch {
+        return rawEvent.url
+      }
+    })()
   const productId =
     asString(payload?.product_id) ??
     asString(payload?.productId) ??
@@ -225,47 +241,168 @@ const normalizeFactRecord = (
     asString(rawEvent.payload ? (rawEvent.payload as Record<string, unknown>).utm_source : null)
   const utmMedium = asString(payload?.utm_medium) ?? asString(data.utm_medium)
   const utmCampaign = asString(payload?.utm_campaign) ?? asString(data.utm_campaign)
+  const utmTerm = asString(payload?.utm_term) ?? asString(data.utm_term)
+  const utmContent = asString(payload?.utm_content) ?? asString(data.utm_content)
   const referrer = asString(payload?.referrer) ?? rawEvent.referrer ?? null
   const device = asString(payload?.device) ?? asString(data.device)
   const country = asString(payload?.country) ?? asString(data.country)
   const value = extractItemValue(payload as AnalyticsEventInput) ?? null
   const userId = asString(payload?.user_id) ?? rawEvent.userId ?? null
+  const eventId =
+    asString(payload?.event_id) ??
+    asString(payload?.eventId) ??
+    rawEvent.eventId ??
+    null
+  const fbp = asString(payload?.fbp) ?? rawEvent.fbp ?? null
+  const fbc = asString(payload?.fbc) ?? rawEvent.fbc ?? null
+  const externalTargets =
+    Array.isArray(payload?.external_targets) && payload?.external_targets.length
+      ? (payload.external_targets as string[])
+      : Array.isArray(rawEvent.externalTargets)
+        ? (rawEvent.externalTargets as string[])
+        : null
 
   return {
     eventName: event,
     eventCategory,
     source,
     measurementStatus,
+    conversionFlag,
     eventTimestamp: timestamp,
     eventDate: normalizeEventDate(timestamp),
     sessionId: asString(payload?.session_id) ?? rawEvent.sessionId,
     userId,
     page,
     path,
+    landingPage,
     productId,
     category: productCategory,
     utmSource,
     utmMedium,
     utmCampaign,
+    utmTerm,
+    utmContent,
     referrer,
     device,
     country,
     value,
+    eventId,
+    fbp,
+    fbc,
+    externalTargets,
+    metaStatus: asString(rawEvent.metaStatus) ?? null,
+    metaEventId: asString(rawEvent.metaEventId) ?? null,
+    metaSentAt: rawEvent.metaSentAt ? new Date(rawEvent.metaSentAt) : null,
     sourceEventId: rawEvent.id,
   }
 }
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly repository: AnalyticsRepository) {}
+  constructor(
+    private readonly repository: AnalyticsRepository,
+    private readonly metaCapiService: MetaCapiService,
+  ) {}
 
   async processEvent(event: AnalyticsEventInput) {
-    return this.repository.saveEvent(event)
+    const savedEvent = await this.repository.saveEvent(event)
+    void this.metaCapiService
+      .sendEvent(savedEvent, event)
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error)
+        return { status: 'failed', message }
+      })
+    return savedEvent
   }
 
   async getConnections(): Promise<{ connections: AnalyticsConnection[] }> {
+    await this.metaCapiService.ensureConnection()
     return {
       connections: await this.repository.listConnections(),
+    }
+  }
+
+  async getMetaMarketingMetrics(input?: { from?: string; to?: string }) {
+    const to = input?.to ? normalizeTimestamp(input.to) : new Date()
+    const from = input?.from ? normalizeTimestamp(input.from) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+    const fromDay = startOfDayUtc(from)
+    const toDay = endOfDayUtc(to)
+    await this.metaCapiService.ensureConnection()
+    const [connections, rawEvents, reportingRows] = await Promise.all([
+      this.repository.listConnections(),
+      this.repository.listEvents(fromDay, toDay),
+      this.repository.listReportingDaily(fromDay, toDay),
+    ])
+
+    const metaSources = new Set(['meta', 'facebook', 'instagram', 'fb', 'ig'])
+    const metaEvents = rawEvents.filter((event) => {
+      const payload = (event.payload as Record<string, unknown>) ?? {}
+      const source = asString(payload.source) ?? event.source ?? null
+      const utmSource = asString(payload.utm_source) ?? asString(payload.utmSource) ?? null
+      return source === 'meta' || (utmSource ? metaSources.has(utmSource.toLowerCase()) : false)
+    })
+
+    const rawEventTotals = new Map<string, number>()
+    for (const event of metaEvents) {
+      rawEventTotals.set(event.eventName, (rawEventTotals.get(event.eventName) ?? 0) + 1)
+    }
+
+    const reportingMetaRows = reportingRows.filter((row) => {
+      const source = row.source?.toLowerCase() ?? row.channel.toLowerCase()
+      const channel = row.channel.toLowerCase()
+      return metaSources.has(source) || channel.includes('meta') || channel.includes('facebook') || channel.includes('instagram')
+    })
+
+    const spend = reportingMetaRows.reduce((sum, row) => sum + row.cost, 0)
+    const clicks = reportingMetaRows.reduce((sum, row) => sum + row.clicks, 0)
+    const impressions = reportingMetaRows.reduce((sum, row) => sum + row.impressions, 0)
+    const viewContent = rawEventTotals.get('view_item') ?? 0
+    const lead = (rawEventTotals.get('form_submit') ?? 0) + (rawEventTotals.get('lead_created') ?? 0)
+    const purchase = rawEventTotals.get('purchase_completed') ?? 0
+    const eventVolume = metaEvents.length
+    const matchedEvents = metaEvents.filter((event) => {
+      const payload = (event.payload as Record<string, unknown>) ?? {}
+      return Boolean(
+        event.fbp ||
+          event.fbc ||
+          event.eventId ||
+          payload.fbp ||
+          payload.fbc ||
+          payload.user_id ||
+          payload.userId,
+      )
+    }).length
+    const matchQuality = eventVolume > 0 ? matchedEvents / eventVolume : 0
+    const measurementStatus =
+      matchQuality >= 0.7
+        ? 'ready'
+        : matchQuality >= 0.35
+          ? 'partial'
+          : 'not_ready'
+    const connection = connections.find((entry) => entry.source === 'meta') ?? null
+
+    return {
+      range: {
+        from: fromDay.toISOString(),
+        to: toDay.toISOString(),
+      },
+      connection,
+      measurementStatus,
+      matchQuality,
+      traffic: {
+        events: eventVolume,
+        sessions: new Set(metaEvents.map((event) => event.sessionId)).size,
+      },
+      meta_ads: {
+        spend,
+        clicks,
+        impressions,
+        events: {
+          view_content: viewContent,
+          lead,
+          purchase,
+        },
+      },
     }
   }
 
@@ -524,19 +661,30 @@ export class AnalyticsService {
         userId: fact.userId,
         page: fact.page,
         path: fact.path,
+        landingPage: fact.landingPage,
         productId: fact.productId,
         category: fact.category,
         utmSource: fact.utmSource,
         utmMedium: fact.utmMedium,
         utmCampaign: fact.utmCampaign,
+        utmTerm: fact.utmTerm,
+        utmContent: fact.utmContent,
         referrer: fact.referrer,
         device: fact.device,
         country: fact.country,
         value: fact.value !== null && fact.value !== undefined ? new Prisma.Decimal(fact.value) : null,
+        eventId: fact.eventId ?? null,
+        fbp: fact.fbp ?? null,
+        fbc: fact.fbc ?? null,
+        externalTargets: fact.externalTargets ?? undefined,
+        metaSentAt: fact.metaSentAt ?? undefined,
+        metaEventId: fact.metaEventId ?? undefined,
+        metaStatus: fact.metaStatus ?? undefined,
         sourceEventId: fact.sourceEventId,
         eventCategory: fact.eventCategory ?? null,
         source: fact.source ?? null,
         measurementStatus: fact.measurementStatus ?? null,
+        conversionFlag: fact.conversionFlag,
       })),
     )
 
@@ -621,19 +769,30 @@ export class AnalyticsService {
           userId: fact.userId,
           page: fact.page,
           path: fact.path,
+          landingPage: fact.landingPage,
           productId: fact.productId,
           category: fact.category,
           utmSource: fact.utmSource,
           utmMedium: fact.utmMedium,
           utmCampaign: fact.utmCampaign,
+          utmTerm: fact.utmTerm,
+          utmContent: fact.utmContent,
           referrer: fact.referrer,
           device: fact.device,
           country: fact.country,
           value: fact.value !== null && fact.value !== undefined ? new Prisma.Decimal(fact.value) : null,
+          eventId: fact.eventId ?? null,
+          fbp: fact.fbp ?? null,
+          fbc: fact.fbc ?? null,
+          externalTargets: fact.externalTargets ?? undefined,
+          metaSentAt: fact.metaSentAt ?? undefined,
+          metaEventId: fact.metaEventId ?? undefined,
+          metaStatus: fact.metaStatus ?? undefined,
           sourceEventId: fact.sourceEventId,
           eventCategory: fact.eventCategory ?? null,
           source: fact.source ?? null,
           measurementStatus: fact.measurementStatus ?? null,
+          conversionFlag: fact.conversionFlag,
         })),
       )
 

@@ -59,11 +59,14 @@
       "overview": "Resumen",
       "funnel": "Embudo",
       "marketing": "Marketing",
+      "marketingMeta": "Meta Ads",
       "products": "Productos",
       "behavior": "Comportamiento",
       "conversions": "Conversiones",
       "connections": "Conexiones",
       "dataQuality": "Calidad de datos",
+      "dataParity": "Data Parity",
+      "exports": "Exports",
       "growthInsights": "Growth & Insights"
     },
     "appsProducts": {

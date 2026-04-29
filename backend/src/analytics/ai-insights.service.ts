@@ -122,18 +122,19 @@ export class AnalyticsAiInsightsService {
         return rightScore - leftScore
       })
     const prioritizedActions = this.extractArray(decision, 'prioritized_actions')
+      .map((action, index) => this.normalizeAction(action, bundle, index))
+      .filter((action): action is AnalyticsAiDecisionOutput['prioritized_actions'][number] => action !== null)
     const qualityBySource =
       this.normalizeQualityBySource(this.extractArray(decision, 'quality_by_source'), bundle) ??
       this.buildQualityBySource(bundle)
+    const confidence = this.resolveDecisionConfidence(decision, bundle, insights, prioritizedActions, qualityBySource)
 
     return {
       summary: this.normalizeSummary(this.extractValue(decision, 'summary'), bundle, decision, insights),
       insights,
-      prioritized_actions: prioritizedActions
-        .map((action, index) => this.normalizeAction(action, bundle, index))
-        .filter((action): action is AnalyticsAiDecisionOutput['prioritized_actions'][number] => action !== null)
-        .sort((left, right) => left.priority - right.priority),
+      prioritized_actions: prioritizedActions.sort((left, right) => left.priority - right.priority),
       quality_by_source: qualityBySource,
+      confidence,
     }
   }
 
@@ -489,7 +490,7 @@ export class AnalyticsAiInsightsService {
   }
 
   private normalizeSource(value: unknown): AnalyticsInsightSource {
-    return value === 'ga4' || value === 'ads' || value === 'search_console' || value === 'mixed'
+    return value === 'ga4' || value === 'ads' || value === 'search_console' || value === 'meta' || value === 'mixed'
       ? value
       : DEFAULT_SOURCE
   }
@@ -569,7 +570,7 @@ export class AnalyticsAiInsightsService {
   }
 
   private buildQualityBySource(bundle: AnalyticsInsightBundle): AnalyticsSourceQuality[] {
-    const sources: ReportSource[] = ['ga4', 'ads', 'search_console']
+    const sources: ReportSource[] = ['ga4', 'ads', 'search_console', 'meta']
     return sources.map((source) => {
       if (source === 'ga4') {
         const status = bundle.measurement.conversionMeasurementReady
@@ -603,6 +604,25 @@ export class AnalyticsAiInsightsService {
           issues: bundle.measurement.reasons.filter((reason) =>
             /Ads|Google Ads|conversion/i.test(reason),
           ),
+          summary: this.sourceQualitySummary(source, status, bundle),
+        }
+      }
+
+      if (source === 'meta') {
+        const metaSignal =
+          bundle.meta_ads.spend > 0 || bundle.meta_ads.clicks > 0 || bundle.meta_ads.impressions > 0
+        const status = metaSignal
+          ? bundle.measurement.metaConversionMeasurementReady
+            ? 'ok'
+            : bundle.measurement.conversionMeasurementReady
+              ? 'warning'
+              : 'error'
+          : 'warning'
+        return {
+          source,
+          status,
+          confidence: metaSignal ? this.bundleConfidence(bundle) : Math.max(0.2, this.bundleConfidence(bundle) - 0.25),
+          issues: bundle.measurement.reasons.filter((reason) => /Meta|pixel|capi|fbp|fbc|match/iu.test(reason)),
           summary: this.sourceQualitySummary(source, status, bundle),
         }
       }
@@ -653,6 +673,12 @@ export class AnalyticsAiInsightsService {
           : bundle.seo.length
             ? 'Search Console tiene señal parcial; hay oportunidades, pero todavía faltan páginas o CTR más sólidos.'
             : 'Search Console no muestra todavía una señal SEO defendible en la ventana analizada.'
+      case 'meta':
+        return ready
+          ? 'Meta tiene señal suficiente para remarketing, exclusión y lectura de performance.'
+          : bundle.meta_ads.spend > 0 || bundle.meta_ads.clicks > 0
+            ? 'Meta ya aporta tráfico o gasto, pero todavía falta calidad de match o medición para conclusiones fuertes.'
+            : 'Meta todavía no aporta una señal útil en la ventana analizada.'
       default:
         return 'Calidad de fuente no determinada.'
     }
@@ -769,7 +795,43 @@ export class AnalyticsAiInsightsService {
   private bundleConfidence(bundle: AnalyticsInsightBundle) {
     const quality = bundle.dataQuality.confidence
     const measurementPenalty = bundle.measurement.conversionMeasurementReady ? 0 : 0.22
-    return Number(Math.max(0.05, Math.min(0.98, quality - measurementPenalty)).toFixed(4))
+    const trustPenalty =
+      bundle.trust?.status === 'fail' ? 0.24 : bundle.trust?.status === 'warning' ? 0.12 : 0
+    return Number(Math.max(0.05, Math.min(0.98, quality - measurementPenalty - trustPenalty)).toFixed(4))
+  }
+
+  private resolveDecisionConfidence(
+    decision: unknown,
+    bundle: AnalyticsInsightBundle,
+    insights: AnalyticsAiDecisionOutput['insights'],
+    prioritizedActions: AnalyticsAiDecisionOutput['prioritized_actions'],
+    qualityBySource: AnalyticsSourceQuality[],
+  ) {
+    const rawConfidence = this.extractValue(decision, 'confidence')
+    const decisionConfidence =
+      typeof rawConfidence === 'number' && Number.isFinite(rawConfidence) && rawConfidence >= 0
+        ? Math.min(1, Math.max(0, rawConfidence))
+        : null
+    const insightConfidence = insights.length
+      ? insights.reduce((sum, insight) => sum + insight.confidence, 0) / insights.length
+      : null
+    const actionConfidence = prioritizedActions.length
+      ? prioritizedActions.reduce((sum, action) => sum + action.confidence, 0) / prioritizedActions.length
+      : null
+    const sourceConfidence = qualityBySource.length
+      ? qualityBySource.reduce((sum, item) => sum + item.confidence, 0) / qualityBySource.length
+      : null
+
+    const baseConfidence =
+      decisionConfidence ??
+      insightConfidence ??
+      actionConfidence ??
+      sourceConfidence ??
+      this.bundleConfidence(bundle)
+
+    const trustPenalty =
+      bundle.trust?.status === 'fail' ? 0.3 : bundle.trust?.status === 'warning' ? 0.15 : 0
+    return Number(Math.max(0.05, Math.min(1, baseConfidence - trustPenalty)).toFixed(4))
   }
 
   private buildExecutiveSummary(

@@ -23,6 +23,14 @@
 - `Growth & Insights` sigue siendo una pantalla de configuración, no una vista de consumo de negocio:
   - `frontend/src/views/settings/GrowthSettings/index.tsx`
   - `frontend/src/views/analytics/AnalyticsDashboard/pages/AnalyticsGrowthInsightsPage.tsx`
+- La conexión con Meta se resuelve por configuración backend, no por login OAuth de Meta:
+  - `metaPixelId`
+  - `metaConversionsApiToken`
+  - `metaAdsAccountId`
+  - flags de activación para Pixel y CAPI
+  - la UI de `Growth & Insights` expone el estado de esa conexión y la deja operable desde el backend
+  - la persistencia `growth_config` es la fuente principal
+  - las variables de entorno sólo actúan como fallback cuando todavía no existe persistencia
 - El export local de Google en `/Users/rodrigo/Personal/Proyectos/urucortinas/analitycs` sólo se usó como referencia manual de negocio; no existe todavía un pipeline en el repo que lo lea como input operacional.
 - GA4 sigue siendo la prioridad de comportamiento onsite y ya está implementado el slice operativo base:
   - inicio de OAuth
@@ -212,6 +220,8 @@
   - sync runs
   - insights
 - `Growth & Insights` se mantiene separado como configuración de tracking.
+- Meta no requiere interacción/login con Meta para esta integración: el backend materializa la conexión con credenciales guardadas en `growth_config` y la UI permite administrarlas sin salir del sistema.
+- Si existe `growth_config`, esa configuración gana sobre ENV. ENV sólo se usa como fallback cuando no hay persistencia todavía.
 - La semántica de reporting quedó explícita:
   - `ga4_purchase_proxy` guarda el proxy de conversiones de GA4
   - `purchase` queda reservado para compra consolidada de negocio

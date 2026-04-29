@@ -207,6 +207,15 @@ const baseAppsRoute: Routes = [
         },
     },
     {
+        key: 'appsAnalytics.marketingMeta',
+        path: `${APP_PREFIX_PATH}/analytics/marketing/meta`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsMetaMarketingPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Meta Ads',
+        },
+    },
+    {
         key: 'appsAnalytics.products',
         path: `${APP_PREFIX_PATH}/analytics/products`,
         component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsProductsPage')),
@@ -243,6 +252,15 @@ const baseAppsRoute: Routes = [
         },
     },
     {
+        key: 'appsAnalytics.systemHealth',
+        path: `${APP_PREFIX_PATH}/analytics/system-health`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsSystemHealthPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Salud del sistema',
+        },
+    },
+    {
         key: 'appsAnalytics.insights',
         path: `${APP_PREFIX_PATH}/analytics/insights`,
         component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsInsightsPage')),
@@ -261,12 +279,21 @@ const baseAppsRoute: Routes = [
         },
     },
     {
-        key: 'appsAnalytics.parity',
-        path: `${APP_PREFIX_PATH}/analytics/parity`,
-        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsSectionRedirect')),
+        key: 'appsAnalytics.dataParity',
+        path: `${APP_PREFIX_PATH}/analytics/data-parity`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsDataParityPage')),
         authority: getRolesForFeature(FEATURES.SETTINGS),
         meta: {
-            header: 'Paridad GA4',
+            header: 'Data Parity',
+        },
+    },
+    {
+        key: 'appsAnalytics.exports',
+        path: `${APP_PREFIX_PATH}/analytics/exports`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsExportsPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Exports',
         },
     },
     {

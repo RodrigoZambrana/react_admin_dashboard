@@ -111,6 +111,7 @@ const GrowthSettings = () => {
     }, [loadOverview])
 
     const readiness = useMemo(() => overview?.readiness ?? null, [overview])
+    const metaConnection = useMemo(() => overview?.publicConfig.meta.connection ?? null, [overview])
 
     if (loading) {
         return <Loading loading />
@@ -124,7 +125,13 @@ const GrowthSettings = () => {
                         <h4 className="m-0">Growth & Insights</h4>
                         <Badge
                             className="capitalize"
-                            content={overview?.meta.source ?? 'n/a'}
+                            content={
+                                overview?.meta.source === 'database'
+                                    ? 'persisted config'
+                                    : overview?.meta.source === 'environment'
+                                        ? 'env fallback'
+                                        : 'n/a'
+                            }
                             innerClass={
                                 overview?.meta.source === 'database'
                                     ? 'bg-indigo-100 text-indigo-700'
@@ -135,8 +142,12 @@ const GrowthSettings = () => {
                     <p className="text-sm text-gray-600">
                         Gestiona Analytics, Tag Manager, Google Ads, Search Console,
                         Meta Pixel e insights de contenido sin mezclar esa capa con la
-                        lógica del ecommerce.
+                        lógica del ecommerce. La persistencia backend es el modo normal;
+                        ENV queda como fallback si todavía no existe `growth_config`.
                     </p>
+                    <div className="text-xs text-gray-500">
+                        Origen real de la config: {overview?.meta.source ?? 'n/a'}
+                    </div>
                     <div className="text-xs text-gray-500">
                         Última actualización: {formatDateTime(overview?.meta.updatedAt ?? null)}
                     </div>
@@ -151,6 +162,7 @@ const GrowthSettings = () => {
                     ['Search Console', readiness?.googleSearchConsoleReady ?? false],
                     ['Meta Pixel', readiness?.metaPixelReady ?? false],
                     ['Meta CAPI', readiness?.metaConversionsApiReady ?? false],
+                    ['Meta backend', readiness?.metaBackendConnectionReady ?? false],
                 ].map(([label, ready]) => (
                     <Card key={label as string}>
                         <div className="flex items-center justify-between gap-3">
@@ -163,6 +175,69 @@ const GrowthSettings = () => {
                     </Card>
                 ))}
             </div>
+
+            <Card>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                        <h5 className="mb-1">Conexión backend Meta</h5>
+                        <p className="text-sm text-gray-600">
+                            Esta integración no depende de login OAuth contra Meta. El sistema
+                            queda conectado por configuración backend usando Pixel ID, token de
+                            Conversions API y Meta Ads Account ID. El modo operativo es
+                            `backend_token`.
+                        </p>
+                    </div>
+                    <div className="flex flex-col items-start gap-2">
+                        <Badge
+                            content={metaConnection?.ready ? 'backend-ready' : 'backend-pending'}
+                            innerClass={
+                                metaConnection?.ready
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : 'bg-amber-100 text-amber-700'
+                            }
+                        />
+                        <span className="text-xs text-gray-500">
+                            Modo: {metaConnection?.mode ?? 'backend_token'}
+                        </span>
+                    </div>
+                </div>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-700/40">
+                        <div className="text-xs uppercase tracking-[0.18em] text-gray-500">
+                            Pixel ID
+                        </div>
+                        <div className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {metaConnection?.pixelConfigured ? 'Configurado' : 'Falta configurar'}
+                        </div>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-700/40">
+                        <div className="text-xs uppercase tracking-[0.18em] text-gray-500">
+                            CAPI token
+                        </div>
+                        <div className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {metaConnection?.conversionsApiConfigured
+                                ? 'Configurado'
+                                : 'Falta configurar'}
+                        </div>
+                    </div>
+                    <div className="rounded-xl bg-gray-50 p-4 dark:bg-gray-700/40">
+                        <div className="text-xs uppercase tracking-[0.18em] text-gray-500">
+                            Ads account ID
+                        </div>
+                        <div className="mt-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+                            {metaConnection?.adsAccountIdConfigured
+                                ? 'Configurado'
+                                : 'Falta configurar'}
+                        </div>
+                    </div>
+                </div>
+                <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-700/30">
+                    Si existe configuración persistida en backend, esa es la que se usa.
+                    Sólo cuando no hay `growth_config` el sistema cae a ENV para mantener
+                    operativos los entornos sin persistencia todavía.
+                </div>
+            </Card>
 
             <Card>
                 <Formik
@@ -206,7 +281,7 @@ const GrowthSettings = () => {
                         }
                     }}
                 >
-                    {({ values, isSubmitting, dirty }) => (
+                    {({ isSubmitting, dirty }) => (
                         <Form>
                             <FormContainer>
                                 <div className="grid gap-4 lg:grid-cols-2">
@@ -317,9 +392,10 @@ const GrowthSettings = () => {
 
                                     <Card>
                                         <div className="mb-4">
-                                            <h5 className="mb-1">Meta & Insights</h5>
+                                            <h5 className="mb-1">Meta backend connection</h5>
                                             <p className="text-sm text-gray-600">
-                                                Pixel, Conversions API y señales internas de contenido.
+                                                Configuración directa del lado del backend para
+                                                Pixel, Conversions API y account mapping.
                                             </p>
                                         </div>
 
@@ -420,6 +496,12 @@ const GrowthSettings = () => {
                                                     placeholder="act_1234567890"
                                                 />
                                             </FormItem>
+
+                                            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-700/30">
+                                                No se requiere login OAuth con Meta para esta
+                                                conexión. El backend usa estas credenciales para
+                                                resolver el destino y enviar CAPI.
+                                            </div>
 
                                             <FormItem label="Content insights">
                                                 <div className="flex items-center gap-3">

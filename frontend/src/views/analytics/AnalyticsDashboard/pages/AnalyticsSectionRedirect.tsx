@@ -10,7 +10,8 @@ const redirects: Record<string, string> = {
     connections: '/app/analytics/connections',
     insights: '/app/analytics/insights',
     'data-quality': '/app/analytics/data-quality',
-    parity: '/app/analytics/data-quality',
+    parity: '/app/analytics/data-parity',
+    'data-parity': '/app/analytics/data-parity',
     'growth-insights': '/app/analytics/growth-insights',
 }
 

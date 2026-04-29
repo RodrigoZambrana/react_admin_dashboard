@@ -45,6 +45,7 @@ export type GrowthSettingsOverview = {
         googleSearchConsoleReady: boolean
         metaPixelReady: boolean
         metaConversionsApiReady: boolean
+        metaBackendConnectionReady: boolean
     }
     publicConfig: {
         google: {
@@ -69,6 +70,13 @@ export type GrowthSettingsOverview = {
             pixel: {
                 enabled: boolean
                 pixelId: string | null
+            }
+            connection: {
+                mode: 'backend_token'
+                pixelConfigured: boolean
+                conversionsApiConfigured: boolean
+                adsAccountIdConfigured: boolean
+                ready: boolean
             }
         }
         insights: {

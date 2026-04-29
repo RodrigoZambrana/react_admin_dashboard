@@ -47,6 +47,8 @@ services:
       PORT: ${BACKEND_PORT:-4000}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
       DATABASE_URL: ${DEV_DATABASE_URL:-postgresql://postgres:postgres@db:5432/react_admin_dashboard?schema=public}
+      ANALYTICS_QUEUE_URL: ${ANALYTICS_QUEUE_URL:-redis://redis:6379}
+      QUEUE_REDIS_URL: ${QUEUE_REDIS_URL:-redis://redis:6379}
       DB_HOST: ${DEV_DB_HOST:-db}
       DB_PORT: ${DEV_DB_PORT:-5432}
       DB_USER: ${DEV_DB_USER:-postgres}
@@ -62,7 +64,89 @@ services:
       - ../tools/qa:/qa-tools:ro
       - ../docs:/docs:ro
       - ../backend/uploads:/app/uploads
-    depends_on: []
+    depends_on:
+      - redis
+    networks:
+      - default
+      - external_postgres
+
+  analytics-worker:
+    <<: *backend-common
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-analytics-worker
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+      target: runtime
+    working_dir: /app
+    command: node dist/src/analytics/analytics.worker.js
+    environment:
+      CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+      NODE_ENV: production
+      ANALYTICS_QUEUE_WORKER: "true"
+      ANALYTICS_QUEUE_URL: ${ANALYTICS_QUEUE_URL:-redis://redis:6379}
+      QUEUE_REDIS_URL: ${QUEUE_REDIS_URL:-redis://redis:6379}
+      DATABASE_URL: ${DEV_DATABASE_URL:-postgresql://postgres:postgres@db:5432/react_admin_dashboard?schema=public}
+      DB_HOST: ${DEV_DB_HOST:-db}
+      DB_PORT: ${DEV_DB_PORT:-5432}
+      DB_USER: ${DEV_DB_USER:-postgres}
+      DB_PASSWORD: ${DEV_DB_PASSWORD:-postgres}
+      DB_NAME: ${DEV_DB_NAME:-react_admin_dashboard}
+    depends_on:
+      - redis
+      - backend
+    networks:
+      - default
+      - external_postgres
+
+  analytics-health-monitor:
+    <<: *backend-common
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-analytics-health-monitor
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+      args:
+        CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+      target: runtime
+    working_dir: /app
+    command: npm run analytics:health:monitor -- --interval-minutes ${ANALYTICS_HEALTH_INTERVAL_MINUTES:-15} --base-url ${ANALYTICS_HEALTH_BASE_URL:-http://backend:4000} --queue-name ${ANALYTICS_QUEUE_NAME:-analytics-pipeline}
+    environment:
+      CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+      NODE_ENV: production
+      ANALYTICS_QUEUE_URL: ${ANALYTICS_QUEUE_URL:-redis://redis:6379}
+      QUEUE_REDIS_URL: ${QUEUE_REDIS_URL:-redis://redis:6379}
+      ANALYTICS_HEALTH_BASE_URL: ${ANALYTICS_HEALTH_BASE_URL:-http://backend:4000}
+      ANALYTICS_HEALTH_INTERVAL_MINUTES: ${ANALYTICS_HEALTH_INTERVAL_MINUTES:-15}
+      ANALYTICS_HEALTH_SUMMARY_INTERVAL_MINUTES: ${ANALYTICS_HEALTH_SUMMARY_INTERVAL_MINUTES:-60}
+      ANALYTICS_HEALTH_DIGEST_WINDOW_HOURS: ${ANALYTICS_HEALTH_DIGEST_WINDOW_HOURS:-24}
+      ANALYTICS_HEALTH_DIGEST_LIMIT: ${ANALYTICS_HEALTH_DIGEST_LIMIT:-20}
+      ANALYTICS_HEALTH_DIGEST_COOLDOWN_HOURS: ${ANALYTICS_HEALTH_DIGEST_COOLDOWN_HOURS:-24}
+      ANALYTICS_HEALTH_SLACK_WEBHOOK_URL: ${ANALYTICS_HEALTH_SLACK_WEBHOOK_URL:-}
+      ANALYTICS_HEALTH_ALERT_COOLDOWN_MINUTES: ${ANALYTICS_HEALTH_ALERT_COOLDOWN_MINUTES:-30}
+      ANALYTICS_HEALTH_WAITING_WARNING_THRESHOLD: ${ANALYTICS_HEALTH_WAITING_WARNING_THRESHOLD:-10}
+      ANALYTICS_HEALTH_WAITING_CRITICAL_THRESHOLD: ${ANALYTICS_HEALTH_WAITING_CRITICAL_THRESHOLD:-50}
+      ANALYTICS_HEALTH_FAILED_CRITICAL_THRESHOLD: ${ANALYTICS_HEALTH_FAILED_CRITICAL_THRESHOLD:-5}
+      ANALYTICS_HEALTH_MAX_SYNC_LAG_HOURS: ${ANALYTICS_HEALTH_MAX_SYNC_LAG_HOURS:-36}
+      ANALYTICS_HEALTH_MIN_EVENT_ROWS_24H: ${ANALYTICS_HEALTH_MIN_EVENT_ROWS_24H:-1}
+      ANALYTICS_HEALTH_MAX_ATTRIBUTION_MISMATCH_PCT: ${ANALYTICS_HEALTH_MAX_ATTRIBUTION_MISMATCH_PCT:-20}
+      ANALYTICS_DATA_TRUST_LOOKBACK_DAYS: ${ANALYTICS_DATA_TRUST_LOOKBACK_DAYS:-7}
+      ANALYTICS_DATA_TRUST_SILENCE_WINDOW_HOURS: ${ANALYTICS_DATA_TRUST_SILENCE_WINDOW_HOURS:-24}
+      ANALYTICS_DATA_TRUST_MIN_CONVERSION_COUNT: ${ANALYTICS_DATA_TRUST_MIN_CONVERSION_COUNT:-1}
+      ANALYTICS_DATA_TRUST_ZERO_CONVERSION_CRITICAL_TRAFFIC: ${ANALYTICS_DATA_TRUST_ZERO_CONVERSION_CRITICAL_TRAFFIC:-100}
+      ANALYTICS_DATA_TRUST_ATTRIBUTION_MINIMUM_PERCENT: ${ANALYTICS_DATA_TRUST_ATTRIBUTION_MINIMUM_PERCENT:-70}
+      ANALYTICS_DATA_TRUST_GA4_TOLERANCE_PERCENT: ${ANALYTICS_DATA_TRUST_GA4_TOLERANCE_PERCENT:-20}
+      ANALYTICS_DATA_TRUST_TRAFFIC_DROP_THRESHOLD_PERCENT: ${ANALYTICS_DATA_TRUST_TRAFFIC_DROP_THRESHOLD_PERCENT:-40}
+      DATABASE_URL: ${DEV_DATABASE_URL:-postgresql://postgres:postgres@db:5432/react_admin_dashboard?schema=public}
+      DB_HOST: ${DEV_DB_HOST:-db}
+      DB_PORT: ${DEV_DB_PORT:-5432}
+      DB_USER: ${DEV_DB_USER:-postgres}
+      DB_PASSWORD: ${DEV_DB_PASSWORD:-postgres}
+      DB_NAME: ${DEV_DB_NAME:-react_admin_dashboard}
+    restart: unless-stopped
+    depends_on:
+      - redis
+      - backend
     networks:
       - default
       - external_postgres
@@ -93,6 +177,7 @@ services:
       - "8080:80"
     depends_on:
       - backend
+      - redis
 
   storefront:
     <<: *storefront-common
@@ -155,9 +240,26 @@ services:
       retries: 12
       start_period: 180s
 
+  redis:
+    image: redis:7-alpine
+    container_name: ${APP_STACK_NAME:-admin-dashboard-dev}-redis
+    ports:
+      - "${REDIS_HOST_PORT:-6379}:6379"
+    volumes:
+      - redis_data_dev:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
 networks:
   default:
     name: ${APP_STACK_NAME:-admin-dashboard-dev}
   external_postgres:
     external: true
     name: ${EXTERNAL_POSTGRES_NETWORK:-postgres-local}
+
+volumes:
+  redis_data_dev:

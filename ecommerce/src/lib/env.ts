@@ -75,6 +75,7 @@ const ensureStorefrontPath = (value: string): string => {
 };
 
 const DEFAULT_API_BASE = "http://localhost:4000/api/storefront";
+const DEFAULT_AUTH_API_BASE = "http://localhost:4000/api";
 const DEFAULT_ANALYTICS_API_BASE = "http://localhost:4000/api/analytics";
 const DEFAULT_AI_PLATFORM_BASE = "http://localhost:4110";
 const DEFAULT_SITE_URL = "http://localhost:3000";
@@ -99,6 +100,10 @@ const serverApiBaseRaw =
   process.env.STOREFRONT_API_URL ?? process.env.NEXT_PUBLIC_STOREFRONT_API_URL ?? DEFAULT_API_BASE;
 const clientApiBaseRaw =
   process.env.NEXT_PUBLIC_STOREFRONT_API_URL ?? serverApiBaseRaw ?? DEFAULT_API_BASE;
+const serverAuthApiBaseRaw =
+  process.env.AUTH_API_URL ?? process.env.NEXT_PUBLIC_AUTH_API_URL ?? DEFAULT_AUTH_API_BASE;
+const clientAuthApiBaseRaw =
+  process.env.NEXT_PUBLIC_AUTH_API_URL ?? serverAuthApiBaseRaw ?? DEFAULT_AUTH_API_BASE;
 const serverAnalyticsBaseRaw =
   process.env.ANALYTICS_API_URL ??
   process.env.NEXT_PUBLIC_ANALYTICS_API_URL ??
@@ -114,6 +119,10 @@ const normalizedApiBase =
   ensureStorefrontPath(normalize(serverApiBaseRaw, "server")) || DEFAULT_API_BASE;
 const normalizedPublicApiBase =
   ensureStorefrontPath(normalize(clientApiBaseRaw, "client")) || DEFAULT_API_BASE;
+const normalizedAuthApiBase =
+  removeTrailingSlash(normalize(serverAuthApiBaseRaw, "server")) || DEFAULT_AUTH_API_BASE;
+const normalizedPublicAuthApiBase =
+  removeTrailingSlash(normalize(clientAuthApiBaseRaw, "client")) || DEFAULT_AUTH_API_BASE;
 const normalizedAnalyticsApiBase =
   removeTrailingSlash(normalize(serverAnalyticsBaseRaw, "server")) || DEFAULT_ANALYTICS_API_BASE;
 const normalizedPublicAnalyticsApiBase =
@@ -136,6 +145,8 @@ const safeOrigin = (value: string | null): string | null => {
 export const env = {
   apiBaseUrl: normalizedApiBase,
   publicApiBaseUrl: normalizedPublicApiBase,
+  authApiBaseUrl: normalizedAuthApiBase,
+  publicAuthApiBaseUrl: normalizedPublicAuthApiBase,
   analyticsApiBaseUrl: normalizedAnalyticsApiBase,
   publicAnalyticsApiBaseUrl: normalizedPublicAnalyticsApiBase,
   publicAiPlatformUrl: normalizedAiPlatformBase,

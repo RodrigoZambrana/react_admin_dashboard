@@ -1,6 +1,7 @@
-import { createHash } from 'crypto'
+import { createHash } from 'node:crypto'
 
 import type { AnalyticsReportCatalogEntry } from './ga4-report-catalog'
+import { buildAnalyticsDimensionHash } from '../dimensions/analytics-dimension-hash'
 
 const startOfDayUtc = (value: Date) =>
   new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
@@ -36,9 +37,7 @@ const stableSerialize = (value: unknown): string => {
   const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
     left.localeCompare(right),
   )
-  return `{${entries
-    .map(([key, entry]) => `${JSON.stringify(key)}:${stableSerialize(entry)}`)
-    .join(',')}}`
+  return `{${entries.map(([key, entry]) => `${JSON.stringify(key)}:${stableSerialize(entry)}`).join(',')}}`
 }
 
 export type Ga4ComparableMetricRow = {
@@ -81,7 +80,7 @@ export const buildGa4QueryHash = (input: {
 }
 
 export const buildGa4DimensionHash = (dimensionValues: Record<string, unknown>) =>
-  createHash('sha256').update(stableSerialize(dimensionValues)).digest('hex')
+  buildAnalyticsDimensionHash(dimensionValues)
 
 export const normalizeGa4MetricValue = (value: unknown) => {
   const parsed = parseNumeric(value)

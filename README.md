@@ -1,5 +1,7 @@
 # Sistema Administrativo – Infraestructura y Automatización
 
+![analytics health](http://localhost:4000/api/analytics/health/badge)
+
 Este repositorio contiene todo lo necesario para desarrollar, construir y desplegar la aplicación compuesta por un frontend en React (Vite + TypeScript), un backend en NestJS/Fastify y PostgreSQL como base de datos. La infraestructura se orquesta con Docker Compose y los despliegues se automatizan mediante GitHub Actions: la rama **develop** se valida con CI y se ejecuta localmente mediante Docker, mientras que los ambientes de **testing/prod** se publican sobre un Droplet de DigitalOcean mediante SSH.
 
 ## Estructura del repositorio

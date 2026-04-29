@@ -3,11 +3,16 @@ export type AnalyticsSectionKey =
     | 'overview'
     | 'funnel'
     | 'marketing'
+    | 'metaMarketing'
     | 'products'
     | 'behavior'
     | 'conversions'
     | 'connections'
+    | 'systemHealth'
+    | 'insights'
     | 'dataQuality'
+    | 'dataParity'
+    | 'exports'
     | 'growthInsights'
 
 export type AnalyticsSection = {
@@ -43,6 +48,12 @@ export const analyticsSections: AnalyticsSection[] = [
         subtitle: 'CAC, ROAS y atribución por canal.',
     },
     {
+        key: 'metaMarketing',
+        path: '/app/analytics/marketing/meta',
+        title: 'Meta Ads',
+        subtitle: 'Pixel, CAPI, remarketing y calidad de match.',
+    },
+    {
         key: 'products',
         path: '/app/analytics/products',
         title: 'Productos',
@@ -67,6 +78,12 @@ export const analyticsSections: AnalyticsSection[] = [
         subtitle: 'Fuentes externas, sync runs e insights operativos.',
     },
     {
+        key: 'systemHealth',
+        path: '/app/analytics/system-health',
+        title: 'Salud del sistema',
+        subtitle: 'Estado visible, histórico reciente y señal de degradación.',
+    },
+    {
         key: 'insights',
         path: '/app/analytics/insights',
         title: 'Insights IA',
@@ -77,6 +94,18 @@ export const analyticsSections: AnalyticsSection[] = [
         path: '/app/analytics/data-quality',
         title: 'Calidad de datos',
         subtitle: 'Baseline reproducible, sync y cobertura por reporte.',
+    },
+    {
+        key: 'dataParity',
+        path: '/app/analytics/data-parity',
+        title: 'Data Parity',
+        subtitle: 'Coherencia entre exports de referencia y API interna.',
+    },
+    {
+        key: 'exports',
+        path: '/app/analytics/exports',
+        title: 'Exports',
+        subtitle: 'Descargas canónicas y report-aligned para auditoría y consumo humano.',
     },
     {
         key: 'growthInsights',

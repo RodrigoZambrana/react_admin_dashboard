@@ -11,6 +11,7 @@ import { AnalyticsGoogleOAuthConfigService } from '../common/integrations/analyt
 import { GoogleAdsConfigService } from '../common/integrations/google-ads-config.service'
 import { ConfigEncryptionService } from '../common/security/config-encryption.service'
 import { SecureConfigService } from '../common/security/secure-config.service'
+import { AnalyticsQueueService } from './analytics-queue.service'
 import { AnalyticsRepository } from './analytics.repository'
 import type {
   AnalyticsAdsOAuthStartResult,
@@ -156,6 +157,7 @@ export class AdsConnectorService {
     private readonly adsConfig: GoogleAdsConfigService,
     private readonly secureConfig: SecureConfigService,
     private readonly encryption: ConfigEncryptionService,
+    private readonly analyticsQueue: AnalyticsQueueService,
   ) {}
 
   async startOAuth(
@@ -315,8 +317,7 @@ export class AdsConnectorService {
 
   async runInitialSync(connectionId: string): Promise<AnalyticsAdsSyncResult> {
     const fromDate = addDaysUtc(new Date(), -(INITIAL_SYNC_DAYS - 1))
-    return this.runAdsSync(connectionId, {
-      jobType: 'initial_sync',
+    return this.analyticsQueue.enqueueInitialSync('ads', connectionId, {
       fromDate,
       toDate: new Date(),
     })
@@ -333,8 +334,7 @@ export class AdsConnectorService {
       ? addDaysUtc(startOfDayUtc(lastSuccessfulSyncAt), -INCREMENTAL_OVERLAP_DAYS)
       : addDaysUtc(new Date(), -(INITIAL_SYNC_DAYS - 1))
 
-    return this.runAdsSync(connectionId, {
-      jobType: 'incremental_sync',
+    return this.analyticsQueue.enqueueIncrementalSync('ads', connectionId, {
       fromDate,
       toDate: new Date(),
     })
@@ -345,8 +345,7 @@ export class AdsConnectorService {
       throw new BadRequestException('Backfill requires from and to dates.')
     }
 
-    return this.runAdsSync(connectionId, {
-      jobType: 'backfill',
+    return this.analyticsQueue.enqueueBackfillSync('ads', connectionId, {
       fromDate: normalizeTimestamp(from),
       toDate: normalizeTimestamp(to),
     })
@@ -376,11 +375,32 @@ export class AdsConnectorService {
       throw new BadRequestException('Repair requires a previous failed run or explicit from/to range.')
     }
 
-    return this.runAdsSync(connectionId, {
-      jobType: 'repair',
+    return this.analyticsQueue.enqueueRepairSync('ads', connectionId, {
       fromDate,
       toDate,
     })
+  }
+
+  async executeQueuedSync(input: {
+    connectionId: string
+    jobType: AnalyticsSyncJobType
+    fromDate: Date
+    toDate: Date
+    syncRunId: string
+    startedAt: Date
+    retries: number
+  }): Promise<AnalyticsAdsSyncResult> {
+    return this.runAdsSync(
+      input.connectionId,
+      {
+        jobType: input.jobType,
+        fromDate: input.fromDate,
+        toDate: input.toDate,
+      },
+      input.syncRunId,
+      input.startedAt,
+      input.retries,
+    )
   }
 
   private async runAdsSync(
@@ -390,6 +410,9 @@ export class AdsConnectorService {
       fromDate: Date
       toDate: Date
     },
+    syncRunId?: string,
+    startedAt?: Date,
+    retryCount = 0,
   ): Promise<AnalyticsAdsSyncResult> {
     const connection = await this.repository.findConnectionById(connectionId)
     if (!connection || connection.source !== 'ads') {
@@ -406,13 +429,34 @@ export class AdsConnectorService {
     }
 
     const now = new Date()
-    const syncRun = await this.repository.createSyncRun({
-      connectionId,
-      jobType: input.jobType,
-      fromDate: input.fromDate,
-      toDate: input.toDate,
-      status: 'running',
-    })
+    const syncRun: any = syncRunId
+      ? {
+          id: syncRunId,
+          connectionId,
+          jobType: input.jobType,
+          fromDate: input.fromDate,
+          toDate: input.toDate,
+          status: 'running' as const,
+          queuedAt: startedAt ?? now,
+          retryCount,
+          partialFailureFlag: false,
+          durationMs: null as number | null,
+          recordsFetched: 0,
+          recordsUpserted: 0,
+          errorMessage: null as string | null,
+          startedAt: startedAt ?? now,
+          finishedAt: null as Date | null,
+          createdAt: startedAt ?? now,
+        }
+      : await this.repository.createSyncRun({
+          connectionId,
+          jobType: input.jobType,
+          fromDate: input.fromDate,
+          toDate: input.toDate,
+          status: 'running',
+          queuedAt: now,
+          retryCount,
+        })
 
     await this.repository.updateConnection(connectionId, {
       status: 'syncing',
@@ -433,6 +477,7 @@ export class AdsConnectorService {
       const adsRowsUpserted = await this.persistAdsDailyMetrics(connectionId, syncRun.id, rows)
 
       const finishedAt = new Date()
+      const durationMs = startedAt ? finishedAt.getTime() - startedAt.getTime() : null
       const nextSyncAt =
         input.jobType === 'repair'
           ? connection.nextSyncAt ??
@@ -441,6 +486,7 @@ export class AdsConnectorService {
 
       await this.repository.updateSyncRun(syncRun.id, {
         status: 'success',
+        durationMs,
         recordsFetched: rows.length,
         recordsUpserted: adsRowsUpserted,
         finishedAt,
@@ -466,6 +512,10 @@ export class AdsConnectorService {
           fromDate: input.fromDate.toISOString(),
           toDate: input.toDate.toISOString(),
           status: 'success',
+          queuedAt: (syncRun.queuedAt ?? startedAt ?? now).toISOString(),
+          retryCount: syncRun.retryCount,
+          partialFailureFlag: false,
+          durationMs,
           recordsFetched: rows.length,
           recordsUpserted: adsRowsUpserted,
           errorMessage: null,
@@ -483,6 +533,8 @@ export class AdsConnectorService {
         status: 'failed',
         errorMessage: message,
         finishedAt: failedAt,
+        durationMs: startedAt ? failedAt.getTime() - startedAt.getTime() : null,
+        partialFailureFlag: false,
       })
       await this.repository.updateConnection(connectionId, {
         status: 'error',

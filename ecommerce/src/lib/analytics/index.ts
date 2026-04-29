@@ -3,7 +3,7 @@ import { resolvePublicPricing, type PublicPricingSource } from "@/lib/seo/public
 
 import { initAutoTracking } from "./autoTrack";
 import { getAnalyticsContext, getSessionId, type AnalyticsContext } from "./session";
-import { track } from "./tracking";
+import { createEventId, track } from "./tracking";
 
 export type AnalyticsEvent =
   | {
@@ -83,9 +83,26 @@ export const resolveAnalyticsRuntime = (config: StorefrontConfig): AnalyticsRunt
 });
 
 export const trackAnalyticsEvent = (event: AnalyticsEvent) => {
-  pushToDataLayer(event);
-  const { event: eventName, ...rest } = event;
-  track({ event: eventName, data: rest });
+  const context = getAnalyticsContext();
+  const eventId = createEventId();
+  const enrichedEvent = {
+    ...event,
+    event_id: eventId,
+    session_id: context.session_id,
+    page: context.page,
+    path: context.path,
+    referrer: context.referrer,
+    utm_source: context.utm_source,
+    utm_medium: context.utm_medium,
+    utm_campaign: context.utm_campaign,
+    device: context.device,
+    country: context.country,
+    fbp: context.fbp,
+    fbc: context.fbc,
+  } as AnalyticsEvent & Record<string, unknown>;
+  pushToDataLayer(enrichedEvent);
+  const { event: eventName, ...rest } = enrichedEvent;
+  track({ event: eventName, data: rest as Record<string, unknown> });
 };
 
 const mapItem = (item: AnalyticsProductLike | CheckoutLineItem) => {

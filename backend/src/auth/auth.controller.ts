@@ -13,6 +13,14 @@ import { PasswordResetService } from './password-reset.service'
 import { PasswordResetConfirmDto, PasswordResetRequestDto } from './dto/password-reset.dto'
 import { Throttle } from '@nestjs/throttler'
 import { GoogleConfigService } from '../common/integrations/google-config.service'
+import { PhoneAuthService } from './phone-auth.service'
+import {
+  RecoverAccountDto,
+  RegisterPhoneDto,
+  ResetPasswordDto,
+  SendOtpDto,
+  VerifyOtpDto,
+} from './dto/phone-auth.dto'
 
 @Controller()
 export class AuthController {
@@ -22,6 +30,7 @@ export class AuthController {
     private userActivity: UserActivityService,
     private passwordReset: PasswordResetService,
     private readonly googleConfig: GoogleConfigService,
+    private readonly phoneAuth: PhoneAuthService,
   ) {}
 
   private buildAuthCookieOptions(): CookieSerializeOptions {
@@ -166,5 +175,32 @@ export class AuthController {
   async legacyResetPassword(@Body() dto: PasswordResetConfirmDto, @Req() req: FastifyRequest) {
     await this.passwordReset.resetPassword(dto.token, dto.password, req)
     return { ok: true }
+  }
+
+  @Post('/auth/register')
+  async registerWithPhone(@Body() dto: RegisterPhoneDto, @Req() req: FastifyRequest) {
+    return this.phoneAuth.register(dto, req)
+  }
+
+  @Post('/auth/send-otp')
+  @Throttle({ default: { limit: 10, ttl: 60 } })
+  async sendOtp(@Body() dto: SendOtpDto, @Req() req: FastifyRequest) {
+    return this.phoneAuth.sendOtp(dto, req)
+  }
+
+  @Post('/auth/verify-otp')
+  async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: FastifyRequest) {
+    return this.phoneAuth.verifyOtp(dto, req)
+  }
+
+  @Post('/auth/recover')
+  @Throttle({ default: { limit: 5, ttl: 60 } })
+  async recover(@Body() dto: RecoverAccountDto, @Req() req: FastifyRequest) {
+    return this.phoneAuth.recover(dto, req)
+  }
+
+  @Post('/auth/reset-password')
+  async resetPasswordPhoneAuth(@Body() dto: ResetPasswordDto, @Req() req: FastifyRequest) {
+    return this.phoneAuth.resetPassword(dto, req)
   }
 }
