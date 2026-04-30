@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 
 import BudgetCalculatorPanel from "@/components/budget/BudgetCalculatorPanel";
 import ProductIntro from "@component/products/ProductIntro";
@@ -15,6 +16,7 @@ type Props = {
   relatedProducts: Product[];
   frequentlyBought: Product[];
   suggestedAddOns: Product[];
+  beforeDetails?: ReactNode;
   installationAddOn?: {
     id: number;
     name: string;
@@ -50,6 +52,7 @@ export default function ProductDetailExperience({
   relatedProducts,
   frequentlyBought,
   suggestedAddOns,
+  beforeDetails,
   installationAddOn,
   reviews,
   reviewSummary
@@ -105,6 +108,8 @@ export default function ProductDetailExperience({
         variantAttributes={product.variantAttributes}
         variants={product.variants}
       />
+
+      {beforeDetails}
 
       {budgetEnabled ? (
         <BudgetCalculatorPanel

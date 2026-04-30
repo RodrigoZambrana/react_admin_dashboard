@@ -1,8 +1,11 @@
 "use client";
 
-import { useRef, useState, type ReactElement } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useState, type CSSProperties, type ReactElement } from "react";
 import Container from "@component/Container";
+import { Carousel } from "@component/carousel";
+import NextImage from "@/components/NextImage";
 import Topbar from "@component/topbar";
 import { Header } from "@component/header";
 import Navbar from "@component/navbar/Navbar";
@@ -20,9 +23,15 @@ import type {
 import { renderCmsRichTextContent } from "./rich-text";
 import styles from "./CmsPageShell.module.css";
 
+const StoriesModal = dynamic(() => import("./StoriesModal"), { ssr: false });
+
 type Props = {
   page: CmsRenderablePage;
   homeContentSections?: CmsContentSection[] | null;
+};
+
+export type CmsPageBodyProps = {
+  page: CmsRenderablePage;
 };
 
 type ActionLink = {
@@ -43,6 +52,16 @@ const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T
 const asNumber = (value: unknown, fallback: number) => {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const asBoolean = (value: unknown, fallback = false) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off"].includes(normalized)) return false;
+  }
+  return fallback;
 };
 
 const resolveHeadingTag = (value: unknown, fallback: HeadingTag): HeadingTag => {
@@ -70,6 +89,42 @@ const asActions = (value: unknown): ActionLink[] =>
     .filter((item) => item.label && item.href);
 
 const pickMediaUrl = (media?: CmsRenderableMedia | null) => media?.url ?? "";
+
+const readActionLink = (value: unknown): ActionLink | null => {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const label = asString(record.label) || asString(record.text);
+  const href = asString(record.href) || asString(record.url) || asString(record.link);
+  if (!label || !href) return null;
+  return {
+    label,
+    href,
+    external: asBoolean(record.external, false),
+  };
+};
+
+const readMediaType = (value: unknown, fallback: "image" | "video" = "image") => {
+  const normalized = asString(value).toLowerCase();
+  if (normalized.includes("video")) return "video";
+  if (normalized.includes("image")) return "image";
+  return fallback;
+};
+
+const normalizeDurationMs = (value: unknown, fallback: number) => {
+  const raw = asNumber(value, Number.NaN);
+  if (!Number.isFinite(raw) || raw <= 0) return fallback;
+  return raw > 1000 ? Math.round(raw) : Math.round(raw * 1000);
+};
+
+const readMediaDuration = (value: unknown, fallback: number) => {
+  return normalizeDurationMs(value, fallback);
+};
+
+const normalizeOverlayOpacity = (value: unknown, fallback = 0.55) => {
+  const raw = asNumber(value, fallback);
+  if (raw > 1) return Math.min(0.95, Math.max(0, raw / 100));
+  return Math.min(0.95, Math.max(0, raw));
+};
 
 const isExternalUrl = (href: string) => /^(https?:\/\/|mailto:|tel:)/i.test(href);
 
@@ -213,6 +268,390 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
   );
 };
 
+type VisualStoryItem = {
+  id: string;
+  title: string;
+  caption?: string | null;
+  mediaUrl: string;
+  mediaType: "image" | "video";
+  posterUrl?: string | null;
+  link?: string | null;
+  external?: boolean;
+  durationMs: number;
+  alt?: string | null;
+};
+
+const MediaHeroSection = ({ section }: { section: CmsRenderableSection }) => {
+  const settings = asRecord(section.settings);
+  const mediaType = readMediaType(settings.mediaType, "image");
+  const mediaUrl =
+    asString(settings.mediaUrl) ||
+    pickMediaUrl(section.blocks[0]?.media) ||
+    asString(section.blocks[0]?.content?.mediaUrl) ||
+    asString(section.blocks[0]?.content?.imageUrl) ||
+    asString(section.blocks[0]?.content?.videoUrl);
+  const posterUrl =
+    asString(settings.posterUrl) ||
+    pickMediaUrl(section.blocks[0]?.media) ||
+    asString(section.blocks[0]?.content?.thumbnail);
+  const overlay = asBoolean(settings.overlay, true);
+  const overlayOpacity = normalizeOverlayOpacity(settings.overlayOpacity, 0.58);
+  const title = asString(settings.title) || asString(section.blocks[0]?.content?.title);
+  const subtitle = asString(settings.subtitle) || asString(settings.description);
+  const eyebrow = asString(settings.eyebrow) || asString(settings.badge);
+  const primaryCta = readActionLink(settings.primaryCta) ?? {
+    label: asString(settings.primaryCtaLabel),
+    href: asString(settings.primaryCtaHref),
+  };
+  const secondaryCta = readActionLink(settings.secondaryCta) ?? {
+    label: asString(settings.secondaryCtaLabel),
+    href: asString(settings.secondaryCtaHref),
+  };
+  const mediaAlt = asString(settings.mediaAlt) || title || "Destacado";
+
+  return (
+    <Container className={styles.sectionContainer}>
+      <section className={styles.mediaHeroShell}>
+        <div className={styles.mediaHeroStage}>
+          {mediaUrl ? (
+            mediaType === "video" ? (
+              <video
+                autoPlay
+                className={styles.mediaHeroVideo}
+                loop
+                muted
+                playsInline
+                poster={posterUrl || undefined}
+                preload="metadata">
+                <source src={mediaUrl} />
+              </video>
+            ) : (
+              <NextImage
+                alt={mediaAlt}
+                className={styles.mediaHeroImage}
+                fill
+                priority
+                sizes="(max-width: 768px) 100vw, 1200px"
+                src={mediaUrl}
+              />
+            )
+          ) : null}
+
+          <div
+            className={styles.mediaHeroOverlay}
+            style={
+              overlay
+                ? ({ ["--hero-overlay-opacity" as string]: overlayOpacity } as CSSProperties)
+                : ({ ["--hero-overlay-opacity" as string]: 0.15 } as CSSProperties)
+            }
+          />
+
+          <div className={styles.mediaHeroCopy}>
+            {eyebrow ? <span className={styles.mediaHeroEyebrow}>{eyebrow}</span> : null}
+            {title ? <h1 className={styles.mediaHeroTitle}>{title}</h1> : null}
+            {subtitle ? <p className={styles.mediaHeroSubtitle}>{subtitle}</p> : null}
+            <div className={styles.mediaHeroActions}>
+              {primaryCta.label && primaryCta.href
+                ? renderLink(primaryCta.label, primaryCta.href, styles.primaryAction)
+                : null}
+              {secondaryCta.label && secondaryCta.href
+                ? renderLink(secondaryCta.label, secondaryCta.href, styles.secondaryAction)
+                : null}
+            </div>
+          </div>
+        </div>
+      </section>
+    </Container>
+  );
+};
+
+const buildVisualStory = (
+  block: CmsRenderableSection["blocks"][number],
+  fallbackDurationMs: number,
+): VisualStoryItem | null => {
+  const content = asRecord(block.content);
+  const title = asString(content.title) || block.name || "";
+  const caption = asString(content.caption) || asString(content.description);
+  const mediaUrl =
+    asString(content.mediaUrl) ||
+    asString(content.videoUrl) ||
+    asString(content.imageUrl) ||
+    pickMediaUrl(block.media);
+  if (!title && !mediaUrl) return null;
+
+  const mediaType =
+    readMediaType(content.mediaType, readMediaType(block.media?.type, mediaUrl.endsWith(".mp4") ? "video" : "image")) ||
+    "image";
+
+  return {
+    id: String(block.id),
+    title: title || "Story",
+    caption,
+    mediaUrl,
+    mediaType,
+    posterUrl: asString(content.thumbnail) || block.media?.url || null,
+    link: asString(content.link) || asString(content.href),
+    external: asBoolean(content.external, false),
+    durationMs: readMediaDuration(content.duration ?? content.durationSec, fallbackDurationMs),
+    alt: asString(content.alt) || block.media?.alt || title || "Story",
+  };
+};
+
+const StoriesCarouselSection = ({ section }: { section: CmsRenderableSection }) => {
+  const settings = asRecord(section.settings);
+  const autoplay = asBoolean(settings.autoplay, true);
+  const showProgressBar = asBoolean(settings.showProgressBar, true);
+  const interval = Math.max(1000, normalizeDurationMs(settings.interval, 5000));
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+
+  const stories = section.blocks
+    .map((block) => buildVisualStory(block, interval))
+    .filter((story): story is VisualStoryItem => Boolean(story));
+
+  if (!stories.length) return null;
+
+  return (
+    <Container className={styles.sectionContainer}>
+      {renderHeading(section)}
+      <section className={styles.storiesShell}>
+        <div className={styles.storiesRail}>
+          {stories.map((story, index) => (
+            <article className={styles.storyCard} key={story.id}>
+              <button
+                className={styles.storyTrigger}
+                aria-label={story.title}
+                onClick={() => setActiveIndex(index)}
+                type="button">
+                <span className={styles.storyRing}>
+                  <span className={styles.storyThumb}>
+                    {story.mediaUrl ? (
+                      <NextImage
+                        alt={story.alt ?? story.title}
+                        className={styles.storyThumbImage}
+                        fill
+                        sizes="96px"
+                        src={story.mediaUrl}
+                      />
+                    ) : null}
+                  </span>
+                </span>
+                <span className={styles.storyTitle}>{story.title}</span>
+                {story.caption ? <span className={styles.storyCaption}>{story.caption}</span> : null}
+                {showProgressBar ? (
+                  <span className={styles.storyProgress}>
+                    <span
+                      className={styles.storyProgressFill}
+                      style={{ width: `${Math.min(100, Math.max(24, (story.durationMs / interval) * 100))}%` }}
+                    />
+                  </span>
+                ) : null}
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <StoriesModal
+        autoplay={autoplay}
+        defaultDurationMs={interval}
+        initialIndex={activeIndex ?? 0}
+        open={activeIndex !== null}
+        onClose={() => setActiveIndex(null)}
+        showProgressBar={showProgressBar}
+        stories={stories}
+      />
+    </Container>
+  );
+};
+
+const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }) => {
+  const settings = asRecord(section.settings);
+  const columns = Math.min(5, Math.max(1, Math.round(asNumber(settings.columns, 3))));
+  const gap = Math.max(0.5, asNumber(settings.gap, 1));
+  const aspectRatio = asString(settings.aspectRatio) || "4 / 5";
+
+  return (
+    <Container className={styles.sectionContainer}>
+      {renderHeading(section)}
+      <section
+        className={styles.mediaGridEnhanced}
+        style={
+          {
+            columnCount: columns,
+            columnGap: `${gap}rem`,
+          } as CSSProperties
+        }>
+        {section.blocks.map((block) => {
+          const content = asRecord(block.content);
+          const title = asString(content.title) || block.name || "";
+          const description = asString(content.description) || asString(content.caption);
+          const href = asString(content.link) || asString(content.href);
+          const linkLabel = asString(content.linkLabel) || "Explorar";
+          const mediaUrl =
+            asString(content.mediaUrl) || asString(content.imageUrl) || pickMediaUrl(block.media);
+          const mediaType = readMediaType(content.mediaType, readMediaType(block.media?.type, "image"));
+          const badge = asString(content.badge);
+          const overlayText = asBoolean(content.overlayText, false);
+
+          return (
+            <article className={styles.mediaGridEnhancedCard} key={block.id}>
+              <div className={styles.mediaGridEnhancedMedia} style={{ aspectRatio }}>
+                {mediaUrl ? (
+                  mediaType === "video" ? (
+                  <video
+                      className={styles.mediaGridEnhancedVideo}
+                      controls
+                      muted
+                      playsInline
+                      preload="metadata"
+                      poster={block.media?.url || undefined}>
+                      <source src={mediaUrl} />
+                    </video>
+                  ) : (
+                    <NextImage
+                      alt={block.media?.alt || title || "Imagen"}
+                      className={styles.mediaGridEnhancedImage}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 33vw"
+                      src={mediaUrl}
+                    />
+                  )
+                ) : null}
+
+                {overlayText || badge ? (
+                  <div className={styles.mediaGridEnhancedOverlay}>
+                    {badge ? <span className={styles.mediaGridEnhancedBadge}>{badge}</span> : null}
+                    {title ? <h3>{title}</h3> : null}
+                    {description ? <p>{description}</p> : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className={styles.mediaGridEnhancedBody}>
+                {title ? <h3>{title}</h3> : null}
+                {description ? <p>{description}</p> : null}
+                {href ? renderLink(linkLabel, href, styles.mediaLink) : null}
+              </div>
+            </article>
+          );
+        })}
+      </section>
+    </Container>
+  );
+};
+
+const VideoSection = ({ section }: { section: CmsRenderableSection }) => {
+  const settings = asRecord(section.settings);
+  const layout = asString(settings.layout) === "fullwidth" ? "fullwidth" : "contained";
+  const autoplay = asBoolean(settings.autoplay, false);
+  const controls = asBoolean(settings.controls, true);
+  const blocks = section.blocks.flatMap((block) => {
+      const content = asRecord(block.content);
+    const title = asString(content.title) || block.name || "";
+    const description = asString(content.description) || asString(content.caption);
+    const videoUrl = asString(content.videoUrl) || asString(content.mediaUrl) || pickMediaUrl(block.media);
+    const thumbnail = asString(content.thumbnail) || block.media?.url || asString(content.posterUrl);
+      return videoUrl || title || description
+        ? [{ id: block.id, title, description, videoUrl, thumbnail }]
+        : [];
+    });
+
+  if (!blocks.length) return null;
+
+  const [featured, ...supporting] = blocks;
+
+  return (
+    <Container
+      className={layout === "fullwidth" ? styles.sectionContainerFluid : styles.sectionContainer}
+      fluid={layout === "fullwidth"}>
+      {renderHeading(section)}
+      <section className={`${styles.videoSection} ${layout === "fullwidth" ? styles.videoSectionFullwidth : ""}`}>
+        <div className={styles.videoSectionFeature}>
+          {featured.videoUrl ? (
+            <video
+              autoPlay={autoplay}
+              className={styles.videoSectionPlayer}
+              controls={controls}
+              muted={autoplay}
+              playsInline
+              poster={featured.thumbnail || undefined}
+              preload={autoplay ? "metadata" : "none"}>
+              <source src={featured.videoUrl} />
+            </video>
+          ) : null}
+          <div className={styles.videoSectionFeatureBody}>
+            {featured.title ? <h3>{featured.title}</h3> : null}
+            {featured.description ? <p>{featured.description}</p> : null}
+          </div>
+        </div>
+
+        {supporting.length ? (
+          <div className={styles.videoSectionSidebar}>
+            {supporting.map((item) => (
+              <article className={styles.videoSectionCard} key={item.id}>
+                <div className={styles.videoSectionThumb}>
+                  {item.thumbnail ? (
+                    <NextImage
+                      alt={item.title || "Video"}
+                      className={styles.videoSectionThumbImage}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 320px"
+                      src={item.thumbnail}
+                    />
+                  ) : null}
+                </div>
+                <div className={styles.videoSectionCardBody}>
+                  {item.title ? <h4>{item.title}</h4> : null}
+                  {item.description ? <p>{item.description}</p> : null}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : null}
+      </section>
+    </Container>
+  );
+};
+
+const HighlightCardsSection = ({ section }: { section: CmsRenderableSection }) => (
+  <Container className={styles.sectionContainer}>
+    {renderHeading(section)}
+    <section className={styles.highlightCards}>
+      {section.blocks.map((block) => {
+        const content = asRecord(block.content);
+        const title = asString(content.title) || block.name || "";
+        const description = asString(content.description) || asString(content.caption);
+        const href = asString(content.link) || asString(content.href);
+        const linkLabel = asString(content.linkLabel) || "Ver más";
+        const badge = asString(content.badge);
+        const mediaUrl = asString(content.image) || asString(content.mediaUrl) || pickMediaUrl(block.media);
+
+        return (
+          <article className={styles.highlightCard} key={block.id}>
+            <div className={styles.highlightCardMedia}>
+              {mediaUrl ? (
+                <NextImage
+                  alt={block.media?.alt || title || "Imagen"}
+                  className={styles.highlightCardImage}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 25vw"
+                  src={mediaUrl}
+                />
+              ) : null}
+              {badge ? <span className={styles.highlightCardBadge}>{badge}</span> : null}
+            </div>
+            <div className={styles.highlightCardBody}>
+              {title ? <h3>{title}</h3> : null}
+              {description ? <p>{description}</p> : null}
+              {href ? renderLink(linkLabel, href, styles.featureLink) : null}
+            </div>
+          </article>
+        );
+      })}
+    </section>
+  </Container>
+);
+
 type CmsRenderOptions = {
   allowHtmlFallback: boolean;
 };
@@ -325,78 +764,71 @@ const MediaCarouselSection = ({ section }: { section: CmsRenderableSection }) =>
   const settings = asRecord(section.settings);
   const variant = asString(settings.variant) || "cards";
   const blocks = section.blocks;
-  const [activeIndex, setActiveIndex] = useState(0);
-  const railRef = useRef<HTMLDivElement | null>(null);
-
-  const activeBlock = blocks[activeIndex] ?? blocks[0];
-  const scrollByAmount = variant === "logos" ? 220 : 360;
-
-  const scrollRail = (direction: "prev" | "next") => {
-    railRef.current?.scrollBy({
-      left: direction === "prev" ? -scrollByAmount : scrollByAmount,
-      behavior: "smooth",
-    });
-  };
 
   if (!blocks.length) return null;
+  const defaultSlidesToShow = variant === "logos" ? 5 : 4;
+  const slidesToShow = Math.max(
+    1,
+    Math.min(blocks.length, Math.round(asNumber(settings.slidesToShow, defaultSlidesToShow))),
+  );
+  const autoplay = asBoolean(settings.autoplay, variant === "logos");
+  const autoplaySpeed = Math.max(1500, normalizeDurationMs(settings.autoplaySpeed, 3200));
+  const arrows = asBoolean(settings.arrows, variant !== "logos");
+  const responsiveSettings = asArray<Record<string, unknown>>(settings.responsive)
+    .map((item) => ({
+      breakpoint: Math.max(320, Math.round(asNumber(item.breakpoint, NaN))),
+      settings: {
+        slidesToShow: Math.max(
+          1,
+          Math.round(
+            asNumber(
+              (item.settings && typeof item.settings === "object"
+                ? (item.settings as Record<string, unknown>).slidesToShow
+                : undefined) ?? item.slidesToShow,
+              1,
+            ),
+          ),
+        ),
+      },
+    }))
+    .filter((item) => Number.isFinite(item.breakpoint))
+    .sort((left, right) => right.breakpoint - left.breakpoint);
 
-  if (variant === "gallery") {
-    const content = asRecord(activeBlock.content);
-    const mediaUrl = pickMediaUrl(activeBlock.media) || asString(content.imageUrl);
-    const mediaAlt = activeBlock.media?.alt || activeBlock.name || "Galería";
-    const title = asString(content.title) || activeBlock.name || "";
-    const description = asString(content.description) || asString(content.body);
-    const href = asString(content.href);
-    const linkLabel = asString(content.linkLabel);
-
-    return (
-      <Container className={styles.sectionContainer}>
-        {renderHeading(section)}
-        <section className={styles.galleryShell}>
-          <div className={styles.galleryStage}>
-            {mediaUrl ? <img alt={mediaAlt} className={styles.galleryStageImage} src={mediaUrl} /> : null}
-            <div className={styles.galleryStageBody}>
-              {title ? <h3>{title}</h3> : null}
-              {description ? <p>{description}</p> : null}
-              {renderLink(linkLabel, href, styles.primaryAction)}
-            </div>
-          </div>
-          <div className={styles.galleryThumbs}>
-            {blocks.map((block, index) => {
-              const blockContent = asRecord(block.content);
-              const thumbUrl = pickMediaUrl(block.media) || asString(blockContent.imageUrl);
-              const thumbAlt = block.media?.alt || block.name || `Imagen ${index + 1}`;
-              return (
-                <button
-                  className={index === activeIndex ? styles.galleryThumbActive : styles.galleryThumb}
-                  key={block.id}
-                  onClick={() => setActiveIndex(index)}
-                  type="button"
-                >
-                  {thumbUrl ? <img alt={thumbAlt} src={thumbUrl} /> : null}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      </Container>
-    );
-  }
+  const defaultResponsive =
+    responsiveSettings.length > 0
+      ? responsiveSettings
+      : [
+          {
+            breakpoint: 1279,
+            settings: { slidesToShow: Math.max(1, slidesToShow - 1) },
+          },
+          {
+            breakpoint: 959,
+            settings: { slidesToShow: Math.max(1, slidesToShow - 2) },
+          },
+          {
+            breakpoint: 650,
+            settings: { slidesToShow: Math.max(1, slidesToShow - 3) },
+          },
+          {
+            breakpoint: 426,
+            settings: { slidesToShow: 1 },
+          },
+        ];
 
   return (
     <Container className={styles.sectionContainer}>
       {renderHeading(section)}
       <section className={styles.carouselShell}>
-        <div className={styles.carouselActions}>
-          <button className={styles.carouselArrow} onClick={() => scrollRail("prev")} type="button">
-            Anterior
-          </button>
-          <button className={styles.carouselArrow} onClick={() => scrollRail("next")} type="button">
-            Siguiente
-          </button>
-        </div>
-
-        <div className={styles.carouselRail} ref={railRef}>
+        <Carousel
+          arrows={arrows}
+          autoplay={autoplay}
+          autoplaySpeed={autoplaySpeed}
+          dots={false}
+          infinite={blocks.length > slidesToShow}
+          slidesToShow={slidesToShow}
+          responsive={defaultResponsive}
+          spaceBetween={16}>
           {blocks.map((block) => {
             const content = asRecord(block.content);
             const mediaUrl = pickMediaUrl(block.media) || asString(content.imageUrl);
@@ -426,7 +858,7 @@ const MediaCarouselSection = ({ section }: { section: CmsRenderableSection }) =>
               </article>
             );
           })}
-        </div>
+        </Carousel>
       </section>
     </Container>
   );
@@ -661,11 +1093,14 @@ const sectionMap: Record<
   (section: CmsRenderableSection, options: CmsRenderOptions) => ReactElement | null
 > = {
   HERO: (section) => <HeroSection section={section} />,
+  MEDIA_HERO: (section) => <MediaHeroSection section={section} />,
   FEATURE_GRID: (section, options) => (
     <FeatureGridSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
   ),
   MEDIA_GRID: (section) => <MediaGridSection section={section} />,
+  MEDIA_GRID_ENHANCED: (section) => <MediaGridEnhancedSection section={section} />,
   MEDIA_CAROUSEL: (section) => <MediaCarouselSection section={section} />,
+  STORIES_CAROUSEL: (section) => <StoriesCarouselSection section={section} />,
   CONTENT_SPLIT: (section, options) => (
     <ContentSplitSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
   ),
@@ -676,6 +1111,8 @@ const sectionMap: Record<
     <FaqSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
   ),
   CTA_BANNER: (section) => <CtaBannerSection section={section} />,
+  VIDEO_SECTION: (section) => <VideoSection section={section} />,
+  HIGHLIGHT_CARDS: (section) => <HighlightCardsSection section={section} />,
   BUDGET_CALCULATOR: (section) => <BudgetCalculatorSection section={section} />,
 };
 
@@ -688,11 +1125,6 @@ export default function CmsPageShell({ page, homeContentSections }: Props) {
     page.path === "" && Array.isArray(homeContentSections)
       ? homeContentSections.find((section) => section.key === "HOME_HIGHLIGHTS") ?? null
       : null;
-  const bodySections = page.sections.filter(
-    (section) => section.type !== "SITE_HEADER" && section.type !== "SITE_FOOTER",
-  );
-  const allowHtmlFallback = !page.legacySource;
-
   return (
     <div className={styles.siteShell}>
       <Topbar />
@@ -701,26 +1133,37 @@ export default function CmsPageShell({ page, homeContentSections }: Props) {
       {homeStoriesSection ? <SectionStories stories={homeStoriesSection.entries} /> : null}
 
       <main className={styles.siteMain}>
-        <div className={styles.pageStack}>
-          {bodySections.map((section) => {
-            const renderer =
-              section.type === "BUDGET_CALCULATOR"
-                ? (currentSection: CmsRenderableSection) => (
-                    <BudgetCalculatorSectionWithPage page={page} section={currentSection} />
-                  )
-                : sectionMap[section.type];
-            if (!renderer) {
-              console.warn(`[cms] Unknown section type: ${section.type}`);
-              return null;
-            }
-            return <div key={section.id}>{renderer(section, { allowHtmlFallback })}</div>;
-          })}
-        </div>
+        <CmsPageBody page={page} />
       </main>
 
       {homeHighlightsSection ? <SectionCmsHighlights section={homeHighlightsSection} /> : null}
       <MobileNavigationBar />
       <Footer1 />
+    </div>
+  );
+}
+
+export function CmsPageBody({ page }: CmsPageBodyProps) {
+  const bodySections = page.sections.filter(
+    (section) => section.type !== "SITE_HEADER" && section.type !== "SITE_FOOTER",
+  );
+  const allowHtmlFallback = !page.legacySource;
+
+  return (
+    <div className={styles.pageStack}>
+      {bodySections.map((section) => {
+        const renderer =
+          section.type === "BUDGET_CALCULATOR"
+            ? (currentSection: CmsRenderableSection) => (
+                <BudgetCalculatorSectionWithPage page={page} section={currentSection} />
+              )
+            : sectionMap[section.type];
+        if (!renderer) {
+          console.warn(`[cms] Unknown section type: ${section.type}`);
+          return null;
+        }
+        return <div key={section.id}>{renderer(section, { allowHtmlFallback })}</div>;
+      })}
     </div>
   );
 }

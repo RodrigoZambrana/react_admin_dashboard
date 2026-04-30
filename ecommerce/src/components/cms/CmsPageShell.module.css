@@ -23,6 +23,12 @@
   padding: 0 1rem;
 }
 
+.sectionContainerFluid {
+  max-width: none;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
 .topbar {
   border-bottom: 1px solid rgba(17, 33, 29, 0.08);
   background: rgba(255, 255, 255, 0.78);
@@ -631,6 +637,635 @@
   object-fit: contain;
 }
 
+.mediaHeroShell {
+  overflow: hidden;
+  border-radius: 32px;
+  border: 1px solid rgba(112, 89, 54, 0.12);
+  box-shadow: 0 28px 60px rgba(29, 41, 36, 0.1);
+}
+
+.mediaHeroStage {
+  position: relative;
+  min-height: clamp(540px, 78vh, 900px);
+  background:
+    radial-gradient(circle at top left, rgba(205, 160, 73, 0.12), transparent 28%),
+    linear-gradient(180deg, #17382f 0%, #10251f 100%);
+}
+
+.mediaHeroImage,
+.mediaHeroVideo,
+.mediaHeroOverlay {
+  position: absolute;
+  inset: 0;
+}
+
+.mediaHeroImage {
+  object-fit: cover;
+}
+
+.mediaHeroVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mediaHeroOverlay {
+  background: linear-gradient(
+    180deg,
+    rgba(7, 15, 13, 0.1) 0%,
+    rgba(7, 15, 13, calc(var(--hero-overlay-opacity, 0.58) - 0.06)) 56%,
+    rgba(7, 15, 13, calc(var(--hero-overlay-opacity, 0.58) + 0.12)) 100%
+  );
+}
+
+.mediaHeroCopy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: inherit;
+  max-width: 820px;
+  padding: clamp(1.5rem, 4vw, 3.4rem);
+}
+
+.mediaHeroEyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-bottom: 1rem;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff4df;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  backdrop-filter: blur(12px);
+}
+
+.mediaHeroTitle {
+  margin: 0;
+  color: #ffffff;
+  font-size: clamp(2.8rem, 6vw, 5.8rem);
+  line-height: 0.95;
+  letter-spacing: -0.06em;
+  text-wrap: balance;
+}
+
+.mediaHeroSubtitle {
+  margin: 1rem 0 0;
+  max-width: 58ch;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.8;
+  font-size: 1.02rem;
+  text-wrap: pretty;
+}
+
+.mediaHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+  margin-top: 1.5rem;
+}
+
+.storiesShell {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(17, 33, 29, 0.08);
+  background:
+    radial-gradient(circle at top left, rgba(205, 160, 73, 0.08), transparent 26%),
+    linear-gradient(180deg, #ffffff 0%, #fbf8f2 100%);
+  box-shadow: 0 20px 44px rgba(17, 33, 29, 0.08);
+}
+
+.storiesRail {
+  display: flex;
+  gap: 0.9rem;
+  overflow-x: auto;
+  padding-bottom: 0.2rem;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+}
+
+.storiesRail::-webkit-scrollbar {
+  height: 8px;
+}
+
+.storiesRail::-webkit-scrollbar-thumb {
+  background: rgba(18, 53, 45, 0.18);
+  border-radius: 999px;
+}
+
+.storyCard {
+  flex: 0 0 auto;
+  width: 122px;
+  scroll-snap-align: start;
+}
+
+.storyTrigger {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: center;
+  touch-action: manipulation;
+}
+
+.storyRing {
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  margin: 0 auto 0.7rem;
+  padding: 3px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #1f6f5f, #d9a441 55%, #f5dfb4);
+  box-shadow: 0 16px 32px rgba(18, 53, 45, 0.12);
+}
+
+.storyThumb {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f4f0e7;
+  border: 2px solid #ffffff;
+}
+
+.storyThumbImage {
+  object-fit: cover;
+}
+
+.storyTitle {
+  display: block;
+  color: #12211d;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.storyCaption {
+  display: block;
+  margin-top: 0.2rem;
+  color: #5a6764;
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.storyProgress {
+  display: block;
+  width: 100%;
+  height: 3px;
+  margin-top: 0.55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(18, 53, 45, 0.08);
+}
+
+.storyProgressFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #12352d 0%, #d9a441 100%);
+}
+
+.storyModalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(8, 13, 12, 0.78);
+  backdrop-filter: blur(12px);
+}
+
+.storyModalDialog {
+  position: relative;
+  width: min(1320px, 100%);
+  height: min(92vh, 940px);
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
+  overflow: hidden;
+  border-radius: 32px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0f1514;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.38);
+}
+
+.storyModalMediaPane {
+  position: relative;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at top, rgba(217, 164, 65, 0.12), transparent 34%),
+    linear-gradient(180deg, #0f1413 0%, #151d1b 100%);
+}
+
+.storyModalMedia {
+  position: absolute;
+  inset: 0;
+}
+
+.storyModalImage {
+  object-fit: cover;
+}
+
+.storyModalVideo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+.storyModalTapZone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 32%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.storyModalTapZoneLeft {
+  left: 0;
+}
+
+.storyModalTapZoneRight {
+  right: 0;
+}
+
+.storyModalClose {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 999px;
+  color: #0f1413;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+}
+
+.storyModalProgressRail {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  right: 4.75rem;
+  z-index: 3;
+  display: flex;
+  gap: 0.45rem;
+}
+
+.storyModalProgressTrack {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.storyModalProgressFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #ffffff 0%, #d9a441 100%);
+}
+
+.storyModalCounter {
+  position: absolute;
+  left: 1rem;
+  bottom: 1rem;
+  z-index: 3;
+  padding: 0.45rem 0.75rem;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: rgba(15, 20, 19, 0.5);
+  backdrop-filter: blur(8px);
+}
+
+.storyModalSidePane {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at top right, rgba(217, 164, 65, 0.1), transparent 30%),
+    linear-gradient(180deg, #111816 0%, #131a18 100%);
+  color: #f7f2e8;
+}
+
+.storyModalKicker {
+  margin: 0 0 0.5rem;
+  color: #d9a441;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.storyModalTitle {
+  margin: 0;
+  font-size: clamp(1.7rem, 2.7vw, 2.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+
+.storyModalCaption {
+  margin: 0.75rem 0 0;
+  color: rgba(247, 242, 232, 0.76);
+  line-height: 1.7;
+}
+
+.storyModalList {
+  display: grid;
+  gap: 0.55rem;
+  padding-right: 0.1rem;
+  overflow: auto;
+}
+
+.storyModalListItem,
+.storyModalListItemActive {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  padding: 0.85rem 0.95rem;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  cursor: pointer;
+}
+
+.storyModalListItemActive {
+  border-color: rgba(217, 164, 65, 0.3);
+  background: rgba(217, 164, 65, 0.14);
+}
+
+.storyModalListTitle {
+  display: block;
+  font-weight: 700;
+}
+
+.storyModalListMeta {
+  display: block;
+  margin-top: 0.25rem;
+  color: rgba(247, 242, 232, 0.58);
+  font-size: 0.78rem;
+}
+
+.storyModalAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  min-height: 46px;
+  padding: 0.8rem 1.15rem;
+  border-radius: 999px;
+  background: #f7f2e8;
+  color: #12211d;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.18);
+}
+
+.storyModalNavRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: auto;
+}
+
+.storyModalNavButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #f7f2e8;
+  font-weight: 700;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mediaGridEnhanced {
+  margin-top: 0.25rem;
+}
+
+.mediaGridEnhancedCard {
+  display: inline-block;
+  width: 100%;
+  margin-bottom: 1rem;
+  overflow: hidden;
+  border-radius: 24px;
+  border: 1px solid rgba(17, 33, 29, 0.08);
+  background: #fff;
+  box-shadow: 0 20px 44px rgba(17, 33, 29, 0.08);
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.mediaGridEnhancedMedia {
+  position: relative;
+  overflow: hidden;
+  background: #e7ebe8;
+}
+
+.mediaGridEnhancedImage,
+.mediaGridEnhancedVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mediaGridEnhancedOverlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  padding: 1rem;
+  background: linear-gradient(180deg, rgba(7, 15, 13, 0.04) 30%, rgba(7, 15, 13, 0.72) 100%);
+}
+
+.mediaGridEnhancedOverlay h3,
+.mediaGridEnhancedBody h3 {
+  margin: 0;
+  color: #fff;
+}
+
+.mediaGridEnhancedOverlay p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.86);
+  line-height: 1.6;
+}
+
+.mediaGridEnhancedBadge {
+  width: fit-content;
+  padding: 0.42rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff4df;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.mediaGridEnhancedBody {
+  padding: 1.2rem;
+}
+
+.videoSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.videoSectionFullwidth {
+  grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+}
+
+.videoSectionFeature,
+.videoSectionCard {
+  overflow: hidden;
+  border-radius: 28px;
+  border: 1px solid rgba(17, 33, 29, 0.08);
+  background: #fff;
+  box-shadow: 0 20px 44px rgba(17, 33, 29, 0.08);
+}
+
+.videoSectionFeature {
+  display: grid;
+  gap: 0;
+}
+
+.videoSectionPlayer {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  display: block;
+  object-fit: cover;
+  background: #000;
+}
+
+.videoSectionFeatureBody,
+.videoSectionCardBody {
+  padding: 1.25rem;
+}
+
+.videoSectionFeatureBody h3,
+.videoSectionCardBody h4 {
+  margin: 0 0 0.55rem;
+  color: #12211d;
+}
+
+.videoSectionFeatureBody p,
+.videoSectionCardBody p {
+  margin: 0;
+  color: #5a6764;
+  line-height: 1.7;
+}
+
+.videoSectionSidebar {
+  display: grid;
+  gap: 1rem;
+}
+
+.videoSectionThumb {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 16 / 10;
+  background: #e7ebe8;
+}
+
+.videoSectionThumbImage {
+  object-fit: cover;
+}
+
+.highlightCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+}
+
+.highlightCard {
+  overflow: hidden;
+  border-radius: 26px;
+  border: 1px solid rgba(17, 33, 29, 0.08);
+  background: #fff;
+  box-shadow: 0 20px 44px rgba(17, 33, 29, 0.08);
+  transition: transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.highlightCard:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 24px 54px rgba(17, 33, 29, 0.12);
+}
+
+.highlightCardMedia {
+  position: relative;
+  min-height: 220px;
+  background: #e7ebe8;
+}
+
+.highlightCardImage {
+  object-fit: cover;
+}
+
+.highlightCardBadge {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.72rem;
+  border-radius: 999px;
+  background: rgba(18, 53, 45, 0.85);
+  color: #fff4df;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  backdrop-filter: blur(10px);
+}
+
+.highlightCardBody {
+  padding: 1.2rem;
+}
+
+.highlightCardBody h3 {
+  margin: 0 0 0.55rem;
+  color: #12211d;
+}
+
+.highlightCardBody p {
+  margin: 0 0 0.85rem;
+  color: #5a6764;
+  line-height: 1.7;
+}
+
 .richTextWrap {
   display: grid;
   gap: 1rem;
@@ -865,6 +1500,67 @@
     min-height: 60vh;
   }
 
+  .mediaHeroStage {
+    min-height: 68vh;
+  }
+
+  .mediaHeroTitle {
+    font-size: clamp(2.1rem, 11vw, 3.6rem);
+  }
+
+  .mediaHeroSubtitle {
+    font-size: 0.98rem;
+  }
+
+  .storiesShell {
+    padding: 0.75rem;
+  }
+
+  .storyCard {
+    width: 108px;
+  }
+
+  .storyRing {
+    width: 88px;
+    height: 88px;
+  }
+
+  .storyModalOverlay {
+    padding: 0.5rem;
+  }
+
+  .storyModalDialog {
+    grid-template-columns: 1fr;
+    width: 100%;
+    height: calc(100vh - 1rem);
+    border-radius: 24px;
+  }
+
+  .storyModalMediaPane {
+    min-height: 56vh;
+  }
+
+  .storyModalSidePane {
+    padding: 1rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .storyModalProgressRail {
+    right: 4rem;
+  }
+
+  .videoSection {
+    grid-template-columns: 1fr;
+  }
+
+  .videoSectionFullwidth {
+    grid-template-columns: 1fr;
+  }
+
+  .mediaGridEnhanced {
+    column-count: 1 !important;
+  }
+
   .heroControls {
     flex-direction: column;
     align-items: stretch;
@@ -886,6 +1582,10 @@
 
   .carouselArrow {
     flex: 1;
+  }
+
+  .highlightCards {
+    grid-template-columns: 1fr;
   }
 
   .floatingContact {

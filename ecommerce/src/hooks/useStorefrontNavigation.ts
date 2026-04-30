@@ -33,6 +33,24 @@ const mapNavigationItems = (
     }))
     .filter((item) => item.title);
 
+const dedupeNavigationItems = (items: StorefrontNavigationNode[]): StorefrontNavigationNode[] => {
+  const seen = new Set<string>();
+
+  return items
+    .map((item) => ({
+      ...item,
+      child: Array.isArray(item.child) ? dedupeNavigationItems(item.child) : item.child,
+    }))
+    .filter((item) => {
+      const key = `${item.title.trim().toLowerCase()}|${item.url?.trim().toLowerCase() ?? ""}`;
+      if (seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
+};
+
 export const useStorefrontNavigation = () => {
   const storefrontConfig = useStorefrontConfig();
   const categories = useStorefrontCategories();
@@ -44,8 +62,9 @@ export const useStorefrontNavigation = () => {
   const navItems = useMemo<StorefrontNavigationNode[]>(() => {
     const categoryChildren = categoriesForMenu.map((category) => buildCategoryNavigationNode(category, t));
     const configuredPrimary = mapNavigationItems(storefrontConfig.navigation?.primary ?? []);
+    const uniquePrimary = dedupeNavigationItems(configuredPrimary);
 
-    return configuredPrimary.map((item) => {
+    return uniquePrimary.map((item) => {
       const normalizedTitle = item.title.trim().toLowerCase();
       const normalizedUrl = item.url?.trim().toLowerCase() ?? "";
       const isCategoriesNode =

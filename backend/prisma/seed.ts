@@ -15,6 +15,7 @@ import {
 import * as bcrypt from 'bcrypt'
 import { seedUruCortinasBaseline } from './baseline/seed-baseline'
 import { seedUrucortinasPublicCmsContent } from './public-cms-content'
+import { seedMarketingCmsPages } from './seed-marketing-cms-pages'
 import { listSeedPaymentMethods } from './shared/payment-methods'
 import { runMultiEnvironmentSeeds } from './seeds'
 
@@ -894,66 +895,168 @@ async function seedCmsEntries() {
   if (storiesSection) {
     const storyDefaults = [
       {
-        slug: 'home-story-asesoramiento',
-        title: 'Asesoramiento antes de comprar',
-        subtitle: 'Elegir bien desde el inicio',
+        slug: 'home-story-cortinas-roller',
+        title: 'Cortinas Roller',
+        subtitle: 'Interior moderno y funcional',
         description:
-          'Compara materiales, terminaciones y sistemas de apertura con acompañamiento comercial real.',
+          'Solución interior para regular luz y privacidad con una estética limpia en hogar u oficina.',
         priority: 30,
-        ctaLabel: 'Explorar soluciones',
-        ctaUrl: '/contact',
-        thumbnailUrl: '/assets/images/stories/story-home-1.jpg',
+        ctaLabel: 'Ver cortinas roller',
+        ctaUrl: '/productos/cortinas-roller.html',
+        thumbnailUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/rollers.png',
         assets: [
           {
-            title: 'Asesoramiento antes de comprar',
-            caption:
-              'Una guía simple para definir producto, medidas y nivel de prestación antes de pedir cotización.',
+            title: 'Cortinas Roller',
+            caption: 'Soluciones para ambientes que necesitan control de luz y un acabado limpio.',
             mediaType: CmsEntryAssetType.IMAGE,
-            mediaUrl: '/assets/images/stories/story-home-1.jpg',
-            posterUrl: '/assets/images/stories/story-home-1.jpg',
+            mediaUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/rollers.png',
+            posterUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/rollers.png',
             sortOrder: 0,
           },
         ],
       },
       {
-        slug: 'home-story-compra-segura',
-        title: 'Compra segura y acompañada',
-        subtitle: 'Seguimiento del proceso',
+        slug: 'home-story-cortinas-enrollar',
+        title: 'Cortinas de enrollar',
+        subtitle: 'PVC o aluminio',
         description:
-          'Recibe ayuda para elegir la mejor opción antes de comprar y coordinar la entrega.',
+          'Persianas en PVC o aluminio con opción manual o motorizada según uso, exposición y mantenimiento.',
         priority: 20,
-        ctaLabel: 'Ver productos',
-        ctaUrl: '/shop',
-        thumbnailUrl: '/assets/images/stories/story-home-2.jpg',
+        ctaLabel: 'Ver cortinas de enrollar',
+        ctaUrl: '/productos/cortinas-de-enrollar.html',
+        thumbnailUrl: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
         assets: [
           {
-            title: 'Compra segura y acompañada',
-            caption:
-              'Acompañamiento comercial y seguimiento durante todo el proceso.',
+            title: 'Cortinas de enrollar',
+            caption: 'Una opción práctica para hogares, comercios y frentes expuestos.',
             mediaType: CmsEntryAssetType.IMAGE,
-            mediaUrl: '/assets/images/stories/story-home-2.jpg',
-            posterUrl: '/assets/images/stories/story-home-2.jpg',
+            mediaUrl: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
+            posterUrl: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
             sortOrder: 0,
           },
         ],
       },
       {
-        slug: 'home-story-entrega-coordinada',
-        title: 'Entrega coordinada',
-        subtitle: 'Fechas claras y seguimiento',
+        slug: 'home-story-bandas-verticales',
+        title: 'Bandas verticales',
+        subtitle: 'Ventanales amplios',
         description:
-          'Visualiza fechas estimadas y mantén el control del pedido desde tu cuenta.',
-        priority: 10,
-        ctaLabel: 'Conocer entregas',
-        ctaUrl: '/contact',
-        thumbnailUrl: '/assets/images/stories/story-home-3.jpg',
+          'Versatilidad y elegancia para oficinas, living y ventanales amplios con control de luz.',
+        priority: 15,
+        ctaLabel: 'Ver bandas verticales',
+        ctaUrl: '/productos/bandas-verticales.html',
+        thumbnailUrl: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg',
         assets: [
           {
-            title: 'Entrega coordinada',
-            caption: 'Planificación simple para entrega o instalación según el producto.',
+            title: 'Bandas verticales',
+            caption: 'Ideales para ventanales amplios, oficinas y living.',
             mediaType: CmsEntryAssetType.IMAGE,
-            mediaUrl: '/assets/images/stories/story-home-3.jpg',
-            posterUrl: '/assets/images/stories/story-home-3.jpg',
+            mediaUrl: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg',
+            posterUrl: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg',
+            sortOrder: 0,
+          },
+        ],
+      },
+      {
+        slug: 'home-story-venecianas',
+        title: 'Cortinas Venecianas',
+        subtitle: 'Lamas 16 mm y 25 mm',
+        description:
+          'Control de luz y privacidad con una terminación limpia para dormitorios, oficinas y espacios de uso diario.',
+        priority: 12,
+        ctaLabel: 'Ver venecianas',
+        ctaUrl: '/productos/venecianas.html',
+        thumbnailUrl: '/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_4.jpeg',
+        assets: [
+          {
+            title: 'Cortinas Venecianas',
+            caption: 'Lamas de 16 mm y 25 mm para controlar luz y privacidad.',
+            mediaType: CmsEntryAssetType.IMAGE,
+            mediaUrl: '/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_4.jpeg',
+            posterUrl: '/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_4.jpeg',
+            sortOrder: 0,
+          },
+        ],
+      },
+      {
+        slug: 'home-story-aberturas-aluminio',
+        title: 'Aberturas en aluminio',
+        subtitle: 'Puertas, ventanas y DVH',
+        description:
+          'Una familia para obra y recambio con opciones de vidrio simple o doble vidriado hermético.',
+        priority: 10,
+        ctaLabel: 'Ver aberturas',
+        ctaUrl: '/productos/aberturas-aluminio.html',
+        thumbnailUrl: '/uploads/cms/legacy-assets/img/aberturas/images.jpg',
+        assets: [
+          {
+            title: 'Aberturas en aluminio',
+            caption: 'Soluciones de alto uso para hogares, comercios y proyectos a medida.',
+            mediaType: CmsEntryAssetType.IMAGE,
+            mediaUrl: '/uploads/cms/legacy-assets/img/aberturas/images.jpg',
+            posterUrl: '/uploads/cms/legacy-assets/img/aberturas/images.jpg',
+            sortOrder: 0,
+          },
+        ],
+      },
+      {
+        slug: 'home-story-toldos-cerramientos',
+        title: 'Toldos y cerramientos',
+        subtitle: 'Protección solar exterior',
+        description:
+          'Toldos verticales, de brazo y cerramientos en PVC para sumar sombra, confort y uso exterior.',
+        priority: 8,
+        ctaLabel: 'Ver toldos',
+        ctaUrl: '/productos/toldos-y-cerramientos.html',
+        thumbnailUrl: '/uploads/cms/legacy-assets/img/portfolio/toldos/toldo.jpg',
+        assets: [
+          {
+            title: 'Toldos y cerramientos',
+            caption: 'Protección solar y solución exterior para distintos usos.',
+            mediaType: CmsEntryAssetType.IMAGE,
+            mediaUrl: '/uploads/cms/legacy-assets/img/portfolio/toldos/toldo.jpg',
+            posterUrl: '/uploads/cms/legacy-assets/img/portfolio/toldos/toldo.jpg',
+            sortOrder: 0,
+          },
+        ],
+      },
+      {
+        slug: 'home-story-motores',
+        title: 'Motores y automatismos',
+        subtitle: 'Comodidad y uso diario',
+        description:
+          'Automatización para cortinas roller, persianas y cortinas metálicas con mayor confort diario.',
+        priority: 5,
+        ctaLabel: 'Ver motores',
+        ctaUrl: '/productos/motores-cortinas-y-persianas.html',
+        thumbnailUrl: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
+        assets: [
+          {
+            title: 'Motores y automatismos',
+            caption: 'Automatización inteligente para más confort y uso diario.',
+            mediaType: CmsEntryAssetType.IMAGE,
+            mediaUrl: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
+            posterUrl: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
+            sortOrder: 0,
+          },
+        ],
+      },
+      {
+        slug: 'home-story-cortinas-metalicas',
+        title: 'Cortinas metálicas',
+        subtitle: 'Seguridad para accesos',
+        description: 'Máxima seguridad para locales y accesos con una línea pensada para uso intensivo.',
+        priority: 3,
+        ctaLabel: 'Ver cortinas metálicas',
+        ctaUrl: '/productos/cortinas-metalicas.html',
+        thumbnailUrl: '/uploads/cms/legacy-assets/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg',
+        assets: [
+          {
+            title: 'Cortinas metálicas',
+            caption: 'Máxima seguridad para locales y accesos.',
+            mediaType: CmsEntryAssetType.IMAGE,
+            mediaUrl: '/uploads/cms/legacy-assets/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg',
+            posterUrl: '/uploads/cms/legacy-assets/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg',
             sortOrder: 0,
           },
         ],
@@ -1029,15 +1132,15 @@ async function seedCmsEntries() {
       priority: 30,
       ctaLabel: 'Solicitar visita',
       ctaUrl: '/contact',
-      thumbnailUrl: '/assets/images/stories/story-home-2.jpg',
+      thumbnailUrl: '/uploads/cms/legacy-assets/img/servicios/reparacion-cortinas/1.jpeg',
       assets: [
         {
           title: 'Visita y toma de medidas',
           caption:
             'Coordinamos la visita a domicilio para tomar medidas y revisar el producto adecuado antes de avanzar.',
           mediaType: CmsEntryAssetType.IMAGE,
-          mediaUrl: '/assets/images/stories/story-home-2.jpg',
-          posterUrl: '/assets/images/stories/story-home-2.jpg',
+          mediaUrl: '/uploads/cms/legacy-assets/img/servicios/reparacion-cortinas/1.jpeg',
+          posterUrl: '/uploads/cms/legacy-assets/img/servicios/reparacion-cortinas/1.jpeg',
           sortOrder: 0,
         },
       ],
@@ -1051,15 +1154,58 @@ async function seedCmsEntries() {
       priority: 20,
       ctaLabel: 'Ver formas de pago',
       ctaUrl: '/contact',
-      thumbnailUrl: '/assets/images/stories/story-home-3.jpg',
+      thumbnailUrl: '/uploads/cms/legacy-assets/img/mercadopago-img.jpg',
       assets: [
         {
           title: 'Pagos y garantía',
           caption:
             'Formas de pago flexibles y garantía clara para cortinas de enrollar y soluciones afines.',
           mediaType: CmsEntryAssetType.IMAGE,
-          mediaUrl: '/assets/images/stories/story-home-3.jpg',
-          posterUrl: '/assets/images/stories/story-home-3.jpg',
+          mediaUrl: '/uploads/cms/legacy-assets/img/mercadopago-img.jpg',
+          posterUrl: '/uploads/cms/legacy-assets/img/mercadopago-img.jpg',
+          sortOrder: 0,
+        },
+      ],
+    },
+    {
+      slug: 'home-highlight-reparacion',
+      title: 'Reparación y mantenimiento',
+      subtitle: 'Resolver antes de reemplazar',
+      description:
+        'Si el sistema todavía tiene arreglo, te orientamos sobre la reparación más conveniente.',
+      priority: 10,
+      ctaLabel: 'Solicitar reparación',
+      ctaUrl: '/servicios/reparacion-cortinas-y-persianas.html',
+      thumbnailUrl: '/uploads/cms/legacy-assets/img/servicios/reparacion-cortinas/1.jpeg',
+      assets: [
+        {
+          title: 'Reparación y mantenimiento',
+          caption:
+            'Recuperá la operatividad con una intervención clara y enfocada en el uso diario.',
+          mediaType: CmsEntryAssetType.IMAGE,
+          mediaUrl: '/uploads/cms/legacy-assets/img/servicios/reparacion-cortinas/1.jpeg',
+          posterUrl: '/uploads/cms/legacy-assets/img/servicios/reparacion-cortinas/1.jpeg',
+          sortOrder: 0,
+        },
+      ],
+    },
+    {
+      slug: 'home-highlight-trabajos-medida',
+      title: 'Trabajos a medida',
+      subtitle: 'Soluciones según el espacio',
+      description:
+        'Fabricamos y adaptamos la solución al espacio real, al tipo de abertura y al uso diario.',
+      priority: 5,
+      ctaLabel: 'Pedir presupuesto',
+      ctaUrl: '/contacto.html',
+      thumbnailUrl: '/uploads/cms/legacy-assets/img/intro-carousel/cerramiento-pvc.jpeg',
+      assets: [
+        {
+          title: 'Trabajos a medida',
+          caption: 'La solución se adapta al espacio real y al uso diario.',
+          mediaType: CmsEntryAssetType.IMAGE,
+          mediaUrl: '/uploads/cms/legacy-assets/img/intro-carousel/cerramiento-pvc.jpeg',
+          posterUrl: '/uploads/cms/legacy-assets/img/intro-carousel/cerramiento-pvc.jpeg',
           sortOrder: 0,
         },
       ],
@@ -1132,6 +1278,7 @@ async function main() {
   }
   await seedStandardSizes()
   await seedUrucortinasPublicCmsContent(prisma)
+  await seedMarketingCmsPages(prisma)
   const superAdmin = await seedSuperAdmin()
   await seedCustomerStatuses()
   await seedBudgetProduct()

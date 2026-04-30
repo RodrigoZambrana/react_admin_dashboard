@@ -3,6 +3,7 @@ import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { flattenCategorySummaries } from "@/lib/storefront/adapters";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import CategoriesPageClient from "./CategoriesPageClient";
+import { CmsPageBody } from "@/components/cms/CmsPageShell";
 import StructuredData from "@/components/seo/StructuredData";
 import { getStorefrontConfig } from "@/lib/storefront-config";
 import { buildCollectionPageJsonLd } from "@/lib/seo/structured-data";
@@ -22,7 +23,10 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function CategoriesPage() {
   const config = await getStorefrontConfig();
   try {
-    const categories = await StorefrontApi.listCategories();
+    const [categories, cmsPage] = await Promise.all([
+      StorefrontApi.listCategories(),
+      StorefrontApi.getCmsPage("categories").catch(() => null),
+    ]);
     const flattened = flattenCategorySummaries(categories);
 
     return (
@@ -32,10 +36,11 @@ export default async function CategoriesPage() {
             buildCollectionPageJsonLd(config, {
               name: "Categorías",
               description: "Explora las categorías disponibles del storefront.",
-              url: resolveAbsoluteUrl("/categories", config),
-            }),
-          ]}
+            url: resolveAbsoluteUrl("/categories", config),
+          }),
+        ]}
         />
+        {cmsPage ? <CmsPageBody page={cmsPage} /> : null}
         <CategoriesPageClient total={flattened.length} />
       </>
     );

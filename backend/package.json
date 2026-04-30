@@ -20,6 +20,7 @@
     "cms:import:legacy-html": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/import-legacy-html-site.ts",
     "cms:seed:public-content": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/seed-urucortinas-public-cms-content.ts",
     "cms:refine-commercial-hub": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/refine-commercial-hub-content.ts",
+    "cms:rewrite-commercial-copy": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/rewrite-commercial-copy-from-legacy.ts",
     "analytics:import-ga4-baseline": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/import-ga4-baseline.ts",
     "analytics:import-csv-baseline": "ts-node --project tsconfig.json scripts/import-analytics-csv-baseline.ts",
     "analytics:baseline-check": "ts-node --project tsconfig.json scripts/analytics-baseline-check.ts",
