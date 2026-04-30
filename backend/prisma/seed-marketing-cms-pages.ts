@@ -81,6 +81,20 @@ const marketingMedia: MediaSeed[] = [
   { url: '/assets/images/products/bg-gradient.png', alt: 'Gradient background', title: 'Gradient' },
 ]
 
+const HOME_SHOP_PRODUCT_CODES = [
+  'cortinas-roller',
+  'cortinas-tradicionales',
+  'cortinas-de-enrollar-pvc',
+  'cortinas-de-enrollar-aluminio',
+]
+
+const HOME_SHOP_PRODUCT_DESCRIPTIONS: Record<string, string> = {
+  'cortinas-roller': 'Blackout y screen para controlar luz y privacidad en hogar u oficina.',
+  'cortinas-tradicionales': 'Una opción clásica para recambio y ambientes de uso diario.',
+  'cortinas-de-enrollar-pvc': 'Solución práctica y liviana para frentes y ventanas con bajo mantenimiento.',
+  'cortinas-de-enrollar-aluminio': 'Más resistencia para frentes expuestos y uso más intensivo.',
+}
+
 const categoriesPage: CmsPageSeed = {
   path: 'categories',
   title: 'Categorías con intención',
@@ -1391,6 +1405,77 @@ const buildProductPage = (template: (typeof productPageTemplates)[number]): CmsP
 
 const marketingPages = [homePage, categoriesPage, ...productPageTemplates.map(buildProductPage)]
 
+async function buildHomeShopProductsSection(prisma: PrismaClient): Promise<CmsSectionSeed> {
+  const products = await prisma.product.findMany({
+    where: {
+      productCode: { in: HOME_SHOP_PRODUCT_CODES },
+    },
+    select: {
+      name: true,
+      productCode: true,
+      salePrice: true,
+      img: true,
+    },
+  })
+
+  const productByCode = new Map(products.map((product) => [product.productCode, product]))
+
+  return {
+    type: CmsPageSectionType.HIGHLIGHT_CARDS,
+    key: 'home-shop-products',
+    settings: {
+      title: 'Productos de la tienda',
+      description: 'Productos reales del catálogo con acceso directo a su ficha.',
+    },
+    blocks: HOME_SHOP_PRODUCT_CODES.map((code) => {
+      const product = productByCode.get(code)
+      if (!product) {
+        return null
+      }
+
+      const salePrice = product.salePrice != null ? String(product.salePrice) : ''
+      const card: CmsBlockSeed = {
+        type: CmsPageBlockType.CARD,
+        name: product.name,
+        content: {
+          title: product.name,
+          description: HOME_SHOP_PRODUCT_DESCRIPTIONS[code] ?? '',
+          badge: salePrice ? `Desde $${salePrice}` : 'Producto de tienda',
+          linkLabel: 'Ver producto',
+          href: `/product/${product.productCode}`,
+        },
+      }
+
+      if (product.img) {
+        card.media = {
+          url: product.img,
+          alt: product.name,
+          title: product.name,
+          type: CmsMediaType.IMAGE,
+          source: 'marketing_cms_seed',
+        }
+      }
+
+      return card
+    }).filter((block): block is CmsBlockSeed => Boolean(block)),
+  }
+}
+
+async function buildMarketingPages(prisma: PrismaClient): Promise<CmsPageSeed[]> {
+  const homeShopProductsSection = await buildHomeShopProductsSection(prisma)
+
+  return marketingPages.map((page) => {
+    if (page.path !== '') {
+      return page
+    }
+
+    return {
+      ...page,
+      sections: [page.sections[0], page.sections[1], homeShopProductsSection, ...page.sections.slice(2)],
+    }
+  })
+}
+
 async function ensureMedia(prisma: PrismaClient, asset: MediaSeed) {
   const existing = await prisma.cmsMedia.findFirst({
     where: { url: asset.url },
@@ -1511,11 +1596,13 @@ export async function seedMarketingCmsPages(prisma: PrismaClient) {
     })
   }
 
-  for (const page of marketingPages) {
+  const pagesToSeed = await buildMarketingPages(prisma)
+
+  for (const page of pagesToSeed) {
     await upsertPage(prisma, page)
   }
 
-  console.log(`[seed] Marketing CMS pages seeded: ${marketingPages.length} pages`)
+  console.log(`[seed] Marketing CMS pages seeded: ${pagesToSeed.length} pages`)
 }
 
 async function main() {
