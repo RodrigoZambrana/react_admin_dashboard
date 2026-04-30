@@ -784,6 +784,48 @@ async function seedBudgetProduct() {
   })
 }
 
+async function seedShowcaseProductImages() {
+  const imageUpdates: Array<{ productCode: string; img: string; seoImageUrl: string }> = [
+    {
+      productCode: 'cortinas-roller',
+      img: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
+      seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
+    },
+    {
+      productCode: 'cortinas-tradicionales',
+      img: '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_1.jpeg',
+      seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_1.jpeg',
+    },
+    {
+      productCode: 'cortinas-de-enrollar-pvc',
+      img: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg',
+      seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg',
+    },
+    {
+      productCode: 'cortinas-de-enrollar-aluminio',
+      img: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg',
+      seoImageUrl: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg',
+    },
+  ]
+
+  for (const update of imageUpdates) {
+    const existing = await prisma.product.findFirst({
+      where: { productCode: update.productCode },
+      select: { id: true },
+    })
+
+    if (!existing) continue
+
+    await prisma.product.update({
+      where: { id: existing.id },
+      data: {
+        img: update.img,
+        seoImageUrl: update.seoImageUrl,
+      },
+    })
+  }
+}
+
 async function seedDefaultOrderStatuses() {
   console.log('[seed] Order statuses are defined statically; skipping database seeding.')
 }
@@ -1282,6 +1324,7 @@ async function main() {
   const superAdmin = await seedSuperAdmin()
   await seedCustomerStatuses()
   await seedBudgetProduct()
+  await seedShowcaseProductImages()
   await seedDemoData(superAdmin?.email || SUPERADMIN_EMAIL)
   await seedDefaultOrderStatuses()
   await seedEmailSettings()

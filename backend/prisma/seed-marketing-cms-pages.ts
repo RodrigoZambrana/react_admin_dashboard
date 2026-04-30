@@ -428,135 +428,6 @@ const homePage: CmsPageSeed = {
       ],
     },
     {
-      type: CmsPageSectionType.MEDIA_CAROUSEL,
-      key: 'home-products-carousel',
-      settings: {
-        title: 'Familias principales',
-        description: 'Elegí por uso real: interior, exterior, obra, recambio o automatización.',
-        variant: 'cards',
-        slidesToShow: 4,
-        autoplay: false,
-        autoplaySpeed: 3200,
-        spaceBetween: 16,
-      },
-      blocks: [
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Cortinas Roller',
-          content: {
-            title: 'Cortinas Roller',
-            description:
-              'Una solución interior limpia y práctica para regular luz y privacidad en hogar u oficina.',
-            badge: 'Interior',
-            linkLabel: 'Ver línea',
-            href: '/productos/cortinas-roller.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/portfolio/roller/rollers.png',
-            alt: 'Cortinas Roller',
-            title: 'Cortinas Roller',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Cortinas de enrollar',
-          content: {
-            title: 'Cortinas de enrollar',
-            description:
-              'Opciones en PVC o aluminio para frentes, ventanas y accesos con manual o motorización.',
-            badge: 'Exterior',
-            linkLabel: 'Ver línea',
-            href: '/productos/cortinas-de-enrollar.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
-            alt: 'Cortinas de enrollar',
-            title: 'Cortinas de enrollar',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Bandas verticales',
-          content: {
-            title: 'Bandas verticales',
-            description:
-              'Control de luz y presencia para aberturas amplias, oficinas y livings.',
-            badge: 'Amplios vidriados',
-            linkLabel: 'Ver línea',
-            href: '/productos/bandas-verticales.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg',
-            alt: 'Bandas verticales',
-            title: 'Bandas verticales',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Venecianas',
-          content: {
-            title: 'Venecianas',
-            description:
-              'Lamas de 16 mm y 25 mm para controlar la luz con terminación prolija y simple mantenimiento.',
-            badge: 'Control de luz',
-            linkLabel: 'Ver línea',
-            href: '/productos/venecianas.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_4.jpeg',
-            alt: 'Venecianas',
-            title: 'Venecianas',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Aberturas en aluminio',
-          content: {
-            title: 'Aberturas en aluminio',
-            description:
-              'Puertas, ventanas y monoblocks para obra nueva o reemplazo con vidrio simple o DVH.',
-            badge: 'Obra y recambio',
-            linkLabel: 'Ver línea',
-            href: '/productos/aberturas-aluminio.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/aberturas/images.jpg',
-            alt: 'Aberturas en aluminio',
-            title: 'Aberturas en aluminio',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Toldos y cerramientos',
-          content: {
-            title: 'Toldos y cerramientos',
-            description:
-              'Soluciones para sombra, protección y uso exterior en viviendas, comercios y terrazas.',
-            badge: 'Exterior',
-            linkLabel: 'Ver línea',
-            href: '/productos/toldos-y-cerramientos.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/portfolio/toldos/toldo.jpg',
-            alt: 'Toldos y cerramientos',
-            title: 'Toldos y cerramientos',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-      ],
-    },
-    {
       type: CmsPageSectionType.MEDIA_GRID_ENHANCED,
       key: 'home-products-grid',
       settings: {
@@ -723,100 +594,6 @@ const homePage: CmsPageSeed = {
             url: '/uploads/cms/legacy-assets/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg',
             alt: 'Cortinas metálicas',
             title: 'Cortinas metálicas',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-      ],
-    },
-    {
-      type: CmsPageSectionType.MEDIA_GRID_ENHANCED,
-      key: 'home-solution-clusters',
-      settings: {
-        title: 'Elegí por necesidad',
-        description:
-          'Entradas directas para quienes ya saben qué problema quieren resolver.',
-        columns: 4,
-        gap: 1.05,
-        aspectRatio: '4 / 5',
-      },
-      blocks: [
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Interior y control de luz',
-          content: {
-            title: 'Interior y control de luz',
-            description:
-              'Cortinas roller y venecianas para regular luz, privacidad y terminación en hogar u oficina.',
-            badge: 'Interior',
-            overlayText: true,
-            linkLabel: 'Ver líneas',
-            href: '/productos/cortinas-roller.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/portfolio/roller/rollers.png',
-            alt: 'Interior y control de luz',
-            title: 'Interior y control de luz',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Exterior y seguridad',
-          content: {
-            title: 'Exterior y seguridad',
-            description:
-              'Cortinas de enrollar y cortinas metálicas para frentes, accesos y mayor protección.',
-            badge: 'Exterior',
-            overlayText: true,
-            linkLabel: 'Ver líneas',
-            href: '/productos/cortinas-de-enrollar.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
-            alt: 'Exterior y seguridad',
-            title: 'Exterior y seguridad',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Obra y recambio',
-          content: {
-            title: 'Obra y recambio',
-            description:
-              'Aberturas en aluminio y toldos para renovar, ampliar o resolver una instalación nueva.',
-            badge: 'Obra',
-            overlayText: true,
-            linkLabel: 'Ver líneas',
-            href: '/productos/aberturas-aluminio.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/aberturas/images.jpg',
-            alt: 'Obra y recambio',
-            title: 'Obra y recambio',
-            type: CmsMediaType.IMAGE,
-            source: 'marketing_cms_seed',
-          },
-        },
-        {
-          type: CmsPageBlockType.CARD,
-          name: 'Automatización y confort',
-          content: {
-            title: 'Automatización y confort',
-            description:
-              'Motores y automatismos para sumar comodidad, control y uso diario más simple.',
-            badge: 'Automatización',
-            overlayText: true,
-            linkLabel: 'Ver motores',
-            href: '/productos/motores-cortinas-y-persianas.html',
-          },
-          media: {
-            url: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
-            alt: 'Automatización y confort',
-            title: 'Automatización y confort',
             type: CmsMediaType.IMAGE,
             source: 'marketing_cms_seed',
           },
@@ -1411,9 +1188,11 @@ async function buildHomeShopProductsSection(prisma: PrismaClient): Promise<CmsSe
       productCode: { in: HOME_SHOP_PRODUCT_CODES },
     },
     select: {
+      id: true,
       name: true,
       productCode: true,
       salePrice: true,
+      currency: true,
       img: true,
     },
   })
@@ -1421,11 +1200,12 @@ async function buildHomeShopProductsSection(prisma: PrismaClient): Promise<CmsSe
   const productByCode = new Map(products.map((product) => [product.productCode, product]))
 
   return {
-    type: CmsPageSectionType.HIGHLIGHT_CARDS,
+    type: CmsPageSectionType.MEDIA_GRID_ENHANCED,
     key: 'home-shop-products',
     settings: {
       title: 'Productos de la tienda',
       description: 'Productos reales del catálogo con acceso directo a su ficha.',
+      variant: 'products',
     },
     blocks: HOME_SHOP_PRODUCT_CODES.map((code) => {
       const product = productByCode.get(code)
@@ -1434,6 +1214,7 @@ async function buildHomeShopProductsSection(prisma: PrismaClient): Promise<CmsSe
       }
 
       const salePrice = product.salePrice != null ? String(product.salePrice) : ''
+      const imageUrl = product.img && String(product.img).trim().length > 0 ? String(product.img) : null
       const card: CmsBlockSeed = {
         type: CmsPageBlockType.CARD,
         name: product.name,
@@ -1443,12 +1224,19 @@ async function buildHomeShopProductsSection(prisma: PrismaClient): Promise<CmsSe
           badge: salePrice ? `Desde $${salePrice}` : 'Producto de tienda',
           linkLabel: 'Ver producto',
           href: `/product/${product.productCode}`,
+          slug: product.productCode,
+          productId: product.id,
+          price: Number(salePrice || 0),
+          currencyCode: product.currency ?? 'UYU',
+          imgUrl: imageUrl,
+          images: imageUrl ? [imageUrl] : [],
+          rating: 4,
         },
       }
 
-      if (product.img) {
+      if (imageUrl) {
         card.media = {
-          url: product.img,
+          url: imageUrl,
           alt: product.name,
           title: product.name,
           type: CmsMediaType.IMAGE,

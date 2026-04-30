@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useState, type CSSProperties, type ReactElement } from "react";
 import Container from "@component/Container";
+import Card from "@component/Card";
+import Grid from "@component/grid/Grid";
 import { Carousel } from "@component/carousel";
 import NextImage from "@/components/NextImage";
 import Topbar from "@component/topbar";
@@ -14,6 +16,7 @@ import MobileNavigationBar from "@component/mobile-navigation";
 import SectionStories from "@sections/market-1/SectionStories";
 import SectionCmsHighlights from "@sections/market-1/SectionCmsHighlights";
 import BudgetCalculatorPanel from "@/components/budget/BudgetCalculatorPanel";
+import { ProductCard1 } from "@component/product-cards";
 import type {
   CmsContentSection,
   CmsRenderableMedia,
@@ -78,6 +81,13 @@ const deriveBudgetSlugFromPath = (path: string) => {
   if (!leaf) return null;
   return leaf.replace(/\.html?$/i, "").trim() || null;
 };
+
+const PRODUCT_CAROUSEL_RESPONSIVE = [
+  { breakpoint: 1279, settings: { slidesToShow: 4 } },
+  { breakpoint: 959, settings: { slidesToShow: 3 } },
+  { breakpoint: 650, settings: { slidesToShow: 2 } },
+  { breakpoint: 500, settings: { slidesToShow: 1 } },
+];
 
 const asActions = (value: unknown): ActionLink[] =>
   asArray<Record<string, unknown>>(value)
@@ -466,6 +476,81 @@ const StoriesCarouselSection = ({ section }: { section: CmsRenderableSection }) 
 
 const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }) => {
   const settings = asRecord(section.settings);
+  const variant = asString(settings.variant) || "default";
+
+  if (variant === "products") {
+    const products = section.blocks.map((block) => {
+      const content = asRecord(block.content);
+      const title = asString(content.title) || block.name || "";
+      const slug = asString(content.slug) || asString(content.href).replace(/^\/product\//, "");
+      const href = asString(content.href) || (slug ? `/product/${slug}` : "");
+      const price = asNumber(content.price, NaN);
+      const basePrice = asNumber(content.basePrice, NaN);
+      const off = asNumber(content.off, 0);
+      const rating = asNumber(content.rating, 4);
+      const currencyCode = asString(content.currencyCode) || asString(content.currency);
+      const mediaUrl = asString(content.imgUrl) || asString(content.imageUrl) || pickMediaUrl(block.media);
+      const images = asArray<string>(content.images).filter((item) => asString(item));
+
+      return title && slug
+        ? {
+            id: asString(content.productId) || block.id,
+            slug,
+            title,
+            price: Number.isFinite(price) ? price : Math.max(0, basePrice || 0),
+            basePrice: Number.isFinite(basePrice) ? basePrice : undefined,
+            currencyCode: currencyCode || undefined,
+            off: Number.isFinite(off) ? off : 0,
+            rating: Number.isFinite(rating) ? rating : 4,
+            imgUrl: mediaUrl || null,
+            images,
+            href,
+          }
+        : null;
+    }).filter((item): item is {
+      id: string | number;
+      slug: string;
+      title: string;
+      price: number;
+      basePrice?: number;
+      currencyCode?: string;
+      off: number;
+      rating: number;
+      imgUrl: string | null;
+      images: string[];
+      href: string;
+    } => Boolean(item));
+
+    if (!products.length) return null;
+
+    return (
+      <Container className={styles.sectionContainer}>
+        {renderHeading(section)}
+        <Card borderRadius={8} p="1rem">
+          <Carousel slidesToShow={4} responsive={PRODUCT_CAROUSEL_RESPONSIVE}>
+            {products.map((item) => (
+              <div key={item.id} style={{ padding: "0.25rem" }}>
+                <ProductCard1
+                  hoverEffect
+                  id={item.id}
+                  slug={item.slug}
+                  title={item.title}
+                  price={item.price}
+                  basePrice={item.basePrice}
+                  currencyCode={item.currencyCode}
+                  off={item.off}
+                  rating={item.rating}
+                  images={item.images}
+                  imgUrl={item.imgUrl}
+                />
+              </div>
+            ))}
+          </Carousel>
+        </Card>
+      </Container>
+    );
+  }
+
   const columns = Math.min(5, Math.max(1, Math.round(asNumber(settings.columns, 3))));
   const gap = Math.max(0.5, asNumber(settings.gap, 1));
   const aspectRatio = asString(settings.aspectRatio) || "4 / 5";
