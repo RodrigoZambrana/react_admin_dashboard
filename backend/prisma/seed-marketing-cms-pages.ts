@@ -716,6 +716,100 @@ const homePage: CmsPageSeed = {
       ],
     },
     {
+      type: CmsPageSectionType.MEDIA_GRID_ENHANCED,
+      key: 'home-solution-clusters',
+      settings: {
+        title: 'Elegí por necesidad',
+        description:
+          'Entradas directas para quienes ya saben qué problema quieren resolver.',
+        columns: 4,
+        gap: 1.05,
+        aspectRatio: '4 / 5',
+      },
+      blocks: [
+        {
+          type: CmsPageBlockType.CARD,
+          name: 'Interior y control de luz',
+          content: {
+            title: 'Interior y control de luz',
+            description:
+              'Cortinas roller y venecianas para regular luz, privacidad y terminación en hogar u oficina.',
+            badge: 'Interior',
+            overlayText: true,
+            linkLabel: 'Ver líneas',
+            href: '/productos/cortinas-roller.html',
+          },
+          media: {
+            url: '/uploads/cms/legacy-assets/img/portfolio/roller/rollers.png',
+            alt: 'Interior y control de luz',
+            title: 'Interior y control de luz',
+            type: CmsMediaType.IMAGE,
+            source: 'marketing_cms_seed',
+          },
+        },
+        {
+          type: CmsPageBlockType.CARD,
+          name: 'Exterior y seguridad',
+          content: {
+            title: 'Exterior y seguridad',
+            description:
+              'Cortinas de enrollar y cortinas metálicas para frentes, accesos y mayor protección.',
+            badge: 'Exterior',
+            overlayText: true,
+            linkLabel: 'Ver líneas',
+            href: '/productos/cortinas-de-enrollar.html',
+          },
+          media: {
+            url: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
+            alt: 'Exterior y seguridad',
+            title: 'Exterior y seguridad',
+            type: CmsMediaType.IMAGE,
+            source: 'marketing_cms_seed',
+          },
+        },
+        {
+          type: CmsPageBlockType.CARD,
+          name: 'Obra y recambio',
+          content: {
+            title: 'Obra y recambio',
+            description:
+              'Aberturas en aluminio y toldos para renovar, ampliar o resolver una instalación nueva.',
+            badge: 'Obra',
+            overlayText: true,
+            linkLabel: 'Ver líneas',
+            href: '/productos/aberturas-aluminio.html',
+          },
+          media: {
+            url: '/uploads/cms/legacy-assets/img/aberturas/images.jpg',
+            alt: 'Obra y recambio',
+            title: 'Obra y recambio',
+            type: CmsMediaType.IMAGE,
+            source: 'marketing_cms_seed',
+          },
+        },
+        {
+          type: CmsPageBlockType.CARD,
+          name: 'Automatización y confort',
+          content: {
+            title: 'Automatización y confort',
+            description:
+              'Motores y automatismos para sumar comodidad, control y uso diario más simple.',
+            badge: 'Automatización',
+            overlayText: true,
+            linkLabel: 'Ver motores',
+            href: '/productos/motores-cortinas-y-persianas.html',
+          },
+          media: {
+            url: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
+            alt: 'Automatización y confort',
+            title: 'Automatización y confort',
+            type: CmsMediaType.IMAGE,
+            source: 'marketing_cms_seed',
+          },
+        },
+      ],
+    },
+    {
       type: CmsPageSectionType.HIGHLIGHT_CARDS,
       key: 'home-commercial-support',
       settings: {
