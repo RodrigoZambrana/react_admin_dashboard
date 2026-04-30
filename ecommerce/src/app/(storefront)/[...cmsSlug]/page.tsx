@@ -4,7 +4,11 @@ import CmsPageShell from "@/components/cms/CmsPageShell";
 import { buildCmsPageMetadata, buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import StructuredData from "@/components/seo/StructuredData";
 import { getStorefrontConfig } from "@/lib/storefront-config";
-import { buildArticleJsonLd, buildCmsBreadcrumbs } from "@/lib/seo/structured-data";
+import {
+  buildArticleJsonLd,
+  buildCmsBreadcrumbs,
+  buildCmsFaqJsonLd,
+} from "@/lib/seo/structured-data";
 
 type PageProps = {
   params: Promise<{
@@ -37,12 +41,14 @@ export default async function CmsCatchAllPage({ params }: PageProps) {
   try {
     const page = await StorefrontApi.getCmsPage(path);
     const config = await getStorefrontConfig();
+    const faqSchema = buildCmsFaqJsonLd(page);
     return (
       <>
         <StructuredData
           schemas={[
             buildArticleJsonLd(config, page),
             buildCmsBreadcrumbs(config, page),
+            ...(faqSchema ? [faqSchema] : []),
           ]}
         />
         <CmsPageShell page={page} />

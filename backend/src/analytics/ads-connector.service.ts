@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
+  forwardRef,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { randomBytes, createHash } from 'crypto'
@@ -157,6 +159,7 @@ export class AdsConnectorService {
     private readonly adsConfig: GoogleAdsConfigService,
     private readonly secureConfig: SecureConfigService,
     private readonly encryption: ConfigEncryptionService,
+    @Inject(forwardRef(() => AnalyticsQueueService))
     private readonly analyticsQueue: AnalyticsQueueService,
   ) {}
 

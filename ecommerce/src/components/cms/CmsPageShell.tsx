@@ -8,8 +8,11 @@ import { Header } from "@component/header";
 import Navbar from "@component/navbar/Navbar";
 import { Footer1 } from "@component/footer";
 import MobileNavigationBar from "@component/mobile-navigation";
+import SectionStories from "@sections/market-1/SectionStories";
+import SectionCmsHighlights from "@sections/market-1/SectionCmsHighlights";
 import BudgetCalculatorPanel from "@/components/budget/BudgetCalculatorPanel";
 import type {
+  CmsContentSection,
   CmsRenderableMedia,
   CmsRenderablePage,
   CmsRenderableSection,
@@ -19,6 +22,7 @@ import styles from "./CmsPageShell.module.css";
 
 type Props = {
   page: CmsRenderablePage;
+  homeContentSections?: CmsContentSection[] | null;
 };
 
 type ActionLink = {
@@ -26,6 +30,8 @@ type ActionLink = {
   href: string;
   external?: boolean;
 };
+
+type HeadingTag = "h1" | "h2" | "h3" | "h4";
 
 const asRecord = (value: Record<string, unknown> | null | undefined) => value ?? {};
 
@@ -37,6 +43,13 @@ const asArray = <T,>(value: unknown): T[] => (Array.isArray(value) ? (value as T
 const asNumber = (value: unknown, fallback: number) => {
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const resolveHeadingTag = (value: unknown, fallback: HeadingTag): HeadingTag => {
+  const normalized = asString(value).toLowerCase();
+  return normalized === "h1" || normalized === "h2" || normalized === "h3" || normalized === "h4"
+    ? normalized
+    : fallback;
 };
 
 const deriveBudgetSlugFromPath = (path: string) => {
@@ -84,16 +97,20 @@ const renderLink = (
   );
 };
 
-const renderHeading = (section: CmsRenderableSection) => {
+const renderHeading = (section: CmsRenderableSection, fallback: HeadingTag = "h2") => {
   const settings = asRecord(section.settings);
   const title = asString(settings.title) || asString(settings.heading);
   const description = asString(settings.description) || asString(settings.subtitle);
+  const headingTag = resolveHeadingTag(settings.headingLevel, fallback);
 
   if (!title && !description) return null;
 
   return (
     <div className={styles.sectionHeading}>
-      {title ? <h2>{title}</h2> : null}
+      {title ? <>{headingTag === "h1" ? <h1>{title}</h1> : null}</> : null}
+      {title ? <>{headingTag === "h2" ? <h2>{title}</h2> : null}</> : null}
+      {title ? <>{headingTag === "h3" ? <h3>{title}</h3> : null}</> : null}
+      {title ? <>{headingTag === "h4" ? <h4>{title}</h4> : null}</> : null}
       {description ? <p>{description}</p> : null}
     </div>
   );
@@ -102,6 +119,7 @@ const renderHeading = (section: CmsRenderableSection) => {
 const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
   const settings = asRecord(section.settings);
   const slides = asArray<Record<string, unknown>>(settings.slides);
+  const headingTag = resolveHeadingTag(settings.headingLevel, "h1");
   const normalizedSlides = slides.length
     ? slides
     : [
@@ -123,8 +141,8 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const activeSlide = normalizedSlides[activeIndex] ?? normalizedSlides[0] ?? {};
-  const title = asString(activeSlide.title) || asString(settings.title);
-  const description = asString(activeSlide.description) || asString(settings.description);
+  const title = asString(settings.title) || asString(activeSlide.title);
+  const description = asString(settings.description) || asString(activeSlide.description);
   const eyebrow = asString(settings.eyebrow) || asString(settings.badge);
   const mediaUrl = asString(activeSlide.imageUrl) || asString(settings.backgroundImageUrl);
   const mediaAlt = asString(activeSlide.imageAlt) || title || "Destacado";
@@ -147,7 +165,15 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
           <div className={styles.heroOverlay}>
             <div className={styles.heroCopy}>
               {eyebrow ? <span className={styles.heroEyebrow}>{eyebrow}</span> : null}
-              {title ? <h1 className={styles.heroTitle}>{title}</h1> : null}
+              {title
+                ? headingTag === "h1"
+                  ? <h1 className={styles.heroTitle}>{title}</h1>
+                  : headingTag === "h2"
+                    ? <h2 className={styles.heroTitle}>{title}</h2>
+                    : headingTag === "h3"
+                      ? <h3 className={styles.heroTitle}>{title}</h3>
+                      : <h4 className={styles.heroTitle}>{title}</h4>
+                : null}
               {description ? <p className={styles.heroDescription}>{description}</p> : null}
               <div className={styles.heroActions}>
                 {renderLink(primaryLabel, primaryHref, styles.primaryAction)}
@@ -222,6 +248,10 @@ const FeatureGridSection = ({
           const mediaUrl = pickMediaUrl(block.media) || asString(content.imageUrl);
           const mediaAlt = block.media?.alt || title || "Imagen";
           const iconClass = asString(content.iconClass);
+          const headingTag = resolveHeadingTag(
+            content.headingLevel ?? content.semanticHeadingLevel ?? settings.itemHeadingLevel,
+            "h3",
+          );
           const bodyContent = renderCmsRichTextContent(content, {
             allowHtmlFallback,
             fallbackClassName: styles.richTextHtml,
@@ -239,7 +269,15 @@ const FeatureGridSection = ({
                 </div>
               ) : null}
               <div className={styles.featureCardBody}>
-                {title ? <h3>{title}</h3> : null}
+                {title
+                  ? headingTag === "h2"
+                    ? <h2>{title}</h2>
+                    : headingTag === "h3"
+                      ? <h3>{title}</h3>
+                      : headingTag === "h4"
+                        ? <h4>{title}</h4>
+                        : <h3>{title}</h3>
+                  : null}
                 {bodyContent ? (
                   bodyContent
                 ) : description ? (
@@ -418,6 +456,7 @@ const ContentSplitSection = ({
     allowHtmlFallback,
     fallbackClassName: styles.richTextHtml,
   });
+  const actions = asActions(settings.actions);
 
   return (
     <Container className={styles.sectionContainer}>
@@ -456,6 +495,16 @@ const ContentSplitSection = ({
 
         <div className={styles.contentSplitBody}>
           {contentContent}
+          {actions.length ? (
+            <div className={styles.heroActions}>
+              {actions.map((action, index) =>
+                renderLink(action.label, action.href, styles.primaryAction, {
+                  external: action.external,
+                  key: `${action.label}-${index}`,
+                }),
+              )}
+            </div>
+          ) : null}
         </div>
       </section>
     </Container>
@@ -524,6 +573,7 @@ const CtaBannerSection = ({ section }: { section: CmsRenderableSection }) => {
   const settings = asRecord(section.settings);
   const title = asString(settings.title);
   const description = asString(settings.description) || asString(settings.body);
+  const intent = asString(settings.intent) || "transactional";
   const actions =
     asActions(settings.actions).length > 0
       ? asActions(settings.actions)
@@ -533,7 +583,7 @@ const CtaBannerSection = ({ section }: { section: CmsRenderableSection }) => {
 
   return (
     <Container className={styles.sectionContainer}>
-      <section className={styles.ctaCard}>
+      <section className={styles.ctaCard} data-intent={intent}>
         {title ? <h2>{title}</h2> : null}
         {description ? <p>{description}</p> : null}
         <div className={styles.ctaActions}>
@@ -629,7 +679,15 @@ const sectionMap: Record<
   BUDGET_CALCULATOR: (section) => <BudgetCalculatorSection section={section} />,
 };
 
-export default function CmsPageShell({ page }: Props) {
+export default function CmsPageShell({ page, homeContentSections }: Props) {
+  const homeStoriesSection =
+    page.path === "" && Array.isArray(homeContentSections)
+      ? homeContentSections.find((section) => section.key === "HOME_STORIES") ?? null
+      : null;
+  const homeHighlightsSection =
+    page.path === "" && Array.isArray(homeContentSections)
+      ? homeContentSections.find((section) => section.key === "HOME_HIGHLIGHTS") ?? null
+      : null;
   const bodySections = page.sections.filter(
     (section) => section.type !== "SITE_HEADER" && section.type !== "SITE_FOOTER",
   );
@@ -640,6 +698,7 @@ export default function CmsPageShell({ page }: Props) {
       <Topbar />
       <Header />
       <Navbar />
+      {homeStoriesSection ? <SectionStories stories={homeStoriesSection.entries} /> : null}
 
       <main className={styles.siteMain}>
         <div className={styles.pageStack}>
@@ -659,6 +718,7 @@ export default function CmsPageShell({ page }: Props) {
         </div>
       </main>
 
+      {homeHighlightsSection ? <SectionCmsHighlights section={homeHighlightsSection} /> : null}
       <MobileNavigationBar />
       <Footer1 />
     </div>

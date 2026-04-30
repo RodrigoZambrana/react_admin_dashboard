@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
+  forwardRef,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { randomBytes, createHash } from 'crypto'
@@ -151,6 +153,7 @@ export class Ga4ConnectorService {
     private readonly secureConfig: SecureConfigService,
     private readonly encryption: ConfigEncryptionService,
     private readonly reportParity: AnalyticsReportingService,
+    @Inject(forwardRef(() => AnalyticsQueueService))
     private readonly analyticsQueue: AnalyticsQueueService,
   ) {}
 

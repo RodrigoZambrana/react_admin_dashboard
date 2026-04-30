@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import CmsPageShell from "@/components/cms/CmsPageShell";
-import LegacyStorefrontHomePage from "@/components/cms/LegacyStorefrontHomePage";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 
 export const revalidate = 120;
@@ -22,10 +21,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function StorefrontRootPage() {
   const { StorefrontApi } = await import("@/lib/api/storefront");
-  try {
-    const page = await StorefrontApi.getCmsPage("");
-    return <CmsPageShell page={page} />;
-  } catch {
-    return <LegacyStorefrontHomePage />;
-  }
+  const [page, homeContentSections] = await Promise.all([
+    StorefrontApi.getCmsPage(""),
+    StorefrontApi.listContentSections(),
+  ]);
+
+  return <CmsPageShell page={page} homeContentSections={homeContentSections} />;
 }

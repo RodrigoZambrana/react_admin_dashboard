@@ -9,6 +9,14 @@ import { resolvePublicPricing } from "./public-pricing";
 import { resolveAbsoluteUrl, resolveStorefrontOrigin } from "./urls";
 
 type JsonLdValue = Record<string, unknown> | Record<string, unknown>[];
+type FaqQuestionJsonLd = {
+  "@type": "Question";
+  name: string;
+  acceptedAnswer: {
+    "@type": "Answer";
+    text: string;
+  };
+};
 
 export const serializeJsonLd = (value: JsonLdValue): string =>
   JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
@@ -17,6 +25,47 @@ const trimText = (value?: string | null): string | undefined => {
   if (typeof value !== "string") return undefined;
   const normalized = value.trim().replace(/\s+/g, " ");
   return normalized.length ? normalized : undefined;
+};
+
+const stripHtml = (value?: string | null): string | undefined => {
+  const text = trimText(value);
+  if (!text) return undefined;
+  const stripped = text.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  return stripped.length ? stripped : undefined;
+};
+
+const extractPlainText = (value: unknown): string | undefined => {
+  if (typeof value === "string") {
+    return stripHtml(value);
+  }
+
+  if (Array.isArray(value)) {
+    const parts = value
+      .map((item) => extractPlainText(item))
+      .filter((item): item is string => Boolean(item));
+    const joined = parts.join(" ").replace(/\s+/g, " ").trim();
+    return joined.length ? joined : undefined;
+  }
+
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+
+  if (typeof record.value === "string") {
+    return stripHtml(record.value);
+  }
+
+  if (Array.isArray(record.children)) {
+    return extractPlainText(record.children);
+  }
+
+  if (Array.isArray(record.nodes)) {
+    return extractPlainText(record.nodes);
+  }
+
+  return undefined;
 };
 
 const resolveBrandName = (config: Pick<StorefrontConfig, "seo" | "companyProfile">): string => {
@@ -130,6 +179,53 @@ export const buildArticleJsonLd = (
     dateModified: page.updatedAt ?? undefined,
     image: resolveImageUrl(page.seo?.imageUrl ?? null, config),
     publisher: buildOrganizationJsonLd(config),
+  };
+};
+
+export const buildCmsFaqJsonLd = (
+  page: Pick<CmsRenderablePage, "sections" | "title" | "path">,
+) => {
+  const questions = page.sections
+    .filter((section) => section.type === "FAQ")
+    .flatMap((section) =>
+      section.blocks
+        .map((block) => {
+          const content = (block.content ?? {}) as Record<string, unknown>;
+          const question = trimText(
+            (typeof content.question === "string" ? content.question : null) ??
+              (typeof block.name === "string" ? block.name : null),
+          );
+          const answer =
+            extractPlainText(content.answerRichText) ||
+            extractPlainText(content.richText) ||
+            extractPlainText(content.answer) ||
+            extractPlainText(content.body) ||
+            extractPlainText(content.description);
+
+          if (!question || !answer) {
+            return null;
+          }
+
+          return {
+            "@type": "Question",
+            name: question,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: answer,
+            },
+          };
+        })
+        .filter((item) => Boolean(item)) as FaqQuestionJsonLd[],
+    );
+
+  if (!questions.length) {
+    return null;
+  }
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: questions,
   };
 };
 

@@ -23,6 +23,10 @@ import {
   deleteCmsMediaFile,
   persistCmsMediaFile,
 } from '../common/uploads/cms'
+import {
+  detectAnalyticalLanguage,
+  formatAnalyticalLanguageIssues,
+} from './content-language-lint'
 
 type MultipartFile = import('@fastify/multipart').MultipartFile
 
@@ -97,21 +101,26 @@ export class CmsPagesService {
   async listPages(query: CmsListPagesQueryDto = {}) {
     const locale = this.normalizeLocale(query.locale)
     const search = this.optionalText(query.search)
+    const where: Prisma.CmsPageWhereInput = {
+      ...(query.scope ? { scope: query.scope } : {}),
+      ...(locale ? { locale } : {}),
+      ...(query.status ? { status: query.status } : {}),
+      ...(query.visible === undefined ? {} : { visible: query.visible }),
+      ...(search
+        ? {
+            AND: [
+              {
+                OR: [
+                  { title: { contains: search, mode: 'insensitive' } },
+                  { path: { contains: search.toLowerCase(), mode: 'insensitive' } },
+                ],
+              },
+            ],
+          }
+        : {}),
+    }
     return this.prisma.cmsPage.findMany({
-      where: {
-        ...(query.scope ? { scope: query.scope } : {}),
-        ...(locale ? { locale } : {}),
-        ...(query.status ? { status: query.status } : {}),
-        ...(query.visible === undefined ? {} : { visible: query.visible }),
-        ...(search
-          ? {
-              OR: [
-                { title: { contains: search, mode: 'insensitive' } },
-                { path: { contains: search.toLowerCase(), mode: 'insensitive' } },
-              ],
-            }
-          : {}),
-      },
+      where,
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
       include: {
         _count: {
@@ -134,24 +143,25 @@ export class CmsPagesService {
 
   async createPage(dto: CmsPageDto) {
     const normalized = this.normalizePageDto(dto)
+    this.assertCommercialLanguage(normalized)
     await this.assertUniquePath(normalized.path)
     await this.assertUniqueAliases(normalized.aliases)
     return this.prisma.$transaction(async (tx) => {
       const page = await tx.cmsPage.create({
-      data: {
-        path: normalized.path,
-        title: normalized.title,
-        summary: normalized.summary,
-        scope: normalized.scope,
-        locale: normalized.locale,
-        status: normalized.status,
-        visible: normalized.visible,
-        seoTitle: normalized.seoTitle,
-        seoDescription: normalized.seoDescription,
-        seoImageUrl: normalized.seoImageUrl,
-        layoutKey: normalized.layoutKey,
-        legacySource: normalized.legacySource,
-      },
+        data: {
+          path: normalized.path,
+          title: normalized.title,
+          summary: normalized.summary,
+          scope: normalized.scope,
+          locale: normalized.locale,
+          status: normalized.status,
+          visible: normalized.visible,
+          seoTitle: normalized.seoTitle,
+          seoDescription: normalized.seoDescription,
+          seoImageUrl: normalized.seoImageUrl,
+          layoutKey: normalized.layoutKey,
+          legacySource: normalized.legacySource,
+        },
       })
       await this.replacePageAliases(tx, page.id, normalized.aliases)
       await this.replacePageSections(tx, page.id, normalized.sections)
@@ -201,6 +211,7 @@ export class CmsPagesService {
           })),
         })),
     })
+    this.assertCommercialLanguage(normalized)
 
     await this.assertUniquePath(normalized.path, id)
     await this.assertUniqueAliases(normalized.aliases, id)
@@ -627,6 +638,19 @@ export class CmsPagesService {
         this.normalizeSectionDto(section, sectionIndex),
       ),
     }
+  }
+
+  private assertCommercialLanguage(page: ReturnType<CmsPagesService['normalizePageDto']>) {
+    const report = detectAnalyticalLanguage(page)
+    if (!report.blocked) {
+      return
+    }
+
+    throw new BadRequestException({
+      message: 'CMS page contains analytical language that is not allowed for public content',
+      score: report.score,
+      issues: formatAnalyticalLanguageIssues(report),
+    })
   }
 
   private mapPageResponse(page: CmsPageWithRelations) {

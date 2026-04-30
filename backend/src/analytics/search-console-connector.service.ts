@@ -1,8 +1,10 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   InternalServerErrorException,
   Logger,
+  forwardRef,
   ServiceUnavailableException,
 } from '@nestjs/common'
 import { randomBytes, createHash } from 'crypto'
@@ -140,6 +142,7 @@ export class SearchConsoleConnectorService {
     private readonly secureConfig: SecureConfigService,
     private readonly encryption: ConfigEncryptionService,
     private readonly config: ConfigService,
+    @Inject(forwardRef(() => AnalyticsQueueService))
     private readonly analyticsQueue: AnalyticsQueueService,
   ) {}
 

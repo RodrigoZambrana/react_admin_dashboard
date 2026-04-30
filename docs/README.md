@@ -60,6 +60,8 @@
 - [EMAIL_PRIVACY_HARDENING_2026-03-23.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/EMAIL_PRIVACY_HARDENING_2026-03-23.md)
 - [STOREFRONT_CLOSURE.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/STOREFRONT_CLOSURE.md)
 - [STOREFRONT_EXPLORATORY_BACKLOG_2026-03-22.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/STOREFRONT_EXPLORATORY_BACKLOG_2026-03-22.md)
+- [seo-analytics-consolidated-2026-04-29.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-analytics-consolidated-2026-04-29.md)
+- [seo-cms-implementation-plan-2026-04-29.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-cms-implementation-plan-2026-04-29.md)
 
 ## Working Rule
 

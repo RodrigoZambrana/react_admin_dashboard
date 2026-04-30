@@ -1930,18 +1930,21 @@ describe('StorefrontService.createOrder', () => {
     )
   })
 
-  it('groups CMS informational navigation under a configurable label without duplicating base links', async () => {
+  it('uses CMS navigation directly when the storefront root page defines it', async () => {
     cmsPages.getPublicPageByPath.mockResolvedValue({
       sections: [
         {
           type: 'SITE_HEADER',
           settings: {
-            navigationMode: 'grouped',
-            navigationGroupLabel: 'Información',
             items: [
               { label: 'Inicio', href: '/' },
-              { label: 'Cortinas Roller', href: '/cortinas-roller.html' },
-              { label: 'Bandas Verticales', href: '/bandas-verticales.html' },
+              {
+                label: 'Productos',
+                items: [
+                  { label: 'Cortinas Roller', href: '/cortinas-roller.html' },
+                  { label: 'Bandas Verticales', href: '/bandas-verticales.html' },
+                ],
+              },
             ],
           },
         },
@@ -1955,9 +1958,9 @@ describe('StorefrontService.createOrder', () => {
       ],
     })
 
-    expect(result.primary).toHaveLength(3)
-    expect(result.primary[2]).toMatchObject({
-      label: 'Información',
+    expect(result.primary).toHaveLength(2)
+    expect(result.primary[1]).toMatchObject({
+      label: 'Productos',
       items: [
         { label: 'Cortinas Roller', href: '/cortinas-roller.html' },
         { label: 'Bandas Verticales', href: '/bandas-verticales.html' },

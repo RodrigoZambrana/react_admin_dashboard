@@ -23,11 +23,6 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
         { id: 'footer-contact', label: 'Contacto', href: '/contacto.html' },
         { id: 'footer-faq', label: 'Preguntas frecuentes', href: '/preguntas-frecuentes' },
       ],
-      [
-        { id: 'footer-shipping', label: 'Shipping', href: '/policies/shipping' },
-        { id: 'footer-returns', label: 'Returns', href: '/policies/returns' },
-        { id: 'footer-privacy', label: 'Privacy policy', href: '/policies/privacy' },
-      ],
     ],
     socials: [
       { id: 'social-instagram', label: 'Instagram', href: 'https://instagram.com', external: true },
@@ -50,35 +45,14 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
     },
   },
   seo: {
-    siteName: 'urucortinas',
-    defaultTitle: 'urucortinas',
-    titleTemplate: '%s · urucortinas',
-    defaultDescription:
-      'Configurable eCommerce experience powered by the Wokiee template and a headless backend.',
-    shareImage: {
-      url: '/assets/images/banners/shop-cover.png',
-      alt: 'urucortinas',
-    },
+    siteName: 'Storefront',
+    defaultTitle: 'Storefront',
+    titleTemplate: '%s · Storefront',
+    defaultDescription: 'Headless ecommerce storefront with CMS-managed content.',
+    shareImage: null,
   },
-  policies: [
-    {
-      title: 'Shipping & delivery',
-      body: 'We ship worldwide within 3-5 business days.',
-      updatedAt: new Date().toISOString(),
-    },
-    {
-      title: 'Returns',
-      body: 'Returns accepted within 30 days in original condition.',
-      updatedAt: new Date().toISOString(),
-    },
-  ],
-  announcement: {
-    id: 'free-shipping',
-    message: 'Enjoy complimentary express shipping on orders over $150.',
-    level: 'info',
-    active: true,
-    cta: { id: 'announcement-learn-more', label: 'See details', href: '/policies/shipping' },
-  },
+  policies: [],
+  announcement: null,
   companyProfile: {
     legalName: null,
     tradeName: null,

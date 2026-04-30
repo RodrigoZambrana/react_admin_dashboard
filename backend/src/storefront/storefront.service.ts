@@ -359,6 +359,90 @@ const mapCmsNavigationItems = (value: unknown): StorefrontNavigationItem[] => {
   return mapped
 }
 
+const normalizeCmsNavigationPath = (value?: string | null): string | null => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  if (!trimmed) {
+    return null
+  }
+  const normalized = trimmed.startsWith('/') ? trimmed : `/${trimmed.replace(/^\/+/, '')}`
+  return normalized.replace(/\/{2,}/g, '/')
+}
+
+const buildCmsNavigationItemsFromPages = (
+  pages: Array<{ path: string; title: string }>,
+  prefix: string,
+): StorefrontNavigationItem[] =>
+  pages
+    .filter((page) => {
+      const normalizedPath = page.path.trim().toLowerCase()
+      return normalizedPath.startsWith(prefix)
+    })
+    .sort((left, right) => left.title.localeCompare(right.title))
+    .map((page, index) => ({
+      id: `cms-page-${prefix.replace(/[^a-z0-9]+/gi, '-')}-${index}-${page.path
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')}`,
+      label: page.title.trim(),
+      href: normalizeCmsNavigationPath(page.path) ?? '#',
+    }))
+
+const buildCmsNavigationGroups = (
+  pages: Array<{ path: string; title: string }>,
+): {
+  primary: StorefrontNavigationItem[]
+  footer: StorefrontNavigationItem[][]
+} => {
+  const productItems = buildCmsNavigationItemsFromPages(pages, 'productos/')
+  const serviceItems = buildCmsNavigationItemsFromPages(pages, 'servicios/')
+  const guideItems = [
+    ...buildCmsNavigationItemsFromPages(pages, 'guias/'),
+    ...buildCmsNavigationItemsFromPages(pages, 'precios/'),
+  ]
+
+  const primary: StorefrontNavigationItem[] = []
+  if (productItems.length) {
+    primary.push({
+      id: 'cms-nav-productos',
+      label: 'Productos',
+      href: productItems[0]?.href ?? '/shop',
+      items: productItems,
+    })
+  }
+  if (serviceItems.length) {
+    primary.push({
+      id: 'cms-nav-servicios',
+      label: 'Servicios',
+      href: serviceItems[0]?.href ?? '/contacto.html',
+      items: serviceItems,
+    })
+  }
+  if (guideItems.length) {
+    primary.push({
+      id: 'cms-nav-guias',
+      label: 'Guías',
+      href: guideItems[0]?.href ?? '/preguntas-frecuentes',
+      items: guideItems,
+    })
+  }
+
+  const footer: StorefrontNavigationItem[][] = []
+  if (productItems.length) {
+    footer.push([{ id: 'cms-footer-productos', label: 'Productos', href: productItems[0]?.href ?? '/shop', items: productItems }])
+  }
+  if (serviceItems.length) {
+    footer.push([{ id: 'cms-footer-servicios', label: 'Servicios', href: serviceItems[0]?.href ?? '/contacto.html', items: serviceItems }])
+  }
+  if (guideItems.length) {
+    footer.push([{ id: 'cms-footer-guias', label: 'Guías', href: guideItems[0]?.href ?? '/preguntas-frecuentes', items: guideItems }])
+  }
+
+  return { primary, footer }
+}
+
 const buildNavigationItemKey = (item: StorefrontNavigationItem) =>
   `${item.label.trim().toLowerCase()}::${normalizeNavigationHref(item.href) ?? ''}`
 
@@ -1424,6 +1508,16 @@ export class StorefrontService implements OnModuleInit {
     }
   }
 
+  private hasMeaningfulCompanyProfileOverride(value: unknown): boolean {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      return false
+    }
+
+    return Object.values(value as Record<string, unknown>).some(
+      (candidate) => candidate != null && candidate !== '',
+    )
+  }
+
   async onModuleInit() {
     await this.ensureDefaultPasswordHash()
 
@@ -1462,7 +1556,9 @@ export class StorefrontService implements OnModuleInit {
 
   async getConfig(): Promise<StorefrontConfig> {
     return this.getOrSetPublicCache('storefront:config', PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
-      const configRow = await this.prisma.systemConfig.findUnique({ where: { key: 'storefront:config' } })
+      const configRow = await this.prisma.systemConfig.findUnique({
+        where: { key: 'storefront:config' },
+      })
       let overrides: Record<string, unknown> = {}
       if (configRow?.value) {
         try {
@@ -1476,13 +1572,18 @@ export class StorefrontService implements OnModuleInit {
         where: { key: this.snapshotFallbackConfigKey },
       })
       const snapshotFallbackEnabled = snapshotFallbackRecord?.value === 'false' ? false : true
-      const layouts = Array.isArray(merged.layouts) && merged.layouts.length > 0 ? merged.layouts : DEFAULT_HOME_LAYOUTS
+      const layouts =
+        Array.isArray(merged.layouts) && merged.layouts.length > 0
+          ? merged.layouts
+          : DEFAULT_HOME_LAYOUTS
       const defaultLayout = layouts.some((layout) => layout.key === merged.defaultLayout)
         ? merged.defaultLayout
         : FALLBACK_LAYOUT_KEY
 
       let companyProfile: StorefrontConfig['companyProfile'] = merged.companyProfile ?? null
-      const hasCompanyProfileOverride = Object.prototype.hasOwnProperty.call(overrides, 'companyProfile')
+      const hasCompanyProfileOverride = this.hasMeaningfulCompanyProfileOverride(
+        overrides.companyProfile,
+      )
 
       if (!hasCompanyProfileOverride) {
         const record = await this.prisma.companyProfile.findUnique({
@@ -1611,32 +1712,28 @@ export class StorefrontService implements OnModuleInit {
     try {
       const rootPage = await this.cmsPages.getPublicPageByPath('', 'es')
       const headerSection = rootPage.sections.find((section) => section.type === 'SITE_HEADER')
+      const footerSection = rootPage.sections.find((section) => section.type === 'SITE_FOOTER')
       const headerSettings =
         (headerSection?.settings as Record<string, unknown> | null) ?? null
-      const legacyItems = mapCmsNavigationItems(
-        headerSettings?.items,
-      )
-
-      if (!legacyItems.length) {
-        return baseNavigation
-      }
-
-      const navigationMode =
-        typeof headerSettings?.navigationMode === 'string' &&
-        headerSettings.navigationMode.trim().toLowerCase() === 'flat'
-          ? 'flat'
-          : 'grouped'
-      const navigationGroupLabel =
-        typeof headerSettings?.navigationGroupLabel === 'string'
-          ? headerSettings.navigationGroupLabel
-          : undefined
+      const footerSettings =
+        (footerSection?.settings as Record<string, unknown> | null) ?? null
+      const cmsPrimary = mapCmsNavigationItems(headerSettings?.items)
+      const cmsFooterGroups = Array.isArray(footerSettings?.linkGroups)
+        ? (footerSettings.linkGroups as unknown[])
+            .map((group) => mapCmsNavigationItems(group))
+            .filter((group) => group.length > 0)
+        : []
 
       return {
         ...baseNavigation,
-        primary: mergeNavigationItems(baseNavigation.primary ?? [], legacyItems, {
-          mode: navigationMode,
-          groupLabel: navigationGroupLabel,
-        }),
+        primary: cmsPrimary.length > 0 ? cmsPrimary : (baseNavigation.primary ?? []),
+        footer: cmsFooterGroups.length > 0 ? cmsFooterGroups : (baseNavigation.footer ?? []),
+        helpLinks: Array.isArray(footerSettings?.helpLinks)
+          ? (footerSettings.helpLinks as StorefrontConfig['navigation']['helpLinks'])
+          : baseNavigation.helpLinks,
+        socials: Array.isArray(footerSettings?.socials)
+          ? (footerSettings.socials as StorefrontConfig['navigation']['socials'])
+          : baseNavigation.socials,
       }
     } catch {
       return baseNavigation
