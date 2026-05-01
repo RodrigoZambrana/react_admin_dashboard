@@ -14,6 +14,7 @@ import { PasswordResetConfirmDto, PasswordResetRequestDto } from './dto/password
 import { Throttle } from '@nestjs/throttler'
 import { GoogleConfigService } from '../common/integrations/google-config.service'
 import { PhoneAuthService } from './phone-auth.service'
+import { resolveMediaProvider } from '../common/media/media-provider'
 import {
   RecoverAccountDto,
   RegisterPhoneDto,
@@ -115,6 +116,9 @@ export class AuthController {
       },
       google: {
         enabled: config.google.enabled && Boolean(config.google.clientId) && Boolean(config.google.clientSecret),
+      },
+      media: {
+        provider: resolveMediaProvider(),
       },
     }
   }

@@ -79,6 +79,7 @@ const DEFAULT_AUTH_API_BASE = "http://localhost:4000/api";
 const DEFAULT_ANALYTICS_API_BASE = "http://localhost:4000/api/analytics";
 const DEFAULT_AI_PLATFORM_BASE = "http://localhost:4110";
 const DEFAULT_SITE_URL = "http://localhost:3000";
+const DEFAULT_MEDIA_BASE_URL = "http://localhost:3000/media";
 
 const normalizeClientSlug = (value: string | undefined | null) => {
   if (!value) {
@@ -114,6 +115,7 @@ const aiPlatformBaseRaw =
   process.env.NEXT_PUBLIC_AI_PLATFORM_URL ??
   DEFAULT_AI_PLATFORM_BASE;
 const clientSiteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_SITE_URL;
+const clientMediaBaseUrlRaw = process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? DEFAULT_MEDIA_BASE_URL;
 
 const normalizedApiBase =
   ensureStorefrontPath(normalize(serverApiBaseRaw, "server")) || DEFAULT_API_BASE;
@@ -130,6 +132,7 @@ const normalizedPublicAnalyticsApiBase =
 const normalizedAiPlatformBase =
   removeTrailingSlash(normalize(aiPlatformBaseRaw, "client")) || DEFAULT_AI_PLATFORM_BASE;
 const normalizedSiteUrl = normalize(clientSiteUrlRaw, "client") || DEFAULT_SITE_URL;
+const normalizedMediaBaseUrl = normalize(clientMediaBaseUrlRaw, "client") || DEFAULT_MEDIA_BASE_URL;
 
 const safeOrigin = (value: string | null): string | null => {
   if (!value) {
@@ -151,6 +154,7 @@ export const env = {
   publicAnalyticsApiBaseUrl: normalizedPublicAnalyticsApiBase,
   publicAiPlatformUrl: normalizedAiPlatformBase,
   publicSiteUrl: normalizedSiteUrl,
+  publicMediaBaseUrl: normalizedMediaBaseUrl,
   publicSiteOrigin: safeOrigin(normalizedSiteUrl) ?? safeOrigin(DEFAULT_SITE_URL),
   nodeEnv: process.env.NODE_ENV ?? "development",
   isDevelopment: process.env.NODE_ENV !== "production",

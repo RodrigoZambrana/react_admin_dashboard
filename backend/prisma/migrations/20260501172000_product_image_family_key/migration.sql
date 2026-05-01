@@ -1,0 +1,2 @@
+ALTER TABLE "ProductImage"
+  ADD COLUMN IF NOT EXISTS "familyKey" TEXT;

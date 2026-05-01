@@ -173,6 +173,8 @@ export interface MoneyDto {
 export interface ImageAssetDto {
   id: number | string
   url: string
+  publicId?: string | null
+  version?: number | null
   alt?: string | null
   width?: number | null
   height?: number | null
@@ -340,6 +342,39 @@ export interface ProductDetailDto extends ProductSummaryDto {
   publishedParametricOptions?: PublishedParametricOptionsDto
 }
 
+export interface ProductMediaItemDto {
+  slug: string
+  public_id: string
+  type: 'image' | 'video'
+  order: number
+  name?: string | null
+  alt?: string | null
+  familyKey?: string | null
+  version?: number | null
+}
+
+export interface ProductMediaStoryItemDto {
+  id: string
+  title: string
+  caption?: string | null
+  mediaSlug: string
+  public_id: string
+  type: 'image' | 'video'
+  order: number
+  alt?: string | null
+  version?: number | null
+}
+
+export interface ProductMediaResponseDto {
+  product: {
+    id: number
+    slug: string
+    name: string
+  }
+  media: ProductMediaItemDto[]
+  stories: ProductMediaStoryItemDto[]
+}
+
 export interface DerivedProductDto {
   id: string
   baseProductId: number
@@ -372,6 +407,8 @@ export interface CmsContentAssetDto {
   title?: string | null
   caption?: string | null
   mediaType: CmsContentAssetTypeDto
+  publicId?: string | null
+  version?: number | null
   mediaUrl: string
   posterUrl?: string | null
   externalUrl?: string | null
@@ -413,6 +450,8 @@ export interface CmsContentSectionDto {
 export interface CmsRenderableMediaDto {
   id: number
   url: string
+  publicId?: string | null
+  version?: number | null
   type: string
   alt?: string | null
   title?: string | null

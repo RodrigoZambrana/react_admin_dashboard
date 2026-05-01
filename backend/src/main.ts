@@ -14,6 +14,7 @@ import { join } from 'path'
 import cookie from '@fastify/cookie'
 import { SanitizeInputPipe } from './common/pipes/sanitize-input.pipe'
 import { resolveRequiredEnv } from './common/config/runtime-env'
+import { resolveMediaRoot } from './common/media/sync-core'
 
 async function bootstrap() {
   const BODY_LIMIT_BYTES = 15 * 1024 * 1024
@@ -83,6 +84,12 @@ const defaultAllowedOrigins = (
     limits: {
       fileSize: BODY_LIMIT_BYTES,
     },
+  })
+
+  await app.register(fastifyStatic as any, {
+    root: resolveMediaRoot(),
+    prefix: '/media/',
+    decorateReply: false,
   })
 
   await app.register(fastifyStatic as any, {

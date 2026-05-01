@@ -33,6 +33,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 import { EmailService } from '../email/email.service'
 import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
+import { buildCanonicalMediaSlug, buildMediaFamilyKey, toMediaRelativePath } from '../common/media/sync-core'
 import { decimal, decimalToNumber } from '../common/currency/money.util'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 import { DEFAULT_STOREFRONT_CONFIG } from './defaults/config'
@@ -72,6 +73,7 @@ import type {
   CmsRenderablePageDto,
   ProductReviewSummaryDto,
   DerivedProductDto,
+  ProductMediaResponseDto,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -112,6 +114,8 @@ import { GrowthService } from '../growth/growth.service'
 import { M2DerivedProductsService } from './m2-derived-products.service'
 import { buildAddressPayload, normalizeCountryLabel } from '../common/orders/address'
 import { ensureDefaultShippingOptions } from '../common/shipping/default-shipping-options'
+import { PublicResponseCacheService } from '../common/cache/public-response-cache.service'
+import { extname } from 'path'
 
 const ACCESS_TOKEN_EXPIRES_IN = '15m'
 const REFRESH_TOKEN_EXPIRES_IN = '7d'
@@ -120,6 +124,261 @@ const INVENTORY_STATUS: Record<number, 'in-stock' | 'limited' | 'out-of-stock'> 
   0: 'in-stock',
   1: 'limited',
   2: 'out-of-stock',
+}
+
+const CLOUDINARY_HOST = 'res.cloudinary.com'
+const DEFAULT_MEDIA_VERSION = 1
+
+const normalizeMediaVersion = (value?: number | null) => {
+  const numeric = Number(value ?? DEFAULT_MEDIA_VERSION)
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return DEFAULT_MEDIA_VERSION
+  }
+  return Math.max(DEFAULT_MEDIA_VERSION, Math.trunc(numeric))
+}
+
+const parseCloudinaryMediaReference = (value?: string | null): { publicId: string; version: number } | null => {
+  if (!value) {
+    return null
+  }
+
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(value)
+  } catch {
+    return null
+  }
+
+  if (parsedUrl.hostname !== CLOUDINARY_HOST && !parsedUrl.hostname.endsWith(`.${CLOUDINARY_HOST}`)) {
+    return null
+  }
+
+  const uploadMarker = '/upload/'
+  const uploadIndex = parsedUrl.pathname.indexOf(uploadMarker)
+  if (uploadIndex === -1) {
+    return null
+  }
+
+  const tail = parsedUrl.pathname
+    .slice(uploadIndex + uploadMarker.length)
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+
+  if (!tail.length) {
+    return null
+  }
+
+  const versionIndex = tail.findIndex((segment) => /^v\d+$/i.test(segment))
+  const version =
+    versionIndex >= 0 ? normalizeMediaVersion(Number.parseInt(tail[versionIndex].slice(1), 10)) : DEFAULT_MEDIA_VERSION
+  const publicIdSegments = versionIndex >= 0 ? tail.slice(versionIndex + 1) : tail
+
+  if (!publicIdSegments.length) {
+    return null
+  }
+
+  return {
+    publicId: publicIdSegments.map((segment) => decodeURIComponent(segment)).join('/'),
+    version,
+  }
+}
+
+const resolveStoredMediaReference = (input: {
+  publicId?: string | null
+  version?: number | null
+  url?: string | null
+}) => {
+  const publicId = input.publicId?.trim()
+  if (publicId) {
+    return {
+      publicId,
+      version: normalizeMediaVersion(input.version),
+    }
+  }
+
+  const parsed = parseCloudinaryMediaReference(input.url)
+  if (parsed) {
+    return parsed
+  }
+
+  return null
+}
+
+const mapImageAssetDto = (input: {
+  id: number | string
+  url?: string | null
+  publicId?: string | null
+  version?: number | null
+  alt?: string | null
+  width?: number | null
+  height?: number | null
+  dominantColor?: string | null
+}) => {
+  const reference = resolveStoredMediaReference(input)
+  return {
+    id: input.id,
+    url: input.url ?? '',
+    publicId: reference?.publicId ?? null,
+    version: reference?.version ?? null,
+    alt: input.alt ?? null,
+    width: input.width ?? null,
+    height: input.height ?? null,
+    dominantColor: input.dominantColor ?? null,
+  }
+}
+
+const VIDEO_EXTENSIONS = new Set(['.mp4', '.webm', '.mov', '.m4v', '.mkv', '.ogv'])
+
+const normalizeMediaLookupKey = (value?: string | null) => {
+  const trimmed = value?.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  const resolved = resolveStoredMediaReference({ url: trimmed, publicId: trimmed })
+  if (resolved?.publicId) {
+    return resolved.publicId
+  }
+
+  const normalizedReference = normalizeMediaReference(trimmed) ?? trimmed
+  return toMediaRelativePath(normalizedReference)
+}
+
+type CmsRenderableBlockLike = {
+  id: number
+  type?: string | null
+  name?: string | null
+  sortOrder: number
+  content?: unknown
+  media?: {
+    url?: string | null
+    source?: string | null
+    alt?: string | null
+  } | null
+}
+
+const readCmsStoryMediaReference = (
+  block: CmsRenderableBlockLike,
+) => {
+  const content = (block.content ?? {}) as Record<string, unknown>
+  const directReference =
+    (typeof content.mediaPublicId === 'string' && content.mediaPublicId) ||
+    (typeof content.publicId === 'string' && content.publicId) ||
+    (typeof content.public_id === 'string' && content.public_id) ||
+    (typeof content.mediaUrl === 'string' && content.mediaUrl) ||
+    (typeof content.imageUrl === 'string' && content.imageUrl) ||
+    (typeof content.videoUrl === 'string' && content.videoUrl) ||
+    block.media?.url ||
+    null
+
+  const publicId =
+    resolveStoredMediaReference({
+      publicId: typeof content.publicId === 'string' ? content.publicId : null,
+      url: typeof directReference === 'string' ? directReference : null,
+    })?.publicId ??
+    normalizeMediaLookupKey(typeof directReference === 'string' ? directReference : null)
+
+  if (!publicId) {
+    return null
+  }
+
+  return {
+    publicId,
+  }
+}
+
+const buildCmsStory = (
+  block: CmsRenderableBlockLike,
+  mediaLookup: Map<string, { slug: string; public_id: string; type: 'image' | 'video'; version?: number | null }>,
+) => {
+  const content = (block.content ?? {}) as Record<string, unknown>
+  const title =
+    (typeof content.title === 'string' && content.title.trim()) ||
+    (typeof block.name === 'string' && block.name.trim()) ||
+    ''
+  const caption =
+    (typeof content.caption === 'string' && content.caption.trim()) ||
+    (typeof content.description === 'string' && content.description.trim()) ||
+    null
+
+  const mediaReference = readCmsStoryMediaReference(block)
+  if (!mediaReference?.publicId) {
+    return null
+  }
+
+  const matchedMedia = mediaLookup.get(mediaReference.publicId)
+  if (!matchedMedia) {
+    return null
+  }
+
+  return {
+    id: `story:${block.id}`,
+    title: title || 'Story',
+    caption,
+    mediaSlug: matchedMedia.slug,
+    public_id: matchedMedia.public_id,
+    type: matchedMedia.type,
+    order: block.sortOrder ?? 0,
+    alt:
+      (typeof content.alt === 'string' && content.alt.trim()) ||
+      (typeof block.media?.alt === 'string' && block.media.alt.trim()) ||
+      title ||
+      null,
+    version: matchedMedia.version ?? null,
+  }
+}
+
+const normalizeMediaReference = (value?: string | null) => {
+  const trimmed = value?.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  if (/^data:/i.test(trimmed) || /^blob:/i.test(trimmed)) {
+    return null
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed)
+      return parsed.pathname.replace(/^\/+/, '').replace(/^uploads\/+/, '') || null
+    } catch {
+      return trimmed.replace(/^\/+/, '').replace(/^uploads\/+/, '') || null
+    }
+  }
+
+  return trimmed.replace(/^\/+/, '').replace(/^uploads\/+/, '') || null
+}
+
+const inferMediaType = (input: { url?: string | null; publicId?: string | null }) => {
+  const reference = input.publicId?.trim() || input.url?.trim() || ''
+  const normalized = normalizeMediaReference(reference) ?? reference
+  const lowerReference = normalized.toLowerCase()
+
+  if (
+    lowerReference.includes('/videos/') ||
+    lowerReference.includes('/video/') ||
+    lowerReference.includes('/video/upload/') ||
+    lowerReference.includes('/videos/upload/')
+  ) {
+    return 'video' as const
+  }
+
+  if (lowerReference.includes('/image/upload/') || lowerReference.includes('/images/')) {
+    return 'image' as const
+  }
+
+  try {
+    const pathname = reference.startsWith('http://') || reference.startsWith('https://')
+      ? new URL(reference).pathname
+      : reference
+    const extension = extname(pathname).toLowerCase()
+    return VIDEO_EXTENSIONS.has(extension) ? ('video' as const) : ('image' as const)
+  } catch {
+    const extension = extname(reference).toLowerCase()
+    return VIDEO_EXTENSIONS.has(extension) ? ('video' as const) : ('image' as const)
+  }
 }
 
 const CHECKOUT_UUID_PREFIX = 'storefront:checkout:'
@@ -651,24 +910,9 @@ type ProductWithVariants = Prisma.ProductGetPayload<{
 
 type PublicOrderTimelineMetadata = Record<string, unknown> | null
 
-type CacheEntry<T> = {
-  value: T
-  expiresAt: number
-}
-
-const cloneCachedValue = <T>(value: T): T => {
-  const structuredCloneFn = (globalThis as { structuredClone?: <U>(input: U) => U }).structuredClone
-  if (typeof structuredCloneFn === 'function') {
-    return structuredCloneFn(value)
-  }
-  return JSON.parse(JSON.stringify(value)) as T
-}
-
 @Injectable()
 export class StorefrontService implements OnModuleInit {
   private readonly logger = new Logger(StorefrontService.name)
-  private readonly publicCache = new Map<string, CacheEntry<unknown>>()
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -689,6 +933,7 @@ export class StorefrontService implements OnModuleInit {
     private readonly cmsPages: CmsPagesService,
     private readonly growth: GrowthService,
     private readonly m2DerivedProducts: M2DerivedProductsService,
+    private readonly publicResponseCache: PublicResponseCacheService,
   ) {}
 
   private defaultCustomerPassword!: string
@@ -703,28 +948,16 @@ export class StorefrontService implements OnModuleInit {
       .toLowerCase()
   }
 
-  private readPublicCache<T>(key: string): T | null {
-    const entry = this.publicCache.get(key)
-    if (!entry) {
-      return null
-    }
-    if (entry.expiresAt <= Date.now()) {
-      this.publicCache.delete(key)
-      return null
-    }
-    return cloneCachedValue(entry.value as T)
+  private async readPublicCache<T>(key: string): Promise<T | null> {
+    return this.publicResponseCache.get<T>(key)
   }
 
-  private writePublicCache<T>(key: string, value: T, ttlMs: number): T {
-    this.publicCache.set(key, {
-      value: cloneCachedValue(value),
-      expiresAt: Date.now() + ttlMs,
-    })
-    return cloneCachedValue(value)
+  private async writePublicCache<T>(key: string, value: T, ttlMs: number): Promise<T> {
+    return this.publicResponseCache.set(key, value, ttlMs)
   }
 
   private async getOrSetPublicCache<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
-    const cached = this.readPublicCache<T>(key)
+    const cached = await this.readPublicCache<T>(key)
     if (cached !== null) {
       return cached
     }
@@ -732,16 +965,24 @@ export class StorefrontService implements OnModuleInit {
     return this.writePublicCache(key, value, ttlMs)
   }
 
-  private clearPublicCache(prefix?: string) {
-    if (!prefix) {
-      this.publicCache.clear()
-      return
+  async invalidatePublicCache(prefix?: string) {
+    await this.publicResponseCache.invalidate(prefix)
+  }
+
+  async invalidateProductCache(productId: number, slug?: string | null) {
+    const identifiers = new Set<string>([
+      `storefront:product:${productId}`,
+      `storefront:recommendations:${productId}:`,
+      'storefront:products:',
+      'storefront:m2-derived:',
+    ])
+
+    if (slug && slug.trim().length > 0) {
+      identifiers.add(`storefront:product:${slug.trim().toLowerCase()}`)
     }
 
-    for (const key of Array.from(this.publicCache.keys())) {
-      if (key.startsWith(prefix)) {
-        this.publicCache.delete(key)
-      }
+    for (const prefix of identifiers) {
+      await this.invalidatePublicCache(prefix)
     }
   }
 
@@ -1800,7 +2041,7 @@ export class StorefrontService implements OnModuleInit {
           seoDescription: category.seoDescription ?? null,
           seoImageUrl: category.seoImageUrl ?? null,
           thumbnail: imageUrl
-            ? { id: `category-${category.id}`, url: imageUrl, alt: category.name }
+            ? mapImageAssetDto({ id: `category-${category.id}`, url: imageUrl, alt: category.name })
             : null,
           productCount: Math.max(0, productCount),
           parentId: category.parentId ?? null,
@@ -2280,6 +2521,8 @@ export class StorefrontService implements OnModuleInit {
             ? {
                 id: block.media.id,
                 url: block.media.url,
+                publicId: resolveStoredMediaReference({ url: block.media.url })?.publicId ?? null,
+                version: resolveStoredMediaReference({ url: block.media.url })?.version ?? null,
                 type: block.media.type,
                 alt: block.media.alt,
                 title: block.media.title,
@@ -2302,17 +2545,19 @@ export class StorefrontService implements OnModuleInit {
     const entries: CmsContentEntryDto[] = section.entries.map((entry) => {
       const primaryAsset = entry.assets[0] ?? null
       const thumbnail = entry.thumbnailUrl
-        ? {
-            id: `cms-entry-thumbnail-${entry.id}`,
-            url: entry.thumbnailUrl,
-            alt: entry.title,
-          }
-        : primaryAsset
-          ? {
+            ? mapImageAssetDto({
+                id: `cms-entry-thumbnail-${entry.id}`,
+                url: entry.thumbnailUrl,
+                alt: entry.title,
+              })
+          : primaryAsset
+          ? mapImageAssetDto({
               id: `cms-entry-asset-${primaryAsset.id}`,
               url: primaryAsset.posterUrl ?? primaryAsset.mediaUrl,
+              publicId: primaryAsset.publicId,
+              version: primaryAsset.version,
               alt: primaryAsset.title ?? entry.title,
-            }
+            })
           : null
 
       const assets: CmsContentAssetDto[] = entry.assets.map((asset) => ({
@@ -2320,6 +2565,8 @@ export class StorefrontService implements OnModuleInit {
         title: asset.title ?? null,
         caption: asset.caption ?? null,
         mediaType: asset.mediaType,
+        publicId: asset.publicId ?? null,
+        version: asset.version ?? null,
         mediaUrl: asset.mediaUrl,
         posterUrl: asset.posterUrl ?? null,
         externalUrl: asset.externalUrl ?? null,
@@ -2627,6 +2874,187 @@ export class StorefrontService implements OnModuleInit {
         return finalizeDetail(detail)
       },
     )
+  }
+
+  async getProductMedia(identifier: string): Promise<ProductMediaResponseDto> {
+    const detail = await this.getProduct(identifier)
+    const deduped = new Map<string, ProductMediaResponseDto['media'][number]>()
+
+    const register = (
+      entry: {
+        url?: string | null
+        publicId?: string | null
+        name?: string | null
+        alt?: string | null
+        familyKey?: string | null
+        version?: number | null
+      },
+      order: number,
+    ) => {
+      const rawUrl = entry.url?.trim() || ''
+      if (/^(data:|blob:)/i.test(rawUrl)) {
+        return
+      }
+      const isLocalMedia = rawUrl.startsWith('/media/') || rawUrl.startsWith('/uploads/')
+      const localKind = inferMediaType(entry) === 'video' ? 'videos' : 'images'
+      const localReference = isLocalMedia ? toMediaRelativePath(rawUrl) : null
+      const type = inferMediaType(entry)
+      const publicId =
+        localReference ||
+        resolveStoredMediaReference(entry)?.publicId ||
+        normalizeMediaReference(entry.publicId ?? entry.url) ||
+        (rawUrl ? `products/${detail.slug}/${localKind}/${rawUrl.split('/').pop() ?? 'media'}` : null)
+      if (!publicId) {
+        return
+      }
+
+      const slug = buildCanonicalMediaSlug(type, order)
+      const key = `${type}:${slug}:${publicId}`
+      if (!deduped.has(key)) {
+        deduped.set(key, {
+          slug,
+          public_id: publicId,
+          type,
+          order,
+          name: entry.name ?? null,
+          alt: entry.alt ?? null,
+          familyKey: entry.familyKey ?? buildMediaFamilyKey(entry.alt ?? entry.name ?? publicId),
+          version: entry.version ?? 1,
+        })
+      }
+    }
+
+    detail.gallery.forEach((asset, index) => {
+      register(
+        {
+          url: asset.url,
+          publicId: asset.publicId ?? null,
+          name: (asset as { name?: string | null }).name ?? null,
+          alt: (asset as { alt?: string | null }).alt ?? null,
+          familyKey: (asset as { familyKey?: string | null }).familyKey ?? null,
+          version: (asset as { version?: number | null }).version ?? null,
+        },
+        index,
+      )
+    })
+
+    detail.variants?.forEach((variant) => {
+      variant.images.forEach((asset, index) => {
+        register(
+        {
+          url: asset.url,
+          publicId: asset.publicId ?? null,
+          name: (asset as { name?: string | null }).name ?? null,
+          alt: (asset as { alt?: string | null }).alt ?? null,
+          familyKey: (asset as { familyKey?: string | null }).familyKey ?? null,
+          version: (asset as { version?: number | null }).version ?? null,
+        },
+          detail.gallery.length + index,
+        )
+      })
+    })
+
+    const storedMedia = await this.prisma.productImage.findMany({
+      where: {
+        productId: detail.id,
+        variantId: null,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+      select: {
+        img: true,
+        publicId: true,
+        name: true,
+        alt: true,
+        familyKey: true,
+        version: true,
+      },
+    })
+
+    storedMedia.forEach((asset, index) => {
+      register(
+        {
+          url: asset.img,
+          publicId: asset.publicId ?? null,
+          name: asset.name ?? null,
+          alt: asset.alt ?? null,
+          familyKey: asset.familyKey ?? null,
+          version: asset.version ?? null,
+        },
+        detail.gallery.length + index,
+      )
+    })
+
+    const media = Array.from(deduped.values()).sort((left, right) => left.order - right.order)
+    const mediaLookup = new Map(
+      media.map((item) => [
+        item.public_id,
+        {
+          slug: item.slug,
+          public_id: item.public_id,
+          type: item.type,
+          version: item.version ?? null,
+        },
+      ]),
+    )
+
+    let stories: ProductMediaResponseDto['stories'] = []
+    try {
+      const cmsPage = await this.cmsPages.getPublicPageByPath(`multimedia/${detail.slug}`, 'es')
+      stories = cmsPage.sections
+        .flatMap((section) => section.blocks)
+        .filter(
+          (block) =>
+            block.type?.toUpperCase() === 'STORY' ||
+            String(((block.content ?? {}) as Record<string, unknown>).kind ?? '').toLowerCase() === 'story',
+        )
+        .map((block) => buildCmsStory(block as CmsRenderableBlockLike, mediaLookup))
+        .filter((story): story is NonNullable<typeof story> => Boolean(story))
+        .sort((left, right) => left.order - right.order)
+    } catch (error) {
+      if (!(error instanceof NotFoundException)) {
+        this.logger.warn(
+          `[storefront] Failed to resolve multimedia stories for product "${detail.slug}".`,
+          error as Error,
+        )
+      }
+    }
+
+    return {
+      product: {
+        id: detail.id,
+        slug: detail.slug,
+        name: detail.name,
+      },
+      media,
+      stories,
+    }
+  }
+
+  async listProductsWithMedia(): Promise<ProductMediaResponseDto[]> {
+    const products = await this.prisma.product.findMany({
+      where: {
+        published: true,
+        productType: ProductType.PHYSICAL,
+        images: {
+          some: { variantId: null },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        productCode: true,
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    })
+
+    const responses = await Promise.allSettled(
+      products.map((product) => {
+        const slug = buildProductSlug(product.id, product.name, product.productCode ?? undefined).toLowerCase()
+        return this.getProductMedia(slug)
+      }),
+    )
+
+    return responses.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []))
   }
 
   async getRecommendations(productId: number, limit = 8): Promise<ProductSummaryDto[]> {
@@ -4359,7 +4787,7 @@ export class StorefrontService implements OnModuleInit {
       },
     })
 
-    this.clearPublicCache()
+    await this.invalidatePublicCache()
 
     return this.mapProductReview({
       id: created.id,
@@ -4694,11 +5122,13 @@ export class StorefrontService implements OnModuleInit {
           ]
         : [],
       thumbnail: thumbnail
-        ? {
+        ? mapImageAssetDto({
             id: thumbnail.id,
             url: thumbnail.img,
-            alt: thumbnail.name,
-          }
+            publicId: (thumbnail as { publicId?: string | null }).publicId ?? null,
+            version: (thumbnail as { version?: number | null }).version ?? null,
+            alt: thumbnail.name ?? null,
+          })
         : undefined,
       mode:
         product.mode === ProductMode.VARIABLE
@@ -4824,11 +5254,15 @@ export class StorefrontService implements OnModuleInit {
           ? this.computeInventoryStatus(variantStock, variantPermanent)
           : ('out-of-stock' as InventoryStatus),
         attributes: selections,
-        images: variant.images.map((image) => ({
-          id: image.id,
-          url: image.img,
-          alt: image.name ?? null,
-        })),
+        images: variant.images.map((image) =>
+          mapImageAssetDto({
+            id: image.id,
+            url: image.img,
+            publicId: (image as { publicId?: string | null }).publicId ?? null,
+            version: (image as { version?: number | null }).version ?? null,
+            alt: image.name ?? null,
+          }),
+        ),
       }
     })
 
@@ -4844,11 +5278,15 @@ export class StorefrontService implements OnModuleInit {
         : product.mode === ProductMode.PARAMETRIC && publishedParametricDefinition
         ? publishedParametricDefinition.specifications
         : undefined,
-      gallery: product.images.map((image) => ({
-        id: image.id,
-        url: image.img,
-        alt: image.name,
-      })),
+      gallery: product.images.map((image) =>
+        mapImageAssetDto({
+          id: image.id,
+          url: image.img,
+          publicId: (image as { publicId?: string | null }).publicId ?? null,
+          version: (image as { version?: number | null }).version ?? null,
+          alt: image.name ?? null,
+        }),
+      ),
       relatedProducts: [],
       frequentlyBoughtTogether: [],
       suggestedAddOns: [],

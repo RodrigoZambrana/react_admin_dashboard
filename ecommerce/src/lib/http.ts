@@ -38,6 +38,10 @@ export interface ApiRequestOptions extends RequestInit {
   circuitId?: string;
   correlationId?: string;
   onRetry?: (attempt: number, error: ApiError) => void;
+  next?: {
+    revalidate?: number;
+    tags?: string[];
+  };
 }
 
 interface PerformRequestOptions {

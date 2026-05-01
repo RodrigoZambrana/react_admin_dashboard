@@ -27,6 +27,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { ParametricPricingService } from '../pricing/parametric-pricing.service'
 import { M2DerivedProductsService } from '../storefront/m2-derived-products.service'
+import { StorefrontService } from '../storefront/storefront.service'
+import { NextRevalidationService } from '../common/cache/next-revalidation.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import { UpsertProductDto, UpdateProductDto, TableQueryDto as ProductQuery } from './dto/product.dto'
 import { calculateOrderLineTotals, costPriceFromSale, decimalToNumber, roundCurrency, salePriceFromCost } from './utils/pricing'
@@ -42,6 +44,8 @@ import {
   normalizeInstallationPricePresentationMode,
   normalizeInstallationResolutionMode,
 } from '../catalog/installation-policy'
+import { buildCategorySlug } from '../storefront/utils'
+import { buildProductSlug } from '../storefront/utils'
 
 type ProductSortKey =
   | 'id'
@@ -59,7 +63,81 @@ type ProductSortKey =
 type ProductImageInput = {
   id: string
   name?: string
+  alt?: string
+  publicId?: string | null
+  version?: number | null
   img: string
+}
+
+const CLOUDINARY_HOST = 'res.cloudinary.com'
+const DEFAULT_MEDIA_VERSION = 1
+
+const normalizeMediaVersion = (value?: number | null) => {
+  const numeric = Number(value ?? DEFAULT_MEDIA_VERSION)
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return DEFAULT_MEDIA_VERSION
+  }
+  return Math.max(DEFAULT_MEDIA_VERSION, Math.trunc(numeric))
+}
+
+const parseCloudinaryMediaReference = (value?: string | null): { publicId: string; version: number } | null => {
+  if (!value) {
+    return null
+  }
+
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(value)
+  } catch {
+    return null
+  }
+
+  if (parsedUrl.hostname !== CLOUDINARY_HOST && !parsedUrl.hostname.endsWith(`.${CLOUDINARY_HOST}`)) {
+    return null
+  }
+
+  const uploadMarker = '/upload/'
+  const uploadIndex = parsedUrl.pathname.indexOf(uploadMarker)
+  if (uploadIndex === -1) {
+    return null
+  }
+
+  const tail = parsedUrl.pathname
+    .slice(uploadIndex + uploadMarker.length)
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+
+  if (!tail.length) {
+    return null
+  }
+
+  const versionIndex = tail.findIndex((segment) => /^v\d+$/i.test(segment))
+  const version =
+    versionIndex >= 0 ? normalizeMediaVersion(Number.parseInt(tail[versionIndex].slice(1), 10)) : DEFAULT_MEDIA_VERSION
+  const publicIdSegments = versionIndex >= 0 ? tail.slice(versionIndex + 1) : tail
+
+  if (!publicIdSegments.length) {
+    return null
+  }
+
+  return {
+    publicId: publicIdSegments.map((segment) => decodeURIComponent(segment)).join('/'),
+    version,
+  }
+}
+
+const normalizeProductImageInput = (image: ProductImageInput) => {
+  const publicId = image.publicId?.trim()
+  const parsed = publicId ? { publicId, version: normalizeMediaVersion(image.version) } : parseCloudinaryMediaReference(image.img)
+  return {
+    id: image.id,
+    name: image.name ?? image.alt ?? undefined,
+    alt: image.alt ?? image.name ?? undefined,
+    publicId: parsed?.publicId ?? publicId ?? undefined,
+    version: parsed?.version ?? normalizeMediaVersion(image.version),
+    img: image.img,
+  }
 }
 
 type NormalizedAttributeValue = {
@@ -159,6 +237,8 @@ export class SalesController {
     private prisma: PrismaService,
     private readonly parametricPricing: ParametricPricingService,
     private readonly m2DerivedProducts: M2DerivedProductsService,
+    private readonly storefront: StorefrontService,
+    private readonly nextRevalidation: NextRevalidationService,
   ) {}
 
   private async getTaxRate() {
@@ -186,6 +266,52 @@ export class SalesController {
   private safeTrim(value?: string | null): string {
     if (typeof value !== 'string') return ''
     return value.trim()
+  }
+
+  private resolveProductSlug(id: number, name?: string | null, productCode?: string | null) {
+    return buildProductSlug(id, name ?? undefined, productCode ?? undefined).toLowerCase()
+  }
+
+  private async resolveCategorySlug(categoryId?: number | null) {
+    if (!categoryId) {
+      return null
+    }
+    const category = await this.prisma.productCategory.findUnique({
+      where: { id: categoryId },
+      select: { id: true, name: true },
+    })
+    if (!category) {
+      return null
+    }
+    return buildCategorySlug(category.id, category.name).toLowerCase()
+  }
+
+  private async refreshProductSurface(
+    productId: number,
+    productSlugs: Array<string | null | undefined>,
+    categorySlugs: Array<string | null | undefined> = [],
+  ) {
+    const slugs = Array.from(
+      new Set(
+        productSlugs
+          .map((slug) => (typeof slug === 'string' ? slug.trim().toLowerCase() : ''))
+          .filter((slug) => slug.length > 0),
+      ),
+    )
+
+    const primarySlug = slugs[0] ?? null
+    await this.storefront.invalidateProductCache(productId, primarySlug)
+    for (const slug of slugs.slice(1)) {
+      await this.storefront.invalidatePublicCache(`storefront:product:${slug}`)
+    }
+    for (const slug of slugs) {
+      await this.storefront.invalidatePublicCache(`storefront:cms-page:product/${slug}`)
+    }
+    await this.nextRevalidation.revalidateProduct({
+      productId,
+      slug: primarySlug,
+      categorySlugs,
+    })
   }
 
   private toCanonicalKey(raw: string | undefined, fallback: string): string {
@@ -580,11 +706,16 @@ export class SalesController {
       const inheritImages =
         variant.inheritImages !== undefined ? Boolean(variant.inheritImages) : !hasImageOverride
       const images: ProductImageInput[] = hasImageOverride
-        ? variant.images!.map((image, imageIndex) => ({
-            id: image.id ?? `variant-img-${variantIndex + 1}-${imageIndex + 1}`,
-            name: this.safeTrim(image.name) || undefined,
-            img: image.img,
-          }))
+        ? variant.images!.map((image, imageIndex) =>
+            normalizeProductImageInput({
+              id: image.id ?? `variant-img-${variantIndex + 1}-${imageIndex + 1}`,
+              name: this.safeTrim(image.name) || undefined,
+              alt: this.safeTrim((image as { alt?: string | null }).alt) || undefined,
+              publicId: this.safeTrim((image as { publicId?: string | null }).publicId) || undefined,
+              version: (image as { version?: number | null }).version ?? undefined,
+              img: image.img,
+            }),
+          )
         : []
 
       return {
@@ -638,12 +769,16 @@ export class SalesController {
         // eslint-disable-next-line no-continue
         continue
       }
+      const normalizedImage = normalizeProductImageInput(image)
       await tx.productImage.create({
         data: {
           productId,
           variantId: null,
-          name: this.safeTrim(image.name) || null,
-          img: image.img,
+          name: this.safeTrim(normalizedImage.name) || null,
+          alt: this.safeTrim(normalizedImage.alt) || this.safeTrim(normalizedImage.name) || null,
+          publicId: normalizedImage.publicId ?? null,
+          version: normalizeMediaVersion(normalizedImage.version),
+          img: normalizedImage.img,
           sortOrder: index,
         },
       })
@@ -673,12 +808,16 @@ export class SalesController {
         // eslint-disable-next-line no-continue
         continue
       }
+      const normalizedImage = normalizeProductImageInput(image)
       await tx.productImage.create({
         data: {
           productId,
           variantId,
-          name: this.safeTrim(image.name) || null,
-          img: image.img,
+          name: this.safeTrim(normalizedImage.name) || null,
+          alt: this.safeTrim(normalizedImage.alt) || this.safeTrim(normalizedImage.name) || null,
+          publicId: normalizedImage.publicId ?? null,
+          version: normalizeMediaVersion(normalizedImage.version),
+          img: normalizedImage.img,
           sortOrder: index,
         },
       })
@@ -2371,6 +2510,9 @@ export class SalesController {
         images: variant.images.map((image, index) => ({
           id: String(image.id ?? `${variant.id}-${index}`),
           name: image.name ?? undefined,
+          alt: image.alt ?? image.name ?? undefined,
+          publicId: image.publicId ?? undefined,
+          version: image.version ?? undefined,
           img: image.img,
           sortOrder: image.sortOrder,
         })),
@@ -2380,6 +2522,9 @@ export class SalesController {
     const imgList = images.map((image) => ({
       id: String(image.id),
       name: image.name ?? undefined,
+      alt: image.alt ?? image.name ?? undefined,
+      publicId: image.publicId ?? undefined,
+      version: image.version ?? undefined,
       img: image.img,
     }))
 
@@ -2571,6 +2716,14 @@ export class SalesController {
         })
       }
     })
+    if (createdProductId) {
+      const categorySlug = await this.resolveCategorySlug(dto.categoryId ?? null)
+      await this.refreshProductSurface(
+        createdProductId,
+        [this.resolveProductSlug(createdProductId, dto.name, dto.productCode ?? undefined)],
+        categorySlug ? [categorySlug] : [],
+      )
+    }
     return {
       ok: true,
       productId: createdProductId,
@@ -2584,6 +2737,8 @@ export class SalesController {
       where: { id: dto.id },
       select: {
         id: true,
+        name: true,
+        productCode: true,
         salePrice: true,
         costPrice: true,
         stock: true,
@@ -2591,6 +2746,12 @@ export class SalesController {
         currency: true,
         mode: true,
         categoryId: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         installServiceProductId: true,
         installationResolutionMode: true,
         installationChargeScope: true,
@@ -2602,6 +2763,11 @@ export class SalesController {
     if (!existingProduct) {
       throw new BadRequestException('Product not found')
     }
+    const originalSlug = this.resolveProductSlug(
+      existingProduct.id,
+      existingProduct.name,
+      existingProduct.productCode,
+    )
 
     const nextMode = dto.mode ? this.normalizeProductMode(dto.mode) : existingProduct.mode
     let normalizedAttributes: NormalizedAttribute[] = []
@@ -2865,6 +3031,21 @@ export class SalesController {
         },
       })
     })
+    const updatedSlug = this.resolveProductSlug(
+      dto.id,
+      dto.name ?? existingProduct.name,
+      dto.productCode ?? existingProduct.productCode,
+    )
+    const originalCategorySlug = existingProduct.category
+      ? buildCategorySlug(existingProduct.category.id, existingProduct.category.name).toLowerCase()
+      : null
+    const updatedCategorySlug =
+      dto.categoryId === undefined ? originalCategorySlug : await this.resolveCategorySlug(dto.categoryId)
+    await this.refreshProductSurface(
+      dto.id,
+      [originalSlug, updatedSlug],
+      Array.from(new Set([originalCategorySlug, updatedCategorySlug].filter(Boolean) as string[])),
+    )
     return true
   }
 
@@ -2872,7 +3053,32 @@ export class SalesController {
   async deleteProducts(@Body() body: { id: string | string[] }) {
     const ids = Array.isArray(body.id) ? body.id : [body.id]
     const numIds = ids.map((x) => Number(x)).filter(Boolean)
+    const products = await this.prisma.product.findMany({
+      where: { id: { in: numIds } },
+      select: {
+        id: true,
+        name: true,
+        productCode: true,
+        category: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    })
     await this.prisma.product.deleteMany({ where: { id: { in: numIds } } })
+    await Promise.all(
+      products.map((product) =>
+        this.refreshProductSurface(
+          product.id,
+          [this.resolveProductSlug(product.id, product.name, product.productCode)],
+          product.category
+            ? [buildCategorySlug(product.category.id, product.category.name).toLowerCase()]
+            : [],
+        ),
+      ),
+    )
     return true
   }
 }

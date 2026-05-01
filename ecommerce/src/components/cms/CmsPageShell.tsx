@@ -17,6 +17,7 @@ import SectionStories from "@sections/market-1/SectionStories";
 import SectionCmsHighlights from "@sections/market-1/SectionCmsHighlights";
 import BudgetCalculatorPanel from "@/components/budget/BudgetCalculatorPanel";
 import { ProductCard1 } from "@component/product-cards";
+import { buildMediaAnchor, normalizeMediaAnchor } from "@/lib/media-anchor";
 import type {
   CmsContentSection,
   CmsRenderableMedia,
@@ -424,6 +425,7 @@ type SocialPostItem = {
   mediaType: "image" | "video";
   kind: string;
   posterUrl?: string | null;
+  anchor: string;
   author: string;
   handle?: string | null;
   avatarUrl?: string | null;
@@ -447,6 +449,13 @@ const buildSocialPost = (
     pickMediaUrl(block.media);
   if (!title && !mediaUrl) return null;
 
+  const anchor = buildMediaAnchor({
+    title,
+    publicId: mediaUrl,
+    kind: asString(content.kind) || asString(block.type).toLowerCase() || "post",
+    order: block.sortOrder,
+  });
+
   return {
     id: String(block.id),
     title: title || "Post",
@@ -461,9 +470,10 @@ const buildSocialPost = (
     comments: asString(content.comments) || null,
     timestamp: asString(content.timestamp) || asString(content.time) || null,
     tags: asArray<unknown>(content.tags).map((item) => asString(item)).filter(Boolean),
-    link: asString(content.link) || asString(content.href),
+    link: asString(content.link) || `#${anchor}`,
     external: asBoolean(content.external, false),
     kind: asString(content.kind) || asString(block.type).toLowerCase() || "post",
+    anchor,
   };
 };
 
@@ -596,25 +606,23 @@ const SocialFeedSection = ({ section }: { section: CmsRenderableSection }) => {
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [activePostIndex, setActivePostIndex] = useState<number | null>(null);
   const getPostIndexFromHash = (hash: string) => {
-    const normalizedHash = hash.trim().replace(/^#/, "");
+    const normalizedHash = normalizeMediaAnchor(hash);
     if (!normalizedHash) return null;
     const index = galleryPosts.findIndex((post) => {
-      const postHash = (post.link || "").trim().replace(/^#/, "");
-      return postHash && postHash === normalizedHash;
+      return post.anchor === normalizedHash || normalizeMediaAnchor(post.link || "") === normalizedHash;
     });
     return index >= 0 ? index : null;
   };
   const openPost = (index: number) => {
     setActivePostIndex(index);
     const post = galleryPosts[index];
-    const postHash = (post?.link || "").trim();
-    if (postHash) {
-      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${postHash}`);
+    if (post?.anchor) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${post.anchor}`);
     }
   };
   const closePost = () => {
     setActivePostIndex(null);
-    if (window.location.hash.startsWith("#post-")) {
+    if (window.location.hash) {
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
     }
   };
@@ -777,42 +785,32 @@ const SocialFeedSection = ({ section }: { section: CmsRenderableSection }) => {
           <div className={styles.socialProfileGallery}>
             {galleryPosts.map((post, index) => {
               const tile = (
-                <>
-                  <div className={styles.socialProfileTileMedia}>
-                    {post.mediaType === "video" ? (
-                      <video
-                        className={styles.socialProfileTileMediaElement}
-                        loop
-                        muted
-                        playsInline
-                        preload="metadata"
-                        poster={post.posterUrl || undefined}>
-                        <source src={post.mediaUrl} />
-                      </video>
-                    ) : (
-                      <NextImage
-                        alt={post.title}
-                        className={styles.socialProfileTileMediaElement}
-                        fill
-                        sizes="(max-width: 768px) 50vw, 33vw"
-                        src={post.mediaUrl}
-                      />
-                    )}
-                    <div className={styles.socialProfileTileOverlay}>
-                      <span className={styles.socialProfileTileBadge}>
-                        {post.kind.toLowerCase() === "reel" ? "Reel" : post.mediaType === "video" ? "Video" : "Foto"}
-                      </span>
-                      <strong>{post.title}</strong>
-                      {post.caption ? <span>{post.caption}</span> : null}
-                    </div>
-                  </div>
-                </>
+                <div className={styles.socialProfileTileMedia}>
+                  {post.mediaType === "video" ? (
+                    <NextImage
+                      alt={post.title}
+                      className={styles.socialProfileTileMediaElement}
+                      fill
+                      sizes="(max-width: 768px) 50vw, 33vw"
+                      src={post.posterUrl || post.mediaUrl}
+                    />
+                  ) : (
+                    <NextImage
+                      alt={post.title}
+                      className={styles.socialProfileTileMediaElement}
+                      fill
+                      sizes="(max-width: 768px) 50vw, 33vw"
+                      src={post.mediaUrl}
+                    />
+                  )}
+                </div>
               );
 
               if (!post.link) {
                 return (
                   <button
                     className={styles.socialProfileTile}
+                    aria-label={post.title}
                     key={post.id}
                     onClick={() => openPost(index)}
                     type="button">
@@ -825,6 +823,7 @@ const SocialFeedSection = ({ section }: { section: CmsRenderableSection }) => {
                 return (
                   <button
                     className={styles.socialProfileTile}
+                    aria-label={post.title}
                     key={post.id}
                     onClick={() => openPost(index)}
                     type="button">

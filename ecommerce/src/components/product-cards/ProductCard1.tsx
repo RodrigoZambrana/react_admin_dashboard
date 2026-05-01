@@ -239,7 +239,7 @@ function ProductCard1({
 
       if (mode === "parametric" && (!resolvedConfiguration || !resolvedSelectionSummary) && slug) {
         try {
-          const detail = await StorefrontApi.getProduct(slug);
+          const detail = await StorefrontApi.getProduct(slug, slug);
           const defaultConfiguration = detail.publishedParametricOptions?.defaultConfiguration;
           const defaultSummary = defaultConfiguration
             ? buildPublishedParametricSummaryEntries(defaultConfiguration, t, {

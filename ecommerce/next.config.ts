@@ -33,7 +33,9 @@ const remotePatterns = [
   toRemotePattern(process.env.NEXT_PUBLIC_STOREFRONT_API_URL),
   toRemotePattern(process.env.STOREFRONT_API_URL),
   toRemotePattern(process.env.NEXT_PUBLIC_SITE_URL),
+  toRemotePattern(process.env.NEXT_PUBLIC_MEDIA_BASE_URL),
   { protocol: "https" as const, hostname: "cloudflare-ipfs.com" },
+  { protocol: "https" as const, hostname: "res.cloudinary.com" },
   { protocol: "https" as const, hostname: "**.googleusercontent.com" },
   { protocol: "http" as const, hostname: "localhost" },
   { protocol: "https" as const, hostname: "localhost" },
@@ -56,6 +58,10 @@ const backendOrigin =
   "http://localhost:4000";
 
 const legacyAssetRewrites = [
+  {
+    source: "/media/:path*",
+    destination: `${backendOrigin}/media/:path*`
+  },
   {
     source: "/uploads/:path*",
     destination: `${backendOrigin}/uploads/:path*`

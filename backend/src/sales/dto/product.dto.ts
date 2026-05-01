@@ -19,6 +19,19 @@ class ProductImagePayload {
   @IsSafeString()
   name?: string
 
+  @IsOptional()
+  @IsSafeString()
+  alt?: string
+
+  @IsOptional()
+  @IsSafeString()
+  publicId?: string
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  version?: number
+
   @IsSafeString()
   img!: string
 }

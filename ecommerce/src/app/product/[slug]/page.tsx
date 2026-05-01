@@ -1,9 +1,8 @@
-import { Fragment } from "react";
+import { Fragment, cache } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ProductDetailExperience from "@component/products/ProductDetailExperience";
 import type Product from "@models/product.model";
-import type Shop from "@models/shop.model";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { buildProductMetadata, buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import { getStorefrontConfig } from "@/lib/storefront-config";
@@ -57,12 +56,26 @@ const collectProductIdentifiers = (slug: string, searchParams?: ProductPageSearc
   return identifiers;
 };
 
-const resolveProductDetail = async (slug: string, searchParams?: ProductPageSearchParams) => {
+const buildSearchKey = (searchParams?: ProductPageSearchParams) =>
+  [coerceParamToString(searchParams?.id) ?? "", coerceParamToString(searchParams?.productId) ?? ""].join("|");
+
+const loadProductPageData = cache(async (slug: string, searchKey: string) => {
+  const [searchId, searchProductId] = searchKey.split("|");
+  const searchParams: ProductPageSearchParams | undefined =
+    searchId.length || searchProductId.length
+      ? {
+          id: searchId.length ? searchId : undefined,
+          productId: searchProductId.length ? searchProductId : undefined,
+        }
+      : undefined;
   const identifierCandidates = collectProductIdentifiers(slug, searchParams);
+
+  let productDetail: ProductDetail | null = null;
 
   for (const identifier of identifierCandidates) {
     try {
-      return await StorefrontApi.getProduct(identifier);
+      productDetail = await StorefrontApi.getProduct(identifier, slug);
+      break;
     } catch (error) {
       if (isApiError(error) && error.status === 404) {
         continue;
@@ -72,8 +85,45 @@ const resolveProductDetail = async (slug: string, searchParams?: ProductPageSear
     }
   }
 
-  return null;
-};
+  if (!productDetail) {
+    return null;
+  }
+
+  const product = mapProductDetailToProduct(productDetail);
+  const frequentlyBought = Array.isArray(productDetail.frequentlyBoughtTogether)
+    ? productDetail.frequentlyBoughtTogether.map(mapProductSummaryToProduct)
+    : [];
+
+  let relatedProducts: Product[] = [];
+  try {
+    const recommendations = await StorefrontApi.getRecommendations(productDetail.id, 8);
+    if (recommendations.length > 0) {
+      relatedProducts = recommendations.map(mapProductSummaryToProduct);
+    }
+  } catch (recommendationError) {
+    if (!isApiError(recommendationError)) {
+      console.warn("[product] Failed to load recommendations.", recommendationError);
+    }
+  }
+
+  if (Array.isArray(productDetail.relatedProducts) && productDetail.relatedProducts.length > 0) {
+    relatedProducts = productDetail.relatedProducts.map(mapProductSummaryToProduct);
+  }
+
+  const [storefrontConfig, cmsPage] = await Promise.all([
+    getStorefrontConfig(),
+    StorefrontApi.getCmsPage(`product/${slug}`).catch(() => null),
+  ]);
+
+  return {
+    productDetail,
+    product,
+    relatedProducts,
+    frequentlyBought,
+    storefrontConfig,
+    cmsPage,
+  };
+});
 
 export async function generateMetadata({
   params,
@@ -84,9 +134,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const resolvedParams = await params;
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
-  const productDetail = await resolveProductDetail(resolvedParams.slug, resolvedSearchParams);
+  const productData = await loadProductPageData(resolvedParams.slug, buildSearchKey(resolvedSearchParams));
 
-  if (!productDetail) {
+  if (!productData) {
     return buildStorefrontPageMetadata({
       title: "Producto no disponible",
       description: "No pudimos resolver la ficha del producto solicitado.",
@@ -95,7 +145,7 @@ export async function generateMetadata({
     });
   }
 
-  return buildProductMetadata(productDetail, resolvedParams.slug);
+  return buildProductMetadata(productData.productDetail, resolvedParams.slug);
 }
 
 export default async function ProductDetails({
@@ -109,46 +159,15 @@ export default async function ProductDetails({
   const resolvedSearchParams = searchParams ? await searchParams : undefined;
 
   const { slug } = resolvedParams;
+  const productData = await loadProductPageData(slug, buildSearchKey(resolvedSearchParams));
 
-  let productDetail: ProductDetail | null = null;
-  let product: Product | null = null;
-  let relatedProducts: Product[] = [];
-  let frequentlyBought: Product[] = [];
-  let shops: Shop[] = [];
-
-  productDetail = await resolveProductDetail(slug, resolvedSearchParams);
-
-  if (productDetail) {
-    product = mapProductDetailToProduct(productDetail);
-    frequentlyBought = Array.isArray(productDetail.frequentlyBoughtTogether)
-      ? productDetail.frequentlyBoughtTogether.map(mapProductSummaryToProduct)
-      : [];
-
-    try {
-      const recommendations = await StorefrontApi.getRecommendations(productDetail.id, 8);
-      if (recommendations.length > 0) {
-        relatedProducts = recommendations.map(mapProductSummaryToProduct);
-      }
-    } catch (recommendationError) {
-      if (!isApiError(recommendationError)) {
-        console.warn("[product] Failed to load recommendations.", recommendationError);
-      }
-    }
-
-    if (Array.isArray(productDetail.relatedProducts) && productDetail.relatedProducts.length > 0) {
-      relatedProducts = productDetail.relatedProducts.map(mapProductSummaryToProduct);
-    }
-  }
-
-  if (!product) {
+  if (!productData) {
     notFound();
   }
 
-  const storefrontConfig = await getStorefrontConfig();
-  const cmsPage = await StorefrontApi.getCmsPage(`product/${slug}`).catch(() => null);
-  const safeProductDetail = productDetail as ProductDetail;
+  const { product, productDetail, relatedProducts, frequentlyBought, storefrontConfig, cmsPage } = productData;
   const structuredData = [
-    buildProductJsonLd(storefrontConfig, safeProductDetail, resolvedParams.slug),
+    buildProductJsonLd(storefrontConfig, productDetail, resolvedParams.slug),
     buildProductBreadcrumbs(storefrontConfig, { slug: product.slug, title: product.title }),
   ];
 
@@ -158,7 +177,7 @@ export default async function ProductDetails({
       <ProductViewAnalytics product={product} />
       <ProductDetailExperience
         product={product}
-        shops={shops}
+        shops={[]}
         relatedProducts={relatedProducts}
         frequentlyBought={frequentlyBought}
         suggestedAddOns={

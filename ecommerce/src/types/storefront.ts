@@ -9,6 +9,8 @@ export interface Money {
 export interface ImageAsset {
   id: string;
   url: string;
+  publicId?: string | null;
+  version?: number | null;
   alt?: string;
   width?: number;
   height?: number;
@@ -261,6 +263,8 @@ export interface CmsContentAsset {
   title?: string | null;
   caption?: string | null;
   mediaType: CmsContentAssetType;
+  publicId?: string | null;
+  version?: number | null;
   mediaUrl: string;
   posterUrl?: string | null;
   externalUrl?: string | null;
@@ -302,6 +306,8 @@ export interface CmsContentSection {
 export interface CmsRenderableMedia {
   id: number;
   url: string;
+  publicId?: string | null;
+  version?: number | null;
   type: string;
   alt?: string | null;
   title?: string | null;
@@ -434,6 +440,39 @@ export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
   attributes?: ProductAttributeDefinition[];
   variants?: ProductVariant[];
   publishedParametricOptions?: PublishedParametricOptions;
+}
+
+export interface StorefrontProductMediaItem {
+  slug?: string | null;
+  public_id: string;
+  type: "image" | "video";
+  order: number;
+  name?: string | null;
+  alt?: string | null;
+  familyKey?: string | null;
+  version?: number | null;
+}
+
+export interface StorefrontProductMediaStoryItem {
+  id: string;
+  title: string;
+  caption?: string | null;
+  mediaSlug: string;
+  public_id: string;
+  type: "image" | "video";
+  order: number;
+  alt?: string | null;
+  version?: number | null;
+}
+
+export interface StorefrontProductMediaResponse {
+  product: {
+    id: number;
+    slug: string;
+    name: string;
+  };
+  media: StorefrontProductMediaItem[];
+  stories: StorefrontProductMediaStoryItem[];
 }
 
 export type BudgetMeasurementType = "M2";

@@ -1,0 +1,14 @@
+{
+  "products": [
+    {
+      "slug": "cortinas-roller",
+      "path": "/Users/rodrigo/Media/Roller"
+    },
+    {
+      "slug": "persianas-madera",
+      "path": "./dropbox-sync/madera",
+      "basePath": "images/variantes",
+      "tags": ["premium"]
+    }
+  ]
+}

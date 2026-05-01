@@ -132,14 +132,13 @@
             "handle": "@urucortinas",
             "avatarUrl": "/assets/images/logos/logo.png",
             "title": "Composición limpia",
-            "caption": "Una foto para mostrar materialidad y profundidad.",
             "mediaUrl": "/assets/images/banners/banner-14.jpg",
             "mediaType": "image",
             "likes": "1,204 likes",
             "comments": "18 comments",
             "timestamp": "2h",
             "tags": ["photo", "detail", "editorial"],
-            "link": "#post-01"
+            "link": "#composicion-limpia"
           },
           "media": {
             "id": 9434,
@@ -161,14 +160,13 @@
             "handle": "@urucortinas",
             "avatarUrl": "/assets/images/logos/logo.png",
             "title": "Detalle y contraste",
-            "caption": "Más legibilidad, más foco visual.",
             "mediaUrl": "/assets/images/banners/banner-20.jpg",
             "mediaType": "image",
             "likes": "1,021 likes",
             "comments": "11 comments",
             "timestamp": "1d",
             "tags": ["photo", "contrast", "visual"],
-            "link": "#post-02"
+            "link": "#detalle-y-contraste"
           },
           "media": {
             "id": 9435,
@@ -190,7 +188,6 @@
             "handle": "@urucortinas",
             "avatarUrl": "/assets/images/logos/logo.png",
             "title": "Video corto de uso",
-            "caption": "Un corte breve para demostrar apertura y movimiento.",
             "mediaUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
             "mediaType": "video",
             "thumbnail": "/assets/images/banners/banner-18.jpg",
@@ -198,7 +195,7 @@
             "comments": "12 comments",
             "timestamp": "5h",
             "tags": ["video", "demo", "motion"],
-            "link": "#post-03"
+            "link": "#video-corto-de-uso"
           },
           "media": {
             "id": 9436,
@@ -220,7 +217,6 @@
             "handle": "@urucortinas",
             "avatarUrl": "/assets/images/logos/logo.png",
             "title": "Reel de producto",
-            "caption": "Movimiento corto con foco en la textura del material.",
             "mediaUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
             "mediaType": "video",
             "thumbnail": "/assets/images/banners/banner-16.jpg",
@@ -228,7 +224,7 @@
             "comments": "33 comments",
             "timestamp": "1d",
             "tags": ["reel", "product", "motion"],
-            "link": "#post-04"
+            "link": "#reel-de-producto"
           },
           "media": {
             "id": 9437,

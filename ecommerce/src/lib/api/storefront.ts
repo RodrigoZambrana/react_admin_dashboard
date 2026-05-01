@@ -29,11 +29,13 @@ import type {
   BudgetLeadRequest,
   BudgetLeadResponse,
   BudgetSummaryRequest,
-  BudgetSummaryResponse
+  BudgetSummaryResponse,
+  StorefrontProductMediaResponse
 } from "@/types/storefront";
 import type { OrderTimelineResponse } from "@/types/orderTimeline";
 
 import { env } from "@/lib/env";
+import { getImageUrl } from "@/lib/cloudinary";
 import { apiFetch, isApiError } from "../http";
 import { loadStorefrontSnapshot } from "@/lib/snapshots/loaders";
 import { isSnapshotFallbackEnabled } from "@/lib/resilience-flags";
@@ -106,7 +108,7 @@ const loadAllStorefrontProducts = async (): Promise<ProductSummary[]> => {
       page: 1,
       pageSize: 48,
     },
-    cache: "no-store",
+    ...buildPublicCacheOptions(["products"]),
   });
 
   const responses: typeof firstPage[] = [firstPage];
@@ -120,7 +122,7 @@ const loadAllStorefrontProducts = async (): Promise<ProductSummary[]> => {
             page,
             pageSize: 48,
           },
-          cache: "no-store",
+          ...buildPublicCacheOptions(["products"]),
         }),
       ),
     );
@@ -141,6 +143,22 @@ const budgetApiOrigin = new URL(env.apiBaseUrl).origin;
 const budgetApiBaseUrl = `${budgetApiOrigin}/api/budget/`;
 const budgetApiUrl = (path: string) => new URL(path, budgetApiBaseUrl).toString();
 
+const PUBLIC_REVALIDATE_SECONDS = 300;
+
+const buildPublicCacheOptions = (tags: string[] = []) => ({
+  cache: "force-cache" as const,
+  next: {
+    revalidate: PUBLIC_REVALIDATE_SECONDS,
+    tags,
+  },
+});
+
+const buildPublicTag = (...parts: Array<string | number | null | undefined>) =>
+  parts
+    .map((part) => (part === null || part === undefined ? "" : String(part).trim()))
+    .filter((part) => part.length > 0)
+    .join(":");
+
 type DerivedProductPayload = {
   id: string;
   baseProductId: number;
@@ -151,6 +169,8 @@ type DerivedProductPayload = {
   images: Array<{
     id: number | string;
     url: string;
+    publicId?: string | null;
+    version?: number | null;
     alt?: string | null;
   }>;
   width: number;
@@ -181,7 +201,13 @@ const toInventoryStatus = (stock: number): ProductSummary["inventoryStatus"] => 
 };
 
 const mapDerivedProductToSummary = (product: DerivedProductPayload): ProductSummary => {
-  const thumbnailUrl = product.images[0]?.url ?? null;
+  const firstImage = product.images[0] ?? null;
+  const thumbnailUrl = firstImage?.publicId
+    ? getImageUrl(firstImage.publicId, {
+        version: firstImage.version ?? 1,
+        size: "card",
+      })
+    : firstImage?.url ?? null;
   const money = {
     amount: product.totalPrice,
     currency: product.currency,
@@ -196,14 +222,19 @@ const mapDerivedProductToSummary = (product: DerivedProductPayload): ProductSumm
     price: money,
     salePrice: money,
     inventoryStatus: toInventoryStatus(product.stock),
-    thumbnail: thumbnailUrl
+      thumbnail: thumbnailUrl
       ? {
           id: `${product.id}-thumbnail`,
           url: thumbnailUrl,
+          publicId: firstImage?.publicId ?? null,
+          version: firstImage?.version ?? null,
           alt: product.images[0]?.alt ?? product.name,
         }
       : undefined,
-    categories: product.categories ?? [],
+    categories: (product.categories ?? []).map((category) => ({
+      ...category,
+      productCount: 0,
+    })),
     tags: product.tags ?? [],
     mode: "simple",
     measurementType: product.measurementType ?? "M2",
@@ -395,34 +426,34 @@ export const StorefrontApi = {
   async getConfig(slug?: string): Promise<StorefrontConfig> {
     return apiFetch<StorefrontConfig>("config", {
       params: slug ? { clientSlug: slug } : undefined,
-      cache: "no-store"
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "config", slug ?? "default")])
     });
   },
 
   async getHomeLayout(layoutKey: string): Promise<HomeLayoutDefinition> {
     return apiFetch<HomeLayoutDefinition>(`home-layouts/${encodeURIComponent(layoutKey)}`, {
-      cache: "no-store"
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "home-layout", layoutKey)])
     });
   },
 
   async getContentSection(sectionKey: string, locale?: string): Promise<CmsContentSection> {
     return apiFetch<CmsContentSection>(`content/sections/${encodeURIComponent(sectionKey)}`, {
       params: locale ? { locale } : undefined,
-      cache: "no-store"
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "content-section", sectionKey, locale ?? "default")])
     });
   },
 
   async listContentSections(locale?: string): Promise<CmsContentSection[]> {
     return apiFetch<CmsContentSection[]>("content/sections", {
       params: locale ? { locale } : undefined,
-      cache: "no-store"
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "content-sections", locale ?? "default")])
     });
   },
 
   async listCmsPages(locale?: string): Promise<CmsPublicPageSummary[]> {
     return apiFetch<CmsPublicPageSummary[]>("content/pages", {
       params: locale ? { locale } : undefined,
-      cache: "no-store",
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "cms-pages", locale ?? "default")]),
     });
   },
 
@@ -432,7 +463,7 @@ export const StorefrontApi = {
         path,
         ...(locale ? { locale } : {}),
       },
-      cache: "no-store",
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "cms-page", path, locale ?? "default")]),
     });
   },
 
@@ -442,7 +473,7 @@ export const StorefrontApi = {
         const [baseProducts, derivedProducts] = await Promise.all([
           loadAllStorefrontProducts(),
           apiFetch<DerivedProductPayload[]>("m2-derived", {
-            cache: "no-store",
+            ...buildPublicCacheOptions([buildPublicTag("storefront", "m2-derived")]),
           }),
         ]);
 
@@ -488,7 +519,10 @@ export const StorefrontApi = {
           sort: query.sort,
           tag: query.tag
         },
-        cache: "no-store"
+        ...buildPublicCacheOptions([
+          "products",
+          ...(query.categorySlug ? [`category:${query.categorySlug}`] : [])
+        ])
       });
     } catch (error) {
       if (isSnapshotFallbackEnabled()) {
@@ -511,27 +545,43 @@ export const StorefrontApi = {
     }
   },
 
-  async getProduct(slugOrId: string): Promise<ProductDetail> {
+  async getProduct(slugOrId: string, tagSlug?: string): Promise<ProductDetail> {
     return apiFetch<ProductDetail>(`products/${encodeURIComponent(slugOrId)}`, {
-      cache: "no-store"
+      ...buildPublicCacheOptions([`product:${tagSlug ?? slugOrId}`, "products"])
     });
+  },
+
+  async getProductMedia(slugOrId: string, tagSlug?: string): Promise<StorefrontProductMediaResponse> {
+    return apiFetch<StorefrontProductMediaResponse>(`products/${encodeURIComponent(slugOrId)}/media`, {
+      ...buildPublicCacheOptions([`product:${tagSlug ?? slugOrId}`, "products"])
+    });
+  },
+
+  async listProductsWithMedia(): Promise<StorefrontProductMediaResponse[]> {
+    return apiFetch<StorefrontProductMediaResponse[]>("products-with-media", {
+      ...buildPublicCacheOptions(["products"])
+    });
+  },
+
+  async listAllProducts(): Promise<ProductSummary[]> {
+    return loadAllStorefrontProducts();
   },
 
   async listShippingOptions(): Promise<StorefrontShippingOption[]> {
     return apiFetch<StorefrontShippingOption[]>("shipping-options", {
-      cache: "no-store"
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "shipping-options")])
     });
   },
 
   async getProductParametricConfig(productId: number): Promise<ParametricConfigSnapshot> {
     return apiFetch<ParametricConfigSnapshot>(`products/${productId}/parametric-config`, {
-      cache: "no-store"
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "product-parametric-config", productId)])
     });
   },
 
   async listBudgetProducts(): Promise<BudgetProductSummary[]> {
     return apiFetch<BudgetProductSummary[]>(budgetApiUrl("products"), {
-      cache: "no-store"
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "budget-products")])
     });
   },
 
@@ -589,7 +639,7 @@ export const StorefrontApi = {
   async listCategories(): Promise<CategorySummary[]> {
     try {
       return await apiFetch<CategorySummary[]>("categories", {
-        cache: "no-store"
+        ...buildPublicCacheOptions([buildPublicTag("storefront", "categories")])
       });
     } catch (error) {
       if (isSnapshotFallbackEnabled()) {
@@ -609,7 +659,7 @@ export const StorefrontApi = {
   async getRecommendations(productId: number, limit = 8): Promise<ProductSummary[]> {
     return apiFetch<ProductSummary[]>(`products/${productId}/recommendations`, {
       params: { limit },
-      cache: "no-store"
+      ...buildPublicCacheOptions(["products"])
     });
   },
 

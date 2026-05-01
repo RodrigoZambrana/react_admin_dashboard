@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
 import type Product from "@models/product.model";
@@ -68,23 +69,19 @@ const secondaryStyle = {
 
 export default function ProductMultimediaCta({ product }: Props) {
   const cover = product.thumbnail || product.images?.[0] || "";
-  const multimediaHomeHref = `/mock/multimedia?product=${encodeURIComponent(product.slug)}`;
-  const multimediaDetailHref = `/mock/multimedia/v1?product=${encodeURIComponent(product.slug)}`;
+  const multimediaDetailHref = `/multimedia/${encodeURIComponent(product.slug)}`;
 
   return (
     <section style={shellStyle}>
       <div style={mediaStyle}>
         {cover ? (
-          <img
+          <Image
             alt={product.title}
             src={cover}
-            style={{
-              position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
+            fill
+            sizes="(max-width: 768px) 100vw, 520px"
+            style={{ objectFit: "cover" }}
+            priority={false}
           />
         ) : null}
       </div>
@@ -102,11 +99,11 @@ export default function ProductMultimediaCta({ product }: Props) {
       </div>
 
       <div style={actionsStyle}>
-        <Link href={multimediaHomeHref} style={primaryStyle}>
-          Abrir home multimedia
+        <Link href={multimediaDetailHref} style={primaryStyle}>
+          Ver multimedia
         </Link>
-        <Link href={multimediaDetailHref} style={secondaryStyle}>
-          Ver detalle multimedia
+        <Link href={`/product/${encodeURIComponent(product.slug)}`} style={secondaryStyle}>
+          Volver al producto
         </Link>
       </div>
     </section>

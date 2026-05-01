@@ -20,6 +20,8 @@ import { M2DerivedProductCacheService } from './m2-derived-product.cache'
 import { M2DerivedProductsService } from './m2-derived-products.service'
 import { M2DerivedProductStockService } from './m2-derived-product-stock.service'
 import { M2DerivedController } from './m2-derived.controller'
+import { PublicResponseCacheService } from '../common/cache/public-response-cache.service'
+import { NextRevalidationService } from '../common/cache/next-revalidation.service'
 
 @Module({
   imports: [
@@ -45,7 +47,15 @@ import { M2DerivedController } from './m2-derived.controller'
     M2DerivedProductCacheService,
     M2DerivedProductStockService,
     M2DerivedProductsService,
+    PublicResponseCacheService,
+    NextRevalidationService,
   ],
-  exports: [MercadoPagoService, M2DerivedProductsService],
+  exports: [
+    StorefrontService,
+    MercadoPagoService,
+    M2DerivedProductsService,
+    PublicResponseCacheService,
+    NextRevalidationService,
+  ],
 })
 export class StorefrontModule {}

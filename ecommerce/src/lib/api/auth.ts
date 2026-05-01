@@ -1,6 +1,11 @@
 import { env } from "@/lib/env";
 import { ApiError, StandardErrorEnvelope, createCorrelationId } from "@/lib/http";
 import type {
+  CloudinaryUploadSignatureResponse,
+  CloudinaryUploadType,
+  MediaProviderConfig,
+} from "@/types/cloudinary-upload";
+import type {
   PhoneAuthRecoverResponse,
   PhoneAuthRegisterResponse,
   PhoneAuthResetResponse,
@@ -60,6 +65,17 @@ async function authFetch<T>(path: string, options: RequestOptions = {}): Promise
 }
 
 export const AuthApi = {
+  getAuthConfig() {
+    return authFetch<{ recaptcha?: unknown; google?: unknown; media: MediaProviderConfig }>("/auth/config");
+  },
+
+  getCloudinaryUploadSignature(payload: { productId: number; type: CloudinaryUploadType }) {
+    return authFetch<CloudinaryUploadSignatureResponse>("/cloudinary/sign", {
+      method: "POST",
+      body: payload,
+    });
+  },
+
   register(payload: {
     phone: string;
     email?: string | null;
@@ -104,4 +120,3 @@ export const AuthApi = {
     });
   },
 };
-

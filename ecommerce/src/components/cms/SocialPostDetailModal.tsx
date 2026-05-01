@@ -107,7 +107,6 @@ export default function SocialPostDetailModal({ open, posts, initialIndex, onClo
   const renderDesktopMedia = () =>
     activePost.mediaType === "video" ? (
       <video
-        autoPlay
         controls
         muted
         playsInline
@@ -130,7 +129,6 @@ export default function SocialPostDetailModal({ open, posts, initialIndex, onClo
   const renderCompactMedia = () =>
     activePost.mediaType === "video" ? (
       <video
-        autoPlay
         controls
         muted
         playsInline
@@ -338,27 +336,6 @@ export default function SocialPostDetailModal({ open, posts, initialIndex, onClo
                   #{tag}
                 </span>
               ))}
-            </div>
-          ) : null}
-
-          {!isCompact ? (
-            <div className={styles.socialPostDetailList}>
-              {posts.map((post, index) => {
-                const isActive = index === activeIndex;
-                return (
-                  <button
-                    className={isActive ? styles.socialPostDetailListItemActive : styles.socialPostDetailListItem}
-                    key={post.id}
-                    onClick={() => setActiveIndex(index)}
-                    type="button">
-                    <span className={styles.socialPostDetailListTitle}>{post.title}</span>
-                    <span className={styles.socialPostDetailListMeta}>
-                      {post.mediaType}
-                      {post.timestamp ? ` · ${post.timestamp}` : ""}
-                    </span>
-                  </button>
-                );
-              })}
             </div>
           ) : null}
 

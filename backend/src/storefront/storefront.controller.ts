@@ -17,6 +17,7 @@ import {
   UseGuards,
   BadRequestException,
   UnauthorizedException,
+  Header,
 } from '@nestjs/common'
 import { StorefrontService } from './storefront.service'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
@@ -70,6 +71,7 @@ export class StorefrontController {
   }
 
   @Get('config')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   getConfig() {
     return this.storefront.getConfig()
   }
@@ -80,21 +82,25 @@ export class StorefrontController {
   }
 
   @Get('home-layouts/:key')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   getHomeLayout(@Param('key') key: string) {
     return this.storefront.getHomeLayout(key)
   }
 
   @Get('content/sections')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   listContentSections(@Query('locale') locale?: string) {
     return this.storefront.listContentSections(locale)
   }
 
   @Get('content/pages')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   listContentPages(@Query('locale') locale?: string) {
     return this.storefront.listCmsPages(locale)
   }
 
   @Get('content/pages/resolve')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   getCmsPage(
     @Query('path') path?: string,
     @Query('locale') locale?: string,
@@ -103,32 +109,50 @@ export class StorefrontController {
   }
 
   @Get('categories')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   listCategories(): Promise<StorefrontCategoryTree[]> {
     return this.storefront.listCategories()
   }
 
   @Get('shipping-options')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   listShippingOptions() {
     return this.storefront.listShippingOptions()
   }
 
   @Get('products')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   listProducts(@Query() query: StorefrontProductQueryDto) {
     return this.storefront.listProducts(query)
   }
 
+  @Get('products/:identifier/media')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+  getProductMedia(@Param('identifier') identifier: string) {
+    return this.storefront.getProductMedia(identifier)
+  }
+
+  @Get('products-with-media')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+  getProductsWithMedia() {
+    return this.storefront.listProductsWithMedia()
+  }
+
   @Get('products/:identifier')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   getProduct(@Param('identifier') identifier: string) {
     return this.storefront.getProduct(identifier)
   }
 
   @Get('products/:id/recommendations')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   getRecommendations(@Param('id', ParseIntPipe) id: number, @Query('limit') limit?: string) {
     const parsedLimit = limit ? Number.parseInt(limit, 10) : undefined
     return this.storefront.getRecommendations(id, Number.isNaN(parsedLimit) ? 8 : parsedLimit)
   }
 
   @Get('products/:id/parametric-config')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   getParametricConfig(@Param('id', ParseIntPipe) id: number) {
     return this.storefront.getParametricProductConfig(id)
   }

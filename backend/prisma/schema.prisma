@@ -966,6 +966,10 @@ model ProductImage {
   variantId Int?
   variant   ProductVariant? @relation("ProductVariantImages", fields: [variantId], references: [id], onDelete: Cascade)
   name      String?
+  alt       String?
+  familyKey String?
+  publicId  String?
+  version   Int             @default(1)
   img       String
   sortOrder Int             @default(0)
 
@@ -1147,6 +1151,9 @@ model CmsEntryAsset {
   title       String?
   caption     String?
   mediaType   CmsEntryAssetType @default(IMAGE)
+  alt         String?
+  publicId    String?
+  version     Int               @default(1)
   mediaUrl    String
   posterUrl   String?
   externalUrl String?
