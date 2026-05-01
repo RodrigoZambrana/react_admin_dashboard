@@ -1,30 +1,31 @@
-import axios from "@lib/axios";
+import Service from "models/service.model";
 import Product from "models/product.model";
 import { HealthCarouselItem } from "models/carousel.model";
+import {
+  categoryNavigation,
+  mainCarouselData,
+  products,
+  serviceList,
+} from "@/__server__/__db__/health-beauty/data";
 
 const getNavigation = async () => {
-  const response = await axios.get("/api/health-beauty/navigation");
-  return response.data;
+  return categoryNavigation;
 };
 
 const getTopNewProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/health-beauty/products?tag=new");
-  return response.data;
+  return products.filter((item) => item.for.type === "top-new-products");
 };
 
 const getProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/health-beauty/products");
-  return response.data;
+  return products.filter((item) => item.for.type === "all-products");
 };
 
-const getServices = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/health-beauty/services");
-  return response.data;
+const getServices = async (): Promise<Service[]> => {
+  return serviceList as Service[];
 };
 
 const getMainCarousel = async (): Promise<HealthCarouselItem[]> => {
-  const response = await axios.get("/api/health-beauty/main-carousel");
-  return response.data;
+  return mainCarouselData as HealthCarouselItem[];
 };
 
 const healthBeautyApi = { getProducts, getServices, getNavigation, getTopNewProducts, getMainCarousel };

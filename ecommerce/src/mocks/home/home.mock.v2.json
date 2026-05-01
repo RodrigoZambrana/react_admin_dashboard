@@ -1,0 +1,264 @@
+{
+  "id": 9003,
+  "path": "mock/home/v2",
+  "title": "Home mock v2",
+  "summary": "Editorial storytelling home exploration.",
+  "locale": "es",
+  "seo": {
+    "title": "Home mock v2",
+    "description": "Editorial storytelling home exploration.",
+    "imageUrl": "/assets/images/banners/banner-25.jpg"
+  },
+  "layoutKey": "mock-home",
+  "legacySource": "mock/home/v2",
+  "sections": [
+    {
+      "id": 9113,
+      "type": "MEDIA_HERO",
+      "key": "home-v2-hero",
+      "sortOrder": 0,
+      "settings": {
+        "mediaType": "image",
+        "overlay": true,
+        "overlayOpacity": 0.54,
+        "title": "Una home más silenciosa y más editorial",
+        "subtitle": "El storytelling guía la lectura y deja espacio para la imagen.",
+        "eyebrow": "v2",
+        "mediaAlt": "Hero mock v2",
+        "primaryCta": {
+          "label": "Explorar narrativa",
+          "href": "/mock/home/v1"
+        },
+        "secondaryCta": {
+          "label": "Abrir multimedia",
+          "href": "/mock/multimedia/v1"
+        }
+      },
+      "blocks": [
+        {
+          "id": 9225,
+          "type": "IMAGE",
+          "name": "Hero v2",
+          "sortOrder": 0,
+          "content": null,
+          "media": {
+            "id": 9325,
+            "url": "/assets/images/banners/banner-25.jpg",
+            "type": "IMAGE",
+            "alt": "Hero mock v2",
+            "title": "Hero mock v2",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9114,
+      "type": "CONTENT_SPLIT",
+      "key": "home-v2-split-1",
+      "sortOrder": 1,
+      "settings": {
+        "title": "Narrativa progresiva",
+        "description": "Bloque mixto para explicar y vender sin ruido.",
+        "mediaPosition": "end",
+        "gallery": [
+          {
+            "imageUrl": "/assets/images/banners/banner-14.jpg",
+            "imageAlt": "Secuencia 1"
+          },
+          {
+            "imageUrl": "/assets/images/banners/banner-16.jpg",
+            "imageAlt": "Secuencia 2"
+          }
+        ],
+        "actions": [
+          {
+            "label": "Ver historias",
+            "href": "/mock/home/current"
+          },
+          {
+            "label": "Ver multimedia",
+            "href": "/mock/multimedia/v1"
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "id": 9226,
+          "type": "RICH_TEXT",
+          "name": "Split body",
+          "sortOrder": 0,
+          "content": {
+            "html": "<p>Un layout más pausado para comparar contra la versión visual-first.</p><p>La idea es abrir espacio para copy, detalles y respiración.</p>"
+          },
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 9115,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "home-v2-grid",
+      "sortOrder": 2,
+      "settings": {
+        "title": "Grilla densa de inspiración",
+        "description": "Más contenido por viewport, más narrativa por bloque.",
+        "columns": 4,
+        "gap": 0.9,
+        "aspectRatio": "4 / 5"
+      },
+      "blocks": [
+        {
+          "id": 9227,
+          "type": "CARD",
+          "name": "Grid v2 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Editorial 01",
+            "description": "Layout más compacto.",
+            "badge": "Story",
+            "overlayText": true,
+            "linkLabel": "Abrir",
+            "href": "/mock/home/current"
+          },
+          "media": {
+            "id": 9326,
+            "url": "/assets/images/banners/banner-21.jpg",
+            "type": "IMAGE",
+            "alt": "Editorial 01",
+            "title": "Editorial 01",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9228,
+          "type": "CARD",
+          "name": "Grid v2 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Editorial 02",
+            "description": "Repetición controlada.",
+            "badge": "Proof",
+            "overlayText": true,
+            "linkLabel": "Ver",
+            "href": "/mock/home/v1"
+          },
+          "media": {
+            "id": 9327,
+            "url": "/assets/images/banners/banner-22.jpg",
+            "type": "IMAGE",
+            "alt": "Editorial 02",
+            "title": "Editorial 02",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9229,
+          "type": "CARD",
+          "name": "Grid v2 3",
+          "sortOrder": 2,
+          "content": {
+            "title": "Editorial 03",
+            "description": "Más densidad visual.",
+            "badge": "Trend",
+            "overlayText": true,
+            "linkLabel": "Ver",
+            "href": "/mock/multimedia/v1"
+          },
+          "media": {
+            "id": 9328,
+            "url": "/assets/images/banners/banner-24.jpg",
+            "type": "IMAGE",
+            "alt": "Editorial 03",
+            "title": "Editorial 03",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9116,
+      "type": "VIDEO_SECTION",
+      "key": "home-v2-video",
+      "sortOrder": 3,
+      "settings": {
+        "title": "Video intercalado",
+        "description": "Un punto de pausa para sumar movimiento.",
+        "layout": "contained",
+        "autoplay": false,
+        "controls": true
+      },
+      "blocks": [
+        {
+          "id": 9230,
+          "type": "CARD",
+          "name": "Video v2",
+          "sortOrder": 0,
+          "content": {
+            "title": "Clip editorial",
+            "description": "Introducción visual con soporte de video.",
+            "videoUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "thumbnail": "/assets/images/banners/banner-20.jpg"
+          },
+          "media": {
+            "id": 9329,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Clip editorial",
+            "title": "Clip editorial",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9117,
+      "type": "CONTENT_SPLIT",
+      "key": "home-v2-split-2",
+      "sortOrder": 4,
+      "settings": {
+        "title": "Cierre con foco comercial",
+        "description": "La narrativa termina en una CTA clara.",
+        "mediaPosition": "start",
+        "gallery": [
+          {
+            "imageUrl": "/assets/images/banners/banner-18.jpg",
+            "imageAlt": "Cierre 1"
+          }
+        ],
+        "actions": [
+          {
+            "label": "Ver catálogo mock",
+            "href": "/mock/home/current"
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "id": 9231,
+          "type": "RICH_TEXT",
+          "name": "Split close",
+          "sortOrder": 0,
+          "content": {
+            "html": "<p>Esta versión sirve como candidato a futura migración controlada.</p><p>Menos bloques, más foco, más intención.</p>"
+          },
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 9118,
+      "type": "CTA_BANNER",
+      "key": "home-v2-cta",
+      "sortOrder": 5,
+      "settings": {
+        "title": "Abrir multimedia v1",
+        "description": "Comparar narrativa editorial con el carril multimedia.",
+        "label": "Ir a multimedia",
+        "href": "/mock/multimedia/v1",
+        "intent": "conversion"
+      },
+      "blocks": []
+    }
+  ]
+}

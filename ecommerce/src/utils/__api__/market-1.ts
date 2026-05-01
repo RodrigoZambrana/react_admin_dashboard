@@ -4,144 +4,61 @@ import MainCarouselItem from "@models/market-1.model";
 import Product from "@models/product.model";
 import Service from "@models/service.model";
 import Shop from "@models/shop.model";
+import { brands, categories, mainCarouselData, products, serviceList } from "@/__server__/__db__/market-1/data";
+import shops from "@/__server__/__db__/shop/data";
 
-import { StorefrontApi, isApiError } from "@/lib/api/storefront";
-import {
-  flattenCategorySummaries,
-  mapCategorySummaryToCategory,
-  mapProductSummaryToProduct,
-} from "@/lib/storefront/adapters";
+const getByType = (type: string) => products.filter((item) => item.for.type === type);
+const getBrandsByType = (type: string) => brands.filter((item) => item.for.type === type);
 
-const failFastEnvValue =
-  process.env.NEXT_PUBLIC_STOREFRONT_FAIL_FAST ??
-  process.env.STOREFRONT_FAIL_FAST ??
-  "false";
+const getTopRatedProduct = async (): Promise<Product[]> => getByType("top-ratings");
 
-const ENFORCE_FAIL_FAST = failFastEnvValue === "true" || failFastEnvValue === "1";
-const DEFAULT_PRODUCT_PAGE_SIZE = 12;
+const getTopRatedBrand = async (): Promise<Brand[]> => getBrandsByType("featured-brands");
 
-const toError = (error: unknown, fallbackMessage: string) =>
-  error instanceof Error ? error : new Error(fallbackMessage);
+const getNewArrivalList = async (): Promise<Product[]> => getByType("new-arrivals");
 
-const handleFallbackDisabled = <T>(context: string, error: unknown, emptyValue: T): T => {
-  if (ENFORCE_FAIL_FAST) {
-    throw toError(error, context);
-  }
+const getCarBrands = async (): Promise<Brand[]> => getBrandsByType("car-brands");
 
-  if (isApiError(error)) {
-    console.warn(
-      `[storefront] ${context} (status ${error.status}). Returning empty dataset because fallbacks are disabled.`,
-    );
-  } else if (error instanceof Error) {
-    console.warn(
-      `[storefront] ${context}: ${error.message}. Returning empty dataset because fallbacks are disabled.`,
-    );
-  } else {
-    console.warn(
-      `[storefront] ${context}. Returning empty dataset because fallbacks are disabled.`,
-    );
-  }
+const getCarList = async (): Promise<Product[]> => getByType("cars");
 
-  return emptyValue;
+const getMobileBrands = async (): Promise<Brand[]> => getBrandsByType("mobile-brands");
+
+const getMobileShops = async (): Promise<Shop[]> => {
+  const imageNames = ["herman miller", "otobi", "hatil", "steelcase"];
+  return shops.slice(4, 8).map((item, index) => ({ ...item, thumbnail: imageNames[index] }));
 };
 
-const listProducts = async (
-  params: Parameters<typeof StorefrontApi.listProducts>[0],
-  context: string,
-): Promise<Product[]> => {
-  try {
-    const response = await StorefrontApi.listProducts(params);
-    return response.data.map(mapProductSummaryToProduct);
-  } catch (error) {
-    return handleFallbackDisabled<Product[]>(context, error, []);
-  }
+const getMobileList = async (): Promise<Product[]> => getByType("mobile-phones");
+
+const getOpticsBrands = async (): Promise<Brand[]> => getBrandsByType("optics-brands");
+
+const getOpticsShops = async (): Promise<Shop[]> => {
+  const imageNames = ["herman miller", "zeiss", "hatil", "steelcase"];
+  return shops.slice(0, 4).map((item, index) => ({ ...item, thumbnail: imageNames[index] }));
 };
 
-const listCategories = async (context: string): Promise<Category[]> => {
-  try {
-    const categories = await StorefrontApi.listCategories();
-    return flattenCategorySummaries(categories).map(mapCategorySummaryToCategory);
-  } catch (error) {
-    return handleFallbackDisabled<Category[]>(context, error, []);
-  }
-};
-
-const normalizeProductPricing = (product: Product): Product => {
-  if (product.basePrice) {
-    const basePrice = product.basePrice;
-    const salePrice = typeof product.salePrice === "number" ? product.salePrice : product.price;
-    const discount =
-      typeof product.discount === "number" && product.discount > 0
-        ? product.discount
-        : basePrice > 0
-          ? Math.max(0, Math.round(((basePrice - salePrice) / basePrice) * 100))
-          : 0;
-
-    return {
-      ...product,
-      price: basePrice,
-      discount,
-    };
-  }
-
-  return product;
-};
-
-const getTopRatedProduct = async (): Promise<Product[]> =>
-  listProducts({ sort: "best-sellers", pageSize: 8 }, "Failed to load top rated products");
-
-const getTopRatedBrand = async (): Promise<Brand[]> => [];
-
-const getNewArrivalList = async (): Promise<Product[]> =>
-  listProducts({ sort: "newest", pageSize: DEFAULT_PRODUCT_PAGE_SIZE }, "Failed to load new arrivals");
-
-const getCarBrands = async (): Promise<Brand[]> => [];
-
-const getCarList = async (): Promise<Product[]> => [];
-
-const getMobileBrands = async (): Promise<Brand[]> => [];
-
-const getMobileShops = async (): Promise<Shop[]> => [];
-
-const getMobileList = async (): Promise<Product[]> => [];
-
-const getOpticsBrands = async (): Promise<Brand[]> => [];
-
-const getOpticsShops = async (): Promise<Shop[]> => [];
-
-const getOpticsList = async (): Promise<Product[]> => [];
+const getOpticsList = async (): Promise<Product[]> => getByType("optics");
 
 const getCategories = async (): Promise<Category[]> => {
-  const categories = await listCategories("Failed to load storefront categories");
   return categories.filter((category) => !category.parent || category.parent.length === 0);
 };
 
 const getMoreItems = async (): Promise<Product[]> =>
-  listProducts({ pageSize: DEFAULT_PRODUCT_PAGE_SIZE }, "Failed to load additional storefront products");
+  getByType("more-products");
 
-const getServiceList = async (): Promise<Service[]> => [];
+const getServiceList = async (): Promise<Service[]> => serviceList as Service[];
 
-const getMainCarousel = async (): Promise<MainCarouselItem[]> => [];
+const getMainCarousel = async (): Promise<MainCarouselItem[]> => mainCarouselData as MainCarouselItem[];
 
 const getTopCategories = async (): Promise<Category[]> => {
-  const categories = await listCategories("Failed to load storefront top categories");
   return categories.filter((category) => !category.parent || category.parent.length === 0).slice(0, 6);
 };
 
 const getBigDiscountList = async (): Promise<Product[]> => {
-  const products = await listProducts(
-    { sort: "featured", pageSize: DEFAULT_PRODUCT_PAGE_SIZE },
-    "Failed to load featured products",
-  );
-  return products.map(normalizeProductPricing);
+  return getByType("big-discounts");
 };
 
 const getFlashDeals = async (): Promise<Product[]> => {
-  const products = await listProducts(
-    { sort: "featured", pageSize: DEFAULT_PRODUCT_PAGE_SIZE },
-    "Failed to load flash deals",
-  );
-  return products.map(normalizeProductPricing);
+  return getByType("flash-deals");
 };
 
 const market1Api = {

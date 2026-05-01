@@ -1,42 +1,41 @@
-import axios from "@lib/axios";
 import Blog from "models/blog.model";
 import Product from "models/product.model";
 import Category from "models/category.model";
 import { Banner } from "models/gadget.model";
+import {
+  articles,
+  bannerData,
+  categories,
+  carouselProducts,
+  products,
+} from "@/__server__/__db__/gadget/data";
 
 const getFeaturedCategories = async (): Promise<Category[]> => {
-  const response = await axios.get("/api/gadget-store/featured-categories");
-  return response.data;
+  return categories as Category[];
 };
 
 const getTwoBanner = async (): Promise<Banner[]> => {
-  const response = await axios.get("/api/gadget-store/two-banners");
-  return response.data;
+  return bannerData as Banner[];
 };
 
 const getBlogLists = async (): Promise<Blog[]> => {
-  const response = await axios.get("/api/gadget-store/blog-lists");
-  return response.data;
+  return articles as Blog[];
 };
 
 const getMainCarousel = async () => {
-  const response = await axios.get("/api/gadget-store/main-carousel");
-  return response.data;
+  return carouselProducts;
 };
 
 const getTopPicksList = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/gadget-store/products?tag=top-picks");
-  return response.data;
+  return products.filter((item) => item.for.type === "top-picks-products");
 };
 
 const getMostViewedList = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/gadget-store/products?tag=most-viewed");
-  return response.data;
+  return products.filter((item) => item.for.type === "most-viewed-products");
 };
 
 const getNewArrival = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/gadget-store/products?tag=new-arrival");
-  return response.data;
+  return products.filter((item) => item.for.type === "new-arrival-products");
 };
 
 const gadgetApi = {

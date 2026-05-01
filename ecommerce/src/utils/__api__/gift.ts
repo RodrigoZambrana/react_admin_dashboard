@@ -1,43 +1,42 @@
-import axios from "@lib/axios";
 import Product from "models/product.model";
 import Service from "models/service.model";
 import Category from "models/category.model";
 import { GiftCarouselItem } from "models/carousel.model";
 import CategoryNavList from "models/categoryNavList.model";
+import {
+  catgoryNavigation,
+  categories,
+  mainCarouselData,
+  products,
+  serviceList,
+} from "@/__server__/__db__/gift/data";
 
 const getMainCarouselData = async (): Promise<GiftCarouselItem[]> => {
-  const response = await axios.get("/api/gift-shop/main-carousel");
-  return response.data;
+  return mainCarouselData as GiftCarouselItem[];
 };
 
 const getCategoryNavigation = async (): Promise<CategoryNavList[]> => {
-  const response = await axios.get("/api/gift-shop-navigation");
-  return response.data;
+  return catgoryNavigation as CategoryNavList[];
 };
 
 const getPopularProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/gift-shop/products?tag=popular");
-  return response.data;
+  return products.filter((item) => item.for.type === "popular-items");
 };
 
 const getTopSailedProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/gift-shop/products?tag=top-sailed");
-  return response.data;
+  return products.filter((item) => item.for.type === "top-saled-items");
 };
 
 const getAllProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/gift-shop/products");
-  return response.data;
+  return products.filter((item) => item.for.type === "all-products");
 };
 
 const getServiceList = async (): Promise<Service[]> => {
-  const response = await axios.get("/api/gift-shop/service-list");
-  return response.data;
+  return serviceList as Service[];
 };
 
 const getTopCategories = async (): Promise<Partial<Category>[]> => {
-  const response = await axios.get("/api/gift-shop/top-categories");
-  return response.data;
+  return categories as Partial<Category>[];
 };
 
 const giftApi = {

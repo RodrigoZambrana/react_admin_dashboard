@@ -1,25 +1,25 @@
-import axios from "@lib/axios";
 import { OfferCard } from "models/grocery-3.model";
 import Product from "models/product.model";
+import {
+  discountOffers,
+  mainCarouselData,
+  products,
+} from "@/__server__/__db__/grocery-3/data";
 
 const getTopSailedProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-3/products?tag=top-sailed");
-  return response.data;
+  return products.filter((item) => item.for.type === "top-saled-products");
 };
 
 const getAllProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-3/products");
-  return response.data;
+  return products.filter((item) => item.for.type === "all-products");
 };
 
 const getOfferCards = async (): Promise<OfferCard[]> => {
-  const response = await axios.get("/api/grocery-3/products?tag=offer");
-  return response.data;
+  return discountOffers as OfferCard[];
 };
 
 const getMainCarousel = async () => {
-  const response = await axios.get("/api/grocery-3/main-carousel");
-  return response.data;
+  return mainCarouselData;
 };
 
 const grocery3Api = {

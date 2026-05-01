@@ -1,47 +1,58 @@
-import axios from "@lib/axios";
 import Brand from "models/Brand.model";
 import Product from "models/product.model";
 import Service from "models/service.model";
 import { CategoryBasedProducts, MainCarouselItem } from "models/market-2.model";
+import {
+  brandList,
+  categories,
+  mainCarouselData,
+  products,
+  serviceList,
+  singleCategory,
+} from "@/__server__/__db__/market-2/data";
 
 const getProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/market-2/products");
-  return response.data;
+  return products as Product[];
 };
 
 const getServices = async (): Promise<Service[]> => {
-  const response = await axios.get("/api/market-2/service");
-  return response.data;
+  return serviceList as Service[];
 };
 
 const getCategories = async () => {
-  const response = await axios.get("/api/market-2/categories");
-  return response.data;
+  return categories;
 };
 
-const getBrands = async (): Promise<Brand> => {
-  const response = await axios.get("/api/market-2/brand");
-  return response.data;
+const getBrands = async (): Promise<Brand[]> => {
+  return brandList as Brand[];
 };
 
 const getMainCarouselData = async (): Promise<MainCarouselItem[]> => {
-  const response = await axios.get("/api/market-2/main-carousel");
-  return response.data;
+  return mainCarouselData as MainCarouselItem[];
 };
 
 const getElectronicsProducts = async (): Promise<CategoryBasedProducts> => {
-  const response = await axios.get("/api/market-2/category-based-product?tag=electronics");
-  return response.data;
+  return { category: singleCategory, products: products as Product[] };
 };
 
 const getMenFashionProducts = async (): Promise<CategoryBasedProducts> => {
-  const response = await axios.get("/api/market-2/category-based-product?tag=men");
-  return response.data;
+  return {
+    products: products.slice(2) as Product[],
+    category: {
+      title: "Men's Fashion",
+      children: singleCategory.children,
+    },
+  };
 };
 
 const getWomenFashionProducts = async (): Promise<CategoryBasedProducts> => {
-  const response = await axios.get("/api/market-2/category-based-product?tag=women");
-  return response.data;
+  return {
+    products: products.slice(3) as Product[],
+    category: {
+      title: "Women's Fashion",
+      children: singleCategory.children,
+    },
+  };
 };
 
 const market2Api = {

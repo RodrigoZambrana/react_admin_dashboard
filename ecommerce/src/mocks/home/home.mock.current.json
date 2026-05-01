@@ -1,0 +1,279 @@
+{
+  "id": 9001,
+  "path": "mock/home/current",
+  "title": "Home mock current",
+  "summary": "Baseline visual snapshot for the current home composition.",
+  "locale": "es",
+  "seo": {
+    "title": "Home mock current",
+    "description": "Baseline visual snapshot for the current home composition.",
+    "imageUrl": "/assets/images/banners/banner-23.jpg"
+  },
+  "layoutKey": "mock-home",
+  "legacySource": "mock/home/current",
+  "sections": [
+    {
+      "id": 9101,
+      "type": "MEDIA_HERO",
+      "key": "home-current-hero",
+      "sortOrder": 0,
+      "settings": {
+        "mediaType": "image",
+        "overlay": true,
+        "overlayOpacity": 0.64,
+        "title": "Diseño editorial para explorar el catálogo",
+        "subtitle": "Snapshot baseline para comparar jerarquía, densidad y presencia multimedia.",
+        "eyebrow": "Baseline",
+        "mediaAlt": "Home baseline hero",
+        "primaryCta": {
+          "label": "Ver versión v1",
+          "href": "/mock/home/v1"
+        },
+        "secondaryCta": {
+          "label": "Ver multimedia",
+          "href": "/mock/multimedia/v1"
+        }
+      },
+      "blocks": [
+        {
+          "id": 9201,
+          "type": "IMAGE",
+          "name": "Baseline hero",
+          "sortOrder": 0,
+          "content": null,
+          "media": {
+            "id": 9301,
+            "url": "/assets/images/banners/banner-23.jpg",
+            "type": "IMAGE",
+            "alt": "Home baseline hero",
+            "title": "Home baseline hero",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9102,
+      "type": "STORIES_CAROUSEL",
+      "key": "home-current-stories",
+      "sortOrder": 1,
+      "settings": {
+        "title": "Historias de navegación",
+        "description": "Bloques rápidos de inspiración y producto.",
+        "autoplay": true,
+        "interval": 5200,
+        "showProgressBar": true
+      },
+      "blocks": [
+        {
+          "id": 9202,
+          "type": "CARD",
+          "name": "Story baseline 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Story uno",
+            "caption": "Placeholder para campaña visual.",
+            "imageUrl": "/assets/images/stories/story-home-1.jpg",
+            "link": "/mock/home/v1",
+            "durationSec": 5,
+            "mediaType": "image"
+          },
+          "media": {
+            "id": 9302,
+            "url": "/assets/images/stories/story-home-1.jpg",
+            "type": "IMAGE",
+            "alt": "Story uno",
+            "title": "Story uno",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9203,
+          "type": "CARD",
+          "name": "Story baseline 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Story dos",
+            "caption": "Escaneabilidad y jerarquía.",
+            "imageUrl": "/assets/images/stories/story-home-2.jpg",
+            "link": "/mock/home/v2",
+            "durationSec": 5,
+            "mediaType": "image"
+          },
+          "media": {
+            "id": 9303,
+            "url": "/assets/images/stories/story-home-2.jpg",
+            "type": "IMAGE",
+            "alt": "Story dos",
+            "title": "Story dos",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9204,
+          "type": "CARD",
+          "name": "Story baseline 3",
+          "sortOrder": 2,
+          "content": {
+            "title": "Story tres",
+            "caption": "Reducción de fricción.",
+            "imageUrl": "/assets/images/stories/story-home-3.jpg",
+            "link": "/mock/multimedia/v1",
+            "durationSec": 5,
+            "mediaType": "image"
+          },
+          "media": {
+            "id": 9304,
+            "url": "/assets/images/stories/story-home-3.jpg",
+            "type": "IMAGE",
+            "alt": "Story tres",
+            "title": "Story tres",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9103,
+      "type": "HIGHLIGHT_CARDS",
+      "key": "home-current-highlights",
+      "sortOrder": 2,
+      "settings": {
+        "title": "Accesos rápidos",
+        "description": "Baseline de cards para comparar presencia comercial."
+      },
+      "blocks": [
+        {
+          "id": 9205,
+          "type": "CARD",
+          "name": "Highlight 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Tecnología",
+            "description": "Placeholder visual de categoría.",
+            "badge": "Featured",
+            "linkLabel": "Explorar",
+            "href": "/mock/home/v1"
+          },
+          "media": {
+            "id": 9305,
+            "url": "/assets/images/products/bghead-phone.png",
+            "type": "IMAGE",
+            "alt": "Tecnología",
+            "title": "Tecnología",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9206,
+          "type": "CARD",
+          "name": "Highlight 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Accesorios",
+            "description": "Una card para edición y detalle.",
+            "badge": "New",
+            "linkLabel": "Ver",
+            "href": "/mock/home/v2"
+          },
+          "media": {
+            "id": 9306,
+            "url": "/assets/images/products/watch.png",
+            "type": "IMAGE",
+            "alt": "Accesorios",
+            "title": "Accesorios",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9207,
+          "type": "CARD",
+          "name": "Highlight 3",
+          "sortOrder": 2,
+          "content": {
+            "title": "Lifestyle",
+            "description": "Narrativa de uso y contexto.",
+            "badge": "Story",
+            "linkLabel": "Ver",
+            "href": "/mock/multimedia/v1"
+          },
+          "media": {
+            "id": 9307,
+            "url": "/assets/images/products/clothes.png",
+            "type": "IMAGE",
+            "alt": "Lifestyle",
+            "title": "Lifestyle",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9104,
+      "type": "MEDIA_CAROUSEL",
+      "key": "home-current-carousel",
+      "sortOrder": 3,
+      "settings": {
+        "title": "Carrusel de referencias",
+        "description": "Bloque para productos o colecciones destacadas.",
+        "variant": "cards"
+      },
+      "blocks": [
+        {
+          "id": 9208,
+          "type": "CARD",
+          "name": "Carousel 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Colección A",
+            "description": "Composición simple para baseline.",
+            "linkLabel": "Ver colección",
+            "href": "/mock/home/v1"
+          },
+          "media": {
+            "id": 9308,
+            "url": "/assets/images/banners/banner-14.jpg",
+            "type": "IMAGE",
+            "alt": "Colección A",
+            "title": "Colección A",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9209,
+          "type": "CARD",
+          "name": "Carousel 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Colección B",
+            "description": "Placeholder de referencia visual.",
+            "linkLabel": "Ver colección",
+            "href": "/mock/home/v2"
+          },
+          "media": {
+            "id": 9309,
+            "url": "/assets/images/banners/banner-16.jpg",
+            "type": "IMAGE",
+            "alt": "Colección B",
+            "title": "Colección B",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9105,
+      "type": "CTA_BANNER",
+      "key": "home-current-cta",
+      "sortOrder": 4,
+      "settings": {
+        "title": "Abrir la versión moderna",
+        "description": "Compará este baseline con una home más visual y narrativa.",
+        "label": "Ir a v1",
+        "href": "/mock/home/v1",
+        "intent": "conversion"
+      },
+      "blocks": []
+    }
+  ]
+}

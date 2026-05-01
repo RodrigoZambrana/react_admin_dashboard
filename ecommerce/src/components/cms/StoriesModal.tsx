@@ -2,10 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import Link from "next/link";
 import { IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react";
 
-import NextImage from "@/components/NextImage";
 import styles from "./CmsPageShell.module.css";
 
 type StoryItem = {
@@ -35,8 +33,6 @@ const clampIndex = (value: number, size: number) => {
   if (!size) return 0;
   return ((value % size) + size) % size;
 };
-
-const isExternalUrl = (href: string) => /^(https?:\/\/|mailto:|tel:)/i.test(href);
 
 export default function StoriesModal({
   open,
@@ -150,13 +146,10 @@ export default function StoriesModal({
       <source src={activeStory.mediaUrl} />
     </video>
   ) : (
-    <NextImage
+    <img
       alt={activeStory.alt ?? activeStory.title}
-      fill
-      priority
-      sizes="(max-width: 900px) 100vw, 72vw"
-      src={activeStory.mediaUrl}
       className={styles.storyModalImage}
+      src={activeStory.mediaUrl}
     />
   );
 
@@ -213,66 +206,6 @@ export default function StoriesModal({
           </div>
         </div>
 
-        <aside className={styles.storyModalSidePane}>
-          <div>
-            <p className={styles.storyModalKicker}>Stories</p>
-            <h3 className={styles.storyModalTitle}>{activeStory.title}</h3>
-            {activeStory.caption ? <p className={styles.storyModalCaption}>{activeStory.caption}</p> : null}
-          </div>
-
-          <div className={styles.storyModalList}>
-            {stories.map((story, index) => (
-              <button
-                className={index === activeIndex ? styles.storyModalListItemActive : styles.storyModalListItem}
-                key={story.id}
-                onClick={() => {
-                  setActiveIndex(index);
-                  setProgress(autoplay ? 0 : 1);
-                }}
-                type="button">
-                <span className={styles.storyModalListTitle}>{story.title}</span>
-                <span className={styles.storyModalListMeta}>
-                  {story.mediaType}
-                  {" · "}
-                  {Math.round(story.durationMs / 1000)}s
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {activeStory.link ? (
-            isExternalUrl(activeStory.link) || activeStory.external ? (
-              <a
-                className={styles.storyModalAction}
-                href={activeStory.link}
-                rel="noreferrer"
-                target="_blank">
-                Ver historia
-              </a>
-            ) : (
-              <Link className={styles.storyModalAction} href={activeStory.link}>
-                Ver historia
-              </Link>
-            )
-          ) : null}
-
-          <div className={styles.storyModalNavRow}>
-            <button
-              className={styles.storyModalNavButton}
-              onClick={() => handleNavigate("prev")}
-              type="button">
-              <IconChevronLeft size={16} />
-              Anterior
-            </button>
-            <button
-              className={styles.storyModalNavButton}
-              onClick={() => handleNavigate("next")}
-              type="button">
-              Siguiente
-              <IconChevronRight size={16} />
-            </button>
-          </div>
-        </aside>
       </div>
     </div>,
     document.body,

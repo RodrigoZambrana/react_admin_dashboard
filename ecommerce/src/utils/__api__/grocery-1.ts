@@ -1,30 +1,29 @@
-import axios from "@lib/axios";
 import Product from "models/product.model";
 import Service from "models/service.model";
+import {
+  categoryNavigation,
+  products,
+  serviceList,
+} from "@/__server__/__db__/grocery-1/data";
 
 const getGrocery1Navigation = async () => {
-  const response = await axios.get("/api/grocery-1/navigation");
-  return response.data;
+  return categoryNavigation;
 };
 
 const getPopularProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-1/products?tag=popular");
-  return response.data;
+  return products.filter((item) => item.for.type === "popular-products");
 };
 
 const getTrendingProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-1/products?tag=trending");
-  return response.data;
+  return products.filter((item) => item.for.type === "trending-products");
 };
 
 const getProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-1/products");
-  return response.data;
+  return products.filter((item) => item.for.type === "all-products");
 };
 
 const getServices = async (): Promise<Service[]> => {
-  const response = await axios.get("/api/grocery-1/services");
-  return response.data;
+  return serviceList as Service[];
 };
 
 const grocery1Api = {

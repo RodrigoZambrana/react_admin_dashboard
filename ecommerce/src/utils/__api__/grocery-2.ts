@@ -1,57 +1,55 @@
-import axios from "@lib/axios";
 import Service from "models/service.model";
 import Product from "models/product.model";
 import Category from "models/category.model";
 import { GroceryTwoCarouselItem } from "models/carousel.model";
+import {
+  categoryNavigation,
+  categories,
+  discountCardList,
+  mainCarouselData,
+  products,
+  serviceList,
+  testimonialList,
+} from "@/__server__/__db__/grocery-2/data";
 
 const getServices = async (): Promise<Service[]> => {
-  const response = await axios.get("/api/grocery-2/services");
-  return response.data;
+  return serviceList as Service[];
 };
 
 const getCategories = async (): Promise<Category[]> => {
-  const response = await axios.get("/api/grocery-2/categories");
-  return response.data;
+  return categories as Category[];
 };
 
 const getDiscountBannerList = async () => {
-  const response = await axios.get("/api/grocery-2/discount-card-list");
-  return response.data;
+  return discountCardList;
 };
 
 const getNavigationList = async () => {
-  const response = await axios.get("/api/grocery-2/category-navigation");
-  return response.data;
+  return categoryNavigation;
 };
 
 const getFeaturedProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-2/featured-products");
-  return response.data;
+  return products.filter((item) => item.for.type === "featured-items");
 };
 
 const getBestSellProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-2/best-sell-products");
-  return response.data;
+  return products.filter((item) => item.for.type === "best-sell-products");
 };
 
 const getBestHomeProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-2/home-essentials-products");
-  return response.data;
+  return products.filter((item) => item.for.type === "home-essentials-products");
 };
 
 const getDairyProducts = async (): Promise<Product[]> => {
-  const response = await axios.get("/api/grocery-2/more-products");
-  return response.data;
+  return products.filter((item) => item.for.type === "more-products");
 };
 
 const getTestimonials = async () => {
-  const response = await axios.get("/api/grocery-2/testimonial-list");
-  return response.data;
+  return testimonialList;
 };
 
 const getMainCarousel = async (): Promise<GroceryTwoCarouselItem[]> => {
-  const response = await axios.get("/api/grocery-2/main-carousel");
-  return response.data;
+  return mainCarouselData as GroceryTwoCarouselItem[];
 };
 
 const grocery2Api = {

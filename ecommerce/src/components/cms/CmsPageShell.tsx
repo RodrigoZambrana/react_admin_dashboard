@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useState, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useState, type CSSProperties, type ReactElement } from "react";
 import Container from "@component/Container";
 import Card from "@component/Card";
 import Grid from "@component/grid/Grid";
@@ -27,6 +27,7 @@ import { renderCmsRichTextContent } from "./rich-text";
 import styles from "./CmsPageShell.module.css";
 
 const StoriesModal = dynamic(() => import("./StoriesModal"), { ssr: false });
+const SocialPostDetailModal = dynamic(() => import("./SocialPostDetailModal"), { ssr: false });
 
 type Props = {
   page: CmsRenderablePage;
@@ -291,6 +292,14 @@ type VisualStoryItem = {
   alt?: string | null;
 };
 
+type SocialProfileTabKind = "all" | "image" | "video" | "reel" | "tagged";
+
+type SocialProfileTab = {
+  key: string;
+  label: string;
+  kind: SocialProfileTabKind;
+};
+
 const MediaHeroSection = ({ section }: { section: CmsRenderableSection }) => {
   const settings = asRecord(section.settings);
   const mediaType = readMediaType(settings.mediaType, "image");
@@ -407,6 +416,99 @@ const buildVisualStory = (
   };
 };
 
+type SocialPostItem = {
+  id: string;
+  title: string;
+  caption?: string | null;
+  mediaUrl: string;
+  mediaType: "image" | "video";
+  kind: string;
+  posterUrl?: string | null;
+  author: string;
+  handle?: string | null;
+  avatarUrl?: string | null;
+  likes?: string | null;
+  comments?: string | null;
+  timestamp?: string | null;
+  tags: string[];
+  link?: string | null;
+  external?: boolean;
+};
+
+const buildSocialPost = (
+  block: CmsRenderableSection["blocks"][number],
+): SocialPostItem | null => {
+  const content = asRecord(block.content);
+  const title = asString(content.title) || block.name || "";
+  const mediaUrl =
+    asString(content.mediaUrl) ||
+    asString(content.imageUrl) ||
+    asString(content.videoUrl) ||
+    pickMediaUrl(block.media);
+  if (!title && !mediaUrl) return null;
+
+  return {
+    id: String(block.id),
+    title: title || "Post",
+    caption: asString(content.caption) || asString(content.description),
+    mediaUrl,
+    mediaType: readMediaType(content.mediaType, readMediaType(block.media?.type, mediaUrl.endsWith(".mp4") ? "video" : "image")),
+    posterUrl: asString(content.thumbnail) || block.media?.url || null,
+    author: asString(content.author) || asString(content.profileName) || "Editorial",
+    handle: asString(content.handle) || null,
+    avatarUrl: asString(content.avatarUrl) || asString(content.avatar) || null,
+    likes: asString(content.likes) || null,
+    comments: asString(content.comments) || null,
+    timestamp: asString(content.timestamp) || asString(content.time) || null,
+    tags: asArray<unknown>(content.tags).map((item) => asString(item)).filter(Boolean),
+    link: asString(content.link) || asString(content.href),
+    external: asBoolean(content.external, false),
+    kind: asString(content.kind) || asString(block.type).toLowerCase() || "post",
+  };
+};
+
+const DEFAULT_SOCIAL_PROFILE_TABS: SocialProfileTab[] = [
+  { key: "posts", label: "Posts", kind: "all" },
+  { key: "photos", label: "Photos", kind: "image" },
+  { key: "videos", label: "Videos", kind: "video" },
+  { key: "reels", label: "Reels", kind: "reel" },
+];
+
+const normalizeProfileTabKind = (value: unknown): SocialProfileTabKind => {
+  const normalized = asString(value).toLowerCase();
+  if (normalized === "image" || normalized === "photo" || normalized === "photos") return "image";
+  if (normalized === "video" || normalized === "videos") return "video";
+  if (normalized === "reel" || normalized === "reels") return "reel";
+  if (normalized === "tagged") return "tagged";
+  return "all";
+};
+
+const normalizeSocialProfileTabs = (value: unknown) => {
+  const tabs = asArray<Record<string, unknown>>(value)
+    .map((item, index) => {
+      const label = asString(item.label) || asString(item.title) || `Tab ${index + 1}`;
+      const key = asString(item.key) || asString(item.id) || label.toLowerCase().replace(/\s+/g, "-");
+      return {
+        key,
+        label,
+        kind: normalizeProfileTabKind(item.kind || item.type || item.mediaType || item.match),
+      };
+    })
+    .filter((item) => item.key && item.label);
+
+  return tabs.length ? tabs : DEFAULT_SOCIAL_PROFILE_TABS;
+};
+
+const matchesSocialProfileTab = (tabKind: SocialProfileTabKind, post: SocialPostItem) => {
+  const kind = post.kind.toLowerCase();
+  if (tabKind === "all") return true;
+  if (tabKind === "image") return post.mediaType === "image";
+  if (tabKind === "video") return post.mediaType === "video";
+  if (tabKind === "reel") return kind === "reel" || (post.mediaType === "video" && post.tags.some((tag) => tag.toLowerCase() === "reel"));
+  if (tabKind === "tagged") return post.tags.length > 0;
+  return true;
+};
+
 const StoriesCarouselSection = ({ section }: { section: CmsRenderableSection }) => {
   const settings = asRecord(section.settings);
   const autoplay = asBoolean(settings.autoplay, true);
@@ -469,6 +571,407 @@ const StoriesCarouselSection = ({ section }: { section: CmsRenderableSection }) 
         onClose={() => setActiveIndex(null)}
         showProgressBar={showProgressBar}
         stories={stories}
+      />
+    </Container>
+  );
+};
+
+const SocialFeedSection = ({ section }: { section: CmsRenderableSection }) => {
+  const settings = asRecord(section.settings);
+  const autoplay = asBoolean(settings.autoplay, true);
+  const showProgressBar = asBoolean(settings.showProgressBar, true);
+  const interval = Math.max(1000, normalizeDurationMs(settings.interval, 5000));
+  const displayMode = asString(settings.displayMode) === "profile" ? "profile" : "feed";
+  const profileName = asString(settings.profileName) || asString(settings.title) || "Editorial";
+  const handle = asString(settings.handle) || "@store";
+  const intro = asString(settings.intro) || asString(settings.description);
+  const stats = asArray<Record<string, unknown>>(settings.stats).map((item) => ({
+    label: asString(item.label),
+    value: asString(item.value),
+  }));
+  const filters = asArray<unknown>(settings.filters).map((item) => asString(item)).filter(Boolean);
+  const profileTabs = normalizeSocialProfileTabs(settings.profileTabs);
+  const defaultProfileTabKey = asString(settings.defaultProfileTab) || profileTabs[0]?.key || "posts";
+  const [activeProfileTab, setActiveProfileTab] = useState(defaultProfileTabKey);
+  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
+  const [activePostIndex, setActivePostIndex] = useState<number | null>(null);
+  const getPostIndexFromHash = (hash: string) => {
+    const normalizedHash = hash.trim().replace(/^#/, "");
+    if (!normalizedHash) return null;
+    const index = galleryPosts.findIndex((post) => {
+      const postHash = (post.link || "").trim().replace(/^#/, "");
+      return postHash && postHash === normalizedHash;
+    });
+    return index >= 0 ? index : null;
+  };
+  const openPost = (index: number) => {
+    setActivePostIndex(index);
+    const post = galleryPosts[index];
+    const postHash = (post?.link || "").trim();
+    if (postHash) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}${postHash}`);
+    }
+  };
+  const closePost = () => {
+    setActivePostIndex(null);
+    if (window.location.hash.startsWith("#post-")) {
+      window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
+    }
+  };
+
+  useEffect(() => {
+    setActiveProfileTab(defaultProfileTabKey);
+    setActiveStoryIndex(null);
+    setActivePostIndex(null);
+  }, [defaultProfileTabKey, displayMode]);
+
+  const stories = section.blocks
+    .filter(
+      (block) =>
+        asString(block.type).toUpperCase() === "STORY" ||
+        asString(asRecord(block.content).kind).toLowerCase() === "story",
+    )
+    .map((block) => buildVisualStory(block, interval))
+    .filter((story): story is VisualStoryItem => Boolean(story));
+
+  const posts = section.blocks
+    .filter(
+      (block) =>
+        asString(block.type).toUpperCase() === "POST" ||
+        asString(block.type).toUpperCase() === "REEL" ||
+        asString(asRecord(block.content).kind).toLowerCase() === "post" ||
+        asString(asRecord(block.content).kind).toLowerCase() === "reel",
+    )
+    .map((block) => buildSocialPost(block))
+    .filter((post): post is SocialPostItem => Boolean(post));
+
+  const selectedProfileTab = profileTabs.find((tab) => tab.key === activeProfileTab) ?? profileTabs[0];
+  const visiblePosts = selectedProfileTab ? posts.filter((post) => matchesSocialProfileTab(selectedProfileTab.kind, post)) : posts;
+  const galleryPosts = visiblePosts.slice(0, 9);
+
+  useEffect(() => {
+    if (displayMode !== "profile") return;
+
+    const syncFromHash = () => {
+      const index = getPostIndexFromHash(window.location.hash);
+      setActivePostIndex(index);
+    };
+
+    syncFromHash();
+    window.addEventListener("hashchange", syncFromHash);
+    return () => window.removeEventListener("hashchange", syncFromHash);
+  }, [displayMode, galleryPosts]);
+
+  if (!stories.length && !posts.length) return null;
+
+  return (
+    <Container className={styles.sectionContainerFluid}>
+      {renderHeading(section)}
+
+      <section className={styles.socialFeedShell}>
+        <div className={styles.socialFeedHeader}>
+          <div className={styles.socialProfileRow}>
+            <div className={styles.socialProfileAvatar}>
+              <span>{profileName.slice(0, 1).toUpperCase()}</span>
+            </div>
+            <div className={styles.socialProfileCopy}>
+              <strong>{profileName}</strong>
+              <span>{handle}</span>
+            </div>
+          </div>
+
+          {intro ? <p className={styles.socialIntro}>{intro}</p> : null}
+
+          <div className={styles.socialMetaRow}>
+            {stats.map((stat) => (
+              <div className={styles.socialMetaChip} key={`${stat.label}-${stat.value}`}>
+                <strong>{stat.value}</strong>
+                <span>{stat.label}</span>
+              </div>
+            ))}
+          </div>
+
+          {filters.length ? (
+            <div className={styles.socialFilterRail}>
+              {filters.map((filter) => (
+                <span className={styles.socialFilterChip} key={filter}>
+                  {filter}
+                </span>
+              ))}
+            </div>
+          ) : null}
+
+          {profileTabs.length ? (
+            <div className={styles.socialProfileTabsRail} role="tablist" aria-label="Perfil multimedia">
+              {profileTabs.map((tab) => {
+                const tabCount = posts.filter((post) => matchesSocialProfileTab(tab.kind, post)).length;
+                const isActive = tab.key === selectedProfileTab?.key;
+                return (
+                  <button
+                    aria-selected={isActive}
+                    className={
+                      isActive
+                        ? `${styles.socialProfileTabButton} ${styles.socialProfileTabButtonActive}`
+                        : styles.socialProfileTabButton
+                    }
+                    key={tab.key}
+                    onClick={() => setActiveProfileTab(tab.key)}
+                    role="tab"
+                    type="button">
+                    <span className={styles.socialProfileTabLabel}>
+                      <span className={styles.socialProfileTabIcon}>
+                        {tab.kind === "video" ? "▶" : tab.kind === "reel" ? "◉" : tab.kind === "tagged" ? "@" : "▦"}
+                      </span>
+                      {tab.label}
+                    </span>
+                    <span className={styles.socialProfileTabCount}>{tabCount}</span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
+
+        {stories.length ? (
+          <div className={styles.socialStoryRail}>
+            {stories.map((story, index) => (
+                <button
+                  className={styles.socialStoryCard}
+                  key={story.id}
+                  onClick={() => setActiveStoryIndex(index)}
+                  type="button">
+                <span className={styles.socialStoryRing}>
+                  <span className={styles.socialStoryThumb}>
+                    {story.mediaUrl ? (
+                      story.mediaType === "video" ? (
+                        <video
+                          className={styles.socialStoryThumbImage}
+                          loop
+                          muted
+                          playsInline
+                          preload="metadata"
+                          autoPlay
+                          poster={story.posterUrl ?? undefined}>
+                          <source src={story.mediaUrl} />
+                        </video>
+                      ) : (
+                        <NextImage
+                          alt={story.alt ?? story.title}
+                          className={styles.socialStoryThumbImage}
+                          fill
+                          sizes="96px"
+                          src={story.mediaUrl}
+                        />
+                      )
+                    ) : null}
+                  </span>
+                </span>
+                <strong>{story.title}</strong>
+                {story.caption ? <span>{story.caption}</span> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        {galleryPosts.length ? (
+          <div className={styles.socialProfileGallery}>
+            {galleryPosts.map((post, index) => {
+              const tile = (
+                <>
+                  <div className={styles.socialProfileTileMedia}>
+                    {post.mediaType === "video" ? (
+                      <video
+                        className={styles.socialProfileTileMediaElement}
+                        loop
+                        muted
+                        playsInline
+                        preload="metadata"
+                        poster={post.posterUrl || undefined}>
+                        <source src={post.mediaUrl} />
+                      </video>
+                    ) : (
+                      <NextImage
+                        alt={post.title}
+                        className={styles.socialProfileTileMediaElement}
+                        fill
+                        sizes="(max-width: 768px) 50vw, 33vw"
+                        src={post.mediaUrl}
+                      />
+                    )}
+                    <div className={styles.socialProfileTileOverlay}>
+                      <span className={styles.socialProfileTileBadge}>
+                        {post.kind.toLowerCase() === "reel" ? "Reel" : post.mediaType === "video" ? "Video" : "Foto"}
+                      </span>
+                      <strong>{post.title}</strong>
+                      {post.caption ? <span>{post.caption}</span> : null}
+                    </div>
+                  </div>
+                </>
+              );
+
+              if (!post.link) {
+                return (
+                  <button
+                    className={styles.socialProfileTile}
+                    key={post.id}
+                    onClick={() => openPost(index)}
+                    type="button">
+                    {tile}
+                  </button>
+                );
+              }
+
+              if (displayMode === "profile") {
+                return (
+                  <button
+                    className={styles.socialProfileTile}
+                    key={post.id}
+                    onClick={() => openPost(index)}
+                    type="button">
+                    {tile}
+                  </button>
+                );
+              }
+
+              return (
+                <Link
+                  className={styles.socialProfileTile}
+                  href={post.link}
+                  key={post.id}
+                  rel={post.external ? "noreferrer" : undefined}
+                  target={post.external ? "_blank" : undefined}>
+                  {tile}
+                </Link>
+              );
+            })}
+          </div>
+        ) : null}
+
+        {displayMode === "feed" ? (
+          <div className={styles.socialFeedBody}>
+            <div className={styles.socialPostColumn}>
+              {visiblePosts.map((post) => (
+                <article className={styles.socialPostCard} key={post.id}>
+                  <div className={styles.socialPostHeader}>
+                    <div className={styles.socialPostAuthor}>
+                      <div className={styles.socialPostAvatar}>
+                        {post.avatarUrl ? (
+                          <NextImage
+                            alt={post.author}
+                            className={styles.socialPostAvatarImage}
+                            fill
+                            sizes="40px"
+                            src={post.avatarUrl}
+                          />
+                        ) : (
+                          <span>{post.author.slice(0, 1).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className={styles.socialPostAuthorCopy}>
+                        <strong>{post.author}</strong>
+                        <span>
+                          {post.handle}
+                          {post.timestamp ? ` • ${post.timestamp}` : ""}
+                        </span>
+                      </div>
+                    </div>
+                    <button aria-label="More options" className={styles.socialIconButton} type="button">
+                      •••
+                    </button>
+                  </div>
+
+                  <div className={styles.socialPostMedia}>
+                    {post.mediaType === "video" ? (
+                      <video
+                        className={styles.socialPostMediaElement}
+                        controls
+                        muted
+                        playsInline
+                        preload="metadata"
+                        poster={post.posterUrl || undefined}>
+                        <source src={post.mediaUrl} />
+                      </video>
+                    ) : (
+                      <NextImage
+                        alt={post.title}
+                        className={styles.socialPostMediaElement}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 740px"
+                        src={post.mediaUrl}
+                      />
+                    )}
+                  </div>
+
+                  <div className={styles.socialPostActions}>
+                    <div className={styles.socialActionGroup}>
+                      <button className={styles.socialIconButton} type="button">
+                        ♥
+                      </button>
+                      <button className={styles.socialIconButton} type="button">
+                        💬
+                      </button>
+                      <button className={styles.socialIconButton} type="button">
+                        ↗
+                      </button>
+                    </div>
+                    <button className={styles.socialIconButton} type="button">
+                      🔖
+                    </button>
+                  </div>
+
+                  <div className={styles.socialPostBody}>
+                    {post.likes ? <strong>{post.likes}</strong> : null}
+                    {post.title ? <p className={styles.socialPostTitle}>{post.title}</p> : null}
+                    {post.caption ? <p className={styles.socialPostCaption}>{post.caption}</p> : null}
+                    {post.tags.length ? (
+                      <div className={styles.socialPostTags}>
+                        {post.tags.map((tag) => (
+                          <span className={styles.socialTag} key={tag}>
+                            #{tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {post.comments ? <span className={styles.socialPostMeta}>{post.comments}</span> : null}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            {filters.length ? (
+              <aside className={styles.socialFeedSidebar}>
+                <div className={styles.socialSidebarCard}>
+                  <strong>Curated feed</strong>
+                  <p>Explora imágenes, reels y piezas editoriales sin salir del CMS.</p>
+                  <div className={styles.socialSidebarPills}>
+                    {filters.slice(0, 4).map((filter) => (
+                      <span className={styles.socialSidebarPill} key={filter}>
+                        {filter}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
+
+      <StoriesModal
+        autoplay={autoplay}
+        defaultDurationMs={interval}
+        initialIndex={activeStoryIndex ?? 0}
+        open={activeStoryIndex !== null}
+        onClose={() => setActiveStoryIndex(null)}
+        showProgressBar={showProgressBar}
+        stories={stories}
+      />
+
+      <SocialPostDetailModal
+        initialIndex={activePostIndex ?? 0}
+        onClose={closePost}
+        open={displayMode === "profile" && activePostIndex !== null}
+        posts={visiblePosts}
       />
     </Container>
   );
@@ -1186,6 +1689,7 @@ const sectionMap: Record<
   MEDIA_GRID_ENHANCED: (section) => <MediaGridEnhancedSection section={section} />,
   MEDIA_CAROUSEL: (section) => <MediaCarouselSection section={section} />,
   STORIES_CAROUSEL: (section) => <StoriesCarouselSection section={section} />,
+  SOCIAL_FEED: (section) => <SocialFeedSection section={section} />,
   CONTENT_SPLIT: (section, options) => (
     <ContentSplitSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
   ),

@@ -1,0 +1,258 @@
+{
+  "id": 9011,
+  "path": "mock/multimedia/v2",
+  "title": "Multimedia mock v2",
+  "summary": "Profile-style multimedia page with stories and media grid only.",
+  "locale": "es",
+  "seo": {
+    "title": "Multimedia mock v2",
+    "description": "Profile-style multimedia page with stories and media grid only.",
+    "imageUrl": "/assets/images/banners/banner-24.jpg"
+  },
+  "layoutKey": "mock-multimedia-profile",
+  "legacySource": "mock/multimedia/v2",
+  "sections": [
+    {
+      "id": 9130,
+      "type": "SOCIAL_FEED",
+      "key": "social-feed-v2",
+      "sortOrder": 0,
+      "settings": {
+        "title": "Perfil multimedia",
+        "description": "Historias y grilla visual para explorar fotos, videos y reels en formato perfil.",
+        "profileName": "urucortinas",
+        "handle": "@urucortinas",
+        "intro": "Vista de perfil centrada en contenido visual: historias arriba y media grid como núcleo.",
+        "displayMode": "profile",
+        "autoplay": true,
+        "interval": 5000,
+        "showProgressBar": true,
+        "defaultProfileTab": "posts",
+        "profileTabs": [
+          { "key": "posts", "label": "Posts", "kind": "all" },
+          { "key": "photos", "label": "Photos", "kind": "image" },
+          { "key": "videos", "label": "Videos", "kind": "video" },
+          { "key": "reels", "label": "Reels", "kind": "reel" }
+        ],
+        "filters": ["Stories", "Photos", "Videos", "Reels"],
+        "stats": [
+          { "label": "posts", "value": "4" },
+          { "label": "stories", "value": "4" },
+          { "label": "media", "value": "5" }
+        ]
+      },
+      "blocks": [
+        {
+          "id": 9332,
+          "type": "STORY",
+          "name": "Story 01",
+          "sortOrder": 0,
+          "content": {
+            "kind": "story",
+            "title": "Campaña 01",
+            "caption": "Lanzamiento editorial",
+            "mediaUrl": "/assets/images/banners/banner-21.jpg",
+            "mediaType": "image",
+            "duration": 4,
+            "link": "#story-01"
+          },
+          "media": {
+            "id": 9430,
+            "url": "/assets/images/banners/banner-21.jpg",
+            "type": "IMAGE",
+            "alt": "Campaña 01",
+            "title": "Campaña 01",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9333,
+          "type": "STORY",
+          "name": "Story 02",
+          "sortOrder": 1,
+          "content": {
+            "kind": "story",
+            "title": "Texturas",
+            "caption": "Detalle visual",
+            "mediaUrl": "/assets/images/banners/banner-24.jpg",
+            "mediaType": "image",
+            "duration": 4,
+            "link": "#story-02"
+          },
+          "media": {
+            "id": 9431,
+            "url": "/assets/images/banners/banner-24.jpg",
+            "type": "IMAGE",
+            "alt": "Texturas",
+            "title": "Texturas",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9334,
+          "type": "STORY",
+          "name": "Story 03",
+          "sortOrder": 2,
+          "content": {
+            "kind": "story",
+            "title": "Video corto",
+            "caption": "Producto en acción",
+            "mediaUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "mediaType": "video",
+            "duration": 5,
+            "link": "#story-03"
+          },
+          "media": {
+            "id": 9432,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Video corto",
+            "title": "Video corto",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9335,
+          "type": "STORY",
+          "name": "Story 04",
+          "sortOrder": 3,
+          "content": {
+            "kind": "story",
+            "title": "Narrativa",
+            "caption": "Marca y contexto",
+            "mediaUrl": "/assets/images/banners/banner-22.jpg",
+            "mediaType": "image",
+            "duration": 4,
+            "link": "#story-04"
+          },
+          "media": {
+            "id": 9433,
+            "url": "/assets/images/banners/banner-22.jpg",
+            "type": "IMAGE",
+            "alt": "Narrativa",
+            "title": "Narrativa",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9336,
+          "type": "POST",
+          "name": "Photo 01",
+          "sortOrder": 4,
+          "content": {
+            "kind": "post",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Composición limpia",
+            "caption": "Una foto para mostrar materialidad y profundidad.",
+            "mediaUrl": "/assets/images/banners/banner-14.jpg",
+            "mediaType": "image",
+            "likes": "1,204 likes",
+            "comments": "18 comments",
+            "timestamp": "2h",
+            "tags": ["photo", "detail", "editorial"],
+            "link": "#post-01"
+          },
+          "media": {
+            "id": 9434,
+            "url": "/assets/images/banners/banner-14.jpg",
+            "type": "IMAGE",
+            "alt": "Composición limpia",
+            "title": "Composición limpia",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9337,
+          "type": "POST",
+          "name": "Photo 02",
+          "sortOrder": 5,
+          "content": {
+            "kind": "post",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Detalle y contraste",
+            "caption": "Más legibilidad, más foco visual.",
+            "mediaUrl": "/assets/images/banners/banner-20.jpg",
+            "mediaType": "image",
+            "likes": "1,021 likes",
+            "comments": "11 comments",
+            "timestamp": "1d",
+            "tags": ["photo", "contrast", "visual"],
+            "link": "#post-02"
+          },
+          "media": {
+            "id": 9435,
+            "url": "/assets/images/banners/banner-20.jpg",
+            "type": "IMAGE",
+            "alt": "Detalle y contraste",
+            "title": "Detalle y contraste",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9338,
+          "type": "POST",
+          "name": "Video 01",
+          "sortOrder": 6,
+          "content": {
+            "kind": "post",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Video corto de uso",
+            "caption": "Un corte breve para demostrar apertura y movimiento.",
+            "mediaUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "mediaType": "video",
+            "thumbnail": "/assets/images/banners/banner-18.jpg",
+            "likes": "942 likes",
+            "comments": "12 comments",
+            "timestamp": "5h",
+            "tags": ["video", "demo", "motion"],
+            "link": "#post-03"
+          },
+          "media": {
+            "id": 9436,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Video corto de uso",
+            "title": "Video corto de uso",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9339,
+          "type": "REEL",
+          "name": "Reel 01",
+          "sortOrder": 7,
+          "content": {
+            "kind": "reel",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Reel de producto",
+            "caption": "Movimiento corto con foco en la textura del material.",
+            "mediaUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "mediaType": "video",
+            "thumbnail": "/assets/images/banners/banner-16.jpg",
+            "likes": "2,212 likes",
+            "comments": "33 comments",
+            "timestamp": "1d",
+            "tags": ["reel", "product", "motion"],
+            "link": "#post-04"
+          },
+          "media": {
+            "id": 9437,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Reel de producto",
+            "title": "Reel de producto",
+            "source": "mock"
+          }
+        }
+      ]
+    }
+  ]
+}

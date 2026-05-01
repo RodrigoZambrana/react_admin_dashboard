@@ -1,0 +1,281 @@
+{
+  "id": 9010,
+  "path": "mock/multimedia/v1",
+  "title": "Multimedia mock v1",
+  "summary": "Instagram-like feed composed from CMS blocks.",
+  "locale": "es",
+  "seo": {
+    "title": "Multimedia mock v1",
+    "description": "Instagram-like feed composed from CMS blocks.",
+    "imageUrl": "/assets/images/banners/banner-21.jpg"
+  },
+  "layoutKey": "mock-multimedia-feed",
+  "legacySource": "mock/multimedia/v1",
+  "sections": [
+    {
+      "id": 9120,
+      "type": "SOCIAL_FEED",
+      "key": "social-feed-v1",
+      "sortOrder": 0,
+      "settings": {
+        "title": "Feed multimedia",
+        "description": "Stories, reels y posts editoriales en un carril visual continuo.",
+        "profileName": "urucortinas",
+        "handle": "@urucortinas",
+        "intro": "Exploración visual para inspirar, mostrar usos reales y reforzar marca sin salir del CMS.",
+        "autoplay": true,
+        "interval": 5000,
+        "showProgressBar": true,
+        "defaultProfileTab": "posts",
+        "profileTabs": [
+          { "key": "posts", "label": "Posts", "kind": "all" },
+          { "key": "photos", "label": "Photos", "kind": "image" },
+          { "key": "videos", "label": "Videos", "kind": "video" },
+          { "key": "reels", "label": "Reels", "kind": "reel" }
+        ],
+        "filters": ["All", "Stories", "Reels", "Editorial", "Product"],
+        "stats": [
+          { "label": "posts", "value": "12" },
+          { "label": "stories", "value": "8" },
+          { "label": "reels", "value": "4" }
+        ]
+      },
+      "blocks": [
+        {
+          "id": 9232,
+          "type": "STORY",
+          "name": "Story 01",
+          "sortOrder": 0,
+          "content": {
+            "kind": "story",
+            "title": "Campaña 01",
+            "caption": "Lanzamiento editorial",
+            "mediaUrl": "/assets/images/banners/banner-21.jpg",
+            "mediaType": "image",
+            "duration": 4,
+            "link": "#story-01"
+          },
+          "media": {
+            "id": 9330,
+            "url": "/assets/images/banners/banner-21.jpg",
+            "type": "IMAGE",
+            "alt": "Campaña 01",
+            "title": "Campaña 01",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9233,
+          "type": "STORY",
+          "name": "Story 02",
+          "sortOrder": 1,
+          "content": {
+            "kind": "story",
+            "title": "Usos reales",
+            "caption": "Antes y después",
+            "mediaUrl": "/assets/images/banners/banner-22.jpg",
+            "mediaType": "image",
+            "duration": 4,
+            "link": "#story-02"
+          },
+          "media": {
+            "id": 9331,
+            "url": "/assets/images/banners/banner-22.jpg",
+            "type": "IMAGE",
+            "alt": "Usos reales",
+            "title": "Usos reales",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9234,
+          "type": "STORY",
+          "name": "Story 03",
+          "sortOrder": 2,
+          "content": {
+            "kind": "story",
+            "title": "Video corto",
+            "caption": "Producto en acción",
+            "mediaUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "mediaType": "video",
+            "duration": 5,
+            "link": "#story-03"
+          },
+          "media": {
+            "id": 9332,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Video corto",
+            "title": "Video corto",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9235,
+          "type": "STORY",
+          "name": "Story 04",
+          "sortOrder": 3,
+          "content": {
+            "kind": "story",
+            "title": "Editorial",
+            "caption": "Narrativa de marca",
+            "mediaUrl": "/assets/images/banners/banner-24.jpg",
+            "mediaType": "image",
+            "duration": 4,
+            "link": "#story-04"
+          },
+          "media": {
+            "id": 9333,
+            "url": "/assets/images/banners/banner-24.jpg",
+            "type": "IMAGE",
+            "alt": "Editorial",
+            "title": "Editorial",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9236,
+          "type": "POST",
+          "name": "Post 01",
+          "sortOrder": 4,
+          "content": {
+            "kind": "post",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Capas y texturas",
+            "caption": "Una composición limpia para mostrar materialidad y detalle.",
+            "mediaUrl": "/assets/images/banners/banner-14.jpg",
+            "mediaType": "image",
+            "likes": "1,204 likes",
+            "comments": "18 comments",
+            "timestamp": "2h",
+            "tags": ["material", "texture", "editorial"]
+          },
+          "media": {
+            "id": 9334,
+            "url": "/assets/images/banners/banner-14.jpg",
+            "type": "IMAGE",
+            "alt": "Capas y texturas",
+            "title": "Capas y texturas",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9237,
+          "type": "POST",
+          "name": "Post 02",
+          "sortOrder": 5,
+          "content": {
+            "kind": "post",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Video corto de uso",
+            "caption": "Un reel breve para demostrar apertura, sombra y movimiento.",
+            "mediaUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "mediaType": "video",
+            "thumbnail": "/assets/images/banners/banner-16.jpg",
+            "likes": "942 likes",
+            "comments": "12 comments",
+            "timestamp": "5h",
+            "tags": ["reel", "demo", "video"]
+          },
+          "media": {
+            "id": 9335,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Video corto de uso",
+            "title": "Video corto de uso",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9238,
+          "type": "POST",
+          "name": "Post 03",
+          "sortOrder": 6,
+          "content": {
+            "kind": "post",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Colección de inspiración",
+            "caption": "Más editorial, más respiración y una lectura más parecida al feed social.",
+            "mediaUrl": "/assets/images/banners/banner-16.jpg",
+            "mediaType": "image",
+            "likes": "1,580 likes",
+            "comments": "26 comments",
+            "timestamp": "8h",
+            "tags": ["inspiration", "feed", "lifestyle"]
+          },
+          "media": {
+            "id": 9336,
+            "url": "/assets/images/banners/banner-16.jpg",
+            "type": "IMAGE",
+            "alt": "Colección de inspiración",
+            "title": "Colección de inspiración",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9239,
+          "type": "REEL",
+          "name": "Reel 01",
+          "sortOrder": 7,
+          "content": {
+            "kind": "reel",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Reel de producto",
+            "caption": "Movimiento corto con foco en la textura del material.",
+            "mediaUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "mediaType": "video",
+            "thumbnail": "/assets/images/banners/banner-18.jpg",
+            "likes": "2,212 likes",
+            "comments": "33 comments",
+            "timestamp": "1d",
+            "tags": ["reel", "product", "motion"]
+          },
+          "media": {
+            "id": 9337,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Reel de producto",
+            "title": "Reel de producto",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9240,
+          "type": "POST",
+          "name": "Post 04",
+          "sortOrder": 8,
+          "content": {
+            "kind": "post",
+            "author": "urucortinas",
+            "handle": "@urucortinas",
+            "avatarUrl": "/assets/images/logos/logo.png",
+            "title": "Detalle y contraste",
+            "caption": "Para validar densidad visual con mayor contraste y legibilidad.",
+            "mediaUrl": "/assets/images/banners/banner-20.jpg",
+            "mediaType": "image",
+            "likes": "1,021 likes",
+            "comments": "11 comments",
+            "timestamp": "1d",
+            "tags": ["detail", "contrast", "visual"]
+          },
+          "media": {
+            "id": 9338,
+            "url": "/assets/images/banners/banner-20.jpg",
+            "type": "IMAGE",
+            "alt": "Detalle y contraste",
+            "title": "Detalle y contraste",
+            "source": "mock"
+          }
+        }
+      ]
+    }
+  ]
+}

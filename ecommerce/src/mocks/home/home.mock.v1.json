@@ -1,0 +1,435 @@
+{
+  "id": 9002,
+  "path": "mock/home/v1",
+  "title": "Home mock v1",
+  "summary": "Modern visual-first home exploration.",
+  "locale": "es",
+  "seo": {
+    "title": "Home mock v1",
+    "description": "Modern visual-first home exploration.",
+    "imageUrl": "/assets/images/banners/banner-24.jpg"
+  },
+  "layoutKey": "mock-home",
+  "legacySource": "mock/home/v1",
+  "sections": [
+    {
+      "id": 9106,
+      "type": "MEDIA_HERO",
+      "key": "home-v1-hero",
+      "sortOrder": 0,
+      "settings": {
+        "mediaType": "image",
+        "overlay": true,
+        "overlayOpacity": 0.7,
+        "title": "Home visual-first",
+        "subtitle": "Hero dominante con una narrativa fuerte y CTA claros.",
+        "eyebrow": "v1",
+        "mediaAlt": "Hero mock v1",
+        "primaryCta": {
+          "label": "Explorar historias",
+          "href": "/mock/home/v2"
+        },
+        "secondaryCta": {
+          "label": "Abrir multimedia",
+          "href": "/mock/multimedia/v1"
+        }
+      },
+      "blocks": [
+        {
+          "id": 9210,
+          "type": "IMAGE",
+          "name": "Hero v1",
+          "sortOrder": 0,
+          "content": null,
+          "media": {
+            "id": 9310,
+            "url": "/assets/images/banners/banner-24.jpg",
+            "type": "IMAGE",
+            "alt": "Hero mock v1",
+            "title": "Hero mock v1",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9107,
+      "type": "STORIES_CAROUSEL",
+      "key": "home-v1-stories",
+      "sortOrder": 1,
+      "settings": {
+        "title": "Historias en formato snackable",
+        "description": "Exploración rápida con progreso y modal fullscreen.",
+        "autoplay": true,
+        "interval": 4800,
+        "showProgressBar": true
+      },
+      "blocks": [
+        {
+          "id": 9211,
+          "type": "CARD",
+          "name": "Story v1 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Campaña 01",
+            "caption": "Demo de lanzamiento editorial.",
+            "imageUrl": "/assets/images/stories/story-home-1.jpg",
+            "link": "/mock/home/v2",
+            "durationSec": 5,
+            "mediaType": "image"
+          },
+          "media": {
+            "id": 9311,
+            "url": "/assets/images/stories/story-home-1.jpg",
+            "type": "IMAGE",
+            "alt": "Campaña 01",
+            "title": "Campaña 01",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9212,
+          "type": "CARD",
+          "name": "Story v1 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Campaña 02",
+            "caption": "Uso real y prueba visual.",
+            "imageUrl": "/assets/images/stories/story-home-2.jpg",
+            "link": "/mock/multimedia/v1",
+            "durationSec": 5,
+            "mediaType": "image"
+          },
+          "media": {
+            "id": 9312,
+            "url": "/assets/images/stories/story-home-2.jpg",
+            "type": "IMAGE",
+            "alt": "Campaña 02",
+            "title": "Campaña 02",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9213,
+          "type": "CARD",
+          "name": "Story v1 3",
+          "sortOrder": 2,
+          "content": {
+            "title": "Campaña 03",
+            "caption": "Conversión a través de media.",
+            "imageUrl": "/assets/images/stories/story-home-3.jpg",
+            "link": "/mock/home/current",
+            "durationSec": 5,
+            "mediaType": "image"
+          },
+          "media": {
+            "id": 9313,
+            "url": "/assets/images/stories/story-home-3.jpg",
+            "type": "IMAGE",
+            "alt": "Campaña 03",
+            "title": "Campaña 03",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9108,
+      "type": "HIGHLIGHT_CARDS",
+      "key": "home-v1-highlights",
+      "sortOrder": 2,
+      "settings": {
+        "title": "Categorías clave",
+        "description": "Cards con foco en navegación e intención."
+      },
+      "blocks": [
+        {
+          "id": 9214,
+          "type": "CARD",
+          "name": "Highlight v1 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Tecnología",
+            "description": "Diseño, producto y velocidad.",
+            "badge": "Featured",
+            "linkLabel": "Abrir",
+            "href": "/mock/multimedia/v1"
+          },
+          "media": {
+            "id": 9314,
+            "url": "/assets/images/products/bghead-phone.png",
+            "type": "IMAGE",
+            "alt": "Tecnología",
+            "title": "Tecnología",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9215,
+          "type": "CARD",
+          "name": "Highlight v1 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Accesorios",
+            "description": "Menor fricción visual.",
+            "badge": "New",
+            "linkLabel": "Ver",
+            "href": "/mock/home/v2"
+          },
+          "media": {
+            "id": 9315,
+            "url": "/assets/images/products/watch.png",
+            "type": "IMAGE",
+            "alt": "Accesorios",
+            "title": "Accesorios",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9216,
+          "type": "CARD",
+          "name": "Highlight v1 3",
+          "sortOrder": 2,
+          "content": {
+            "title": "Lifestyle",
+            "description": "Narrativa aspiracional.",
+            "badge": "Story",
+            "linkLabel": "Ver",
+            "href": "/mock/home/current"
+          },
+          "media": {
+            "id": 9316,
+            "url": "/assets/images/products/clothes.png",
+            "type": "IMAGE",
+            "alt": "Lifestyle",
+            "title": "Lifestyle",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9217,
+          "type": "CARD",
+          "name": "Highlight v1 4",
+          "sortOrder": 3,
+          "content": {
+            "title": "Editorial",
+            "description": "Curaduría visual.",
+            "badge": "Curated",
+            "linkLabel": "Abrir",
+            "href": "/mock/multimedia/v1"
+          },
+          "media": {
+            "id": 9317,
+            "url": "/assets/images/banners/banner-17.jpg",
+            "type": "IMAGE",
+            "alt": "Editorial",
+            "title": "Editorial",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9109,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "home-v1-grid",
+      "sortOrder": 3,
+      "settings": {
+        "title": "Inspiración visual",
+        "description": "Grilla tipo masonry para explorar estilos.",
+        "columns": 3,
+        "gap": 1.1,
+        "aspectRatio": "4 / 5"
+      },
+      "blocks": [
+        {
+          "id": 9218,
+          "type": "CARD",
+          "name": "Grid v1 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Lookbook A",
+            "description": "Carril de inspiración.",
+            "badge": "Trend",
+            "overlayText": true,
+            "linkLabel": "Ver más",
+            "href": "/mock/home/v2"
+          },
+          "media": {
+            "id": 9318,
+            "url": "/assets/images/banners/banner-21.jpg",
+            "type": "IMAGE",
+            "alt": "Lookbook A",
+            "title": "Lookbook A",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9219,
+          "type": "CARD",
+          "name": "Grid v1 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Lookbook B",
+            "description": "Pensado para mobile first.",
+            "badge": "Use case",
+            "overlayText": true,
+            "linkLabel": "Ver",
+            "href": "/mock/home/current"
+          },
+          "media": {
+            "id": 9319,
+            "url": "/assets/images/banners/banner-22.jpg",
+            "type": "IMAGE",
+            "alt": "Lookbook B",
+            "title": "Lookbook B",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9220,
+          "type": "CARD",
+          "name": "Grid v1 3",
+          "sortOrder": 2,
+          "content": {
+            "title": "Lookbook C",
+            "description": "Jerarquía editorial.",
+            "badge": "Story",
+            "overlayText": true,
+            "linkLabel": "Abrir",
+            "href": "/mock/multimedia/v1"
+          },
+          "media": {
+            "id": 9320,
+            "url": "/assets/images/banners/banner-24.jpg",
+            "type": "IMAGE",
+            "alt": "Lookbook C",
+            "title": "Lookbook C",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9110,
+      "type": "VIDEO_SECTION",
+      "key": "home-v1-video",
+      "sortOrder": 4,
+      "settings": {
+        "title": "Video editorial",
+        "description": "Demostración corta para validar presencia de video.",
+        "layout": "contained",
+        "autoplay": false,
+        "controls": true
+      },
+      "blocks": [
+        {
+          "id": 9221,
+          "type": "CARD",
+          "name": "Video v1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Clip principal",
+            "description": "Placeholder de contenido audiovisual.",
+            "videoUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "thumbnail": "/assets/images/banners/banner-13.jpg"
+          },
+          "media": {
+            "id": 9321,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Clip principal",
+            "title": "Clip principal",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9222,
+          "type": "CARD",
+          "name": "Video v1 supporting",
+          "sortOrder": 1,
+          "content": {
+            "title": "Detalle",
+            "description": "Imagen de apoyo.",
+            "thumbnail": "/assets/images/banners/banner-16.jpg"
+          },
+          "media": {
+            "id": 9322,
+            "url": "/assets/images/banners/banner-16.jpg",
+            "type": "IMAGE",
+            "alt": "Detalle",
+            "title": "Detalle",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9111,
+      "type": "MEDIA_CAROUSEL",
+      "key": "home-v1-carousel",
+      "sortOrder": 5,
+      "settings": {
+        "title": "Productos destacados",
+        "description": "Carrusel para validar la capa de producto.",
+        "variant": "cards"
+      },
+      "blocks": [
+        {
+          "id": 9223,
+          "type": "CARD",
+          "name": "Carousel v1 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Producto A",
+            "description": "Placeholder para producto destacado.",
+            "linkLabel": "Ver",
+            "href": "/mock/home/v2"
+          },
+          "media": {
+            "id": 9323,
+            "url": "/assets/images/banners/banner-18.jpg",
+            "type": "IMAGE",
+            "alt": "Producto A",
+            "title": "Producto A",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9224,
+          "type": "CARD",
+          "name": "Carousel v1 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Producto B",
+            "description": "Placeholder para exploración.",
+            "linkLabel": "Ver",
+            "href": "/mock/home/current"
+          },
+          "media": {
+            "id": 9324,
+            "url": "/assets/images/banners/banner-19.jpg",
+            "type": "IMAGE",
+            "alt": "Producto B",
+            "title": "Producto B",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9112,
+      "type": "CTA_BANNER",
+      "key": "home-v1-cta",
+      "sortOrder": 6,
+      "settings": {
+        "title": "Abrir la variante editorial",
+        "description": "Compara esta versión con la narrativa de v2.",
+        "label": "Ir a v2",
+        "href": "/mock/home/v2",
+        "intent": "conversion"
+      },
+      "blocks": []
+    }
+  ]
+}

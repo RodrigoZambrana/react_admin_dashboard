@@ -1,0 +1,264 @@
+{
+  "id": 9003,
+  "path": "mock/home/v3",
+  "title": "Home mock v3",
+  "summary": "Candidate home with tighter hierarchy and cleaner editorial pacing.",
+  "locale": "es",
+  "seo": {
+    "title": "Home mock v3",
+    "description": "Candidate home with tighter hierarchy and cleaner editorial pacing.",
+    "imageUrl": "/assets/images/banners/banner-25.jpg"
+  },
+  "layoutKey": "mock-home",
+  "legacySource": "mock/home/v3",
+  "sections": [
+    {
+      "id": 9113,
+      "type": "MEDIA_HERO",
+      "key": "home-v3-hero",
+      "sortOrder": 0,
+      "settings": {
+        "mediaType": "image",
+        "overlay": true,
+        "overlayOpacity": 0.54,
+        "title": "Home candidata a producción",
+        "subtitle": "Menos ruido, más foco comercial y una lectura más precisa.",
+        "eyebrow": "v3",
+        "mediaAlt": "Hero mock v3",
+        "primaryCta": {
+          "label": "Explorar narrativa",
+          "href": "/mock/home/v1"
+        },
+        "secondaryCta": {
+          "label": "Abrir multimedia",
+          "href": "/mock/multimedia/v1"
+        }
+      },
+      "blocks": [
+        {
+          "id": 9225,
+          "type": "IMAGE",
+          "name": "Hero v3",
+          "sortOrder": 0,
+          "content": null,
+          "media": {
+            "id": 9325,
+            "url": "/assets/images/banners/banner-25.jpg",
+            "type": "IMAGE",
+            "alt": "Hero mock v3",
+            "title": "Hero mock v3",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9114,
+      "type": "CONTENT_SPLIT",
+      "key": "home-v3-split-1",
+      "sortOrder": 1,
+      "settings": {
+        "title": "Narrativa refinada",
+        "description": "Secuencia más limpia para validar un candidato de producción.",
+        "mediaPosition": "end",
+        "gallery": [
+          {
+            "imageUrl": "/assets/images/banners/banner-14.jpg",
+            "imageAlt": "Secuencia A"
+          },
+          {
+            "imageUrl": "/assets/images/banners/banner-16.jpg",
+            "imageAlt": "Secuencia B"
+          }
+        ],
+        "actions": [
+          {
+            "label": "Ver historias",
+            "href": "/mock/home/current"
+          },
+          {
+            "label": "Ver multimedia",
+            "href": "/mock/multimedia/v1"
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "id": 9226,
+          "type": "RICH_TEXT",
+          "name": "Split body",
+          "sortOrder": 0,
+          "content": {
+            "html": "<p>La versión candidata conserva respiración pero concentra mejor la jerarquía.</p><p>Sirve para validar un camino de producción con menos fricción.</p>"
+          },
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 9115,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "home-v3-grid",
+      "sortOrder": 2,
+      "settings": {
+        "title": "Grilla refinada de inspiración",
+        "description": "Más intención visual por card y mejor balance entre densidad y legibilidad.",
+        "columns": 4,
+        "gap": 0.9,
+        "aspectRatio": "4 / 5"
+      },
+      "blocks": [
+        {
+          "id": 9227,
+          "type": "CARD",
+          "name": "Grid v3 1",
+          "sortOrder": 0,
+          "content": {
+            "title": "Editorial A",
+            "description": "Compresión visual controlada.",
+            "badge": "Story",
+            "overlayText": true,
+            "linkLabel": "Abrir",
+            "href": "/mock/home/current"
+          },
+          "media": {
+            "id": 9326,
+            "url": "/assets/images/banners/banner-21.jpg",
+            "type": "IMAGE",
+            "alt": "Editorial A",
+            "title": "Editorial A",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9228,
+          "type": "CARD",
+          "name": "Grid v3 2",
+          "sortOrder": 1,
+          "content": {
+            "title": "Editorial B",
+            "description": "Continuidad editorial.",
+            "badge": "Proof",
+            "overlayText": true,
+            "linkLabel": "Ver",
+            "href": "/mock/home/v1"
+          },
+          "media": {
+            "id": 9327,
+            "url": "/assets/images/banners/banner-22.jpg",
+            "type": "IMAGE",
+            "alt": "Editorial B",
+            "title": "Editorial B",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9229,
+          "type": "CARD",
+          "name": "Grid v3 3",
+          "sortOrder": 2,
+          "content": {
+            "title": "Editorial C",
+            "description": "Último bloque de contraste.",
+            "badge": "Trend",
+            "overlayText": true,
+            "linkLabel": "Ver",
+            "href": "/mock/multimedia/v1"
+          },
+          "media": {
+            "id": 9328,
+            "url": "/assets/images/banners/banner-24.jpg",
+            "type": "IMAGE",
+            "alt": "Editorial C",
+            "title": "Editorial C",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9116,
+      "type": "VIDEO_SECTION",
+      "key": "home-v3-video",
+      "sortOrder": 3,
+      "settings": {
+        "title": "Video candidato",
+        "description": "Pausa visual para validar ritmo sin perder foco.",
+        "layout": "contained",
+        "autoplay": false,
+        "controls": true
+      },
+      "blocks": [
+        {
+          "id": 9230,
+          "type": "CARD",
+          "name": "Video v3",
+          "sortOrder": 0,
+          "content": {
+            "title": "Clip de validación",
+            "description": "Pequeño punto de atención para comparar comportamiento.",
+            "videoUrl": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "thumbnail": "/assets/images/banners/banner-20.jpg"
+          },
+          "media": {
+            "id": 9329,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Clip de validación",
+            "title": "Clip de validación",
+            "source": "mock"
+          }
+        }
+      ]
+    },
+    {
+      "id": 9117,
+      "type": "CONTENT_SPLIT",
+      "key": "home-v3-split-2",
+      "sortOrder": 4,
+      "settings": {
+        "title": "Cierre candidato",
+        "description": "La narrativa termina en una CTA de validación.",
+        "mediaPosition": "start",
+        "gallery": [
+          {
+            "imageUrl": "/assets/images/banners/banner-18.jpg",
+            "imageAlt": "Cierre v3"
+          }
+        ],
+        "actions": [
+          {
+            "label": "Ver catálogo candidato",
+            "href": "/mock/home/current"
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "id": 9231,
+          "type": "RICH_TEXT",
+          "name": "Split close v3",
+          "sortOrder": 0,
+          "content": {
+            "html": "<p>Esta versión sirve como candidato a futura migración controlada.</p><p>Menos bloques, más foco, más intención.</p>"
+          },
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 9118,
+      "type": "CTA_BANNER",
+      "key": "home-v3-cta",
+      "sortOrder": 5,
+      "settings": {
+        "title": "Abrir multimedia candidata",
+        "description": "Comparar la home v3 con el carril multimedia.",
+        "label": "Ir a multimedia",
+        "href": "/mock/multimedia/v1",
+        "intent": "conversion"
+      },
+      "blocks": []
+    }
+  ]
+}
