@@ -104,6 +104,14 @@ export default function MockHomeIndexPage() {
                     <p style={{ margin: "6px 0 0", color: "#64748b" }}>{item.description}</p>
                   </div>
                 ))}
+                <div>
+                  <Link href="/mock/multimedia" style={{ color: "#0f172a", fontWeight: 700 }}>
+                    Multimedia home
+                  </Link>
+                  <p style={{ margin: "6px 0 0", color: "#64748b" }}>
+                    Entry point for product-linked multimedia discovery.
+                  </p>
+                </div>
               </div>
             </div>
 

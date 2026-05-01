@@ -26,20 +26,7 @@
         "displayMode": "profile",
         "autoplay": true,
         "interval": 5000,
-        "showProgressBar": true,
-        "defaultProfileTab": "posts",
-        "profileTabs": [
-          { "key": "posts", "label": "Posts", "kind": "all" },
-          { "key": "photos", "label": "Photos", "kind": "image" },
-          { "key": "videos", "label": "Videos", "kind": "video" },
-          { "key": "reels", "label": "Reels", "kind": "reel" }
-        ],
-        "filters": ["Stories", "Photos", "Videos", "Reels"],
-        "stats": [
-          { "label": "posts", "value": "4" },
-          { "label": "stories", "value": "4" },
-          { "label": "media", "value": "5" }
-        ]
+        "showProgressBar": true
       },
       "blocks": [
         {

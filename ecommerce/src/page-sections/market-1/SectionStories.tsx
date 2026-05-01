@@ -18,7 +18,7 @@ import type { CmsContentAsset, CmsContentEntry } from "@/types/storefront";
 
 const StoriesCarouselRoot = styled.div`
   position: relative;
-  padding-inline: 2.9rem;
+  padding-inline: 0.9rem;
 
   .slick-slider,
   .slick-list,
@@ -45,7 +45,15 @@ const StoriesCarouselRoot = styled.div`
   }
 
   @media (max-width: 767px) {
-    padding-inline: 3rem;
+    padding-inline: 0.15rem;
+
+    .slick-list {
+      margin-inline: 0;
+    }
+
+    .slick-slide {
+      padding-inline: 0.15rem;
+    }
   }
 `;
 
@@ -198,6 +206,7 @@ const ViewerCard = styled.div`
 const MediaPane = styled.div`
   position: relative;
   min-height: 440px;
+  overflow: hidden;
   background:
     radial-gradient(circle at top, rgba(217, 164, 65, 0.18), transparent 36%),
     linear-gradient(180deg, #0f1413 0%, #1a2422 100%);

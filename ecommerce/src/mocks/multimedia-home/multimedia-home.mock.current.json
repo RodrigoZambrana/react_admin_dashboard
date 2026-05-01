@@ -1,0 +1,205 @@
+{
+  "id": 9020,
+  "path": "mock/multimedia",
+  "title": "Multimedia home",
+  "summary": "Index page for multimedia details linked from products.",
+  "locale": "es",
+  "seo": {
+    "title": "Multimedia home",
+    "description": "Index page for multimedia details linked from products.",
+    "imageUrl": "/assets/images/banners/banner-24.jpg"
+  },
+  "layoutKey": "mock-multimedia-home",
+  "legacySource": "mock/multimedia",
+  "sections": [
+    {
+      "id": 9220,
+      "type": "MEDIA_HERO",
+      "key": "multimedia-home-hero",
+      "sortOrder": 0,
+      "settings": {
+        "mediaType": "image",
+        "mediaUrl": "/assets/images/banners/banner-24.jpg",
+        "overlay": true,
+        "overlayOpacity": 0.68,
+        "eyebrow": "Multimedia",
+        "title": "Biblioteca visual por producto",
+        "subtitle": "Explorá historias, videos y piezas editoriales disponibles para cada línea de producto.",
+        "primaryCta": {
+          "label": "Abrir detalle v1",
+          "href": "/mock/multimedia/v1"
+        },
+        "secondaryCta": {
+          "label": "Ver producto destacado",
+          "href": "/product/cortinas-roller"
+        }
+      },
+      "blocks": []
+    },
+    {
+      "id": 9221,
+      "type": "MULTIMEDIA_HUB",
+      "key": "multimedia-library",
+      "sortOrder": 1,
+      "settings": {
+        "eyebrow": "Catálogo visual",
+        "title": "Detalles multimedia disponibles",
+        "description": "Cada tarjeta conecta un producto con su detalle visual en la versión v1 del feed multimedia.",
+        "ctaLabel": "Ir al feed multimedia",
+        "ctaHref": "/mock/multimedia/v1"
+      },
+      "blocks": [
+        {
+          "id": 9301,
+          "type": "POST",
+          "name": "Cortinas Roller",
+          "sortOrder": 0,
+          "content": {
+            "title": "Cortinas Roller",
+            "description": "Detalle visual para mostrar materialidad, control de luz y uso interior.",
+            "badge": "Foto",
+            "mediaUrl": "/assets/images/banners/banner-21.jpg",
+            "mediaType": "image",
+            "link": "/mock/multimedia/v1#story-01",
+            "linkLabel": "Abrir detalle",
+            "productHref": "/product/cortinas-roller",
+            "productLabel": "Ver producto"
+          },
+          "media": {
+            "id": 9401,
+            "url": "/assets/images/banners/banner-21.jpg",
+            "type": "IMAGE",
+            "alt": "Cortinas Roller",
+            "title": "Cortinas Roller",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9302,
+          "type": "POST",
+          "name": "Cortinas de enrollar",
+          "sortOrder": 1,
+          "content": {
+            "title": "Cortinas de enrollar",
+            "description": "Uso exterior con foco en seguridad y resistencia.",
+            "badge": "Video",
+            "mediaUrl": "/assets/images/banners/banner-22.jpg",
+            "mediaType": "image",
+            "link": "/mock/multimedia/v1#story-02",
+            "linkLabel": "Abrir detalle",
+            "productHref": "/productos/cortinas-de-enrollar.html",
+            "productLabel": "Ver producto"
+          },
+          "media": {
+            "id": 9402,
+            "url": "/assets/images/banners/banner-22.jpg",
+            "type": "IMAGE",
+            "alt": "Cortinas de enrollar",
+            "title": "Cortinas de enrollar",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9303,
+          "type": "POST",
+          "name": "Bandas verticales",
+          "sortOrder": 2,
+          "content": {
+            "title": "Bandas verticales",
+            "description": "Detalle para amplios vidriados y espacios con jerarquía visual.",
+            "badge": "Reel",
+            "mediaUrl": "/assets/images/banners/banner-23.jpg",
+            "mediaType": "image",
+            "link": "/mock/multimedia/v1#story-03",
+            "linkLabel": "Abrir detalle",
+            "productHref": "/productos/bandas-verticales.html",
+            "productLabel": "Ver producto"
+          },
+          "media": {
+            "id": 9403,
+            "url": "/assets/images/banners/banner-23.jpg",
+            "type": "IMAGE",
+            "alt": "Bandas verticales",
+            "title": "Bandas verticales",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9304,
+          "type": "POST",
+          "name": "Aberturas en aluminio",
+          "sortOrder": 3,
+          "content": {
+            "title": "Aberturas en aluminio",
+            "description": "Narrativa visual para obra, recambio y terminaciones.",
+            "badge": "Foto",
+            "mediaUrl": "/assets/images/banners/banner-24.jpg",
+            "mediaType": "image",
+            "link": "/mock/multimedia/v1#story-04",
+            "linkLabel": "Abrir detalle",
+            "productHref": "/productos/aberturas-aluminio.html",
+            "productLabel": "Ver producto"
+          },
+          "media": {
+            "id": 9404,
+            "url": "/assets/images/banners/banner-24.jpg",
+            "type": "IMAGE",
+            "alt": "Aberturas en aluminio",
+            "title": "Aberturas en aluminio",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9305,
+          "type": "POST",
+          "name": "Toldos y cerramientos",
+          "sortOrder": 4,
+          "content": {
+            "title": "Toldos y cerramientos",
+            "description": "Para exterior, sombra y continuidad con el espacio.",
+            "badge": "Video",
+            "mediaUrl": "/assets/images/banners/banner-25.jpg",
+            "mediaType": "image",
+            "link": "/mock/multimedia/v1#story-05",
+            "linkLabel": "Abrir detalle",
+            "productHref": "/productos/toldos-y-cerramientos.html",
+            "productLabel": "Ver producto"
+          },
+          "media": {
+            "id": 9405,
+            "url": "/assets/images/banners/banner-25.jpg",
+            "type": "IMAGE",
+            "alt": "Toldos y cerramientos",
+            "title": "Toldos y cerramientos",
+            "source": "mock"
+          }
+        },
+        {
+          "id": 9306,
+          "type": "POST",
+          "name": "Motores y automatismos",
+          "sortOrder": 5,
+          "content": {
+            "title": "Motores y automatismos",
+            "description": "Demostración de uso y automatización para elevar la experiencia.",
+            "badge": "Reel",
+            "mediaUrl": "/assets/images/banners/banner-26.jpg",
+            "mediaType": "image",
+            "link": "/mock/multimedia/v1#story-06",
+            "linkLabel": "Abrir detalle",
+            "productHref": "/productos/motores-cortinas-y-persianas.html",
+            "productLabel": "Ver producto"
+          },
+          "media": {
+            "id": 9406,
+            "url": "/assets/images/banners/banner-26.jpg",
+            "type": "IMAGE",
+            "alt": "Motores y automatismos",
+            "title": "Motores y automatismos",
+            "source": "mock"
+          }
+        }
+      ]
+    }
+  ]
+}

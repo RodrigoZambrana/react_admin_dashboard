@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import type { CmsRenderablePage } from "@/types/storefront";
 
-export type MockCmsCollection = "home" | "multimedia";
+export type MockCmsCollection = "home" | "multimedia" | "multimedia-home";
 
 export type MockCmsVersion = "current" | "v1" | "v2" | "v3";
 
@@ -57,13 +57,25 @@ const MOCK_CMS_MANIFEST: Record<MockCmsCollection, Record<string, MockCmsManifes
       file: "multimedia.mock.v3.json",
     },
   },
+  "multimedia-home": {
+    current: {
+      title: "Multimedia home",
+      description: "Entry point for multimedia details and product-linked discovery.",
+      file: "multimedia-home.mock.current.json",
+    },
+  },
 };
 
 const MOCK_ROOT = path.join(process.cwd(), "src", "mocks");
 
 const normalizeVersion = (value: string): MockCmsVersion => {
   const normalized = value.trim().toLowerCase();
-  if (normalized === "current" || normalized === "v1" || normalized === "v2" || normalized === "v3") {
+  if (
+    normalized === "current" ||
+    normalized === "v1" ||
+    normalized === "v2" ||
+    normalized === "v3"
+  ) {
     return normalized;
   }
   throw new Error(`Unsupported mock version: ${value}`);

@@ -13,6 +13,7 @@ import ProductViewAnalytics from "@/components/seo/ProductViewAnalytics";
 import { buildProductBreadcrumbs, buildProductJsonLd } from "@/lib/seo/structured-data";
 import type { ProductDetail } from "@/types/storefront";
 import { CmsPageBody } from "@/components/cms/CmsPageShell";
+import ProductMultimediaCta from "@/components/products/ProductMultimediaCta";
 
 interface ProductPageSearchParams {
   id?: string | string[];
@@ -165,7 +166,12 @@ export default async function ProductDetails({
             ? productDetail.suggestedAddOns.map(mapProductSummaryToProduct)
             : []
         }
-        beforeDetails={cmsPage ? <CmsPageBody page={cmsPage} /> : null}
+        beforeDetails={
+          <>
+            <ProductMultimediaCta product={product} />
+            {cmsPage ? <CmsPageBody page={cmsPage} /> : null}
+          </>
+        }
         installationAddOn={productDetail?.installationAddOn ?? null}
         reviews={Array.isArray(productDetail?.reviews) ? productDetail.reviews : []}
         reviewSummary={productDetail?.reviewSummary ?? null}

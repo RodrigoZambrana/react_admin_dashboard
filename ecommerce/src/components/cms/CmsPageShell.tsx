@@ -977,6 +977,146 @@ const SocialFeedSection = ({ section }: { section: CmsRenderableSection }) => {
   );
 };
 
+const MultimediaHubSection = ({ section }: { section: CmsRenderableSection }) => {
+  const settings = asRecord(section.settings);
+  const eyebrow = asString(settings.eyebrow) || "Multimedia hub";
+  const title = asString(settings.title) || "Explorá los detalles multimedia";
+  const description =
+    asString(settings.description) ||
+    "Una puerta de entrada curada para navegar piezas visuales, historias y publicaciones por producto.";
+  const ctaLabel = asString(settings.ctaLabel) || "Abrir feed multimedia";
+  const ctaHref = asString(settings.ctaHref) || "/mock/multimedia/v1";
+  const cards = section.blocks
+    .map((block) => {
+      const content = asRecord(block.content);
+      const cardTitle = asString(content.title) || block.name || "";
+      const cardDescription = asString(content.description) || asString(content.caption);
+      const primaryHref = asString(content.link) || asString(content.href);
+      const primaryLabel = asString(content.linkLabel) || "Ver detalle";
+      const productHref = asString(content.productHref) || asString(content.productLink) || "";
+      const productLabel = asString(content.productLabel) || "Abrir producto";
+      const badge = asString(content.badge) || asString(content.kind);
+      const mediaUrl = asString(content.mediaUrl) || asString(content.imageUrl) || pickMediaUrl(block.media);
+      const mediaType = readMediaType(content.mediaType, readMediaType(block.media?.type, "image"));
+      const posterUrl =
+        asString(content.thumbnail) ||
+        asString(content.posterUrl) ||
+        asString(asRecord(block.media?.metadata).posterUrl) ||
+        asString(asRecord(block.media?.metadata).thumbUrl) ||
+        "";
+
+      return cardTitle || primaryHref || mediaUrl
+        ? {
+            id: block.id,
+            cardTitle,
+            cardDescription,
+            primaryHref,
+            primaryLabel,
+            productHref,
+            productLabel,
+            badge,
+            mediaUrl,
+            mediaType,
+            posterUrl,
+            alt: block.media?.alt || cardTitle || "Multimedia",
+          }
+        : null;
+    })
+    .filter(
+      (
+        item,
+      ): item is {
+        id: string | number;
+        cardTitle: string;
+        cardDescription: string;
+        primaryHref: string;
+        primaryLabel: string;
+        productHref: string;
+        productLabel: string;
+        badge: string;
+        mediaUrl: string;
+        mediaType: "image" | "video";
+        posterUrl: string;
+        alt: string;
+      } => Boolean(item),
+    );
+
+  if (!cards.length) return null;
+
+  return (
+    <Container className={styles.sectionContainer}>
+      <section className={styles.multimediaHubShell}>
+        <div className={styles.multimediaHubIntro}>
+          <span className={styles.multimediaHubEyebrow}>{eyebrow}</span>
+          {title ? <h2>{title}</h2> : null}
+          {description ? <p>{description}</p> : null}
+          <div className={styles.multimediaHubActions}>
+            {ctaHref ? (
+              <Link className={styles.multimediaHubPrimaryAction} href={ctaHref}>
+                {ctaLabel}
+              </Link>
+            ) : null}
+            <Link className={styles.multimediaHubSecondaryAction} href="/mock/multimedia/v1">
+              Ver detalle v1
+            </Link>
+          </div>
+        </div>
+
+        <div className={styles.multimediaHubGrid}>
+          {cards.map((card) => (
+            <article className={styles.multimediaHubCard} key={card.id}>
+              <Link
+                className={styles.multimediaHubCardMedia}
+                href={card.primaryHref || "/mock/multimedia/v1"}
+                rel={card.primaryHref.startsWith("http") ? "noreferrer" : undefined}
+                target={card.primaryHref.startsWith("http") ? "_blank" : undefined}>
+                {card.mediaUrl ? (
+                  card.mediaType === "video" ? (
+                    <video
+                      className={styles.multimediaHubCardVideo}
+                      muted
+                      playsInline
+                      preload="metadata"
+                      poster={card.posterUrl || undefined}>
+                      <source src={card.mediaUrl} />
+                    </video>
+                  ) : (
+                    <NextImage
+                      alt={card.alt}
+                      className={styles.multimediaHubCardImage}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 25vw"
+                      src={card.mediaUrl}
+                    />
+                  )
+                ) : null}
+                {card.badge ? <span className={styles.multimediaHubBadge}>{card.badge}</span> : null}
+              </Link>
+
+              <div className={styles.multimediaHubCardBody}>
+                {card.cardTitle ? <h3>{card.cardTitle}</h3> : null}
+                {card.cardDescription ? <p>{card.cardDescription}</p> : null}
+                <div className={styles.multimediaHubCardActions}>
+                  {card.primaryHref ? (
+                    <Link className={styles.multimediaHubCardPrimaryLink} href={card.primaryHref}>
+                      {card.primaryLabel}
+                    </Link>
+                  ) : null}
+                  {card.productHref ? (
+                    <Link className={styles.multimediaHubCardSecondaryLink} href={card.productHref}>
+                      {card.productLabel}
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </Container>
+  );
+};
+
 const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }) => {
   const settings = asRecord(section.settings);
   const variant = asString(settings.variant) || "default";
@@ -1690,6 +1830,7 @@ const sectionMap: Record<
   MEDIA_CAROUSEL: (section) => <MediaCarouselSection section={section} />,
   STORIES_CAROUSEL: (section) => <StoriesCarouselSection section={section} />,
   SOCIAL_FEED: (section) => <SocialFeedSection section={section} />,
+  MULTIMEDIA_HUB: (section) => <MultimediaHubSection section={section} />,
   CONTENT_SPLIT: (section, options) => (
     <ContentSplitSection section={section} allowHtmlFallback={options.allowHtmlFallback} />
   ),
