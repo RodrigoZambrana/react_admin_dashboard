@@ -30,8 +30,9 @@ import type {
   BudgetLeadResponse,
   BudgetSummaryRequest,
   BudgetSummaryResponse,
-  StorefrontProductMediaResponse
+  StorefrontProductMediaResponse,
 } from "@/types/storefront";
+import type { StoryDetail, StorySummary } from "@/types/stories";
 import type { OrderTimelineResponse } from "@/types/orderTimeline";
 
 import { env } from "@/lib/env";
@@ -149,6 +150,14 @@ const buildPublicCacheOptions = (tags: string[] = []) => ({
   cache: "force-cache" as const,
   next: {
     revalidate: PUBLIC_REVALIDATE_SECONDS,
+    tags,
+  },
+});
+
+const buildShortPublicCacheOptions = (tags: string[] = []) => ({
+  cache: "force-cache" as const,
+  next: {
+    revalidate: 60,
     tags,
   },
 });
@@ -447,6 +456,18 @@ export const StorefrontApi = {
     return apiFetch<CmsContentSection[]>("content/sections", {
       params: locale ? { locale } : undefined,
       ...buildPublicCacheOptions([buildPublicTag("storefront", "content-sections", locale ?? "default")])
+    });
+  },
+
+  async listStories(): Promise<StorySummary[]> {
+    return apiFetch<StorySummary[]>("stories", {
+      ...buildShortPublicCacheOptions([buildPublicTag("storefront", "stories")]),
+    });
+  },
+
+  async getStory(slug: string): Promise<StoryDetail> {
+    return apiFetch<StoryDetail>(`stories/${encodeURIComponent(slug)}`, {
+      ...buildShortPublicCacheOptions([buildPublicTag("storefront", "story", slug)]),
     });
   },
 

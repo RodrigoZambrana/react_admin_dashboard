@@ -2,6 +2,9 @@ import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import AppLayout from "@/components/layout/layout-1";
+import Container from "@component/Container";
+import Navbar from "@component/navbar/Navbar";
 import MultimediaGallery from "@/components/multimedia/MultimediaGallery";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
@@ -57,14 +60,17 @@ export default async function MultimediaDetailPage({
   }
 
   return (
-    <main
-      style={{
-        display: "grid",
-        gap: "1.5rem",
-        padding: "clamp(1.25rem, 2.5vw, 2rem)",
-      }}
-    >
-      <MultimediaGallery data={data} />
-    </main>
+    <AppLayout navbar={<Navbar />}>
+      <Container my="2rem">
+        <main
+          style={{
+            display: "grid",
+            gap: "1.5rem",
+          }}
+        >
+          <MultimediaGallery data={data} />
+        </main>
+      </Container>
+    </AppLayout>
   );
 }

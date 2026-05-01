@@ -63,20 +63,20 @@ const tabButtonActiveStyle: CSSProperties = {
 const galleryStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(auto-fit, minmax(172px, 1fr))",
-  gap: "0.85rem",
+  gap: "0.45rem",
 };
 
 const compactGalleryStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-  gap: "0.5rem",
+  gap: "0.35rem",
 };
 
 const mediaCardStyle: CSSProperties = {
   position: "relative",
   overflow: "hidden",
   aspectRatio: "1 / 1.28",
-  borderRadius: "22px",
+  borderRadius: 0,
   background: "transparent",
   border: 0,
   cursor: "pointer",
@@ -107,7 +107,7 @@ const modalDialogStyle: CSSProperties = {
   display: "grid",
   gridTemplateColumns: "minmax(0, 1.25fr) minmax(320px, 0.95fr)",
   overflow: "hidden",
-  borderRadius: "32px",
+  borderRadius: 0,
   border: "1px solid rgba(255, 255, 255, 0.12)",
   background: "#0f1514",
   boxShadow: "0 34px 90px rgba(0, 0, 0, 0.38)",

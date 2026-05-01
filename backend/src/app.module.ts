@@ -37,6 +37,7 @@ import { BudgetModule } from './budget/budget.module'
 import { AnalyticsModule } from './analytics/analytics.module'
 import { CloudinaryModule } from './cloudinary/cloudinary.module'
 import { MediaModule } from './media/media.module'
+import { StoriesModule } from './stories/stories.module'
 import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware'
 import { TimeoutInterceptor } from './common/interceptors/timeout.interceptor'
@@ -89,6 +90,7 @@ import { ObservabilityService } from './common/observability/observability.servi
     AnalyticsModule,
     CloudinaryModule,
     MediaModule,
+    StoriesModule,
   ],
   providers: [
     {

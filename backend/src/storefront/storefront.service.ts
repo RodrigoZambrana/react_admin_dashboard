@@ -2997,6 +2997,22 @@ export class StorefrontService implements OnModuleInit {
       ]),
     )
 
+    const buildFallbackStories = () =>
+      media.slice(0, 4).map((item, index) => ({
+        id: `fallback-story:${item.public_id}`,
+        title: item.name?.trim() || item.alt?.trim() || `Story ${index + 1}`,
+        caption:
+          item.alt?.trim() ||
+          item.familyKey?.trim() ||
+          (item.type === 'video' ? 'Video destacado' : 'Foto destacada'),
+        mediaSlug: item.slug,
+        public_id: item.public_id,
+        type: item.type,
+        order: item.order,
+        alt: item.alt ?? item.name ?? null,
+        version: item.version ?? null,
+      }))
+
     let stories: ProductMediaResponseDto['stories'] = []
     try {
       const cmsPage = await this.cmsPages.getPublicPageByPath(`multimedia/${detail.slug}`, 'es')
@@ -3017,6 +3033,10 @@ export class StorefrontService implements OnModuleInit {
           error as Error,
         )
       }
+    }
+
+    if (!stories.length) {
+      stories = buildFallbackStories()
     }
 
     return {

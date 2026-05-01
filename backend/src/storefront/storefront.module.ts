@@ -22,6 +22,7 @@ import { M2DerivedProductStockService } from './m2-derived-product-stock.service
 import { M2DerivedController } from './m2-derived.controller'
 import { PublicResponseCacheService } from '../common/cache/public-response-cache.service'
 import { NextRevalidationService } from '../common/cache/next-revalidation.service'
+import { StoriesModule } from '../stories/stories.module'
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { NextRevalidationService } from '../common/cache/next-revalidation.servi
     CmsModule,
     GrowthModule,
     BudgetModule,
+    StoriesModule,
   ],
   controllers: [StorefrontController, M2DerivedController],
   providers: [

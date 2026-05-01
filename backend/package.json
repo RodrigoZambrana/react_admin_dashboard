@@ -16,6 +16,8 @@
     "sync:urucortinas:installation": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/sync-urucortinas-installation-config.ts --dry-run",
     "sync:urucortinas:installation:apply": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/sync-urucortinas-installation-config.ts --confirm",
     "sync:product-media": "ts-node --project tsconfig.seed.json --transpile-only scripts/sync-product-media.ts",
+    "sync:stories-cms": "ts-node --project tsconfig.seed.json --transpile-only scripts/sync-stories-cms.ts",
+    "sync:stories": "ts-node --project tsconfig.seed.json --transpile-only scripts/sync-stories.ts",
     "media:export": "ts-node --project tsconfig.seed.json --transpile-only scripts/export-media.ts",
     "media:import": "ts-node --project tsconfig.seed.json --transpile-only scripts/import-media.ts",
     "knowledge:reindex:chunks": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reindex-knowledge-chunks.ts --dry-run",

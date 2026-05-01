@@ -16,6 +16,7 @@ import {
   Res,
   UseGuards,
   BadRequestException,
+  NotFoundException,
   UnauthorizedException,
   Header,
 } from '@nestjs/common'
@@ -52,6 +53,7 @@ import {
 } from './dto/password.dto'
 import { StorefrontCreateOrderReviewDto } from './dto/product-review.dto'
 import { StorefrontSecurityService } from './security/storefront-security.service'
+import { StoriesService } from '../stories/stories.service'
 
 @Controller('storefront')
 export class StorefrontController {
@@ -63,6 +65,7 @@ export class StorefrontController {
     private readonly googleAuth: StorefrontGoogleOAuthService,
     private readonly sessionCookies: StorefrontSessionCookieService,
     private readonly security: StorefrontSecurityService,
+    private readonly stories: StoriesService,
   ) {}
 
   private toClientSession<T extends { refreshToken?: string | null }>(session: T) {
@@ -106,6 +109,22 @@ export class StorefrontController {
     @Query('locale') locale?: string,
   ) {
     return this.storefront.getCmsPage(path ?? '', locale)
+  }
+
+  @Get('stories')
+  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
+  listStories() {
+    return this.stories.listStories()
+  }
+
+  @Get('stories/:slug')
+  @Header('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=120')
+  async getStory(@Param('slug') slug: string) {
+    const story = await this.stories.getStory(slug)
+    if (!story) {
+      throw new NotFoundException('Story not found')
+    }
+    return story
   }
 
   @Get('categories')

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import CmsPageShell from "@/components/cms/CmsPageShell";
+import StoriesHomeRail from "@/components/stories/StoriesHomeRail";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 
 export const revalidate = 120;
@@ -21,10 +22,23 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function StorefrontRootPage() {
   const { StorefrontApi } = await import("@/lib/api/storefront");
-  const [page, homeContentSections] = await Promise.all([
+  const [page, homeContentSections, stories] = await Promise.all([
     StorefrontApi.getCmsPage(""),
-    StorefrontApi.listContentSections(),
+    StorefrontApi.listContentSections().catch((error) => {
+      console.warn("[storefront] Failed to load home content sections.", error);
+      return [];
+    }),
+    StorefrontApi.listStories().catch((error) => {
+      console.warn("[storefront] Failed to load stories rail.", error);
+      return [];
+    }),
   ]);
 
-  return <CmsPageShell page={page} homeContentSections={homeContentSections} />;
+  return (
+    <CmsPageShell
+      page={page}
+      homeContentSections={homeContentSections}
+      homeTopSlot={<StoriesHomeRail stories={stories} />}
+    />
+  );
 }

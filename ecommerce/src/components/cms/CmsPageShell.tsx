@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties, type ReactElement } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Container from "@component/Container";
 import Card from "@component/Card";
 import Grid from "@component/grid/Grid";
@@ -33,6 +33,7 @@ const SocialPostDetailModal = dynamic(() => import("./SocialPostDetailModal"), {
 type Props = {
   page: CmsRenderablePage;
   homeContentSections?: CmsContentSection[] | null;
+  homeTopSlot?: ReactNode | null;
 };
 
 export type CmsPageBodyProps = {
@@ -1817,7 +1818,7 @@ const BudgetCalculatorSectionWithPage = ({
 
 const sectionMap: Record<
   string,
-  (section: CmsRenderableSection, options: CmsRenderOptions) => ReactElement | null
+  (section: CmsRenderableSection, options: CmsRenderOptions) => ReactNode
 > = {
   HERO: (section) => <HeroSection section={section} />,
   MEDIA_HERO: (section) => <MediaHeroSection section={section} />,
@@ -1845,7 +1846,7 @@ const sectionMap: Record<
   BUDGET_CALCULATOR: (section) => <BudgetCalculatorSection section={section} />,
 };
 
-export default function CmsPageShell({ page, homeContentSections }: Props) {
+export default function CmsPageShell({ page, homeContentSections, homeTopSlot }: Props) {
   const homeStoriesSection =
     page.path === "" && Array.isArray(homeContentSections)
       ? homeContentSections.find((section) => section.key === "HOME_STORIES") ?? null
@@ -1859,6 +1860,7 @@ export default function CmsPageShell({ page, homeContentSections }: Props) {
       <Topbar />
       <Header />
       <Navbar />
+      {homeTopSlot}
       {homeStoriesSection ? <SectionStories stories={homeStoriesSection.entries} /> : null}
 
       <main className={styles.siteMain}>

@@ -976,6 +976,38 @@ model ProductImage {
   @@index([productId, variantId])
 }
 
+model Story {
+  id            String      @id
+  slug          String      @unique
+  title         String
+  coverPublicId String
+  isActive      Boolean     @default(true)
+  startsAt      DateTime?
+  endsAt        DateTime?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  items         StoryItem[]
+
+  @@index([isActive, startsAt, endsAt])
+}
+
+model StoryItem {
+  id        String   @id
+  storyId   String
+  story     Story    @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  order     Int
+  type      String
+  publicId  String
+  duration  Int?
+  ctaLabel  String?
+  ctaUrl    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([storyId, order])
+  @@index([storyId, type])
+}
+
 model ProductOption {
   id        Int                  @id @default(autoincrement())
   productId Int
