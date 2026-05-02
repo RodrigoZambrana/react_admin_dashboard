@@ -1,5 +1,6 @@
 import type { ProductSummary } from "@/types/storefront";
 import type { StorefrontProductCardProps } from "@component/product-cards/StorefrontProductCard";
+import { resolveMediaAssetUrl } from "@/lib/media";
 import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
 
 export const mapProductSummaryToCardProps = (
@@ -24,11 +25,19 @@ export const mapProductSummaryToCardProps = (
   };
 
   const unitPrice = product.salePrice?.amount ?? product.price.amount;
-  const thumbnail = product.thumbnail?.url ?? null;
+  const resolveImage = (image?: { url?: string | null; publicId?: string | null; version?: number | null } | null) =>
+    resolveMediaAssetUrl({
+      url: image?.url ?? null,
+      publicId: image?.publicId ?? null,
+      version: image?.version ?? null,
+      type: "image",
+    }) || image?.url || null;
+
+  const thumbnail = resolveImage(product.thumbnail);
   const gallery = filterValidProductImages([
-    product.thumbnail?.url ?? null,
-    ...(product.images?.map((image) => image.url ?? null) ?? []),
-    ...(product.gallery?.map((image) => image.url ?? null) ?? [])
+    thumbnail,
+    ...(product.images?.map((image) => resolveImage(image)) ?? []),
+    ...(product.gallery?.map((image) => resolveImage(image)) ?? [])
   ]);
   const configuration = normalizeConfiguration(
     (product as { configuration?: unknown }).configuration ??

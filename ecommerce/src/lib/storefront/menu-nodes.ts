@@ -40,6 +40,7 @@ export const resolveStorefrontNavigationIcon = (item: StorefrontNavigationNode) 
 
   if (normalizedTitle.includes("home") || normalizedUrl === "/") return "home";
   if (normalizedTitle.includes("store") || normalizedUrl.includes("/shop")) return "bag";
+  if (normalizedTitle.includes("multimedia") || normalizedUrl.includes("/multimedia")) return "camera";
   if (normalizedTitle.includes("product") || normalizedTitle.includes("categor")) return "category";
   if (normalizedTitle.includes("contact")) return "customer-service";
 

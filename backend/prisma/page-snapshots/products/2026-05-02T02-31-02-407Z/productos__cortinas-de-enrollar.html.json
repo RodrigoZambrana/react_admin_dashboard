@@ -1,0 +1,469 @@
+{
+  "path": "productos/cortinas-de-enrollar.html",
+  "title": "Cortinas de enrollar a medida",
+  "summary": "Elegí PVC o aluminio, instalación nueva o recambio, y repará si ya tenés sistema.",
+  "seoTitle": "Cortinas de enrollar a medida | Urucortinas",
+  "seoDescription": "Cortinas de enrollar a medida en PVC o aluminio. Soluciones manuales o motorizadas, con instalación sin obra y reparación según el caso.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/portfolio/shutters/aluminio/cortina_enrollar_aluminio_1.jpeg",
+  "legacySource": "knowledge:public-curated",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T12:55:51.718Z",
+  "sections": [
+    {
+      "id": 1272,
+      "pageId": 11,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Cortinas de enrollar",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Cortinas de enrollar a medida",
+        "slides": [
+          {
+            "href": "/guias/cortinas-pvc-vs-aluminio",
+            "title": "Elegí entre aluminio y PVC",
+            "imageAlt": "Cortinas de enrollar a medida",
+            "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+            "linkLabel": "Ver comparativa",
+            "description": "Elegí el material según el uso, el frente y el mantenimiento que buscás."
+          }
+        ],
+        "eyebrow": "Solución a medida",
+        "description": "Para cerrar, proteger y terminar mejor el frente con una opción que se adapta a obra nueva o recambio.",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/guias/cortinas-pvc-vs-aluminio",
+        "secondaryCtaLabel": "Ver comparativa"
+      },
+      "createdAt": "2026-05-02T02:24:20.670Z",
+      "updatedAt": "2026-05-02T02:24:20.670Z",
+      "blocks": []
+    },
+    {
+      "id": 1273,
+      "pageId": 11,
+      "type": "FEATURE_GRID",
+      "key": "cortinas-enrollar-grid",
+      "name": "Opciones y contexto",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Opciones para decidir",
+        "description": "Elegí aluminio, PVC, reparación o precio según la etapa en la que esté tu proyecto.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T02:24:20.671Z",
+      "updatedAt": "2026-05-02T02:24:20.671Z",
+      "blocks": [
+        {
+          "id": 1647,
+          "sectionId": 1273,
+          "type": "CARD",
+          "key": "cortinas-enrollar-aluminum",
+          "name": "Aluminio",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "body": "Elegilas cuando necesitás más firmeza y una respuesta robusta en el frente.",
+            "href": "/productos/cortinas-de-enrollar-aluminio.html",
+            "title": "Aluminio",
+            "linkLabel": "Ver aluminio",
+            "headingLevel": "h3"
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.672Z",
+          "updatedAt": "2026-05-02T02:24:20.672Z",
+          "media": null
+        },
+        {
+          "id": 1648,
+          "sectionId": 1273,
+          "type": "CARD",
+          "key": "cortinas-enrollar-pvc",
+          "name": "PVC",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "body": "Conviene cuando priorizás practicidad, menos mantenimiento y una solución más accesible.",
+            "href": "/productos/cortinas-de-enrollar-pvc.html",
+            "title": "PVC",
+            "linkLabel": "Ver PVC",
+            "headingLevel": "h3"
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.672Z",
+          "updatedAt": "2026-05-02T02:24:20.672Z",
+          "media": null
+        },
+        {
+          "id": 1649,
+          "sectionId": 1273,
+          "type": "CARD",
+          "key": "cortinas-enrollar-repair",
+          "name": "Reparación",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "body": "Si ya tenés una instalada, vale revisar si alcanza con ajustar o reparar antes de cambiar todo.",
+            "href": "/servicios/reparacion-cortinas-y-persianas.html",
+            "title": "Reparación",
+            "linkLabel": "Ver reparación",
+            "headingLevel": "h3"
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.673Z",
+          "updatedAt": "2026-05-02T02:24:20.673Z",
+          "media": null
+        },
+        {
+          "id": 1650,
+          "sectionId": 1273,
+          "type": "CARD",
+          "key": "cortinas-enrollar-pricing",
+          "name": "Precio",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "body": "El valor cambia según medidas, material e instalación. Pedí una referencia antes de decidir.",
+            "href": "/precios/cortinas-de-enrollar",
+            "title": "Precio",
+            "linkLabel": "Ver precios",
+            "headingLevel": "h3"
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.673Z",
+          "updatedAt": "2026-05-02T02:24:20.673Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 1274,
+      "pageId": 11,
+      "type": "CONTENT_SPLIT",
+      "key": "cortinas-enrollar-content",
+      "name": "Guía de decisión",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "actions": [
+          {
+            "href": "/productos/cortinas-de-enrollar-aluminio.html",
+            "label": "Ver aluminio"
+          },
+          {
+            "href": "/productos/cortinas-de-enrollar-pvc.html",
+            "label": "Ver PVC"
+          },
+          {
+            "href": "/precios/cortinas-de-enrollar",
+            "label": "Ver precios"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "Cortinas de enrollar a medida 1",
+            "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/catalana_1.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortinas de enrollar a medida 2",
+            "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortinas de enrollar a medida 3",
+            "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Cortina de enrollar",
+        "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T02:24:20.674Z",
+      "updatedAt": "2026-05-02T02:24:20.674Z",
+      "blocks": [
+        {
+          "id": 1651,
+          "sectionId": 1274,
+          "type": "RICH_TEXT",
+          "key": "cortinas-enrollar-copy",
+          "name": "Copy",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las cortinas de enrollar resuelven privacidad, protección y cerramiento con una instalación prolija."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Pueden ser manuales o motorizadas, y se adaptan a obra nueva o recambio."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cuando el frente da a la calle o recibe uso diario, el aluminio suele dar más firmeza. Cuando el objetivo es una solución práctica con menos mantenimiento, PVC suele ser el punto de partida."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Si ya existe un sistema instalado, revisar reparación antes de cambiar todo ayuda a evitar un gasto innecesario."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.674Z",
+          "updatedAt": "2026-05-02T02:24:20.674Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 1275,
+      "pageId": 11,
+      "type": "FAQ",
+      "key": "cortinas-enrollar-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "Preguntas frecuentes",
+        "description": "Respuestas cortas para avanzar con más seguridad."
+      },
+      "createdAt": "2026-05-02T02:24:20.675Z",
+      "updatedAt": "2026-05-02T02:24:20.675Z",
+      "blocks": [
+        {
+          "id": 1652,
+          "sectionId": 1275,
+          "type": "FAQ_ITEM",
+          "key": "cortinas-enrollar-faq-faq-1",
+          "name": "¿Qué diferencia hay entre aluminio y PVC?",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Se instalan sin obra?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí, en muchos casos se instalan sin albañilería y se coordinan según el frente."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.675Z",
+          "updatedAt": "2026-05-02T02:24:20.675Z",
+          "media": null
+        },
+        {
+          "id": 1653,
+          "sectionId": 1275,
+          "type": "FAQ_ITEM",
+          "key": "cortinas-enrollar-faq-faq-2",
+          "name": "¿Se pueden reparar sin cambiar toda la cortina?",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "question": "¿Pueden ser manuales o motorizadas?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí, según el producto y el tipo de uso."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.675Z",
+          "updatedAt": "2026-05-02T02:24:20.675Z",
+          "media": null
+        },
+        {
+          "id": 1654,
+          "sectionId": 1275,
+          "type": "FAQ_ITEM",
+          "key": "cortinas-enrollar-faq-faq-3",
+          "name": "¿Sirven para casas y comercios?",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "question": "¿Cuándo conviene aluminio?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cuando necesitás más robustez, una respuesta más firme y mejor comportamiento en frentes expuestos."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.676Z",
+          "updatedAt": "2026-05-02T02:24:20.676Z",
+          "media": null
+        },
+        {
+          "id": 1655,
+          "sectionId": 1275,
+          "type": "FAQ_ITEM",
+          "key": "cortinas-enrollar-faq-faq-4",
+          "name": "¿Puedo pedir asesoramiento antes de decidir el material?",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "question": "¿Cuándo conviene PVC?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cuando priorizás practicidad, mantenimiento simple y un costo más accesible."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T02:24:20.676Z",
+          "updatedAt": "2026-05-02T02:24:20.676Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 1276,
+      "pageId": 11,
+      "type": "CTA_BANNER",
+      "key": "cortinas-enrollar-cta",
+      "name": "Cotización",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Pedí presupuesto con medidas aproximadas",
+        "intent": "transactional",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Contactar"
+          },
+          {
+            "href": "/precios/cortinas-de-enrollar",
+            "label": "Ver precios"
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Si ya tenés una referencia del frente, podemos orientarte mejor."
+      },
+      "createdAt": "2026-05-02T02:24:20.677Z",
+      "updatedAt": "2026-05-02T02:24:20.677Z",
+      "blocks": []
+    },
+    {
+      "id": 1277,
+      "pageId": 11,
+      "type": "VIDEO_SECTION",
+      "key": "standard-video-section",
+      "name": "Video del producto",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Video de Cortinas de enrollar a medida",
+        "layout": "contained",
+        "autoplay": false,
+        "controls": true,
+        "description": "Una demostración breve para complementar la lectura visual."
+      },
+      "createdAt": "2026-05-02T02:24:20.677Z",
+      "updatedAt": "2026-05-02T02:24:20.677Z",
+      "blocks": [
+        {
+          "id": 1656,
+          "sectionId": 1277,
+          "type": "CARD",
+          "key": "standard-video",
+          "name": "Video",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "title": "Video de Cortinas de enrollar a medida",
+            "mediaType": "video",
+            "posterUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+            "description": "Contenido audiovisual de apoyo para entender el producto en uso."
+          },
+          "mediaId": 53,
+          "createdAt": "2026-05-02T02:24:20.677Z",
+          "updatedAt": "2026-05-02T02:24:20.677Z",
+          "media": {
+            "id": 53,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Ventana Corrediza 20 Blanco 3mm 1500x2000 en uso",
+            "title": "Ventana Corrediza 20 Blanco 3mm 1500x2000 video",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-30T13:17:59.778Z",
+            "updatedAt": "2026-04-30T14:32:16.171Z"
+          }
+        }
+      ]
+    }
+  ]
+}

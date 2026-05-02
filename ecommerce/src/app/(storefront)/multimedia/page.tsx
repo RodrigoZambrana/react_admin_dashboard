@@ -1,4 +1,3 @@
-import { cache } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -6,14 +5,15 @@ import AppLayout from "@/components/layout/layout-1";
 import Container from "@component/Container";
 import Navbar from "@component/navbar/Navbar";
 import MultimediaGrid from "@/components/multimedia/MultimediaGrid";
+import { env } from "@/lib/env";
 import { getMediaUrl } from "@/lib/media";
 import { StorefrontApi } from "@/lib/api/storefront";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import type { ProductSummary } from "@/types/storefront";
 
-export const revalidate = 300;
+export const revalidate = env.publicMediaProvider === "local" ? 0 : 300;
 
-const loadMultimediaCatalog = cache(async (): Promise<ProductSummary[]> => {
+const loadMultimediaCatalog = async (): Promise<ProductSummary[]> => {
   const catalog = await StorefrontApi.listProductsWithMedia();
 
   const mapped: Array<ProductSummary | null> = catalog
@@ -64,12 +64,12 @@ const loadMultimediaCatalog = cache(async (): Promise<ProductSummary[]> => {
     ;
 
   return mapped.filter((product): product is ProductSummary => product !== null);
-});
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildStorefrontPageMetadata({
-    title: "Multimedia",
-    description: "Explorá el catálogo visual real de productos con imágenes y videos.",
+    title: "Inspiración visual",
+    description: "Conocé productos reales con imágenes y videos pensados para ayudarte a elegir mejor.",
     canonicalPath: "/multimedia",
   });
 }
@@ -109,13 +109,13 @@ export default async function MultimediaPage() {
                 textTransform: "uppercase",
               }}
             >
-              Multimedia real
+              Inspiración visual
             </p>
             <h1 style={{ margin: 0, fontSize: "clamp(1.8rem, 4vw, 3.2rem)", lineHeight: 1.03, letterSpacing: "-0.05em" }}>
-              Productos con contenido visual
+              Conocé nuestros productos en detalle
             </h1>
             <p style={{ margin: 0, maxWidth: "72ch", color: "rgba(247, 242, 232, 0.78)", lineHeight: 1.65 }}>
-              Navegá el catálogo visual real sincronizado desde el backend local. Cada tarjeta abre la galería multimedia del producto.
+              Explorá imágenes y videos reales para ver terminaciones, estilo y presencia en espacio real antes de elegir.
             </p>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
               <Link
@@ -133,7 +133,7 @@ export default async function MultimediaPage() {
                   textDecoration: "none",
                 }}
               >
-                Ir a tienda
+                Ver colección
               </Link>
             </div>
           </section>

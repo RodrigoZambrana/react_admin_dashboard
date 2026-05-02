@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, type CSSProperties } from "react";
 import styled from "styled-components";
 
 import Box from "@component/Box";
@@ -46,6 +46,28 @@ const Media = styled(Box)(({ theme }) => ({
   backgroundColor: theme.colors.gray[200],
   "& img": { transition: "transform 0.35s ease" }
 }));
+
+const overlayLinkStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 1,
+  display: "block",
+  textDecoration: "none",
+  color: "inherit"
+};
+
+const srOnlyStyle: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  clipPath: "inset(50%)",
+  whiteSpace: "nowrap",
+  border: 0
+};
 
 export type StorefrontProductCardProps = {
   id: string | number;
@@ -158,6 +180,9 @@ export default function StorefrontProductCard({
 
   return (
     <Wrapper>
+      <Link aria-label={title} href={detailHref} style={overlayLinkStyle}>
+        <span style={srOnlyStyle}>{title}</span>
+      </Link>
       <Media>
         <Link href={detailHref}>
           {primaryImage ? (

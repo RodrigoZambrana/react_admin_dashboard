@@ -7,10 +7,11 @@ import Container from "@component/Container";
 import Navbar from "@component/navbar/Navbar";
 import MultimediaGallery from "@/components/multimedia/MultimediaGallery";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { env } from "@/lib/env";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import type { StorefrontProductMediaResponse } from "@/types/storefront";
 
-export const revalidate = 300;
+export const revalidate = env.publicMediaProvider === "local" ? 0 : 300;
 
 const loadMultimediaDetail = cache(async (slug: string): Promise<StorefrontProductMediaResponse | null> => {
   try {
@@ -33,16 +34,16 @@ export async function generateMetadata({
 
   if (!data) {
     return buildStorefrontPageMetadata({
-      title: "Multimedia no encontrada",
-      description: "No pudimos resolver la galería multimedia solicitada.",
+      title: "Colección no encontrada",
+      description: "No pudimos resolver la colección visual solicitada.",
       canonicalPath: `/multimedia/${resolved.slug}`,
       noIndex: true,
     });
   }
 
   return buildStorefrontPageMetadata({
-    title: `${data.product.name} · Multimedia`,
-    description: `Galería multimedia real de ${data.product.name}.`,
+    title: `${data.product.name} · Inspiración visual`,
+    description: `Explorá imágenes y videos reales de ${data.product.name} para elegir con más confianza.`,
     canonicalPath: `/multimedia/${resolved.slug}`,
   });
 }

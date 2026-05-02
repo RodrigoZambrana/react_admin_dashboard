@@ -1,9 +1,10 @@
-import { Fragment, cache } from "react";
+import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ProductDetailExperience from "@component/products/ProductDetailExperience";
 import type Product from "@models/product.model";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { env } from "@/lib/env";
 import { buildProductMetadata, buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import { getStorefrontConfig } from "@/lib/storefront-config";
 import { mapProductDetailToProduct, mapProductSummaryToProduct } from "@/lib/storefront/adapters";
@@ -19,7 +20,7 @@ interface ProductPageSearchParams {
   productId?: string | string[];
 }
 
-export const revalidate = 300;
+export const revalidate = env.publicMediaProvider === "local" ? 0 : 300;
 
 // ==============================================================
 const coerceParamToString = (value?: string | string[]): string | null => {
@@ -59,7 +60,7 @@ const collectProductIdentifiers = (slug: string, searchParams?: ProductPageSearc
 const buildSearchKey = (searchParams?: ProductPageSearchParams) =>
   [coerceParamToString(searchParams?.id) ?? "", coerceParamToString(searchParams?.productId) ?? ""].join("|");
 
-const loadProductPageData = cache(async (slug: string, searchKey: string) => {
+const loadProductPageData = async (slug: string, searchKey: string) => {
   const [searchId, searchProductId] = searchKey.split("|");
   const searchParams: ProductPageSearchParams | undefined =
     searchId.length || searchProductId.length
@@ -123,7 +124,7 @@ const loadProductPageData = cache(async (slug: string, searchKey: string) => {
     storefrontConfig,
     cmsPage,
   };
-});
+};
 
 export async function generateMetadata({
   params,

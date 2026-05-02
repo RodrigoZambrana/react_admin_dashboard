@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Container from "@component/Container";
 import Card from "@component/Card";
 import Grid from "@component/grid/Grid";
@@ -161,6 +161,35 @@ const renderLink = (
   return (
     <Link className={className} href={href} key={options?.key}>
       {label}
+    </Link>
+  );
+};
+
+const renderCardOverlayLink = (
+  href: string,
+  className: string,
+  options?: { external?: boolean; key?: string; ariaLabel?: string },
+) => {
+  if (!href) return null;
+  const external = options?.external ?? isExternalUrl(href);
+
+  if (external) {
+    return (
+      <a
+        aria-label={options?.ariaLabel}
+        className={className}
+        href={href}
+        key={options?.key}
+        rel="noreferrer"
+        target="_blank">
+        <span className={styles.cardOverlayHiddenLabel}>{options?.ariaLabel ?? href}</span>
+      </a>
+    );
+  }
+
+  return (
+    <Link aria-label={options?.ariaLabel} className={className} href={href} key={options?.key}>
+      <span className={styles.cardOverlayHiddenLabel}>{options?.ariaLabel ?? href}</span>
     </Link>
   );
 };
@@ -1065,11 +1094,12 @@ const MultimediaHubSection = ({ section }: { section: CmsRenderableSection }) =>
         <div className={styles.multimediaHubGrid}>
           {cards.map((card) => (
             <article className={styles.multimediaHubCard} key={card.id}>
-              <Link
-                className={styles.multimediaHubCardMedia}
-                href={card.primaryHref || "/mock/multimedia/v1"}
-                rel={card.primaryHref.startsWith("http") ? "noreferrer" : undefined}
-                target={card.primaryHref.startsWith("http") ? "_blank" : undefined}>
+              {card.primaryHref ? (
+                renderCardOverlayLink(card.primaryHref || "/mock/multimedia/v1", styles.cardOverlayLink, {
+                  ariaLabel: card.cardTitle || card.cardDescription || "Abrir multimedia",
+                })
+              ) : null}
+              <div className={styles.multimediaHubCardMedia}>
                 {card.mediaUrl ? (
                   card.mediaType === "video" ? (
                     <video
@@ -1091,7 +1121,7 @@ const MultimediaHubSection = ({ section }: { section: CmsRenderableSection }) =>
                   )
                 ) : null}
                 {card.badge ? <span className={styles.multimediaHubBadge}>{card.badge}</span> : null}
-              </Link>
+              </div>
 
               <div className={styles.multimediaHubCardBody}>
                 {card.cardTitle ? <h3>{card.cardTitle}</h3> : null}
@@ -1223,6 +1253,11 @@ const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }
 
           return (
             <article className={styles.mediaGridEnhancedCard} key={block.id}>
+              {href ? (
+                renderCardOverlayLink(href, styles.cardOverlayLink, {
+                  ariaLabel: linkLabel || title || "Abrir detalle",
+                })
+              ) : null}
               <div className={styles.mediaGridEnhancedMedia} style={{ aspectRatio }}>
                 {mediaUrl ? (
                   mediaType === "video" ? (
@@ -1258,7 +1293,7 @@ const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }
               <div className={styles.mediaGridEnhancedBody}>
                 {title ? <h3>{title}</h3> : null}
                 {description ? <p>{description}</p> : null}
-                {href ? renderLink(linkLabel, href, styles.mediaLink) : null}
+                {href ? <div className={styles.cardActionLayer}>{renderLink(linkLabel, href, styles.mediaLink)}</div> : null}
               </div>
             </article>
           );
@@ -1356,6 +1391,11 @@ const HighlightCardsSection = ({ section }: { section: CmsRenderableSection }) =
 
         return (
           <article className={styles.highlightCard} key={block.id}>
+            {href ? (
+              renderCardOverlayLink(href, styles.cardOverlayLink, {
+                ariaLabel: linkLabel || title || "Abrir detalle",
+              })
+            ) : null}
             <div className={styles.highlightCardMedia}>
               {mediaUrl ? (
                 <NextImage
@@ -1371,7 +1411,7 @@ const HighlightCardsSection = ({ section }: { section: CmsRenderableSection }) =
             <div className={styles.highlightCardBody}>
               {title ? <h3>{title}</h3> : null}
               {description ? <p>{description}</p> : null}
-              {href ? renderLink(linkLabel, href, styles.featureLink) : null}
+              {href ? <div className={styles.cardActionLayer}>{renderLink(linkLabel, href, styles.featureLink)}</div> : null}
             </div>
           </article>
         );
@@ -1426,6 +1466,11 @@ const FeatureGridSection = ({
 
           return (
             <article className={styles.featureCard} key={block.id}>
+              {href ? (
+                renderCardOverlayLink(href, styles.cardOverlayLink, {
+                  ariaLabel: linkLabel || title || "Abrir detalle",
+                })
+              ) : null}
               {mediaUrl ? (
                 <div className={styles.featureCardMedia}>
                   <img alt={mediaAlt} src={mediaUrl} />
@@ -1450,7 +1495,7 @@ const FeatureGridSection = ({
                 ) : description ? (
                   <p>{description}</p>
                 ) : null}
-                {renderLink(linkLabel, href, styles.featureLink)}
+                {href ? <div className={styles.cardActionLayer}>{renderLink(linkLabel, href, styles.featureLink)}</div> : null}
               </div>
             </article>
           );
@@ -1475,11 +1520,16 @@ const MediaGridSection = ({ section }: { section: CmsRenderableSection }) => (
 
         return (
           <article className={styles.mediaCard} key={block.id}>
+            {href ? (
+              renderCardOverlayLink(href, styles.cardOverlayLink, {
+                ariaLabel: linkLabel || title || "Abrir detalle",
+              })
+            ) : null}
             <div className={styles.mediaThumb}>{mediaUrl ? <img alt={mediaAlt} src={mediaUrl} /> : null}</div>
             <div className={styles.mediaBody}>
               {title ? <h3>{title}</h3> : null}
               {description ? <p>{description}</p> : null}
-              {renderLink(linkLabel, href, styles.mediaLink)}
+              {href ? <div className={styles.cardActionLayer}>{renderLink(linkLabel, href, styles.mediaLink)}</div> : null}
             </div>
           </article>
         );
@@ -1571,6 +1621,11 @@ const MediaCarouselSection = ({ section }: { section: CmsRenderableSection }) =>
                 className={variant === "logos" ? styles.carouselLogoCard : styles.carouselCard}
                 key={block.id}
               >
+                {href ? (
+                  renderCardOverlayLink(href, styles.cardOverlayLink, {
+                    ariaLabel: linkLabel || title || "Abrir detalle",
+                  })
+                ) : null}
                 {mediaUrl ? (
                   <div className={variant === "logos" ? styles.carouselLogoMedia : styles.carouselCardMedia}>
                     <img alt={mediaAlt} src={mediaUrl} />
@@ -1580,7 +1635,7 @@ const MediaCarouselSection = ({ section }: { section: CmsRenderableSection }) =>
                   <div className={styles.carouselCardBody}>
                     {title ? <h3>{title}</h3> : null}
                     {description ? <p>{description}</p> : null}
-                    {renderLink(linkLabel, href, styles.mediaLink)}
+                    {href ? <div className={styles.cardActionLayer}>{renderLink(linkLabel, href, styles.mediaLink)}</div> : null}
                   </div>
                 ) : null}
               </article>
@@ -1855,21 +1910,34 @@ export default function CmsPageShell({ page, homeContentSections, homeTopSlot }:
     page.path === "" && Array.isArray(homeContentSections)
       ? homeContentSections.find((section) => section.key === "HOME_HIGHLIGHTS") ?? null
       : null;
+
+  const shellChildren = [
+    <Topbar key="shell-topbar" />,
+    <Header key="shell-header" />,
+    <Navbar key="shell-navbar" />,
+    homeTopSlot ? (
+      <Fragment key="shell-home-top-slot">{homeTopSlot}</Fragment>
+    ) : null,
+    homeStoriesSection ? (
+      <Fragment key="shell-home-stories">
+        <SectionStories stories={homeStoriesSection.entries} />
+      </Fragment>
+    ) : null,
+    <main className={styles.siteMain} key="shell-main">
+      <CmsPageBody page={page} />
+    </main>,
+    homeHighlightsSection ? (
+      <Fragment key="shell-home-highlights">
+        <SectionCmsHighlights section={homeHighlightsSection} />
+      </Fragment>
+    ) : null,
+    <MobileNavigationBar key="shell-mobile-nav" />,
+    <Footer1 key="shell-footer" />,
+  ]
+
   return (
     <div className={styles.siteShell}>
-      <Topbar />
-      <Header />
-      <Navbar />
-      {homeTopSlot}
-      {homeStoriesSection ? <SectionStories stories={homeStoriesSection.entries} /> : null}
-
-      <main className={styles.siteMain}>
-        <CmsPageBody page={page} />
-      </main>
-
-      {homeHighlightsSection ? <SectionCmsHighlights section={homeHighlightsSection} /> : null}
-      <MobileNavigationBar />
-      <Footer1 />
+      {shellChildren}
     </div>
   );
 }

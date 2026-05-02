@@ -113,6 +113,29 @@ const cleanRelativePath = (value: string) =>
     .filter((segment) => segment && segment !== '.')
     .join('/')
 
+const collapseRepeatedSegments = (value: string) => {
+  const segments = cleanRelativePath(value)
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+
+  const normalized: string[] = []
+  for (const segment of segments) {
+    if (normalized[normalized.length - 1] === segment) {
+      continue
+    }
+    normalized.push(segment)
+  }
+  return normalized.join('/')
+}
+
+export const stripMediaFilenameCopySuffix = (value: string) => {
+  const extension = extname(value)
+  const stem = basename(value, extension)
+  const normalizedStem = stem.replace(/\s*\(\d+\)$/u, '').trim()
+  return normalizedStem ? `${normalizedStem}${extension}` : value
+}
+
 const assertSafeSegment = (value: string) => {
   const normalized = normalizeSlug(value)
   if (!normalized || normalized === '.' || normalized === '..') {
@@ -124,6 +147,12 @@ const assertSafeSegment = (value: string) => {
 export const resolveMediaRoot = () => resolve((process.env.MEDIA_ROOT || DEFAULT_MEDIA_ROOT).trim())
 
 export const resolveProductPath = (slug: string) => join(resolveMediaRoot(), 'products', assertSafeSegment(slug))
+
+export const buildCanonicalProductMediaPath = (slug: string, kind: MediaKind, filename: string) =>
+  `/media/products/${assertSafeSegment(slug)}/${kind === 'video' ? 'videos' : 'images'}/${basename(filename)}`
+
+export const buildCanonicalProductMediaPublicId = (slug: string, kind: MediaKind, filename: string) =>
+  `products/${assertSafeSegment(slug)}/${kind === 'video' ? 'videos' : 'images'}/${basename(filename)}`
 
 export const validateMediaStructure = async (slug: string) => {
   const productPath = resolveProductPath(slug)
@@ -177,9 +206,69 @@ export const toMediaRelativePath = (value: string) => {
   return normalized
 }
 
+export const resolveExistingLocalMediaReference = (value: string, mediaRoot = resolveMediaRoot()) => {
+  const relativePath = toMediaRelativePath(value)
+  if (!relativePath || !isLocalMediaReference(relativePath)) {
+    return null
+  }
+
+  const candidates = new Set<string>()
+  const pushCandidate = (candidate?: string | null) => {
+    const normalized = candidate ? cleanRelativePath(candidate) : ''
+    if (normalized) {
+      candidates.add(normalized)
+    }
+  }
+
+  pushCandidate(relativePath)
+  pushCandidate(collapseRepeatedSegments(relativePath))
+
+  const relatives = Array.from(candidates)
+  for (const candidate of relatives) {
+    const leaf = basename(candidate)
+    const normalizedLeaf = stripMediaFilenameCopySuffix(leaf)
+    if (normalizedLeaf !== leaf) {
+      pushCandidate(join(dirname(candidate), normalizedLeaf))
+    }
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const absolute = resolveSafePath(mediaRoot, candidate)
+      if (existsSync(absolute)) {
+        return candidate
+      }
+    } catch {
+      continue
+    }
+  }
+
+  return null
+}
+
 export const resolveMediaAbsolutePath = (value: string, mediaRoot = resolveMediaRoot()) => {
   const relativePath = toMediaRelativePath(value)
   return resolveSafePath(mediaRoot, relativePath)
+}
+
+export const isLocalMediaReference = (value?: string | null) => {
+  const normalized = toMediaRelativePath(value ?? '')
+  return Boolean(
+    normalized &&
+      (normalized.startsWith('products/') ||
+        normalized.startsWith('stories/') ||
+        normalized.startsWith('uploads/') ||
+        normalized.startsWith('media/products/') ||
+        normalized.startsWith('media/stories/')),
+  )
+}
+
+export const mediaReferenceExists = (value?: string | null, mediaRoot = resolveMediaRoot()) => {
+  if (!value || !isLocalMediaReference(value)) {
+    return true
+  }
+
+  return Boolean(resolveExistingLocalMediaReference(value, mediaRoot))
 }
 
 const hashFile = async (filePath: string) => {
@@ -191,30 +280,6 @@ const hashFile = async (filePath: string) => {
   return hash.digest('hex')
 }
 
-const walkFiles = async (root: string): Promise<string[]> => {
-  const result: string[] = []
-  const stack = [root]
-
-  while (stack.length > 0) {
-    const current = stack.pop()
-    if (!current) continue
-
-    const entries = await readdir(current, { withFileTypes: true })
-    for (const entry of entries) {
-      const fullPath = join(current, entry.name)
-      if (entry.isDirectory()) {
-        stack.push(fullPath)
-        continue
-      }
-      if (entry.isFile()) {
-        result.push(fullPath)
-      }
-    }
-  }
-
-  return result
-}
-
 const inferMediaKindFromExtension = (value: string): MediaKind | null => {
   const ext = extname(value).toLowerCase()
   if (VALID_IMAGE_EXTENSIONS.has(ext)) {
@@ -224,15 +289,6 @@ const inferMediaKindFromExtension = (value: string): MediaKind | null => {
     return 'video'
   }
   return null
-}
-
-const stripLeadingMediaFolder = (relativePath: string, kind: MediaKind) => {
-  const normalized = cleanRelativePath(relativePath)
-  const prefix = `${kind === 'video' ? 'videos' : 'images'}/`
-  if (normalized.toLowerCase().startsWith(prefix)) {
-    return normalized.slice(prefix.length)
-  }
-  return normalized
 }
 
 export const buildCanonicalMediaSlug = (kind: MediaKind, order: number) =>
@@ -301,23 +357,35 @@ export const scanFilesystem = async (params: {
     return files
   }
 
-  const scanned = (await walkFiles(productPath)).sort((left, right) => left.localeCompare(right))
-  for (const filePath of scanned) {
-    const fileKind = inferMediaKindFromExtension(filePath)
-    if (!fileKind) {
+  for (const kind of ['images', 'videos'] as const) {
+    const mediaPath = join(productPath, kind)
+    if (!existsSync(mediaPath)) {
       continue
     }
 
-    const relativePath = relative(productPath, filePath).replace(/\\/g, '/')
-    const stats = await stat(filePath)
-    files.push({
-      kind: fileKind,
-      sourcePath: filePath,
-      relativePath,
-      filename: basename(filePath),
-      hash: await hashFile(filePath),
-      size: stats.size,
-    })
+    const entries = await readdir(mediaPath, { withFileTypes: true })
+    const scanned = entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(mediaPath, entry.name))
+      .sort((left, right) => left.localeCompare(right))
+
+    for (const filePath of scanned) {
+      const fileKind = inferMediaKindFromExtension(filePath)
+      if (!fileKind) {
+        continue
+      }
+
+      const relativePath = relative(productPath, filePath).replace(/\\/g, '/')
+      const stats = await stat(filePath)
+      files.push({
+        kind: fileKind,
+        sourcePath: filePath,
+        relativePath,
+        filename: basename(filePath),
+        hash: await hashFile(filePath),
+        size: stats.size,
+      })
+    }
   }
 
   return files
@@ -342,23 +410,37 @@ export const getProductMedia = async (prisma: PrismaClient, productId: number, s
     },
   })
 
-  return rows.map((row) => {
-    const kind: MediaKind = row.img.toLowerCase().includes('/videos/') ? 'video' : 'image'
-    const fallbackName = basename(row.img).replace(/\.[^.]+$/, '')
-    const filename = basename(row.img)
-    const publicId =
-      row.publicId?.trim() ||
-      `products/${assertSafeSegment(slug)}/${kind === 'video' ? 'videos' : 'images'}/${filename}`
+  const canonicalRows = rows
+    .map((row) => {
+      const kind: MediaKind =
+        row.img.toLowerCase().includes('/videos/') || row.publicId?.toLowerCase().includes('/videos/')
+          ? 'video'
+          : 'image'
+      const filename = basename(row.img || row.publicId || '')
+      const fallbackName = filename.replace(/\.[^.]+$/, '')
+      const publicId =
+        row.publicId?.trim() ||
+        buildCanonicalProductMediaPublicId(slug, kind, filename)
 
-    return {
-      ...row,
-      publicId,
-      kind,
-      name: row.name ?? fallbackName,
-      alt: row.alt ?? fallbackName,
-      familyKey: row.familyKey ?? deriveMediaFamilyKey(row.alt ?? row.name ?? row.img),
-    } satisfies ProductMediaRecord
-  })
+      return {
+        ...row,
+        img: buildCanonicalProductMediaPath(slug, kind, filename),
+        publicId,
+        kind,
+        name: row.name ?? fallbackName,
+        alt: row.alt ?? fallbackName,
+        familyKey: row.familyKey ?? deriveMediaFamilyKey(row.alt ?? row.name ?? row.img),
+      } satisfies ProductMediaRecord
+    })
+    .reduce<ProductMediaRecord[]>((acc, row) => {
+      if (acc.some((item) => item.img === row.img)) {
+        return acc
+      }
+      acc.push(row)
+      return acc
+    }, [])
+
+  return canonicalRows
 }
 
 export const buildDesiredMediaFromFilesystem = (
@@ -369,16 +451,10 @@ export const buildDesiredMediaFromFilesystem = (
     files.map((file, index) => ({
       productId: product.id,
       kind: file.kind,
-      path: `/media/products/${assertSafeSegment(product.slug)}/${file.kind === 'video' ? 'videos' : 'images'}/${stripLeadingMediaFolder(
-        file.relativePath,
-        file.kind,
-      )}`,
+      path: `/media/products/${assertSafeSegment(product.slug)}/${file.kind === 'video' ? 'videos' : 'images'}/${file.filename}`,
       order: index,
       sourcePath: file.sourcePath,
-      public_id: `products/${assertSafeSegment(product.slug)}/${file.kind === 'video' ? 'videos' : 'images'}/${stripLeadingMediaFolder(
-        file.relativePath,
-        file.kind,
-      )}`,
+      public_id: `products/${assertSafeSegment(product.slug)}/${file.kind === 'video' ? 'videos' : 'images'}/${file.filename}`,
       name: buildCanonicalMediaLabel(file.kind, index),
       alt: file.filename.replace(/\.[^.]+$/, ''),
       familyKey: deriveMediaFamilyKey(file.filename),

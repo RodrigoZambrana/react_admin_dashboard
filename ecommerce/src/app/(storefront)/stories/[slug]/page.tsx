@@ -6,9 +6,10 @@ import Container from "@component/Container";
 import Navbar from "@component/navbar/Navbar";
 import StoryViewer from "@/components/stories/StoryViewer";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
+import { env } from "@/lib/env";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 
-export const revalidate = 60;
+export const revalidate = env.publicMediaProvider === "local" ? 0 : 60;
 
 type Props = {
   params: Promise<{

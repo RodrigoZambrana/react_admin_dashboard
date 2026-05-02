@@ -35,7 +35,7 @@ const shellStyle: CSSProperties = {
 
 const tabsRailStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(92px, max-content))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(96px, max-content))",
   gap: "0.5rem",
 };
 
@@ -189,16 +189,20 @@ const sideTitleStyle: CSSProperties = {
   color: "#fff",
 };
 
-const sideMetaRowStyle: CSSProperties = {
+const sideCopyStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))",
-  gap: "0.6rem",
+  gap: "0.9rem",
 };
 
-const sideMetaCardStyle: CSSProperties = {
+const sideBenefitRailStyle: CSSProperties = {
   display: "grid",
-  gap: "0.15rem",
-  padding: "0.8rem 0.85rem",
+  gap: "0.55rem",
+};
+
+const sideBenefitCardStyle: CSSProperties = {
+  display: "grid",
+  gap: "0.2rem",
+  padding: "0.85rem 0.9rem",
   borderRadius: "16px",
   border: "1px solid rgba(255,255,255,0.08)",
   background: "rgba(255,255,255,0.04)",
@@ -310,6 +314,11 @@ export default function MultimediaViewer({ product, media, initialMediaSlug = nu
 
   const images = normalizedMedia.filter((item) => item.type === "image");
   const videos = normalizedMedia.filter((item) => item.type === "video");
+  const commercialPoints = [
+    "Elegí con más confianza gracias a imágenes y videos reales.",
+    "Compará terminaciones, proporciones y estilo sin salir de la ficha.",
+    "Encontrá la opción más adecuada para tu espacio y avanzá más rápido.",
+  ];
 
   const [activeFilter, setActiveFilter] = useState<MediaFilter>("all");
   const [mounted, setMounted] = useState(false);
@@ -428,9 +437,9 @@ export default function MultimediaViewer({ product, media, initialMediaSlug = nu
     <div style={shellStyle}>
       <div role="tablist" aria-label="Perfil multimedia" style={tabsRailStyle}>
         {[
-          { key: "all" as const, label: "Posts", count: normalizedMedia.length },
-          { key: "image" as const, label: "Photos", count: images.length },
-          { key: "video" as const, label: "Videos", count: videos.length },
+          { key: "all" as const, label: "Todo" },
+          { key: "image" as const, label: "Imágenes" },
+          { key: "video" as const, label: "Videos" },
         ].map((filter) => {
           const isActive = filter.key === activeFilter;
           return (
@@ -445,7 +454,6 @@ export default function MultimediaViewer({ product, media, initialMediaSlug = nu
                 ...(isActive ? tabButtonActiveStyle : {}),
               }}>
               <span>{filter.label}</span>
-              <span>{filter.count}</span>
             </button>
           );
         })}
@@ -544,23 +552,21 @@ export default function MultimediaViewer({ product, media, initialMediaSlug = nu
                       </div>
                     </div>
 
-                    <div>
-                      <p style={kickerStyle}>Detalle de publicación</p>
-                      <h3 style={sideTitleStyle}>{product.name}</h3>
-                    </div>
-
-                    <div style={sideMetaRowStyle}>
-                      <div style={sideMetaCardStyle}>
-                        <strong>{normalizedMedia.length}</strong>
-                        <span style={{ color: "rgba(247, 242, 232, 0.68)", fontSize: "0.84rem" }}>Posts</span>
+                    <div style={sideCopyStyle}>
+                      <div>
+                        <p style={kickerStyle}>Detalle comercial</p>
+                        <h3 style={sideTitleStyle}>{product.name}</h3>
                       </div>
-                      <div style={sideMetaCardStyle}>
-                        <strong>{images.length}</strong>
-                        <span style={{ color: "rgba(247, 242, 232, 0.68)", fontSize: "0.84rem" }}>Fotos</span>
-                      </div>
-                      <div style={sideMetaCardStyle}>
-                        <strong>{videos.length}</strong>
-                        <span style={{ color: "rgba(247, 242, 232, 0.68)", fontSize: "0.84rem" }}>Videos</span>
+                      <p style={{ margin: 0, color: "rgba(247, 242, 232, 0.76)", lineHeight: 1.65 }}>
+                        Una vista pensada para ayudarte a evaluar el producto con contexto real, antes de avanzar con tu compra o cotización.
+                      </p>
+                      <div style={sideBenefitRailStyle}>
+                        {commercialPoints.map((point) => (
+                          <div key={point} style={sideBenefitCardStyle}>
+                            <strong style={{ color: "#fff", fontSize: "0.95rem" }}>Lo que te aporta</strong>
+                            <span style={{ color: "rgba(247, 242, 232, 0.76)", lineHeight: 1.5 }}>{point}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
 

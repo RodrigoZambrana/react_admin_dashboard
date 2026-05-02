@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common'
 import { Prisma } from '@prisma/client'
 import { CmsPagesService } from '../cms/cms-pages.service'
 import { PrismaService } from '../prisma/prisma.service'
+import { isLocalMediaReference, mediaReferenceExists } from '../common/media/sync-core'
 import type { StoryDetailDto, StorySummaryDto } from './stories.types'
 
 const STORIES_CACHE_TTL_MS = 60_000
@@ -107,8 +108,10 @@ const mapCmsStorySummary = (page: {
           null
         return extractCmsMediaPublicId(direct)
       })
-      .find((publicId): publicId is string => Boolean(publicId)) ??
-    extractCmsMediaPublicId(page.seoImageUrl)
+      .find((publicId): publicId is string => Boolean(publicId) && mediaReferenceExists(publicId)) ??
+    (extractCmsMediaPublicId(page.seoImageUrl) && mediaReferenceExists(extractCmsMediaPublicId(page.seoImageUrl))
+      ? extractCmsMediaPublicId(page.seoImageUrl)
+      : null)
 
   if (!firstMedia) {
     return null
@@ -155,6 +158,9 @@ const mapCmsStoryItem = (
     ) ?? null
 
   if (!publicId) {
+    return null
+  }
+  if (isLocalMediaReference(publicId) && !mediaReferenceExists(publicId)) {
     return null
   }
 
@@ -359,7 +365,7 @@ export class StoriesService {
         duration: item.duration ?? null,
         ctaLabel: item.ctaLabel ?? null,
         ctaUrl: item.ctaUrl ?? null,
-      })),
+      })).filter((item) => !isLocalMediaReference(item.public_id) || mediaReferenceExists(item.public_id)),
     }
 
     this.writeCache(cacheKey, response, STORIES_CACHE_TTL_MS)

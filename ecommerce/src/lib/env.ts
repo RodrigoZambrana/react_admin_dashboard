@@ -80,6 +80,7 @@ const DEFAULT_ANALYTICS_API_BASE = "http://localhost:4000/api/analytics";
 const DEFAULT_AI_PLATFORM_BASE = "http://localhost:4110";
 const DEFAULT_SITE_URL = "http://localhost:3000";
 const DEFAULT_MEDIA_BASE_URL = "http://localhost:3000/media";
+const DEFAULT_MEDIA_PROVIDER = "local";
 
 const normalizeClientSlug = (value: string | undefined | null) => {
   if (!value) {
@@ -116,6 +117,7 @@ const aiPlatformBaseRaw =
   DEFAULT_AI_PLATFORM_BASE;
 const clientSiteUrlRaw = process.env.NEXT_PUBLIC_SITE_URL ?? DEFAULT_SITE_URL;
 const clientMediaBaseUrlRaw = process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? DEFAULT_MEDIA_BASE_URL;
+const clientMediaProviderRaw = process.env.NEXT_PUBLIC_MEDIA_PROVIDER ?? DEFAULT_MEDIA_PROVIDER;
 
 const normalizedApiBase =
   ensureStorefrontPath(normalize(serverApiBaseRaw, "server")) || DEFAULT_API_BASE;
@@ -133,6 +135,7 @@ const normalizedAiPlatformBase =
   removeTrailingSlash(normalize(aiPlatformBaseRaw, "client")) || DEFAULT_AI_PLATFORM_BASE;
 const normalizedSiteUrl = normalize(clientSiteUrlRaw, "client") || DEFAULT_SITE_URL;
 const normalizedMediaBaseUrl = normalize(clientMediaBaseUrlRaw, "client") || DEFAULT_MEDIA_BASE_URL;
+const normalizedMediaProvider = clientMediaProviderRaw.trim().toLowerCase() === "cloudinary" ? "cloudinary" : "local";
 
 const safeOrigin = (value: string | null): string | null => {
   if (!value) {
@@ -155,6 +158,7 @@ export const env = {
   publicAiPlatformUrl: normalizedAiPlatformBase,
   publicSiteUrl: normalizedSiteUrl,
   publicMediaBaseUrl: normalizedMediaBaseUrl,
+  publicMediaProvider: normalizedMediaProvider,
   publicSiteOrigin: safeOrigin(normalizedSiteUrl) ?? safeOrigin(DEFAULT_SITE_URL),
   nodeEnv: process.env.NODE_ENV ?? "development",
   isDevelopment: process.env.NODE_ENV !== "production",

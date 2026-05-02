@@ -41,30 +41,6 @@ export const resolveStoryRoot = () => join(resolveMediaRoot(), 'stories')
 
 export const resolveStoryPath = (slug: string) => join(resolveStoryRoot(), assertSafeSegment(slug))
 
-const walkFiles = async (root: string): Promise<string[]> => {
-  const result: string[] = []
-  const stack = [root]
-
-  while (stack.length > 0) {
-    const current = stack.pop()
-    if (!current) continue
-
-    const entries = await readdir(current, { withFileTypes: true })
-    for (const entry of entries) {
-      const fullPath = join(current, entry.name)
-      if (entry.isDirectory()) {
-        stack.push(fullPath)
-        continue
-      }
-      if (entry.isFile()) {
-        result.push(fullPath)
-      }
-    }
-  }
-
-  return result.sort((left, right) => left.localeCompare(right))
-}
-
 const inferKind = (filePath: string): StoryMediaKind | null => {
   const extension = extname(filePath).toLowerCase()
   if (VALID_IMAGE_EXTENSIONS.has(extension)) {
@@ -88,7 +64,11 @@ export const scanStoryFilesystem = async (storySlug: string): Promise<StoryScanR
     }
   }
 
-  const filePaths = await walkFiles(storyPath)
+  const entries = await readdir(storyPath, { withFileTypes: true })
+  const filePaths = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => join(storyPath, entry.name))
+    .sort((left, right) => left.localeCompare(right))
   const files: StoryScanFile[] = []
   for (const [index, filePath] of filePaths.entries()) {
     const kind = inferKind(filePath)

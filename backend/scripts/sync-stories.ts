@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import { Dirent } from 'fs'
 import { readdir } from 'fs/promises'
 import { resolveStoryRoot, scanStoryFilesystem, resolveStoryMediaPublicId } from '../src/common/media/stories-sync'
+import { loadEnvFromBackendRoot } from './script-safety'
 
 const prisma = new PrismaClient()
 
@@ -30,6 +31,7 @@ const normalizeItemId = (storySlug: string, relativePath: string) =>
   `story-item:${storySlug}:${relativePath.replace(/\\/g, '/').replace(/[^a-zA-Z0-9]+/g, '-')}`
 
 async function main() {
+  loadEnvFromBackendRoot()
   const options = parseArgs()
   const root = resolveStoryRoot()
   const entries = await readdir(root, { withFileTypes: true }).catch(() => [] as Dirent[])
@@ -61,14 +63,14 @@ async function main() {
 
     const storyId = `story:${scan.storySlug}`
     const title = titleizeSlug(scan.storySlug)
-    const coverPublicId = resolveStoryMediaPublicId(scan.storySlug, scan.files[0]?.relativePath ?? '')
+    const coverPublicId = resolveStoryMediaPublicId(scan.storySlug, scan.files[0]?.filename ?? '')
 
     const itemPayload = scan.files.slice(0, 10).map((file, index) => ({
-      id: normalizeItemId(scan.storySlug, file.relativePath),
+      id: normalizeItemId(scan.storySlug, file.filename),
       storyId,
       order: index,
       type: file.kind,
-      publicId: resolveStoryMediaPublicId(scan.storySlug, file.relativePath),
+      publicId: resolveStoryMediaPublicId(scan.storySlug, file.filename),
       duration: file.kind === 'image' ? 5000 : null,
       ctaLabel: null,
       ctaUrl: null,

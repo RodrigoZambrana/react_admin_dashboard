@@ -36,12 +36,12 @@ import type { StoryDetail, StorySummary } from "@/types/stories";
 import type { OrderTimelineResponse } from "@/types/orderTimeline";
 
 import { env } from "@/lib/env";
-import { getImageUrl } from "@/lib/cloudinary";
 import { apiFetch, isApiError } from "../http";
 import { loadStorefrontSnapshot } from "@/lib/snapshots/loaders";
 import { isSnapshotFallbackEnabled } from "@/lib/resilience-flags";
 import type { StorefrontSnapshot } from "@/lib/snapshots/types";
 import { normalizeSearchValue } from "@/lib/storefront/search-utils";
+import { resolveMediaAssetUrl } from "@/lib/media";
 
 let cachedFallbackCategories: CategorySummary[] | null = null;
 
@@ -145,21 +145,42 @@ const budgetApiBaseUrl = `${budgetApiOrigin}/api/budget/`;
 const budgetApiUrl = (path: string) => new URL(path, budgetApiBaseUrl).toString();
 
 const PUBLIC_REVALIDATE_SECONDS = 300;
+const IS_LOCAL_MEDIA_PROVIDER = env.publicMediaProvider === "local";
 
 const buildPublicCacheOptions = (tags: string[] = []) => ({
-  cache: "force-cache" as const,
-  next: {
-    revalidate: PUBLIC_REVALIDATE_SECONDS,
-    tags,
-  },
+  ...(IS_LOCAL_MEDIA_PROVIDER
+    ? {
+        cache: "no-store" as const,
+        next: {
+          revalidate: 0,
+          tags,
+        },
+      }
+    : {
+        cache: "force-cache" as const,
+        next: {
+          revalidate: PUBLIC_REVALIDATE_SECONDS,
+          tags,
+        },
+      }),
 });
 
 const buildShortPublicCacheOptions = (tags: string[] = []) => ({
-  cache: "force-cache" as const,
-  next: {
-    revalidate: 60,
-    tags,
-  },
+  ...(IS_LOCAL_MEDIA_PROVIDER
+    ? {
+        cache: "no-store" as const,
+        next: {
+          revalidate: 0,
+          tags,
+        },
+      }
+    : {
+        cache: "force-cache" as const,
+        next: {
+          revalidate: 60,
+          tags,
+        },
+      }),
 });
 
 const buildPublicTag = (...parts: Array<string | number | null | undefined>) =>
@@ -211,12 +232,12 @@ const toInventoryStatus = (stock: number): ProductSummary["inventoryStatus"] => 
 
 const mapDerivedProductToSummary = (product: DerivedProductPayload): ProductSummary => {
   const firstImage = product.images[0] ?? null;
-  const thumbnailUrl = firstImage?.publicId
-    ? getImageUrl(firstImage.publicId, {
-        version: firstImage.version ?? 1,
-        size: "card",
-      })
-    : firstImage?.url ?? null;
+  const thumbnailUrl = resolveMediaAssetUrl({
+    url: firstImage?.url ?? null,
+    publicId: firstImage?.publicId ?? null,
+    version: firstImage?.version ?? null,
+    type: "image",
+  });
   const money = {
     amount: product.totalPrice,
     currency: product.currency,

@@ -1,6 +1,6 @@
 import type Product from "@models/product.model";
 import type Category from "@models/category.model";
-import { getImageUrl } from "@/lib/cloudinary";
+import { resolveMediaAssetUrl } from "@/lib/media";
 import type {
   ProductSummary,
   CategorySummary,
@@ -19,22 +19,24 @@ const ensureImageList = (images: Array<string | undefined | null>): string[] => 
   return filtered;
 };
 
-const resolveCloudinaryImageUrl = (
+const resolveProductImageUrl = (
   image?: {
     url?: string | null;
     publicId?: string | null;
     version?: number | null;
   } | null,
-  size: "thumbnail" | "card" | "detail" | "zoom" = "detail",
 ) => {
   if (!image) {
     return null;
   }
-  if (image.publicId) {
-    return getImageUrl(image.publicId, {
-      version: image.version ?? 1,
-      size,
-    });
+  const resolved = resolveMediaAssetUrl({
+    url: image.url ?? null,
+    publicId: image.publicId ?? null,
+    version: image.version ?? null,
+    type: "image",
+  });
+  if (resolved) {
+    return resolved;
   }
   return image.url ?? null;
 };
@@ -47,7 +49,7 @@ export const mapProductSummaryToProduct = (product: ProductSummary): Product => 
       ? Math.max(0, Math.round(((basePrice - product.salePrice.amount) / basePrice) * 100))
       : 0;
 
-  const thumbnail = resolveCloudinaryImageUrl(product.thumbnail, "card") ?? FALLBACK_CATEGORY_IMAGE;
+  const thumbnail = resolveProductImageUrl(product.thumbnail) ?? FALLBACK_CATEGORY_IMAGE;
 
   const currencyCode = product.salePrice?.currency ?? product.price.currency;
 
@@ -100,11 +102,11 @@ export const mapProductDetailToProduct = (product: ProductDetail): Product => {
       : 0;
 
   const galleryImages =
-    product.gallery?.map((image) => resolveCloudinaryImageUrl(image, "detail")).filter(
+    product.gallery?.map((image) => resolveProductImageUrl(image)).filter(
       (value): value is string => Boolean(value),
     ) ?? [];
   const thumbnail =
-    resolveCloudinaryImageUrl(product.thumbnail, "detail") ?? galleryImages[0] ?? FALLBACK_CATEGORY_IMAGE;
+    resolveProductImageUrl(product.thumbnail) ?? galleryImages[0] ?? FALLBACK_CATEGORY_IMAGE;
 
   const currencyCode = product.salePrice?.currency ?? product.price.currency;
 
@@ -120,7 +122,7 @@ export const mapProductDetailToProduct = (product: ProductDetail): Product => {
   const variantEntries = (product.variants ?? []).map((variant) => {
     const variantPrice = variant.price ?? product.price;
     const variantImages =
-      variant.images?.map((image) => resolveCloudinaryImageUrl(image, "thumbnail")).filter(
+      variant.images?.map((image) => resolveProductImageUrl(image)).filter(
         (value): value is string => Boolean(value),
       ) ?? [];
     return {
@@ -193,7 +195,7 @@ export const mapCategorySummaryToCategory = (category: CategorySummary): Categor
   slug: category.slug,
   parent: category.parentId ? [String(category.parentId)] : [],
   description: category.description ?? "",
-  image: resolveCloudinaryImageUrl(category.thumbnail, "card") ?? FALLBACK_CATEGORY_IMAGE
+  image: resolveProductImageUrl(category.thumbnail) ?? FALLBACK_CATEGORY_IMAGE
 });
 
 export const flattenCategorySummaries = (categories: CategorySummary[]): CategorySummary[] => {

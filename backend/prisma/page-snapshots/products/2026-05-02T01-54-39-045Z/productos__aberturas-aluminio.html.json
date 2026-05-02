@@ -1,0 +1,1842 @@
+{
+  "path": "productos/aberturas-aluminio.html",
+  "title": "Aberturas de aluminio",
+  "summary": "Soluciones en aluminio a medida con DVH y perfilería de alta prestación.",
+  "seoTitle": "Aberturas de Aluminio Alta Prestación | Probba, Gala y Summa - Urucortinas",
+  "seoDescription": "Aberturas de aluminio de alta prestación con DVH (Doble Vidrio Hermético). Modelos en líneas Gala y Summa con perfilería de Aluminios del Uruguay.",
+  "seoImageUrl": "https://www.urucortinas.com.uy/img/portfolio/aberturas/aberturas_aluminio.jpg",
+  "legacySource": "/Users/rodrigo/git/personal/urucortinas_projects/urucortinas_html_version/productos/aberturas-aluminio.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T12:32:51.300Z",
+  "sections": [
+    {
+      "id": 968,
+      "pageId": 7,
+      "type": "SITE_HEADER",
+      "key": "site-header",
+      "name": "Header del sitio",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "items": [
+          {
+            "href": "/",
+            "label": "Inicio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-roller.html",
+                "label": "Cortinas Roller"
+              },
+              {
+                "href": "/productos/bandas-verticales.html",
+                "label": "Bandas Verticales"
+              },
+              {
+                "href": "/productos/venecianas.html",
+                "label": "Cortinas Venecianas"
+              },
+              {
+                "href": "/productos/cortinas-tradicionales.html",
+                "label": "Cortinas Tradicionales"
+              }
+            ],
+            "label": "Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-de-enrollar-pvc.html",
+                "label": "Persianas en PVC"
+              },
+              {
+                "href": "/productos/cortinas-de-enrollar-aluminio.html",
+                "label": "Persianas en Aluminio"
+              }
+            ],
+            "label": "Persianas"
+          },
+          {
+            "href": "/productos/cortinas-metalicas.html",
+            "label": "Cortinas Metálicas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/aberturas-aluminio.html",
+                "label": "Serie 20 y 25"
+              },
+              {
+                "href": "/productos/dvh.html",
+                "label": "Con DVH"
+              },
+              {
+                "href": "/productos/puertas-oblak.html",
+                "label": "Puertas Oblak"
+              }
+            ],
+            "label": "Aberturas en Aluminio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Verticales"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Corredizos"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos de Brazo Invisible"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Cerramientos en PVC"
+              }
+            ],
+            "label": "Toldos"
+          },
+          {
+            "href": "/productos/motores-cortinas-y-persianas.html",
+            "label": "Motores para Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/servicios/reparacion-cortinas-y-persianas.html",
+                "label": "Reparación de cortinas y persianas"
+              },
+              {
+                "href": "/servicios/instalacion-aberturas.html",
+                "label": "Instalación de aberturas"
+              }
+            ],
+            "label": "Servicios"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Contactanos"
+          },
+          {
+            "href": "/catalogo/index.html",
+            "label": "Catálogo"
+          }
+        ],
+        "brandHref": "/",
+        "brandLabel": "",
+        "navigationMode": "grouped",
+        "topbarContacts": [
+          {
+            "href": null,
+            "title": "Horario",
+            "value": "Lun - Vie, 10:00 - 18:00",
+            "iconClass": "fa fa-clock-o"
+          },
+          {
+            "href": null,
+            "title": "Teléfono",
+            "value": "097 365 931",
+            "iconClass": "far fa-envelope"
+          },
+          {
+            "href": "mailto:ventas@urucortinas.com.uy",
+            "title": "Email",
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope-open-o"
+          }
+        ],
+        "floatingContact": {
+          "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+          "label": "WhatsApp",
+          "imageAlt": "Haznos tu consulta",
+          "imageUrl": "/uploads/cms/legacy-assets/img/iconos/whatsapp_icon.png"
+        },
+        "navigationGroupLabel": "Información"
+      },
+      "createdAt": "2026-05-02T01:54:00.669Z",
+      "updatedAt": "2026-05-02T01:54:00.669Z",
+      "blocks": []
+    },
+    {
+      "id": 969,
+      "pageId": 7,
+      "type": "RICH_TEXT",
+      "key": "content",
+      "name": null,
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "description": ""
+      },
+      "createdAt": "2026-05-02T01:54:00.670Z",
+      "updatedAt": "2026-05-02T01:54:00.670Z",
+      "blocks": [
+        {
+          "id": 1399,
+          "sectionId": 969,
+          "type": "RICH_TEXT",
+          "key": "main-html",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "section",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "div",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "\n"
+                      },
+                      {
+                        "tag": "div",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "\n"
+                          },
+                          {
+                            "tag": "div",
+                            "type": "element",
+                            "children": [
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "h2",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "¿Por qué elegir aberturas de alta prestación?"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "p",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "Las aberturas en aluminio de alta prestación son la mejor opción para quienes buscan diseño, confort y eficiencia energética. Las series "
+                                  },
+                                  {
+                                    "tag": "strong",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "value": "Probba, Gala y Summa"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": ", fabricadas con "
+                                  },
+                                  {
+                                    "tag": "strong",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "value": "Aluminios del Uruguay"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": ", destacan por su calidad, durabilidad y estética innovadora."
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "h3",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "Serie Probba: Diseño y Economía"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "p",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "La serie Probba es ideal para quienes buscan una solución accesible sin comprometer calidad. Con acabados en blanco, negro, anodizado natural y Anolok® bronce oscuro, estas aberturas pueden incluir vidrio simple o DVH para mejorar el aislamiento."
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "h3",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "Serie Gala: Versatilidad y Estética"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "p",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "Gala ofrece aberturas diseñadas para diversos proyectos, con opciones corredizas, batientes y oscilobatientes. Disponible en distintos acabados, esta serie permite integrar DVH para mayor eficiencia térmica y acústica."
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "h3",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "Serie Summa: Innovación y Confort"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "p",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "Summa es la línea premium de aberturas de aluminio, ideal para grandes dimensiones. Gracias a su sistema hermético, estas aberturas garantizan máximo aislamiento acústico y resistencia ante condiciones climáticas adversas."
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "h2",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "¿Qué es el Doble Vidriado Hermético (DVH)?"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "p",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "El "
+                                  },
+                                  {
+                                    "tag": "strong",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "type": "text",
+                                        "value": "Doble Vidriado Hermético (DVH)"
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": " es una tecnología que consiste en dos vidrios separados por una cámara de aire o gas inerte. Este sistema mejora el aislamiento térmico y acústico, reduciendo la transferencia de temperatura y ruidos del exterior."
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "h3",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "Beneficios del DVH"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "ul",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "\n"
+                                  },
+                                  {
+                                    "tag": "li",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "tag": "i",
+                                        "type": "element",
+                                        "attributes": {
+                                          "className": "ion-android-checkmark-circle"
+                                        }
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " "
+                                      },
+                                      {
+                                        "tag": "strong",
+                                        "type": "element",
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "value": "Máximo aislamiento térmico:"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " Reduce la pérdida de calor hasta en un 70%, optimizando el consumo de calefacción y aire acondicionado."
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": "\n"
+                                  },
+                                  {
+                                    "tag": "li",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "tag": "i",
+                                        "type": "element",
+                                        "attributes": {
+                                          "className": "ion-android-checkmark-circle"
+                                        }
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " "
+                                      },
+                                      {
+                                        "tag": "strong",
+                                        "type": "element",
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "value": "Reducción de ruido:"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " Disminuye la contaminación acústica del exterior, ideal para ciudades y entornos ruidosos."
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": "\n"
+                                  },
+                                  {
+                                    "tag": "li",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "tag": "i",
+                                        "type": "element",
+                                        "attributes": {
+                                          "className": "ion-android-checkmark-circle"
+                                        }
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " "
+                                      },
+                                      {
+                                        "tag": "strong",
+                                        "type": "element",
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "value": "Evita la condensación:"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " Previene la formación de humedad y empañamiento en los vidrios."
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": "\n"
+                                  },
+                                  {
+                                    "tag": "li",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "tag": "i",
+                                        "type": "element",
+                                        "attributes": {
+                                          "className": "ion-android-checkmark-circle"
+                                        }
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " "
+                                      },
+                                      {
+                                        "tag": "strong",
+                                        "type": "element",
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "value": "Mayor seguridad:"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " Compatible con vidrios templados y laminados para mayor resistencia a impactos."
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": "\n"
+                                  },
+                                  {
+                                    "tag": "li",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "tag": "i",
+                                        "type": "element",
+                                        "attributes": {
+                                          "className": "ion-android-checkmark-circle"
+                                        }
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " "
+                                      },
+                                      {
+                                        "tag": "strong",
+                                        "type": "element",
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "value": "Eficiencia energética:"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " Reduce el consumo de energía, contribuyendo al cuidado del medio ambiente."
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": "\n"
+                                  },
+                                  {
+                                    "tag": "li",
+                                    "type": "element",
+                                    "children": [
+                                      {
+                                        "tag": "i",
+                                        "type": "element",
+                                        "attributes": {
+                                          "className": "ion-android-checkmark-circle"
+                                        }
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " "
+                                      },
+                                      {
+                                        "tag": "strong",
+                                        "type": "element",
+                                        "children": [
+                                          {
+                                            "type": "text",
+                                            "value": "Protección UV:"
+                                          }
+                                        ]
+                                      },
+                                      {
+                                        "type": "text",
+                                        "value": " Filtra los rayos solares dañinos, protegiendo muebles y pisos del desgaste prematuro."
+                                      }
+                                    ]
+                                  },
+                                  {
+                                    "type": "text",
+                                    "value": "\n"
+                                  }
+                                ]
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              },
+                              {
+                                "tag": "h3",
+                                "type": "element",
+                                "children": [
+                                  {
+                                    "type": "text",
+                                    "value": "¡Aprovecha las ventajas del DVH en tus aberturas de aluminio de alta prestación!"
+                                  }
+                                ],
+                                "attributes": {
+                                  "className": "text-center"
+                                }
+                              },
+                              {
+                                "type": "text",
+                                "value": "\n"
+                              }
+                            ],
+                            "attributes": {
+                              "className": "col-lg-12 mb-2 content"
+                            }
+                          },
+                          {
+                            "type": "text",
+                            "value": "\n"
+                          }
+                        ],
+                        "attributes": {
+                          "className": "row"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": "\n"
+                      }
+                    ],
+                    "attributes": {
+                      "className": "container"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  }
+                ],
+                "attributes": {
+                  "className": "wow fadeInUp about"
+                }
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T01:54:00.671Z",
+          "updatedAt": "2026-05-02T01:54:00.671Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 970,
+      "pageId": 7,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-1",
+      "name": null,
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "Aberturas en Aluminio 1",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/gala.jpg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Aberturas en Aluminio 2",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/abertura_1.png",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Aberturas en Aluminio 3",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "",
+        "imageUrl": "",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T01:54:00.672Z",
+      "updatedAt": "2026-05-02T01:54:00.672Z",
+      "blocks": [
+        {
+          "id": 1400,
+          "sectionId": 970,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-1",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h1",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aberturas de Aluminio de Alta Prestación - Probba, Gala y Summa"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "En "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Urucortinas"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", ofrecemos "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "aberturas en aluminio de alta calidad"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", garantizando resistencia, estética y eficiencia energética. Trabajamos con "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Lidasur Aluminios"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", empresa líder en el rubro, que fabrica sus productos bajo normas de calidad ISO, asegurando durabilidad y garantía."
+                  }
+                ]
+              },
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Serie 20 y 25"
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las aberturas en "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "serie 20 y 25"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " son opciones económicas sin comprometer calidad y funcionalidad. Disponibles en stock con entrega inmediata."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponibles en "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "colores: aluminio natural, blanco, negro, marrón y madera"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": "."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Medidas estándar"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " con opciones personalizadas."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Opción de "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "cortina de enrollar"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " en PVC o aluminio."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  }
+                ]
+              },
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Serie Gala y Summa - Alta Prestación"
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Para quienes buscan "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "elegancia, tecnología y máximo confort"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", las aberturas en "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "serie Gala y Summa"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " son la opción ideal. Diseñadas para uso intensivo, ofrecen aislamiento térmico y acústico superior."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponibles en "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "tipologías corredizas, batientes y oscilobatientes"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": "."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Opciones con "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Doble Vidriado Hermético (DVH)"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": "."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Fabricación a medida según necesidad."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T01:54:00.673Z",
+          "updatedAt": "2026-05-02T01:54:00.673Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 971,
+      "pageId": 7,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-3",
+      "name": null,
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [],
+        "variant": "image-content",
+        "imageAlt": "Doble Vidriado Hermético",
+        "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh.jpeg",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T01:54:00.674Z",
+      "updatedAt": "2026-05-02T01:54:00.674Z",
+      "blocks": [
+        {
+          "id": 1401,
+          "sectionId": 971,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-3",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Doble Vidriado Hermético (DVH)"
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "El "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Doble Vidriado Hermético (DVH)"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " es la solución ideal para mejorar la eficiencia térmica y acústica en aberturas de alta prestación. Su innovador sistema de dos vidrios paralelos, sellados herméticamente y con una cámara de aire deshidratado o gas inerte, proporciona **mayor confort y ahorro energético en el hogar o la oficina**."
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Beneficios del DVH"
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Aislamiento térmico:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Reduce hasta un 70% las pérdidas de calor, optimizando la climatización del ambiente."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Reducción de ruido:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disminuye la transmisión de sonidos del exterior, ideal para entornos urbanos."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Evita la condensación:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Previene la formación de humedad y empañamiento en los vidrios."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Mayor seguridad:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Compatible con vidrios templados o laminados para mayor resistencia a impactos."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Eficiencia energética:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Menos consumo en calefacción y refrigeración, reduciendo costos y huella de carbono."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "¡Mejora tu hogar con aberturas de alta prestación y DVH!"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T01:54:00.674Z",
+          "updatedAt": "2026-05-02T01:54:00.674Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 972,
+      "pageId": 7,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-4",
+      "name": null,
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [],
+        "variant": "image-content",
+        "imageAlt": "Mercado Pago",
+        "imageUrl": "/uploads/cms/legacy-assets/img/mercadopago-img.jpg",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T01:54:00.675Z",
+      "updatedAt": "2026-05-02T01:54:00.675Z",
+      "blocks": [
+        {
+          "id": 1402,
+          "sectionId": 972,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-4",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Facilidades de Pago"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aceptamos pagos hasta en 12 cuotas sin interés mediante Mercado Pago."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Compra segura y protegida."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponible para todos nuestros productos."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Rápido y sin complicaciones."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n"
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T01:54:00.675Z",
+          "updatedAt": "2026-05-02T01:54:00.675Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 973,
+      "pageId": 7,
+      "type": "CTA_BANNER",
+      "key": "cta-1",
+      "name": "Solicite tu Presupuesto",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Solicite tu Presupuesto",
+        "actions": [
+          {
+            "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+            "label": "Enviar WhatsApp",
+            "external": true,
+            "iconClass": null
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+      },
+      "createdAt": "2026-05-02T01:54:00.675Z",
+      "updatedAt": "2026-05-02T01:54:00.675Z",
+      "blocks": []
+    },
+    {
+      "id": 974,
+      "pageId": 7,
+      "type": "VIDEO_SECTION",
+      "key": "standard-video-section",
+      "name": "Video del producto",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Video de Aberturas de aluminio",
+        "layout": "contained",
+        "autoplay": false,
+        "controls": true,
+        "description": "Una demostración breve para complementar la lectura visual."
+      },
+      "createdAt": "2026-05-02T01:54:00.676Z",
+      "updatedAt": "2026-05-02T01:54:00.676Z",
+      "blocks": [
+        {
+          "id": 1403,
+          "sectionId": 974,
+          "type": "CARD",
+          "key": "standard-video",
+          "name": "Video",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "title": "Video de Aberturas de aluminio",
+            "mediaType": "video",
+            "posterUrl": "https://www.urucortinas.com.uy/img/portfolio/aberturas/aberturas_aluminio.jpg",
+            "description": "Contenido audiovisual de apoyo para entender el producto en uso."
+          },
+          "mediaId": 53,
+          "createdAt": "2026-05-02T01:54:00.676Z",
+          "updatedAt": "2026-05-02T01:54:00.676Z",
+          "media": {
+            "id": 53,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Ventana Corrediza 20 Blanco 3mm 1500x2000 en uso",
+            "title": "Ventana Corrediza 20 Blanco 3mm 1500x2000 video",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-30T13:17:59.778Z",
+            "updatedAt": "2026-04-30T14:32:16.171Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 975,
+      "pageId": 7,
+      "type": "CTA_BANNER",
+      "key": "cta-2",
+      "name": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+        "actions": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-lg fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-lg fa-instagram"
+          }
+        ],
+        "variant": "social",
+        "description": ""
+      },
+      "createdAt": "2026-05-02T01:54:00.676Z",
+      "updatedAt": "2026-05-02T01:54:00.676Z",
+      "blocks": []
+    },
+    {
+      "id": 976,
+      "pageId": 7,
+      "type": "MEDIA_CAROUSEL",
+      "key": "owl-carousel-1",
+      "name": "Otros productos de interés",
+      "sortOrder": 8,
+      "visible": true,
+      "settings": {
+        "title": "Otros productos de interés",
+        "variant": "cards",
+        "description": "Descubre nuestras soluciones en cortinas, diseñadas para combinar funcionalidad y estética."
+      },
+      "createdAt": "2026-05-02T01:54:00.677Z",
+      "updatedAt": "2026-05-02T01:54:00.677Z",
+      "blocks": [
+        {
+          "id": 1404,
+          "sectionId": 976,
+          "type": "CARD",
+          "key": "card-1-1",
+          "name": "Cortinas Roller",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-roller.html",
+            "title": "Cortinas Roller",
+            "linkLabel": "Más Información",
+            "description": "Solución moderna y versátil para el control de luz y privacidad."
+          },
+          "mediaId": 1,
+          "createdAt": "2026-05-02T01:54:00.677Z",
+          "updatedAt": "2026-05-02T01:54:00.677Z",
+          "media": {
+            "id": 1,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_2.jpeg",
+            "type": "IMAGE",
+            "alt": "Cortinas Roller",
+            "title": null,
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "legacy_html_import",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.947Z",
+            "updatedAt": "2026-04-27T20:58:36.947Z"
+          }
+        },
+        {
+          "id": 1405,
+          "sectionId": 976,
+          "type": "CARD",
+          "key": "card-1-2",
+          "name": "Cortinas de Enrollar",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-de-enrollar.html",
+            "title": "Cortinas de Enrollar",
+            "linkLabel": "Más Información",
+            "description": "Aislamiento térmico y acústico en opciones de PVC y Aluminio."
+          },
+          "mediaId": 2,
+          "createdAt": "2026-05-02T01:54:00.677Z",
+          "updatedAt": "2026-05-02T01:54:00.677Z",
+          "media": {
+            "id": 2,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg",
+            "type": "IMAGE",
+            "alt": "Cortina de Enrollar en PVC",
+            "title": "Cortina de Enrollar en PVC",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.948Z",
+            "updatedAt": "2026-04-30T14:32:16.054Z"
+          }
+        },
+        {
+          "id": 1406,
+          "sectionId": 976,
+          "type": "CARD",
+          "key": "card-1-3",
+          "name": "Cortinas Metálicas",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-metalicas.html",
+            "title": "Cortinas Metálicas",
+            "linkLabel": "Más Información",
+            "description": "Seguridad y resistencia con opciones automatizadas y personalizables."
+          },
+          "mediaId": 3,
+          "createdAt": "2026-05-02T01:54:00.678Z",
+          "updatedAt": "2026-05-02T01:54:00.678Z",
+          "media": {
+            "id": 3,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg",
+            "type": "IMAGE",
+            "alt": "Cortinas metálicas",
+            "title": "Cortinas metálicas",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.949Z",
+            "updatedAt": "2026-04-30T14:32:16.068Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 977,
+      "pageId": 7,
+      "type": "SITE_FOOTER",
+      "key": "site-footer",
+      "name": "Footer del sitio",
+      "sortOrder": 9,
+      "visible": true,
+      "settings": {
+        "title": "Contacto",
+        "socials": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-instagram"
+          }
+        ],
+        "contacts": [
+          {
+            "value": "Montevideo, Uruguay",
+            "iconClass": "fa fa-location-arrow"
+          },
+          {
+            "value": "097 365 931",
+            "iconClass": "fa fa-phone"
+          },
+          {
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope"
+          }
+        ],
+        "linkGroups": []
+      },
+      "createdAt": "2026-05-02T01:54:00.678Z",
+      "updatedAt": "2026-05-02T01:54:00.678Z",
+      "blocks": []
+    },
+    {
+      "id": 978,
+      "pageId": 7,
+      "type": "CTA_BANNER",
+      "key": "shop-cta",
+      "name": "Ver la tienda",
+      "sortOrder": 10,
+      "visible": true,
+      "settings": {
+        "title": "Encontrá la solución ideal en la tienda",
+        "actions": [
+          {
+            "href": "/shop",
+            "label": "Ir a la tienda"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Pedir presupuesto"
+          }
+        ],
+        "variant": "default",
+        "description": "Explorá el catálogo para comparar modelos, revisar opciones y avanzar con una compra o presupuesto."
+      },
+      "createdAt": "2026-05-02T01:54:00.678Z",
+      "updatedAt": "2026-05-02T01:54:00.678Z",
+      "blocks": []
+    }
+  ]
+}

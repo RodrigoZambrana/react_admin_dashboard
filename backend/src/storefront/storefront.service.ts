@@ -33,7 +33,16 @@ import { PrismaService } from '../prisma/prisma.service'
 import { NotificationOrchestratorService } from '../notifications/notification-orchestrator.service'
 import { EmailService } from '../email/email.service'
 import { CurrencyConversionService } from '../common/currency/currency-conversion.service'
-import { buildCanonicalMediaSlug, buildMediaFamilyKey, toMediaRelativePath } from '../common/media/sync-core'
+import {
+  buildCanonicalMediaSlug,
+  buildCanonicalMediaLabel,
+  buildCanonicalProductMediaPublicId,
+  buildMediaFamilyKey,
+  isLocalMediaReference,
+  mediaReferenceExists,
+  resolveExistingLocalMediaReference,
+  toMediaRelativePath,
+} from '../common/media/sync-core'
 import { decimal, decimalToNumber } from '../common/currency/money.util'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 import { DEFAULT_STOREFRONT_CONFIG } from './defaults/config'
@@ -128,6 +137,7 @@ const INVENTORY_STATUS: Record<number, 'in-stock' | 'limited' | 'out-of-stock'> 
 
 const CLOUDINARY_HOST = 'res.cloudinary.com'
 const DEFAULT_MEDIA_VERSION = 1
+const MEDIA_PROVIDER = String(process.env.MEDIA_PROVIDER ?? 'local').trim().toLowerCase()
 
 const normalizeMediaVersion = (value?: number | null) => {
   const numeric = Number(value ?? DEFAULT_MEDIA_VERSION)
@@ -216,10 +226,35 @@ const mapImageAssetDto = (input: {
   dominantColor?: string | null
 }) => {
   const reference = resolveStoredMediaReference(input)
+  const localReference = reference?.publicId && isLocalMediaReference(reference.publicId)
+    ? resolveExistingLocalMediaReference(reference.publicId)
+    : null
+  const localReferenceExists = localReference ? mediaReferenceExists(localReference) : false
+  const inputLocalReference =
+    typeof input.url === 'string' && isLocalMediaReference(input.url)
+      ? resolveExistingLocalMediaReference(input.url)
+      : null
+  const inputLocalReferenceExists = inputLocalReference ? mediaReferenceExists(inputLocalReference) : false
+  const resolvedLocalUrl =
+    MEDIA_PROVIDER !== 'cloudinary'
+      ? localReference && localReferenceExists
+        ? `/media/${toMediaRelativePath(localReference)}`
+        : inputLocalReference && inputLocalReferenceExists
+        ? `/media/${toMediaRelativePath(inputLocalReference)}`
+        : ''
+      : input.url ?? ''
+  const resolvedPublicId =
+      MEDIA_PROVIDER === 'cloudinary'
+        ? reference?.publicId ?? null
+        : localReference && localReferenceExists
+          ? localReference
+        : inputLocalReference && inputLocalReferenceExists
+          ? toMediaRelativePath(inputLocalReference)
+          : null
   return {
     id: input.id,
-    url: input.url ?? '',
-    publicId: reference?.publicId ?? null,
+    url: resolvedLocalUrl,
+    publicId: resolvedPublicId,
     version: reference?.version ?? null,
     alt: input.alt ?? null,
     width: input.width ?? null,
@@ -238,11 +273,14 @@ const normalizeMediaLookupKey = (value?: string | null) => {
 
   const resolved = resolveStoredMediaReference({ url: trimmed, publicId: trimmed })
   if (resolved?.publicId) {
+    if (isLocalMediaReference(resolved.publicId)) {
+      return resolveExistingLocalMediaReference(resolved.publicId) ?? resolved.publicId
+    }
     return resolved.publicId
   }
 
   const normalizedReference = normalizeMediaReference(trimmed) ?? trimmed
-  return toMediaRelativePath(normalizedReference)
+  return resolveExistingLocalMediaReference(normalizedReference) ?? toMediaRelativePath(normalizedReference)
 }
 
 type CmsRenderableBlockLike = {
@@ -2475,16 +2513,32 @@ export class StorefrontService implements OnModuleInit {
       `storefront:content-section:${locale}:${key.trim().toUpperCase()}`,
       PUBLIC_STOREFRONT_CACHE_TTL_MS,
       async () => {
-        const section = await this.cms.getPublicSectionByKey(key, locale)
-        return this.mapCmsContentSection(section)
+        try {
+          const section = await this.cms.getPublicSectionByKey(key, locale)
+          return this.mapCmsContentSection(section)
+        } catch (error) {
+          this.logger.warn(
+            `[storefront] Failed to load content section "${key}" for locale "${locale}".`,
+            error as Error,
+          )
+          throw new NotFoundException('Content section not found')
+        }
       },
     )
   }
 
   async listContentSections(locale = 'es'): Promise<CmsContentSectionDto[]> {
     return this.getOrSetPublicCache(`storefront:content-sections:${locale}`, PUBLIC_STOREFRONT_CACHE_TTL_MS, async () => {
-      const sections = await this.cms.listPublicSections(locale)
-      return sections.map((section) => this.mapCmsContentSection(section))
+      try {
+        const sections = await this.cms.listPublicSections(locale)
+        return sections.map((section) => this.mapCmsContentSection(section))
+      } catch (error) {
+        this.logger.warn(
+          `[storefront] Failed to load content sections for locale "${locale}".`,
+          error as Error,
+        )
+        return []
+      }
     })
   }
 
@@ -2895,29 +2949,44 @@ export class StorefrontService implements OnModuleInit {
       if (/^(data:|blob:)/i.test(rawUrl)) {
         return
       }
-      const isLocalMedia = rawUrl.startsWith('/media/') || rawUrl.startsWith('/uploads/')
-      const localKind = inferMediaType(entry) === 'video' ? 'videos' : 'images'
-      const localReference = isLocalMedia ? toMediaRelativePath(rawUrl) : null
       const type = inferMediaType(entry)
-      const publicId =
-        localReference ||
-        resolveStoredMediaReference(entry)?.publicId ||
-        normalizeMediaReference(entry.publicId ?? entry.url) ||
-        (rawUrl ? `products/${detail.slug}/${localKind}/${rawUrl.split('/').pop() ?? 'media'}` : null)
+      if (!type) {
+        return
+      }
+      const normalizedReference = normalizeMediaReference(entry.publicId ?? entry.url)
+      const filename = (normalizedReference ? normalizedReference.split('/').pop() : rawUrl.split('/').pop()) ?? 'media'
+      const isLocalMedia =
+        rawUrl.startsWith('/media/') ||
+        rawUrl.startsWith('/uploads/') ||
+        (normalizedReference?.startsWith('products/') ?? false) ||
+        (normalizedReference?.startsWith('media/products/') ?? false)
+      const canonicalLocalReference =
+        isLocalMedia && normalizedReference
+          ? resolveExistingLocalMediaReference(normalizedReference) ??
+            resolveExistingLocalMediaReference(
+              buildCanonicalProductMediaPublicId(detail.slug, type, filename),
+            )
+          : null
+      const publicId = isLocalMedia
+        ? canonicalLocalReference ?? buildCanonicalProductMediaPublicId(detail.slug, type, filename)
+        : resolveStoredMediaReference(entry)?.publicId || normalizedReference || null
       if (!publicId) {
+        return
+      }
+      if (isLocalMediaReference(publicId) && !mediaReferenceExists(publicId)) {
         return
       }
 
       const slug = buildCanonicalMediaSlug(type, order)
-      const key = `${type}:${slug}:${publicId}`
+      const key = `${type}:${publicId}`
       if (!deduped.has(key)) {
         deduped.set(key, {
           slug,
           public_id: publicId,
           type,
           order,
-          name: entry.name ?? null,
-          alt: entry.alt ?? null,
+          name: entry.name ?? buildCanonicalMediaLabel(type, order),
+          alt: entry.alt ?? filename.replace(/\.[^.]+$/, ''),
           familyKey: entry.familyKey ?? buildMediaFamilyKey(entry.alt ?? entry.name ?? publicId),
           version: entry.version ?? 1,
         })

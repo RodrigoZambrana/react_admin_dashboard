@@ -67,7 +67,7 @@ export default function MultimediaGrid({ products }: Props) {
           color: "#475569",
         }}
       >
-        No hay productos con multimedia disponible.
+        Todavía estamos preparando la colección visual.
       </div>
     );
   }
@@ -75,7 +75,7 @@ export default function MultimediaGrid({ products }: Props) {
   return (
     <div style={shellStyle}>
       <div style={gridStyle}>
-        {products.map((product) => {
+        {products.map((product, index) => {
           const preview = product.thumbnail?.url ?? product.images?.[0]?.url ?? null;
           const description = product.shortDescription?.trim() || "Explorá la galería visual del producto.";
 
@@ -87,6 +87,7 @@ export default function MultimediaGrid({ products }: Props) {
                     src={preview}
                     alt={product.thumbnail?.alt ?? product.name}
                     fill
+                    priority={index === 0}
                     sizes="(max-width: 768px) 100vw, 360px"
                     style={{ objectFit: "cover" }}
                   />
@@ -106,7 +107,7 @@ export default function MultimediaGrid({ products }: Props) {
                     textTransform: "uppercase",
                   }}
                 >
-                  Multimedia
+                  Inspiración visual
                 </p>
                 <h3 style={{ margin: 0, fontSize: "1.08rem", lineHeight: 1.15, letterSpacing: "-0.03em" }}>
                   {product.name}

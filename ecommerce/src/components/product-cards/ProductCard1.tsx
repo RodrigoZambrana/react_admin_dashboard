@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, memo, useCallback, useMemo } from "react";
+import { Fragment, memo, useCallback, useMemo, type CSSProperties } from "react";
 import styled from "styled-components";
 import { IconPlus, IconMinus } from "@tabler/icons-react";
 
@@ -32,6 +32,7 @@ import type { ProductMode } from "@/types/storefront";
 // STYLED COMPONENT
 const Wrapper = styled(Card)`
   margin: auto;
+  position: relative;
   height: 100%;
   display: flex;
   overflow: hidden;
@@ -85,6 +86,7 @@ const Wrapper = styled(Card)`
   }
 
   .details {
+    position: relative;
     padding: 1rem;
 
     .title,
@@ -116,6 +118,8 @@ const Wrapper = styled(Card)`
     }
     .add-cart {
       display: none;
+      position: relative;
+      z-index: 2;
       margin-top: auto;
       align-items: center;
       flex-direction: column;
@@ -135,6 +139,28 @@ const Wrapper = styled(Card)`
     }
   }
 `;
+
+const cardOverlayLinkStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 1,
+  display: "block",
+  textDecoration: "none",
+  color: "inherit",
+};
+
+const srOnlyStyle: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  margin: -1,
+  padding: 0,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  clipPath: "inset(50%)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
 
 // =======================================================================
 interface ProductCard1Props extends CardProps {
@@ -300,6 +326,9 @@ function ProductCard1({
   return (
     <Fragment>
       <Wrapper borderRadius={12} data-testid={`product-card-${slug}`} {...props}>
+        <Link aria-label={title} href={detailHref} style={cardOverlayLinkStyle}>
+          <span style={srOnlyStyle}>{title}</span>
+        </Link>
         <div className="image-holder">
           {!!off && (
             <Chip

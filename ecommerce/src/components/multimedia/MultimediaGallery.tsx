@@ -50,25 +50,27 @@ const avatarStyle: CSSProperties = {
   boxShadow: "0 12px 24px rgba(18, 53, 45, 0.2)",
 };
 
-const statsRailStyle: CSSProperties = {
+const benefitsRailStyle: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
+  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
   gap: "0.75rem",
 };
 
-const statCardStyle: CSSProperties = {
+const benefitCardStyle: CSSProperties = {
   display: "grid",
-  gap: "0.15rem",
-  padding: "0.85rem 0.95rem",
+  gap: "0.2rem",
+  padding: "0.95rem 1rem",
   borderRadius: "18px",
   background: "rgba(18, 53, 45, 0.04)",
   border: "1px solid rgba(18, 53, 45, 0.08)",
 };
 
 export default function MultimediaGallery({ data, selectedMediaSlug = null }: Props) {
-  const images = data.media.filter((item) => item.type === "image");
-  const videos = data.media.filter((item) => item.type === "video");
-  const reels = Math.min(1, videos.length);
+  const commercialHighlights = [
+    "Ver terminaciones y materiales con claridad.",
+    "Explorar el producto en contexto real antes de decidir.",
+    "Encontrar la mejor opción para tu espacio con menos dudas.",
+  ];
 
   return (
     <section style={shellStyle}>
@@ -78,7 +80,7 @@ export default function MultimediaGallery({ data, selectedMediaSlug = null }: Pr
             <div style={avatarStyle}>{data.product.name.slice(0, 1).toUpperCase()}</div>
             <div style={identityStyle}>
               <p style={{ margin: 0, color: "#d9a441", fontSize: "0.76rem", fontWeight: 800, letterSpacing: "0.14em", textTransform: "uppercase" }}>
-                Perfil multimedia
+                Colección visual
               </p>
               <h1 style={{ margin: 0, fontSize: "clamp(1.45rem, 3vw, 2.35rem)", lineHeight: 1.02, letterSpacing: "-0.05em" }}>
                 {data.product.name}
@@ -127,26 +129,16 @@ export default function MultimediaGallery({ data, selectedMediaSlug = null }: Pr
         </div>
 
         <p style={{ margin: 0, color: "#475569", lineHeight: 1.65, maxWidth: "74ch" }}>
-          Vista de perfil centrada en contenido visual: historias arriba y media grid como núcleo.
+          Una selección visual pensada para mostrar el producto tal como se ve en un proyecto real, con una navegación simple y directa.
         </p>
 
-        <div style={statsRailStyle}>
-          <div style={statCardStyle}>
-            <strong style={{ fontSize: "1.1rem" }}>Posts</strong>
-            <span style={{ color: "#475569" }}>{data.media.length}</span>
-          </div>
-          <div style={statCardStyle}>
-            <strong style={{ fontSize: "1.1rem" }}>Photos</strong>
-            <span style={{ color: "#475569" }}>{images.length}</span>
-          </div>
-          <div style={statCardStyle}>
-            <strong style={{ fontSize: "1.1rem" }}>Videos</strong>
-            <span style={{ color: "#475569" }}>{videos.length}</span>
-          </div>
-          <div style={statCardStyle}>
-            <strong style={{ fontSize: "1.1rem" }}>Reels</strong>
-            <span style={{ color: "#475569" }}>{reels}</span>
-          </div>
+        <div style={benefitsRailStyle}>
+          {commercialHighlights.map((item) => (
+            <div key={item} style={benefitCardStyle}>
+              <strong style={{ fontSize: "1rem" }}>Beneficio</strong>
+              <span style={{ color: "#475569", lineHeight: 1.5 }}>{item}</span>
+            </div>
+          ))}
         </div>
 
         <MultimediaStoriesRail productSlug={data.product.slug} stories={data.stories ?? []} />

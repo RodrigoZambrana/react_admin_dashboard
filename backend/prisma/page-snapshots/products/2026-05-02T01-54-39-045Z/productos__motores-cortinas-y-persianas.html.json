@@ -1,0 +1,932 @@
+{
+  "path": "productos/motores-cortinas-y-persianas.html",
+  "title": "Motores para cortinas y persianas",
+  "summary": "Automatización de cortinas y persianas con control y confort.",
+  "seoTitle": "Motores para Cortinas y Persianas | Automatización y Confort - Urucortinas",
+  "seoDescription": "Automatización de cortinas y persianas con motores de última tecnología. Control remoto, botonera y conexión con sistemas inteligentes.",
+  "seoImageUrl": "https://www.urucortinas.com.uy/img/portfolio/motores/persianas_motorizadas.jpg",
+  "legacySource": "/Users/rodrigo/git/personal/urucortinas_projects/urucortinas_html_version/productos/motores-cortinas-y-persianas.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T12:32:51.305Z",
+  "sections": [
+    {
+      "id": 988,
+      "pageId": 16,
+      "type": "SITE_HEADER",
+      "key": "site-header",
+      "name": "Header del sitio",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "items": [
+          {
+            "href": "/",
+            "label": "Inicio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-roller.html",
+                "label": "Cortinas Roller"
+              },
+              {
+                "href": "/productos/bandas-verticales.html",
+                "label": "Bandas Verticales"
+              },
+              {
+                "href": "/productos/venecianas.html",
+                "label": "Cortinas Venecianas"
+              },
+              {
+                "href": "/productos/cortinas-tradicionales.html",
+                "label": "Cortinas Tradicionales"
+              }
+            ],
+            "label": "Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-de-enrollar-pvc.html",
+                "label": "Persianas en PVC"
+              },
+              {
+                "href": "/productos/cortinas-de-enrollar-aluminio.html",
+                "label": "Persianas en Aluminio"
+              }
+            ],
+            "label": "Persianas"
+          },
+          {
+            "href": "/productos/cortinas-metalicas.html",
+            "label": "Cortinas Metálicas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/aberturas-aluminio.html",
+                "label": "Serie 20 y 25"
+              },
+              {
+                "href": "/productos/dvh.html",
+                "label": "Con DVH"
+              },
+              {
+                "href": "/productos/puertas-oblak.html",
+                "label": "Puertas Oblak"
+              }
+            ],
+            "label": "Aberturas en Aluminio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Verticales"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Corredizos"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos de Brazo Invisible"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Cerramientos en PVC"
+              }
+            ],
+            "label": "Toldos"
+          },
+          {
+            "href": "/productos/motores-cortinas-y-persianas.html",
+            "label": "Motores para Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/servicios/reparacion-cortinas-y-persianas.html",
+                "label": "Reparación de cortinas y persianas"
+              },
+              {
+                "href": "/servicios/instalacion-aberturas.html",
+                "label": "Instalación de aberturas"
+              }
+            ],
+            "label": "Servicios"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Contactanos"
+          },
+          {
+            "href": "/catalogo/index.html",
+            "label": "Catálogo"
+          }
+        ],
+        "brandHref": "/",
+        "brandLabel": "",
+        "navigationMode": "grouped",
+        "topbarContacts": [
+          {
+            "href": null,
+            "title": "Horario",
+            "value": "Lun - Vie, 10:00 - 18:00",
+            "iconClass": "fa fa-clock-o"
+          },
+          {
+            "href": null,
+            "title": "Teléfono",
+            "value": "097 365 931",
+            "iconClass": "far fa-envelope"
+          },
+          {
+            "href": "mailto:ventas@urucortinas.com.uy",
+            "title": "Email",
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope-open-o"
+          }
+        ],
+        "floatingContact": {
+          "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+          "label": "WhatsApp",
+          "imageAlt": "Haznos tu consulta",
+          "imageUrl": "/uploads/cms/legacy-assets/img/iconos/whatsapp_icon.png"
+        },
+        "navigationGroupLabel": "Información"
+      },
+      "createdAt": "2026-05-02T01:54:00.688Z",
+      "updatedAt": "2026-05-02T01:54:00.688Z",
+      "blocks": []
+    },
+    {
+      "id": 989,
+      "pageId": 16,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-1",
+      "name": null,
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "Motores para Cortinas y Persianas 1",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Motores para Cortinas y Persianas 2",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_2.png",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Motores para Cortinas y Persianas 3",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_1.jpg",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Mercado Pago",
+        "imageUrl": "/uploads/cms/legacy-assets/img/mercadopago-img.jpg",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T01:54:00.689Z",
+      "updatedAt": "2026-05-02T01:54:00.689Z",
+      "blocks": [
+        {
+          "id": 1413,
+          "sectionId": 989,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-1",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h1",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Motores para Cortinas y Persianas"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "La "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "motorización de cortinas y persianas"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " ofrece máxima comodidad y un estilo moderno para hogares y oficinas. Gracias a la automatización, puedes operar tus cortinas con control remoto, botonera o incluso desde una "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "aplicación móvil"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", integrándolas con otros sistemas inteligentes."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "El proceso de instalación es rápido y eficiente: "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "en el mismo día"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " tendrás listas tus cortinas o persianas automatizadas para su uso normal."
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Características principales"
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Automatización completa:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Control remoto, botonera o aplicación móvil."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Integración con hogar inteligente:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Compatible con sistemas domóticos."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Instalación rápida:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Listo para usar en el día."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Mayor durabilidad:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Reduce el desgaste manual de las cortinas y persianas."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Comodidad y seguridad:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Programación de horarios y activación remota."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n        "
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Automatiza tu hogar u oficina. ¡Consulta tu presupuesto hoy!"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              },
+              {
+                "tag": "div",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "img",
+                    "type": "element",
+                    "attributes": {
+                      "alt": "Mercado Pago",
+                      "src": "/uploads/cms/legacy-assets/img/mercadopago-img.jpg"
+                    }
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n        "
+                  }
+                ],
+                "attributes": {
+                  "className": "about-img"
+                }
+              },
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Facilidades de Pago"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aceptamos pagos hasta en 12 cuotas sin interés mediante Mercado Pago."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n            "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Compra segura y protegida."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n            "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponible para todos nuestros productos."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n            "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Rápido y sin complicaciones."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T01:54:00.689Z",
+          "updatedAt": "2026-05-02T01:54:00.689Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 990,
+      "pageId": 16,
+      "type": "CTA_BANNER",
+      "key": "cta-1",
+      "name": "Solicite tu Presupuesto",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "Solicite tu Presupuesto",
+        "actions": [
+          {
+            "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+            "label": "Enviar WhatsApp",
+            "external": true,
+            "iconClass": null
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+      },
+      "createdAt": "2026-05-02T01:54:00.690Z",
+      "updatedAt": "2026-05-02T01:54:00.690Z",
+      "blocks": []
+    },
+    {
+      "id": 991,
+      "pageId": 16,
+      "type": "VIDEO_SECTION",
+      "key": "standard-video-section",
+      "name": "Video del producto",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "Video de Motores para cortinas y persianas",
+        "layout": "contained",
+        "autoplay": false,
+        "controls": true,
+        "description": "Una demostración breve para complementar la lectura visual."
+      },
+      "createdAt": "2026-05-02T01:54:00.691Z",
+      "updatedAt": "2026-05-02T01:54:00.691Z",
+      "blocks": [
+        {
+          "id": 1414,
+          "sectionId": 991,
+          "type": "CARD",
+          "key": "standard-video",
+          "name": "Video",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "title": "Video de Motores para cortinas y persianas",
+            "mediaType": "video",
+            "posterUrl": "https://www.urucortinas.com.uy/img/portfolio/motores/persianas_motorizadas.jpg",
+            "description": "Contenido audiovisual de apoyo para entender el producto en uso."
+          },
+          "mediaId": 53,
+          "createdAt": "2026-05-02T01:54:00.691Z",
+          "updatedAt": "2026-05-02T01:54:00.691Z",
+          "media": {
+            "id": 53,
+            "url": "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4",
+            "type": "VIDEO",
+            "alt": "Ventana Corrediza 20 Blanco 3mm 1500x2000 en uso",
+            "title": "Ventana Corrediza 20 Blanco 3mm 1500x2000 video",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-30T13:17:59.778Z",
+            "updatedAt": "2026-04-30T14:32:16.171Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 992,
+      "pageId": 16,
+      "type": "CTA_BANNER",
+      "key": "cta-2",
+      "name": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+        "actions": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-lg fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-lg fa-instagram"
+          }
+        ],
+        "variant": "social",
+        "description": ""
+      },
+      "createdAt": "2026-05-02T01:54:00.691Z",
+      "updatedAt": "2026-05-02T01:54:00.691Z",
+      "blocks": []
+    },
+    {
+      "id": 993,
+      "pageId": 16,
+      "type": "MEDIA_CAROUSEL",
+      "key": "owl-carousel-1",
+      "name": "Otros productos de interés",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Otros productos de interés",
+        "variant": "cards",
+        "description": "Descubre nuestras soluciones en cortinas, diseñadas para combinar funcionalidad y estética."
+      },
+      "createdAt": "2026-05-02T01:54:00.691Z",
+      "updatedAt": "2026-05-02T01:54:00.691Z",
+      "blocks": [
+        {
+          "id": 1415,
+          "sectionId": 993,
+          "type": "CARD",
+          "key": "card-1-1",
+          "name": "Cortinas Roller",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-roller.html",
+            "title": "Cortinas Roller",
+            "linkLabel": "Más Información",
+            "description": "Solución moderna y versátil para el control de luz y privacidad."
+          },
+          "mediaId": 1,
+          "createdAt": "2026-05-02T01:54:00.692Z",
+          "updatedAt": "2026-05-02T01:54:00.692Z",
+          "media": {
+            "id": 1,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_2.jpeg",
+            "type": "IMAGE",
+            "alt": "Cortinas Roller",
+            "title": null,
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "legacy_html_import",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.947Z",
+            "updatedAt": "2026-04-27T20:58:36.947Z"
+          }
+        },
+        {
+          "id": 1416,
+          "sectionId": 993,
+          "type": "CARD",
+          "key": "card-1-2",
+          "name": "Cortinas de Enrollar",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-de-enrollar.html",
+            "title": "Cortinas de Enrollar",
+            "linkLabel": "Más Información",
+            "description": "Aislamiento térmico y acústico en opciones de PVC y Aluminio."
+          },
+          "mediaId": 2,
+          "createdAt": "2026-05-02T01:54:00.692Z",
+          "updatedAt": "2026-05-02T01:54:00.692Z",
+          "media": {
+            "id": 2,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg",
+            "type": "IMAGE",
+            "alt": "Cortina de Enrollar en PVC",
+            "title": "Cortina de Enrollar en PVC",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.948Z",
+            "updatedAt": "2026-04-30T14:32:16.054Z"
+          }
+        },
+        {
+          "id": 1417,
+          "sectionId": 993,
+          "type": "CARD",
+          "key": "card-1-3",
+          "name": "Cortinas Metálicas",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-metalicas.html",
+            "title": "Cortinas Metálicas",
+            "linkLabel": "Más Información",
+            "description": "Seguridad y resistencia con opciones automatizadas y personalizables."
+          },
+          "mediaId": 3,
+          "createdAt": "2026-05-02T01:54:00.692Z",
+          "updatedAt": "2026-05-02T01:54:00.692Z",
+          "media": {
+            "id": 3,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg",
+            "type": "IMAGE",
+            "alt": "Cortinas metálicas",
+            "title": "Cortinas metálicas",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.949Z",
+            "updatedAt": "2026-04-30T14:32:16.068Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 994,
+      "pageId": 16,
+      "type": "SITE_FOOTER",
+      "key": "site-footer",
+      "name": "Footer del sitio",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Contacto",
+        "socials": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-instagram"
+          }
+        ],
+        "contacts": [
+          {
+            "value": "Montevideo, Uruguay",
+            "iconClass": "fa fa-location-arrow"
+          },
+          {
+            "value": "097 365 931",
+            "iconClass": "fa fa-phone"
+          },
+          {
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope"
+          }
+        ],
+        "linkGroups": []
+      },
+      "createdAt": "2026-05-02T01:54:00.693Z",
+      "updatedAt": "2026-05-02T01:54:00.693Z",
+      "blocks": []
+    },
+    {
+      "id": 995,
+      "pageId": 16,
+      "type": "CTA_BANNER",
+      "key": "shop-cta",
+      "name": "Ver la tienda",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Encontrá la solución ideal en la tienda",
+        "actions": [
+          {
+            "href": "/shop",
+            "label": "Ir a la tienda"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Pedir presupuesto"
+          }
+        ],
+        "variant": "default",
+        "description": "Explorá el catálogo para comparar modelos, revisar opciones y avanzar con una compra o presupuesto."
+      },
+      "createdAt": "2026-05-02T01:54:00.693Z",
+      "updatedAt": "2026-05-02T01:54:00.693Z",
+      "blocks": []
+    }
+  ]
+}

@@ -36,7 +36,39 @@ export default function SectionCmsHighlights({ section }: Props) {
           const image = entry.thumbnail?.url ?? entry.assets[0]?.posterUrl ?? entry.assets[0]?.mediaUrl ?? null;
           return (
             <Grid item md={6} xs={12} key={`cms-highlight-${entry.id}`}>
-              <Card1 height="100%" overflow="hidden">
+              <Card1 height="100%" overflow="hidden" position="relative">
+                {entry.cta?.href ? (
+                  <Link
+                    aria-label={entry.cta.label ?? entry.title}
+                    href={entry.cta.href}
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      zIndex: 1,
+                      display: "block",
+                      borderRadius: "inherit",
+                      textDecoration: "none",
+                      color: "inherit",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        width: 1,
+                        height: 1,
+                        margin: -1,
+                        padding: 0,
+                        overflow: "hidden",
+                        clip: "rect(0, 0, 0, 0)",
+                        clipPath: "inset(50%)",
+                        whiteSpace: "nowrap",
+                        border: 0,
+                      }}
+                    >
+                      {entry.cta.label ?? entry.title}
+                    </span>
+                  </Link>
+                ) : null}
                 {image ? (
                   <LazyImage
                     src={image}
@@ -62,11 +94,13 @@ export default function SectionCmsHighlights({ section }: Props) {
                     </Typography>
                   ) : null}
                   {entry.cta?.href ? (
-                    <Link href={entry.cta.href}>
-                      <Button variant="contained" color="primary">
-                        {entry.cta.label ?? "Ver más"}
-                      </Button>
-                    </Link>
+                    <Box style={{ position: "relative", zIndex: 2, display: "inline-flex" }}>
+                      <Link href={entry.cta.href}>
+                        <Button variant="contained" color="primary">
+                          {entry.cta.label ?? "Ver más"}
+                        </Button>
+                      </Link>
+                    </Box>
                   ) : null}
                 </Box>
               </Card1>

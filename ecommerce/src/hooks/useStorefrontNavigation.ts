@@ -58,13 +58,25 @@ export const useStorefrontNavigation = () => {
   const categoryIcons = useMemo(() => categories.map(() => "category"), [categories]);
   const homePath = useMemo(() => normalizePath(HOME_PATH), []);
   const t = useTranslation();
+  const multimediaTitle = t("navigation.multimedia", { defaultMessage: "Multimedia" });
 
   const navItems = useMemo<StorefrontNavigationNode[]>(() => {
     const categoryChildren = categoriesForMenu.map((category) => buildCategoryNavigationNode(category, t));
     const configuredPrimary = mapNavigationItems(storefrontConfig.navigation?.primary ?? []);
     const uniquePrimary = dedupeNavigationItems(configuredPrimary);
+    const hasMultimediaNode = uniquePrimary.some((item) => {
+      const normalizedTitle = item.title.trim().toLowerCase();
+      const normalizedUrl = item.url?.trim().toLowerCase() ?? "";
+      return normalizedTitle === multimediaTitle.trim().toLowerCase() || normalizedUrl === "/multimedia";
+    });
+    const multimediaNode: StorefrontNavigationNode = {
+      title: multimediaTitle,
+      url: "/multimedia",
+    };
 
-    return uniquePrimary.map((item) => {
+    const withMultimedia = hasMultimediaNode ? uniquePrimary : [...uniquePrimary, multimediaNode];
+
+    return withMultimedia.map((item) => {
       const normalizedTitle = item.title.trim().toLowerCase();
       const normalizedUrl = item.url?.trim().toLowerCase() ?? "";
       const isCategoriesNode =
@@ -88,7 +100,7 @@ export const useStorefrontNavigation = () => {
         child: categoryChildren.length > 0 ? categoryChildren : item.child,
       };
     });
-  }, [categoriesForMenu, homePath, storefrontConfig.navigation?.primary, t]);
+  }, [categoriesForMenu, homePath, multimediaTitle, storefrontConfig.navigation?.primary, t]);
 
   return {
     homePath,
