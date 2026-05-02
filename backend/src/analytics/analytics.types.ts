@@ -10,6 +10,8 @@ export type AnalyticsEventInput = {
   session_id: string
   url: string
   user_agent: string
+  tenant_id?: string | null
+  schema_version?: number | null
   client_ip_address?: string | null
   event_id?: string | null
   category?: AnalyticsEventCategory | null
@@ -19,6 +21,15 @@ export type AnalyticsEventInput = {
   measurementStatus?: AnalyticsMeasurementStatus | null
   page?: string | null
   path?: string | null
+  page_type?: string | null
+  component_type?: string | null
+  component_id?: string | null
+  cta_id?: string | null
+  cta_name?: string | null
+  cta_type?: string | null
+  cta_context?: string | null
+  cta_location?: string | null
+  position?: number | null
   referrer?: string | null
   utm_source?: string | null
   utm_medium?: string | null

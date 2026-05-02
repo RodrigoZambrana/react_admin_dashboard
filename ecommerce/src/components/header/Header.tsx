@@ -4,6 +4,7 @@ import Link from "next/link";
 import type { JSX, MouseEvent } from "react";
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { FormikHelpers } from "formik";
 import { useTheme } from "styled-components";
 import { IconCategoryFilled, IconChevronDown, IconShoppingCart, IconUser } from "@tabler/icons-react";
@@ -33,6 +34,11 @@ import Logo from "./Logo";
 import CustomerNotifications from "./CustomerNotifications";
 import MobileNavigationMenu from "./MobileNavigationMenu";
 import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
 
 type HeaderProps = { isFixed?: boolean; className?: string };
 
@@ -40,6 +46,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
   const theme = useTheme();
   const { state, itemCount } = useCart();
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated, logout, login, loginWithGoogle, error, clearError } = useSession();
   const t = useTranslation();
   const [cartOpen, setCartOpen] = useState(false);
@@ -54,8 +61,40 @@ export default function Header({ isFixed, className }: HeaderProps) {
   const googleIntegration = storefrontConfig?.integrations?.google;
   const googleButtonEnabled =
     googleIntegration?.enabled ?? process.env.NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED !== "false";
+  const pageType = resolvePageType(pathname);
+  const headerRef = useComponentTracking({
+    pageType,
+    componentType: "header",
+    componentId: "storefront_header",
+    metadata: { is_fixed: Boolean(isFixed) }
+  });
 
-  const handleOpenCart = useCallback(() => setCartOpen(true), []);
+  const trackHeaderCta = useCallback(
+    (ctaId: string, ctaName: string, ctaLocation: string, metadata?: Record<string, unknown>) => {
+      void trackEvent({
+        event_name: "cta_click",
+        event_category: "engagement",
+        tenant_id: env.clientSlug,
+        page_type: pageType,
+        component_type: "header",
+        component_id: "storefront_header",
+        cta_id: ctaId,
+        cta_name: ctaName,
+        cta_type: "primary",
+        cta_context: "navigation",
+        cta_location: ctaLocation,
+        schema_version: EVENT_SCHEMA_VERSION,
+        metadata,
+        data: metadata,
+      });
+    },
+    [pageType]
+  );
+
+  const handleOpenCart = useCallback(() => {
+    trackHeaderCta("nav.header.cart.open", "view_cart", "header", { target: "cart_drawer" });
+    setCartOpen(true);
+  }, [trackHeaderCta]);
   const handleCloseCart = useCallback(() => setCartOpen(false), []);
   const handleOpenLogin = useCallback(() => {
     clearError();
@@ -116,6 +155,9 @@ export default function Header({ isFixed, className }: HeaderProps) {
   );
 
   const handleAccountAction = useCallback(() => {
+    trackHeaderCta("nav.header.account.open", "account_open", "header", {
+      authenticated: isAuthenticated
+    });
     if (isAuthenticated) {
       handleCloseLogin();
       handleOpenAccountMenu();
@@ -128,7 +170,8 @@ export default function Header({ isFixed, className }: HeaderProps) {
     handleCloseLogin,
     handleOpenAccountMenu,
     handleOpenLogin,
-    isAuthenticated
+    isAuthenticated,
+    trackHeaderCta
   ]);
 
   const handleGoogleSignIn = useCallback(async () => {
@@ -253,7 +296,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
   );
 
   return (
-    <StyledHeader className={className}>
+    <StyledHeader className={className} ref={headerRef as never}>
       <Container className="container">
         <FlexBox className="mobile-actions" alignItems="center">
           <Sidenav

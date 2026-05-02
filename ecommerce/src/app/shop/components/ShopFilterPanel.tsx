@@ -16,6 +16,11 @@ import { H5, H6, Paragraph, SemiSpan, Span } from "@component/Typography";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "@/state/i18n-context";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
 
 type SaleCategoryDefinition = {
   icon: string;
@@ -100,6 +105,13 @@ export default function ShopFilterPanel({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const t = useTranslation();
+  const pageType = resolvePageType(pathname);
+  const filterRef = useComponentTracking({
+    pageType,
+    componentType: "filter_panel",
+    componentId: "shop_filter_panel",
+    metadata: { source: "shop_listing" }
+  });
 
   const [minValue, setMinValue] = useState<string>("");
   const [maxValue, setMaxValue] = useState<string>("");
@@ -122,7 +134,7 @@ export default function ShopFilterPanel({
   }, [activeFilters.priceMax, activeFilters.priceMin, priceBounds.max, priceBounds.min]);
 
   const updateQuery = useCallback(
-    (updates: Record<string, string | undefined>) => {
+    (updates: Record<string, string | undefined>, tracking?: { eventName: string; ctaId: string; ctaName: string; metadata?: Record<string, unknown> }) => {
       if (!pathname) return;
 
       const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -137,9 +149,27 @@ export default function ShopFilterPanel({
 
       const query = params.toString();
       router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
+      if (tracking) {
+        void trackEvent({
+          event_name: tracking.eventName,
+          event_category: "navigation",
+          tenant_id: env.clientSlug,
+          page_type: pageType,
+          component_type: "filter_panel",
+          component_id: "shop_filter_panel",
+          cta_id: tracking.ctaId,
+          cta_name: tracking.ctaName,
+          cta_type: "primary",
+          cta_context: "navigation",
+          cta_location: "filter_panel",
+          schema_version: EVENT_SCHEMA_VERSION,
+          metadata: tracking.metadata,
+          data: tracking.metadata,
+        });
+      }
       if (onClose) onClose();
     },
-    [onClose, pathname, router, searchParams]
+    [onClose, pageType, pathname, router, searchParams]
   );
 
   const handleCategorySelect = useCallback(
@@ -149,7 +179,15 @@ export default function ShopFilterPanel({
         if (onClose) onClose();
         return;
       }
-      updateQuery({ category: slug });
+      updateQuery(
+        { category: slug },
+        {
+          eventName: "filter_applied",
+          ctaId: "filters.category.select",
+          ctaName: "filter_category",
+          metadata: { filter_name: "category", filter_value: normalizedSlug ?? null }
+        }
+      );
     },
     [onClose, selectedCategorySlug, updateQuery]
   );
@@ -157,7 +195,15 @@ export default function ShopFilterPanel({
   const handleRatingToggle = useCallback(
     (value: number) => () => {
       const nextValue = activeFilters.rating === value ? undefined : String(value);
-      updateQuery({ rating: nextValue });
+      updateQuery(
+        { rating: nextValue },
+        {
+          eventName: "filter_applied",
+          ctaId: "filters.rating.select",
+          ctaName: "filter_rating",
+          metadata: { filter_name: "rating", filter_value: value }
+        }
+      );
     },
     [activeFilters.rating, updateQuery]
   );
@@ -176,14 +222,30 @@ export default function ShopFilterPanel({
       [nextMin, nextMax] = [nextMax, nextMin];
     }
 
-    updateQuery({
-      priceMin: typeof nextMin === "number" ? String(nextMin) : undefined,
-      priceMax: typeof nextMax === "number" ? String(nextMax) : undefined
-    });
+    updateQuery(
+      {
+        priceMin: typeof nextMin === "number" ? String(nextMin) : undefined,
+        priceMax: typeof nextMax === "number" ? String(nextMax) : undefined
+      },
+      {
+        eventName: "filter_applied",
+        ctaId: "filters.price.apply",
+        ctaName: "filter_price",
+        metadata: { filter_name: "price", min: nextMin ?? null, max: nextMax ?? null }
+      }
+    );
   }, [minValue, maxValue, updateQuery]);
 
   const handleClearFilters = useCallback(() => {
-    updateQuery({ priceMin: undefined, priceMax: undefined, rating: undefined });
+    updateQuery(
+      { priceMin: undefined, priceMax: undefined, rating: undefined },
+      {
+        eventName: "filter_applied",
+        ctaId: "filters.clear",
+        ctaName: "clear_filters",
+        metadata: { filter_name: "clear_all" }
+      }
+    );
   }, [updateQuery]);
 
   const currencyFormatter = useMemo(
@@ -197,7 +259,7 @@ export default function ShopFilterPanel({
   }, [currencyFormatter, priceBounds.max, priceBounds.min]);
 
   return (
-    <Card elevation={5} padding="1.5rem" borderRadius={12}>
+    <Card elevation={5} padding="1.5rem" borderRadius={12} ref={filterRef as never}>
       <FilterHeader>
         <FlexBox alignItems="center" gridGap="0.75rem">
           <IconAdjustmentsHorizontal size={20} />

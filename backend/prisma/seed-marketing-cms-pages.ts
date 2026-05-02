@@ -87,19 +87,32 @@ const marketingMedia: MediaSeed[] = [
   { url: '/assets/images/products/bg-gradient.png', alt: 'Gradient background', title: 'Gradient' },
 ]
 
-const HOME_SHOP_PRODUCT_CODES = [
-  'cortinas-de-enrollar-aluminio',
-  'cortinas-de-enrollar-pvc',
-  'cortinas-roller',
-  'cortinas-tradicionales',
+const HOME_SHOP_CATEGORY_NAMES = [
+  'Aberturas',
+  'Cortinas de enrollar',
+  'Motores cortinas y persianas',
+  'Cortinas',
+  'Paneles tradicionales',
+  'Cortinas metalicas',
 ]
 
-const HOME_SHOP_PRODUCT_DESCRIPTIONS: Record<string, string> = {
-  'cortinas-roller': 'Blackout y screen para controlar luz y privacidad en hogar u oficina.',
-  'cortinas-tradicionales': 'Una opción clásica para recambio y ambientes de uso diario.',
-  'cortinas-de-enrollar-pvc': 'Solución práctica y liviana para frentes y ventanas con bajo mantenimiento.',
-  'cortinas-de-enrollar-aluminio': 'Más resistencia para frentes expuestos y uso más intensivo.',
+const HOME_SHOP_CATEGORY_IMAGES: Record<string, string> = {
+  Aberturas: '/uploads/cms/legacy-assets/img/aberturas/gala.jpg',
+  'Cortinas de enrollar': '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg',
+  'Motores cortinas y persianas': '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
+  Cortinas: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
+  'Paneles tradicionales': '/uploads/cms/legacy-assets/img/portfolio/paneles/paneles.png',
+  'Cortinas metalicas': '/uploads/cms/legacy-assets/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg',
 }
+
+const slugify = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/gi, '-')
+    .replace(/^-+|-+$/g, '')
+
+const buildCategorySlug = (name: string) => slugify(name) || 'category'
 
 const categoriesPage: CmsPageSeed = {
   path: 'categories',
@@ -1787,9 +1800,9 @@ const homePage: CmsPageSeed = {
       type: CmsPageSectionType.MEDIA_GRID_ENHANCED,
       key: 'home-products-grid',
       settings: {
-        title: 'Soluciones por tipo de necesidad',
+        title: 'Informate sobre nuestros productos principales',
         description:
-          'Encontrá rápido la solución que mejor se adapta a tu proyecto: exterior, interior, obra o automatización.',
+          'Conocé las soluciones más buscadas para interior, exterior, obra, recambio y automatización.',
         columns: 4,
         gap: 1.1,
         aspectRatio: '4 / 5',
@@ -2635,63 +2648,84 @@ async function seedMarketingHomeCmsSections(prisma: PrismaClient) {
   }
 }
 
-async function buildHomeShopProductsSection(prisma: PrismaClient): Promise<CmsSectionSeed> {
-  const products = await prisma.product.findMany({
+async function buildHomeShopCategoriesSection(prisma: PrismaClient): Promise<CmsSectionSeed> {
+  const categories = await prisma.productCategory.findMany({
     where: {
-      productCode: { in: HOME_SHOP_PRODUCT_CODES },
+      parentId: null,
     },
     select: {
       id: true,
       name: true,
-      productCode: true,
-      salePrice: true,
-      currency: true,
-      img: true,
+      image: true,
+      _count: {
+        select: {
+          products: true,
+          children: true,
+        },
+      },
+      products: {
+        select: {
+          id: true,
+          img: true,
+        },
+        orderBy: {
+          id: 'asc',
+        },
+        take: 1,
+      },
     },
   })
 
-  const productByCode = new Map(products.map((product) => [product.productCode, product]))
+  const categoryByName = new Map(categories.map((category) => [category.name, category]))
+  const orderedCategories = HOME_SHOP_CATEGORY_NAMES.map((name) => categoryByName.get(name)).filter(
+    (category): category is (typeof categories)[number] => Boolean(category),
+  )
 
   return {
     type: CmsPageSectionType.MEDIA_GRID_ENHANCED,
-    key: 'home-shop-products',
+    key: 'home-shop-categories',
     settings: {
-      title: 'Productos destacados de la tienda',
-      description: 'Una selección comercial para comparar opciones y encontrar la solución adecuada.',
-      variant: 'products',
+      title: 'Explorá nuestra tienda por categoría',
+      description: 'Entrá por la línea que buscás y descubrí opciones reales para avanzar más rápido.',
+      variant: 'categories',
     },
-    blocks: HOME_SHOP_PRODUCT_CODES.map((code) => {
-      const product = productByCode.get(code)
-      if (!product) {
+    blocks: orderedCategories.map((category) => {
+      const productCount = category._count.products ?? 0
+      const childCount = category._count.children ?? 0
+      const slug = buildCategorySlug(category.name)
+      const representativeImage =
+        (category.image && category.image.trim().length > 0 ? category.image : null) ??
+        category.products?.[0]?.img ??
+        HOME_SHOP_CATEGORY_IMAGES[category.name] ??
+        null
+
+      if (!representativeImage && productCount <= 0 && childCount <= 0) {
         return null
       }
 
-      const salePrice = product.salePrice != null ? String(product.salePrice) : ''
-      const imageUrl = product.img && String(product.img).trim().length > 0 ? String(product.img) : null
       const card: CmsBlockSeed = {
         type: CmsPageBlockType.CARD,
-        name: product.name,
+        name: category.name,
         content: {
-          title: product.name,
-          description: HOME_SHOP_PRODUCT_DESCRIPTIONS[code] ?? '',
-          badge: salePrice ? `Desde $${salePrice}` : 'Producto de tienda',
-          linkLabel: 'Ver producto',
-          href: `/product/${product.productCode}`,
-          slug: product.productCode,
-          productId: product.id,
-          price: Number(salePrice || 0),
-          currencyCode: product.currency ?? 'UYU',
-          imgUrl: imageUrl,
-          images: imageUrl ? [imageUrl] : [],
-          rating: 4,
+          title: category.name,
+          description: null,
+          badge: null,
+          linkLabel: 'Ver en tienda',
+          href: `/shop?category=${encodeURIComponent(slug)}`,
+          slug,
+          categoryId: category.id,
+          productCount,
+          childCount,
+          imgUrl: representativeImage,
+          images: representativeImage ? [representativeImage] : [],
         },
       }
 
-      if (imageUrl) {
+      if (representativeImage) {
         card.media = {
-          url: imageUrl,
-          alt: product.name,
-          title: product.name,
+          url: representativeImage,
+          alt: category.name,
+          title: category.name,
           type: CmsMediaType.IMAGE,
           source: 'marketing_cms_seed',
         }
@@ -2703,7 +2737,7 @@ async function buildHomeShopProductsSection(prisma: PrismaClient): Promise<CmsSe
 }
 
 async function buildMarketingPages(prisma: PrismaClient): Promise<CmsPageSeed[]> {
-  const homeShopProductsSection = await buildHomeShopProductsSection(prisma)
+  const homeShopCategoriesSection = await buildHomeShopCategoriesSection(prisma)
 
   return marketingPages.map((page) => {
     if (page.path !== '') {
@@ -2712,7 +2746,7 @@ async function buildMarketingPages(prisma: PrismaClient): Promise<CmsPageSeed[]>
 
     return {
       ...page,
-      sections: [page.sections[0], page.sections[1], homeShopProductsSection, ...page.sections.slice(2)],
+      sections: [page.sections[0], page.sections[1], homeShopCategoriesSection, ...page.sections.slice(2)],
     }
   })
 }

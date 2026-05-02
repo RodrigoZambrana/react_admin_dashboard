@@ -13,6 +13,7 @@ import FlexBox from "@component/FlexBox";
 import { Button } from "@component/buttons";
 import { H1, H2, H3, H6, Paragraph, SemiSpan } from "@component/Typography";
 import NoImagePlaceholder from "@component/NoImagePlaceholder";
+import TrackedButton from "@component/TrackedButton";
 import ProductWishlistButton from "@component/product-cards/ProductWishlistButton";
 
 import useCart from "@hook/useCart";
@@ -698,6 +699,7 @@ export default function ProductIntro({
       },
       1
     );
+
   }, [
     addItemSnapshot,
     addToCartDisabled,
@@ -1126,15 +1128,34 @@ export default function ProductIntro({
 
           {currentQuantity === 0 ? (
             <FlexBox alignItems="center" mb="36px" style={{ gap: "0.75rem" }}>
-              <Button
+              <TrackedButton
                 size="small"
                 color="primary"
                 variant="contained"
                 disabled={addToCartDisabled}
                 data-testid="product-detail-add-to-cart"
+                eventName="add_to_cart"
+                eventCategory="ecommerce"
+                pageType="product"
+                componentType="product_intro"
+                componentId="product_intro_primary_cta"
+                ctaId="product.detail.add_to_cart.primary"
+                ctaName="add_to_cart"
+                ctaType="primary"
+                ctaContext="ecommerce"
+                ctaLocation="product_detail"
+                metadata={{
+                  product_id: productNumericId ?? id,
+                  product_slug: productSlug,
+                  variant_id: selectedVariant?.id ?? null,
+                  variant_key: isPublishedParametricProduct ? selectedPublishedParametricVariant?.key : selectedVariant?.key ?? null,
+                  price: resolvedPrice,
+                  currency: resolvedCurrency,
+                  quantity: 1,
+                }}
                 onClick={handleAddToCart}>
                 {t("product.actions.addToCart", { defaultMessage: "Add to Cart" })}
-              </Button>
+              </TrackedButton>
 
               <ProductWishlistButton productId={productNumericId} />
             </FlexBox>

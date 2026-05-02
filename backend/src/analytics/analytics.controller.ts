@@ -140,6 +140,14 @@ export class AnalyticsController {
     })
   }
 
+  @Get('structural-quality')
+  getStructuralQuality(@Query() query: { from?: string; to?: string }) {
+    return this.analyticsService.getStructuralQuality({
+      from: query.from,
+      to: query.to,
+    })
+  }
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
   @Get('marketing/meta')

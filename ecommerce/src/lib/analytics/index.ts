@@ -1,9 +1,14 @@
 import type { StorefrontConfig, CheckoutLineItem, OrderSummary } from "@/types/storefront";
 import { resolvePublicPricing, type PublicPricingSource } from "@/lib/seo/public-pricing";
+import { env } from "@/lib/env";
 
-import { initAutoTracking } from "./autoTrack";
 import { getAnalyticsContext, getSessionId, type AnalyticsContext } from "./session";
-import { createEventId, track } from "./tracking";
+import { createEventId } from "./tracking";
+import { EVENT_SCHEMA_VERSION } from "./eventSchema";
+import { trackEvent } from "./trackEvent";
+import { resolvePageType } from "./pageType";
+export { trackEvent } from "./trackEvent";
+export * from "./eventSchema";
 
 export type AnalyticsEvent =
   | {
@@ -64,14 +69,6 @@ type AnalyticsProductLike = PublicPricingSource & {
   variantKey?: string | null;
 };
 
-const pushToDataLayer = (payload: AnalyticsEvent) => {
-  if (typeof window === "undefined") return;
-  const globalWindow = window as Window & { dataLayer?: unknown[] };
-  const dataLayer = globalWindow.dataLayer ?? [];
-  globalWindow.dataLayer = dataLayer;
-  dataLayer.push(payload);
-};
-
 export const resolveAnalyticsRuntime = (config: StorefrontConfig): AnalyticsRuntime => ({
   analytics: config.integrations?.google?.analytics?.measurementId?.trim() || null,
   tagManager: config.integrations?.google?.tagManager?.enabled
@@ -100,9 +97,23 @@ export const trackAnalyticsEvent = (event: AnalyticsEvent) => {
     fbp: context.fbp,
     fbc: context.fbc,
   } as AnalyticsEvent & Record<string, unknown>;
-  pushToDataLayer(enrichedEvent);
   const { event: eventName, ...rest } = enrichedEvent;
-  track({ event: eventName, data: rest as Record<string, unknown> });
+  void trackEvent({
+    event_name: eventName,
+    event_category: "engagement",
+    tenant_id: env.clientSlug ?? "default",
+    page_type: resolvePageType(context.path) || "unknown",
+    component_type: "legacy_event",
+    component_id: "legacy_analytics_event",
+    cta_id: null,
+    cta_name: null,
+    cta_type: null,
+    cta_context: null,
+    cta_location: null,
+    schema_version: EVENT_SCHEMA_VERSION,
+    metadata: rest as Record<string, unknown>,
+    data: rest as Record<string, unknown>,
+  });
 };
 
 const mapItem = (item: AnalyticsProductLike | CheckoutLineItem) => {
@@ -213,4 +224,4 @@ export const trackPurchase = (order: OrderSummary) => {
   });
 };
 
-export { getAnalyticsContext, getSessionId, initAutoTracking, track };
+export { getAnalyticsContext, getSessionId, track };

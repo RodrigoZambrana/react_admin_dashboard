@@ -1227,6 +1227,97 @@ const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }
     );
   }
 
+  if (variant === "categories") {
+    const categories = section.blocks
+      .map((block) => {
+        const content = asRecord(block.content);
+        const title = asString(content.title) || block.name || "";
+        const href = asString(content.href) || asString(content.link);
+        const linkLabel = asString(content.linkLabel) || "Ver en tienda";
+        const badge = asString(content.badge);
+        const description =
+          asString(content.description) ||
+          (asNumber(content.childCount, 0) > 0
+            ? `${asNumber(content.childCount, 0)} subcategorías disponibles`
+            : asNumber(content.productCount, 0) > 0
+              ? `${asNumber(content.productCount, 0)} productos disponibles`
+              : "");
+        const mediaUrl = asString(content.imgUrl) || asString(content.imageUrl) || pickMediaUrl(block.media);
+        const mediaType = readMediaType(content.mediaType, readMediaType(block.media?.type, "image"));
+
+        return title && href
+          ? {
+              id: String(block.id),
+              title,
+              href,
+              linkLabel,
+              badge,
+              description,
+              mediaUrl,
+              mediaType,
+              alt: block.media?.alt || title || "Categoría",
+            }
+          : null;
+      })
+      .filter(Boolean) as Array<{
+      id: string;
+      title: string;
+      href: string;
+      linkLabel: string;
+      badge: string;
+      description: string;
+      mediaUrl: string;
+      mediaType: "image" | "video";
+      alt: string;
+    }>;
+
+    if (!categories.length) return null;
+
+    return (
+      <Container className={styles.sectionContainer}>
+        {renderHeading(section)}
+        <section className={styles.homeCategoryGrid}>
+          {categories.map((item) => (
+            <Link
+              aria-label={item.linkLabel || item.title || "Abrir categoría"}
+              className={styles.homeCategoryTile}
+              href={item.href}
+              key={item.id}>
+              <article className={styles.homeCategoryCard}>
+                <div className={styles.homeCategoryMedia}>
+                  {item.mediaUrl ? (
+                    item.mediaType === "video" ? (
+                      <video
+                        className={styles.homeCategoryImage}
+                        controls={false}
+                        muted
+                        playsInline
+                        preload="metadata">
+                        <source src={item.mediaUrl} />
+                      </video>
+                    ) : (
+                      <NextImage
+                        alt={item.alt}
+                        className={styles.homeCategoryImage}
+                        width={300}
+                        height={300}
+                        src={item.mediaUrl}
+                      />
+                    )
+                  ) : null}
+                </div>
+
+                <div className={styles.homeCategoryTitle}>
+                  <h4>{item.title}</h4>
+                </div>
+              </article>
+            </Link>
+          ))}
+        </section>
+      </Container>
+    );
+  }
+
   if (variant === "product-multimedia") {
     const productSlug = asString(settings.productSlug);
     const cards = section.blocks

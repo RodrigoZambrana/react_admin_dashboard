@@ -301,6 +301,34 @@ const mapDerivedProductToSummary = (product: DerivedProductPayload): ProductSumm
   } as ProductSummary;
 };
 
+const isBaseParametricProduct = (product: ProductSummary): boolean => {
+  if (product.measurementType !== "M2") {
+    return false;
+  }
+
+  return Boolean((product.configuration as { derived?: boolean } | null | undefined)?.derived) === false;
+};
+
+const hydrateDerivedProductCategories = (
+  product: ProductSummary,
+  baseCategories: ProductSummary["categories"],
+): ProductSummary => {
+  if ((product.categories?.length ?? 0) > 0) {
+    return product;
+  }
+
+  if ((baseCategories?.length ?? 0) === 0) {
+    return product;
+  }
+
+  return {
+    ...product,
+    categories: baseCategories?.map((category) => ({
+      ...category,
+    })),
+  };
+};
+
 const filterAndSortProducts = (
   products: ProductSummary[],
   query: ProductListQuery,
@@ -309,6 +337,10 @@ const filterAndSortProducts = (
   const term = query.search?.trim() ?? "";
   const normalizedTerm = normalizeSearchValue(term);
   const filtered = products.filter((product) => {
+    if (isBaseParametricProduct(product)) {
+      return false;
+    }
+
     if (categorySlug) {
       const matchesCategory = product.categories?.some((category) => category.slug === categorySlug);
       if (!matchesCategory) {
@@ -519,9 +551,20 @@ export const StorefrontApi = {
           }),
         ]);
 
+        const baseCategoriesById = new Map<number, NonNullable<ProductSummary["categories"]>>(
+          baseProducts.map((product) => [product.id, product.categories ?? []]),
+        );
+        const normalizedBaseProducts = baseProducts.filter((product) => !isBaseParametricProduct(product));
+        const normalizedDerivedProducts = derivedProducts.map((product) =>
+          hydrateDerivedProductCategories(
+            mapDerivedProductToSummary(product),
+            baseCategoriesById.get(product.baseProductId),
+          ),
+        );
+
         const merged = Array.from(
           new Map(
-            [...baseProducts, ...derivedProducts.map(mapDerivedProductToSummary)].map((product) => [
+            [...normalizedBaseProducts, ...normalizedDerivedProducts].map((product) => [
               product.slug,
               product,
             ]),

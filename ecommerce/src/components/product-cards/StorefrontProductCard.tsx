@@ -12,6 +12,9 @@ import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import { H4, Paragraph, Small } from "@component/Typography";
 import useCart from "@hook/useCart";
 import ProductQuickActions from "./ProductQuickActions";
+import { trackEvent } from "@/lib/analytics";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import {
   buildPublishedParametricDetailHref,
@@ -153,6 +156,39 @@ export default function StorefrontProductCard({
         configuration: configuration ?? undefined
       }
     });
+
+    void trackEvent({
+      event_name: "add_to_cart",
+      event_category: "ecommerce",
+      tenant_id: env.clientSlug,
+      page_type: "listing",
+      component_type: "product_card",
+      component_id: "storefront_product_card",
+      cta_id: "product.card.add_to_cart",
+      cta_name: "add_to_cart",
+      cta_type: "primary",
+      cta_context: "ecommerce",
+      cta_location: "product_card",
+      schema_version: EVENT_SCHEMA_VERSION,
+      metadata: {
+        product_id: id,
+        product_slug: slug,
+        quantity: 1,
+        price,
+        currency: currencyCode ?? baseCurrency,
+        variant_id: variantId ?? null,
+        variant_key: variantKey ?? null,
+      },
+      data: {
+        product_id: id,
+        product_slug: slug,
+        quantity: 1,
+        price,
+        currency: currencyCode ?? baseCurrency,
+        variant_id: variantId ?? null,
+        variant_key: variantKey ?? null,
+      },
+    });
   }, [
     attributes,
     baseCurrency,
@@ -173,6 +209,39 @@ export default function StorefrontProductCard({
     variantLabel
   ]);
 
+  const handleSelectItem = useCallback(() => {
+    void trackEvent({
+      event_name: "select_item",
+      event_category: "ecommerce",
+      tenant_id: env.clientSlug,
+      page_type: "listing",
+      component_type: "product_card",
+      component_id: "storefront_product_card",
+      cta_id: "product.card.view_detail",
+      cta_name: "view_product",
+      cta_type: "secondary",
+      cta_context: "ecommerce",
+      cta_location: "product_card",
+      schema_version: EVENT_SCHEMA_VERSION,
+      metadata: {
+        product_id: id,
+        product_slug: slug,
+        price,
+        currency: currencyCode ?? baseCurrency,
+        variant_id: variantId ?? null,
+        variant_key: variantKey ?? null,
+      },
+      data: {
+        product_id: id,
+        product_slug: slug,
+        price,
+        currency: currencyCode ?? baseCurrency,
+        variant_id: variantId ?? null,
+        variant_key: variantKey ?? null,
+      },
+    });
+  }, [baseCurrency, currencyCode, id, price, slug, variantId, variantKey]);
+
   const normalizedRating = typeof rating === "number" ? rating : null;
   const normalizedReviews = typeof reviewCount === "number" ? reviewCount : null;
   const resolvedCurrency = currencyCode ?? baseCurrency;
@@ -180,11 +249,11 @@ export default function StorefrontProductCard({
 
   return (
     <Wrapper>
-      <Link aria-label={title} href={detailHref} style={overlayLinkStyle}>
+      <Link aria-label={title} href={detailHref} style={overlayLinkStyle} onClick={handleSelectItem}>
         <span style={srOnlyStyle}>{title}</span>
       </Link>
       <Media>
-        <Link href={detailHref}>
+        <Link href={detailHref} onClick={handleSelectItem}>
           {primaryImage ? (
             <NextImage
               width={300}
@@ -222,7 +291,7 @@ export default function StorefrontProductCard({
           </Small>
         ) : null}
 
-        <Link href={detailHref}>
+        <Link href={detailHref} onClick={handleSelectItem}>
           <Paragraph fontWeight="600" mb="0.35rem">
             {title}
           </Paragraph>

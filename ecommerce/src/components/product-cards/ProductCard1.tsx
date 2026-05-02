@@ -16,6 +16,9 @@ import Card, { CardProps } from "@component/Card";
 import { H3, SemiSpan } from "@component/Typography";
 import { Button } from "@component/buttons";
 import NoImagePlaceholder from "@component/NoImagePlaceholder";
+import { trackEvent } from "@/lib/analytics";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
 import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
 import { StorefrontApi } from "@/lib/api/storefront";
 import {
@@ -259,6 +262,7 @@ function ProductCard1({
 
   const handleCartAmountChange = useCallback(
     async (amount: number) => {
+      const previousAmount = cartItem?.qty || 0;
       let resolvedConfiguration = configuration ?? undefined;
       let resolvedSelectionSummary = variantLabel ?? null;
       const resolvedDerivedBaseProductId = derivedM2BaseProductId ?? (typeof id === "number" ? id : Number(id));
@@ -303,8 +307,43 @@ function ProductCard1({
           configuration: resolvedConfiguration
         }
       });
+
+      if (amount > previousAmount) {
+        const addedQuantity = Math.max(1, amount - previousAmount);
+        void trackEvent({
+          event_name: "add_to_cart",
+          event_category: "ecommerce",
+          tenant_id: env.clientSlug,
+          page_type: "listing",
+          component_type: "product_card",
+          component_id: "product_card_1",
+          cta_id: "product.card.add_to_cart",
+          cta_name: "add_to_cart",
+          cta_type: "primary",
+          cta_context: "ecommerce",
+          cta_location: "product_card",
+          schema_version: EVENT_SCHEMA_VERSION,
+          metadata: {
+            product_id: id ?? slug,
+            product_slug: slug,
+            quantity: addedQuantity,
+            price: effectivePrice,
+            currency: productCurrency,
+            variant_key: variantKey ?? null,
+          },
+          data: {
+            product_id: id ?? slug,
+            product_slug: slug,
+            quantity: addedQuantity,
+            price: effectivePrice,
+            currency: productCurrency,
+            variant_key: variantKey ?? null,
+          },
+        });
+      }
     },
     [
+      cartItem?.qty,
       configuration,
       dispatch,
       cartProductId,
@@ -323,10 +362,41 @@ function ProductCard1({
     ]
   );
 
+  const handleSelectItem = useCallback(() => {
+    void trackEvent({
+      event_name: "select_item",
+      event_category: "ecommerce",
+      tenant_id: env.clientSlug,
+      page_type: "listing",
+      component_type: "product_card",
+      component_id: "product_card_1",
+      cta_id: "product.card.view_detail",
+      cta_name: "view_product",
+      cta_type: "secondary",
+      cta_context: "ecommerce",
+      cta_location: "product_card",
+      schema_version: EVENT_SCHEMA_VERSION,
+      metadata: {
+        product_id: id ?? slug,
+        product_slug: slug,
+        price: effectivePrice,
+        currency: productCurrency,
+        variant_key: variantKey ?? null,
+      },
+      data: {
+        product_id: id ?? slug,
+        product_slug: slug,
+        price: effectivePrice,
+        currency: productCurrency,
+        variant_key: variantKey ?? null,
+      },
+    });
+  }, [effectivePrice, id, productCurrency, slug, variantKey]);
+
   return (
     <Fragment>
       <Wrapper borderRadius={12} data-testid={`product-card-${slug}`} {...props}>
-        <Link aria-label={title} href={detailHref} style={cardOverlayLinkStyle}>
+        <Link aria-label={title} href={detailHref} style={cardOverlayLinkStyle} onClick={handleSelectItem}>
           <span style={srOnlyStyle}>{title}</span>
         </Link>
         <div className="image-holder">
@@ -352,17 +422,17 @@ function ProductCard1({
             className="extra-icons overlay-actions"
             compact
             productId={id}
-          productSlug={slug}
-          productTitle={title}
-          productPrice={effectivePrice}
-          productBasePrice={showListPrice ? baselineAmount : undefined}
-          productCurrency={productCurrency}
-          productImages={gallery}
-          productImage={primaryImage}
-          onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}
-        />
+            productSlug={slug}
+            productTitle={title}
+            productPrice={effectivePrice}
+            productBasePrice={showListPrice ? baselineAmount : undefined}
+            productCurrency={productCurrency}
+            productImages={gallery}
+            productImage={primaryImage}
+            onAddToCart={() => handleCartAmountChange((cartItem?.qty || 0) + 1)}
+          />
 
-          <Link href={detailHref}>
+          <Link href={detailHref} onClick={handleSelectItem}>
             {primaryImage ? (
               <NextImage
                 alt={title}
@@ -380,7 +450,7 @@ function ProductCard1({
         <div className="details">
           <FlexBox>
             <Box flex="1 1 0" minWidth="0px" mr="0.5rem">
-              <Link href={detailHref}>
+              <Link href={detailHref} onClick={handleSelectItem}>
                 <H3
                   data-testid={`product-card-title-${slug}`}
                   mb="10px"
@@ -451,7 +521,6 @@ function ProductCard1({
           </FlexBox>
         </div>
       </Wrapper>
-
     </Fragment>
   );
 }

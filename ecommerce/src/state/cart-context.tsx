@@ -15,7 +15,10 @@ import type { Money, ProductMode, ProductSummary, ProductVariantAttribute } from
 import { extractProductIdFromCartLineId, isParametricCartLineId } from "@/lib/checkout/order-items";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useToast } from "@/contexts/ToastContext";
-import { trackAddToCart } from "@/lib/analytics";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
 
 export interface CartProductSnapshot {
   id: string;
@@ -347,7 +350,38 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   const addItem = useCallback(
     (product: ProductSummary, quantity = 1) => {
       dispatch({ type: "ADD_ITEM", payload: { product: snapshotProduct(product), quantity } });
-      trackAddToCart(product, quantity);
+      void trackEvent({
+        event_name: "add_to_cart",
+        event_category: "ecommerce",
+        tenant_id: env.clientSlug,
+        page_type: resolvePageType(typeof window !== "undefined" ? window.location.pathname : null),
+        component_type: "cart_context",
+        component_id: "cart_context_add_item",
+        cta_id: "cart.add_item",
+        cta_name: "add_to_cart",
+        cta_type: "primary",
+        cta_context: "ecommerce",
+        cta_location: "cart_state",
+        schema_version: EVENT_SCHEMA_VERSION,
+        metadata: {
+          product_id: product.productId ?? product.id,
+          product_slug: product.slug,
+          quantity,
+          price: product.price.amount,
+          currency: product.price.currency,
+          variant_id: product.variantId ?? null,
+          variant_key: product.variantKey ?? null,
+        },
+        data: {
+          product_id: product.productId ?? product.id,
+          product_slug: product.slug,
+          quantity,
+          price: product.price.amount,
+          currency: product.price.currency,
+          variant_id: product.variantId ?? null,
+          variant_key: product.variantKey ?? null,
+        },
+      });
       toast.success({
         title: "Producto agregado",
         description: `${product.name} se añadió al carrito.`
@@ -359,22 +393,38 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   const addItemSnapshot = useCallback(
     (product: CartProductSnapshot, quantity = 1) => {
       dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
-      trackAddToCart(
-        {
-          id: Number(product.productId) || product.id,
-          slug: product.slug,
-          name: product.name,
-          price: product.price,
-          salePrice: product.salePrice ?? null,
-          inventoryStatus: product.inventoryStatus,
-          thumbnail: product.thumbnail,
-          mode: product.mode,
-          variantId: product.variantId ?? null,
-          variantKey: product.variantKey ?? null,
-          variantLabel: product.variantLabel ?? null,
-        } as ProductSummary,
-        quantity,
-      );
+      void trackEvent({
+        event_name: "add_to_cart",
+        event_category: "ecommerce",
+        tenant_id: env.clientSlug,
+        page_type: resolvePageType(typeof window !== "undefined" ? window.location.pathname : null),
+        component_type: "cart_context",
+        component_id: "cart_context_add_item_snapshot",
+        cta_id: "cart.add_item",
+        cta_name: "add_to_cart",
+        cta_type: "primary",
+        cta_context: "ecommerce",
+        cta_location: "cart_state",
+        schema_version: EVENT_SCHEMA_VERSION,
+        metadata: {
+          product_id: product.productId ?? product.id,
+          product_slug: product.slug,
+          quantity,
+          price: product.price.amount,
+          currency: product.price.currency,
+          variant_id: product.variantId ?? null,
+          variant_key: product.variantKey ?? null,
+        },
+        data: {
+          product_id: product.productId ?? product.id,
+          product_slug: product.slug,
+          quantity,
+          price: product.price.amount,
+          currency: product.price.currency,
+          variant_id: product.variantId ?? null,
+          variant_key: product.variantKey ?? null,
+        },
+      });
       toast.success({
         title: "Producto agregado",
         description: `${product.name} se añadió al carrito.`

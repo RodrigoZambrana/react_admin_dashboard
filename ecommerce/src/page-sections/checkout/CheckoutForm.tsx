@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import * as yup from "yup";
 import { Formik, useFormikContext } from "formik";
 
@@ -10,6 +10,7 @@ import Select from "@component/Select";
 import Grid from "@component/grid/Grid";
 import { Card1 } from "@component/Card1";
 import { Button } from "@component/buttons";
+import TrackedButton from "@component/TrackedButton";
 import TextField from "@component/text-field";
 import Typography from "@component/Typography";
 
@@ -18,6 +19,8 @@ import { useCheckout } from "@/state/checkout-context";
 import { useStorefrontCart } from "@/state/cart-context";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { StorefrontShippingOption } from "@/types/storefront";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
+import { resolvePageType } from "@/lib/analytics/pageType";
 import {
   DEFAULT_URUGUAY_CITY,
   DEFAULT_URUGUAY_DEPARTMENT,
@@ -187,10 +190,18 @@ export default function CheckoutForm({
   initialShippingOptions?: StorefrontShippingOption[];
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { state: cartState, isHydrated: isCartHydrated } = useStorefrontCart();
   const { contact, shippingAddress, shippingOption, setDetails } = useCheckout();
   const t = useTranslation();
   const { locale } = useI18n();
+  const pageType = resolvePageType(pathname);
+  const checkoutRef = useComponentTracking({
+    pageType,
+    componentType: "checkout_form",
+    componentId: "checkout_form_main",
+    metadata: { step: "shipping_details" }
+  });
   const checkoutSchema = useMemo(() => buildCheckoutSchema(t), [t]);
   const [shippingOptions, setShippingOptions] = useState<StorefrontShippingOption[]>(initialShippingOptions);
   const [shippingOptionsLoading, setShippingOptionsLoading] = useState(initialShippingOptions.length === 0);
@@ -391,7 +402,7 @@ export default function CheckoutForm({
         }));
         const requiresNeighborhood = usesMontevideoNeighborhoods(values.department, values.city);
         return (
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} ref={checkoutRef as never}>
             <CheckoutFormPrefillSync valuesToSync={initialValues} />
             <Card1 mb="2rem">
               <Typography fontWeight="600" mb="1rem">
@@ -680,31 +691,49 @@ export default function CheckoutForm({
             <Grid container spacing={7}>
               <Grid item sm={6} xs={12}>
                 <Link href="/cart">
-                  <Button
+                  <TrackedButton
                     variant="outlined"
                     color="primary"
                     type="button"
                     fullWidth
-                    data-track="checkout_back_to_cart"
-                    data-label="Checkout back to cart"
+                    pageType={pageType}
+                    componentType="checkout_form"
+                    componentId="checkout_form_back_button"
+                    ctaId="checkout.back_to_cart"
+                    ctaName="view_cart"
+                    ctaType="secondary"
+                    ctaContext="checkout"
+                    ctaLocation="checkout_actions"
+                    eventName="cta_click"
+                    eventCategory="engagement"
+                    metadata={{ target: "/cart" }}
                   >
                     Back to cart
-                  </Button>
+                  </TrackedButton>
                 </Link>
               </Grid>
 
               <Grid item sm={6} xs={12}>
-                <Button
+                <TrackedButton
                   variant="contained"
                   color="primary"
                   type="submit"
                   fullWidth
                   data-testid="checkout-continue-to-payment"
-                  data-track="checkout_continue_to_payment"
-                  data-label="Checkout continue to payment"
+                  pageType={pageType}
+                  componentType="checkout_form"
+                  componentId="checkout_form_continue_button"
+                  ctaId="checkout.continue_to_payment"
+                  ctaName="begin_checkout"
+                  ctaType="primary"
+                  ctaContext="checkout"
+                  ctaLocation="checkout_actions"
+                  eventName="begin_checkout"
+                  eventCategory="conversion"
+                  metadata={{ step: "payment" }}
                 >
                   Continue to payment
-                </Button>
+                </TrackedButton>
               </Grid>
             </Grid>
 

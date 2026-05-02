@@ -1,4 +1,5 @@
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
+import { ConfigService } from '@nestjs/config'
 import { Prisma } from '@prisma/client'
 
 import { AnalyticsRepository } from './analytics.repository'
@@ -21,6 +22,21 @@ import type {
 } from './analytics.types'
 
 const DEFAULT_FUNNEL_STEPS = ['view_item', 'add_to_cart', 'begin_checkout', 'purchase']
+const COMPONENT_REQUIRED_EVENTS = new Set([
+  'select_item',
+  'add_to_cart',
+  'remove_from_cart',
+  'begin_checkout',
+  'add_shipping_info',
+  'add_payment_info',
+  'purchase',
+  'cta_click',
+  'component_view',
+  'search',
+  'filter_applied',
+  'sort_applied',
+  'error_event',
+])
 
 const startOfDayUtc = (value: Date) =>
   new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()))
@@ -299,20 +315,149 @@ const normalizeFactRecord = (
 
 @Injectable()
 export class AnalyticsService {
+  private readonly logger = new Logger(AnalyticsService.name)
+
   constructor(
     private readonly repository: AnalyticsRepository,
     private readonly metaCapiService: MetaCapiService,
+    private readonly config: ConfigService,
   ) {}
 
   async processEvent(event: AnalyticsEventInput) {
-    const savedEvent = await this.repository.saveEvent(event)
+    const tenantId =
+      asString(event.tenant_id) ??
+      asString((event.data as Record<string, unknown> | undefined)?.tenant_id) ??
+      asString(this.config.get<string>('CLIENT_SLUG')) ??
+      asString(this.config.get<string>('CLIENT')) ??
+      'default'
+
+    if (!asString(event.tenant_id)) {
+      this.logger.warn(
+        `Missing tenant_id for analytics event "${event.event}". Falling back to "${tenantId}".`,
+      )
+    }
+
+    const schemaVersion = Number(
+      event.schema_version ?? (event.data as Record<string, unknown> | undefined)?.schema_version ?? 1,
+    )
+    const normalizedEvent: AnalyticsEventInput = {
+      ...event,
+      tenant_id: tenantId,
+      schema_version: Number.isFinite(schemaVersion) && schemaVersion > 0 ? schemaVersion : 1,
+    }
+
+    const structuralPayload = (normalizedEvent.data as Record<string, unknown> | undefined) ?? {}
+    const componentId = asString(normalizedEvent.component_id) ?? asString(structuralPayload.component_id)
+    const ctaId = asString(normalizedEvent.cta_id) ?? asString(structuralPayload.cta_id)
+    if (normalizedEvent.event !== 'page_view' && COMPONENT_REQUIRED_EVENTS.has(normalizedEvent.event) && (!componentId || !ctaId)) {
+      this.logger.warn(
+        `Structural analytics orphan for "${normalizedEvent.event}" tenant="${tenantId}" component_id="${componentId ?? 'missing'}" cta_id="${ctaId ?? 'missing'}"`,
+      )
+    }
+
+    const savedEvent = await this.repository.saveEvent(normalizedEvent)
     void this.metaCapiService
-      .sendEvent(savedEvent, event)
+      .sendEvent(savedEvent, normalizedEvent)
       .catch((error) => {
         const message = error instanceof Error ? error.message : String(error)
         return { status: 'failed', message }
       })
     return savedEvent
+  }
+
+  async getStructuralQuality(input?: { from?: string; to?: string }) {
+    const to = input?.to ? normalizeTimestamp(input.to) : new Date()
+    const from = input?.from ? normalizeTimestamp(input.from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const fromDay = startOfDayUtc(from)
+    const toDay = endOfDayUtc(to)
+    const events = await this.repository.listEvents(fromDay, toDay)
+
+    const summary = {
+      totalEvents: events.length,
+      invalidEvents: 0,
+      orphanEvents: 0,
+      missingTenantId: 0,
+      missingSchemaVersion: 0,
+      missingComponentId: 0,
+      missingCtaId: 0,
+      byEventName: new Map<string, number>(),
+    }
+
+    const samples: Array<{
+      event_name: string
+      timestamp: string
+      tenant_id: string | null
+      component_id: string | null
+      cta_id: string | null
+      issue: string[]
+    }> = []
+
+    for (const event of events) {
+      const payload = (event.payload as Record<string, unknown>) ?? {}
+      const eventName = asString(payload.event) ?? event.eventName
+      const structuralData = (payload.data as Record<string, unknown> | undefined) ?? {}
+      const tenantId = asString(payload.tenant_id) ?? asString(structuralData.tenant_id) ?? null
+      const schemaVersion = asNumber(payload.schema_version) ?? asNumber(structuralData.schema_version)
+      const componentId = asString(payload.component_id) ?? asString(structuralData.component_id) ?? null
+      const ctaId = asString(payload.cta_id) ?? asString(structuralData.cta_id) ?? null
+
+      summary.byEventName.set(eventName, (summary.byEventName.get(eventName) ?? 0) + 1)
+
+      const issues: string[] = []
+      if (!tenantId) {
+        summary.missingTenantId += 1
+        issues.push('missing_tenant_id')
+      }
+      if (schemaVersion === null || !Number.isFinite(schemaVersion) || schemaVersion <= 0) {
+        summary.missingSchemaVersion += 1
+        issues.push('missing_schema_version')
+      }
+      if (COMPONENT_REQUIRED_EVENTS.has(eventName) && !componentId) {
+        summary.missingComponentId += 1
+        issues.push('missing_component_id')
+      }
+      if (COMPONENT_REQUIRED_EVENTS.has(eventName) && !ctaId) {
+        summary.missingCtaId += 1
+        issues.push('missing_cta_id')
+      }
+
+      if (issues.length > 0) {
+        summary.invalidEvents += 1
+        if (COMPONENT_REQUIRED_EVENTS.has(eventName) && (!componentId || !ctaId)) {
+          summary.orphanEvents += 1
+        }
+        if (samples.length < 25) {
+          samples.push({
+            event_name: eventName,
+            timestamp: event.timestamp.toISOString(),
+            tenant_id: tenantId,
+            component_id: componentId,
+            cta_id: ctaId,
+            issue: issues,
+          })
+        }
+      }
+    }
+
+    return {
+      range: {
+        from: fromDay.toISOString(),
+        to: toDay.toISOString(),
+      },
+      totals: {
+        totalEvents: summary.totalEvents,
+        invalidEvents: summary.invalidEvents,
+        orphanEvents: summary.orphanEvents,
+        missingTenantId: summary.missingTenantId,
+        missingSchemaVersion: summary.missingSchemaVersion,
+        missingComponentId: summary.missingComponentId,
+        missingCtaId: summary.missingCtaId,
+      },
+      byEventName: Array.from(summary.byEventName.entries())
+        .map(([eventName, count]) => ({ event_name: eventName, count }))
+        .sort((a, b) => b.count - a.count),
+      samples,
+    }
   }
 
   async getConnections(): Promise<{ connections: AnalyticsConnection[] }> {

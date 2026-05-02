@@ -3,16 +3,15 @@
 import { useEffect, useRef } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
-import { initAutoTracking, track } from "@/lib/analytics";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
 
 export default function AnalyticsBootstrap() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const lastTrackedUrlRef = useRef<string>("");
-
-  useEffect(() => {
-    return initAutoTracking();
-  }, []);
 
   useEffect(() => {
     if (!pathname) {
@@ -26,8 +25,24 @@ export default function AnalyticsBootstrap() {
     }
 
     lastTrackedUrlRef.current = url;
-    track({
-      event: "page_view",
+    void trackEvent({
+      event_name: "page_view",
+      event_category: "navigation",
+      tenant_id: env.clientSlug,
+      page_type: resolvePageType(pathname),
+      component_type: "page",
+      component_id: "page_view_root",
+      cta_id: null,
+      cta_name: null,
+      cta_type: null,
+      cta_context: null,
+      cta_location: null,
+      schema_version: EVENT_SCHEMA_VERSION,
+      metadata: {
+        pathname,
+        search: query || null,
+        title: typeof document !== "undefined" ? document.title : null,
+      },
       data: {
         pathname,
         search: query || null,

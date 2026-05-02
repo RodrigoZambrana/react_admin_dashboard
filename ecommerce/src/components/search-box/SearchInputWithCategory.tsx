@@ -41,6 +41,11 @@ import {
   normalizeSearchValue,
 } from "@/lib/storefront/search-utils";
 import { mapCategorySummariesToAccordionNodes } from "@/lib/storefront/menu-nodes";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
 
 const dropdownVariants = {
   hidden: {
@@ -101,6 +106,13 @@ export default function SearchInputWithCategory() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryOption>(DEFAULT_CATEGORY);
   const { formatMoney: formatStorefrontMoney } = useMoneyFormatter();
   const t = useTranslation();
+  const pageType = resolvePageType(pathname);
+  const searchRef = useComponentTracking({
+    pageType,
+    componentType: "search_input",
+    componentId: "search_input_with_category",
+    metadata: { variant: "with_category" }
+  });
 
   const latestRequestRef = useRef(0);
   const routeKey = `${pathname ?? ""}?${searchParams?.toString() ?? ""}`;
@@ -204,12 +216,28 @@ export default function SearchInputWithCategory() {
       const nextSelection = slug
         ? categoryOptions.find((option) => option.slug === slug) ?? DEFAULT_CATEGORY
         : DEFAULT_CATEGORY;
+      void trackEvent({
+        event_name: "cta_click",
+        event_category: "engagement",
+        tenant_id: env.clientSlug,
+        page_type: pageType,
+        component_type: "search_input",
+        component_id: "search_input_with_category",
+        cta_id: "search.category.select",
+        cta_name: "select_category",
+        cta_type: "secondary",
+        cta_context: "navigation",
+        cta_location: "search_bar",
+        schema_version: EVENT_SCHEMA_VERSION,
+        metadata: { category_slug: nextSelection.slug ?? null, category_label: nextSelection.label },
+        data: { category_slug: nextSelection.slug ?? null, category_label: nextSelection.label },
+      });
       setSelectedCategory(nextSelection);
       if (query.trim()) {
         debouncedSearch(query, nextSelection.slug);
       }
     },
-    [categoryOptions, debouncedSearch, query],
+    [categoryOptions, debouncedSearch, pageType, query],
   );
 
   const handleAccordionCategorySelect = useCallback(
@@ -282,9 +310,34 @@ export default function SearchInputWithCategory() {
       ? buildShopSearchHref("", exactCategoryMatch.slug)
       : buildShopSearchHref(trimmed, selectedCategory.slug);
 
+    void trackEvent({
+      event_name: "search",
+      event_category: "navigation",
+      tenant_id: env.clientSlug,
+      page_type: pageType,
+      component_type: "search_input",
+      component_id: "search_input_with_category",
+      cta_id: "search.submit",
+      cta_name: "search",
+      cta_type: "primary",
+      cta_context: "navigation",
+      cta_location: "search_bar",
+      schema_version: EVENT_SCHEMA_VERSION,
+      metadata: {
+        query: trimmed,
+        category_slug: selectedCategory.slug ?? null,
+        matched_category: exactCategoryMatch?.slug ?? null,
+      },
+      data: {
+        query: trimmed,
+        category_slug: selectedCategory.slug ?? null,
+        matched_category: exactCategoryMatch?.slug ?? null,
+      },
+    });
+
     router.push(targetHref);
     closeDropdown();
-  }, [closeDropdown, matchedCategories, query, router, selectedCategory.slug]);
+  }, [closeDropdown, matchedCategories, pageType, query, router, selectedCategory.slug]);
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -320,6 +373,7 @@ export default function SearchInputWithCategory() {
       flex="1 1 0"
       maxWidth="670px"
       mx="auto"
+      ref={searchRef as never}
       onClick={handleSearchBoxClick}>
       <form onSubmit={handleSubmit}>
         <StyledSearchBox>
