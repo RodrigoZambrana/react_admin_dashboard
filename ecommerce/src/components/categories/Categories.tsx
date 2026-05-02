@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, ReactNode } from "react";
 import CategoryDropdown from "./CategoryDropdown";
 import { StyledCategory } from "./styles";
 import type { CategorySummary } from "@/types/storefront";
@@ -18,9 +18,10 @@ export default function Categories({
   open: controlledOpen,
   handler,
   categories,
-  icons
+  icons,
 }: CategoriesProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? controlledOpen : uncontrolledOpen;
@@ -34,35 +35,40 @@ export default function Categories({
     [isControlled]
   );
 
-  const handleDocumentClick = useCallback(() => {
-    if (open && !isControlled) {
-      handleOpen(false);
+  useEffect(() => {
+    if (!open || isControlled) {
+      return undefined;
     }
+
+    const handleOutsideClick = (event: MouseEvent) => {
+      const container = containerRef.current;
+      const target = event.target as Node | null;
+      if (!container || !target) {
+        handleOpen(false);
+        return;
+      }
+
+      if (!container.contains(target)) {
+        handleOpen(false);
+      }
+    };
+
+    const handleScroll = () => {
+      handleOpen(false);
+    };
+
+    document.addEventListener("click", handleOutsideClick);
+    document.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      document.removeEventListener("click", handleOutsideClick);
+      document.removeEventListener("scroll", handleScroll);
+    };
   }, [open, isControlled, handleOpen]);
 
-  const handleMouseEnter = useCallback(() => {
-    handleOpen(true);
-  }, [handleOpen]);
-
-  const handleMouseLeave = useCallback(() => {
-    handleOpen(false);
-  }, [handleOpen]);
-
-  useEffect(() => {
-    if (open) {
-      document.addEventListener("click", handleDocumentClick);
-      document.addEventListener("scroll", handleDocumentClick);
-
-      return () => {
-        document.removeEventListener("click", handleDocumentClick);
-        document.removeEventListener("scroll", handleDocumentClick);
-      };
-    }
-  }, [open, handleDocumentClick]);
-
   return (
-    <StyledCategory open={open} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
-      {handler(() => handleOpen(true))}
+    <StyledCategory ref={containerRef} open={open}>
+      {handler(() => handleOpen(!open))}
 
       <CategoryDropdown open={open} categories={categories} icons={icons} />
     </StyledCategory>

@@ -12,6 +12,7 @@ import type { StoryDetail, StoryItem } from "@/types/stories";
 type Props = {
   story: StoryDetail;
   onClose?: () => void;
+  onAdvanceStory?: (direction: "prev" | "next") => boolean;
   mode?: "page" | "overlay";
 };
 
@@ -216,6 +217,23 @@ const textStyle: CSSProperties = {
   lineHeight: 1.6,
 };
 
+const ctaButtonStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  minHeight: "44px",
+  padding: "0.7rem 1rem",
+  borderRadius: "999px",
+  border: "0",
+  background: "#12352d",
+  color: "#f7f2e8",
+  fontWeight: 700,
+  textDecoration: "none",
+  boxShadow: "0 16px 32px rgba(18,53,45,0.22)",
+  alignSelf: "flex-start",
+  width: "fit-content",
+};
+
 const clampIndex = (value: number, size: number) => {
   if (!size) return 0;
   return ((value % size) + size) % size;
@@ -225,7 +243,7 @@ const isExternal = (href: string) => /^(https?:\/\/|mailto:|tel:)/i.test(href);
 
 const getItemDuration = (item: StoryItem) => Math.max(1000, item.duration ?? 5000);
 
-export default function StoryViewer({ story, onClose, mode = "page" }: Props) {
+export default function StoryViewer({ story, onClose, onAdvanceStory, mode = "page" }: Props) {
   const router = useRouter();
   const items = useMemo(() => story.items.slice().sort((left, right) => left.order - right.order), [story.items]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -305,7 +323,7 @@ export default function StoryViewer({ story, onClose, mode = "page" }: Props) {
       if (ratio >= 1) {
         elapsedBeforePauseRef.current = 0;
         startedAtRef.current = null;
-        setActiveIndex((current) => clampIndex(current + 1, items.length));
+        go("next");
         return;
       }
       frameRef.current = window.requestAnimationFrame(tick);
@@ -337,10 +355,31 @@ export default function StoryViewer({ story, onClose, mode = "page" }: Props) {
   }, [activeItem, paused]);
 
   const go = (direction: "prev" | "next") => {
+    if (!items.length) {
+      return false;
+    }
+
     elapsedBeforePauseRef.current = 0;
     startedAtRef.current = null;
     setProgress(0);
+    if (direction === "next" && activeIndex >= items.length - 1) {
+      const advanced = onAdvanceStory?.("next") ?? false;
+      if (!advanced) {
+        handleClose();
+      }
+      return advanced;
+    }
+
+    if (direction === "prev" && activeIndex <= 0) {
+      const advanced = onAdvanceStory?.("prev") ?? false;
+      if (!advanced) {
+        handleClose();
+      }
+      return advanced;
+    }
+
     setActiveIndex((current) => clampIndex(direction === "next" ? current + 1 : current - 1, items.length));
+    return true;
   };
 
   const onTouchStart = (event: TouchEvent<HTMLElement>) => {
@@ -366,6 +405,9 @@ export default function StoryViewer({ story, onClose, mode = "page" }: Props) {
   }
 
   const nextItem = items[clampIndex(activeIndex + 1, items.length)] ?? null;
+  const storySubtitle = story.subtitle?.trim() || '';
+  const storyDescription = story.description?.trim() || '';
+  const itemCaption = activeItem.ctaLabel?.trim() || '';
 
   return (
     <main style={shellStyleResolved}>
@@ -470,36 +512,10 @@ export default function StoryViewer({ story, onClose, mode = "page" }: Props) {
             <h1 style={{ margin: 0, fontSize: "clamp(1.5rem, 2.2vw, 2.3rem)", lineHeight: 1.02, letterSpacing: "-0.05em" }}>
               {story.title}
             </h1>
-            <p style={textStyle}>
-              {activeItem.type === "video"
-                ? "Reproducción automática activada. El slide avanza al finalizar el video."
-                : `Cada imagen avanza automáticamente después de ${Math.round(getItemDuration(activeItem) / 1000)}s.`}
-            </p>
-            <p style={textStyle}>
-              Si existe CTA en el item actual, se muestra debajo. El contenido se resuelve desde MEDIA_ROOT y no depende de productos.
-            </p>
+            {storySubtitle ? <p style={{ ...textStyle, color: "rgba(247,242,232,0.92)", fontWeight: 700 }}>{storySubtitle}</p> : null}
+            {storyDescription ? <p style={textStyle}>{storyDescription}</p> : null}
+            {itemCaption ? <p style={textStyle}>{itemCaption}</p> : null}
           </div>
-
-          <div
-            style={{
-              display: "grid",
-              gap: "0.5rem",
-              gridTemplateColumns: "repeat(auto-fit, minmax(112px, 1fr))",
-            }}
-          >
-            <div style={{ padding: "0.8rem 0.9rem", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)" }}>
-              <strong>{items.length}</strong>
-              <div style={{ color: "rgba(247,242,232,0.68)", fontSize: "0.84rem" }}>Slides</div>
-            </div>
-            <div style={{ padding: "0.8rem 0.9rem", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)" }}>
-              <strong>{items.filter((item) => item.type === "image").length}</strong>
-              <div style={{ color: "rgba(247,242,232,0.68)", fontSize: "0.84rem" }}>Imágenes</div>
-            </div>
-              <div style={{ padding: "0.8rem 0.9rem", borderRadius: "16px", border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.04)" }}>
-                <strong>{items.filter((item) => item.type === "video").length}</strong>
-                <div style={{ color: "rgba(247,242,232,0.68)", fontSize: "0.84rem" }}>Videos</div>
-              </div>
-            </div>
 
           <div style={{ display: "flex", gap: "0.75rem", marginTop: "auto" }}>
             <button
@@ -542,18 +558,7 @@ export default function StoryViewer({ story, onClose, mode = "page" }: Props) {
                 href={activeItem.ctaUrl}
                 target={isExternal(activeItem.ctaUrl) ? "_blank" : undefined}
                 rel={isExternal(activeItem.ctaUrl) ? "noreferrer" : undefined}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  minHeight: "44px",
-                  padding: "0.8rem 1rem",
-                  borderRadius: "999px",
-                  background: "#f7f2e8",
-                  color: "#12352d",
-                  fontWeight: 800,
-                  textDecoration: "none",
-                }}
+                style={ctaButtonStyle}
               >
                 {activeItem.ctaLabel || "Ver más"}
               </Link>

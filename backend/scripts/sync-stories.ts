@@ -5,6 +5,7 @@ import { resolveStoryRoot, scanStoryFilesystem, resolveStoryMediaPublicId } from
 import { loadEnvFromBackendRoot } from './script-safety'
 
 const prisma = new PrismaClient()
+const EXCLUDED_STORY_SLUGS = new Set(['proyectos', 'novedades', 'inspiracion'])
 
 type CliOptions = {
   dryRun: boolean
@@ -50,6 +51,10 @@ async function main() {
   const processedSlugs = new Set<string>()
 
   for (const folderSlug of storyFolders) {
+    if (EXCLUDED_STORY_SLUGS.has(folderSlug)) {
+      processedSlugs.add(folderSlug)
+      continue
+    }
     processedSlugs.add(folderSlug)
     const scan = await scanStoryFilesystem(folderSlug)
     if (!scan.exists) {

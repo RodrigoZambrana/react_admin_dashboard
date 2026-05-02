@@ -6,6 +6,16 @@ const normalizeBase = (value: string) => (value.endsWith("/") ? value.slice(0, -
 
 const resolveMediaBaseUrl = () => normalizeBase(env.publicMediaBaseUrl || "http://localhost:3000/media");
 
+const resolveUploadsBaseUrl = () => {
+  try {
+    const mediaBase = new URL(env.publicMediaBaseUrl || "http://localhost:3000/media");
+    mediaBase.pathname = mediaBase.pathname.replace(/\/media\/?$/i, "/uploads");
+    return normalizeBase(mediaBase.toString());
+  } catch {
+    return normalizeBase(`${env.publicSiteOrigin || "http://localhost:3000"}/uploads`);
+  }
+};
+
 const normalizePublicId = (value: string) =>
   value
     .trim()
@@ -26,6 +36,10 @@ export const getMediaUrl = (publicId: string) => {
   const normalized = normalizePublicId(trimmed);
   if (!normalized) {
     return "";
+  }
+
+  if (/^cms\/legacy-assets\//i.test(normalized)) {
+    return `${resolveUploadsBaseUrl()}/${normalized}`;
   }
 
   return `${resolveMediaBaseUrl()}/${normalized}`;

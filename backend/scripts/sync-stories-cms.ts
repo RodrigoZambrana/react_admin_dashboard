@@ -3,6 +3,7 @@ import { PrismaClient } from '@prisma/client'
 import { resolveMediaRoot } from '../src/common/media/sync-core'
 
 const prisma = new PrismaClient()
+const EXCLUDED_STORY_SLUGS = new Set(['proyectos', 'novedades', 'inspiracion'])
 
 const buildPublicMediaUrl = (publicId: string) => `/media/${publicId.replace(/^\/+/, '')}`
 
@@ -14,6 +15,24 @@ const normalizeSlug = (value: string) =>
     .replace(/^-+|-+$/g, '')
 
 async function main() {
+  if (EXCLUDED_STORY_SLUGS.size) {
+    await prisma.cmsPage.deleteMany({
+      where: {
+        path: {
+          in: [...EXCLUDED_STORY_SLUGS].map((slug) => `stories/${slug}`),
+        },
+      },
+    })
+
+    await prisma.story.deleteMany({
+      where: {
+        slug: {
+          in: [...EXCLUDED_STORY_SLUGS],
+        },
+      },
+    })
+  }
+
   const stories = await prisma.story.findMany({
     include: {
       items: {
@@ -24,6 +43,9 @@ async function main() {
   })
 
   for (const story of stories) {
+    if (EXCLUDED_STORY_SLUGS.has(story.slug)) {
+      continue
+    }
     const slug = normalizeSlug(story.slug)
     const pagePath = `stories/${slug}`
     const coverItem = story.items.find((item) => item.publicId) ?? story.items[0] ?? null

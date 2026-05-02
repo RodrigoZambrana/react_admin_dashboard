@@ -11,7 +11,7 @@ type CategoryDropdownProps = {
 // ==============================================================
 
 export const StyledCategory = styled.div.withConfig({
-  shouldForwardProp: isValidProp
+  shouldForwardProp: isValidProp,
 })<StyledCategoryProps>`
   position: relative;
   .cursor-pointer {
@@ -20,12 +20,11 @@ export const StyledCategory = styled.div.withConfig({
   .dropdown-icon {
     margin-left: 0.25rem;
     transition: all 250ms ease-in-out;
-    /* transform: rotate(${(props) => (props.open ? "180deg" : "0deg")}); */
   }
 `;
 
 export const StyledCategoryDropdown = styled.div.withConfig({
-  shouldForwardProp: isValidProp
+  shouldForwardProp: isValidProp,
 })<CategoryDropdownProps>`
   left: 0;
   right: auto;
@@ -38,11 +37,13 @@ export const StyledCategoryDropdown = styled.div.withConfig({
   background-color: ${({ theme }) => theme.colors.body.paper};
   box-shadow: ${({ theme }) => theme.shadows.regular};
   transition: all 250ms ease-in-out;
+  pointer-events: ${({ open }) => (open ? "auto" : "none")};
+  opacity: ${({ open }) => (open ? 1 : 0)};
   z-index: 98;
 `;
 
 export const CategoryDropdownRow = styled.div.withConfig({
-  shouldForwardProp: isValidProp
+  shouldForwardProp: isValidProp,
 })<{ $active?: boolean; $minWidth?: string }>`
   min-height: 40px;
   display: flex;
@@ -121,50 +122,94 @@ export const CategoryDropdownRow = styled.div.withConfig({
 export const StyledCategoryMenuItem = styled.div`
   position: relative;
 
-  .sub-category-link,
-  .sub-category-static {
+  .category-dropdown-link {
+    height: 40px;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    column-gap: 0.75rem;
-    width: 100%;
-    color: ${({ theme }) => theme.colors.text.muted};
-    text-decoration: none;
-  }
-
-  .sub-category-link {
-    padding: 0.25rem 0;
-    transition: color 200ms ease-in-out;
-    background: transparent;
-    border: 0;
-    text-align: left;
     cursor: pointer;
+    min-width: 278px;
+    white-space: pre;
+    padding: 0px 1rem;
+    align-items: center;
+    transition: all 250ms ease-in-out;
+    color: ${({ theme }) => theme.colors.text.primary};
+
+    .title {
+      padding-left: 0.75rem;
+      flex-grow: 1;
+    }
+
+    &:hover {
+      color: ${({ theme }) => theme.colors.primary.main};
+      background: ${({ theme }) => theme.colors.primary.light};
+    }
   }
 
-  .sub-category-static {
-    padding: 0.25rem 0;
-  }
+  .mega-menu {
+    display: none;
+    position: absolute;
+    left: 100%;
+    right: auto;
+    top: 0;
+    z-index: 99;
+    width: fit-content;
+    min-width: 0;
 
-  .sub-category-title {
-    flex: 1 1 auto;
-  }
+    .title-link,
+    .child-link {
+      color: inherit;
+      font-weight: 600;
+      display: block;
+      padding: 0.5rem 0px;
+      line-height: 1.35;
+      text-decoration: none;
+      white-space: nowrap;
+      overflow-wrap: normal;
+      word-break: normal;
+      width: fit-content;
+    }
 
-  .sub-category-link:hover {
-    color: ${({ theme }) => theme.colors.primary.main};
-  }
+    .child-link {
+      font-weight: 400;
+      font-size: 0.86rem;
+      color: ${({ theme }) => theme.colors.text.muted};
+      opacity: 0.9;
+    }
 
-  .sub-category-link.active,
-  .sub-category-static.active {
-    color: ${({ theme }) => theme.colors.primary.main};
-    font-weight: 600;
-  }
+    .mega-menu-content {
+      width: fit-content;
+      min-width: 0;
+    }
 
-  .sub-category-chevron {
-    flex-shrink: 0;
+    .mega-menu-list {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+      min-width: 0;
+      width: fit-content;
+    }
+
+    .mega-menu-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      width: fit-content;
+      min-width: 0;
+      gap: 0.15rem;
+    }
+
+    .mega-menu-subcategories {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      width: fit-content;
+      min-width: 0;
+      gap: 0.15rem;
+    }
   }
 
   &:hover {
-    & > ${CategoryDropdownRow} {
+    & > .category-dropdown-link {
       color: ${({ theme }) => theme.colors.primary.main};
       background: ${({ theme }) => theme.colors.primary.light};
     }

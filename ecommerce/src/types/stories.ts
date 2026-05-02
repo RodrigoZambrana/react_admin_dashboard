@@ -13,6 +13,8 @@ export interface StorySummary {
   id: string;
   slug: string;
   title: string;
+  subtitle?: string | null;
+  description?: string | null;
   cover_public_id: string;
   isActive: boolean;
   startsAt?: string | null;

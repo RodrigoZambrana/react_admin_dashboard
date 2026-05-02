@@ -24,6 +24,12 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY prisma.config.ts ./prisma.config.ts
 COPY tsconfig.seed.json ./tsconfig.seed.json
+COPY src/common/security ./src/common/security
+COPY src/common/media ./src/common/media
+COPY src/prisma ./src/prisma
+COPY src/storefront/defaults ./src/storefront/defaults
+COPY src/storefront/utils.ts ./src/storefront/utils.ts
+COPY src/storefront/types.ts ./src/storefront/types.ts
 COPY --from=build /app/dist ./dist
 COPY prisma ./prisma
 COPY --from=build /app/scripts ./scripts

@@ -1,20 +1,16 @@
 "use client";
 
 import { useMemo } from "react";
-import Link from "next/link";
-import { IconChevronRight } from "@tabler/icons-react";
 
 import Box from "@component/Box";
-import Icon from "@component/icon/Icon";
-import { Span } from "@component/Typography";
+import Card from "@component/Card";
+import NavLink from "@component/nav-link";
+import { SemiSpan } from "@component/Typography";
 import CategoryMenuItem from "./CategoryMenuItem";
 import { StyledCategoryDropdown } from "./styles";
 import type { CategorySummary } from "@/types/storefront";
 import { buildFallbackCategorySummaries } from "@/lib/storefront/category-utils";
-import {
-  buildShopCategoryHref,
-  mapCategorySummariesToAccordionNodes,
-} from "@/lib/storefront/menu-nodes";
+import { buildShopCategoryHref, mapCategorySummariesToAccordionNodes } from "@/lib/storefront/menu-nodes";
 import navigations from "@data/navigations";
 import AccordionMenu from "@component/mobile-navigation/AccordionMenu";
 
@@ -51,9 +47,7 @@ export default function CategoryDropdown({
   );
 
   if (interactionMode === "accordion") {
-    return (
-      <AccordionMenu items={accordionItems} onNavigate={onNavigate} />
-    );
+    return <AccordionMenu items={accordionItems} onNavigate={onNavigate} />;
   }
 
   return (
@@ -62,6 +56,7 @@ export default function CategoryDropdown({
         const iconName = iconList[index % iconList.length] ?? "category";
         const childCategories = Array.isArray(category.children) ? category.children : [];
         const categoryKey = String(category.id ?? category.slug ?? index);
+
         return (
           <CategoryMenuItem
             key={categoryKey}
@@ -69,45 +64,49 @@ export default function CategoryDropdown({
             icon={iconName}
             title={category.name}
             caret={childCategories.length > 0}
-            onNavigate={onNavigate}>
+            onNavigate={childCategories.length === 0 ? onNavigate : undefined}>
             {childCategories.length > 0 ? (
-              <Box className="mega-menu" display="none" minWidth="220px" p="1rem">
-                <Box display="flex" flexDirection="column" gridGap="0.5rem">
-                  {childCategories.map((subCategory, subIndex) => {
-                    const childSlug = subCategory.slug;
-                    const subKey = String(
-                      subCategory.id ?? childSlug ?? `${categoryKey}-${subIndex}`
-                    );
+              <div className="mega-menu">
+                <Card ml="1rem" py="0.5rem" boxShadow="regular" overflow="hidden" borderRadius={8}>
+                  <Box px="1.25rem" py="0.875rem" className="mega-menu-content">
+                    <div className="mega-menu-list">
+                      {childCategories.map((item, ind) => {
+                        const childKey = String(item.id ?? item.slug ?? ind);
+                        const subCategories = Array.isArray(item.children) ? item.children : [];
 
-                    const content = (
-                      <>
-                        <Span className="sub-category-title" color="text.muted" fontSize="14px">
-                          {subCategory.name}
-                        </Span>
-                        <IconChevronRight size={14} stroke={1.5} className="sub-category-chevron" />
-                      </>
-                    );
+                        return (
+                          <div key={childKey} className="mega-menu-item">
+                            {item.slug ? (
+                              <NavLink className="title-link" href={buildShopCategoryHref(item.slug)}>
+                                {item.name}
+                              </NavLink>
+                            ) : (
+                              <SemiSpan className="title-link">{item.name}</SemiSpan>
+                            )}
 
-                    if (!childSlug) {
-                      return (
-                        <div key={subKey} className="sub-category-static">
-                          {content}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <Link
-                        key={subKey}
-                        className="sub-category-link"
-                        href={buildShopCategoryHref(childSlug)}
-                        onClick={onNavigate}>
-                        {content}
-                      </Link>
-                    );
-                  })}
-                </Box>
-              </Box>
+                            {subCategories.length > 0 ? (
+                              <div className="mega-menu-subcategories">
+                                {subCategories.map((sub, subIndex) => {
+                                  const subKey = String(sub.id ?? sub.slug ?? `${childKey}-${subIndex}`);
+                                  return (
+                                    <NavLink
+                                      key={subKey}
+                                      className="child-link"
+                                      href={buildShopCategoryHref(sub.slug)}
+                                      onClick={onNavigate}>
+                                      {sub.name}
+                                    </NavLink>
+                                  );
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Box>
+                </Card>
+              </div>
             ) : null}
           </CategoryMenuItem>
         );

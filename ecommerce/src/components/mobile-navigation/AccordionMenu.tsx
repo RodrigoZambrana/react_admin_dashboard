@@ -121,10 +121,11 @@ const RowContent = ({
       <span
         className="mobile-accordion-label"
         style={{
-          fontSize: isRoot ? "0.98rem" : depth === 1 ? "0.9rem" : "0.84rem",
-          fontWeight: isRoot ? 700 : depth === 1 ? 600 : 500,
+          fontSize: isRoot ? "0.98rem" : depth === 1 ? "0.86rem" : "0.82rem",
+          fontWeight: isRoot ? 700 : depth === 1 ? 500 : 400,
           letterSpacing: isRoot ? "0.01em" : "normal",
           color: active || isRoot ? "inherit" : "var(--text-muted, inherit)",
+          opacity: isRoot ? 1 : 0.82,
         }}
       >
         {title}

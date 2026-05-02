@@ -6,6 +6,8 @@ import { isLocalMediaReference, mediaReferenceExists } from '../common/media/syn
 import type { StoryDetailDto, StorySummaryDto } from './stories.types'
 
 const STORIES_CACHE_TTL_MS = 60_000
+const COMMERCIAL_STORY_PREFIX = 'home-story-'
+const EXCLUDED_STORY_SLUGS = new Set(['proyectos', 'novedades', 'inspiracion'])
 
 type CacheEntry<T> = {
   value: T
@@ -36,6 +38,8 @@ const mapStorySummary = (story: Prisma.StoryGetPayload<{
   id: story.id,
   slug: story.slug,
   title: story.title,
+  subtitle: null,
+  description: null,
   cover_public_id: story.coverPublicId,
   isActive: story.isActive,
   startsAt: story.startsAt?.toISOString() ?? null,
@@ -80,6 +84,8 @@ const mapCmsStorySummary = (page: {
   id: number
   path: string
   title: string
+  summary?: string | null
+  seoDescription?: string | null
   seoImageUrl?: string | null
   updatedAt: Date
   createdAt: Date
@@ -92,6 +98,11 @@ const mapCmsStorySummary = (page: {
     }>
   }>
 }): StorySummaryDto | null => {
+  const slug = normalizeCmsStorySlug(page.path.slice(STORIES_ROUTE_PREFIX.length))
+  if (EXCLUDED_STORY_SLUGS.has(slug) || !slug.startsWith(COMMERCIAL_STORY_PREFIX)) {
+    return null
+  }
+
   const firstMedia =
     page.sections
       .flatMap((section) => section.blocks)
@@ -116,12 +127,12 @@ const mapCmsStorySummary = (page: {
   if (!firstMedia) {
     return null
   }
-
-  const slug = normalizeCmsStorySlug(page.path.slice(STORIES_ROUTE_PREFIX.length))
   return {
     id: String(page.id),
     slug,
     title: page.title,
+    subtitle: page.summary ?? null,
+    description: page.seoDescription ?? null,
     cover_public_id: firstMedia,
     isActive: true,
     startsAt: null,
@@ -240,7 +251,16 @@ export class StoriesService {
     const cmsStories = (
       await Promise.all(
         cmsPages
-          .filter((page) => page.path.startsWith(STORIES_ROUTE_PREFIX) && !page.path.slice(STORIES_ROUTE_PREFIX.length).includes('/'))
+          .filter((page) => {
+            if (!page.path.startsWith(STORIES_ROUTE_PREFIX)) {
+              return false
+            }
+            if (page.path.slice(STORIES_ROUTE_PREFIX.length).includes('/')) {
+              return false
+            }
+            const slug = normalizeCmsStorySlug(page.path.slice(STORIES_ROUTE_PREFIX.length))
+            return !EXCLUDED_STORY_SLUGS.has(slug) && slug.startsWith(COMMERCIAL_STORY_PREFIX)
+          })
           .map(async (page) => {
             const detail = await this.cmsPages.getPublicPageByPath(page.path, 'es')
             return mapCmsStorySummary(detail)
@@ -280,6 +300,9 @@ export class StoriesService {
     if (!normalizedSlug) {
       return null
     }
+    if (EXCLUDED_STORY_SLUGS.has(normalizedSlug) || !normalizedSlug.startsWith(COMMERCIAL_STORY_PREFIX)) {
+      return null
+    }
 
     const cacheKey = `stories:detail:${normalizedSlug}`
     const cached = this.readCache<StoryDetailDto | null>(cacheKey)
@@ -305,11 +328,15 @@ export class StoriesService {
           id: String(cmsPage.id),
           slug: normalizedSlug,
           title: cmsPage.title,
+          subtitle: cmsPage.summary ?? null,
+          description: cmsPage.seoDescription ?? null,
           cover_public_id:
             mapCmsStorySummary({
               id: cmsPage.id,
               path: cmsPage.path,
               title: cmsPage.title,
+              summary: cmsPage.summary,
+              seoDescription: cmsPage.seoDescription,
               seoImageUrl: cmsPage.seoImageUrl,
               createdAt: cmsPage.createdAt,
               updatedAt: cmsPage.updatedAt,
@@ -350,6 +377,8 @@ export class StoriesService {
       id: story.id,
       slug: story.slug,
       title: story.title,
+      subtitle: null,
+      description: null,
       cover_public_id: story.coverPublicId,
       isActive: story.isActive,
       startsAt: story.startsAt?.toISOString() ?? null,

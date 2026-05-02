@@ -11,6 +11,7 @@ const prisma = new PrismaClient();
 
 const VIDEO_SAMPLE_URL = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4';
 const MEDIA_ROOT = path.resolve(__dirname, '..', 'media');
+const UPLOADS_ROOT = path.resolve(__dirname, '..', 'uploads');
 
 const TARGET_PAGES = [
   {
@@ -169,6 +170,23 @@ function scoreMediaCandidate(relativePath, pagePath) {
 async function resolveCanonicalMediaUrl(reference, pagePath) {
   const trimmed = String(reference ?? '').trim();
   if (!trimmed || isExternalUrl(trimmed)) return trimmed;
+
+  const rawRelative = trimmed
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .replace(/^uploads\//i, '')
+    .replace(/^media\//i, '');
+  if (/^cms\/legacy-assets\//i.test(rawRelative)) {
+    const legacyAbsolute = path.join(UPLOADS_ROOT, rawRelative);
+    try {
+      const stat = await fs.stat(legacyAbsolute);
+      if (stat.isFile()) {
+        return `/uploads/${rawRelative}`;
+      }
+    } catch {
+      // fall through to media root and basename matching
+    }
+  }
 
   const clean = cleanMediaReference(trimmed);
   if (!clean) return trimmed;

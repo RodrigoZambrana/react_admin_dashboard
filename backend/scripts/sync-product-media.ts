@@ -40,6 +40,7 @@ async function main() {
     scriptName: SCRIPT_NAME,
     argv: process.argv.slice(2),
     destructive: true,
+    allowRemoteWithFlag: true,
   })
 
   const mediaRoot = cli.mediaRoot ? cli.mediaRoot : resolveMediaRoot()

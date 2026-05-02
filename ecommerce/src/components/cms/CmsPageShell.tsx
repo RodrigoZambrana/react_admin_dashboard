@@ -238,9 +238,10 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
 
   const [activeIndex, setActiveIndex] = useState(0);
   const activeSlide = normalizedSlides[activeIndex] ?? normalizedSlides[0] ?? {};
-  const title = asString(settings.title) || asString(activeSlide.title);
-  const description = asString(settings.description) || asString(activeSlide.description);
+  const title = asString(activeSlide.title) || asString(settings.title);
+  const description = asString(activeSlide.description) || asString(settings.description);
   const eyebrow = asString(settings.eyebrow) || asString(settings.badge);
+  const sectionLabel = asString(settings.title);
   const mediaUrl = asString(activeSlide.imageUrl) || asString(settings.backgroundImageUrl);
   const mediaAlt = asString(activeSlide.imageAlt) || title || "Destacado";
   const primaryLabel = asString(activeSlide.linkLabel) || asString(settings.primaryCtaLabel);
@@ -262,6 +263,7 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
           <div className={styles.heroOverlay}>
             <div className={styles.heroCopy}>
               {eyebrow ? <span className={styles.heroEyebrow}>{eyebrow}</span> : null}
+              {sectionLabel && sectionLabel !== title ? <span className={styles.heroSectionLabel}>{sectionLabel}</span> : null}
               {title
                 ? headingTag === "h1"
                   ? <h1 className={styles.heroTitle}>{title}</h1>

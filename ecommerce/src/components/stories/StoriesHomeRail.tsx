@@ -37,14 +37,15 @@ const loadingCardStyle: CSSProperties = {
 };
 
 export default function StoriesHomeRail({ stories }: Props) {
-  const [activeSlug, setActiveSlug] = useState<string | null>(null);
+  const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [story, setStory] = useState<StoryDetail | null>(null);
   const [loading, setLoading] = useState(false);
+  const activeStory = activeStoryIndex !== null ? stories[activeStoryIndex] ?? null : null;
 
   useEffect(() => {
     let mounted = true;
 
-    if (!activeSlug) {
+    if (!activeStory) {
       setStory(null);
       setLoading(false);
       return () => {
@@ -55,7 +56,7 @@ export default function StoriesHomeRail({ stories }: Props) {
     setLoading(true);
     setStory(null);
 
-    void StorefrontApi.getStory(activeSlug)
+    void StorefrontApi.getStory(activeStory.slug)
       .then((data) => {
         if (mounted) {
           setStory(data);
@@ -64,7 +65,7 @@ export default function StoriesHomeRail({ stories }: Props) {
       .catch((error) => {
         console.warn("[stories] Failed to load story detail.", error);
         if (mounted) {
-          setActiveSlug(null);
+          setActiveStoryIndex(null);
         }
       })
       .finally(() => {
@@ -76,10 +77,10 @@ export default function StoriesHomeRail({ stories }: Props) {
     return () => {
       mounted = false;
     };
-  }, [activeSlug]);
+  }, [activeStory]);
 
   useEffect(() => {
-    if (!activeSlug) {
+    if (activeStoryIndex === null) {
       return;
     }
 
@@ -89,14 +90,14 @@ export default function StoriesHomeRail({ stories }: Props) {
     return () => {
       document.body.style.overflow = previousOverflow;
     };
-  }, [activeSlug]);
+  }, [activeStoryIndex]);
 
   const portal = useMemo(() => {
     if (typeof document === "undefined") {
       return null;
     }
 
-    if (!activeSlug) {
+    if (activeStoryIndex === null) {
       return null;
     }
 
@@ -124,15 +125,44 @@ export default function StoriesHomeRail({ stories }: Props) {
       return null;
     }
 
+    const advanceStory = (direction: "prev" | "next") => {
+      setActiveStoryIndex((current) => {
+        if (current === null) {
+          return current;
+        }
+
+        const nextIndex = direction === "next" ? current + 1 : current - 1;
+        if (nextIndex >= 0 && nextIndex < stories.length) {
+          return nextIndex;
+        }
+
+        setStory(null);
+        return null;
+      });
+
+      return true;
+    };
+
     return createPortal(
-      <StoryViewer story={story} mode="overlay" onClose={() => setActiveSlug(null)} />,
+      <StoryViewer
+        story={story}
+        mode="overlay"
+        onAdvanceStory={advanceStory}
+        onClose={() => setActiveStoryIndex(null)}
+      />,
       document.body,
     );
-  }, [activeSlug, loading, story]);
+  }, [activeStoryIndex, loading, story, stories]);
 
   return (
     <>
-      <StoriesBar stories={stories} onStorySelect={(selected) => setActiveSlug(selected.slug)} />
+      <StoriesBar
+        stories={stories}
+        onStorySelect={(selected) => {
+          const index = stories.findIndex((item) => item.slug === selected.slug)
+          setActiveStoryIndex(index >= 0 ? index : null)
+        }}
+      />
       {portal}
     </>
   );

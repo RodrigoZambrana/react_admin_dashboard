@@ -63,6 +63,7 @@ services:
       - ../.qa:/qa-results
       - ../tools/qa:/qa-tools:ro
       - ../docs:/docs:ro
+      - ../backend/media:/app/media
       - ../backend/uploads:/app/uploads
     depends_on:
       - redis
