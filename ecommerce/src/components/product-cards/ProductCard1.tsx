@@ -364,7 +364,13 @@ function ProductCard1({
 
           <Link href={detailHref}>
             {primaryImage ? (
-              <NextImage alt={title} width={277} src={primaryImage} height={270} />
+              <NextImage
+                alt={title}
+                height={270}
+                src={primaryImage}
+                style={{ objectFit: "contain", objectPosition: "center" }}
+                width={277}
+              />
             ) : (
               <NoImagePlaceholder width={277} height={270} />
             )}

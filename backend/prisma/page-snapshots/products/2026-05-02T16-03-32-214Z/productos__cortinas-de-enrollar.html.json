@@ -1,0 +1,666 @@
+{
+  "path": "productos/cortinas-de-enrollar.html",
+  "title": "Cortinas de enrollar a medida",
+  "summary": "Elegí PVC o aluminio, instalación nueva o recambio, y repará si ya tenés sistema.",
+  "seoTitle": "Cortinas de enrollar a medida | Urucortinas",
+  "seoDescription": "Cortinas de enrollar a medida en PVC o aluminio. Soluciones manuales o motorizadas, con instalación sin obra y reparación según el caso.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/portfolio/shutters/aluminio/cortina_enrollar_aluminio_1.jpeg",
+  "legacySource": "knowledge:public-curated",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T12:55:51.718Z",
+  "sections": [
+    {
+      "id": 2684,
+      "pageId": 11,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Cortinas de enrollar",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Cortinas de enrollar a medida",
+        "slides": [
+          {
+            "href": "/guias/cortinas-pvc-vs-aluminio",
+            "title": "Elegí entre aluminio y PVC",
+            "imageAlt": "Cortinas de enrollar a medida",
+            "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+            "linkLabel": "Ver comparativa",
+            "description": "Elegí el material según el uso, el frente y el mantenimiento que buscás."
+          }
+        ],
+        "eyebrow": "Solución a medida",
+        "description": "Para cerrar, proteger y terminar mejor el frente con una opción que se adapta a obra nueva o recambio.",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/guias/cortinas-pvc-vs-aluminio",
+        "secondaryCtaLabel": "Ver comparativa"
+      },
+      "createdAt": "2026-05-02T16:03:12.873Z",
+      "updatedAt": "2026-05-02T16:03:12.873Z",
+      "blocks": []
+    },
+    {
+      "id": 2685,
+      "pageId": 11,
+      "type": "CONTENT_SPLIT",
+      "key": "cortinas-enrollar-content",
+      "name": "Guía de decisión",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "actions": [
+          {
+            "href": "/productos/cortinas-de-enrollar-aluminio.html",
+            "label": "Ver aluminio"
+          },
+          {
+            "href": "/productos/cortinas-de-enrollar-pvc.html",
+            "label": "Ver PVC"
+          },
+          {
+            "href": "/precios/cortinas-de-enrollar",
+            "label": "Ver precios"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "Cortinas de enrollar a medida 1",
+            "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/catalana_1.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortinas de enrollar a medida 2",
+            "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortinas de enrollar a medida 3",
+            "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Cortina de enrollar",
+        "imageUrl": "/media/products/cortinas-de-enrollar-aluminio/images/IMG-20240826-WA0159.jpg",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T16:03:12.873Z",
+      "updatedAt": "2026-05-02T16:03:12.873Z",
+      "blocks": [
+        {
+          "id": 3626,
+          "sectionId": 2685,
+          "type": "RICH_TEXT",
+          "key": "cortinas-enrollar-copy",
+          "name": "Copy",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las cortinas de enrollar resuelven privacidad, protección y cerramiento con una instalación prolija."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Pueden ser manuales o motorizadas, y se adaptan a obra nueva o recambio."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cuando el frente da a la calle o recibe uso diario, el aluminio suele dar más firmeza. Cuando el objetivo es una solución práctica con menos mantenimiento, PVC suele ser el punto de partida."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Si ya existe un sistema instalado, revisar reparación antes de cambiar todo ayuda a evitar un gasto innecesario."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.874Z",
+          "updatedAt": "2026-05-02T16:03:12.874Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2686,
+      "pageId": 11,
+      "type": "FAQ",
+      "key": "cortinas-enrollar-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "Preguntas frecuentes",
+        "description": "Respuestas cortas para avanzar con más seguridad."
+      },
+      "createdAt": "2026-05-02T16:03:12.874Z",
+      "updatedAt": "2026-05-02T16:03:12.874Z",
+      "blocks": [
+        {
+          "id": 3627,
+          "sectionId": 2686,
+          "type": "FAQ_ITEM",
+          "key": "cortinas-enrollar-faq-faq-1",
+          "name": "¿Qué diferencia hay entre aluminio y PVC?",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Se instalan sin obra?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí, en muchos casos se instalan sin albañilería y se coordinan según el frente."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.874Z",
+          "updatedAt": "2026-05-02T16:03:12.874Z",
+          "media": null
+        },
+        {
+          "id": 3628,
+          "sectionId": 2686,
+          "type": "FAQ_ITEM",
+          "key": "cortinas-enrollar-faq-faq-2",
+          "name": "¿Se pueden reparar sin cambiar toda la cortina?",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "question": "¿Pueden ser manuales o motorizadas?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí, según el producto y el tipo de uso."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.875Z",
+          "updatedAt": "2026-05-02T16:03:12.875Z",
+          "media": null
+        },
+        {
+          "id": 3629,
+          "sectionId": 2686,
+          "type": "FAQ_ITEM",
+          "key": "cortinas-enrollar-faq-faq-3",
+          "name": "¿Sirven para casas y comercios?",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "question": "¿Cuándo conviene aluminio?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cuando necesitás más robustez, una respuesta más firme y mejor comportamiento en frentes expuestos."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.875Z",
+          "updatedAt": "2026-05-02T16:03:12.875Z",
+          "media": null
+        },
+        {
+          "id": 3630,
+          "sectionId": 2686,
+          "type": "FAQ_ITEM",
+          "key": "cortinas-enrollar-faq-faq-4",
+          "name": "¿Puedo pedir asesoramiento antes de decidir el material?",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "question": "¿Cuándo conviene PVC?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cuando priorizás practicidad, mantenimiento simple y un costo más accesible."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.876Z",
+          "updatedAt": "2026-05-02T16:03:12.876Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2687,
+      "pageId": 11,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "gap": 1.05,
+        "title": "Fotos, videos y contexto real de Cortinas de enrollar a medida",
+        "columns": 3,
+        "eyebrow": "Multimedia y contexto",
+        "aspectRatio": "4 / 5",
+        "description": "Revisá terminaciones, escala y contexto de uso en una sola entrada visual antes de decidir."
+      },
+      "createdAt": "2026-05-02T16:03:12.876Z",
+      "updatedAt": "2026-05-02T16:03:12.876Z",
+      "blocks": [
+        {
+          "id": 3631,
+          "sectionId": 2687,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia",
+            "badge": "Fotos",
+            "title": "Fotos reales",
+            "linkLabel": "Ver multimedia",
+            "description": "La primera lectura del producto en contexto, sin ruido y con más claridad.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.876Z",
+          "updatedAt": "2026-05-02T16:03:12.876Z",
+          "media": null
+        },
+        {
+          "id": 3632,
+          "sectionId": 2687,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Más contexto",
+            "linkLabel": "Ver guía",
+            "description": "Si todavía estás definiendo medidas o terminación, seguí por una guía simple.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.877Z",
+          "updatedAt": "2026-05-02T16:03:12.877Z",
+          "media": null
+        },
+        {
+          "id": 3633,
+          "sectionId": 2687,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Asesoramiento",
+            "linkLabel": "Contactar",
+            "description": "Con una foto del frente y medidas aproximadas te orientamos mejor.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.877Z",
+          "updatedAt": "2026-05-02T16:03:12.877Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2688,
+      "pageId": 11,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "gap": 1.05,
+        "title": "Fotos, videos y contexto real de Cortinas de enrollar a medida",
+        "columns": 3,
+        "eyebrow": "Multimedia y contexto",
+        "aspectRatio": "4 / 5",
+        "description": "Revisá terminaciones, escala y contexto de uso en una sola entrada visual antes de decidir."
+      },
+      "createdAt": "2026-05-02T16:03:12.877Z",
+      "updatedAt": "2026-05-02T16:03:12.877Z",
+      "blocks": [
+        {
+          "id": 3634,
+          "sectionId": 2688,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia",
+            "badge": "Fotos",
+            "title": "Fotos reales",
+            "linkLabel": "Ver multimedia",
+            "description": "La primera lectura del producto en contexto, sin ruido y con más claridad.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.877Z",
+          "updatedAt": "2026-05-02T16:03:12.877Z",
+          "media": null
+        },
+        {
+          "id": 3635,
+          "sectionId": 2688,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Más contexto",
+            "linkLabel": "Ver guía",
+            "description": "Si todavía estás definiendo medidas o terminación, seguí por una guía simple.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.878Z",
+          "updatedAt": "2026-05-02T16:03:12.878Z",
+          "media": null
+        },
+        {
+          "id": 3636,
+          "sectionId": 2688,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Asesoramiento",
+            "linkLabel": "Contactar",
+            "description": "Con una foto del frente y medidas aproximadas te orientamos mejor.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.878Z",
+          "updatedAt": "2026-05-02T16:03:12.878Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2689,
+      "pageId": 11,
+      "type": "CTA_BANNER",
+      "key": "cortinas-enrollar-cta",
+      "name": "Cotización",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Pedí presupuesto con medidas aproximadas",
+        "intent": "transactional",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Contactar"
+          },
+          {
+            "href": "/precios/cortinas-de-enrollar",
+            "label": "Ver precios"
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Si ya tenés una referencia del frente, podemos orientarte mejor."
+      },
+      "createdAt": "2026-05-02T16:03:12.878Z",
+      "updatedAt": "2026-05-02T16:03:12.878Z",
+      "blocks": []
+    },
+    {
+      "id": 2690,
+      "pageId": 11,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "gap": 1.05,
+        "title": "Fotos, videos y contexto real de Cortinas de enrollar a medida",
+        "columns": 3,
+        "eyebrow": "Multimedia y contexto",
+        "aspectRatio": "4 / 5",
+        "description": "Revisá terminaciones, escala y contexto de uso en una sola entrada visual antes de decidir."
+      },
+      "createdAt": "2026-05-02T16:03:12.879Z",
+      "updatedAt": "2026-05-02T16:03:12.879Z",
+      "blocks": [
+        {
+          "id": 3637,
+          "sectionId": 2690,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia",
+            "badge": "Fotos",
+            "title": "Fotos reales",
+            "linkLabel": "Ver multimedia",
+            "description": "La primera lectura del producto en contexto, sin ruido y con más claridad.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.879Z",
+          "updatedAt": "2026-05-02T16:03:12.879Z",
+          "media": null
+        },
+        {
+          "id": 3638,
+          "sectionId": 2690,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Más contexto",
+            "linkLabel": "Ver guía",
+            "description": "Si todavía estás definiendo medidas o terminación, seguí por una guía simple.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.879Z",
+          "updatedAt": "2026-05-02T16:03:12.879Z",
+          "media": null
+        },
+        {
+          "id": 3639,
+          "sectionId": 2690,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Asesoramiento",
+            "linkLabel": "Contactar",
+            "description": "Con una foto del frente y medidas aproximadas te orientamos mejor.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.880Z",
+          "updatedAt": "2026-05-02T16:03:12.880Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2691,
+      "pageId": 11,
+      "type": "FEATURE_GRID",
+      "key": "cortinas-enrollar-grid",
+      "name": "Opciones y contexto",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Opciones para decidir",
+        "description": "Elegí aluminio, PVC, reparación o precio según la etapa en la que esté tu proyecto.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T16:03:12.880Z",
+      "updatedAt": "2026-05-02T16:03:12.880Z",
+      "blocks": [
+        {
+          "id": 3640,
+          "sectionId": 2691,
+          "type": "CARD",
+          "key": "cortinas-enrollar-aluminum",
+          "name": "Aluminio",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "body": "Elegilas cuando necesitás más firmeza y una respuesta robusta en el frente.",
+            "href": "/productos/cortinas-de-enrollar-aluminio.html",
+            "title": "Aluminio",
+            "linkLabel": "Ver aluminio",
+            "headingLevel": "h3"
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.880Z",
+          "updatedAt": "2026-05-02T16:03:12.880Z",
+          "media": null
+        },
+        {
+          "id": 3641,
+          "sectionId": 2691,
+          "type": "CARD",
+          "key": "cortinas-enrollar-pvc",
+          "name": "PVC",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "body": "Conviene cuando priorizás practicidad, menos mantenimiento y una solución más accesible.",
+            "href": "/productos/cortinas-de-enrollar-pvc.html",
+            "title": "PVC",
+            "linkLabel": "Ver PVC",
+            "headingLevel": "h3"
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.880Z",
+          "updatedAt": "2026-05-02T16:03:12.880Z",
+          "media": null
+        },
+        {
+          "id": 3642,
+          "sectionId": 2691,
+          "type": "CARD",
+          "key": "cortinas-enrollar-repair",
+          "name": "Reparación",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "body": "Si ya tenés una instalada, vale revisar si alcanza con ajustar o reparar antes de cambiar todo.",
+            "href": "/servicios/reparacion-cortinas-y-persianas.html",
+            "title": "Reparación",
+            "linkLabel": "Ver reparación",
+            "headingLevel": "h3"
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.881Z",
+          "updatedAt": "2026-05-02T16:03:12.881Z",
+          "media": null
+        },
+        {
+          "id": 3643,
+          "sectionId": 2691,
+          "type": "CARD",
+          "key": "cortinas-enrollar-pricing",
+          "name": "Precio",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "body": "El valor cambia según medidas, material e instalación. Pedí una referencia antes de decidir.",
+            "href": "/precios/cortinas-de-enrollar",
+            "title": "Precio",
+            "linkLabel": "Ver precios",
+            "headingLevel": "h3"
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:03:12.881Z",
+          "updatedAt": "2026-05-02T16:03:12.881Z",
+          "media": null
+        }
+      ]
+    }
+  ]
+}

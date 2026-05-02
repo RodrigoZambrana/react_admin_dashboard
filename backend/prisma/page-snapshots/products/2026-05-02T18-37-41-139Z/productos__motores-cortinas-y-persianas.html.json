@@ -1,0 +1,923 @@
+{
+  "path": "productos/motores-cortinas-y-persianas.html",
+  "title": "Motores para cortinas y persianas",
+  "summary": "Automatización para cortinas y persianas con más confort, control y uso cotidiano.",
+  "seoTitle": "Motores para Cortinas y Persianas | Automatización y confort - Urucortinas",
+  "seoDescription": "Motores para cortinas y persianas con control remoto, botonera, app y domótica para vivienda, oficina y comercios.",
+  "seoImageUrl": "https://www.urucortinas.com.uy/img/portfolio/motores/persianas_motorizadas.jpg",
+  "legacySource": "/productos/motores-cortinas-y-persianas.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-05-02T18:03:41.001Z",
+  "sections": [
+    {
+      "id": 4472,
+      "pageId": 16,
+      "type": "SITE_HEADER",
+      "key": "site-header",
+      "name": "Header del sitio",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "items": [
+          {
+            "href": "/",
+            "label": "Inicio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-roller.html",
+                "label": "Cortinas Roller"
+              },
+              {
+                "href": "/productos/bandas-verticales.html",
+                "label": "Bandas Verticales"
+              },
+              {
+                "href": "/productos/venecianas.html",
+                "label": "Cortinas Venecianas"
+              },
+              {
+                "href": "/productos/cortinas-tradicionales.html",
+                "label": "Cortinas Tradicionales"
+              }
+            ],
+            "label": "Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-de-enrollar-pvc.html",
+                "label": "Persianas en PVC"
+              },
+              {
+                "href": "/productos/cortinas-de-enrollar-aluminio.html",
+                "label": "Persianas en Aluminio"
+              }
+            ],
+            "label": "Persianas"
+          },
+          {
+            "href": "/productos/cortinas-metalicas.html",
+            "label": "Cortinas Metálicas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/aberturas-aluminio.html",
+                "label": "Serie 20 y 25"
+              },
+              {
+                "href": "/productos/dvh.html",
+                "label": "Con DVH"
+              },
+              {
+                "href": "/productos/puertas-oblak.html",
+                "label": "Puertas Oblak"
+              }
+            ],
+            "label": "Aberturas en Aluminio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Verticales"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Corredizos"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos de Brazo Invisible"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Cerramientos en PVC"
+              }
+            ],
+            "label": "Toldos"
+          },
+          {
+            "href": "/productos/motores-cortinas-y-persianas.html",
+            "label": "Motores para Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/servicios/reparacion-cortinas-y-persianas.html",
+                "label": "Reparación de cortinas y persianas"
+              },
+              {
+                "href": "/servicios/instalacion-aberturas.html",
+                "label": "Instalación de aberturas"
+              }
+            ],
+            "label": "Servicios"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Contactanos"
+          },
+          {
+            "href": "/catalogo/index.html",
+            "label": "Catálogo"
+          }
+        ],
+        "brandHref": "/",
+        "brandLabel": "",
+        "navigationMode": "grouped",
+        "topbarContacts": [
+          {
+            "href": null,
+            "title": "Horario",
+            "value": "Lun - Vie, 10:00 - 18:00",
+            "iconClass": "fa fa-clock-o"
+          },
+          {
+            "href": null,
+            "title": "Teléfono",
+            "value": "097 365 931",
+            "iconClass": "far fa-envelope"
+          },
+          {
+            "href": "mailto:ventas@urucortinas.com.uy",
+            "title": "Email",
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope-open-o"
+          }
+        ],
+        "floatingContact": {
+          "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+          "label": "WhatsApp",
+          "imageAlt": "Haznos tu consulta",
+          "imageUrl": "/media/stories/proyectos/paneles-7.jpeg"
+        },
+        "navigationGroupLabel": "Información"
+      },
+      "createdAt": "2026-05-02T18:30:08.355Z",
+      "updatedAt": "2026-05-02T18:30:08.355Z",
+      "blocks": []
+    },
+    {
+      "id": 4473,
+      "pageId": 16,
+      "type": "HERO",
+      "key": "standard-top-hero",
+      "name": "Motores para cortinas y persianas",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Motores para cortinas y persianas",
+        "slides": [
+          {
+            "href": "/multimedia",
+            "title": "Motores para cortinas y persianas",
+            "imageAlt": "Motores para cortinas y persianas",
+            "imageUrl": "/media/stories/proyectos/paneles-7.jpeg",
+            "linkLabel": "Ver fotos y videos",
+            "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+          }
+        ],
+        "eyebrow": "Solución a medida",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/multimedia",
+        "secondaryCtaLabel": "Ver fotos y videos",
+        "backgroundImageUrl": "/media/stories/proyectos/paneles-7.jpeg"
+      },
+      "createdAt": "2026-05-02T18:30:08.356Z",
+      "updatedAt": "2026-05-02T18:30:08.356Z",
+      "blocks": []
+    },
+    {
+      "id": 4474,
+      "pageId": 16,
+      "type": "CONTENT_SPLIT",
+      "key": "standard-payment-facilities",
+      "name": "Facilidades de pago",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "actions": [],
+        "gallery": [],
+        "variant": "image-content",
+        "imageAlt": "Mercado Pago",
+        "imageUrl": "/uploads/cms/legacy-assets/img/mercadopago-img.jpg",
+        "description": "",
+        "productSlug": "motores-cortinas-y-persianas",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:30:08.356Z",
+      "updatedAt": "2026-05-02T18:30:08.356Z",
+      "blocks": [
+        {
+          "id": 5136,
+          "sectionId": 4474,
+          "type": "RICH_TEXT",
+          "key": "standard-payment-facilities-copy",
+          "name": "Facilidades de Pago",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Facilidades de Pago"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aceptamos pagos hasta en 12 cuotas sin interés mediante Mercado Pago."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Compra segura y protegida."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Disponible para todos nuestros productos."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Rápido y sin complicaciones."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:30:08.356Z",
+          "updatedAt": "2026-05-02T18:30:08.356Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4475,
+      "pageId": 16,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "Cómo avanzar con Motores para cortinas y persianas",
+        "eyebrow": "Multimedia y contexto",
+        "variant": "product-multimedia",
+        "description": "Entrá a la galería, revisá medidas y pedí asesoramiento para decidir con más seguridad.",
+        "productSlug": "motores-cortinas-y-persianas"
+      },
+      "createdAt": "2026-05-02T18:30:08.357Z",
+      "updatedAt": "2026-05-02T18:30:08.357Z",
+      "blocks": [
+        {
+          "id": 5137,
+          "sectionId": 4475,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/motores-cortinas-y-persianas",
+            "badge": "Multimedia",
+            "title": "Ver fotos y videos",
+            "mediaUrl": "/media/stories/proyectos/paneles-7.jpeg",
+            "linkLabel": "Abrir galería",
+            "mediaType": "image",
+            "description": "Mirá el producto en contexto real antes de tomar una decisión.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:30:08.357Z",
+          "updatedAt": "2026-05-02T18:30:08.357Z",
+          "media": null
+        },
+        {
+          "id": 5138,
+          "sectionId": 4475,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Tomar medidas",
+            "mediaUrl": "/uploads/cms/legacy-assets/img/mercadopago-img.jpg",
+            "linkLabel": "Ver guía",
+            "mediaType": "image",
+            "description": "Si todavía estás definiendo el frente, te guiamos para medir ancho y alto sin perder tiempo.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:30:08.357Z",
+          "updatedAt": "2026-05-02T18:30:08.357Z",
+          "media": null
+        },
+        {
+          "id": 5139,
+          "sectionId": 4475,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Pedir asesoramiento",
+            "mediaUrl": "/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg",
+            "linkLabel": "Contactar",
+            "mediaType": "image",
+            "description": "Si querés avanzar, te ayudamos a definir la opción adecuada y resolver tus dudas.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:30:08.358Z",
+          "updatedAt": "2026-05-02T18:30:08.358Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4476,
+      "pageId": 16,
+      "type": "CTA_BANNER",
+      "key": "cta-1",
+      "name": "Solicite tu Presupuesto",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Solicite tu Presupuesto",
+        "actions": [
+          {
+            "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+            "label": "Enviar WhatsApp",
+            "external": true,
+            "iconClass": null
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+      },
+      "createdAt": "2026-05-02T18:30:08.358Z",
+      "updatedAt": "2026-05-02T18:30:08.358Z",
+      "blocks": []
+    },
+    {
+      "id": 4477,
+      "pageId": 16,
+      "type": "CTA_BANNER",
+      "key": "cta-2",
+      "name": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+        "actions": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-lg fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-lg fa-instagram"
+          }
+        ],
+        "variant": "social",
+        "description": ""
+      },
+      "createdAt": "2026-05-02T18:30:08.358Z",
+      "updatedAt": "2026-05-02T18:30:08.358Z",
+      "blocks": []
+    },
+    {
+      "id": 4478,
+      "pageId": 16,
+      "type": "SITE_FOOTER",
+      "key": "site-footer",
+      "name": "Footer del sitio",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Contacto",
+        "socials": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-instagram"
+          }
+        ],
+        "contacts": [
+          {
+            "value": "Montevideo, Uruguay",
+            "iconClass": "fa fa-location-arrow"
+          },
+          {
+            "value": "097 365 931",
+            "iconClass": "fa fa-phone"
+          },
+          {
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope"
+          }
+        ],
+        "linkGroups": []
+      },
+      "createdAt": "2026-05-02T18:30:08.358Z",
+      "updatedAt": "2026-05-02T18:30:08.358Z",
+      "blocks": []
+    },
+    {
+      "id": 4479,
+      "pageId": 16,
+      "type": "CTA_BANNER",
+      "key": "shop-cta",
+      "name": "Ver la tienda",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Encontrá la solución ideal en la tienda",
+        "actions": [
+          {
+            "href": "/shop",
+            "label": "Ir a la tienda"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Pedir presupuesto"
+          }
+        ],
+        "variant": "default",
+        "description": "Explorá el catálogo para comparar modelos, revisar opciones y avanzar con una compra o presupuesto."
+      },
+      "createdAt": "2026-05-02T18:30:08.359Z",
+      "updatedAt": "2026-05-02T18:30:08.359Z",
+      "blocks": []
+    },
+    {
+      "id": 4480,
+      "pageId": 16,
+      "type": "CONTENT_SPLIT",
+      "key": "motores-editorial",
+      "name": "Guía comercial de automatización",
+      "sortOrder": 8,
+      "visible": true,
+      "settings": {
+        "title": "Automatizá según tu rutina y el tipo de frente",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/multimedia/motores-cortinas-y-persianas",
+            "label": "Ver fotos"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/multimedia/motores-cortinas-y-persianas",
+            "imageAlt": "Persianas motorizadas",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg",
+            "linkLabel": "Ver fotos"
+          },
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Motor para cortinas",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_1.jpg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Motores para cortinas y persianas",
+        "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg",
+        "description": "La motorización suma comodidad en cortinas, persianas y cortinas metálicas cuando el uso ya es frecuente o la medida es grande.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:30:08.359Z",
+      "updatedAt": "2026-05-02T18:30:08.359Z",
+      "blocks": [
+        {
+          "id": 5140,
+          "sectionId": 4480,
+          "type": "RICH_TEXT",
+          "key": "motores-editorial-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Control remoto, botonera, app o domótica"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " son los caminos más habituales para adaptar la automatización a la rutina real."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "En muchos casos se puede automatizar una instalación ya existente, según el sistema y el estado actual."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "La elección del control depende de la comodidad que busques y del nivel de integración que quieras sumar."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Más confort en uso diario."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Integración con hogar u oficina."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Apertura y cierre más simples en frentes grandes."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:30:08.359Z",
+          "updatedAt": "2026-05-02T18:30:08.359Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4481,
+      "pageId": 16,
+      "type": "FEATURE_GRID",
+      "key": "motores-features",
+      "name": "Cómo automatizar",
+      "sortOrder": 9,
+      "visible": true,
+      "settings": {
+        "title": "Automatización para el uso diario",
+        "description": "Elegí el control que mejor encaja con tu rutina y el tipo de cortina o persiana.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T18:30:08.360Z",
+      "updatedAt": "2026-05-02T18:30:08.360Z",
+      "blocks": [
+        {
+          "id": 5141,
+          "sectionId": 4481,
+          "type": "CARD",
+          "key": null,
+          "name": "Control remoto",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Comodidad",
+            "title": "Control remoto",
+            "linkLabel": "Ver más",
+            "description": "La forma más simple de subir o bajar sin esfuerzo físico.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 93,
+          "createdAt": "2026-05-02T18:30:08.360Z",
+          "updatedAt": "2026-05-02T18:30:08.360Z",
+          "media": {
+            "id": 93,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_1.jpg",
+            "type": "IMAGE",
+            "alt": "Control remoto",
+            "title": "Control remoto",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.996Z",
+            "updatedAt": "2026-05-02T18:03:41.005Z"
+          }
+        },
+        {
+          "id": 5142,
+          "sectionId": 4481,
+          "type": "CARD",
+          "key": null,
+          "name": "Botonera",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Control",
+            "title": "Botonera fija",
+            "linkLabel": "Ver más",
+            "description": "Ideal cuando querés un punto de control fijo y práctico.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 94,
+          "createdAt": "2026-05-02T18:30:08.360Z",
+          "updatedAt": "2026-05-02T18:30:08.360Z",
+          "media": {
+            "id": 94,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_2.png",
+            "type": "IMAGE",
+            "alt": "Botonera",
+            "title": "Botonera fija",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.997Z",
+            "updatedAt": "2026-05-02T18:03:41.006Z"
+          }
+        },
+        {
+          "id": 5143,
+          "sectionId": 4481,
+          "type": "CARD",
+          "key": null,
+          "name": "App",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "App",
+            "title": "App móvil",
+            "linkLabel": "Ver más",
+            "description": "Permite integrar el uso con un teléfono o automatizar rutinas simples.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 9,
+          "createdAt": "2026-05-02T18:30:08.360Z",
+          "updatedAt": "2026-05-02T18:30:08.360Z",
+          "media": {
+            "id": 9,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg",
+            "type": "IMAGE",
+            "alt": "Cortina de enrollar aluminio motorizada",
+            "title": "Manual o motorizada",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.054Z",
+            "updatedAt": "2026-05-02T18:30:40.942Z"
+          }
+        },
+        {
+          "id": 5144,
+          "sectionId": 4481,
+          "type": "CARD",
+          "key": null,
+          "name": "Domótica",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Automatización",
+            "title": "Hogar inteligente",
+            "linkLabel": "Ver más",
+            "description": "Puede integrarse con soluciones de programación y control remoto más avanzado.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 9,
+          "createdAt": "2026-05-02T18:30:08.361Z",
+          "updatedAt": "2026-05-02T18:30:08.361Z",
+          "media": {
+            "id": 9,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg",
+            "type": "IMAGE",
+            "alt": "Cortina de enrollar aluminio motorizada",
+            "title": "Manual o motorizada",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.054Z",
+            "updatedAt": "2026-05-02T18:30:40.942Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4482,
+      "pageId": 16,
+      "type": "FAQ",
+      "key": "motores-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 10,
+      "visible": true,
+      "settings": {
+        "title": "Motores: dudas frecuentes",
+        "description": "Respuestas para decidir si motorizás una cortina o persiana."
+      },
+      "createdAt": "2026-05-02T18:30:08.361Z",
+      "updatedAt": "2026-05-02T18:30:08.361Z",
+      "blocks": [
+        {
+          "id": 5145,
+          "sectionId": 4482,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "motores-faq-1",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Se puede motoriz ar una cortina ya instalada?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "En muchos casos sí, pero depende del sistema y del estado actual del frente."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:30:08.361Z",
+          "updatedAt": "2026-05-02T18:30:08.361Z",
+          "media": null
+        },
+        {
+          "id": 5146,
+          "sectionId": 4482,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "motores-faq-2",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "question": "¿Qué opciones de control existen?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Tenemos control remoto, botonera, app y alternativas de integración con automatización."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:30:08.362Z",
+          "updatedAt": "2026-05-02T18:30:08.362Z",
+          "media": null
+        },
+        {
+          "id": 5147,
+          "sectionId": 4482,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "motores-faq-3",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "question": "¿Qué se necesita para cotizar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Tipo de cortina o persiana, medidas aproximadas y si querés control remoto o integración extra."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:30:08.362Z",
+          "updatedAt": "2026-05-02T18:30:08.362Z",
+          "media": null
+        }
+      ]
+    }
+  ]
+}

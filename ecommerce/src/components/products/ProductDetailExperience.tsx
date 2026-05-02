@@ -114,6 +114,7 @@ export default function ProductDetailExperience({
       {budgetEnabled ? (
         <BudgetCalculatorPanel
           compact
+          tone="product"
           title={`Calculá el precio de ${product.title}`}
           description="Ingresá las medidas y calculá el precio al instante."
           initialProductId={Number(product.id)}

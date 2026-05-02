@@ -1,6 +1,6 @@
 "use client";
 
-import { createElement, Fragment, type ReactNode } from "react";
+import { createElement, type ReactNode } from "react";
 
 import { isCmsRichTextContent, type CmsRichTextNode } from "@common/cms/rich-text";
 
@@ -140,8 +140,10 @@ export const renderCmsRichTextContent = (
   options: RenderOptions = {},
 ) => {
   const nodes = readRichTextNodes(content);
+  const className = options.fallbackClassName;
+
   if (nodes && nodes.length > 0) {
-    return createElement(Fragment, null, renderCmsRichTextNodes(nodes));
+    return createElement("div", { className }, renderCmsRichTextNodes(nodes));
   }
 
   if (!options.allowHtmlFallback || typeof content !== "object" || content === null) {
@@ -166,7 +168,7 @@ export const renderCmsRichTextContent = (
   }
 
   return createElement("div", {
-    className: options.fallbackClassName,
+    className,
     dangerouslySetInnerHTML: { __html: html },
   });
 };

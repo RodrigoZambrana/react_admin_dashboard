@@ -1,0 +1,293 @@
+{
+  "path": "productos/cortinas-roller.html",
+  "title": "Cortinas Roller",
+  "summary": "Calculá el precio de tu cortina roller a medida.",
+  "seoTitle": "Cortinas Roller | urucortinas",
+  "seoDescription": "Calculá el precio de tu cortina roller a medida.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg",
+  "legacySource": "knowledge:public-curated",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T11:22:00.500Z",
+  "sections": [
+    {
+      "id": 2820,
+      "pageId": 13,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Cortinas Roller",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Cortinas roller a medida",
+        "slides": [
+          {
+            "href": "/shop",
+            "title": "Cortinas roller",
+            "imageAlt": "Cortinas roller a medida",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver tienda",
+            "description": "Blackout, screen y soluciones a medida."
+          }
+        ],
+        "eyebrow": "Cortinas a medida",
+        "description": "Elegí el tamaño y calculá el precio al instante.",
+        "primaryCtaHref": "/shop",
+        "primaryCtaLabel": "Ver tienda",
+        "secondaryCtaHref": "/contacto.html",
+        "secondaryCtaLabel": "Contactar"
+      },
+      "createdAt": "2026-05-02T16:13:23.944Z",
+      "updatedAt": "2026-05-02T16:13:23.944Z",
+      "blocks": []
+    },
+    {
+      "id": 2821,
+      "pageId": 13,
+      "type": "CONTENT_SPLIT",
+      "key": "editorial-gallery-split",
+      "name": "Galería editorial",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Elegí la cortina ideal para tu espacio",
+        "actions": [
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/shop",
+            "imageAlt": "Cortinas roller a medida",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver tienda"
+          },
+          {
+            "href": "/multimedia",
+            "imageAlt": "Cortinas Roller foto 1",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver multimedia"
+          },
+          {
+            "href": "/multimedia",
+            "imageAlt": "Cortinas Roller",
+            "imageUrl": "/media/products/cortinas-roller/images/Publicaciones/rollers.png",
+            "linkLabel": "Ver multimedia"
+          },
+          {
+            "href": "/multimedia",
+            "imageAlt": "Cortinas Roller",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver multimedia"
+          },
+          {
+            "href": "/multimedia",
+            "imageAlt": "Cortinas Roller",
+            "imageUrl": "/media/products/cortinas-roller/images/cortinas_roller_2.jpeg",
+            "linkLabel": "Ver multimedia"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Cortinas roller a medida",
+        "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+        "description": "Las roller combinan estética limpia, control de luz y una terminación prolija en ambientes residenciales y comerciales.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T16:13:23.946Z",
+      "updatedAt": "2026-05-02T16:13:23.946Z",
+      "blocks": [
+        {
+          "id": 3758,
+          "sectionId": 2821,
+          "type": "RICH_TEXT",
+          "key": "editorial-gallery-copy",
+          "name": "Copy",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Si buscás más luz natural, la tela screen ayuda a mantener el ambiente luminoso sin perder privacidad. Si necesitás oscurecer mejor, blackout es la alternativa más conveniente. Y si querés flexibilidad, la solución doble combina ambas funciones en una sola propuesta."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Screen: ideal para livings, oficinas y espacios donde querés claridad."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Blackout: recomendado para dormitorios y ambientes que necesitan mayor oscuridad."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Doble tela: una opción práctica para alternar luz y privacidad durante el día."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Medí ancho y alto, calculá el precio y seguí con la compra cuando quieras."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:13:23.947Z",
+          "updatedAt": "2026-05-02T16:13:23.947Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2822,
+      "pageId": 13,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "Fotos, video y contexto real de Cortinas Roller",
+        "eyebrow": "Multimedia y contexto",
+        "variant": "product-multimedia",
+        "description": "Miralo en uso real, compará terminaciones y avanzá con más claridad antes de decidir.",
+        "productSlug": "cortinas-roller"
+      },
+      "createdAt": "2026-05-02T16:13:23.948Z",
+      "updatedAt": "2026-05-02T16:13:23.948Z",
+      "blocks": [
+        {
+          "id": 3759,
+          "sectionId": 2822,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/cortinas-roller/imagen_1",
+            "badge": "Fotos",
+            "title": "Fotos reales",
+            "linkLabel": "Abrir detalle",
+            "mediaSlug": "imagen_1",
+            "description": "Velo instalado y en contexto para imaginar mejor cómo queda en tu espacio.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:13:23.949Z",
+          "updatedAt": "2026-05-02T16:13:23.949Z",
+          "media": null
+        },
+        {
+          "id": 3760,
+          "sectionId": 2822,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/cortinas-roller/imagen_2",
+            "badge": "Detalle",
+            "title": "Más ángulos",
+            "linkLabel": "Ver toma",
+            "mediaSlug": "imagen_2",
+            "description": "Revisá terminaciones, proporción y uso real desde otra toma del mismo producto.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:13:23.950Z",
+          "updatedAt": "2026-05-02T16:13:23.950Z",
+          "media": null
+        },
+        {
+          "id": 3761,
+          "sectionId": 2822,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/cortinas-roller/imagen_3",
+            "badge": "Ayuda",
+            "title": "Asesoramiento",
+            "linkLabel": "Ver detalle",
+            "mediaSlug": "imagen_3",
+            "description": "Con una referencia visual y medidas aproximadas te orientamos más rápido.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:13:23.950Z",
+          "updatedAt": "2026-05-02T16:13:23.950Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2823,
+      "pageId": 13,
+      "type": "CTA_BANNER",
+      "key": "cta",
+      "name": "Contacto comercial",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "¿Querés que te ayudemos a elegir?",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Contactar"
+          },
+          {
+            "href": "/shop",
+            "label": "Ver tienda"
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Si querés, podemos revisar tu caso antes de cerrar la compra."
+      },
+      "createdAt": "2026-05-02T16:13:23.951Z",
+      "updatedAt": "2026-05-02T16:13:23.951Z",
+      "blocks": []
+    }
+  ]
+}

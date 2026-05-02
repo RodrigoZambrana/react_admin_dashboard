@@ -191,7 +191,7 @@ export default function StorefrontProductCard({
               height={300}
               alt={title}
               src={primaryImage}
-              style={{ width: "100%", height: "auto", objectFit: "cover" }}
+              style={{ width: "100%", height: "auto", objectFit: "contain", objectPosition: "center" }}
             />
           ) : (
             <NoImagePlaceholder height="300px" width="100%" />

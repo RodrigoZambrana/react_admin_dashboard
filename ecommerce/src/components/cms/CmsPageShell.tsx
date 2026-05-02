@@ -18,6 +18,7 @@ import SectionCmsHighlights from "@sections/market-1/SectionCmsHighlights";
 import BudgetCalculatorPanel from "@/components/budget/BudgetCalculatorPanel";
 import { ProductCard1 } from "@component/product-cards";
 import { buildMediaAnchor, normalizeMediaAnchor } from "@/lib/media-anchor";
+import { buildMediaRouteHref } from "@/lib/media-route";
 import type {
   CmsContentSection,
   CmsRenderableMedia,
@@ -1226,6 +1227,325 @@ const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }
     );
   }
 
+  if (variant === "product-multimedia") {
+    const productSlug = asString(settings.productSlug);
+    const cards = section.blocks
+      .map((block, index) => {
+        const content = asRecord(block.content);
+        const title = asString(content.title) || block.name || "";
+        const description = asString(content.description) || asString(content.caption);
+        const mediaSlug = asString(content.mediaSlug) || `imagen_${index + 1}`;
+        const href =
+          asString(content.link) ||
+          asString(content.href) ||
+          (productSlug && index === 0
+            ? `/multimedia/${encodeURIComponent(productSlug)}`
+            : productSlug
+              ? buildMediaRouteHref(productSlug, mediaSlug)
+              : "");
+        const linkLabel = asString(content.linkLabel) || "Ver detalle";
+        const mediaUrl = asString(content.mediaUrl) || asString(content.imageUrl) || pickMediaUrl(block.media);
+        const mediaType = readMediaType(content.mediaType, readMediaType(block.media?.type, "image"));
+        const badge = asString(content.badge);
+        const overlayText = asBoolean(content.overlayText, false);
+
+        return title || href || mediaUrl
+          ? {
+              id: block.id,
+              title,
+              description,
+              href,
+              linkLabel,
+              mediaUrl,
+              mediaType,
+              badge,
+              overlayText,
+              alt: block.media?.alt || title || "Imagen",
+            }
+          : null;
+      })
+      .filter(
+        (
+          item,
+        ): item is {
+          id: string | number;
+          title: string;
+          description: string;
+          href: string;
+          linkLabel: string;
+          mediaUrl: string;
+          mediaType: "image" | "video";
+          badge: string;
+          overlayText: boolean;
+          alt: string;
+        } => Boolean(item),
+      );
+
+    if (!cards.length) return null;
+
+    return (
+      <Container className={styles.sectionContainer}>
+        {renderHeading(section)}
+        <section className={styles.mediaGridEnhancedProductGrid}>
+          {cards.map((card) => (
+            card.href ? (
+              <Link
+                aria-label={card.linkLabel || card.title || "Abrir detalle"}
+                className={styles.mediaGridEnhancedProductCardLink}
+                href={card.href}
+                key={card.id}>
+                <div className={styles.mediaGridEnhancedProductCard}>
+                  <div className={styles.mediaGridEnhancedProductMedia}>
+                    {card.mediaUrl ? (
+                      card.mediaType === "video" ? (
+                        <video
+                          className={styles.mediaGridEnhancedVideo}
+                          controls={false}
+                          muted
+                          playsInline
+                          preload="metadata">
+                          <source src={card.mediaUrl} />
+                        </video>
+                      ) : (
+                        <NextImage
+                          alt={card.alt}
+                          className={styles.mediaGridEnhancedImage}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                          src={card.mediaUrl}
+                        />
+                      )
+                    ) : null}
+                    {card.badge ? <span className={styles.mediaGridEnhancedBadge}>{card.badge}</span> : null}
+                  </div>
+
+                  <div className={styles.mediaGridEnhancedProductBody}>
+                    {card.title ? <h3>{card.title}</h3> : null}
+                    {card.description ? <p>{card.description}</p> : null}
+                    <span className={styles.mediaGridEnhancedProductAction}>{card.linkLabel}</span>
+                  </div>
+                </div>
+              </Link>
+            ) : (
+              <article className={styles.mediaGridEnhancedProductCard} key={card.id}>
+                <div className={styles.mediaGridEnhancedProductMedia}>
+                  {card.mediaUrl ? (
+                    card.mediaType === "video" ? (
+                      <video
+                        className={styles.mediaGridEnhancedVideo}
+                        controls={false}
+                        muted
+                        playsInline
+                        preload="metadata">
+                        <source src={card.mediaUrl} />
+                      </video>
+                    ) : (
+                      <NextImage
+                        alt={card.alt}
+                        className={styles.mediaGridEnhancedImage}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        src={card.mediaUrl}
+                      />
+                    )
+                  ) : null}
+                  {card.badge ? <span className={styles.mediaGridEnhancedBadge}>{card.badge}</span> : null}
+                </div>
+
+                <div className={styles.mediaGridEnhancedProductBody}>
+                  {card.title ? <h3>{card.title}</h3> : null}
+                  {card.description ? <p>{card.description}</p> : null}
+                  {card.linkLabel ? <span className={styles.mediaGridEnhancedProductAction}>{card.linkLabel}</span> : null}
+                </div>
+              </article>
+            )
+          ))}
+        </section>
+      </Container>
+    );
+  }
+
+  if (section.key === "roller-variant-comparison") {
+    const comparisonCards = section.blocks
+      .map((block, index) => {
+        const content = asRecord(block.content);
+        const title = asString(content.title) || block.name || "";
+        const description = asString(content.description) || asString(content.caption);
+        const href = asString(content.href) || asString(content.link);
+        const linkLabel = asString(content.linkLabel) || "Ver más";
+        const mediaUrl = asString(content.mediaUrl) || asString(content.imageUrl) || pickMediaUrl(block.media);
+        const badge = asString(content.badge);
+        const overlayText = asBoolean(content.overlayText, false);
+        const mediaType = readMediaType(content.mediaType, readMediaType(block.media?.type, "image"));
+
+        return title || description || href || mediaUrl
+          ? {
+              id: block.id || `${section.key}-${index}`,
+              title,
+              description,
+              href,
+              linkLabel,
+              mediaUrl,
+              mediaType,
+              badge,
+              overlayText,
+              alt: block.media?.alt || title || "Imagen",
+            }
+          : null;
+      })
+      .filter(
+        (
+          item,
+        ): item is {
+          id: string | number;
+          title: string;
+          description: string;
+          href: string;
+          linkLabel: string;
+          mediaUrl: string;
+          mediaType: "image" | "video";
+          badge: string;
+          overlayText: boolean;
+          alt: string;
+        } => Boolean(item),
+      );
+
+    if (!comparisonCards.length) return null;
+
+    return (
+      <Container className={styles.sectionContainer}>
+        {renderHeading(section)}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gap: "1.5rem",
+          }}>
+          {comparisonCards.map((card) =>
+            card.href ? (
+              <Link
+                aria-label={card.linkLabel || card.title || "Abrir detalle"}
+                href={card.href}
+                key={card.id}
+                rel={card.href.startsWith("http") ? "noreferrer" : undefined}
+                target={card.href.startsWith("http") ? "_blank" : undefined}
+                style={{ display: "block", height: "100%" }}>
+                <article
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    height: "100%",
+                    borderRadius: 12,
+                    overflow: "hidden",
+                    background: "#fff",
+                    boxShadow: "0 10px 28px rgba(0,0,0,0.08)",
+                  }}>
+                  <div style={{ position: "relative", aspectRatio: "4 / 5", overflow: "hidden" }}>
+                    {card.mediaUrl ? (
+                      card.mediaType === "video" ? (
+                        <video
+                          className={styles.mediaGridEnhancedVideo}
+                          controls={false}
+                          muted
+                          playsInline
+                          preload="metadata">
+                          <source src={card.mediaUrl} />
+                        </video>
+                      ) : (
+                        <NextImage
+                          alt={card.alt}
+                          className={styles.mediaGridEnhancedImage}
+                          fill
+                          sizes="(max-width: 768px) 100vw, 33vw"
+                          src={card.mediaUrl}
+                        />
+                      )
+                    ) : null}
+                    {card.badge ? <span className={styles.mediaGridEnhancedBadge}>{card.badge}</span> : null}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.65rem",
+                      padding: "1rem",
+                      flex: "1 1 auto",
+                    }}>
+                    {card.title ? (
+                      <h3 style={{ margin: 0, fontSize: "1.05rem", lineHeight: 1.25 }}>{card.title}</h3>
+                    ) : null}
+                    {card.description ? (
+                      <p style={{ margin: 0, color: "var(--color-text-secondary, #667085)", lineHeight: 1.55 }}>
+                        {card.description}
+                      </p>
+                    ) : null}
+                    <span className={styles.mediaGridEnhancedProductAction}>{card.linkLabel}</span>
+                  </div>
+                </article>
+              </Link>
+            ) : (
+              <article
+                key={card.id}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  height: "100%",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  background: "#fff",
+                  boxShadow: "0 10px 28px rgba(0,0,0,0.08)",
+                }}>
+                <div style={{ position: "relative", aspectRatio: "4 / 5", overflow: "hidden" }}>
+                  {card.mediaUrl ? (
+                    card.mediaType === "video" ? (
+                      <video
+                        className={styles.mediaGridEnhancedVideo}
+                        controls={false}
+                        muted
+                        playsInline
+                        preload="metadata">
+                        <source src={card.mediaUrl} />
+                      </video>
+                    ) : (
+                      <NextImage
+                        alt={card.alt}
+                        className={styles.mediaGridEnhancedImage}
+                        fill
+                        sizes="(max-width: 768px) 100vw, 33vw"
+                        src={card.mediaUrl}
+                      />
+                    )
+                  ) : null}
+                  {card.badge ? <span className={styles.mediaGridEnhancedBadge}>{card.badge}</span> : null}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "0.65rem",
+                    padding: "1rem",
+                    flex: "1 1 auto",
+                  }}>
+                  {card.title ? (
+                    <h3 style={{ margin: 0, fontSize: "1.05rem", lineHeight: 1.25 }}>{card.title}</h3>
+                  ) : null}
+                  {card.description ? (
+                    <p style={{ margin: 0, color: "var(--color-text-secondary, #667085)", lineHeight: 1.55 }}>
+                      {card.description}
+                    </p>
+                  ) : null}
+                  {card.linkLabel ? <span className={styles.mediaGridEnhancedProductAction}>{card.linkLabel}</span> : null}
+                </div>
+              </article>
+            ),
+          )}
+        </div>
+      </Container>
+    );
+  }
+
   const columns = Math.min(5, Math.max(1, Math.round(asNumber(settings.columns, 3))));
   const gap = Math.max(0.5, asNumber(settings.gap, 1));
   const aspectRatio = asString(settings.aspectRatio) || "4 / 5";
@@ -1492,10 +1812,10 @@ const FeatureGridSection = ({
                         ? <h4>{title}</h4>
                         : <h3>{title}</h3>
                   : null}
-                {bodyContent ? (
-                  bodyContent
-                ) : description ? (
-                  <p>{description}</p>
+                {bodyContent || description ? (
+                  <div className={styles.editorialBody}>
+                    {bodyContent ? bodyContent : description ? <p>{description}</p> : null}
+                  </div>
                 ) : null}
                 {href ? <div className={styles.cardActionLayer}>{renderLink(linkLabel, href, styles.featureLink)}</div> : null}
               </div>
@@ -1711,17 +2031,19 @@ const ContentSplitSection = ({
         </div>
 
         <div className={styles.contentSplitBody}>
-          {contentContent}
-          {actions.length ? (
-            <div className={styles.heroActions}>
-              {actions.map((action, index) =>
-                renderLink(action.label, action.href, styles.primaryAction, {
-                  external: action.external,
-                  key: `${action.label}-${index}`,
-                }),
-              )}
-            </div>
-          ) : null}
+          <div className={styles.editorialBody}>
+            {contentContent}
+            {actions.length ? (
+              <div className={styles.heroActions}>
+                {actions.map((action, index) =>
+                  renderLink(action.label, action.href, styles.primaryAction, {
+                    external: action.external,
+                    key: `${action.label}-${index}`,
+                  }),
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
       </section>
     </Container>
@@ -1742,7 +2064,7 @@ const RichTextSection = ({
         const content = asRecord(block.content);
         const title = asString(content.title);
         return (
-          <section className={styles.richTextCard} key={block.id}>
+          <section className={`${styles.richTextCard} ${styles.contentSplitBody}`} key={block.id}>
             {title ? (
               <div className={styles.sectionHeading}>
                 <h2>{title}</h2>
@@ -1829,6 +2151,7 @@ const BudgetCalculatorSection = ({ section }: { section: CmsRenderableSection })
   return (
     <BudgetCalculatorPanel
       compact={compact}
+      tone="product"
       title={title}
       description={description}
       initialProductId={Number.isFinite(productId) && productId > 0 ? productId : null}
@@ -1855,6 +2178,7 @@ const BudgetCalculatorSectionWithPage = ({
   return (
     <BudgetCalculatorPanel
       compact={Boolean(settings.compact ?? true)}
+      tone="product"
       title={asString(settings.title) || "Presupuesto m²"}
       description={
         asString(settings.description) ||
@@ -1948,10 +2272,12 @@ export function CmsPageBody({ page }: CmsPageBodyProps) {
   const bodySections = page.sections.filter(
     (section) => section.type !== "SITE_HEADER" && section.type !== "SITE_FOOTER",
   );
+  const isProductLandingPage =
+    page.path.startsWith("productos/") || page.path.startsWith("product/");
   const allowHtmlFallback = !page.legacySource;
 
   return (
-    <div className={styles.pageStack}>
+    <div className={`${styles.pageStack} ${isProductLandingPage ? styles.productPageStack : ""}`}>
       {bodySections.map((section) => {
         const renderer =
           section.type === "BUDGET_CALCULATOR"

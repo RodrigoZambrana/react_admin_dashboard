@@ -1,0 +1,981 @@
+{
+  "path": "productos/cortinas-metalicas.html",
+  "title": "Cortinas metálicas",
+  "summary": "Seguridad a medida para hogares y comercios.",
+  "seoTitle": "Cortinas Metálicas | Seguridad para comercios y hogares - Urucortinas",
+  "seoDescription": "Cortinas metálicas de seguridad para comercios e industrias. Motorizadas o manuales, fabricadas a medida en Uruguay.",
+  "seoImageUrl": "https://www.urucortinas.com.uy/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg",
+  "legacySource": "/Users/rodrigo/git/personal/urucortinas_projects/urucortinas_html_version/productos/cortinas-metalicas.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T12:32:51.306Z",
+  "sections": [
+    {
+      "id": 2937,
+      "pageId": 12,
+      "type": "SITE_HEADER",
+      "key": "site-header",
+      "name": "Header del sitio",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "items": [
+          {
+            "href": "/",
+            "label": "Inicio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-roller.html",
+                "label": "Cortinas Roller"
+              },
+              {
+                "href": "/productos/bandas-verticales.html",
+                "label": "Bandas Verticales"
+              },
+              {
+                "href": "/productos/venecianas.html",
+                "label": "Cortinas Venecianas"
+              },
+              {
+                "href": "/productos/cortinas-tradicionales.html",
+                "label": "Cortinas Tradicionales"
+              }
+            ],
+            "label": "Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-de-enrollar-pvc.html",
+                "label": "Persianas en PVC"
+              },
+              {
+                "href": "/productos/cortinas-de-enrollar-aluminio.html",
+                "label": "Persianas en Aluminio"
+              }
+            ],
+            "label": "Persianas"
+          },
+          {
+            "href": "/productos/cortinas-metalicas.html",
+            "label": "Cortinas Metálicas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/aberturas-aluminio.html",
+                "label": "Serie 20 y 25"
+              },
+              {
+                "href": "/productos/dvh.html",
+                "label": "Con DVH"
+              },
+              {
+                "href": "/productos/puertas-oblak.html",
+                "label": "Puertas Oblak"
+              }
+            ],
+            "label": "Aberturas en Aluminio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Verticales"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Corredizos"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos de Brazo Invisible"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Cerramientos en PVC"
+              }
+            ],
+            "label": "Toldos"
+          },
+          {
+            "href": "/productos/motores-cortinas-y-persianas.html",
+            "label": "Motores para Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/servicios/reparacion-cortinas-y-persianas.html",
+                "label": "Reparación de cortinas y persianas"
+              },
+              {
+                "href": "/servicios/instalacion-aberturas.html",
+                "label": "Instalación de aberturas"
+              }
+            ],
+            "label": "Servicios"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Contactanos"
+          },
+          {
+            "href": "/catalogo/index.html",
+            "label": "Catálogo"
+          }
+        ],
+        "brandHref": "/",
+        "brandLabel": "",
+        "navigationMode": "grouped",
+        "topbarContacts": [
+          {
+            "href": null,
+            "title": "Horario",
+            "value": "Lun - Vie, 10:00 - 18:00",
+            "iconClass": "fa fa-clock-o"
+          },
+          {
+            "href": null,
+            "title": "Teléfono",
+            "value": "097 365 931",
+            "iconClass": "far fa-envelope"
+          },
+          {
+            "href": "mailto:ventas@urucortinas.com.uy",
+            "title": "Email",
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope-open-o"
+          }
+        ],
+        "floatingContact": {
+          "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+          "label": "WhatsApp",
+          "imageAlt": "Haznos tu consulta",
+          "imageUrl": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg"
+        },
+        "navigationGroupLabel": "Información"
+      },
+      "createdAt": "2026-05-02T16:23:27.375Z",
+      "updatedAt": "2026-05-02T16:23:27.375Z",
+      "blocks": []
+    },
+    {
+      "id": 2938,
+      "pageId": 12,
+      "type": "HERO",
+      "key": "standard-top-hero",
+      "name": "Cortinas metálicas",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Cortinas metálicas",
+        "slides": [
+          {
+            "href": "/multimedia",
+            "title": "Cortinas metálicas",
+            "imageAlt": "Cortinas metálicas",
+            "imageUrl": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg",
+            "linkLabel": "Ver fotos y videos",
+            "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+          }
+        ],
+        "eyebrow": "Solución a medida",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/multimedia",
+        "secondaryCtaLabel": "Ver fotos y videos",
+        "backgroundImageUrl": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg"
+      },
+      "createdAt": "2026-05-02T16:23:27.376Z",
+      "updatedAt": "2026-05-02T16:23:27.376Z",
+      "blocks": []
+    },
+    {
+      "id": 2939,
+      "pageId": 12,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-1",
+      "name": null,
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "First slide",
+            "imageUrl": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Second slide",
+            "imageUrl": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Third slide",
+            "imageUrl": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Third slide",
+            "imageUrl": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "",
+        "imageUrl": "",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T16:23:27.376Z",
+      "updatedAt": "2026-05-02T16:23:27.376Z",
+      "blocks": [
+        {
+          "id": 3847,
+          "sectionId": 2939,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-1",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h1",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cortinas Metálicas"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Ahora incorporamos a nuestra linea de productos la  "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "venta e instalación de cortinas metálicas"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n                Fabricadas en "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "acero galvanizado"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " para ofrecer la mejor combinación de seguridad, resistencia y funcionalidad. Diseñadas para uso comercial, industrial y residencial.\n              "
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n                "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Tablilla Ciega:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Máxima seguridad y privacidad."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n                "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Tablilla Microperforada:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Permite ventilación y visibilidad sin comprometer la protección."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n                "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Tablilla con Diseños Personalizados:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Ideal para fachadas con identidad propia."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  }
+                ]
+              },
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sistemas automatizados y con apertura de emergencia"
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Nuestros sistemas incluyen "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "motores de alta fiabilidad y durabilidad"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " con accionamiento mediante control remoto, interruptor y opción manual para emergencias. "
+                  },
+                  {
+                    "tag": "br",
+                    "type": "element"
+                  },
+                  {
+                    "type": "text",
+                    "value": "Su versatilidad lo hacen aplicable a multiples espacios y rubros."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n                "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Comercios y Locales:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Seguridad para tiendas, supermercados y almacenes."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n                "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Garajes y Estacionamientos:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Mayor comodidad y control de acceso. Sistemas de apertura rápida"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n                "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Industria y Depósitos:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Resistencia y eficiencia en grandes espacios."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n                "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Hogares y Viviendas:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Seguridad y el diseño."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Fabricamos a medida para cada necesidad. ¡Consulta tu presupuesto hoy mismo!"
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:23:27.377Z",
+          "updatedAt": "2026-05-02T16:23:27.377Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2940,
+      "pageId": 12,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-2",
+      "name": null,
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [],
+        "variant": "image-content",
+        "imageAlt": "Mercado Pago",
+        "imageUrl": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T16:23:27.378Z",
+      "updatedAt": "2026-05-02T16:23:27.378Z",
+      "blocks": [
+        {
+          "id": 3848,
+          "sectionId": 2940,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-2",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Facilidades de Pago"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aceptamos pagos hasta en 12 cuotas sin interés mediante Mercado Pago."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Compra segura y protegida."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponible para todos nuestros productos."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Rápido y sin complicaciones."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n            "
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:23:27.378Z",
+          "updatedAt": "2026-05-02T16:23:27.378Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2941,
+      "pageId": 12,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Multimedia comercial de Cortinas metálicas",
+        "eyebrow": "Multimedia y contexto",
+        "variant": "product-multimedia",
+        "description": "Explorá fotos, videos y contexto real del producto para decidir con más claridad.",
+        "productSlug": "cortinas-metalicas"
+      },
+      "createdAt": "2026-05-02T16:23:27.378Z",
+      "updatedAt": "2026-05-02T16:23:27.378Z",
+      "blocks": [
+        {
+          "id": 3849,
+          "sectionId": 2941,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/cortinas-metalicas",
+            "badge": "Multimedia",
+            "title": "Ver multimedia",
+            "linkLabel": "Ver multimedia",
+            "description": "Entrá a la galería completa del producto y revisá sus fotos y videos en detalle.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:23:27.379Z",
+          "updatedAt": "2026-05-02T16:23:27.379Z",
+          "media": null
+        },
+        {
+          "id": 3850,
+          "sectionId": 2941,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Tomar medidas",
+            "linkLabel": "Ver guía",
+            "description": "Si todavía estás definiendo el frente, te guiamos para medir ancho y alto sin perder tiempo.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:23:27.379Z",
+          "updatedAt": "2026-05-02T16:23:27.379Z",
+          "media": null
+        },
+        {
+          "id": 3851,
+          "sectionId": 2941,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Pedir asesoramiento",
+            "linkLabel": "Contactar",
+            "description": "Si querés avanzar, te ayudamos a definir la opción adecuada y resolver tus dudas.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:23:27.379Z",
+          "updatedAt": "2026-05-02T16:23:27.379Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2942,
+      "pageId": 12,
+      "type": "CTA_BANNER",
+      "key": "cta-1",
+      "name": "Solicite tu Presupuesto",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Solicite tu Presupuesto",
+        "actions": [
+          {
+            "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+            "label": "Enviar WhatsApp",
+            "external": true,
+            "iconClass": null
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+      },
+      "createdAt": "2026-05-02T16:23:27.380Z",
+      "updatedAt": "2026-05-02T16:23:27.380Z",
+      "blocks": []
+    },
+    {
+      "id": 2943,
+      "pageId": 12,
+      "type": "CTA_BANNER",
+      "key": "cta-2",
+      "name": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+        "actions": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-lg fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-lg fa-instagram"
+          }
+        ],
+        "variant": "social",
+        "description": ""
+      },
+      "createdAt": "2026-05-02T16:23:27.380Z",
+      "updatedAt": "2026-05-02T16:23:27.380Z",
+      "blocks": []
+    },
+    {
+      "id": 2944,
+      "pageId": 12,
+      "type": "SITE_FOOTER",
+      "key": "site-footer",
+      "name": "Footer del sitio",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Contacto",
+        "socials": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-instagram"
+          }
+        ],
+        "contacts": [
+          {
+            "value": "Montevideo, Uruguay",
+            "iconClass": "fa fa-location-arrow"
+          },
+          {
+            "value": "097 365 931",
+            "iconClass": "fa fa-phone"
+          },
+          {
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope"
+          }
+        ],
+        "linkGroups": []
+      },
+      "createdAt": "2026-05-02T16:23:27.381Z",
+      "updatedAt": "2026-05-02T16:23:27.381Z",
+      "blocks": []
+    },
+    {
+      "id": 2945,
+      "pageId": 12,
+      "type": "CTA_BANNER",
+      "key": "shop-cta",
+      "name": "Ver la tienda",
+      "sortOrder": 8,
+      "visible": true,
+      "settings": {
+        "title": "Encontrá la solución ideal en la tienda",
+        "actions": [
+          {
+            "href": "/shop",
+            "label": "Ir a la tienda"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Pedir presupuesto"
+          }
+        ],
+        "variant": "default",
+        "description": "Explorá el catálogo para comparar modelos, revisar opciones y avanzar con una compra o presupuesto."
+      },
+      "createdAt": "2026-05-02T16:23:27.381Z",
+      "updatedAt": "2026-05-02T16:23:27.381Z",
+      "blocks": []
+    }
+  ]
+}

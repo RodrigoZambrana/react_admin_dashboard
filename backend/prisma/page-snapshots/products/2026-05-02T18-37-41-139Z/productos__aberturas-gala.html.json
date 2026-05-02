@@ -1,0 +1,425 @@
+{
+  "path": "productos/aberturas-gala.html",
+  "title": "Serie Gala",
+  "summary": "Serie versátil y estética para proyectos que buscan más confort y mejor terminación.",
+  "seoTitle": "Serie Gala en aluminio | Confort y terminación - Urucortinas",
+  "seoDescription": "Serie Gala en aluminio para proyectos que necesitan más confort, mejor terminación y compatibilidad con DVH en líneas de mayor prestación.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/aberturas/gala.jpg",
+  "legacySource": "knowledge:public-curated",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-05-02T18:37:38.418Z",
+  "sections": [
+    {
+      "id": 4508,
+      "pageId": 57,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Serie Gala",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Serie Gala",
+        "slides": [
+          {
+            "href": "/contacto.html",
+            "title": "Serie Gala",
+            "imageAlt": "Serie Gala de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/gala.jpg",
+            "linkLabel": "Pedir asesoramiento",
+            "description": "Confort, estética y una respuesta sólida para proyectos más exigentes."
+          }
+        ],
+        "eyebrow": "Alta prestación versátil",
+        "description": "Confort, estética y una respuesta sólida para proyectos más exigentes.",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/articulos/dvh.html",
+        "secondaryCtaLabel": "Ver guía DVH"
+      },
+      "createdAt": "2026-05-02T18:37:38.419Z",
+      "updatedAt": "2026-05-02T18:37:38.419Z",
+      "blocks": []
+    },
+    {
+      "id": 4509,
+      "pageId": 57,
+      "type": "CONTENT_SPLIT",
+      "key": "productos-aberturas-gala-html-content",
+      "name": "Cuándo conviene Gala",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Cuándo conviene Gala",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Serie Gala de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/gala.jpg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Serie Gala de aberturas de aluminio",
+        "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/gala.jpg",
+        "description": "Cuando querés una serie versátil con mejor presencia visual y mayor confort.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:37:38.419Z",
+      "updatedAt": "2026-05-02T18:37:38.419Z",
+      "blocks": [
+        {
+          "id": 5192,
+          "sectionId": 4509,
+          "type": "RICH_TEXT",
+          "key": "productos-aberturas-gala-html-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Se adapta bien a opciones corredizas, batientes y oscilobatientes."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Permite sumar DVH para mejorar el aislamiento térmico y acústico."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Es una buena elección cuando el proyecto busca equilibrio entre estética, confort y prestación."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:38.420Z",
+          "updatedAt": "2026-05-02T18:37:38.420Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4510,
+      "pageId": 57,
+      "type": "FEATURE_GRID",
+      "key": "productos-aberturas-gala-html-features",
+      "name": "Puntos de decisión",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "Puntos de decisión",
+        "description": "Lo importante para evaluar Gala sin perder foco.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T18:37:38.420Z",
+      "updatedAt": "2026-05-02T18:37:38.420Z",
+      "blocks": [
+        {
+          "id": 5193,
+          "sectionId": 4510,
+          "type": "CARD",
+          "key": "productos-aberturas-gala-html-feature-1",
+          "name": "Versatilidad",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "body": "Sirve para distintas tipologías de apertura y proyectos variados.",
+            "href": "/contacto.html",
+            "badge": "Versátil",
+            "title": "Versatilidad",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 88,
+          "createdAt": "2026-05-02T18:37:38.421Z",
+          "updatedAt": "2026-05-02T18:37:38.421Z",
+          "media": {
+            "id": 88,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/gala.jpg",
+            "type": "IMAGE",
+            "alt": "Serie Summa complementos",
+            "title": "Complementos",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "aberturas-series-seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.976Z",
+            "updatedAt": "2026-05-02T18:37:38.433Z"
+          }
+        },
+        {
+          "id": 5194,
+          "sectionId": 4510,
+          "type": "CARD",
+          "key": "productos-aberturas-gala-html-feature-2",
+          "name": "Compatibilidad con DVH",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "body": "Si el proyecto lo necesita, podés sumar DVH en líneas compatibles.",
+            "href": "/articulos/dvh.html",
+            "badge": "DVH",
+            "title": "Compatibilidad con DVH",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 97,
+          "createdAt": "2026-05-02T18:37:38.422Z",
+          "updatedAt": "2026-05-02T18:37:38.422Z",
+          "media": {
+            "id": 97,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/dvh-main.jpg",
+            "type": "IMAGE",
+            "alt": "Serie Summa hermeticidad",
+            "title": "Hermeticidad",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "aberturas-series-seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:37:38.403Z",
+            "updatedAt": "2026-05-02T18:37:38.432Z"
+          }
+        },
+        {
+          "id": 5195,
+          "sectionId": 4510,
+          "type": "CARD",
+          "key": "productos-aberturas-gala-html-feature-3",
+          "name": "Mejor terminación",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "body": "La línea acompaña mejor proyectos que buscan una presencia más cuidada.",
+            "href": "/productos/aberturas-summa.html",
+            "badge": "Terminación",
+            "title": "Mejor terminación",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 14,
+          "createdAt": "2026-05-02T18:37:38.423Z",
+          "updatedAt": "2026-05-02T18:37:38.423Z",
+          "media": {
+            "id": 14,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg",
+            "type": "IMAGE",
+            "alt": "Serie Summa grandes dimensiones",
+            "title": "Grandes dimensiones",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "aberturas-series-seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.064Z",
+            "updatedAt": "2026-05-02T18:37:38.430Z"
+          }
+        },
+        {
+          "id": 5196,
+          "sectionId": 4510,
+          "type": "CARD",
+          "key": "productos-aberturas-gala-html-feature-4",
+          "name": "Paso a premium",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "body": "Si el proyecto es grande o más exigente, Summa puede ser la siguiente referencia.",
+            "href": "/productos/aberturas-summa.html",
+            "badge": "Premium",
+            "title": "Paso a premium",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 87,
+          "createdAt": "2026-05-02T18:37:38.424Z",
+          "updatedAt": "2026-05-02T18:37:38.424Z",
+          "media": {
+            "id": 87,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/abertura_1.png",
+            "type": "IMAGE",
+            "alt": "Serie Gala paso a premium",
+            "title": "Paso a premium",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "aberturas-series-seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.975Z",
+            "updatedAt": "2026-05-02T18:37:38.424Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4511,
+      "pageId": 57,
+      "type": "FAQ",
+      "key": "productos-aberturas-gala-html-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "Serie Gala: dudas frecuentes",
+        "description": "Respuestas breves para decidir mejor."
+      },
+      "createdAt": "2026-05-02T18:37:38.425Z",
+      "updatedAt": "2026-05-02T18:37:38.425Z",
+      "blocks": [
+        {
+          "id": 5197,
+          "sectionId": 4511,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-gala-html-faq-1",
+          "name": "¿Qué diferencia a Gala de Probba?",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Qué diferencia a Gala de Probba?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Gala suma más versatilidad y una terminación más cuidada para proyectos exigentes."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:38.425Z",
+          "updatedAt": "2026-05-02T18:37:38.425Z",
+          "media": null
+        },
+        {
+          "id": 5198,
+          "sectionId": 4511,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-gala-html-faq-2",
+          "name": "¿Puede llevar DVH?",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "question": "¿Puede llevar DVH?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí, en las configuraciones compatibles de la línea."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:38.425Z",
+          "updatedAt": "2026-05-02T18:37:38.425Z",
+          "media": null
+        },
+        {
+          "id": 5199,
+          "sectionId": 4511,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-gala-html-faq-3",
+          "name": "¿Qué dato ayuda a cotizar?",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "question": "¿Qué dato ayuda a cotizar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Tipo de apertura, medidas y si querés DVH o recambio alcanzan para orientar la propuesta."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:38.426Z",
+          "updatedAt": "2026-05-02T18:37:38.426Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4512,
+      "pageId": 57,
+      "type": "CTA_BANNER",
+      "key": "productos-aberturas-gala-html-cta",
+      "name": "Cierre comercial",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Pedí asesoramiento para Serie Gala",
+        "intent": "transactional",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "description": "Si buscás más confort y mejor terminación, Gala es una muy buena opción."
+      },
+      "createdAt": "2026-05-02T18:37:38.426Z",
+      "updatedAt": "2026-05-02T18:37:38.426Z",
+      "blocks": []
+    }
+  ]
+}

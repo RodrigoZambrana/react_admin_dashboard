@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import styled from "styled-components";
+import { space, type SpaceProps } from "styled-system";
 
 import Box from "@component/Box";
 import Container from "@component/Container";
@@ -10,8 +12,13 @@ import Grid from "@component/grid/Grid";
 import Typography, { H1, H3, Paragraph } from "@component/Typography";
 import Select from "@component/Select";
 import TextField from "@component/text-field";
-import { Button } from "@component/buttons";
+import { Button, IconButton } from "@component/buttons";
 import { Card1 } from "@component/Card1";
+import LazyImage from "@component/LazyImage";
+import NoImagePlaceholder from "@component/NoImagePlaceholder";
+import { IconMinus, IconPlus, IconX } from "@tabler/icons-react";
+
+import { isValidProp } from "@utils/utils";
 
 import { useStorefrontCart } from "@/state/cart-context";
 import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
@@ -23,6 +30,10 @@ import type {
   BudgetCalculationResult,
   BudgetProductSummary,
 } from "@/types/storefront";
+
+type DraftItem = BudgetCalculationResult & {
+  qty: number;
+};
 
 type Props = {
   title?: string;
@@ -36,6 +47,7 @@ type Props = {
   initialCustomerPhone?: string;
   initialCustomerNotes?: string;
   compact?: boolean;
+  tone?: "default" | "product";
   showCustomerFields?: boolean;
   submitLabel?: string;
   onEditCustomer?: () => void;
@@ -82,6 +94,175 @@ const formatDisplayedDimension = (value: string) => {
 
 const toTrimmed = (value: string) => value.trim();
 
+const budgetDisclaimer =
+  "Los presupuestos obtenidos están sujetos a rectificación y confirmación a través de cualquiera de nuestros medios de contacto oficiales.";
+
+const buildShareMessage = (
+  items: DraftItem[],
+  activeCurrency: string,
+  formatAmount: (amount: number, currency?: string) => string,
+  customer: {
+    name: string;
+    email: string;
+    phone: string;
+    notes: string;
+  },
+) => {
+  const headerLines = [
+    customer.name ? `Nombre: ${customer.name}` : "",
+    customer.email ? `Email: ${customer.email}` : "",
+    customer.phone ? `Teléfono: ${customer.phone}` : "",
+    customer.notes ? `Notas: ${customer.notes}` : "",
+  ].filter(Boolean);
+
+  const itemLines = items.map((item) => {
+    const sourceCurrency = item.currency ?? activeCurrency;
+    return [
+      `${item.qty} ${item.product?.name ?? `Producto ${item.productId}`}`,
+      `Ancho: ${item.width.toFixed(2)} m`,
+      `Alto: ${item.height.toFixed(2)} m`,
+      `Total: ${formatAmount(item.totalPrice * item.qty, sourceCurrency)}`,
+    ].join(" ");
+  });
+
+  return [
+    ...headerLines,
+    ...itemLines,
+    `Subtotal: ${formatAmount(
+      items.reduce((sum, item) => sum + item.totalPrice * item.qty, 0),
+      items[0]?.currency ?? activeCurrency,
+    )}`,
+    budgetDisclaimer,
+  ]
+    .filter(Boolean)
+    .join("\n");
+};
+
+const BudgetLineItemWrapper = styled.div.withConfig({
+  shouldForwardProp: (prop) => isValidProp(prop),
+})<SpaceProps>`
+  display: flex;
+  overflow: hidden;
+  position: relative;
+  border-radius: 12px;
+  box-shadow: ${({ theme }) => theme.shadows.small};
+  background-color: ${({ theme }) => theme.colors.body.paper};
+
+  .product-details {
+    padding: 20px;
+  }
+
+  .title {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  @media only screen and (max-width: 425px) {
+    flex-wrap: wrap;
+
+    img {
+      height: auto;
+      min-width: 100%;
+    }
+  }
+
+  ${space}
+`;
+
+type BudgetLineItemCardProps = SpaceProps & {
+  item: DraftItem;
+  onIncrease: () => void;
+  onDecrease: () => void;
+  onRemove: () => void;
+  lineTotalLabel: string;
+  unitPriceLabel: string;
+};
+
+function BudgetLineItemCard({
+  item,
+  onIncrease,
+  onDecrease,
+  onRemove,
+  lineTotalLabel,
+  unitPriceLabel,
+  ...rest
+}: BudgetLineItemCardProps) {
+  const thumbnailSrc = item.product?.img;
+  const hasImage = Boolean(thumbnailSrc);
+
+  return (
+    <BudgetLineItemWrapper {...rest}>
+      {hasImage ? (
+        <LazyImage alt={item.product?.name ?? "Producto"} width={140} height={140} src={thumbnailSrc!} />
+      ) : (
+        <NoImagePlaceholder width={140} height={140} />
+      )}
+
+      <FlexBox
+        width="100%"
+        minWidth="0px"
+        flexDirection="column"
+        className="product-details"
+        justifyContent="space-between"
+      >
+        <FlexBox justifyContent="space-between" alignItems="flex-start">
+          <Box minWidth="0">
+            <Typography className="title" fontWeight="500" fontSize="18px" mb="0.35rem">
+              {item.product?.name ?? `Producto ${item.productId}`}
+            </Typography>
+            <Typography color="text.muted" mb="0.35rem" fontSize="14px">
+              Ancho: {item.width.toFixed(2)} m • Alto: {item.height.toFixed(2)} m
+            </Typography>
+            <Typography color="text.muted" fontSize="14px">
+              {unitPriceLabel} x {item.qty}
+            </Typography>
+          </Box>
+
+          <IconButton color="gray.600" padding="4px" ml="12px" onClick={onRemove}>
+            <IconX size={18} />
+          </IconButton>
+        </FlexBox>
+
+        <FlexBox justifyContent="space-between" alignItems="flex-end" mt="1rem">
+          <Typography fontWeight={600} color="primary.main" fontSize="18px">
+            = {lineTotalLabel}
+          </Typography>
+
+          <FlexBox alignItems="center" style={{ gap: "0.5rem" }}>
+            <Button
+              size="none"
+              padding="3px"
+              color="primary"
+              variant="outlined"
+              borderColor="primary.light"
+              disabled={item.qty === 1}
+              onClick={onDecrease}
+            >
+              <IconMinus size={16} />
+            </Button>
+
+            <Typography mx="0.5rem" fontWeight="600" fontSize="15px">
+              {item.qty}
+            </Typography>
+
+            <Button
+              size="none"
+              padding="3px"
+              color="primary"
+              variant="outlined"
+              borderColor="primary.light"
+              onClick={onIncrease}
+            >
+              <IconPlus size={16} />
+            </Button>
+          </FlexBox>
+        </FlexBox>
+      </FlexBox>
+    </BudgetLineItemWrapper>
+  );
+}
+
 export default function BudgetCalculatorPanel({
   title = "Calculá el precio de tu cortina",
   description = "Ingresá las medidas y obtené el precio al instante.",
@@ -94,8 +275,9 @@ export default function BudgetCalculatorPanel({
   initialCustomerPhone = "",
   initialCustomerNotes = "",
   compact = false,
+  tone = "default",
   showCustomerFields = true,
-  submitLabel = "Agregar al carrito",
+  submitLabel = "Agregar todos al carrito",
   onEditCustomer,
 }: Props) {
   void showCustomerFields;
@@ -103,12 +285,11 @@ export default function BudgetCalculatorPanel({
   void initialCustomerEmail;
   void initialCustomerPhone;
   void initialCustomerNotes;
-  void onEditCustomer;
-  void submitLabel;
 
   const { addItemSnapshot } = useStorefrontCart();
   const config = useStorefrontConfig();
   const { baseCurrency, currency: selectedCurrency, formatAmount } = useMoneyFormatter();
+  const isProductTone = tone === "product";
 
   const [products, setProducts] = useState<BudgetProductSummary[]>([]);
   const [selectedProductId, setSelectedProductId] = useState<number | "">("");
@@ -117,6 +298,7 @@ export default function BudgetCalculatorPanel({
   const [widthTouched, setWidthTouched] = useState(false);
   const [heightTouched, setHeightTouched] = useState(false);
   const [calculation, setCalculation] = useState<BudgetCalculationResult | null>(null);
+  const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [loadingCalculation, setLoadingCalculation] = useState(false);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
@@ -124,6 +306,12 @@ export default function BudgetCalculatorPanel({
   const [calculationError, setCalculationError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<BudgetAddToCartResponse | null>(null);
+  const [customerName, setCustomerName] = useState(initialCustomerName);
+  const [customerEmail, setCustomerEmail] = useState(initialCustomerEmail);
+  const [customerPhone, setCustomerPhone] = useState(initialCustomerPhone);
+  const [customerNotes] = useState(initialCustomerNotes);
+  const [honeypot, setHoneypot] = useState("");
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle");
 
   const recaptchaSiteKey =
     config.integrations?.recaptcha?.enabled && config.integrations.recaptcha.siteKey
@@ -165,6 +353,18 @@ export default function BudgetCalculatorPanel({
     }
   }, [initialProductId, initialProductSlug, products, selectedProductId]);
 
+  useEffect(() => {
+    setCustomerName(initialCustomerName);
+  }, [initialCustomerName]);
+
+  useEffect(() => {
+    setCustomerEmail(initialCustomerEmail);
+  }, [initialCustomerEmail]);
+
+  useEffect(() => {
+    setCustomerPhone(initialCustomerPhone);
+  }, [initialCustomerPhone]);
+
   const selectedProduct = useMemo(
     () => products.find((product) => product.id === selectedProductId) ?? null,
     [products, selectedProductId],
@@ -185,11 +385,42 @@ export default function BudgetCalculatorPanel({
     setCalculationError(null);
     setConfirmation(null);
     setSubmitError(null);
+    setCopyStatus("idle");
   }, [selectedProductId, width, height]);
 
   const activeCurrency = selectedCurrency ?? baseCurrency;
   const sourceCurrency = calculation?.currency ?? selectedProduct?.currency ?? baseCurrency;
   const formatBudgetAmount = (amount: number, source?: string) => formatAmount(amount, source ?? sourceCurrency);
+  const draftSubtotal = useMemo(
+    () => draftItems.reduce((sum, item) => sum + item.totalPrice * item.qty, 0),
+    [draftItems],
+  );
+  const shareText = useMemo(
+    () =>
+      draftItems.length
+        ? buildShareMessage(
+            draftItems,
+            activeCurrency,
+            formatBudgetAmount,
+            {
+              name: toTrimmed(customerName),
+              email: toTrimmed(customerEmail),
+              phone: toTrimmed(customerPhone),
+              notes: toTrimmed(customerNotes),
+            },
+          )
+        : "",
+    [activeCurrency, customerEmail, customerName, customerNotes, customerPhone, draftItems, formatBudgetAmount],
+  );
+  const shareSubject = "Presupuesto urucortinas";
+  const shareWhatsappHref = useMemo(
+    () => (shareText ? `https://wa.me/?text=${encodeURIComponent(shareText)}` : "#"),
+    [shareText],
+  );
+  const shareMailHref = useMemo(
+    () => (shareText ? `mailto:?subject=${encodeURIComponent(shareSubject)}&body=${encodeURIComponent(shareText)}` : "#"),
+    [shareText],
+  );
 
   const widthError =
     widthTouched && !isValidDimension(width) ? "Ingresá el ancho en cm." : null;
@@ -237,8 +468,65 @@ export default function BudgetCalculatorPanel({
     }
   };
 
-  const handleAddToCart = async () => {
-    if (!calculation || !selectedProduct) {
+  const addCurrentDraftItem = () => {
+    if (!calculation || !selectedProduct) return;
+
+    setCalculation(null);
+    setDraftItems((current) => {
+      const itemCurrency = calculation.currency ?? selectedProduct.currency ?? activeCurrency;
+      const fingerprint = `${calculation.productId}:${calculation.width}:${calculation.height}:${itemCurrency}`;
+      const existingIndex = current.findIndex(
+        (item) => `${item.productId}:${item.width}:${item.height}:${item.currency ?? itemCurrency}` === fingerprint,
+      );
+
+      const normalizedItem: DraftItem = { ...calculation, currency: itemCurrency, qty: 1 };
+
+      if (existingIndex >= 0) {
+        return current.map((item, index) => (index === existingIndex ? { ...item, qty: item.qty + 1 } : item));
+      }
+
+      return [...current, normalizedItem];
+    });
+  };
+
+  const updateDraftQuantity = (index: number, delta: number) => {
+    setDraftItems((current) =>
+      current
+        .map((item, currentIndex) => {
+          if (currentIndex !== index) return item;
+          const nextQty = Math.max(0, item.qty + delta);
+          return nextQty === 0 ? null : { ...item, qty: nextQty };
+        })
+        .filter(Boolean) as DraftItem[],
+    );
+  };
+
+  const removeDraftItem = (index: number) => {
+    setDraftItems((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const handleShareWhatsapp = () => {
+    if (!shareText) return;
+    window.open(shareWhatsappHref, "_blank", "noopener,noreferrer");
+  };
+
+  const handleShareMail = () => {
+    if (!shareText) return;
+    window.location.href = shareMailHref;
+  };
+
+  const handleCopyShareText = async () => {
+    if (!shareText) return;
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setCopyStatus("copied");
+    } catch {
+      setCopyStatus("error");
+    }
+  };
+
+  const submitDraftItems = async () => {
+    if (!draftItems.length || honeypot.trim().length > 0) {
       return;
     }
 
@@ -253,21 +541,37 @@ export default function BudgetCalculatorPanel({
         ? await executeRecaptchaAction(recaptchaSiteKey, "budget_submit")
         : null;
 
+      const validated = await StorefrontApi.summarizeBudget({
+        items: draftItems.map((item) => ({
+          productId: item.productId,
+          width: item.width,
+          height: item.height,
+          qty: item.qty,
+        })),
+        customerName: toTrimmed(customerName) || undefined,
+        customerEmail: toTrimmed(customerEmail) || undefined,
+        customerPhone: toTrimmed(customerPhone) || undefined,
+        customerNotes: toTrimmed(customerNotes) || undefined,
+        currency: activeCurrency,
+      });
+
       const cartResponse = await StorefrontApi.addBudgetToCart({
-        items: [
-          {
-            productId: calculation.productId,
-            width: calculation.width,
-            height: calculation.height,
-            qty: 1,
-          },
-        ],
+        items: validated.items.map((item) => ({
+          productId: item.productId,
+          width: item.width,
+          height: item.height,
+          qty: item.qty,
+        })),
+        customerName: toTrimmed(customerName) || undefined,
+        customerEmail: toTrimmed(customerEmail) || undefined,
+        customerPhone: toTrimmed(customerPhone) || undefined,
+        customerNotes: toTrimmed(customerNotes) || undefined,
         currency: activeCurrency,
         recaptchaToken: recaptchaToken ?? undefined,
       });
 
-      const [item] = cartResponse.items;
-      if (item?.product) {
+      cartResponse.items.forEach((item) => {
+        if (!item.product) return;
         addItemSnapshot(
           {
             id: buildCartLineId(item.product, item),
@@ -281,13 +585,15 @@ export default function BudgetCalculatorPanel({
             },
             salePrice: null,
             inventoryStatus: "in-stock",
-            selectionSummary: `Medida: ${formatDisplayedDimension(width)} x ${formatDisplayedDimension(height)} cm`,
+            selectionSummary: `Ancho: ${item.width.toFixed(2)} m • Alto: ${item.height.toFixed(2)} m`,
           },
           item.qty,
         );
-      }
+      });
 
       setConfirmation(cartResponse);
+      setDraftItems([]);
+      setCalculation(null);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "No pudimos agregar el producto al carrito.");
     } finally {
@@ -297,30 +603,47 @@ export default function BudgetCalculatorPanel({
 
   return (
     <Box>
-      <Box
-        style={{
-          background: "linear-gradient(180deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0) 100%)",
-          borderBottom: "1px solid rgba(15,23,42,0.08)",
-        }}
-      >
-        <Container>
-          <Box style={{ padding: compact ? "28px 0 20px" : "40px 0 24px" }}>
-            <Typography fontSize="12px" color="gray.500" fontWeight="600">
-              Precio al instante
-            </Typography>
-            <H1 mt="8px">{title}</H1>
-            {description ? (
-              <Paragraph mt="12px" color="gray.600" maxWidth="760px">
-                {description}
-              </Paragraph>
-            ) : null}
-          </Box>
-        </Container>
-      </Box>
-
       <Container>
         <Box style={{ padding: compact ? "20px 0 48px" : "24px 0 56px" }}>
-          <Card1 borderRadius={16}>
+          <Card1
+            borderRadius={isProductTone ? 28 : 16}
+            style={
+              isProductTone
+                ? {
+                    overflow: "hidden",
+                    border: "1px solid rgba(17, 33, 29, 0.08)",
+                    background:
+                      "linear-gradient(180deg, rgba(255,255,255,0.98), rgba(250,247,241,0.96))",
+                    boxShadow: "0 24px 54px rgba(17, 33, 29, 0.1)",
+                  }
+                : undefined
+            }>
+            <Box
+              style={
+                isProductTone
+                  ? {
+                      background:
+                        "radial-gradient(circle at top left, rgba(205,160,73,0.1), transparent 26%), linear-gradient(180deg, rgba(255,255,255,0.92), rgba(250,247,241,0.98))",
+                      borderBottom: "1px solid rgba(17, 33, 29, 0.06)",
+                    }
+                  : {
+                      background: "linear-gradient(180deg, rgba(15,23,42,0.04) 0%, rgba(15,23,42,0) 100%)",
+                      borderBottom: "1px solid rgba(15,23,42,0.08)",
+                    }
+              }>
+              <Box style={{ padding: compact ? "28px 0 20px" : "40px 0 24px" }}>
+                <Typography fontSize="12px" color={isProductTone ? "gray.600" : "gray.500"} fontWeight="600">
+                  {isProductTone ? "Presupuesto y decisión" : "Precio al instante"}
+                </Typography>
+                <H1 mt="8px">{title}</H1>
+                {description ? (
+                  <Paragraph mt="12px" color="gray.600" maxWidth="760px">
+                    {description}
+                  </Paragraph>
+                ) : null}
+              </Box>
+            </Box>
+
             <Grid container spacing={6}>
               <Grid item lg={7} md={7} xs={12}>
                 <FlexBox justifyContent="space-between" alignItems="center" mb="1rem">
@@ -405,67 +728,115 @@ export default function BudgetCalculatorPanel({
                         color="primary"
                         onClick={handleCalculate}
                         disabled={loadingCalculation || !selectedProduct}
+                        style={
+                          isProductTone
+                            ? {
+                                background: "#12352d",
+                                color: "#f7f2e8",
+                                boxShadow: "0 16px 32px rgba(18, 53, 45, 0.16)",
+                              }
+                            : undefined
+                        }
                       >
                         {loadingCalculation ? "Calculando..." : "Calcular precio"}
                       </Button>
                     </FlexBox>
-                  </>
-                ) : null}
 
-                {calculation ? (
-                  <Card1
-                    data-testid="budget-result-card"
-                    borderRadius={12}
-                    mt="1.25rem"
-                    p="16px"
-                    boxShadow="none"
-                    style={{ background: "#f8fafc" }}
-                  >
-                    <Typography fontSize="12px" color="gray.600" mb="0.35rem">
-                      Precio estimado
-                    </Typography>
-                    <Typography fontWeight="700" color="primary.main" fontSize="28px" lineHeight="1.1">
-                      {formatBudgetAmount(calculation.totalPrice, calculation.currency ?? sourceCurrency)}
-                    </Typography>
-                    <Typography color="gray.600" fontSize="14px" mt="0.6rem">
-                      Medida: {formatDisplayedDimension(width).toFixed(0)} x {formatDisplayedDimension(height).toFixed(0)} cm
-                    </Typography>
-                    {calculation.product?.name ? (
-                      <Typography color="gray.600" fontSize="14px" mt="0.2rem">
-                        {calculation.product.name}
-                      </Typography>
+                    {calculation ? (
+                      <Card1
+                        data-testid="budget-result-card"
+                        borderRadius={isProductTone ? 18 : 12}
+                        mt="1.25rem"
+                        p="16px"
+                        boxShadow="none"
+                        style={{
+                          background: isProductTone ? "rgba(18, 53, 45, 0.04)" : "#f8fafc",
+                          border: isProductTone ? "1px solid rgba(18, 53, 45, 0.08)" : undefined,
+                        }}
+                      >
+                        <Typography fontSize="12px" color="gray.600" mb="0.35rem">
+                          Resultado del presupuesto
+                        </Typography>
+                        <Typography
+                          fontWeight="700"
+                          color={isProductTone ? "#12352d" : "primary.main"}
+                          fontSize="28px"
+                          lineHeight="1.1"
+                        >
+                          {formatBudgetAmount(calculation.totalPrice, calculation.currency ?? sourceCurrency)}
+                        </Typography>
+                        <Typography color="gray.600" fontSize="14px" mt="0.6rem">
+                          Medida: {formatDisplayedDimension(width).toFixed(0)} x {formatDisplayedDimension(height).toFixed(0)} cm
+                        </Typography>
+                        {calculation.product?.name ? (
+                          <Typography color="gray.600" fontSize="14px" mt="0.2rem">
+                            {calculation.product.name}
+                          </Typography>
+                        ) : null}
+                        <Typography color="gray.600" fontSize="13px" mt="0.75rem">
+                          {budgetDisclaimer}
+                        </Typography>
+
+                        <Button
+                          data-testid="budget-add-to-list"
+                          mt="1rem"
+                          variant="outlined"
+                          color="primary"
+                          onClick={addCurrentDraftItem}
+                          fullWidth
+                        >
+                          Agregar a la lista
+                        </Button>
+                      </Card1>
                     ) : null}
-
-                    <Button
-                      data-testid="budget-add-to-list"
-                      mt="1rem"
-                      variant="outlined"
-                      color="primary"
-                      onClick={handleAddToCart}
-                      disabled={loadingSubmit}
-                      fullWidth
-                    >
-                      {loadingSubmit ? "Agregando..." : "Agregar al carrito"}
-                    </Button>
-                  </Card1>
+                  </>
                 ) : null}
               </Grid>
 
               <Grid item lg={5} md={5} xs={12}>
-                <Card1 borderRadius={16} style={{ background: "#fff" }}>
-                  <Typography fontSize="12px" color="gray.600">
-                    Cómo sigue
-                  </Typography>
-                  <Paragraph mt="8px" color="gray.700">
-                    Ingresá las medidas, mirá el precio al instante y agregalo al carrito cuando quieras seguir.
-                  </Paragraph>
+                <Card1
+                  borderRadius={isProductTone ? 18 : 16}
+                  style={
+                    isProductTone
+                      ? {
+                          background: "rgba(18, 53, 45, 0.03)",
+                          border: "1px solid rgba(18, 53, 45, 0.08)",
+                        }
+                      : { background: "#fff" }
+                  }
+                >
+                  <FlexBox justifyContent="space-between" alignItems="center" mb="1rem">
+                    <H3 mb="0">Lista de presupuesto</H3>
+                    <Typography fontSize="12px" color="gray.600">
+                      {draftItems.length ? `${draftItems.length} ítems` : "0 ítems"}
+                    </Typography>
+                  </FlexBox>
 
-                  {confirmation ? (
-                    <Box mt="1rem">
-                      <Paragraph color="success.main">Tu producto quedó listo para el carrito.</Paragraph>
-                      <Link href="/cart">Ir al carrito</Link>
+                  {draftItems.length ? (
+                    <Box>
+                      {draftItems.map((item, index) => (
+                        <BudgetLineItemCard
+                          key={`${item.productId}-${item.width}-${item.height}-${item.currency ?? sourceCurrency}-${index}`}
+                          item={item}
+                          mb="1rem"
+                          unitPriceLabel={formatBudgetAmount(item.unitPrice, item.currency ?? sourceCurrency)}
+                          lineTotalLabel={formatBudgetAmount(item.totalPrice * item.qty, item.currency ?? sourceCurrency)}
+                          onDecrease={() => updateDraftQuantity(index, -1)}
+                          onIncrease={() => updateDraftQuantity(index, 1)}
+                          onRemove={() => removeDraftItem(index)}
+                        />
+                      ))}
                     </Box>
-                  ) : null}
+                  ) : (
+                    <Paragraph color="gray.600">Todavía no agregaste productos al presupuesto.</Paragraph>
+                  )}
+
+                  <FlexBox justifyContent="space-between" alignItems="center" mt="1rem" mb="0.5rem">
+                    <Typography fontWeight="600">Subtotal</Typography>
+                    <Typography fontSize="24px" fontWeight="700" lineHeight="1">
+                      {formatBudgetAmount(draftSubtotal, sourceCurrency)}
+                    </Typography>
+                  </FlexBox>
 
                   {submitError ? (
                     <Box mt="1rem">
@@ -473,12 +844,101 @@ export default function BudgetCalculatorPanel({
                     </Box>
                   ) : null}
 
-                  {calculation ? (
+                  <Button
+                    mt="1rem"
+                    variant="contained"
+                    color="secondary"
+                    onClick={submitDraftItems}
+                    disabled={!draftItems.length || loadingSubmit || honeypot.trim().length > 0}
+                    fullWidth
+                  >
+                    {loadingSubmit ? "Procesando..." : submitLabel}
+                  </Button>
+
+                  {confirmation ? (
                     <Box mt="1rem">
-                      <Paragraph color="gray.600" fontSize="13px">
-                        Ya tenés el precio estimado. Podés seguir con la compra o ajustar las medidas y recalcular.
-                      </Paragraph>
+                      <Paragraph color="success.main">Tu presupuesto quedó listo para el carrito.</Paragraph>
+                      <Link href="/cart">Ir al carrito</Link>
                     </Box>
+                  ) : null}
+
+                  <Box mt="1.25rem">
+                    <FlexBox justifyContent="space-between" alignItems="center" mb="0.75rem">
+                      <H3 mb="0">Compartir presupuesto</H3>
+                      <Typography fontSize="12px" color="gray.600">
+                        {shareText ? "Listo para compartir" : "Se habilita al agregar ítems"}
+                      </Typography>
+                    </FlexBox>
+
+                    <Paragraph color="gray.600" fontSize="13px">
+                      {budgetDisclaimer}
+                    </Paragraph>
+
+                    <Grid container spacing={3} mt="0.5rem">
+                      <Grid item sm={4} xs={12}>
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          color="primary"
+                          disabled={!shareText}
+                          onClick={handleShareWhatsapp}
+                        >
+                          WhatsApp
+                        </Button>
+                      </Grid>
+                      <Grid item sm={4} xs={12}>
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          color="primary"
+                          disabled={!shareText}
+                          onClick={handleShareMail}
+                        >
+                          Email
+                        </Button>
+                      </Grid>
+                      <Grid item sm={4} xs={12}>
+                        <Button
+                          fullWidth
+                          variant="text"
+                          color="primary"
+                          disabled={!shareText}
+                          onClick={handleCopyShareText}
+                        >
+                          Copiar texto
+                        </Button>
+                      </Grid>
+                    </Grid>
+
+                    {copyStatus === "copied" ? (
+                      <Paragraph mt="0.75rem" color="success.main" fontSize="13px">
+                        Texto copiado al portapapeles.
+                      </Paragraph>
+                    ) : null}
+                    {copyStatus === "error" ? (
+                      <Paragraph mt="0.75rem" color="error.main" fontSize="13px">
+                        No pudimos copiar el texto.
+                      </Paragraph>
+                    ) : null}
+                  </Box>
+
+                  {onEditCustomer ? (
+                    <Card1 borderRadius={14} mt="1.25rem" p="12px" boxShadow="none" style={{ background: "rgba(255,255,255,0.6)" }}>
+                      <FlexBox justifyContent="space-between" alignItems="center" flexWrap="wrap" style={{ gap: "8px" }}>
+                        <Box minWidth="0">
+                          <Typography fontSize="12px" color="gray.600">
+                            Tus datos
+                          </Typography>
+                          <Paragraph color="gray.700" mt="4px">
+                            {customerName || "Sin nombre"} {customerEmail ? `· ${customerEmail}` : ""}{" "}
+                            {customerPhone ? `· ${customerPhone}` : ""}
+                          </Paragraph>
+                        </Box>
+                        <Button variant="text" color="primary" onClick={onEditCustomer}>
+                          Editar datos
+                        </Button>
+                      </FlexBox>
+                    </Card1>
                   ) : null}
                 </Card1>
               </Grid>

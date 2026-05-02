@@ -1,0 +1,881 @@
+{
+  "path": "productos/bandas-verticales.html",
+  "title": "Bandas Verticales | Blackout & Screen - Urucortinas",
+  "summary": "Cortinas de Bandas Verticales en Uruguay. Ideales para oficinas y grandes superficies. Ofrecemos variedad de telas, incluyendo Blackout y Screen, con opciones manuales o motorizadas. Confección a medida para cualquier espacio. ¡Consulta tu presupuesto!",
+  "seoTitle": "Bandas Verticales | Blackout & Screen - Urucortinas",
+  "seoDescription": "Cortinas de Bandas Verticales a medida. Disponibles en telas poliéster, blackout y screen y en variedad de colores. ¡Solicita tu presupuesto!",
+  "seoImageUrl": "https://www.urucortinas.com.uy/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg",
+  "legacySource": "/Users/rodrigo/Git/personal/urucortinas_projects/urucortinas_html_version/productos/bandas-verticales.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T13:10:39.346Z",
+  "sections": [
+    {
+      "id": 4128,
+      "pageId": 8,
+      "type": "SITE_HEADER",
+      "key": "site-header",
+      "name": "Header del sitio",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "items": [
+          {
+            "href": "/",
+            "label": "Inicio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-roller.html",
+                "label": "Cortinas Roller"
+              },
+              {
+                "href": "/productos/bandas-verticales.html",
+                "label": "Bandas Verticales"
+              },
+              {
+                "href": "/productos/venecianas.html",
+                "label": "Cortinas Venecianas"
+              },
+              {
+                "href": "/productos/cortinas-tradicionales.html",
+                "label": "Cortinas Tradicionales"
+              }
+            ],
+            "label": "Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-de-enrollar-pvc.html",
+                "label": "Persianas en PVC"
+              },
+              {
+                "href": "/productos/cortinas-de-enrollar-aluminio.html",
+                "label": "Persianas en Aluminio"
+              }
+            ],
+            "label": "Persianas"
+          },
+          {
+            "href": "/productos/cortinas-metalicas.html",
+            "label": "Cortinas Metálicas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/aberturas-aluminio.html",
+                "label": "Serie 20 y 25"
+              },
+              {
+                "href": "/productos/dvh.html",
+                "label": "Con DVH"
+              },
+              {
+                "href": "/productos/puertas-oblak.html",
+                "label": "Puertas Oblak"
+              }
+            ],
+            "label": "Aberturas en Aluminio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Verticales"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Corredizos"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos de Brazo Invisible"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Cerramientos en PVC"
+              }
+            ],
+            "label": "Toldos"
+          },
+          {
+            "href": "/productos/motores-cortinas-y-persianas.html",
+            "label": "Motores para Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/servicios/reparacion-cortinas-y-persianas.html",
+                "label": "Reparación de cortinas y persianas"
+              },
+              {
+                "href": "/servicios/instalacion-aberturas.html",
+                "label": "Instalación de aberturas"
+              }
+            ],
+            "label": "Servicios"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Contactanos"
+          },
+          {
+            "href": "/catalogo/index.html",
+            "label": "Catálogo"
+          }
+        ],
+        "brandHref": "/",
+        "brandLabel": "",
+        "navigationMode": "grouped",
+        "topbarContacts": [
+          {
+            "href": null,
+            "title": "Horario",
+            "value": "Lun - Vie, 10:00 - 18:00",
+            "iconClass": "fa fa-clock-o"
+          },
+          {
+            "href": null,
+            "title": "Teléfono",
+            "value": "097 365 931",
+            "iconClass": "far fa-envelope"
+          },
+          {
+            "href": "mailto:ventas@urucortinas.com.uy",
+            "title": "Email",
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope-open-o"
+          }
+        ],
+        "floatingContact": {
+          "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+          "label": "WhatsApp",
+          "imageAlt": "Haznos tu consulta",
+          "imageUrl": "/media/products/bandas-verticales/images/WhatsApp Image 2020-07-10 at 13.53.45.jpeg"
+        },
+        "navigationGroupLabel": "Información"
+      },
+      "createdAt": "2026-05-02T17:12:28.861Z",
+      "updatedAt": "2026-05-02T17:12:28.861Z",
+      "blocks": []
+    },
+    {
+      "id": 4129,
+      "pageId": 8,
+      "type": "HERO",
+      "key": "standard-top-hero",
+      "name": "Bandas Verticales | Blackout & Screen - Urucortinas",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Bandas Verticales | Blackout & Screen - Urucortinas",
+        "slides": [
+          {
+            "href": "/multimedia",
+            "title": "Bandas Verticales | Blackout & Screen - Urucortinas",
+            "imageAlt": "Bandas Verticales | Blackout & Screen - Urucortinas",
+            "imageUrl": "/media/products/bandas-verticales/images/WhatsApp Image 2020-07-10 at 13.53.45.jpeg",
+            "linkLabel": "Ver fotos y videos",
+            "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+          }
+        ],
+        "eyebrow": "Solución a medida",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/multimedia",
+        "secondaryCtaLabel": "Ver fotos y videos",
+        "backgroundImageUrl": "/media/products/bandas-verticales/images/WhatsApp Image 2020-07-10 at 13.53.45.jpeg"
+      },
+      "createdAt": "2026-05-02T17:12:28.861Z",
+      "updatedAt": "2026-05-02T17:12:28.861Z",
+      "blocks": []
+    },
+    {
+      "id": 4130,
+      "pageId": 8,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-1",
+      "name": null,
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "Bandas Verticales 1",
+            "imageUrl": "/media/products/bandas-verticales/images/WhatsApp Image 2020-07-10 at 13.53.45.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Bandas Verticales 1",
+            "imageUrl": "/media/products/bandas-verticales/images/WhatsApp Image 2020-07-10 at 13.53.45.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Bandas Verticales 2",
+            "imageUrl": "/media/products/bandas-verticales/images/WhatsApp Image 2020-07-10 at 13.53.45.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Bandas Verticales 3",
+            "imageUrl": "/media/products/bandas-verticales/images/bandas_6.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Bandas Verticales 4",
+            "imageUrl": "/media/products/bandas-verticales/images/bandas_7.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Bandas Verticales 5",
+            "imageUrl": "/media/products/bandas-verticales/images/bandas_8.jpeg",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "",
+        "imageUrl": "",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T17:12:28.862Z",
+      "updatedAt": "2026-05-02T17:12:28.862Z",
+      "blocks": [
+        {
+          "id": 4752,
+          "sectionId": 4130,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-1",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h1",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cortinas de Bandas Verticales"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Cortinas de Bandas Verticales"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " están compuestas por múltiples lamas que pueden girar y deslizarse horizontalmente, permitiendo un control preciso de la luz y la privacidad."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Se fabrican con diversos materiales, como "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "poliéster, telas screen o blackout"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", ofreciendo soluciones tanto decorativas como funcionales para grandes superficies. Son ideales para "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "oficinas, salas de estar, escritorios y comedores"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "."
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Características principales"
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Control de luz:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Regulación gradual mediante el giro de las bandas."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Versatilidad:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Adecuadas para todo tipo de espacios amplios."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Materiales de calidad:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Opción de blackout para oscurecimiento total o screen para filtrado de luz."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Instalación flexible:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Se adaptan a diferentes estructuras y ventanas."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Diseño moderno:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponible en varios colores y texturas."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n        "
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Fabricamos a medida. ¡Consulta tu presupuesto hoy!"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:12:28.863Z",
+          "updatedAt": "2026-05-02T17:12:28.863Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4131,
+      "pageId": 8,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-2",
+      "name": null,
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [],
+        "variant": "image-content",
+        "imageAlt": "Mercado Pago",
+        "imageUrl": "/media/products/bandas-verticales/images/WhatsApp Image 2020-07-10 at 13.53.45.jpeg",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T17:12:28.864Z",
+      "updatedAt": "2026-05-02T17:12:28.864Z",
+      "blocks": [
+        {
+          "id": 4753,
+          "sectionId": 4131,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-2",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Facilidades de Pago"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aceptamos pagos hasta en 12 cuotas sin interés mediante Mercado Pago."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Compra segura y protegida."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponible para todos nuestros productos."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Rápido y sin complicaciones."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n            "
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:12:28.864Z",
+          "updatedAt": "2026-05-02T17:12:28.864Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4132,
+      "pageId": 8,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Cómo avanzar con Bandas Verticales | Blackout & Screen - Urucortinas",
+        "eyebrow": "Multimedia y contexto",
+        "variant": "product-multimedia",
+        "description": "Entrá a la galería, revisá medidas y pedí asesoramiento para decidir con más seguridad.",
+        "productSlug": "bandas-verticales"
+      },
+      "createdAt": "2026-05-02T17:12:28.865Z",
+      "updatedAt": "2026-05-02T17:12:28.865Z",
+      "blocks": [
+        {
+          "id": 4754,
+          "sectionId": 4132,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/bandas-verticales",
+            "badge": "Multimedia",
+            "title": "Ver fotos y videos",
+            "mediaUrl": "/media/products/bandas-verticales/images/WhatsApp Image 2020-07-10 at 13.53.45.jpeg",
+            "linkLabel": "Abrir galería",
+            "mediaType": "image",
+            "description": "Mirá el producto en contexto real antes de tomar una decisión.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:12:28.865Z",
+          "updatedAt": "2026-05-02T17:12:28.865Z",
+          "media": null
+        },
+        {
+          "id": 4755,
+          "sectionId": 4132,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Tomar medidas",
+            "mediaUrl": "/media/products/bandas-verticales/images/bandas_6.jpeg",
+            "linkLabel": "Ver guía",
+            "mediaType": "image",
+            "description": "Si todavía estás definiendo el frente, te guiamos para medir ancho y alto sin perder tiempo.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:12:28.866Z",
+          "updatedAt": "2026-05-02T17:12:28.866Z",
+          "media": null
+        },
+        {
+          "id": 4756,
+          "sectionId": 4132,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Pedir asesoramiento",
+            "mediaUrl": "/media/products/bandas-verticales/images/bandas_7.jpeg",
+            "linkLabel": "Contactar",
+            "mediaType": "image",
+            "description": "Si querés avanzar, te ayudamos a definir la opción adecuada y resolver tus dudas.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:12:28.866Z",
+          "updatedAt": "2026-05-02T17:12:28.866Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4133,
+      "pageId": 8,
+      "type": "CTA_BANNER",
+      "key": "cta-1",
+      "name": "Solicite tu Presupuesto",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Solicite tu Presupuesto",
+        "actions": [
+          {
+            "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+            "label": "Enviar WhatsApp",
+            "external": true,
+            "iconClass": null
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+      },
+      "createdAt": "2026-05-02T17:12:28.867Z",
+      "updatedAt": "2026-05-02T17:12:28.867Z",
+      "blocks": []
+    },
+    {
+      "id": 4134,
+      "pageId": 8,
+      "type": "CTA_BANNER",
+      "key": "cta-2",
+      "name": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+        "actions": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-lg fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-lg fa-instagram"
+          }
+        ],
+        "variant": "social",
+        "description": ""
+      },
+      "createdAt": "2026-05-02T17:12:28.867Z",
+      "updatedAt": "2026-05-02T17:12:28.867Z",
+      "blocks": []
+    },
+    {
+      "id": 4135,
+      "pageId": 8,
+      "type": "SITE_FOOTER",
+      "key": "site-footer",
+      "name": "Footer del sitio",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Contacto",
+        "socials": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-instagram"
+          }
+        ],
+        "contacts": [
+          {
+            "value": "Montevideo, Uruguay",
+            "iconClass": "fa fa-location-arrow"
+          },
+          {
+            "value": "097 365 931",
+            "iconClass": "fa fa-phone"
+          },
+          {
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope"
+          }
+        ],
+        "linkGroups": []
+      },
+      "createdAt": "2026-05-02T17:12:28.867Z",
+      "updatedAt": "2026-05-02T17:12:28.867Z",
+      "blocks": []
+    }
+  ]
+}

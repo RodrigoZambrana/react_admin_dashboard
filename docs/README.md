@@ -62,6 +62,7 @@
 - [STOREFRONT_EXPLORATORY_BACKLOG_2026-03-22.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/STOREFRONT_EXPLORATORY_BACKLOG_2026-03-22.md)
 - [seo-analytics-consolidated-2026-04-29.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-analytics-consolidated-2026-04-29.md)
 - [seo-cms-implementation-plan-2026-04-29.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-cms-implementation-plan-2026-04-29.md)
+- [seo-content-architecture-plan-2026-05-02.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-content-architecture-plan-2026-05-02.md)
 
 ## Working Rule
 

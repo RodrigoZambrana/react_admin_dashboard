@@ -1,0 +1,220 @@
+{
+  "path": "productos/cortinas-roller.html",
+  "title": "Cortinas Roller",
+  "summary": "Calculá el precio de tu cortina roller a medida.",
+  "seoTitle": "Cortinas Roller | urucortinas",
+  "seoDescription": "Calculá el precio de tu cortina roller a medida.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg",
+  "legacySource": "knowledge:public-curated",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T11:22:00.500Z",
+  "sections": [
+    {
+      "id": 3604,
+      "pageId": 13,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Cortinas Roller",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Cortinas roller a medida",
+        "slides": [
+          {
+            "href": "/shop",
+            "title": "Cortinas roller",
+            "imageAlt": "Cortinas roller a medida",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver tienda",
+            "description": "Blackout, screen y soluciones a medida."
+          }
+        ],
+        "eyebrow": "Cortinas a medida",
+        "description": "Elegí el tamaño y calculá el precio al instante.",
+        "primaryCtaHref": "/shop",
+        "primaryCtaLabel": "Ver tienda",
+        "secondaryCtaHref": "/contacto.html",
+        "secondaryCtaLabel": "Contactar"
+      },
+      "createdAt": "2026-05-02T16:57:43.692Z",
+      "updatedAt": "2026-05-02T16:57:43.692Z",
+      "blocks": []
+    },
+    {
+      "id": 3605,
+      "pageId": 13,
+      "type": "CONTENT_SPLIT",
+      "key": "roller-editorial-split",
+      "name": "Elegí tu roller",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Elegí la roller según la luz que necesitás",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/shop?search=roller",
+            "label": "Ir a la tienda"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/shop?search=roller",
+            "imageAlt": "Cortinas roller a medida",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver tienda"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Cortinas roller a medida",
+        "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+        "description": "Screen, blackout o doble: te ayudamos a resolver el ambiente con una solución prolija, moderna y fácil de mantener.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T16:57:43.693Z",
+      "updatedAt": "2026-05-02T16:57:43.693Z",
+      "blocks": [
+        {
+          "id": 4356,
+          "sectionId": 3605,
+          "type": "RICH_TEXT",
+          "key": "roller-editorial-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "html": "\n    <p>Las cortinas roller son una solución interior moderna, limpia y funcional para regular luz y privacidad. Funcionan muy bien en hogar, oficina y comercio cuando se busca una terminación prolija y de bajo mantenimiento.</p>\n    <p><strong>Elegí según el uso real del espacio:</strong></p>\n    <ul>\n      <li><strong>Screen:</strong> deja pasar luz natural y ayuda a mantener vínculo visual con el exterior.</li>\n      <li><strong>Blackout:</strong> reduce fuertemente la luz y mejora la privacidad para descanso o proyección.</li>\n      <li><strong>Doble:</strong> combina ambas telas en una sola instalación para alternar luz y oscuridad sin cambiar de sistema.</li>\n    </ul>\n    <p>En rollers anchos puede convenir dividir la cortina en dos tramos para facilitar la manipulación y mejorar el funcionamiento.</p>\n    <p>Si ya tenés la compra definida, podés pasar a la tienda. Si todavía te quedan dudas, escribinos y te orientamos con medidas, tela y terminación.</p>\n  "
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:57:43.693Z",
+          "updatedAt": "2026-05-02T16:57:43.693Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 3606,
+      "pageId": 13,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "Fotos, videos y contexto real de la roller",
+        "eyebrow": "Multimedia y contexto",
+        "variant": "product-multimedia",
+        "description": "Mirá cómo cae la tela, cómo queda instalado y qué cambia entre screen, blackout o doble.",
+        "productSlug": "cortinas-roller"
+      },
+      "createdAt": "2026-05-02T16:57:43.694Z",
+      "updatedAt": "2026-05-02T16:57:43.694Z",
+      "blocks": [
+        {
+          "id": 4357,
+          "sectionId": 3606,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/cortinas-roller",
+            "badge": "Multimedia",
+            "title": "Ver fotos y videos",
+            "mediaUrl": "/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_4.jpeg",
+            "linkLabel": "Abrir galería",
+            "mediaType": "image",
+            "description": "Revisá el roller instalado para entender la caída, el recorrido y la terminación real.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:57:43.695Z",
+          "updatedAt": "2026-05-02T16:57:43.695Z",
+          "media": null
+        },
+        {
+          "id": 4358,
+          "sectionId": 3606,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Tomar medidas",
+            "mediaUrl": "/uploads/cms/legacy-assets/img/portfolio/roller/rollers.png",
+            "linkLabel": "Ver guía",
+            "mediaType": "image",
+            "description": "Si todavía estás definiendo el frente, te guiamos para medir ancho y alto sin perder tiempo.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:57:43.696Z",
+          "updatedAt": "2026-05-02T16:57:43.696Z",
+          "media": null
+        },
+        {
+          "id": 4359,
+          "sectionId": 3606,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Pedir asesoramiento",
+            "mediaUrl": "/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg",
+            "linkLabel": "Contactar",
+            "mediaType": "image",
+            "description": "Si querés avanzar, te ayudamos a definir la mejor tela y cerrar el pedido con una opción clara.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:57:43.696Z",
+          "updatedAt": "2026-05-02T16:57:43.696Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 3607,
+      "pageId": 13,
+      "type": "CTA_BANNER",
+      "key": "roller-decision-cta",
+      "name": "Decisión comercial",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "¿Tenés dudas o ya sabés lo que necesitás?",
+        "intent": "transactional",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/shop?search=roller",
+            "label": "Ir a la tienda"
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Si todavía estás definiendo la mejor tela o querés confirmar medidas, escribinos. Si la compra ya está decidida, pasá a la tienda y avanzá con tu elección."
+      },
+      "createdAt": "2026-05-02T16:57:43.697Z",
+      "updatedAt": "2026-05-02T16:57:43.697Z",
+      "blocks": []
+    }
+  ]
+}

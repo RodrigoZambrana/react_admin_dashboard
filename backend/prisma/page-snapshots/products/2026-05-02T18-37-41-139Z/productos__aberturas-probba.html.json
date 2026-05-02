@@ -1,0 +1,425 @@
+{
+  "path": "productos/aberturas-probba.html",
+  "title": "Serie Probba",
+  "summary": "Alta prestación de entrada con mejor cierre y posibilidad de DVH.",
+  "seoTitle": "Serie Probba en aluminio | Alta prestación de entrada - Urucortinas",
+  "seoDescription": "Serie Probba en aluminio para proyectos que buscan mejor cierre, más durabilidad y posibilidad de DVH en obra o recambio.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/aberturas/abertura_1.png",
+  "legacySource": "knowledge:public-curated",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-05-02T18:37:38.409Z",
+  "sections": [
+    {
+      "id": 4503,
+      "pageId": 56,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Serie Probba",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Serie Probba",
+        "slides": [
+          {
+            "href": "/contacto.html",
+            "title": "Serie Probba",
+            "imageAlt": "Serie Probba de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/abertura_1.png",
+            "linkLabel": "Pedir asesoramiento",
+            "description": "Más cierre, más durabilidad y una mejora clara frente a una línea estándar."
+          }
+        ],
+        "eyebrow": "Alta prestación de entrada",
+        "description": "Más cierre, más durabilidad y una mejora clara frente a una línea estándar.",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/articulos/dvh.html",
+        "secondaryCtaLabel": "Ver guía DVH"
+      },
+      "createdAt": "2026-05-02T18:37:38.409Z",
+      "updatedAt": "2026-05-02T18:37:38.409Z",
+      "blocks": []
+    },
+    {
+      "id": 4504,
+      "pageId": 56,
+      "type": "CONTENT_SPLIT",
+      "key": "productos-aberturas-probba-html-content",
+      "name": "Cuándo conviene Probba",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Cuándo conviene Probba",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Serie Probba de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/abertura_1.png",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Serie Probba de aberturas de aluminio",
+        "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/abertura_1.png",
+        "description": "Cuando querés subir un escalón sin ir directo a la línea premium.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:37:38.410Z",
+      "updatedAt": "2026-05-02T18:37:38.410Z",
+      "blocks": [
+        {
+          "id": 5184,
+          "sectionId": 4504,
+          "type": "RICH_TEXT",
+          "key": "productos-aberturas-probba-html-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Se recomienda cuando querés mejor cierre y una solución más robusta que la línea estándar."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Admite vidrio simple o DVH, lo que la vuelve una opción flexible para obras y recambios."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Es una buena transición cuando el proyecto pide más confort sin llegar todavía a la gama premium."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:38.410Z",
+          "updatedAt": "2026-05-02T18:37:38.410Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4505,
+      "pageId": 56,
+      "type": "FEATURE_GRID",
+      "key": "productos-aberturas-probba-html-features",
+      "name": "Puntos de decisión",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "Puntos de decisión",
+        "description": "Lo que cambia cuando subís a alta prestación de entrada.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T18:37:38.411Z",
+      "updatedAt": "2026-05-02T18:37:38.411Z",
+      "blocks": [
+        {
+          "id": 5185,
+          "sectionId": 4505,
+          "type": "CARD",
+          "key": "productos-aberturas-probba-html-feature-1",
+          "name": "Mejor cierre",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "body": "Aporta una respuesta más firme que la línea estándar.",
+            "href": "/contacto.html",
+            "badge": "Cierre",
+            "title": "Mejor cierre",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 87,
+          "createdAt": "2026-05-02T18:37:38.412Z",
+          "updatedAt": "2026-05-02T18:37:38.412Z",
+          "media": {
+            "id": 87,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/abertura_1.png",
+            "type": "IMAGE",
+            "alt": "Serie Gala paso a premium",
+            "title": "Paso a premium",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "aberturas-series-seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.975Z",
+            "updatedAt": "2026-05-02T18:37:38.424Z"
+          }
+        },
+        {
+          "id": 5186,
+          "sectionId": 4505,
+          "type": "CARD",
+          "key": "productos-aberturas-probba-html-feature-2",
+          "name": "Compatible con DVH",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "body": "Puede configurarse con DVH en las combinaciones compatibles.",
+            "href": "/articulos/dvh.html",
+            "badge": "DVH",
+            "title": "Compatible con DVH",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 97,
+          "createdAt": "2026-05-02T18:37:38.413Z",
+          "updatedAt": "2026-05-02T18:37:38.413Z",
+          "media": {
+            "id": 97,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/dvh-main.jpg",
+            "type": "IMAGE",
+            "alt": "Serie Summa hermeticidad",
+            "title": "Hermeticidad",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "aberturas-series-seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:37:38.403Z",
+            "updatedAt": "2026-05-02T18:37:38.432Z"
+          }
+        },
+        {
+          "id": 5187,
+          "sectionId": 4505,
+          "type": "CARD",
+          "key": "productos-aberturas-probba-html-feature-3",
+          "name": "Mayor durabilidad",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "body": "Es una opción pensada para proyectos con más exigencia de uso.",
+            "href": "/productos/aberturas-aluminio.html",
+            "badge": "Durabilidad",
+            "title": "Mayor durabilidad",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 14,
+          "createdAt": "2026-05-02T18:37:38.414Z",
+          "updatedAt": "2026-05-02T18:37:38.414Z",
+          "media": {
+            "id": 14,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg",
+            "type": "IMAGE",
+            "alt": "Serie Summa grandes dimensiones",
+            "title": "Grandes dimensiones",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "aberturas-series-seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.064Z",
+            "updatedAt": "2026-05-02T18:37:38.430Z"
+          }
+        },
+        {
+          "id": 5188,
+          "sectionId": 4505,
+          "type": "CARD",
+          "key": "productos-aberturas-probba-html-feature-4",
+          "name": "Alta prestación de entrada",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "body": "Ideal cuando querés mejorar sin pasar todavía a Gala o Summa.",
+            "href": "/productos/aberturas-gala.html",
+            "badge": "Transición",
+            "title": "Alta prestación de entrada",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 88,
+          "createdAt": "2026-05-02T18:37:38.415Z",
+          "updatedAt": "2026-05-02T18:37:38.415Z",
+          "media": {
+            "id": 88,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/gala.jpg",
+            "type": "IMAGE",
+            "alt": "Serie Summa complementos",
+            "title": "Complementos",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "aberturas-series-seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.976Z",
+            "updatedAt": "2026-05-02T18:37:38.433Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4506,
+      "pageId": 56,
+      "type": "FAQ",
+      "key": "productos-aberturas-probba-html-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "Serie Probba: dudas frecuentes",
+        "description": "Respuestas útiles para cotizar mejor."
+      },
+      "createdAt": "2026-05-02T18:37:38.416Z",
+      "updatedAt": "2026-05-02T18:37:38.416Z",
+      "blocks": [
+        {
+          "id": 5189,
+          "sectionId": 4506,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-probba-html-faq-1",
+          "name": "¿Qué diferencia a Probba de la línea estándar?",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Qué diferencia a Probba de la línea estándar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Probba suma mejor cierre, más durabilidad y posibilidad de DVH."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:38.416Z",
+          "updatedAt": "2026-05-02T18:37:38.416Z",
+          "media": null
+        },
+        {
+          "id": 5190,
+          "sectionId": 4506,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-probba-html-faq-2",
+          "name": "¿Sirve para recambio?",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "question": "¿Sirve para recambio?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí. Es una buena opción para mejorar una abertura existente sin ir directamente a la gama premium."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:38.417Z",
+          "updatedAt": "2026-05-02T18:37:38.417Z",
+          "media": null
+        },
+        {
+          "id": 5191,
+          "sectionId": 4506,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-probba-html-faq-3",
+          "name": "¿Qué dato ayuda a cotizar?",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "question": "¿Qué dato ayuda a cotizar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Medidas, tipo de abertura y si querés DVH o vidrio simple alcanzan para orientar la propuesta."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:38.417Z",
+          "updatedAt": "2026-05-02T18:37:38.417Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4507,
+      "pageId": 56,
+      "type": "CTA_BANNER",
+      "key": "productos-aberturas-probba-html-cta",
+      "name": "Cierre comercial",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Pedí asesoramiento para Serie Probba",
+        "intent": "transactional",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "description": "Si necesitás subir de nivel respecto a una solución estándar, Probba es una buena entrada."
+      },
+      "createdAt": "2026-05-02T18:37:38.418Z",
+      "updatedAt": "2026-05-02T18:37:38.418Z",
+      "blocks": []
+    }
+  ]
+}

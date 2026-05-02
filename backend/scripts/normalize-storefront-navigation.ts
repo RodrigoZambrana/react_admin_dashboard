@@ -41,7 +41,14 @@ const MENU_PATHS = {
     'servicios/reparacion-urgente',
     'servicios/instalacion-aberturas.html',
   ],
-  guides: ['articulos/dvh.html', 'guias/cortinas-pvc-vs-aluminio', 'precios/cortinas-de-enrollar'],
+  guides: [
+    'articulos/dvh.html',
+    'guias/cortinas-pvc-vs-aluminio',
+    'guias/aberturas-probba',
+    'guias/aberturas-gala',
+    'guias/aberturas-summa',
+    'precios/cortinas-de-enrollar',
+  ],
   information: ['quienes-somos', 'preguntas-frecuentes', 'contacto.html'],
 } as const
 
@@ -187,6 +194,11 @@ async function main() {
       buildNode('Comparativas', [
         buildLeaf(titleByPath, 'articulos/dvh.html') as NavNode,
         buildLeaf(titleByPath, 'guias/cortinas-pvc-vs-aluminio') as NavNode,
+      ]),
+      buildNode('Series de aberturas', [
+        buildLeaf(titleByPath, 'guias/aberturas-probba') as NavNode,
+        buildLeaf(titleByPath, 'guias/aberturas-gala') as NavNode,
+        buildLeaf(titleByPath, 'guias/aberturas-summa') as NavNode,
       ]),
       buildNode('Precios', [
         buildLeaf(titleByPath, 'precios/cortinas-de-enrollar') as NavNode,

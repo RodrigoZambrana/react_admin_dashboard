@@ -1,0 +1,1237 @@
+{
+  "path": "productos/venecianas.html",
+  "title": "Cortinas venecianas en aluminio",
+  "summary": "Venecianas de aluminio para controlar luz, privacidad y mantenimiento simple.",
+  "seoTitle": "Cortinas Venecianas en aluminio | 16 mm y 25 mm - Urucortinas",
+  "seoDescription": "Cortinas venecianas de aluminio con lamas de 16 mm y 25 mm. Regulación precisa de luz y privacidad para hogar y oficina.",
+  "seoImageUrl": "https://www.urucortinas.com.uy/img/portfolio/venecianas/cortina_veneciana_4.jpeg",
+  "legacySource": "/productos/venecianas.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-05-02T18:03:40.967Z",
+  "sections": [
+    {
+      "id": 4336,
+      "pageId": 18,
+      "type": "SITE_HEADER",
+      "key": "site-header",
+      "name": "Header del sitio",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "items": [
+          {
+            "href": "/",
+            "label": "Inicio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-roller.html",
+                "label": "Cortinas Roller"
+              },
+              {
+                "href": "/productos/bandas-verticales.html",
+                "label": "Bandas Verticales"
+              },
+              {
+                "href": "/productos/venecianas.html",
+                "label": "Cortinas Venecianas"
+              },
+              {
+                "href": "/productos/cortinas-tradicionales.html",
+                "label": "Cortinas Tradicionales"
+              }
+            ],
+            "label": "Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-de-enrollar-pvc.html",
+                "label": "Persianas en PVC"
+              },
+              {
+                "href": "/productos/cortinas-de-enrollar-aluminio.html",
+                "label": "Persianas en Aluminio"
+              }
+            ],
+            "label": "Persianas"
+          },
+          {
+            "href": "/productos/cortinas-metalicas.html",
+            "label": "Cortinas Metálicas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/aberturas-aluminio.html",
+                "label": "Serie 20 y 25"
+              },
+              {
+                "href": "/productos/dvh.html",
+                "label": "Con DVH"
+              },
+              {
+                "href": "/productos/puertas-oblak.html",
+                "label": "Puertas Oblak"
+              }
+            ],
+            "label": "Aberturas en Aluminio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Verticales"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Corredizos"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos de Brazo Invisible"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Cerramientos en PVC"
+              }
+            ],
+            "label": "Toldos"
+          },
+          {
+            "href": "/productos/motores-cortinas-y-persianas.html",
+            "label": "Motores para Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/servicios/reparacion-cortinas-y-persianas.html",
+                "label": "Reparación de cortinas y persianas"
+              },
+              {
+                "href": "/servicios/instalacion-aberturas.html",
+                "label": "Instalación de aberturas"
+              }
+            ],
+            "label": "Servicios"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Contactanos"
+          },
+          {
+            "href": "/catalogo/index.html",
+            "label": "Catálogo"
+          }
+        ],
+        "brandHref": "/",
+        "brandLabel": "",
+        "navigationMode": "grouped",
+        "topbarContacts": [
+          {
+            "href": null,
+            "title": "Horario",
+            "value": "Lun - Vie, 10:00 - 18:00",
+            "iconClass": "fa fa-clock-o"
+          },
+          {
+            "href": null,
+            "title": "Teléfono",
+            "value": "097 365 931",
+            "iconClass": "far fa-envelope"
+          },
+          {
+            "href": "mailto:ventas@urucortinas.com.uy",
+            "title": "Email",
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope-open-o"
+          }
+        ],
+        "floatingContact": {
+          "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+          "label": "WhatsApp",
+          "imageAlt": "Haznos tu consulta",
+          "imageUrl": "/media/products/venecianas/images/Foto de urucortinas.jpg"
+        },
+        "navigationGroupLabel": "Información"
+      },
+      "createdAt": "2026-05-02T17:53:08.605Z",
+      "updatedAt": "2026-05-02T17:53:08.605Z",
+      "blocks": []
+    },
+    {
+      "id": 4337,
+      "pageId": 18,
+      "type": "HERO",
+      "key": "standard-top-hero",
+      "name": "Cortinas Venecianas en Aluminio | Lamas de 16mm y 25mm - Urucortinas",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Cortinas Venecianas en Aluminio | Lamas de 16mm y 25mm - Urucortinas",
+        "slides": [
+          {
+            "href": "/multimedia",
+            "title": "Cortinas Venecianas en Aluminio | Lamas de 16mm y 25mm - Urucortinas",
+            "imageAlt": "Cortinas Venecianas en Aluminio | Lamas de 16mm y 25mm - Urucortinas",
+            "imageUrl": "/media/products/venecianas/images/cortina_veneciana_1.jpeg",
+            "linkLabel": "Ver fotos y videos",
+            "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+          }
+        ],
+        "eyebrow": "Solución a medida",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/multimedia",
+        "secondaryCtaLabel": "Ver fotos y videos",
+        "backgroundImageUrl": "/media/products/venecianas/images/cortina_veneciana_1.jpeg"
+      },
+      "createdAt": "2026-05-02T17:53:08.606Z",
+      "updatedAt": "2026-05-02T17:53:08.606Z",
+      "blocks": []
+    },
+    {
+      "id": 4338,
+      "pageId": 18,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-1",
+      "name": null,
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "Cortina Veneciana 1",
+            "imageUrl": "/media/products/venecianas/images/cortina_veneciana_1.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Veneciana 2",
+            "imageUrl": "/media/products/venecianas/images/Foto de urucortinas.jpg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Veneciana 3",
+            "imageUrl": "/media/products/venecianas/images/cortina_veneciana_3.jpeg",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "",
+        "imageUrl": "",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T17:53:08.606Z",
+      "updatedAt": "2026-05-02T17:53:08.606Z",
+      "blocks": [
+        {
+          "id": 4920,
+          "sectionId": 4338,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-1",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h1",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cortinas Venecianas"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Cortinas Venecianas"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", gracias a su sistema de orientación de lamas, permiten controlar la entrada de luz y la privacidad de los ambientes. Se trata de un mecanismo simple pero altamente eficiente para regular la visibilidad y el flujo de aire."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Disponibles exclusivamente en "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "aluminio"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", estas cortinas vienen en dos tamaños de lama: "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "16 mm y 25 mm"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ". Además, contamos con una amplia variedad de colores para adaptarse a cualquier ambiente, ya sea en el hogar o la oficina."
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Características principales"
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Regulación de luz:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Permite ajustar el paso de la luz con precisión."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Privacidad ajustable:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Control total del nivel de visibilidad."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Material resistente:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Aluminio de alta durabilidad y fácil mantenimiento."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Opciones de diseño:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponibles en diferentes colores y tamaños de lama."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Uso versátil:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Ideal para oficinas, salas de estar y dormitorios."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n        "
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Fabricamos a medida. ¡Consulta tu presupuesto hoy!"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:53:08.606Z",
+          "updatedAt": "2026-05-02T17:53:08.606Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4339,
+      "pageId": 18,
+      "type": "CONTENT_SPLIT",
+      "key": "standard-payment-facilities",
+      "name": "Facilidades de pago",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "actions": [],
+        "gallery": [],
+        "variant": "image-content",
+        "imageAlt": "Mercado Pago",
+        "imageUrl": "/uploads/cms/legacy-assets/img/mercadopago-img.jpg",
+        "description": "",
+        "productSlug": "venecianas",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T17:53:08.607Z",
+      "updatedAt": "2026-05-02T17:53:08.607Z",
+      "blocks": [
+        {
+          "id": 4921,
+          "sectionId": 4339,
+          "type": "RICH_TEXT",
+          "key": "standard-payment-facilities-copy",
+          "name": "Facilidades de Pago",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Facilidades de Pago"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aceptamos pagos hasta en 12 cuotas sin interés mediante Mercado Pago."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Compra segura y protegida."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Disponible para todos nuestros productos."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Rápido y sin complicaciones."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:53:08.607Z",
+          "updatedAt": "2026-05-02T17:53:08.607Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4340,
+      "pageId": 18,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Cómo avanzar con Cortinas Venecianas en Aluminio | Lamas de 16mm y 25mm - Urucortinas",
+        "eyebrow": "Multimedia y contexto",
+        "variant": "product-multimedia",
+        "description": "Entrá a la galería, revisá medidas y pedí asesoramiento para decidir con más seguridad.",
+        "productSlug": "venecianas"
+      },
+      "createdAt": "2026-05-02T17:53:08.608Z",
+      "updatedAt": "2026-05-02T17:53:08.608Z",
+      "blocks": [
+        {
+          "id": 4922,
+          "sectionId": 4340,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/venecianas",
+            "badge": "Multimedia",
+            "title": "Ver fotos y videos",
+            "mediaUrl": "/media/products/venecianas/images/cortina_veneciana_1.jpeg",
+            "linkLabel": "Abrir galería",
+            "mediaType": "image",
+            "description": "Mirá el producto en contexto real antes de tomar una decisión.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:53:08.608Z",
+          "updatedAt": "2026-05-02T17:53:08.608Z",
+          "media": null
+        },
+        {
+          "id": 4923,
+          "sectionId": 4340,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Tomar medidas",
+            "mediaUrl": "/media/products/venecianas/images/Foto de urucortinas.jpg",
+            "linkLabel": "Ver guía",
+            "mediaType": "image",
+            "description": "Si todavía estás definiendo el frente, te guiamos para medir ancho y alto sin perder tiempo.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:53:08.608Z",
+          "updatedAt": "2026-05-02T17:53:08.608Z",
+          "media": null
+        },
+        {
+          "id": 4924,
+          "sectionId": 4340,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Pedir asesoramiento",
+            "mediaUrl": "/media/products/venecianas/images/cortina_veneciana_3.jpeg",
+            "linkLabel": "Contactar",
+            "mediaType": "image",
+            "description": "Si querés avanzar, te ayudamos a definir la opción adecuada y resolver tus dudas.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T17:53:08.608Z",
+          "updatedAt": "2026-05-02T17:53:08.608Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4341,
+      "pageId": 18,
+      "type": "CTA_BANNER",
+      "key": "cta-1",
+      "name": "Solicite tu Presupuesto",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Solicite tu Presupuesto",
+        "actions": [
+          {
+            "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+            "label": "Enviar WhatsApp",
+            "external": true,
+            "iconClass": null
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+      },
+      "createdAt": "2026-05-02T17:53:08.609Z",
+      "updatedAt": "2026-05-02T17:53:08.609Z",
+      "blocks": []
+    },
+    {
+      "id": 4342,
+      "pageId": 18,
+      "type": "CTA_BANNER",
+      "key": "cta-2",
+      "name": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+        "actions": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-lg fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-lg fa-instagram"
+          }
+        ],
+        "variant": "social",
+        "description": ""
+      },
+      "createdAt": "2026-05-02T17:53:08.609Z",
+      "updatedAt": "2026-05-02T17:53:08.609Z",
+      "blocks": []
+    },
+    {
+      "id": 4343,
+      "pageId": 18,
+      "type": "SITE_FOOTER",
+      "key": "site-footer",
+      "name": "Footer del sitio",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Contacto",
+        "socials": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-instagram"
+          }
+        ],
+        "contacts": [
+          {
+            "value": "Montevideo, Uruguay",
+            "iconClass": "fa fa-location-arrow"
+          },
+          {
+            "value": "097 365 931",
+            "iconClass": "fa fa-phone"
+          },
+          {
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope"
+          }
+        ],
+        "linkGroups": []
+      },
+      "createdAt": "2026-05-02T17:53:08.609Z",
+      "updatedAt": "2026-05-02T17:53:08.609Z",
+      "blocks": []
+    },
+    {
+      "id": 4386,
+      "pageId": 18,
+      "type": "CONTENT_SPLIT",
+      "key": "venecianas-editorial",
+      "name": "Guía comercial de venecianas",
+      "sortOrder": 8,
+      "visible": true,
+      "settings": {
+        "title": "Elegí venecianas según el frente y la terminación",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/multimedia/venecianas",
+            "label": "Ver multimedia"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/multimedia/venecianas",
+            "imageAlt": "Venecianas de aluminio 16 mm",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_1.jpeg",
+            "linkLabel": "Ver fotos"
+          },
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Venecianas de aluminio 25 mm",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_4.jpeg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Venecianas en aluminio",
+        "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_4.jpeg",
+        "description": "Las venecianas resuelven muy bien ambientes donde querés precisión en la entrada de luz y una terminación prolija.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:03:11.959Z",
+      "updatedAt": "2026-05-02T18:03:40.968Z",
+      "blocks": [
+        {
+          "id": 5017,
+          "sectionId": 4386,
+          "type": "RICH_TEXT",
+          "key": "venecianas-editorial-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Lamas de 16 mm y 25 mm"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " cubren necesidades distintas de presencia visual y control de la luz según el ambiente."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "El aluminio suma durabilidad y un mantenimiento simple, por eso funcionan bien en hogar y oficina."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Si buscás una solución para regular con precisión sin recargar el frente, venecianas es una opción muy sólida."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Regulación precisa de luz y privacidad."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Terminaciones limpias con colores variados."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Buenas para dormitorios, oficinas y salas de estar."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:03:40.969Z",
+          "updatedAt": "2026-05-02T18:03:40.969Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4387,
+      "pageId": 18,
+      "type": "FEATURE_GRID",
+      "key": "venecianas-features",
+      "name": "Qué define a las venecianas",
+      "sortOrder": 9,
+      "visible": true,
+      "settings": {
+        "title": "Elegí venecianas según uso y terminación",
+        "description": "La regulación de luz, la medida de lama y el mantenimiento marcan la diferencia.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T18:03:11.961Z",
+      "updatedAt": "2026-05-02T18:03:40.970Z",
+      "blocks": [
+        {
+          "id": 5018,
+          "sectionId": 4387,
+          "type": "CARD",
+          "key": null,
+          "name": "Regulación",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Luz",
+            "title": "Regulación precisa de luz",
+            "linkLabel": "Ver más",
+            "description": "Las lamas orientables permiten graduar la entrada de luz con bastante exactitud.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 84,
+          "createdAt": "2026-05-02T18:03:40.972Z",
+          "updatedAt": "2026-05-02T18:03:40.972Z",
+          "media": {
+            "id": 84,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_1.jpeg",
+            "type": "IMAGE",
+            "alt": "Venecianas regulación",
+            "title": "Regulación precisa de luz",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.962Z",
+            "updatedAt": "2026-05-02T18:03:40.971Z"
+          }
+        },
+        {
+          "id": 5019,
+          "sectionId": 4387,
+          "type": "CARD",
+          "key": null,
+          "name": "Medidas",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Lamas",
+            "title": "Lamas de 16 mm y 25 mm",
+            "linkLabel": "Ver más",
+            "description": "Las dos medidas cubren necesidades distintas de presencia visual y lectura del frente.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 8,
+          "createdAt": "2026-05-02T18:03:40.973Z",
+          "updatedAt": "2026-05-02T18:03:40.973Z",
+          "media": {
+            "id": 8,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_4.jpeg",
+            "type": "IMAGE",
+            "alt": "Venecianas lamas",
+            "title": "Lamas de 16 mm y 25 mm",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.053Z",
+            "updatedAt": "2026-05-02T18:03:40.973Z"
+          }
+        },
+        {
+          "id": 5020,
+          "sectionId": 4387,
+          "type": "CARD",
+          "key": null,
+          "name": "Mantenimiento",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/venecianas",
+            "badge": "Mantenimiento",
+            "title": "Mantenimiento simple",
+            "linkLabel": "Ver más",
+            "description": "El aluminio ofrece una solución práctica para uso cotidiano y limpieza sencilla.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 85,
+          "createdAt": "2026-05-02T18:03:40.974Z",
+          "updatedAt": "2026-05-02T18:03:40.974Z",
+          "media": {
+            "id": 85,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_3.jpeg",
+            "type": "IMAGE",
+            "alt": "Venecianas mantenimiento",
+            "title": "Mantenimiento simple",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.964Z",
+            "updatedAt": "2026-05-02T18:03:40.974Z"
+          }
+        },
+        {
+          "id": 5021,
+          "sectionId": 4387,
+          "type": "CARD",
+          "key": null,
+          "name": "Uso",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Uso",
+            "title": "Hogar y oficina",
+            "linkLabel": "Ver más",
+            "description": "Funcionan bien en ambientes donde querés orden visual, privacidad y una solución prolija.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 86,
+          "createdAt": "2026-05-02T18:03:40.976Z",
+          "updatedAt": "2026-05-02T18:03:40.976Z",
+          "media": {
+            "id": 86,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/venecianas/cortina_veneciana_5.jpeg",
+            "type": "IMAGE",
+            "alt": "Venecianas hogar oficina",
+            "title": "Hogar y oficina",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.966Z",
+            "updatedAt": "2026-05-02T18:03:40.975Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4388,
+      "pageId": 18,
+      "type": "FAQ",
+      "key": "venecianas-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 10,
+      "visible": true,
+      "settings": {
+        "title": "Venecianas: dudas frecuentes",
+        "description": "Respuestas breves para cerrar mejor la decisión."
+      },
+      "createdAt": "2026-05-02T18:03:11.968Z",
+      "updatedAt": "2026-05-02T18:03:40.977Z",
+      "blocks": [
+        {
+          "id": 5022,
+          "sectionId": 4388,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "venecianas-faq-1",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Conviene 16 mm o 25 mm?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "16 mm suele verse más liviana y 25 mm suele tener más presencia visual. La elección depende del frente y del ambiente."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:03:40.978Z",
+          "updatedAt": "2026-05-02T18:03:40.978Z",
+          "media": null
+        },
+        {
+          "id": 5023,
+          "sectionId": 4388,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "venecianas-faq-2",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Sirven para hogar y oficina?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí. Son una solución muy práctica para ambos casos cuando buscás regular luz y privacidad."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:03:40.978Z",
+          "updatedAt": "2026-05-02T18:03:40.978Z",
+          "media": null
+        },
+        {
+          "id": 5024,
+          "sectionId": 4388,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "venecianas-faq-3",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Qué datos ayudan a cotizar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Ancho, alto, ambiente y medida de lama preferida son suficientes para orientar el presupuesto."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:03:40.979Z",
+          "updatedAt": "2026-05-02T18:03:40.979Z",
+          "media": null
+        }
+      ]
+    }
+  ]
+}

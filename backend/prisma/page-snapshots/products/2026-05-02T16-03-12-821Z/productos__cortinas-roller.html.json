@@ -1,0 +1,375 @@
+{
+  "path": "productos/cortinas-roller.html",
+  "title": "Cortinas Roller",
+  "summary": "Calculá el precio de tu cortina roller a medida.",
+  "seoTitle": "Cortinas Roller | urucortinas",
+  "seoDescription": "Calculá el precio de tu cortina roller a medida.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg",
+  "legacySource": "knowledge:public-curated",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-04-30T11:22:00.500Z",
+  "sections": [
+    {
+      "id": 2607,
+      "pageId": 13,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Cortinas Roller",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Cortinas roller a medida",
+        "slides": [
+          {
+            "href": "/shop",
+            "title": "Cortinas roller",
+            "imageAlt": "Cortinas roller a medida",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver tienda",
+            "description": "Blackout, screen y soluciones a medida."
+          }
+        ],
+        "eyebrow": "Cortinas a medida",
+        "description": "Elegí el tamaño y calculá el precio al instante.",
+        "primaryCtaHref": "/shop",
+        "primaryCtaLabel": "Ver tienda",
+        "secondaryCtaHref": "/contacto.html",
+        "secondaryCtaLabel": "Contactar"
+      },
+      "createdAt": "2026-05-02T16:02:49.014Z",
+      "updatedAt": "2026-05-02T16:02:49.014Z",
+      "blocks": []
+    },
+    {
+      "id": 2608,
+      "pageId": 13,
+      "type": "CONTENT_SPLIT",
+      "key": "editorial-gallery-split",
+      "name": "Galería editorial",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Elegí la cortina ideal para tu espacio",
+        "actions": [
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/shop",
+            "imageAlt": "Cortinas roller a medida",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver tienda"
+          },
+          {
+            "href": "/multimedia",
+            "imageAlt": "Cortinas Roller foto 1",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver multimedia"
+          },
+          {
+            "href": "/multimedia",
+            "imageAlt": "Cortinas Roller",
+            "imageUrl": "/media/products/cortinas-roller/images/Publicaciones/rollers.png",
+            "linkLabel": "Ver multimedia"
+          },
+          {
+            "href": "/multimedia",
+            "imageAlt": "Cortinas Roller",
+            "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+            "linkLabel": "Ver multimedia"
+          },
+          {
+            "href": "/multimedia",
+            "imageAlt": "Cortinas Roller",
+            "imageUrl": "/media/products/cortinas-roller/images/cortinas_roller_2.jpeg",
+            "linkLabel": "Ver multimedia"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Cortinas roller a medida",
+        "imageUrl": "/media/products/cortinas-roller/images/20211218_193930.jpg",
+        "description": "Las roller combinan estética limpia, control de luz y una terminación prolija en ambientes residenciales y comerciales.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T16:02:49.015Z",
+      "updatedAt": "2026-05-02T16:02:49.015Z",
+      "blocks": [
+        {
+          "id": 3545,
+          "sectionId": 2608,
+          "type": "RICH_TEXT",
+          "key": "editorial-gallery-copy",
+          "name": "Copy",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Si buscás más luz natural, la tela screen ayuda a mantener el ambiente luminoso sin perder privacidad. Si necesitás oscurecer mejor, blackout es la alternativa más conveniente. Y si querés flexibilidad, la solución doble combina ambas funciones en una sola propuesta."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Screen: ideal para livings, oficinas y espacios donde querés claridad."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Blackout: recomendado para dormitorios y ambientes que necesitan mayor oscuridad."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Doble tela: una opción práctica para alternar luz y privacidad durante el día."
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Medí ancho y alto, calculá el precio y seguí con la compra cuando quieras."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:02:49.016Z",
+          "updatedAt": "2026-05-02T16:02:49.016Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2609,
+      "pageId": 13,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "gap": 1.05,
+        "title": "Fotos, videos y contexto real de Cortinas Roller",
+        "columns": 3,
+        "eyebrow": "Multimedia y contexto",
+        "aspectRatio": "4 / 5",
+        "description": "Revisá terminaciones, escala y contexto de uso en una sola entrada visual antes de decidir."
+      },
+      "createdAt": "2026-05-02T16:02:49.017Z",
+      "updatedAt": "2026-05-02T16:02:49.017Z",
+      "blocks": [
+        {
+          "id": 3546,
+          "sectionId": 2609,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia",
+            "badge": "Fotos",
+            "title": "Fotos reales",
+            "linkLabel": "Ver multimedia",
+            "description": "La primera lectura del producto en contexto, sin ruido y con más claridad.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:02:49.018Z",
+          "updatedAt": "2026-05-02T16:02:49.018Z",
+          "media": null
+        },
+        {
+          "id": 3547,
+          "sectionId": 2609,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Más contexto",
+            "linkLabel": "Ver guía",
+            "description": "Si todavía estás definiendo medidas o terminación, seguí por una guía simple.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:02:49.019Z",
+          "updatedAt": "2026-05-02T16:02:49.019Z",
+          "media": null
+        },
+        {
+          "id": 3548,
+          "sectionId": 2609,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Asesoramiento",
+            "linkLabel": "Contactar",
+            "description": "Con una foto del frente y medidas aproximadas te orientamos mejor.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:02:49.019Z",
+          "updatedAt": "2026-05-02T16:02:49.019Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 2610,
+      "pageId": 13,
+      "type": "CTA_BANNER",
+      "key": "cta",
+      "name": "Contacto comercial",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "¿Querés que te ayudemos a elegir?",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Contactar"
+          },
+          {
+            "href": "/shop",
+            "label": "Ver tienda"
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Si querés, podemos revisar tu caso antes de cerrar la compra."
+      },
+      "createdAt": "2026-05-02T16:02:49.020Z",
+      "updatedAt": "2026-05-02T16:02:49.020Z",
+      "blocks": []
+    },
+    {
+      "id": 2611,
+      "pageId": 13,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "gap": 1.05,
+        "title": "Fotos, videos y contexto real de Cortinas Roller",
+        "columns": 3,
+        "eyebrow": "Multimedia y contexto",
+        "aspectRatio": "4 / 5",
+        "description": "Revisá terminaciones, escala y contexto de uso en una sola entrada visual antes de decidir."
+      },
+      "createdAt": "2026-05-02T16:02:49.021Z",
+      "updatedAt": "2026-05-02T16:02:49.021Z",
+      "blocks": [
+        {
+          "id": 3549,
+          "sectionId": 2611,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia",
+            "badge": "Fotos",
+            "title": "Fotos reales",
+            "linkLabel": "Ver multimedia",
+            "description": "La primera lectura del producto en contexto, sin ruido y con más claridad.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:02:49.022Z",
+          "updatedAt": "2026-05-02T16:02:49.022Z",
+          "media": null
+        },
+        {
+          "id": 3550,
+          "sectionId": 2611,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Más contexto",
+            "linkLabel": "Ver guía",
+            "description": "Si todavía estás definiendo medidas o terminación, seguí por una guía simple.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:02:49.023Z",
+          "updatedAt": "2026-05-02T16:02:49.023Z",
+          "media": null
+        },
+        {
+          "id": 3551,
+          "sectionId": 2611,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Asesoramiento",
+            "linkLabel": "Contactar",
+            "description": "Con una foto del frente y medidas aproximadas te orientamos mejor.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T16:02:49.023Z",
+          "updatedAt": "2026-05-02T16:02:49.023Z",
+          "media": null
+        }
+      ]
+    }
+  ]
+}
