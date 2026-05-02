@@ -21,6 +21,7 @@ La base de esta propuesta es:
 - `Tienda` apunta a compra o catálogo.
 - `Productos` apunta a navegación editorial de producto.
 - `Información` apunta a comparación, decisión y confianza.
+- `Guías` vive como subgrupo dentro de `Información`, no como menú principal separado.
 - No repetir la misma intención en varios menús.
 - No exponer lenguaje analítico o interno al usuario.
 
@@ -297,4 +298,3 @@ La arquitectura final debería lograr que:
 - cada bloque tenga una función distinta
 - el usuario entienda rápido qué conviene, por qué y qué hacer después
 - Google entienda mejor la relación entre productos, guías y contacto
-

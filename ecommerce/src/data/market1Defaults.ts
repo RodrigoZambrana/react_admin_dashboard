@@ -1,4 +1,6 @@
 import type Service from "@models/service.model";
+import { DEFAULT_LOCALE } from "@/translations";
+import { resolveLocalizedSiteRoute } from "@/lib/site-routes";
 
 export interface StorefrontHeroSlide {
   id: string;
@@ -21,7 +23,7 @@ export const defaultMarket1HeroSlides: StorefrontHeroSlide[] = [
     title: "home.hero.slide2.title",
     description: "home.hero.slide2.description",
     buttonText: "home.hero.slide2.cta",
-    href: "/contact"
+    href: resolveLocalizedSiteRoute("contact", DEFAULT_LOCALE)
   }
 ];
 
@@ -31,7 +33,7 @@ export const defaultMarket1ServiceList: Service[] = [
     icon: "customer-service",
     title: "home.services.salesAdvice.title",
     description: "home.services.salesAdvice.description",
-    href: "/contact"
+    href: resolveLocalizedSiteRoute("contact", DEFAULT_LOCALE)
   },
   {
     id: "service-published-catalog",
@@ -51,6 +53,6 @@ export const defaultMarket1ServiceList: Service[] = [
     icon: "customer-service",
     title: "home.services.support.title",
     description: "home.services.support.description",
-    href: "/contact"
+    href: resolveLocalizedSiteRoute("contact", DEFAULT_LOCALE)
   }
 ];

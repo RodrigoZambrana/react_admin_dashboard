@@ -1,0 +1,1408 @@
+{
+  "path": "productos/cortinas-de-enrollar-aluminio.html",
+  "title": "Cortinas de enrollar en aluminio",
+  "summary": "Cortinas en aluminio para sumar resistencia, aislamiento y durabilidad en uso diario.",
+  "seoTitle": "Cortinas de enrollar aluminio | Resistencia",
+  "seoDescription": "Cortinas de enrollar en aluminio para frentes expuestos, recambio o instalación nueva. Más resistencia, mejor aislación y opción manual o motorizada.",
+  "seoImageUrl": "https://www.urucortinas.com.uy/img/portfolio/catalanas/catalanas.png",
+  "legacySource": "/productos/cortinas-de-enrollar-aluminio.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-05-02T20:04:20.872Z",
+  "sections": [
+    {
+      "id": 4533,
+      "pageId": 9,
+      "type": "SITE_HEADER",
+      "key": "site-header",
+      "name": "Header del sitio",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "items": [
+          {
+            "href": "/",
+            "label": "Inicio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-roller.html",
+                "label": "Cortinas Roller"
+              },
+              {
+                "href": "/productos/bandas-verticales.html",
+                "label": "Bandas Verticales"
+              },
+              {
+                "href": "/productos/venecianas.html",
+                "label": "Cortinas Venecianas"
+              },
+              {
+                "href": "/productos/cortinas-tradicionales.html",
+                "label": "Cortinas Tradicionales"
+              }
+            ],
+            "label": "Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-de-enrollar-pvc.html",
+                "label": "Persianas en PVC"
+              },
+              {
+                "href": "/productos/cortinas-de-enrollar-aluminio.html",
+                "label": "Persianas en Aluminio"
+              }
+            ],
+            "label": "Persianas"
+          },
+          {
+            "href": "/productos/cortinas-metalicas.html",
+            "label": "Cortinas Metálicas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/aberturas-aluminio.html",
+                "label": "Serie 20 y 25"
+              },
+              {
+                "href": "/productos/dvh.html",
+                "label": "Con DVH"
+              },
+              {
+                "href": "/productos/puertas-oblak.html",
+                "label": "Puertas Oblak"
+              }
+            ],
+            "label": "Aberturas en Aluminio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Verticales"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Corredizos"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos de Brazo Invisible"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Cerramientos en PVC"
+              }
+            ],
+            "label": "Toldos"
+          },
+          {
+            "href": "/productos/motores-cortinas-y-persianas.html",
+            "label": "Motores para Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/servicios/reparacion-cortinas-y-persianas.html",
+                "label": "Reparación de cortinas y persianas"
+              },
+              {
+                "href": "/servicios/instalacion-aberturas.html",
+                "label": "Instalación de aberturas"
+              }
+            ],
+            "label": "Servicios"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Contactanos"
+          },
+          {
+            "href": "/catalogo/index.html",
+            "label": "Catálogo"
+          }
+        ],
+        "brandHref": "/",
+        "brandLabel": "",
+        "navigationMode": "grouped",
+        "topbarContacts": [
+          {
+            "href": null,
+            "title": "Horario",
+            "value": "Lun - Vie, 10:00 - 18:00",
+            "iconClass": "fa fa-clock-o"
+          },
+          {
+            "href": null,
+            "title": "Teléfono",
+            "value": "097 365 931",
+            "iconClass": "far fa-envelope"
+          },
+          {
+            "href": "mailto:ventas@urucortinas.com.uy",
+            "title": "Email",
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope-open-o"
+          }
+        ],
+        "floatingContact": {
+          "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+          "label": "WhatsApp",
+          "imageAlt": "Haznos tu consulta",
+          "imageUrl": "/uploads/cms/legacy-assets/img/iconos/whatsapp_icon.png"
+        },
+        "navigationGroupLabel": "Información"
+      },
+      "createdAt": "2026-05-02T18:37:41.216Z",
+      "updatedAt": "2026-05-02T18:37:41.216Z",
+      "blocks": []
+    },
+    {
+      "id": 4534,
+      "pageId": 9,
+      "type": "HERO",
+      "key": "standard-top-hero",
+      "name": "Persianas y Cortinas de Enrollar en Aluminio - Urucortinas",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Persianas y Cortinas de Enrollar en Aluminio - Urucortinas",
+        "slides": [
+          {
+            "href": "/multimedia",
+            "title": "Persianas y Cortinas de Enrollar en Aluminio - Urucortinas",
+            "imageAlt": "Persianas y Cortinas de Enrollar en Aluminio - Urucortinas",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg",
+            "linkLabel": "Ver fotos y videos",
+            "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+          }
+        ],
+        "eyebrow": "Solución a medida",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/multimedia",
+        "secondaryCtaLabel": "Ver fotos y videos",
+        "backgroundImageUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg"
+      },
+      "createdAt": "2026-05-02T18:37:41.216Z",
+      "updatedAt": "2026-05-02T18:37:41.216Z",
+      "blocks": []
+    },
+    {
+      "id": 4535,
+      "pageId": 9,
+      "type": "CONTENT_SPLIT",
+      "key": "standard-payment-facilities",
+      "name": "Facilidades de pago",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "actions": [],
+        "gallery": [],
+        "variant": "image-content",
+        "imageAlt": "Mercado Pago",
+        "imageUrl": "/uploads/cms/legacy-assets/img/mercadopago-img.jpg",
+        "description": "",
+        "productSlug": "cortinas-de-enrollar-aluminio",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:37:41.217Z",
+      "updatedAt": "2026-05-02T18:37:41.217Z",
+      "blocks": [
+        {
+          "id": 5229,
+          "sectionId": 4535,
+          "type": "RICH_TEXT",
+          "key": "standard-payment-facilities-copy",
+          "name": "Facilidades de Pago",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Facilidades de Pago"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aceptamos pagos hasta en 12 cuotas sin interés mediante Mercado Pago."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Compra segura y protegida."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Disponible para todos nuestros productos."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Rápido y sin complicaciones."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:41.217Z",
+          "updatedAt": "2026-05-02T18:37:41.217Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4536,
+      "pageId": 9,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-1",
+      "name": null,
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "Cortina Enrollar 1",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Enrollar 2",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Enrollar 3",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "",
+        "imageUrl": "",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:37:41.218Z",
+      "updatedAt": "2026-05-02T18:37:41.218Z",
+      "blocks": [
+        {
+          "id": 5230,
+          "sectionId": 4536,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-1",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h1",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Persianas y Cortinas de Enrollar en Aluminio"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Nuestras "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "persianas y cortinas de enrollar en aluminio"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " son la opción ideal para quienes buscan una combinación de resistencia, seguridad y estética moderna. \n  Fabricadas con aluminio de alta calidad y con lamas rellenas de espuma de poliuretano, estas cortinas garantizan un "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "excelente aislamiento térmico y acústico"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "."
+                  }
+                ]
+              },
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Colores disponibles"
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las cortinas de enrollar en aluminio están "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "disponibles en una amplia variedad de colores"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": ", permitiéndote elegir la opción que mejor se adapte a tu fachada o interior."
+                  }
+                ]
+              },
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Ventajas de las Cortinas de Enrollar en Aluminio"
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Aislamiento superior:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Reduce el ruido externo y mantiene la temperatura del ambiente."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Alta resistencia:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Material duradero que no se oxida ni deforma con el tiempo."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Variedad de colores:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Se adaptan a cualquier estilo arquitectónico."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Opciones motorizadas y manuales:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Mayor comodidad en el uso diario."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Fácil mantenimiento:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " No requiere tratamientos especiales ni pintura periódica."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  }
+                ]
+              },
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "¿Por qué elegir nuestras Cortinas de Enrollar en Aluminio?"
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Máxima protección y seguridad."
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Diseño moderno y elegante."
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Resistentes a condiciones climáticas adversas."
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Opciones personalizadas para cada cliente."
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n  "
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Transforma tus espacios con la mejor opción en cortinas de enrollar"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cortinas sin albañilería. Contamos con todos los repuestos. Solicité tu presupuesto!"
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:41.218Z",
+          "updatedAt": "2026-05-02T18:37:41.218Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4537,
+      "pageId": 9,
+      "type": "MEDIA_GRID_ENHANCED",
+      "key": "standard-multimedia-hub",
+      "name": "Multimedia comercial",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Cómo avanzar con Cortinas de enrollar en aluminio",
+        "eyebrow": "Multimedia y contexto",
+        "variant": "product-multimedia",
+        "description": "Entrá a la galería, revisá medidas y pedí asesoramiento para decidir con más seguridad.",
+        "productSlug": "cortinas-de-enrollar-aluminio"
+      },
+      "createdAt": "2026-05-02T18:37:41.219Z",
+      "updatedAt": "2026-05-02T18:37:41.219Z",
+      "blocks": [
+        {
+          "id": 5231,
+          "sectionId": 4537,
+          "type": "CARD",
+          "key": "standard-multimedia-1",
+          "name": "Fotos reales",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/multimedia/cortinas-de-enrollar-aluminio",
+            "badge": "Multimedia",
+            "title": "Ver fotos y videos",
+            "mediaUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg",
+            "linkLabel": "Abrir galería",
+            "mediaType": "image",
+            "description": "Mirá el producto en contexto real antes de tomar una decisión.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:41.220Z",
+          "updatedAt": "2026-05-02T18:37:41.220Z",
+          "media": null
+        },
+        {
+          "id": 5232,
+          "sectionId": 4537,
+          "type": "CARD",
+          "key": "standard-multimedia-2",
+          "name": "Más contexto",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/guias/como-medir-ancho-y-alto",
+            "badge": "Guía",
+            "title": "Tomar medidas",
+            "mediaUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg",
+            "linkLabel": "Ver guía",
+            "mediaType": "image",
+            "description": "Si todavía estás definiendo el frente, te guiamos para medir ancho y alto sin perder tiempo.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:41.220Z",
+          "updatedAt": "2026-05-02T18:37:41.220Z",
+          "media": null
+        },
+        {
+          "id": 5233,
+          "sectionId": 4537,
+          "type": "CARD",
+          "key": "standard-multimedia-3",
+          "name": "Asesoramiento",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Contacto",
+            "title": "Pedir asesoramiento",
+            "mediaUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png",
+            "linkLabel": "Contactar",
+            "mediaType": "image",
+            "description": "Si querés avanzar, te ayudamos a definir la opción adecuada y resolver tus dudas.",
+            "overlayText": true
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:37:41.220Z",
+          "updatedAt": "2026-05-02T18:37:41.220Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4538,
+      "pageId": 9,
+      "type": "CTA_BANNER",
+      "key": "cta-1",
+      "name": "Solicite tu Presupuesto",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Solicite tu Presupuesto",
+        "actions": [
+          {
+            "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+            "label": "Enviar WhatsApp",
+            "external": true,
+            "iconClass": null
+          },
+          {
+            "href": "/multimedia",
+            "label": "Ver fotos y videos"
+          }
+        ],
+        "variant": "default",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+      },
+      "createdAt": "2026-05-02T18:37:41.221Z",
+      "updatedAt": "2026-05-02T18:37:41.221Z",
+      "blocks": []
+    },
+    {
+      "id": 4539,
+      "pageId": 9,
+      "type": "CTA_BANNER",
+      "key": "cta-2",
+      "name": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+        "actions": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-lg fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-lg fa-instagram"
+          }
+        ],
+        "variant": "social",
+        "description": ""
+      },
+      "createdAt": "2026-05-02T18:37:41.221Z",
+      "updatedAt": "2026-05-02T18:37:41.221Z",
+      "blocks": []
+    },
+    {
+      "id": 4540,
+      "pageId": 9,
+      "type": "SITE_FOOTER",
+      "key": "site-footer",
+      "name": "Footer del sitio",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Contacto",
+        "socials": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-instagram"
+          }
+        ],
+        "contacts": [
+          {
+            "value": "Montevideo, Uruguay",
+            "iconClass": "fa fa-location-arrow"
+          },
+          {
+            "value": "097 365 931",
+            "iconClass": "fa fa-phone"
+          },
+          {
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope"
+          }
+        ],
+        "linkGroups": []
+      },
+      "createdAt": "2026-05-02T18:37:41.221Z",
+      "updatedAt": "2026-05-02T18:37:41.221Z",
+      "blocks": []
+    },
+    {
+      "id": 4541,
+      "pageId": 9,
+      "type": "CONTENT_SPLIT",
+      "key": "cortinas-aluminio-editorial",
+      "name": "Guía comercial de cortinas de enrollar en aluminio",
+      "sortOrder": 8,
+      "visible": true,
+      "settings": {
+        "title": "Elegí aluminio cuando necesitás más resistencia y durabilidad",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/guias/cortinas-pvc-vs-aluminio",
+            "label": "Ver comparativa PVC"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Cortina de enrollar en aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg",
+            "linkLabel": "Pedir asesoramiento"
+          },
+          {
+            "href": "/guias/cortinas-pvc-vs-aluminio",
+            "imageAlt": "Cortina de enrollar aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png",
+            "linkLabel": "Ver comparativa"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Cortinas de enrollar en aluminio",
+        "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg",
+        "description": "Las cortinas de enrollar en aluminio resuelven bien frentes exigentes, uso diario y situaciones donde buscás una solución más sólida que otras alternativas.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:37:41.222Z",
+      "updatedAt": "2026-05-02T20:04:20.872Z",
+      "blocks": [
+        {
+          "id": 6116,
+          "sectionId": 4541,
+          "type": "RICH_TEXT",
+          "key": "cortinas-aluminio-editorial-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Resistencia"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " cuando el frente necesita una respuesta más firme frente al uso cotidiano, el clima y la exposición."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Aislación"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " porque las lamas rellenas de espuma ayudan a mejorar el confort térmico y acústico."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "También es una opción muy útil para reemplazos donde querés mejorar el sistema sin perder una estética prolija."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Opción manual o motorizada según tamaño y comodidad deseada."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Variedad de colores para adaptar la terminación al frente o interior."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Mantenimiento simple y buena durabilidad para uso frecuente."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T20:04:20.873Z",
+          "updatedAt": "2026-05-02T20:04:20.873Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4542,
+      "pageId": 9,
+      "type": "FEATURE_GRID",
+      "key": "cortinas-aluminio-features",
+      "name": "Qué define al aluminio",
+      "sortOrder": 9,
+      "visible": true,
+      "settings": {
+        "title": "Elegí según resistencia, aislamiento y uso",
+        "description": "La combinación de material, exposición y comodidad de uso define la mejor opción.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T18:37:41.222Z",
+      "updatedAt": "2026-05-02T20:04:20.874Z",
+      "blocks": [
+        {
+          "id": 6117,
+          "sectionId": 4542,
+          "type": "CARD",
+          "key": null,
+          "name": "Resistencia",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Material",
+            "title": "Más resistencia",
+            "linkLabel": "Ver más",
+            "description": "La construcción en aluminio responde mejor en frentes expuestos y uso frecuente.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 72,
+          "createdAt": "2026-05-02T20:04:20.875Z",
+          "updatedAt": "2026-05-02T20:04:20.875Z",
+          "media": {
+            "id": 72,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg",
+            "type": "IMAGE",
+            "alt": "Garantía según producto",
+            "title": "Garantía según producto",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T03:12:40.667Z",
+            "updatedAt": "2026-05-02T20:07:17.941Z"
+          }
+        },
+        {
+          "id": 6118,
+          "sectionId": 4542,
+          "type": "CARD",
+          "key": null,
+          "name": "Aislación",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/guias/cortinas-pvc-vs-aluminio",
+            "badge": "Confort",
+            "title": "Aislación térmica y acústica",
+            "linkLabel": "Ver más",
+            "description": "Las lamas rellenas de espuma ayudan a mejorar el confort interior.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 71,
+          "createdAt": "2026-05-02T20:04:20.876Z",
+          "updatedAt": "2026-05-02T20:04:20.876Z",
+          "media": {
+            "id": 71,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg",
+            "type": "IMAGE",
+            "alt": "Cortina de Enrollar en PVC",
+            "title": "Cortina de Enrollar en PVC",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T03:12:40.666Z",
+            "updatedAt": "2026-05-02T20:07:17.924Z"
+          }
+        },
+        {
+          "id": 6119,
+          "sectionId": 4542,
+          "type": "CARD",
+          "key": null,
+          "name": "Colores",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-de-enrollar-aluminio.html",
+            "badge": "Terminación",
+            "title": "Terminación adaptable",
+            "linkLabel": "Ver más",
+            "description": "La variedad de colores permite acompañar mejor la estética del frente.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 74,
+          "createdAt": "2026-05-02T20:04:20.877Z",
+          "updatedAt": "2026-05-02T20:04:20.877Z",
+          "media": {
+            "id": 74,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png",
+            "type": "IMAGE",
+            "alt": "Cortinas de enrollar",
+            "title": "Cortinas de enrollar",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T03:12:40.669Z",
+            "updatedAt": "2026-05-02T20:07:18.119Z"
+          }
+        },
+        {
+          "id": 6120,
+          "sectionId": 4542,
+          "type": "CARD",
+          "key": null,
+          "name": "Uso",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/contacto.html",
+            "badge": "Uso",
+            "title": "Manual o motorizada",
+            "linkLabel": "Ver más",
+            "description": "Podés definir la solución según el tamaño y el uso diario del ambiente.",
+            "overlayText": true,
+            "headingLevel": "h3"
+          },
+          "mediaId": 9,
+          "createdAt": "2026-05-02T20:04:20.878Z",
+          "updatedAt": "2026-05-02T20:04:20.878Z",
+          "media": {
+            "id": 9,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg",
+            "type": "IMAGE",
+            "alt": "Motores y automatismos",
+            "title": "Motores y automatismos",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.054Z",
+            "updatedAt": "2026-05-02T20:07:18.110Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4543,
+      "pageId": 9,
+      "type": "FAQ",
+      "key": "cortinas-aluminio-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 10,
+      "visible": true,
+      "settings": {
+        "title": "Cortinas de enrollar en aluminio: dudas útiles",
+        "description": "Respuestas breves para avanzar con una cotización clara."
+      },
+      "createdAt": "2026-05-02T18:37:41.224Z",
+      "updatedAt": "2026-05-02T20:04:20.879Z",
+      "blocks": [
+        {
+          "id": 6121,
+          "sectionId": 4543,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "cortinas-aluminio-faq-1",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Cuándo conviene aluminio?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Conviene cuando buscás más resistencia, mejor aislación y una solución sólida para uso frecuente o frentes expuestos."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T20:04:20.879Z",
+          "updatedAt": "2026-05-02T20:04:20.879Z",
+          "media": null
+        },
+        {
+          "id": 6122,
+          "sectionId": 4543,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "cortinas-aluminio-faq-2",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Se puede motorizar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí, la motorización puede sumarse según el tamaño y el tipo de instalación."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T20:04:20.880Z",
+          "updatedAt": "2026-05-02T20:04:20.880Z",
+          "media": null
+        },
+        {
+          "id": 6123,
+          "sectionId": 4543,
+          "type": "FAQ_ITEM",
+          "key": null,
+          "name": "cortinas-aluminio-faq-3",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Qué datos ayudan a cotizar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las medidas, el tipo de instalación y si buscás versión manual o motorizada alcanzan para orientar el presupuesto."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T20:04:20.880Z",
+          "updatedAt": "2026-05-02T20:04:20.880Z",
+          "media": null
+        }
+      ]
+    }
+  ]
+}

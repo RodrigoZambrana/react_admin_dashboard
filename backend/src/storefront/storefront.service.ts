@@ -47,6 +47,7 @@ import { decimal, decimalToNumber } from '../common/currency/money.util'
 import { buildImageDataUrl, ensureNodeBuffer } from '../common/images/image.utils'
 import { DEFAULT_STOREFRONT_CONFIG } from './defaults/config'
 import { DEFAULT_HOME_LAYOUTS, FALLBACK_LAYOUT_KEY } from './defaults/layouts'
+import { resolveDefaultSiteRoute } from './site-routes'
 import {
   buildCategorySlug,
   buildLegacyCategorySlug,
@@ -699,8 +700,23 @@ const buildCmsNavigationGroups = (
     ...buildCmsNavigationItemsFromPages(pages, 'guias/'),
     ...buildCmsNavigationItemsFromPages(pages, 'precios/'),
   ]
+  const informationItems = [
+    {
+      id: 'cms-nav-guias',
+      label: 'Guías',
+      href: guideItems[0]?.href ?? '/preguntas-frecuentes',
+      items: guideItems,
+    },
+    ...buildCmsNavigationItemsFromPages(pages, 'quienes-somos'),
+    ...buildCmsNavigationItemsFromPages(pages, 'preguntas-frecuentes'),
+  ]
 
   const primary: StorefrontNavigationItem[] = []
+  primary.push({
+    id: 'cms-nav-tienda',
+    label: 'Tienda',
+    href: '/shop',
+  })
   if (productItems.length) {
     primary.push({
       id: 'cms-nav-productos',
@@ -713,28 +729,27 @@ const buildCmsNavigationGroups = (
     primary.push({
       id: 'cms-nav-servicios',
       label: 'Servicios',
-      href: serviceItems[0]?.href ?? '/contacto.html',
+      href: serviceItems[0]?.href ?? resolveDefaultSiteRoute('contact'),
       items: serviceItems,
     })
   }
-  if (guideItems.length) {
+  if (informationItems.length) {
     primary.push({
-      id: 'cms-nav-guias',
-      label: 'Guías',
-      href: guideItems[0]?.href ?? '/preguntas-frecuentes',
-      items: guideItems,
+      id: 'cms-nav-informacion',
+      label: 'Información',
+      href: guideItems[0]?.href ?? informationItems[0]?.href ?? '/preguntas-frecuentes',
+      items: informationItems,
     })
   }
-
   const footer: StorefrontNavigationItem[][] = []
   if (productItems.length) {
     footer.push([{ id: 'cms-footer-productos', label: 'Productos', href: productItems[0]?.href ?? '/shop', items: productItems }])
   }
   if (serviceItems.length) {
-    footer.push([{ id: 'cms-footer-servicios', label: 'Servicios', href: serviceItems[0]?.href ?? '/contacto.html', items: serviceItems }])
+    footer.push([{ id: 'cms-footer-servicios', label: 'Servicios', href: serviceItems[0]?.href ?? resolveDefaultSiteRoute('contact'), items: serviceItems }])
   }
-  if (guideItems.length) {
-    footer.push([{ id: 'cms-footer-guias', label: 'Guías', href: guideItems[0]?.href ?? '/preguntas-frecuentes', items: guideItems }])
+  if (informationItems.length) {
+    footer.push([{ id: 'cms-footer-informacion', label: 'Información', href: informationItems[0]?.href ?? '/preguntas-frecuentes', items: informationItems }])
   }
 
   return { primary, footer }

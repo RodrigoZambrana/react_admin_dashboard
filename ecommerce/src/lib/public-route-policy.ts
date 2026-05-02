@@ -17,6 +17,7 @@ export const STOREFRONT_ROUTE_INVENTORY = {
     "/",
     "/categories",
     "/contact",
+    "/contacto",
     "/shop",
     "/products",
     "/products/[slug]",

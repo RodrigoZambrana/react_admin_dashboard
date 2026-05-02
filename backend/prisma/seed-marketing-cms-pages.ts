@@ -425,6 +425,7 @@ type GuidePageTemplate = {
   ctaTitle: string
   ctaDescription: string
   ctaActions: Array<{ label: string; href: string; external?: boolean }>
+  aliases?: string[]
 }
 
 const buildGuidePageSection = (template: GuidePageTemplate): CmsSectionSeed[] => {
@@ -555,6 +556,7 @@ const buildGuidePage = (template: GuidePageTemplate): CmsPageSeed => ({
   seoTitle: template.seoTitle,
   seoDescription: template.seoDescription,
   seoImageUrl: template.heroImage,
+  aliases: template.aliases,
   sections: buildGuidePageSection(template),
 })
 
@@ -1224,6 +1226,268 @@ const guidePages: CmsPageSeed[] = [
       { label: 'Ver precios', href: '/precios/cortinas-de-enrollar' },
       { label: 'Ver multimedia', href: '/multimedia' },
     ],
+    aliases: ['guias/medicion'],
+  }),
+  buildGuidePage({
+    path: 'guias/cortinas-roller',
+    title: 'Cortinas roller: screen, blackout y doble',
+    summary: 'Guía para elegir la variante roller que mejor encaja con cada ambiente.',
+    seoTitle: 'Cortinas roller: screen, blackout y doble | Urucortinas',
+    seoDescription:
+      'Elegí cortinas roller screen, blackout o doble según la luz, la privacidad y el uso real del ambiente.',
+    heroImage: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_4.jpeg',
+    heroAlt: 'Cortinas roller',
+    eyebrow: 'Guía de producto',
+    heroTitle: 'Cortinas roller: cómo elegir Screen, Blackout o Roller doble',
+    heroSubtitle:
+      'Una guía comercial para comparar luz, privacidad y uso antes de decidir.',
+    primaryCtaLabel: 'Ver cortinas roller',
+    primaryCtaHref: '/productos/cortinas-roller.html',
+    secondaryCtaLabel: 'Ver precios',
+    secondaryCtaHref: '/precios/cortinas-de-enrollar',
+    introTitle: 'Qué define la elección',
+    introParagraphs: [
+      'Roller screen deja pasar luz y ayuda a mantener vista hacia el exterior. Blackout prioriza privacidad y oscurecimiento. Roller doble combina dos telas en una misma instalación para alternar según el momento.',
+      'La medida del frente, el uso diario y la luz que querés controlar terminan de definir la mejor opción.',
+    ],
+    introBullets: [
+      'Screen para luz natural y vista',
+      'Blackout para privacidad y oscuridad',
+      'Roller doble para combinar usos',
+      'La medida del frente cambia la recomendación',
+    ],
+    introImageUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
+    introImageAlt: 'Roller screen blackout y doble',
+    introGallery: [
+      { url: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_4.jpeg', alt: 'Roller 1' },
+      { url: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_2.jpeg', alt: 'Roller 2' },
+      { url: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg', alt: 'Roller 3' },
+    ],
+    featuresTitle: 'Las tres variantes más útiles',
+    featuresDescription: 'Una lectura rápida para comparar sin perder foco comercial.',
+    features: [
+      {
+        title: 'Screen',
+        description: 'Deja pasar luz y funciona muy bien en livings, oficinas y espacios de uso diario.',
+        badge: 'Luz',
+        href: '/productos/cortinas-roller.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_2.jpeg',
+        imageAlt: 'Roller screen',
+      },
+      {
+        title: 'Blackout',
+        description: 'Reduce la entrada de luz y suma privacidad en dormitorios y ambientes de descanso.',
+        badge: 'Privacidad',
+        href: '/productos/cortinas-roller.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
+        imageAlt: 'Roller blackout',
+      },
+      {
+        title: 'Roller doble',
+        description: 'Combina dos telas para alternar luz y oscuridad en un mismo frente.',
+        badge: 'Versatilidad',
+        href: '/productos/cortinas-roller.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_4.jpeg',
+        imageAlt: 'Roller doble',
+      },
+    ],
+    faqTitle: 'Preguntas frecuentes',
+    faqDescription: 'Respuestas simples para decidir más rápido.',
+    faqs: [
+      {
+        question: '¿Qué variante conviene para un living?',
+        answer: 'Screen suele ser la alternativa más cómoda si querés luz natural y una lectura limpia del ambiente.',
+      },
+      {
+        question: '¿Cuál conviene para un dormitorio?',
+        answer: 'Blackout suele ser la mejor opción si la prioridad es oscurecer y ganar privacidad.',
+      },
+      {
+        question: '¿Qué aporta el roller doble?',
+        answer: 'Permite alternar entre dos telas y ajustar mejor la luz según el momento del día.',
+      },
+    ],
+    ctaTitle: 'Elegí la variante roller con más claridad',
+    ctaDescription: 'Si ya tenés medidas, te ayudamos a decidir entre screen, blackout o doble.',
+    ctaActions: [
+      { label: 'Ver producto', href: '/productos/cortinas-roller.html' },
+      { label: 'Solicitar asesoramiento', href: '/contacto.html' },
+      { label: 'Ver precios', href: '/precios/cortinas-de-enrollar' },
+    ],
+  }),
+  buildGuidePage({
+    path: 'guias/motores-cortinas-y-persianas',
+    title: 'Motores para cortinas y persianas',
+    summary: 'Guía para elegir automatización según rutina, tamaño y nivel de confort.',
+    seoTitle: 'Motores para cortinas y persianas | Urucortinas',
+    seoDescription:
+      'Descubrí cómo elegir motores para cortinas y persianas según control remoto, botonera, app o domótica.',
+    heroImage: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
+    heroAlt: 'Motores para cortinas y persianas',
+    eyebrow: 'Guía de automatización',
+    heroTitle: 'Motores para cortinas y persianas: cómo elegir el control correcto',
+    heroSubtitle:
+      'Una guía breve para definir qué tipo de automatización encaja mejor con tu rutina.',
+    primaryCtaLabel: 'Ver motores',
+    primaryCtaHref: '/productos/motores-cortinas-y-persianas.html',
+    secondaryCtaLabel: 'Solicitar asesoramiento',
+    secondaryCtaHref: '/contacto.html',
+    introTitle: 'Qué cambia al motorizar',
+    introParagraphs: [
+      'La motorización suma confort en cortinas, persianas y cortinas metálicas. También ayuda cuando el frente es grande o el uso diario ya justifica más comodidad.',
+      'El tipo de control define la experiencia: remoto, botonera, app o integración domótica.',
+    ],
+    introBullets: [
+      'Más confort en el uso diario',
+      'Mejor experiencia en frentes grandes',
+      'Control remoto, botonera o app',
+      'Posible integración domótica',
+    ],
+    introImageUrl: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
+    introImageAlt: 'Persianas motorizadas',
+    introGallery: [
+      { url: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg', alt: 'Motor 1' },
+      { url: '/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_1.jpg', alt: 'Motor 2' },
+      { url: '/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_2.png', alt: 'Motor 3' },
+    ],
+    featuresTitle: 'Formas de control',
+    featuresDescription: 'Elegí según comodidad y nivel de integración.',
+    features: [
+      {
+        title: 'Control remoto',
+        description: 'La opción más simple para subir o bajar sin esfuerzo físico.',
+        badge: 'Remote',
+        href: '/productos/motores-cortinas-y-persianas.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_1.jpg',
+        imageAlt: 'Control remoto',
+      },
+      {
+        title: 'Botonera',
+        description: 'Ideal cuando querés un punto fijo y práctico de control.',
+        badge: 'Button',
+        href: '/productos/motores-cortinas-y-persianas.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/motores/motor_cortina_2.png',
+        imageAlt: 'Botonera',
+      },
+      {
+        title: 'App y domótica',
+        description: 'Permite integrar automatización con más programación y rutina.',
+        badge: 'Smart',
+        href: '/productos/motores-cortinas-y-persianas.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
+        imageAlt: 'App y domótica',
+      },
+    ],
+    faqTitle: 'Preguntas frecuentes',
+    faqDescription: 'Respuestas útiles para avanzar con menos vueltas.',
+    faqs: [
+      {
+        question: '¿Se puede motorizar una instalación existente?',
+        answer: 'En muchos casos sí, siempre que el sistema y el estado actual lo permitan.',
+      },
+      {
+        question: '¿Qué control conviene?',
+        answer: 'Depende de la comodidad que busques y de la forma en que usás el ambiente.',
+      },
+      {
+        question: '¿Cuándo conviene motorizar?',
+        answer: 'Cuando el uso ya es frecuente o el frente es grande y querés más confort.',
+      },
+    ],
+    ctaTitle: 'Elegí la automatización que mejor encaja con tu rutina',
+    ctaDescription: 'Podemos ayudarte a definir si conviene remoto, botonera o app.',
+    ctaActions: [
+      { label: 'Ver motores', href: '/productos/motores-cortinas-y-persianas.html' },
+      { label: 'Solicitar asesoramiento', href: '/contacto.html' },
+      { label: 'Ver multimedia', href: '/multimedia' },
+    ],
+  }),
+  buildGuidePage({
+    path: 'guias/bandas-verticales',
+    title: 'Bandas verticales: materiales y usos',
+    summary: 'Guía para elegir bandas verticales según luz, ancho del frente y uso real.',
+    seoTitle: 'Bandas verticales | Materiales y usos - Urucortinas',
+    seoDescription:
+      'Elegí bandas verticales en blackout, screen o poliéster según luz, superficie y nivel de privacidad.',
+    heroImage: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg',
+    heroAlt: 'Bandas verticales',
+    eyebrow: 'Guía de producto',
+    heroTitle: 'Bandas verticales: materiales y aperturas según el espacio',
+    heroSubtitle:
+      'Una guía breve para decidir si conviene blackout, screen o poliéster.',
+    primaryCtaLabel: 'Ver bandas verticales',
+    primaryCtaHref: '/productos/bandas-verticales.html',
+    secondaryCtaLabel: 'Ver fotos y videos',
+    secondaryCtaHref: '/multimedia/bandas-verticales',
+    introTitle: 'Qué conviene mirar primero',
+    introParagraphs: [
+      'Las bandas verticales funcionan muy bien en ventanales grandes, oficinas y ambientes donde necesitás regular luz sin perder orden visual.',
+      'La decisión cambia según el material, la superficie y la forma de apertura que el ambiente necesita.',
+    ],
+    introBullets: [
+      'Blackout para más privacidad',
+      'Screen para dejar pasar luz',
+      'Poliéster para una solución versátil',
+      'Aperturas normal, invertida o al centro',
+    ],
+    introImageUrl: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg',
+    introImageAlt: 'Bandas verticales en uso',
+    introGallery: [
+      { url: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg', alt: 'Bandas 1' },
+      { url: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/banda_vertical_1.jpeg', alt: 'Bandas 2' },
+      { url: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_8.jpeg', alt: 'Bandas 3' },
+    ],
+    featuresTitle: 'Los tres materiales más útiles',
+    featuresDescription: 'Una comparación simple para ordenar la decisión.',
+    features: [
+      {
+        title: 'Blackout',
+        description: 'Conviene cuando querés más privacidad y mayor oscurecimiento.',
+        badge: 'Privacy',
+        href: '/productos/bandas-verticales.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/banda_vertical_2.jpeg',
+        imageAlt: 'Bandas blackout',
+      },
+      {
+        title: 'Screen',
+        description: 'Deja pasar luz y sirve para controlar el reflejo en uso diario.',
+        badge: 'Light',
+        href: '/productos/bandas-verticales.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_verticales_3.jpeg',
+        imageAlt: 'Bandas screen',
+      },
+      {
+        title: 'Poliéster',
+        description: 'Buena alternativa cuando buscás versatilidad y lectura prolija.',
+        badge: 'Versatile',
+        href: '/productos/bandas-verticales.html',
+        imageUrl: '/uploads/cms/legacy-assets/img/portfolio/bandas_verticales/bandas_7.jpeg',
+        imageAlt: 'Bandas poliéster',
+      },
+    ],
+    faqTitle: 'Preguntas frecuentes',
+    faqDescription: 'Respuestas simples para cerrar la elección.',
+    faqs: [
+      {
+        question: '¿Dónde convienen más?',
+        answer: 'Funcionan muy bien en ventanales amplios, oficinas, escritorios y living.',
+      },
+      {
+        question: '¿Qué apertura puedo elegir?',
+        answer: 'Podés definir apertura normal, invertida, al centro o hacia ambos lados.',
+      },
+      {
+        question: '¿Qué material conviene?',
+        answer: 'Depende de cuánta luz querés dejar pasar y del nivel de privacidad que necesitás.',
+      },
+    ],
+    ctaTitle: 'Elegí bandas verticales según el uso del espacio',
+    ctaDescription: 'Si tenés medidas aproximadas, te orientamos con más precisión.',
+    ctaActions: [
+      { label: 'Ver bandas verticales', href: '/productos/bandas-verticales.html' },
+      { label: 'Solicitar asesoramiento', href: '/contacto.html' },
+      { label: 'Ver fotos y videos', href: '/multimedia/bandas-verticales' },
+    ],
   }),
   buildGuidePage({
     path: 'precios/cortinas-de-enrollar',
@@ -1440,12 +1704,24 @@ const homePage: CmsPageSeed = {
             ],
           },
           {
-            label: 'Guías',
+            label: 'Información',
             href: '/guias/cortinas-pvc-vs-aluminio',
             items: [
-              { label: 'PVC vs aluminio', href: '/guias/cortinas-pvc-vs-aluminio' },
-              { label: 'Precios de cortinas', href: '/precios/cortinas-de-enrollar' },
-              { label: 'Qué es DVH', href: '/productos/dvh.html' },
+              {
+                label: 'Guías',
+                href: '/guias/cortinas-pvc-vs-aluminio',
+                items: [
+                  { label: 'PVC vs aluminio', href: '/guias/cortinas-pvc-vs-aluminio' },
+                  { label: 'Medición', href: '/guias/medicion' },
+                  { label: 'Cortinas roller', href: '/guias/cortinas-roller' },
+                  { label: 'Bandas verticales', href: '/guias/bandas-verticales' },
+                  { label: 'Motores', href: '/guias/motores-cortinas-y-persianas' },
+                  { label: 'Precios de cortinas', href: '/precios/cortinas-de-enrollar' },
+                  { label: 'Qué es DVH', href: '/productos/dvh.html' },
+                ],
+              },
+              { label: 'Quiénes somos', href: '/quienes-somos' },
+              { label: 'Preguntas frecuentes', href: '/preguntas-frecuentes' },
             ],
           },
           { label: 'Contacto', href: '/contacto.html' },
@@ -1769,11 +2045,11 @@ const homePage: CmsPageSeed = {
       type: CmsPageSectionType.CTA_BANNER,
       key: 'home-aberturas-cta',
       settings: {
-        title: 'Aberturas en aluminio línea estándar y premium',
+        title: 'Explorá la tienda o pedí asesoramiento',
         description:
-          'Puertas, ventanas y monoblocks con vidrio simple o doble vidrio hermético. Consultá por serie 20 y 25.',
-        label: 'Saber más',
-        href: '/productos/aberturas-aluminio.html',
+          'Si todavía estás comparando opciones, podés recorrer el catálogo, ver productos o escribirnos para decidir más rápido.',
+        label: 'Ir a la tienda',
+        href: '/shop',
         intent: 'transactional',
       },
     },

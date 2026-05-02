@@ -112,11 +112,11 @@ export default function Topbar() {
         </div>
 
         <div className="topbar-right">
-          <NavLink className="link" href={helpLinks[0]?.href ?? "/contact"}>
+          <NavLink className="link" href={helpLinks[0]?.href ?? "/contacto"}>
             {helpLinks[0]?.label ? t(helpLinks[0].label) : t("FAQ")}
           </NavLink>
 
-          <NavLink className="link" href={helpLinks[1]?.href ?? "/contact"}>
+          <NavLink className="link" href={helpLinks[1]?.href ?? "/contacto"}>
             {helpLinks[1]?.label ? t(helpLinks[1].label) : t("Need Help?")}
           </NavLink>
 

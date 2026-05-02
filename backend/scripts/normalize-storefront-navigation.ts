@@ -155,6 +155,7 @@ async function main() {
 
   const headerItems: NavNode[] = [
     { label: 'Inicio', href: '/' },
+    { label: 'Tienda', href: '/shop' },
     buildNode('Productos', [
       buildNode('Cortinas', [
         buildLeaf(titleByPath, 'productos/cortinas-roller.html') as NavNode,
@@ -190,21 +191,31 @@ async function main() {
         buildLeaf(titleByPath, 'servicios/instalacion-aberturas.html') as NavNode,
       ]),
     ]),
-    buildNode('Guías', [
-      buildNode('Comparativas', [
-        buildLeaf(titleByPath, 'articulos/dvh.html') as NavNode,
-        buildLeaf(titleByPath, 'guias/cortinas-pvc-vs-aluminio') as NavNode,
-      ]),
-      buildNode('Series de aberturas', [
-        buildLeaf(titleByPath, 'guias/aberturas-probba') as NavNode,
-        buildLeaf(titleByPath, 'guias/aberturas-gala') as NavNode,
-        buildLeaf(titleByPath, 'guias/aberturas-summa') as NavNode,
-      ]),
-      buildNode('Precios', [
-        buildLeaf(titleByPath, 'precios/cortinas-de-enrollar') as NavNode,
-      ]),
-    ]),
     buildNode('Información', [
+      buildNode('Guías', [
+        buildNode('Comparativas', [
+          buildLeaf(titleByPath, 'articulos/dvh.html') as NavNode,
+          buildLeaf(titleByPath, 'guias/cortinas-pvc-vs-aluminio') as NavNode,
+        ]),
+        buildNode('Medición', [
+          buildLeaf(titleByPath, 'guias/medicion') as NavNode,
+        ]),
+        buildNode('Cortinas', [
+          buildLeaf(titleByPath, 'guias/cortinas-roller') as NavNode,
+        ]),
+        buildNode('Bandas y motores', [
+          buildLeaf(titleByPath, 'guias/bandas-verticales') as NavNode,
+          buildLeaf(titleByPath, 'guias/motores-cortinas-y-persianas') as NavNode,
+        ]),
+        buildNode('Series de aberturas', [
+          buildLeaf(titleByPath, 'guias/aberturas-probba') as NavNode,
+          buildLeaf(titleByPath, 'guias/aberturas-gala') as NavNode,
+          buildLeaf(titleByPath, 'guias/aberturas-summa') as NavNode,
+        ]),
+        buildNode('Precios', [
+          buildLeaf(titleByPath, 'precios/cortinas-de-enrollar') as NavNode,
+        ]),
+      ]),
       buildLeaf(titleByPath, 'quienes-somos') as NavNode,
       buildLeaf(titleByPath, 'preguntas-frecuentes') as NavNode,
     ]),
@@ -231,6 +242,10 @@ async function main() {
     [
       buildLeaf(titleByPath, 'articulos/dvh.html') as NavNode,
       buildLeaf(titleByPath, 'guias/cortinas-pvc-vs-aluminio') as NavNode,
+      buildLeaf(titleByPath, 'guias/medicion') as NavNode,
+      buildLeaf(titleByPath, 'guias/cortinas-roller') as NavNode,
+      buildLeaf(titleByPath, 'guias/bandas-verticales') as NavNode,
+      buildLeaf(titleByPath, 'guias/motores-cortinas-y-persianas') as NavNode,
       buildLeaf(titleByPath, 'precios/cortinas-de-enrollar') as NavNode,
     ],
   ]

@@ -1,14 +1,7 @@
-import type { Metadata } from "next";
-import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
-import ContactPageClient from "./ContactPageClient";
+import { permanentRedirect } from "next/navigation";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return buildStorefrontPageMetadata({
-    title: "Contacto",
-    description: "Canales de contacto y atención del storefront."
-  });
-}
+export const dynamic = "force-static";
 
-export default function ContactPage() {
-  return <ContactPageClient />;
+export default function ContactAliasPage() {
+  permanentRedirect("/contacto");
 }

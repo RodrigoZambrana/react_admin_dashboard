@@ -134,6 +134,49 @@ const faqSection = (
   blocks,
 })
 
+const mediaHeroSection = (
+  key: string,
+  name: string,
+  title: string,
+  subtitle: string,
+  imageUrl: string,
+  imageAlt: string,
+  primaryCta: { label: string; href: string; external?: boolean },
+  secondaryCta?: { label: string; href: string; external?: boolean },
+  eyebrow?: string,
+  description?: string,
+): CmsEnhancerSectionSpec => ({
+  key,
+  type: CmsPageSectionType.MEDIA_HERO,
+  name,
+  sortOrder: 0,
+  settings: {
+    mediaType: 'image',
+    overlay: true,
+    overlayOpacity: 0.58,
+    title,
+    subtitle,
+    eyebrow,
+    description,
+    mediaAlt: imageAlt,
+    primaryCta,
+    secondaryCta,
+  },
+  blocks: [
+    {
+      type: CmsPageBlockType.IMAGE,
+      name: `${name} image`,
+      media: {
+        url: imageUrl,
+        alt: imageAlt,
+        title,
+        type: CmsMediaType.IMAGE,
+        source: 'contact_page_enhancement',
+      },
+    },
+  ],
+})
+
 const rtText = (value: string) => ({
   type: 'text',
   value,
@@ -426,7 +469,7 @@ export const CMS_PAGE_ENHANCERS: CmsPageEnhancerSpec[] = [
     pagePatch: {
       title: 'Cortinas de enrollar en aluminio',
       summary: 'Cortinas en aluminio para sumar resistencia, aislamiento y durabilidad en uso diario.',
-      seoTitle: 'Cortinas de enrollar en aluminio | Resistencia y aislamiento - Urucortinas',
+      seoTitle: 'Cortinas de enrollar aluminio | Resistencia',
       seoDescription:
         'Cortinas de enrollar en aluminio para frentes expuestos, recambio o instalación nueva. Más resistencia, mejor aislación y opción manual o motorizada.',
       legacySource: '/productos/cortinas-de-enrollar-aluminio.html',
@@ -551,7 +594,7 @@ export const CMS_PAGE_ENHANCERS: CmsPageEnhancerSpec[] = [
     pagePatch: {
       title: 'Bandas verticales a medida',
       summary: 'Bandas verticales para ventanales amplios, oficinas y ambientes con grandes paños vidriados.',
-      seoTitle: 'Bandas Verticales a medida | Blackout, Screen y poliéster - Urucortinas',
+      seoTitle: 'Bandas verticales | Blackout y screen',
       seoDescription:
         'Bandas verticales a medida en blackout, screen y poliéster. Ideales para ventanales amplios, oficinas y ambientes de uso diario.',
       legacySource: '/productos/bandas-verticales.html',
@@ -799,7 +842,7 @@ export const CMS_PAGE_ENHANCERS: CmsPageEnhancerSpec[] = [
     pagePatch: {
       title: 'Aberturas de aluminio por serie',
       summary: 'Aberturas en aluminio organizadas por serie, con DVH como guía aparte para comparar prestaciones.',
-      seoTitle: 'Aberturas de Aluminio por Serie | 20/25, Probba, Gala y Summa - Urucortinas',
+      seoTitle: 'Aberturas de aluminio | Probba, Gala y Summa',
       seoDescription:
         'Aberturas de aluminio por serie: 20/25, Probba, Gala y Summa. Elegí según obra, recambio y nivel de prestación. DVH como guía aparte.',
       legacySource: '/productos/aberturas-aluminio.html',
@@ -925,7 +968,7 @@ export const CMS_PAGE_ENHANCERS: CmsPageEnhancerSpec[] = [
     pagePatch: {
       title: 'Toldos y cerramientos',
       summary: 'Toldos y cerramientos para sombra, protección climática y más uso del exterior.',
-      seoTitle: 'Toldos y Cerramientos | Protección exterior y confort - Urucortinas',
+      seoTitle: 'Toldos y cerramientos | Exterior y confort',
       seoDescription:
         'Toldos de brazo invisible, toldos verticales, corredizos y cerramientos en PVC para terrazas, patios y frentes con más confort.',
       legacySource: '/productos/toldos-y-cerramientos.html',
@@ -1049,9 +1092,9 @@ export const CMS_PAGE_ENHANCERS: CmsPageEnhancerSpec[] = [
     pagePatch: {
       title: 'Motores para cortinas y persianas',
       summary: 'Automatización para cortinas y persianas con más confort, control y uso cotidiano.',
-      seoTitle: 'Motores para Cortinas y Persianas | Automatización y confort - Urucortinas',
+      seoTitle: 'Motores y persianas | Automatización y confort',
       seoDescription:
-        'Motores para cortinas y persianas con control remoto, botonera, app y domótica para vivienda, oficina y comercios.',
+        'Motores para cortinas y persianas con control remoto, botonera, app y domótica para vivienda, oficina y comercios. Más confort en el uso diario.',
       legacySource: '/productos/motores-cortinas-y-persianas.html',
     },
     sections: [
@@ -1173,7 +1216,7 @@ export const CMS_PAGE_ENHANCERS: CmsPageEnhancerSpec[] = [
     pagePatch: {
       title: 'Cortinas metálicas de seguridad',
       summary: 'Cortinas metálicas para seguridad, uso intensivo y cierre de frentes comerciales.',
-      seoTitle: 'Cortinas Metálicas de seguridad | Urucortinas',
+      seoTitle: 'Cortinas metálicas | Seguridad para comercios',
       seoDescription:
         'Cortinas metálicas manuales o motorizadas para comercios, industrias y frentes que necesitan seguridad y cierre robusto.',
       legacySource: '/productos/cortinas-metalicas.html',
@@ -1278,6 +1321,690 @@ export const CMS_PAGE_ENHANCERS: CmsPageEnhancerSpec[] = [
             '¿Qué datos ayudan a cotizar?',
             'Ancho, alto, tipo de frente y si querés versión manual o motorizada.',
           ),
+        ],
+      ),
+    ],
+  },
+  {
+    id: 'cortinas-tradicionales-detail',
+    pagePath: 'productos/cortinas-tradicionales.html',
+    pagePatch: {
+      title: 'Cortinas tradicionales con riel',
+      summary: 'Cortinas de tela para vestir ambientes, sumar calidez y resolver grandes ventanales.',
+      seoTitle: 'Cortinas tradicionales con riel | Tela, blackout y doble capa',
+      seoDescription:
+        'Cortinas tradicionales con riel de aluminio, telas velo, trasluz y blackout. Solución decorativa a medida para hogar, hotelería e interiores.',
+      legacySource: '/productos/cortinas-tradicionales.html',
+    },
+    sections: [
+      {
+        key: 'standard-top-hero',
+        type: CmsPageSectionType.HERO,
+        name: 'Cortinas tradicionales con riel',
+        visible: true,
+        sortOrder: 0,
+        settings: {
+          title: 'Cortinas tradicionales con riel',
+          eyebrow: 'Solución a medida',
+          description:
+            'Cortinas de tela para vestir ambientes, sumar calidez y resolver ventanales grandes.',
+          headingLevel: 'h1',
+          backgroundImageUrl: '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_1.jpeg',
+          slides: [
+            {
+              href: '/multimedia',
+              title: 'Cortinas tradicionales con riel',
+              description:
+                'Elegí la tela y la caída según el ambiente para lograr una terminación más cálida y decorativa.',
+              imageAlt: 'Cortinas tradicionales con riel',
+              imageUrl: '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_1.jpeg',
+              linkLabel: 'Ver fotos',
+            },
+          ],
+          primaryCtaHref: '/contacto.html',
+          primaryCtaLabel: 'Pedir asesoramiento',
+          secondaryCtaHref: '/multimedia',
+          secondaryCtaLabel: 'Ver fotos',
+        },
+        blocks: [],
+      },
+      editorialSplitSection(
+        'tradicionales-editorial',
+        'Guía comercial de cortinas tradicionales',
+        'Elegí la tela y la caída según el ambiente',
+        'Las cortinas tradicionales visten el espacio con una terminación más cálida y decorativa. El tipo de tela y la forma de apertura cambian por completo la sensación final.',
+        '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_1.jpeg',
+        'Cortinas tradicionales con riel',
+        [
+          { label: 'Pedir asesoramiento', href: '/contacto.html' },
+          { label: 'Ver fotos', href: '/multimedia' },
+        ],
+        [
+          rtParagraph([
+            rtStrong('Velo y trasluz'),
+            rtText(' suman calidez y dejan pasar luz suave cuando querés vestir el ambiente sin perder demasiada claridad.'),
+          ]),
+          rtParagraph([
+            rtStrong('Blackout'),
+            rtText(' conviene cuando buscás más oscuridad, privacidad y mejor control en dormitorios o salas de proyección.'),
+          ]),
+          rtParagraph([
+            rtStrong('Doble capa'),
+            rtText(' te da más flexibilidad para alternar luz, privacidad y presencia decorativa según el momento del día.'),
+          ]),
+          rtParagraph([
+            rtStrong('Riel fino de aluminio'),
+            rtText(' y caída tipo ola ayudan a lograr una lectura más prolija y elegante en ventanas grandes.'),
+          ]),
+          rtList([
+            [rtText('Funcionan bien en hogar, hotelería e interiores con foco decorativo.')],
+            [rtText('Pueden adaptarse a distintas aperturas y tamaño de ventanales.')],
+            [rtText('La tela, el ancho y el tipo de apertura cambian el presupuesto final.')],
+          ]),
+        ],
+        [
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_1.jpeg',
+            imageAlt: 'Cortina tradicional con riel',
+            href: '/multimedia',
+            linkLabel: 'Ver fotos',
+          },
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_3.jpeg',
+            imageAlt: 'Cortina tradicional blackout',
+            href: '/contacto.html',
+            linkLabel: 'Pedir asesoramiento',
+          },
+        ],
+      ),
+      featureGridSection(
+        'tradicionales-features',
+        'Qué define la elección',
+        'Tela, apertura y terminación',
+        'Cada combinación cambia la luz, la caída y el nivel de privacidad.',
+        [
+          featureCard(
+            'Velo y trasluz',
+            'Luz suave y calidez',
+            'Te permiten vestir el ambiente sin perder demasiado ingreso de luz natural.',
+            '/contacto.html',
+            '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_2.jpeg',
+            'Cortina tradicional velo',
+            'Luz',
+          ),
+          featureCard(
+            'Blackout',
+            'Más oscuridad y privacidad',
+            'Es la opción para dormitorios, descanso y ambientes donde querés cortar la luz.',
+            '/contacto.html',
+            '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_3.jpeg',
+            'Cortina tradicional blackout',
+            'Oscurecimiento',
+          ),
+          featureCard(
+            'Doble capa',
+            'Más control de luz',
+            'Combiná telas para alternar entre una sensación más abierta y otra más cerrada.',
+            '/contacto.html',
+            '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_4.jpeg',
+            'Cortina tradicional doble capa',
+            'Flexibilidad',
+          ),
+          featureCard(
+            'Riel y motorización',
+            'Caída prolija y uso cómodo',
+            'El sistema de riel fino acompaña una terminación limpia y puede sumar motor según el proyecto.',
+            '/productos/motores-cortinas-y-persianas.html',
+            '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_6.jpeg',
+            'Cortina tradicional motorizada',
+            'Sistema',
+          ),
+        ],
+      ),
+      faqSection(
+        'tradicionales-faq',
+        'Preguntas frecuentes',
+        'Cortinas tradicionales: dudas útiles',
+        'Respuestas cortas para avanzar con una cotización o entender qué tipo de tela conviene.',
+        [
+          faqItem(
+            'tradicionales-faq-1',
+            '¿Qué tela conviene para un ambiente con más luz?',
+            'Velo o trasluz suelen funcionar mejor cuando querés sumar calidez y seguir dejando entrar luz natural.',
+          ),
+          faqItem(
+            'tradicionales-faq-2',
+            '¿Se pueden hacer blackout?',
+            'Sí. El blackout es una muy buena opción cuando buscás más oscuridad y privacidad en el ambiente.',
+          ),
+          faqItem(
+            'tradicionales-faq-3',
+            '¿Se pueden motorizar?',
+            'Sí, en muchos proyectos se puede sumar motorización según el ancho, el sistema y el uso esperado.',
+          ),
+          faqItem(
+            'tradicionales-faq-4',
+            '¿Qué datos ayudan a cotizar?',
+            'El tipo de tela, el ancho y el alto aproximado, más el tipo de apertura, alcanzan para orientar mejor el presupuesto.',
+          ),
+        ],
+      ),
+    ],
+  },
+  {
+    id: 'cortinas-enrollar-pvc-detail',
+    pagePath: 'productos/cortinas-de-enrollar-pvc.html',
+    pagePatch: {
+      title: 'Cortinas de enrollar en PVC',
+      summary: 'Opción funcional y económica para cerramiento, privacidad y mantenimiento simple.',
+      seoTitle: 'Cortinas de enrollar PVC | Practicidad',
+      seoDescription:
+        'Cortinas de enrollar en PVC para frentes, ventanas y recambio con una solución liviana, práctica y de bajo mantenimiento.',
+      legacySource: '/productos/cortinas-de-enrollar-pvc.html',
+    },
+    sections: [
+      editorialSplitSection(
+        'cortinas-pvc-editorial',
+        'Guía comercial de cortinas de enrollar en PVC',
+        'Elegí PVC cuando buscás practicidad y menor mantenimiento',
+        'Es una alternativa liviana y funcional para hogar, comercio y recambio. También ayuda a resolver proyectos con presupuesto más acotado.',
+        '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg',
+        'Cortinas de enrollar en PVC',
+        [
+          { label: 'Pedir asesoramiento', href: '/contacto.html' },
+          { label: 'Ver comparativa PVC vs aluminio', href: '/guias/cortinas-pvc-vs-aluminio' },
+        ],
+        [
+          rtParagraph([
+            rtStrong('Practicidad'),
+            rtText(' porque ofrece una solución simple para uso cotidiano, recambio o instalación nueva sin sumar complejidad.'),
+          ]),
+          rtParagraph([
+            rtStrong('Mantenimiento'),
+            rtText(' porque no requiere pintura ni tratamientos adicionales y acompaña bien el uso diario.'),
+          ]),
+          rtParagraph([
+            rtStrong('Costo'),
+            rtText(' porque suele ser una entrada más accesible dentro de la familia de cortinas de enrollar.'),
+          ]),
+          rtList([
+            [rtText('Funciona bien en frentes de hogar, comercio y recambio.')],
+            [rtText('Se adapta a versión manual o motorizada según necesidad.')],
+            [rtText('Conviene cuando querés resolver sin recargar el presupuesto.')],
+          ]),
+        ],
+        [
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg',
+            imageAlt: 'Cortina de enrollar en PVC',
+            href: '/guias/cortinas-pvc-vs-aluminio',
+            linkLabel: 'Ver comparativa',
+          },
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
+            imageAlt: 'Cortina de enrollar PVC',
+            href: '/contacto.html',
+            linkLabel: 'Pedir asesoramiento',
+          },
+        ],
+      ),
+      featureGridSection(
+        'cortinas-pvc-features',
+        'Qué aporta el PVC',
+        'Practicidad, costo y mantenimiento simple',
+        'Elegí por uso, exposición y presupuesto para avanzar con más claridad.',
+        [
+          featureCard(
+            'Practicidad',
+            'Practicidad',
+            'Una solución simple para resolver cierres y privacidad con menos exigencia de mantenimiento.',
+            '/contacto.html',
+            '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_1.jpeg',
+            'PVC practicidad',
+            'Uso',
+          ),
+          featureCard(
+            'Costo accesible',
+            'Costo accesible',
+            'Suele ser la puerta de entrada más razonable cuando el presupuesto pesa en la decisión.',
+            '/precios/cortinas-de-enrollar',
+            '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
+            'PVC costo',
+            'Costo',
+          ),
+          featureCard(
+            'Mantenimiento',
+            'Mantenimiento simple',
+            'Acompaña bien el uso diario sin sumar procesos de cuidado complejos.',
+            '/productos/cortinas-de-enrollar.html',
+            '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg',
+            'PVC mantenimiento',
+            'Mantenimiento',
+          ),
+          featureCard(
+            'Recambio',
+            'Recambio práctico',
+            'Si venís de un sistema viejo, puede ser una alternativa clara para renovar sin complicar la obra.',
+            '/servicios/reparacion-cortinas-y-persianas.html',
+            '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalanas.png',
+            'PVC recambio',
+            'Recambio',
+          ),
+        ],
+      ),
+    ],
+  },
+  {
+    id: 'contact-page',
+    pagePath: 'contacto.html',
+    pagePatch: {
+      title: 'Contacto y presupuesto',
+      summary: 'Canal directo para consultas, medidas y presupuesto.',
+      seoTitle: 'Contacto y presupuesto | Urucortinas',
+      seoDescription:
+        'Contactanos para pedir presupuesto, coordinar visita o resolver dudas sobre cortinas, persianas, aberturas y motorización en Uruguay.',
+    },
+    sections: [
+      mediaHeroSection(
+        'contact-hero',
+        'Contacto comercial',
+        'Contacto y presupuesto para tu proyecto',
+        'Escribinos con medidas, fotos o la idea que tenés y te ayudamos a definir la mejor solución.',
+        '/uploads/cms/legacy-assets/img/servicios/reparacion-cortinas/reparacion-persiana.jpeg',
+        'Contacto Urucortinas',
+        {
+          label: 'Enviar WhatsApp',
+          href: 'https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:',
+          external: true,
+        },
+        {
+          label: 'Ver productos',
+          href: '/productos/cortinas-de-enrollar.html',
+        },
+        'Atención comercial',
+        'Pedí presupuesto, coordiná una visita o resolvé dudas sobre producto, medidas o instalación.',
+      ),
+      {
+        key: 'contact-grid',
+        type: CmsPageSectionType.FEATURE_GRID,
+        name: 'Canales de contacto',
+        sortOrder: 1,
+        settings: {
+          title: 'Canales de contacto y cobertura',
+          variant: 'contact',
+          description:
+            'Teléfono, WhatsApp, email y ubicación para avanzar con presupuesto o asesoramiento.',
+        },
+      },
+      {
+        key: 'faq',
+        type: CmsPageSectionType.FAQ,
+        name: 'Preguntas Frecuentes',
+        sortOrder: 2,
+        settings: {
+          title: 'Preguntas frecuentes',
+          description:
+            'Respuestas útiles para pedir presupuesto, coordinar visita o entender el alcance del servicio.',
+        },
+      },
+    ],
+  },
+  {
+    id: 'faq-page',
+    pagePath: 'preguntas-frecuentes',
+    pagePatch: {
+      seoTitle: 'Preguntas frecuentes sobre productos y servicios | Urucortinas',
+      seoDescription:
+        'Resolvemos dudas sobre presupuestos, instalación, financiación, cobertura y productos para que puedas avanzar con más claridad.',
+    },
+    sections: [],
+  },
+  {
+    id: 'who-we-are-page',
+    pagePath: 'quienes-somos',
+    pagePatch: {
+      seoTitle: 'Quiénes somos y cómo trabajamos | Urucortinas',
+      seoDescription:
+        'Diseñamos, fabricamos e instalamos cortinas, persianas, toldos, cerramientos y aberturas a medida con atención personalizada en todo Uruguay.',
+    },
+    sections: [],
+  },
+  {
+    id: 'dvh-detail',
+    pagePath: 'productos/dvh.html',
+    pagePatch: {
+      title: '¿Qué es el Doble Vidriado Hermético (DVH)? - Urucortinas',
+      summary:
+        'El Doble Vidriado Hermético (DVH) mejora el aislamiento térmico y acústico en aberturas de aluminio.',
+      seoTitle: 'Qué es el Doble Vidriado Hermético (DVH) | Urucortinas',
+      seoDescription:
+        'El DVH mejora el aislamiento térmico y acústico en aberturas de aluminio. Conocé cuándo conviene y cómo se integra al proyecto.',
+      legacySource: '/productos/dvh.html',
+    },
+    sections: [
+      editorialSplitSection(
+        'dvh-editorial',
+        'Guía comercial de DVH',
+        'DVH: más aislamiento térmico y acústico en aberturas',
+        'El DVH ayuda a mejorar confort y eficiencia cuando el proyecto necesita una respuesta más completa que el vidrio simple.',
+        '/uploads/cms/legacy-assets/img/aberturas/dvh-main.jpg',
+        'Doble Vidriado Hermético',
+        [
+          { label: 'Ver aberturas', href: '/productos/aberturas-aluminio.html' },
+          { label: 'Pedir asesoramiento', href: '/contacto.html' },
+        ],
+        [
+          rtParagraph([
+            rtStrong('Aislamiento térmico'),
+            rtText(' porque la cámara de aire entre los vidrios ayuda a mejorar el confort interior.'),
+          ]),
+          rtParagraph([
+            rtStrong('Aislamiento acústico'),
+            rtText(' porque suma una barrera más eficaz frente al ruido exterior.'),
+          ]),
+          rtParagraph([
+            rtStrong('Proyecto'),
+            rtText(' porque se integra con series de aluminio como Probba, Gala y Summa según el nivel de prestación buscado.'),
+          ]),
+          rtList([
+            [rtText('Conviene cuando querés más confort interior.')],
+            [rtText('Se integra muy bien con aberturas de alta prestación.')],
+            [rtText('Es una guía útil para comparar vidrio simple versus DVH.')],
+          ]),
+        ],
+        [
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/dvh-main.jpg',
+            imageAlt: 'Doble Vidriado Hermético',
+            href: '/productos/aberturas-aluminio.html',
+            linkLabel: 'Ver aberturas',
+          },
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg',
+            imageAlt: 'Monoblock con DVH',
+            href: '/contacto.html',
+            linkLabel: 'Pedir asesoramiento',
+          },
+        ],
+      ),
+      featureGridSection(
+        'dvh-features',
+        'Qué aporta el DVH',
+        'Aislamiento, confort y mejor integración al proyecto',
+        'Elegí DVH cuando el objetivo es sumar prestaciones reales a la abertura.',
+        [
+          featureCard(
+            'Aislamiento',
+            'Aislamiento térmico',
+            'La cámara entre vidrios ayuda a mejorar la eficiencia del cierre.',
+            '/productos/aberturas-aluminio.html',
+            '/uploads/cms/legacy-assets/img/aberturas/dvh-main.jpg',
+            'DVH aislamiento térmico',
+            'Confort',
+          ),
+          featureCard(
+            'Ruido',
+            'Aislamiento acústico',
+            'Puede ayudar a reducir la percepción de ruido exterior en el ambiente.',
+            '/productos/aberturas-probba.html',
+            '/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg',
+            'DVH aislamiento acústico',
+            'Ruido',
+          ),
+          featureCard(
+            'Prestación',
+            'Mejor prestación',
+            'Suma cuando el proyecto necesita una abertura más completa que el vidrio simple.',
+            '/productos/aberturas-gala.html',
+            '/uploads/cms/legacy-assets/img/aberturas/gala.jpg',
+            'DVH prestación',
+            'Prestación',
+          ),
+          featureCard(
+            'Series',
+            'Compatible con series de aluminio',
+            'Se integra con Probba, Gala y Summa según el nivel de exigencia del proyecto.',
+            '/productos/aberturas-summa.html',
+            '/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg',
+            'DVH series',
+            'Series',
+          ),
+        ],
+      ),
+    ],
+  },
+  {
+    id: 'aberturas-serie-20-y-25-detail',
+    pagePath: 'productos/aberturas-serie-20-y-25.html',
+    pagePatch: {
+      title: 'Serie 20 y 25',
+      summary: 'Serie estándar para resoluciones funcionales, accesibles y de entrega rápida.',
+      seoTitle: 'Serie 20 y 25 | Aberturas de aluminio',
+      seoDescription:
+        'Serie 20 y 25 de aberturas de aluminio para resoluciones estándar, obra y recambio con una propuesta funcional y accesible.',
+      legacySource: '/productos/aberturas-serie-20-y-25.html',
+    },
+    sections: [
+      editorialSplitSection(
+        'serie-20-25-editorial',
+        'Guía comercial de serie 20 y 25',
+        'Elegí esta serie cuando buscás una solución estándar y funcional',
+        'La serie 20 y 25 resuelve bien obra o recambio cuando la prioridad es cumplir con una prestación sólida sin escalar a líneas más complejas.',
+        '/uploads/cms/legacy-assets/img/aberturas/ventana.jpg',
+        'Serie 20 y 25',
+        [
+          { label: 'Pedir asesoramiento', href: '/contacto.html' },
+          { label: 'Ver DVH', href: '/productos/dvh.html' },
+        ],
+        [
+          rtParagraph([
+            rtStrong('Obra estándar'),
+            rtText(' porque se adapta a resoluciones funcionales que no exigen una línea de alta prestación.'),
+          ]),
+          rtParagraph([
+            rtStrong('Recambio'),
+            rtText(' porque permite renovar aberturas con una propuesta accesible y prolija.'),
+          ]),
+          rtParagraph([
+            rtStrong('Proyecto'),
+            rtText(' porque funciona como base para comparar luego con Probba, Gala o Summa.'),
+          ]),
+          rtList([
+            [rtText('Funcionalidad y entrega rápida.')],
+            [rtText('Muy útil para obra y recambio.')],
+            [rtText('Se integra con DVH según proyecto.')],
+          ]),
+        ],
+        [
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/ventana.jpg',
+            imageAlt: 'Serie 20 y 25',
+            href: '/productos/aberturas-probba.html',
+            linkLabel: 'Ver Probba',
+          },
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg',
+            imageAlt: 'Serie 20 y 25 en obra',
+            href: '/contacto.html',
+            linkLabel: 'Pedir asesoramiento',
+          },
+        ],
+      ),
+    ],
+  },
+  {
+    id: 'aberturas-probba-detail',
+    pagePath: 'productos/aberturas-probba.html',
+    pagePatch: {
+      title: 'Serie Probba',
+      summary: 'Alta prestación de entrada con mejor cierre y posibilidad de DVH.',
+      seoTitle: 'Serie Probba | Tipologías y DVH',
+      seoDescription:
+        'Serie Probba de aberturas de aluminio con mejor cierre, tipologías variadas y posibilidad de DVH para proyectos de alta prestación de entrada.',
+      legacySource: '/productos/aberturas-probba.html',
+    },
+    sections: [
+      editorialSplitSection(
+        'probba-editorial',
+        'Guía comercial de serie Probba',
+        'Probba abre la puerta a una alta prestación de entrada',
+        'Es una serie pensada para mejorar el cierre, sumar tipologías y acompañar proyectos que necesitan más que una solución estándar.',
+        '/uploads/cms/legacy-assets/img/aberturas/abertura_1.png',
+        'Serie Probba',
+        [
+          { label: 'Pedir asesoramiento', href: '/contacto.html' },
+          { label: 'Ver serie Gala', href: '/productos/aberturas-gala.html' },
+        ],
+        [
+          rtParagraph([
+            rtStrong('Tipologías'),
+            rtText(' porque se adapta a distintas formas de uso y resolución de abertura según el proyecto.'),
+          ]),
+          rtParagraph([
+            rtStrong('DVH'),
+            rtText(' porque puede acompañar mejor aislamiento y una prestación más completa.'),
+          ]),
+          rtParagraph([
+            rtStrong('Diseño'),
+            rtText(' porque la línea suma una lectura más cuidada y moderna que una base estándar.'),
+          ]),
+          rtList([
+            [rtText('Alta prestación de entrada.')],
+            [rtText('Mejor cierre y más variantes.')],
+            [rtText('Buena base para comparar con Gala y Summa.')],
+          ]),
+        ],
+        [
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/abertura_1.png',
+            imageAlt: 'Serie Probba tipologías',
+            href: '/productos/aberturas-gala.html',
+            linkLabel: 'Ver Gala',
+          },
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/gala.jpg',
+            imageAlt: 'Serie Probba y Gala',
+            href: '/contacto.html',
+            linkLabel: 'Pedir asesoramiento',
+          },
+        ],
+      ),
+    ],
+  },
+  {
+    id: 'aberturas-gala-detail',
+    pagePath: 'productos/aberturas-gala.html',
+    pagePatch: {
+      title: 'Serie Gala',
+      summary: 'Serie versátil y estética para proyectos que buscan más confort y mejor terminación.',
+      seoTitle: 'Serie Gala | Confort y terminaciones',
+      seoDescription:
+        'Serie Gala de aberturas de aluminio para proyectos que buscan más confort, mejor terminación y una solución versátil con DVH.',
+      legacySource: '/productos/aberturas-gala.html',
+    },
+    sections: [
+      editorialSplitSection(
+        'gala-editorial',
+        'Guía comercial de serie Gala',
+        'Gala suma confort, terminación y una lectura más versátil',
+        'Es una serie que responde bien cuando el proyecto necesita algo más equilibrado entre estética, prestación y confort.',
+        '/uploads/cms/legacy-assets/img/aberturas/gala.jpg',
+        'Serie Gala',
+        [
+          { label: 'Pedir asesoramiento', href: '/contacto.html' },
+          { label: 'Ver serie Summa', href: '/productos/aberturas-summa.html' },
+        ],
+        [
+          rtParagraph([
+            rtStrong('Confort'),
+            rtText(' porque aporta una respuesta más equilibrada para el uso cotidiano y el proyecto general.'),
+          ]),
+          rtParagraph([
+            rtStrong('Terminación'),
+            rtText(' porque ofrece una lectura más cuidada del frente y una solución estética más versátil.'),
+          ]),
+          rtParagraph([
+            rtStrong('DVH'),
+            rtText(' porque se integra bien cuando el proyecto necesita más aislamiento y mejor prestación.'),
+          ]),
+          rtList([
+            [rtText('Serie versátil para más de un tipo de obra.')],
+            [rtText('Mejor terminación y confort visual.')],
+            [rtText('Buen puente entre Probba y Summa.')],
+          ]),
+        ],
+        [
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/gala.jpg',
+            imageAlt: 'Serie Gala',
+            href: '/productos/aberturas-summa.html',
+            linkLabel: 'Ver Summa',
+          },
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg',
+            imageAlt: 'Serie Gala y monoblock',
+            href: '/contacto.html',
+            linkLabel: 'Pedir asesoramiento',
+          },
+        ],
+      ),
+    ],
+  },
+  {
+    id: 'aberturas-summa-detail',
+    pagePath: 'productos/aberturas-summa.html',
+    pagePatch: {
+      title: 'Serie Summa',
+      summary: 'Línea premium para grandes dimensiones, hermeticidad y prestaciones superiores.',
+      seoTitle: 'Serie Summa | Premium y hermeticidad',
+      seoDescription:
+        'Serie Summa de aberturas de aluminio para grandes dimensiones, más hermeticidad, mejores terminaciones y prestaciones superiores con DVH.',
+      legacySource: '/productos/aberturas-summa.html',
+    },
+    sections: [
+      editorialSplitSection(
+        'summa-editorial',
+        'Guía comercial de serie Summa',
+        'Summa es la línea premium para proyectos exigentes',
+        'Pensada para grandes dimensiones, mejor hermeticidad y una solución más completa en prestaciones y terminaciones.',
+        '/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg',
+        'Serie Summa',
+        [
+          { label: 'Pedir asesoramiento', href: '/contacto.html' },
+          { label: 'Ver guía DVH', href: '/productos/dvh.html' },
+        ],
+        [
+          rtParagraph([
+            rtStrong('Grandes dimensiones'),
+            rtText(' porque resuelve frentes más exigentes con una lectura más robusta y completa.'),
+          ]),
+          rtParagraph([
+            rtStrong('Hermeticidad'),
+            rtText(' porque apunta a una prestación superior en confort y respuesta del sistema.'),
+          ]),
+          rtParagraph([
+            rtStrong('Prestación premium'),
+            rtText(' porque acompaña mejor los proyectos que piden una solución de mayor nivel.'),
+          ]),
+          rtList([
+            [rtText('Línea premium de la familia.')],
+            [rtText('Compatibilidad con DVH.')],
+            [rtText('Pensada para obra con mayores exigencias.')],
+          ]),
+        ],
+        [
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg',
+            imageAlt: 'Serie Summa',
+            href: '/productos/dvh.html',
+            linkLabel: 'Ver DVH',
+          },
+          {
+            imageUrl: '/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg',
+            imageAlt: 'Serie Summa y monoblock',
+            href: '/contacto.html',
+            linkLabel: 'Pedir asesoramiento',
+          },
         ],
       ),
     ],

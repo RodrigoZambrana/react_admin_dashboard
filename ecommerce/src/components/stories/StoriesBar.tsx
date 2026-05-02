@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import { getMediaUrl } from "@/lib/media";
@@ -53,6 +53,9 @@ const cardStyle: CSSProperties = {
   gap: "0.55rem",
   color: "inherit",
   textDecoration: "none",
+  minWidth: 0,
+  flex: "0 0 auto",
+  scrollSnapAlign: "start",
 };
 
 const buttonStyle: CSSProperties = {
@@ -62,6 +65,17 @@ const buttonStyle: CSSProperties = {
   border: 0,
   padding: 0,
   cursor: "pointer",
+};
+
+const storyTitleStyle: CSSProperties = {
+  width: "92px",
+  textAlign: "center",
+  fontSize: "0.86rem",
+  lineHeight: 1.2,
+  whiteSpace: "normal",
+  overflowWrap: "anywhere",
+  wordBreak: "normal",
+  minHeight: "2.4em",
 };
 
 const ringStyle: CSSProperties = {
@@ -101,12 +115,21 @@ const railShellMobileStyle: CSSProperties = {
 };
 
 const railStageMobileStyle: CSSProperties = {
-  overflow: "hidden",
+  overflowX: "auto",
+  overflowY: "hidden",
+  justifyContent: "flex-start",
+  scrollSnapType: "x proximity",
+  WebkitOverflowScrolling: "touch",
+  scrollbarWidth: "none",
 };
 
 const railMobileStyle: CSSProperties = {
+  display: "flex",
   gap: "0.75rem",
   margin: 0,
+  paddingInline: "0.25rem",
+  transform: "none",
+  transition: "none",
 };
 
 const navButtonMobileStyle: CSSProperties = {
@@ -120,6 +143,7 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
   const [offset, setOffset] = useState(0);
   const [animating, setAnimating] = useState(false);
   const directionRef = useRef<"left" | "right" | null>(null);
+  const railStageRef = useRef<HTMLDivElement | null>(null);
   const storyStep = isCompact ? 104 : 106;
 
   useEffect(() => {
@@ -143,7 +167,24 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
     return () => mediaQuery.removeListener(update);
   }, []);
 
+  useLayoutEffect(() => {
+    if (isCompact && railStageRef.current) {
+      railStageRef.current.scrollLeft = 0;
+    }
+  }, [isCompact, orderedStories]);
+
   const rotate = (direction: "left" | "right") => {
+    if (isCompact) {
+      const stage = railStageRef.current;
+      if (!stage) return;
+      const delta = Math.max(96, Math.round(stage.clientWidth * 0.8));
+      stage.scrollBy({
+        left: direction === "right" ? delta : -delta,
+        behavior: "smooth",
+      });
+      return;
+    }
+
     if (animating || orderedStories.length < 2) return;
 
     directionRef.current = direction;
@@ -157,12 +198,13 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
 
   const railShellResolved = isCompact ? { ...railShellStyle, ...railShellMobileStyle } : railShellStyle;
   const railStageResolved = isCompact ? { ...railStageStyle, ...railStageMobileStyle } : railStageStyle;
-  const railResolved = {
-    ...railStyle,
-    ...railMobileStyle,
-    transform: `translateX(${offset}px)`,
-    transition: animating ? "transform 240ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
-  };
+  const railResolved = isCompact
+    ? { ...railStyle, ...railMobileStyle }
+    : {
+        ...railStyle,
+        transform: `translateX(${offset}px)`,
+        transition: animating ? "transform 240ms cubic-bezier(0.22, 1, 0.36, 1)" : "none",
+      };
   const navButtonResolved = isCompact ? { ...navButtonStyle, ...navButtonMobileStyle } : navButtonStyle;
 
   const onTrackTransitionEnd = () => {
@@ -199,7 +241,7 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
           ‹
         </button>
 
-        <div style={railStageResolved}>
+        <div ref={railStageRef} style={railStageResolved}>
           <div style={railResolved} onTransitionEnd={onTrackTransitionEnd}>
             {orderedStories.map((story) =>
               onStorySelect ? (
@@ -221,17 +263,7 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
                       />
                     </div>
                   </div>
-                  <strong
-                    style={{
-                      width: "92px",
-                      textAlign: "center",
-                      fontSize: "0.86rem",
-                      lineHeight: 1.1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <strong style={storyTitleStyle}>
                     {story.title}
                   </strong>
                 </button>
@@ -249,17 +281,7 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
                       />
                     </div>
                   </div>
-                  <strong
-                    style={{
-                      width: "92px",
-                      textAlign: "center",
-                      fontSize: "0.86rem",
-                      lineHeight: 1.1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <strong style={storyTitleStyle}>
                     {story.title}
                   </strong>
                 </Link>

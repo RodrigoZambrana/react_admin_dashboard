@@ -12,7 +12,8 @@ import Container from "@component/Container";
 import { H1, H3, Paragraph, SemiSpan } from "@component/Typography";
 import { Button } from "@component/buttons";
 import { useStorefrontConfig } from "../storefront-context";
-import { useTranslation } from "@/state/i18n-context";
+import { useI18n, useTranslation } from "@/state/i18n-context";
+import { resolveLocalizedSiteRoute } from "@/lib/site-routes";
 
 const HeroCard = styled(Card)(({ theme }) => ({
   borderRadius: 24,
@@ -34,93 +35,140 @@ const formatContactHref = (value: string, type: "email" | "phone") => {
   return `tel:${value.replace(/[^\d+]/g, "")}`;
 };
 
+const formatWhatsAppHref = (value: string) => {
+  const digits = value.replace(/[^\d]/g, "");
+  return digits ? `https://wa.me/${digits}` : null;
+};
+
+type SummaryItem = {
+  key: string;
+  label: string;
+  value: string;
+  href?: string;
+  external?: boolean;
+};
+
+const isSummaryItem = (item: SummaryItem | null): item is SummaryItem => Boolean(item);
+
 export default function ContactPageClient() {
   const config = useStorefrontConfig();
   const t = useTranslation();
+  const { locale } = useI18n();
+  const shopHref = resolveLocalizedSiteRoute("shop", locale);
 
   const companyProfile = config.companyProfile;
   const tradeName =
     companyProfile?.tradeName ??
     companyProfile?.legalName ??
     config.seo.siteName ??
-    t("contact.page.fallback.siteName", { defaultMessage: "Our store" });
+    t("contact.page.fallback.siteName", { defaultMessage: "Urucortinas" });
 
-  const email = companyProfile?.email ?? "ventas@example.com";
-  const phone = companyProfile?.phone ?? "+598 99 000 000";
+  const email = companyProfile?.email?.trim() || null;
+  const phone = companyProfile?.phone?.trim() || null;
+  const whatsappHref = phone ? formatWhatsAppHref(phone) : null;
   const address =
-    [companyProfile?.addressLine1, companyProfile?.addressLine2].filter(Boolean).join(", ") ||
-    t("contact.page.fallback.address", { defaultMessage: "Montevideo, Uruguay" });
-  const website = companyProfile?.website ?? "https://example.com";
+    [companyProfile?.addressLine1, companyProfile?.addressLine2].filter(Boolean).join(", ").trim() ||
+    null;
+  const website = companyProfile?.website?.trim() || null;
 
-  const summaryItems = useMemo(
-    () => [
-      {
-        key: "email",
-        label: t("contact.page.labels.email", { defaultMessage: "Email" }),
-        value: email,
-        href: formatContactHref(email, "email"),
-      },
-      {
-        key: "phone",
-        label: t("contact.page.labels.phone", { defaultMessage: "Phone" }),
-        value: phone,
-        href: formatContactHref(phone, "phone"),
-      },
-      {
-        key: "address",
-        label: t("contact.page.labels.address", { defaultMessage: "Address" }),
-        value: address,
-      },
-      {
-        key: "website",
-        label: t("contact.page.labels.website", { defaultMessage: "Website" }),
-        value: website,
-        href: website,
-        external: true,
-      },
-    ],
-    [address, email, phone, t, website],
-  );
+  const summaryItems = useMemo<SummaryItem[]>(
+    () =>
+      ([
+        whatsappHref
+          ? {
+              key: "whatsapp",
+              label: t("contact.page.labels.whatsapp", { defaultMessage: "WhatsApp" }),
+              value: phone ?? t("contact.page.fallback.whatsapp", { defaultMessage: "Escribinos por WhatsApp" }),
+              href: whatsappHref,
+              external: true,
+            }
+          : null,
+        email
+          ? {
+              key: "email",
+              label: t("contact.page.labels.email", { defaultMessage: "Correo" }),
+              value: email,
+              href: formatContactHref(email, "email"),
+            }
+          : null,
+        phone
+          ? {
+              key: "phone",
+              label: t("contact.page.labels.phone", { defaultMessage: "Teléfono" }),
+              value: phone,
+              href: formatContactHref(phone, "phone"),
+            }
+          : null,
+        address
+          ? {
+              key: "address",
+              label: t("contact.page.labels.address", { defaultMessage: "Dirección" }),
+              value: address,
+            }
+          : null,
+        website
+          ? {
+              key: "website",
+              label: t("contact.page.labels.website", { defaultMessage: "Sitio web" }),
+              value: website,
+              href: website,
+              external: true,
+            }
+          : null,
+      ] as Array<SummaryItem | null>).filter(isSummaryItem),
+    [address, email, phone, t, website, whatsappHref],
+  ) as SummaryItem[];
 
   const channelCards = useMemo(
     () => [
       {
+        key: "whatsapp",
+        title: t("contact.page.channel.whatsapp.title", { defaultMessage: "WhatsApp para presupuestos" }),
+        body: t("contact.page.channel.whatsapp.body", {
+          defaultMessage:
+            "Escribinos por WhatsApp para responder más rápido, compartir medidas y resolver dudas de producto, instalación o entrega."
+        }),
+        ctaLabel: t("contact.page.channel.whatsapp.cta", { defaultMessage: "Escribir por WhatsApp" }),
+        href: whatsappHref ?? (email ? formatContactHref(email, "email") : shopHref),
+        external: Boolean(whatsappHref || email),
+      },
+      {
         key: "sales",
-        title: t("contact.page.channel.sales.title", { defaultMessage: "Sales and quotes" }),
+        title: t("contact.page.channel.sales.title", { defaultMessage: "Ventas y presupuestos" }),
         body: t("contact.page.channel.sales.body", {
           defaultMessage:
-            "Use this channel to request estimates, measurements, and product recommendations."
+            "Si ya estás comparando opciones, entrá al catálogo para revisar productos, materiales y variantes antes de escribirnos."
         }),
-        ctaLabel: t("contact.page.channel.sales.cta", { defaultMessage: "Browse products" }),
-        href: "/shop",
+        ctaLabel: t("contact.page.channel.sales.cta", { defaultMessage: "Ver productos" }),
+        href: shopHref,
         external: false,
       },
       {
         key: "support",
-        title: t("contact.page.channel.support.title", { defaultMessage: "Customer support" }),
+        title: t("contact.page.channel.support.title", { defaultMessage: "Instalación y soporte" }),
         body: t("contact.page.channel.support.body", {
           defaultMessage:
-            "Share questions about deliveries, installations, or existing orders through the official support channel."
+            "Consultanos por instalación, mantenimiento, reparaciones o seguimiento de pedidos en Uruguay."
         }),
-        ctaLabel: t("contact.page.channel.support.cta", { defaultMessage: "Contact support" }),
-        href: formatContactHref(email, "email"),
+        ctaLabel: t("contact.page.channel.support.cta", { defaultMessage: "Escribir" }),
+        href: email ? formatContactHref(email, "email") : undefined,
         external: true,
       },
       {
         key: "hours",
-        title: t("contact.page.hours.title", { defaultMessage: "Hours" }),
+        title: t("contact.page.hours.title", { defaultMessage: "Horarios" }),
         lines: [
           t("contact.page.hours.weekdays", {
-            defaultMessage: "Monday to Friday: 9:00 to 18:00"
+            defaultMessage: "Lunes a viernes: 9:00 a 18:00"
           }),
           t("contact.page.hours.saturday", {
-            defaultMessage: "Saturday: 9:00 to 13:00"
+            defaultMessage: "Sábado: 9:00 a 13:00"
           }),
-          t("contact.page.hours.sunday", { defaultMessage: "Sunday: closed" }),
+          t("contact.page.hours.sunday", { defaultMessage: "Domingo: cerrado" }),
         ],
       },
     ],
-    [email, t],
+    [email, shopHref, t, whatsappHref],
   );
 
   return (
@@ -129,32 +177,43 @@ export default function ContactPageClient() {
         <Grid container spacing={6}>
           <Grid item md={7} xs={12}>
             <SemiSpan color="primary.main" display="block" mb="0.75rem" fontWeight={700}>
-              {t("contact.page.eyebrow", { defaultMessage: "Contact" })}
+              {t("contact.page.eyebrow", { defaultMessage: "Contacto" })}
             </SemiSpan>
             <H1 mb="1rem">
               {t("contact.page.title", {
-                defaultMessage: "Let's plan your next project with {storeName}.",
+                defaultMessage: "Planifiquemos tu próximo proyecto con {storeName}.",
                 values: { storeName: tradeName }
               })}
             </H1>
             <Paragraph color="text.muted" maxWidth="640px" mb="1.5rem">
               {t("contact.page.subtitle", {
                 defaultMessage:
-                  "Choose the channel that best fits your question and our team will get back to you as soon as possible."
+                  "Escribinos por WhatsApp para cotizar más rápido, coordinar una visita o resolver dudas de instalación y mantenimiento."
               })}
             </Paragraph>
 
             <FlexBox flexWrap="wrap" style={{ gap: "0.75rem" }}>
-              <a href={formatContactHref(email, "email")} style={{ textDecoration: "none" }}>
-                <Button color="primary" variant="contained">
-                  {t("contact.page.actions.email", { defaultMessage: "Write to us" })}
-                </Button>
-              </a>
-              <a href={formatContactHref(phone, "phone")} style={{ textDecoration: "none" }}>
-                <Button color="primary" variant="outlined">
-                  {t("contact.page.actions.call", { defaultMessage: "Call now" })}
-                </Button>
-              </a>
+              {whatsappHref ? (
+                <a href={whatsappHref} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+                  <Button color="primary" variant="contained">
+                    {t("contact.page.actions.whatsapp", { defaultMessage: "WhatsApp" })}
+                  </Button>
+                </a>
+              ) : null}
+              {email ? (
+                <a href={formatContactHref(email, "email")} style={{ textDecoration: "none" }}>
+                  <Button color="primary" variant="contained">
+                    {t("contact.page.actions.email", { defaultMessage: "Enviar correo electrónico" })}
+                  </Button>
+                </a>
+              ) : null}
+              {phone ? (
+                <a href={formatContactHref(phone, "phone")} style={{ textDecoration: "none" }}>
+                  <Button color="primary" variant="outlined">
+                    {t("contact.page.actions.call", { defaultMessage: "Llamar ahora" })}
+                  </Button>
+                </a>
+              ) : null}
             </FlexBox>
           </Grid>
 
@@ -167,7 +226,7 @@ export default function ContactPageClient() {
               borderColor="gray.300"
               height="100%">
               <H3 mb="1rem">
-                {t("contact.page.summary.title", { defaultMessage: "Contact details" })}
+                {t("contact.page.summary.title", { defaultMessage: "Datos de contacto" })}
               </H3>
               <FlexBox flexDirection="column" style={{ gap: "1rem" }}>
                 {summaryItems.map((item) => (

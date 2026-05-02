@@ -1,5 +1,6 @@
 import type { StorefrontConfig } from '../types'
 import { DEFAULT_HOME_LAYOUTS, FALLBACK_LAYOUT_KEY } from './layouts'
+import { resolveDefaultSiteRoute } from '../site-routes'
 
 export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
   defaultLayout: FALLBACK_LAYOUT_KEY,
@@ -11,7 +12,7 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
       { id: 'nav-categories', label: 'Categorías', href: '/categories' },
       { id: 'nav-about', label: 'Quiénes somos', href: '/quienes-somos' },
       { id: 'nav-faq', label: 'Preguntas frecuentes', href: '/preguntas-frecuentes' },
-      { id: 'nav-contact', label: 'Contacto', href: '/contacto.html' },
+      { id: 'nav-contact', label: 'Contacto', href: resolveDefaultSiteRoute('contact') },
     ],
     secondary: [
       { id: 'nav-account', label: 'Account', href: '/account' },
@@ -20,7 +21,7 @@ export const DEFAULT_STOREFRONT_CONFIG: StorefrontConfig = {
     footer: [
       [
         { id: 'footer-about', label: 'Quiénes somos', href: '/quienes-somos' },
-        { id: 'footer-contact', label: 'Contacto', href: '/contacto.html' },
+        { id: 'footer-contact', label: 'Contacto', href: resolveDefaultSiteRoute('contact') },
         { id: 'footer-faq', label: 'Preguntas frecuentes', href: '/preguntas-frecuentes' },
       ],
     ],

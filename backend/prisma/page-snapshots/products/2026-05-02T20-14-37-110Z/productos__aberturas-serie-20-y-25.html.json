@@ -1,0 +1,679 @@
+{
+  "path": "productos/aberturas-serie-20-y-25.html",
+  "title": "Serie 20 y 25",
+  "summary": "Serie estándar para resoluciones funcionales, accesibles y de entrega rápida.",
+  "seoTitle": "Serie 20 y 25 | Aberturas de aluminio",
+  "seoDescription": "Serie 20 y 25 de aberturas de aluminio para resoluciones estándar, obra y recambio con una propuesta funcional y accesible.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+  "legacySource": "/productos/aberturas-serie-20-y-25.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-05-02T20:04:20.953Z",
+  "sections": [
+    {
+      "id": 4663,
+      "pageId": 55,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Serie 20 y 25",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Serie 20 y 25",
+        "slides": [
+          {
+            "href": "/contacto.html",
+            "title": "Serie 20 y 25",
+            "imageAlt": "Serie 20 y 25 de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+            "linkLabel": "Pedir asesoramiento",
+            "description": "Una alternativa funcional y más accesible para resoluciones estándar."
+          }
+        ],
+        "eyebrow": "Serie estándar",
+        "description": "Una alternativa funcional y más accesible para resoluciones estándar.",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/articulos/dvh.html",
+        "secondaryCtaLabel": "Ver guía DVH"
+      },
+      "createdAt": "2026-05-02T18:47:56.962Z",
+      "updatedAt": "2026-05-02T18:47:56.962Z",
+      "blocks": []
+    },
+    {
+      "id": 4664,
+      "pageId": 55,
+      "type": "CONTENT_SPLIT",
+      "key": "productos-aberturas-serie-20-y-25-html-content",
+      "name": "Cuándo conviene Serie 20 y 25",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Cuándo conviene Serie 20 y 25",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Serie 20 y 25 de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Serie 20 y 25 de aberturas de aluminio",
+        "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+        "description": "Cuando buscás una respuesta estándar, confiable y de mayor accesibilidad.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:47:56.964Z",
+      "updatedAt": "2026-05-02T18:47:56.964Z",
+      "blocks": [
+        {
+          "id": 5408,
+          "sectionId": 4664,
+          "type": "RICH_TEXT",
+          "key": "productos-aberturas-serie-20-y-25-html-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Se recomienda cuando necesitás una solución funcional, de medidas habituales y con una relación precio-prestación más accesible."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Es una buena elección para ventanas y puertas ventana de uso cotidiano, especialmente cuando no se necesita DVH."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Para frentes grandes o proyectos que buscan más confort, conviene comparar con Probba, Gala o Summa."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "En puertas ventana o ventanas grandes, superiores a 1.50 x 1.50, suele recomendarse Serie 25."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:56.965Z",
+          "updatedAt": "2026-05-02T18:47:56.965Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4665,
+      "pageId": 55,
+      "type": "CONTENT_SPLIT",
+      "key": "productos-aberturas-serie-20-y-25-html-deepening",
+      "name": "Tipologías y usos de Serie 20 y 25",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "Tipologías y usos de Serie 20 y 25",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Serie 20 y 25 de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Serie 20 y 25 de aberturas de aluminio",
+        "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+        "description": "La serie estándar cubre resoluciones frecuentes con criterio funcional.",
+        "mediaPosition": "end"
+      },
+      "createdAt": "2026-05-02T18:47:56.967Z",
+      "updatedAt": "2026-05-02T18:47:56.967Z",
+      "blocks": [
+        {
+          "id": 5409,
+          "sectionId": 4665,
+          "type": "RICH_TEXT",
+          "key": "productos-aberturas-serie-20-y-25-html-deepening-copy",
+          "name": "Detalles técnicos y de uso",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Serie 20 y 25 resuelve ventanas y puertas ventana de uso cotidiano, con medidas frecuentes y una propuesta más accesible."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Es una base sólida para recambio o instalación nueva cuando no se necesita la complejidad de una línea de alta prestación."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Si el frente es más exigente, la comparación con Probba, Gala o Summa ayuda a elegir mejor."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:56.967Z",
+          "updatedAt": "2026-05-02T18:47:56.967Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4666,
+      "pageId": 55,
+      "type": "FEATURE_GRID",
+      "key": "productos-aberturas-serie-20-y-25-html-features",
+      "name": "Puntos de decisión",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "Puntos de decisión",
+        "description": "Lo importante para decidir sin complicar la obra.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T18:47:56.968Z",
+      "updatedAt": "2026-05-02T18:47:56.968Z",
+      "blocks": [
+        {
+          "id": 5410,
+          "sectionId": 4666,
+          "type": "CARD",
+          "key": "productos-aberturas-serie-20-y-25-html-feature-1",
+          "name": "Más accesible",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "body": "La solución estándar para presupuestos más contenidos y resoluciones funcionales.",
+            "href": "/contacto.html",
+            "badge": "Económica",
+            "title": "Más accesible",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 12,
+          "createdAt": "2026-05-02T18:47:56.971Z",
+          "updatedAt": "2026-05-02T18:47:56.971Z",
+          "media": {
+            "id": 12,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+            "type": "IMAGE",
+            "alt": "Serie 20 y 25",
+            "title": "Serie 20 y 25",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.062Z",
+            "updatedAt": "2026-05-02T20:04:20.903Z"
+          }
+        },
+        {
+          "id": 5411,
+          "sectionId": 4666,
+          "type": "CARD",
+          "key": "productos-aberturas-serie-20-y-25-html-feature-2",
+          "name": "Entrega rápida",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "body": "Buena opción cuando querés resolver con tiempos más cortos y medidas frecuentes.",
+            "href": "/contacto.html",
+            "badge": "Stock",
+            "title": "Entrega rápida",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 14,
+          "createdAt": "2026-05-02T18:47:56.972Z",
+          "updatedAt": "2026-05-02T18:47:56.972Z",
+          "media": {
+            "id": 14,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg",
+            "type": "IMAGE",
+            "alt": "DVH aislamiento acústico",
+            "title": "Aislamiento acústico",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.064Z",
+            "updatedAt": "2026-05-02T20:04:20.950Z"
+          }
+        },
+        {
+          "id": 5412,
+          "sectionId": 4666,
+          "type": "CARD",
+          "key": "productos-aberturas-serie-20-y-25-html-feature-3",
+          "name": "Sin DVH",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "body": "Si necesitás DVH, conviene pasar a una línea de alta prestación.",
+            "href": "/articulos/dvh.html",
+            "badge": "Guía",
+            "title": "Sin DVH",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 98,
+          "createdAt": "2026-05-02T18:47:56.973Z",
+          "updatedAt": "2026-05-02T18:47:56.973Z",
+          "media": {
+            "id": 98,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/dvh-main.jpg",
+            "type": "IMAGE",
+            "alt": "DVH aislamiento térmico",
+            "title": "Aislamiento térmico",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:41:18.618Z",
+            "updatedAt": "2026-05-02T20:04:20.949Z"
+          }
+        },
+        {
+          "id": 5413,
+          "sectionId": 4666,
+          "type": "CARD",
+          "key": "productos-aberturas-serie-20-y-25-html-feature-4",
+          "name": "Recomendación de uso",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "body": "Funciona muy bien en soluciones estándar y en recambios simples.",
+            "href": "/productos/aberturas-aluminio.html",
+            "badge": "Uso",
+            "title": "Recomendación de uso",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 87,
+          "createdAt": "2026-05-02T18:47:56.974Z",
+          "updatedAt": "2026-05-02T18:47:56.974Z",
+          "media": {
+            "id": 87,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/abertura_1.png",
+            "type": "IMAGE",
+            "alt": "Probba",
+            "title": "Probba",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.975Z",
+            "updatedAt": "2026-05-02T20:04:20.904Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4667,
+      "pageId": 55,
+      "type": "FAQ",
+      "key": "productos-aberturas-serie-20-y-25-html-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Serie 20 y 25: dudas frecuentes",
+        "description": "Respuestas cortas para cotizar con criterio."
+      },
+      "createdAt": "2026-05-02T18:47:56.975Z",
+      "updatedAt": "2026-05-02T18:47:56.975Z",
+      "blocks": [
+        {
+          "id": 5414,
+          "sectionId": 4667,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-serie-20-y-25-html-faq-1",
+          "name": "¿Cuándo conviene Serie 20 y 25?",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Cuándo conviene Serie 20 y 25?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Conviene cuando buscás una solución estándar, funcional y más accesible para obra o recambio."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:56.975Z",
+          "updatedAt": "2026-05-02T18:47:56.975Z",
+          "media": null
+        },
+        {
+          "id": 5415,
+          "sectionId": 4667,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-serie-20-y-25-html-faq-2",
+          "name": "¿Soporta DVH?",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "question": "¿Soporta DVH?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "No. Si necesitás DVH, conviene revisar Probba, Gala o Summa."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:56.976Z",
+          "updatedAt": "2026-05-02T18:47:56.976Z",
+          "media": null
+        },
+        {
+          "id": 5416,
+          "sectionId": 4667,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-serie-20-y-25-html-faq-3",
+          "name": "¿Qué dato ayuda a cotizar?",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "question": "¿Qué dato ayuda a cotizar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las medidas, el tipo de apertura y si es obra nueva o recambio alcanzan para orientar el presupuesto."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:56.976Z",
+          "updatedAt": "2026-05-02T18:47:56.976Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4668,
+      "pageId": 55,
+      "type": "CTA_BANNER",
+      "key": "productos-aberturas-serie-20-y-25-html-cta",
+      "name": "Cierre comercial",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Pedí asesoramiento para Serie 20 y 25",
+        "intent": "transactional",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "description": "Si querés resolver una abertura estándar, te ayudamos a cotizarla."
+      },
+      "createdAt": "2026-05-02T18:47:56.977Z",
+      "updatedAt": "2026-05-02T18:47:56.977Z",
+      "blocks": []
+    },
+    {
+      "id": 4873,
+      "pageId": 55,
+      "type": "CONTENT_SPLIT",
+      "key": "serie-20-25-editorial",
+      "name": "Guía comercial de serie 20 y 25",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Elegí esta serie cuando buscás una solución estándar y funcional",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/productos/dvh.html",
+            "label": "Ver DVH"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/productos/aberturas-probba.html",
+            "imageAlt": "Serie 20 y 25",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+            "linkLabel": "Ver Probba"
+          },
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Serie 20 y 25 en obra",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Serie 20 y 25",
+        "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/ventana.jpg",
+        "description": "La serie 20 y 25 resuelve bien obra o recambio cuando la prioridad es cumplir con una prestación sólida sin escalar a líneas más complejas.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T20:00:45.089Z",
+      "updatedAt": "2026-05-02T20:04:20.954Z",
+      "blocks": [
+        {
+          "id": 6181,
+          "sectionId": 4873,
+          "type": "RICH_TEXT",
+          "key": "serie-20-25-editorial-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Obra estándar"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " porque se adapta a resoluciones funcionales que no exigen una línea de alta prestación."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Recambio"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " porque permite renovar aberturas con una propuesta accesible y prolija."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Proyecto"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " porque funciona como base para comparar luego con Probba, Gala o Summa."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Funcionalidad y entrega rápida."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Muy útil para obra y recambio."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Se integra con DVH según proyecto."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T20:04:20.955Z",
+          "updatedAt": "2026-05-02T20:04:20.955Z",
+          "media": null
+        }
+      ]
+    }
+  ]
+}

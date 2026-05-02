@@ -76,6 +76,17 @@ const TARGET_PAGES = [
   { path: 'productos/toldos-y-cerramientos.html', gallery: [] },
   { path: 'productos/motores-cortinas-y-persianas.html', gallery: [] },
   { path: 'productos/cortinas-metalicas.html', gallery: [] },
+  {
+    path: 'productos/cortinas-tradicionales.html',
+    gallery: [
+      '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_1.jpeg',
+      '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_2.jpeg',
+      '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_3.jpeg',
+      '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_4.jpeg',
+      '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradiciolaes_5.jpeg',
+      '/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_6.jpeg',
+    ],
+  },
 ];
 
 const PAGE_LAYOUT_OVERRIDES = {
@@ -150,6 +161,12 @@ const PAGE_LAYOUT_OVERRIDES = {
     ensureTopHero: true,
     removeMediaCarousel: true,
     removeVideoSection: true,
+  },
+  'productos/cortinas-tradicionales.html': {
+    ensureTopHero: true,
+    removeMediaCarousel: true,
+    removeVideoSection: true,
+    galleryAsContentSplit: true,
   },
 };
 

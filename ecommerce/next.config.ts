@@ -133,6 +133,25 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return legacyAssetRewrites;
   },
+  async redirects() {
+    return [
+      {
+        source: "/articulos/dvh.html",
+        destination: "/guias/dvh",
+        permanent: true
+      },
+      {
+        source: "/contact",
+        destination: "/contacto",
+        permanent: true
+      },
+      {
+        source: "/contacto.html",
+        destination: "/contacto",
+        permanent: true
+      }
+    ];
+  },
   webpack(config) {
     config.resolve = config.resolve ?? {};
     config.resolve.alias = config.resolve.alias ?? {};

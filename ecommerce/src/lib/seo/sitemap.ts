@@ -11,7 +11,7 @@ const PAGE_SIZE = 100;
 
 // Only structural storefront routes live here. Content-managed CMS paths are resolved dynamically
 // from persistence and merged below, so adding/removing a CMS page automatically updates the sitemap.
-const STRUCTURAL_ROUTES = ["/", "/categories", "/shop", "/tienda", "/presupuesto"] as const;
+const STRUCTURAL_ROUTES = ["/", "/categories", "/contacto", "/shop", "/tienda", "/presupuesto"] as const;
 
 const loadAllProducts = async (): Promise<ProductSummary[]> => {
   const firstPage = await StorefrontApi.listProducts({ page: 1, pageSize: PAGE_SIZE });

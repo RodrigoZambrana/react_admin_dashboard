@@ -1,0 +1,669 @@
+{
+  "path": "productos/aberturas-summa.html",
+  "title": "Serie Summa",
+  "summary": "Línea premium para grandes dimensiones, hermeticidad y prestaciones superiores.",
+  "seoTitle": "Serie Summa | Premium y hermeticidad",
+  "seoDescription": "Serie Summa de aberturas de aluminio para grandes dimensiones, más hermeticidad, mejores terminaciones y prestaciones superiores con DVH.",
+  "seoImageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+  "legacySource": "/productos/aberturas-summa.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-05-02T20:04:20.962Z",
+  "sections": [
+    {
+      "id": 4681,
+      "pageId": 58,
+      "type": "HERO",
+      "key": "hero",
+      "name": "Serie Summa",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "title": "Serie Summa",
+        "slides": [
+          {
+            "href": "/contacto.html",
+            "title": "Serie Summa",
+            "imageAlt": "Serie Summa de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+            "linkLabel": "Pedir asesoramiento",
+            "description": "Mayor hermeticidad, más confort y mejor respuesta en proyectos grandes."
+          }
+        ],
+        "eyebrow": "Línea premium",
+        "description": "Mayor hermeticidad, más confort y mejor respuesta en proyectos grandes.",
+        "headingLevel": "h1",
+        "primaryCtaHref": "/contacto.html",
+        "primaryCtaLabel": "Pedir asesoramiento",
+        "secondaryCtaHref": "/articulos/dvh.html",
+        "secondaryCtaLabel": "Ver guía DVH"
+      },
+      "createdAt": "2026-05-02T18:47:57.000Z",
+      "updatedAt": "2026-05-02T18:47:57.000Z",
+      "blocks": []
+    },
+    {
+      "id": 4682,
+      "pageId": 58,
+      "type": "CONTENT_SPLIT",
+      "key": "productos-aberturas-summa-html-content",
+      "name": "Cuándo conviene Summa",
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "Cuándo conviene Summa",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Serie Summa de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Serie Summa de aberturas de aluminio",
+        "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+        "description": "Cuando el proyecto exige más dimensión, más cierre y una terminación premium.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T18:47:57.000Z",
+      "updatedAt": "2026-05-02T18:47:57.000Z",
+      "blocks": [
+        {
+          "id": 5435,
+          "sectionId": 4682,
+          "type": "RICH_TEXT",
+          "key": "productos-aberturas-summa-html-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Está pensada para grandes dimensiones y para proyectos donde la hermeticidad importa mucho."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "En la documentación del fabricante aparece como la línea premium, con foco en confort, mejor cierre y configuraciones para paños más exigentes."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Admite DVH y puede complementar configuraciones con cortina de enrollar cuando el proyecto lo necesita."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:57.001Z",
+          "updatedAt": "2026-05-02T18:47:57.001Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4683,
+      "pageId": 58,
+      "type": "CONTENT_SPLIT",
+      "key": "productos-aberturas-summa-html-deepening",
+      "name": "Prestación y sistemas de Summa",
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "Prestación y sistemas de Summa",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Serie Summa de aberturas de aluminio",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Serie Summa de aberturas de aluminio",
+        "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+        "description": "Una línea premium con foco en hermeticidad, confort y grandes dimensiones.",
+        "mediaPosition": "end"
+      },
+      "createdAt": "2026-05-02T18:47:57.001Z",
+      "updatedAt": "2026-05-02T18:47:57.001Z",
+      "blocks": [
+        {
+          "id": 5436,
+          "sectionId": 4683,
+          "type": "RICH_TEXT",
+          "key": "productos-aberturas-summa-html-deepening-copy",
+          "name": "Detalles técnicos y de uso",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Summa combina más transparencia, más confort, más seguridad y más practicidad, con hojas de hasta 3 metros de altura según la propuesta del fabricante."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "La ficha local muestra además variantes como Summa Alzante y Summa Comfort RPT, pensadas para sumar performance en proyectos más exigentes."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "También aparecen terminaciones disponibles y tipologías corredizas con DVH, lo que ayuda a elegir mejor según obra y nivel de prestación."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:57.002Z",
+          "updatedAt": "2026-05-02T18:47:57.002Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4684,
+      "pageId": 58,
+      "type": "FEATURE_GRID",
+      "key": "productos-aberturas-summa-html-features",
+      "name": "Puntos de decisión",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "Puntos de decisión",
+        "description": "Lo que vuelve a Summa la referencia premium.",
+        "itemHeadingLevel": "h3"
+      },
+      "createdAt": "2026-05-02T18:47:57.002Z",
+      "updatedAt": "2026-05-02T18:47:57.002Z",
+      "blocks": [
+        {
+          "id": 5437,
+          "sectionId": 4684,
+          "type": "CARD",
+          "key": "productos-aberturas-summa-html-feature-1",
+          "name": "Premium",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "body": "La línea más alta de la familia para proyectos exigentes.",
+            "href": "/contacto.html",
+            "badge": "Premium",
+            "title": "Premium",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 89,
+          "createdAt": "2026-05-02T18:47:57.003Z",
+          "updatedAt": "2026-05-02T18:47:57.003Z",
+          "media": {
+            "id": 89,
+            "url": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+            "type": "IMAGE",
+            "alt": "DVH series",
+            "title": "Compatible con series de aluminio",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.977Z",
+            "updatedAt": "2026-05-02T20:04:20.952Z"
+          }
+        },
+        {
+          "id": 5438,
+          "sectionId": 4684,
+          "type": "CARD",
+          "key": "productos-aberturas-summa-html-feature-2",
+          "name": "Grandes dimensiones",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "body": "Pensada para aberturas más grandes y exigentes.",
+            "href": "/productos/aberturas-aluminio.html",
+            "badge": "Dimensión",
+            "title": "Grandes dimensiones",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 14,
+          "createdAt": "2026-05-02T18:47:57.004Z",
+          "updatedAt": "2026-05-02T18:47:57.004Z",
+          "media": {
+            "id": 14,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg",
+            "type": "IMAGE",
+            "alt": "DVH aislamiento acústico",
+            "title": "Aislamiento acústico",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:37.064Z",
+            "updatedAt": "2026-05-02T20:04:20.950Z"
+          }
+        },
+        {
+          "id": 5439,
+          "sectionId": 4684,
+          "type": "CARD",
+          "key": "productos-aberturas-summa-html-feature-3",
+          "name": "Hermeticidad",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "body": "La línea apunta a mayor cierre y mejor confort general.",
+            "href": "/articulos/dvh.html",
+            "badge": "Confort",
+            "title": "Hermeticidad",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 98,
+          "createdAt": "2026-05-02T18:47:57.006Z",
+          "updatedAt": "2026-05-02T18:47:57.006Z",
+          "media": {
+            "id": 98,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/dvh-main.jpg",
+            "type": "IMAGE",
+            "alt": "DVH aislamiento térmico",
+            "title": "Aislamiento térmico",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:41:18.618Z",
+            "updatedAt": "2026-05-02T20:04:20.949Z"
+          }
+        },
+        {
+          "id": 5440,
+          "sectionId": 4684,
+          "type": "CARD",
+          "key": "productos-aberturas-summa-html-feature-4",
+          "name": "Complementos",
+          "sortOrder": 3,
+          "visible": true,
+          "content": {
+            "body": "Puede integrarse con DVH y cortina de enrollar según el proyecto.",
+            "href": "/productos/dvh.html",
+            "badge": "Complementos",
+            "title": "Complementos",
+            "linkLabel": "Ver más",
+            "headingLevel": "h3"
+          },
+          "mediaId": 88,
+          "createdAt": "2026-05-02T18:47:57.007Z",
+          "updatedAt": "2026-05-02T18:47:57.007Z",
+          "media": {
+            "id": 88,
+            "url": "/uploads/cms/legacy-assets/img/aberturas/gala.jpg",
+            "type": "IMAGE",
+            "alt": "DVH prestación",
+            "title": "Mejor prestación",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "product_page_enhancer",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-05-02T18:03:11.976Z",
+            "updatedAt": "2026-05-02T20:04:20.951Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 4685,
+      "pageId": 58,
+      "type": "FAQ",
+      "key": "productos-aberturas-summa-html-faq",
+      "name": "Preguntas frecuentes",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Serie Summa: dudas frecuentes",
+        "description": "Respuestas directas para cerrar la decisión."
+      },
+      "createdAt": "2026-05-02T18:47:57.007Z",
+      "updatedAt": "2026-05-02T18:47:57.007Z",
+      "blocks": [
+        {
+          "id": 5441,
+          "sectionId": 4685,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-summa-html-faq-1",
+          "name": "¿Qué diferencia a Summa del resto?",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "question": "¿Qué diferencia a Summa del resto?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Es la línea premium, pensada para proyectos grandes y con mayor exigencia de confort."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:57.007Z",
+          "updatedAt": "2026-05-02T18:47:57.007Z",
+          "media": null
+        },
+        {
+          "id": 5442,
+          "sectionId": 4685,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-summa-html-faq-2",
+          "name": "¿Admite DVH?",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "question": "¿Admite DVH?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Sí, y también puede acompañarse con otros complementos según la obra."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:57.008Z",
+          "updatedAt": "2026-05-02T18:47:57.008Z",
+          "media": null
+        },
+        {
+          "id": 5443,
+          "sectionId": 4685,
+          "type": "FAQ_ITEM",
+          "key": "productos-aberturas-summa-html-faq-3",
+          "name": "¿Qué dato ayuda a cotizar?",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "question": "¿Qué dato ayuda a cotizar?",
+            "answerRichText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Medidas, tipo de apertura y si el proyecto exige DVH o complementos alcanzan para orientar la propuesta."
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T18:47:57.008Z",
+          "updatedAt": "2026-05-02T18:47:57.008Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 4686,
+      "pageId": 58,
+      "type": "CTA_BANNER",
+      "key": "productos-aberturas-summa-html-cta",
+      "name": "Cierre comercial",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Pedí asesoramiento para Serie Summa",
+        "intent": "transactional",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/articulos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "description": "Si necesitás el nivel premium de la familia de aberturas, Summa es la referencia."
+      },
+      "createdAt": "2026-05-02T18:47:57.009Z",
+      "updatedAt": "2026-05-02T18:47:57.009Z",
+      "blocks": []
+    },
+    {
+      "id": 4876,
+      "pageId": 58,
+      "type": "CONTENT_SPLIT",
+      "key": "summa-editorial",
+      "name": "Guía comercial de serie Summa",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Summa es la línea premium para proyectos exigentes",
+        "actions": [
+          {
+            "href": "/contacto.html",
+            "label": "Pedir asesoramiento"
+          },
+          {
+            "href": "/productos/dvh.html",
+            "label": "Ver guía DVH"
+          }
+        ],
+        "gallery": [
+          {
+            "href": "/productos/dvh.html",
+            "imageAlt": "Serie Summa",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+            "linkLabel": "Ver DVH"
+          },
+          {
+            "href": "/contacto.html",
+            "imageAlt": "Serie Summa y monoblock",
+            "imageUrl": "/uploads/cms/legacy-assets/img/aberturas/monoblocks.jpg",
+            "linkLabel": "Pedir asesoramiento"
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "Serie Summa",
+        "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/aberturas/dvh-main.jpg",
+        "description": "Pensada para grandes dimensiones, mejor hermeticidad y una solución más completa en prestaciones y terminaciones.",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-05-02T20:00:45.097Z",
+      "updatedAt": "2026-05-02T20:04:20.963Z",
+      "blocks": [
+        {
+          "id": 6184,
+          "sectionId": 4876,
+          "type": "RICH_TEXT",
+          "key": "summa-editorial-copy",
+          "name": "Contenido editorial",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Grandes dimensiones"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " porque resuelve frentes más exigentes con una lectura más robusta y completa."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Hermeticidad"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " porque apunta a una prestación superior en confort y respuesta del sistema."
+                  }
+                ]
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Prestación premium"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " porque acompaña mejor los proyectos que piden una solución de mayor nivel."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Línea premium de la familia."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Compatibilidad con DVH."
+                      }
+                    ]
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Pensada para obra con mayores exigencias."
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-05-02T20:04:20.964Z",
+          "updatedAt": "2026-05-02T20:04:20.964Z",
+          "media": null
+        }
+      ]
+    }
+  ]
+}

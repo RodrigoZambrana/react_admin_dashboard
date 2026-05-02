@@ -107,6 +107,21 @@ const StoryTrigger = styled.button`
   cursor: pointer;
   text-align: center;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+`;
+
+const StoryTitle = styled(Span)`
+  display: block;
+  max-width: 118px;
+  line-height: 1.2;
+  min-height: 2.4em;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: normal;
 `;
 
 const StoryRing = styled.div`
@@ -414,9 +429,9 @@ function SectionStories({ stories }: Props) {
                           )}
                         </StoryThumb>
                       </StoryRing>
-                      <Span fontSize="12px" fontWeight={600} color="text.primary" display="block">
+                      <StoryTitle fontSize="12px" fontWeight={600} color="text.primary">
                         {story.title}
-                      </Span>
+                      </StoryTitle>
                     </StoryTrigger>
                   </StorySlide>
                 );

@@ -1,4 +1,6 @@
 import type { StorefrontClientVariantConfig } from "../types";
+import { DEFAULT_LOCALE } from "@/translations";
+import { resolveLocalizedSiteRoute } from "@/lib/site-routes";
 
 const config: StorefrontClientVariantConfig = {
   slug: "urucortinas",
@@ -22,7 +24,7 @@ const config: StorefrontClientVariantConfig = {
       cta: {
         id: "book-measurement",
         label: "Agendar medición",
-        href: "/contact"
+        href: resolveLocalizedSiteRoute("contact", DEFAULT_LOCALE)
       }
     },
     seo: {

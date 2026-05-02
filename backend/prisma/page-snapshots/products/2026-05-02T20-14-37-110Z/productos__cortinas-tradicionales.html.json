@@ -1,0 +1,992 @@
+{
+  "path": "productos/cortinas-tradicionales.html",
+  "title": "Cortinas tradicionales",
+  "summary": "Solución clásica a medida para hogares y oficinas.",
+  "seoTitle": "Cortinas Tradicionales con Riel | Elegancia y Estilo - Urucortinas",
+  "seoDescription": "Cortinas Tradicionales a medida con riel para un deslizamiento suave. Variedad de telas y diseños para cada espacio. ¡Solicita tu presupuesto!",
+  "seoImageUrl": "https://www.urucortinas.com.uy/img/portfolio/tradicionales/tradicionales_1.jpeg",
+  "legacySource": "/Users/rodrigo/git/personal/urucortinas_projects/urucortinas_html_version/productos/cortinas-tradicionales.html",
+  "layoutKey": "landing-default",
+  "updatedAt": "2026-05-02T20:07:18.805Z",
+  "sections": [
+    {
+      "id": 362,
+      "pageId": 14,
+      "type": "SITE_HEADER",
+      "key": "site-header",
+      "name": "Header del sitio",
+      "sortOrder": 0,
+      "visible": true,
+      "settings": {
+        "items": [
+          {
+            "href": "/",
+            "label": "Inicio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-roller.html",
+                "label": "Cortinas Roller"
+              },
+              {
+                "href": "/productos/bandas-verticales.html",
+                "label": "Bandas Verticales"
+              },
+              {
+                "href": "/productos/venecianas.html",
+                "label": "Cortinas Venecianas"
+              },
+              {
+                "href": "/productos/cortinas-tradicionales.html",
+                "label": "Cortinas Tradicionales"
+              }
+            ],
+            "label": "Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/cortinas-de-enrollar-pvc.html",
+                "label": "Persianas en PVC"
+              },
+              {
+                "href": "/productos/cortinas-de-enrollar-aluminio.html",
+                "label": "Persianas en Aluminio"
+              }
+            ],
+            "label": "Persianas"
+          },
+          {
+            "href": "/productos/cortinas-metalicas.html",
+            "label": "Cortinas Metálicas"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/aberturas-aluminio.html",
+                "label": "Serie 20 y 25"
+              },
+              {
+                "href": "/productos/dvh.html",
+                "label": "Con DVH"
+              },
+              {
+                "href": "/productos/puertas-oblak.html",
+                "label": "Puertas Oblak"
+              }
+            ],
+            "label": "Aberturas en Aluminio"
+          },
+          {
+            "items": [
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Verticales"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos Corredizos"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Toldos de Brazo Invisible"
+              },
+              {
+                "href": "/productos/toldos-y-cerramientos.html",
+                "label": "Cerramientos en PVC"
+              }
+            ],
+            "label": "Toldos"
+          },
+          {
+            "href": "/productos/motores-cortinas-y-persianas.html",
+            "label": "Motores para Cortinas"
+          },
+          {
+            "items": [
+              {
+                "href": "/servicios/reparacion-cortinas-y-persianas.html",
+                "label": "Reparación de cortinas y persianas"
+              },
+              {
+                "href": "/servicios/instalacion-aberturas.html",
+                "label": "Instalación de aberturas"
+              }
+            ],
+            "label": "Servicios"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Contactanos"
+          },
+          {
+            "href": "/catalogo/index.html",
+            "label": "Catálogo"
+          }
+        ],
+        "brandHref": "/",
+        "brandLabel": "",
+        "navigationMode": "grouped",
+        "topbarContacts": [
+          {
+            "href": null,
+            "title": "Horario",
+            "value": "Lun - Vie, 10:00 - 18:00",
+            "iconClass": "fa fa-clock-o"
+          },
+          {
+            "href": null,
+            "title": "Teléfono",
+            "value": "097 365 931",
+            "iconClass": "far fa-envelope"
+          },
+          {
+            "href": "mailto:ventas@urucortinas.com.uy",
+            "title": "Email",
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope-open-o"
+          }
+        ],
+        "floatingContact": {
+          "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+          "label": "WhatsApp",
+          "imageAlt": "Haznos tu consulta",
+          "imageUrl": "/uploads/cms/legacy-assets/img/iconos/whatsapp_icon.png"
+        },
+        "navigationGroupLabel": "Información"
+      },
+      "createdAt": "2026-04-27T23:45:54.522Z",
+      "updatedAt": "2026-04-27T23:45:54.522Z",
+      "blocks": []
+    },
+    {
+      "id": 363,
+      "pageId": 14,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-1",
+      "name": null,
+      "sortOrder": 1,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [
+          {
+            "href": "",
+            "imageAlt": "Cortina Tradicional 1",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_1.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Tradicional 2",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_2.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Tradicional 3",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_3.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Tradicional 4",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_4.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Tradicional 5",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradiciolaes_5.jpeg",
+            "linkLabel": ""
+          },
+          {
+            "href": "",
+            "imageAlt": "Cortina Tradicional 6",
+            "imageUrl": "/uploads/cms/legacy-assets/img/portfolio/tradicionales/tradicionales_6.jpeg",
+            "linkLabel": ""
+          }
+        ],
+        "variant": "media-gallery-content",
+        "imageAlt": "",
+        "imageUrl": "",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-04-27T23:45:54.522Z",
+      "updatedAt": "2026-04-27T23:45:54.522Z",
+      "blocks": [
+        {
+          "id": 346,
+          "sectionId": 363,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-1",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h1",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Cortinas Tradicionales"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              },
+              {
+                "tag": "p",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Las "
+                  },
+                  {
+                    "tag": "strong",
+                    "type": "element",
+                    "children": [
+                      {
+                        "type": "text",
+                        "value": "Cortinas Tradicionales"
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": " ofrecen una solución versátil y elegante para la decoración de interiores, permitiendo un control efectivo de la luz y la privacidad en cualquier ambiente."
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "✔️ Ventajas de las Cortinas Tradicionales"
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Funcionamiento suave y silencioso:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Gracias a su sistema de riel, permiten un deslizamiento fluido."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Gran variedad de telas y diseños:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Desde translúcidas hasta blackout."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Opciones de apertura personalizadas:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Pueden abrirse hacia un lado o ambos lados según la necesidad."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Fácil mantenimiento:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Se pueden desmontar con facilidad para su limpieza."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Compatibles con motorización:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Para mayor comodidad y tecnología en el hogar u oficina."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n        "
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "🎯 Tipos de Cortinas"
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Cortinas de Tela Liviana:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Permiten el paso de luz natural manteniendo la privacidad."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Cortinas Blackout:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Bloquean completamente la luz para un descanso óptimo."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n          "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " "
+                      },
+                      {
+                        "tag": "strong",
+                        "type": "element",
+                        "children": [
+                          {
+                            "type": "text",
+                            "value": "Cortinas Doble Capa:"
+                          }
+                        ]
+                      },
+                      {
+                        "type": "text",
+                        "value": " Combinan una capa translúcida con blackout para mayor flexibilidad."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n        "
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "📞 ¡Contáctanos hoy mismo y transforma tus espacios con nuestras cortinas tradicionales! 🚀"
+                  }
+                ],
+                "attributes": {
+                  "className": "text-center"
+                }
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-04-27T23:45:54.523Z",
+          "updatedAt": "2026-04-27T23:45:54.523Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 364,
+      "pageId": 14,
+      "type": "CONTENT_SPLIT",
+      "key": "content-split-2",
+      "name": null,
+      "sortOrder": 2,
+      "visible": true,
+      "settings": {
+        "title": "",
+        "gallery": [],
+        "variant": "image-content",
+        "imageAlt": "Mercado Pago",
+        "imageUrl": "/uploads/cms/legacy-assets/img/mercadopago-img.jpg",
+        "description": "",
+        "mediaPosition": "start"
+      },
+      "createdAt": "2026-04-27T23:45:54.524Z",
+      "updatedAt": "2026-04-27T23:45:54.524Z",
+      "blocks": [
+        {
+          "id": 347,
+          "sectionId": 364,
+          "type": "RICH_TEXT",
+          "key": "content-split-body-2",
+          "name": null,
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "richText": [
+              {
+                "tag": "h2",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Facilidades de Pago"
+                  }
+                ]
+              },
+              {
+                "tag": "h3",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "Aceptamos pagos hasta en 12 cuotas sin interés mediante Mercado Pago."
+                  }
+                ]
+              },
+              {
+                "tag": "ul",
+                "type": "element",
+                "children": [
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Compra segura y protegida."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Disponible para todos nuestros productos."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n              "
+                  },
+                  {
+                    "tag": "li",
+                    "type": "element",
+                    "children": [
+                      {
+                        "tag": "i",
+                        "type": "element",
+                        "attributes": {
+                          "className": "ion-android-checkmark-circle"
+                        }
+                      },
+                      {
+                        "type": "text",
+                        "value": " Rápido y sin complicaciones."
+                      }
+                    ]
+                  },
+                  {
+                    "type": "text",
+                    "value": "\n            "
+                  }
+                ]
+              }
+            ]
+          },
+          "mediaId": null,
+          "createdAt": "2026-04-27T23:45:54.524Z",
+          "updatedAt": "2026-04-27T23:45:54.524Z",
+          "media": null
+        }
+      ]
+    },
+    {
+      "id": 365,
+      "pageId": 14,
+      "type": "CTA_BANNER",
+      "key": "cta-1",
+      "name": "Solicite tu Presupuesto",
+      "sortOrder": 3,
+      "visible": true,
+      "settings": {
+        "title": "Solicite tu Presupuesto",
+        "actions": [
+          {
+            "href": "https://api.whatsapp.com/send?phone=59897365931&text=Hola,%20te%20contacto%20desde%20la%20web%20de%20urucortinas:",
+            "label": "Enviar WhatsApp",
+            "external": true,
+            "iconClass": null
+          }
+        ],
+        "variant": "default",
+        "description": "Contáctenos y recibe una cotización personalizada para tu proyecto. Instalamos en todo el País!"
+      },
+      "createdAt": "2026-04-27T23:45:54.525Z",
+      "updatedAt": "2026-04-27T23:45:54.525Z",
+      "blocks": []
+    },
+    {
+      "id": 366,
+      "pageId": 14,
+      "type": "CTA_BANNER",
+      "key": "cta-2",
+      "name": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+      "sortOrder": 4,
+      "visible": true,
+      "settings": {
+        "title": "Síguenos en nuestras redes sociales para más contenido y novedades.",
+        "actions": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-lg fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-lg fa-instagram"
+          }
+        ],
+        "variant": "social",
+        "description": ""
+      },
+      "createdAt": "2026-04-27T23:45:54.525Z",
+      "updatedAt": "2026-04-27T23:45:54.525Z",
+      "blocks": []
+    },
+    {
+      "id": 367,
+      "pageId": 14,
+      "type": "MEDIA_CAROUSEL",
+      "key": "owl-carousel-1",
+      "name": "Otros productos de interés",
+      "sortOrder": 5,
+      "visible": true,
+      "settings": {
+        "title": "Otros productos de interés",
+        "variant": "cards",
+        "description": "Descubre nuestras soluciones en cortinas, diseñadas para combinar funcionalidad y estética."
+      },
+      "createdAt": "2026-04-27T23:45:54.526Z",
+      "updatedAt": "2026-04-27T23:45:54.526Z",
+      "blocks": [
+        {
+          "id": 348,
+          "sectionId": 367,
+          "type": "CARD",
+          "key": "card-1-1",
+          "name": "Cortinas Roller",
+          "sortOrder": 0,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-roller.html",
+            "title": "Cortinas Roller",
+            "linkLabel": "Más Información",
+            "description": "Solución moderna y versátil para el control de luz y privacidad."
+          },
+          "mediaId": 1,
+          "createdAt": "2026-04-27T23:45:54.526Z",
+          "updatedAt": "2026-04-27T23:45:54.526Z",
+          "media": {
+            "id": 1,
+            "url": "/media/products/cortinas-roller/images/cortinas_roller_2.jpeg",
+            "type": "IMAGE",
+            "alt": "Cortinas Roller",
+            "title": null,
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "legacy_html_import",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.947Z",
+            "updatedAt": "2026-05-02T02:14:10.962Z"
+          }
+        },
+        {
+          "id": 349,
+          "sectionId": 367,
+          "type": "CARD",
+          "key": "card-1-2",
+          "name": "Cortinas de Enrollar",
+          "sortOrder": 1,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-de-enrollar.html",
+            "title": "Cortinas de Enrollar",
+            "linkLabel": "Más Información",
+            "description": "Aislamiento térmico y acústico en opciones de PVC y Aluminio."
+          },
+          "mediaId": 2,
+          "createdAt": "2026-04-27T23:45:54.527Z",
+          "updatedAt": "2026-04-27T23:45:54.527Z",
+          "media": {
+            "id": 2,
+            "url": "/media/products/cortinas-de-enrollar-aluminio/images/catalana_1.jpeg",
+            "type": "IMAGE",
+            "alt": "Cortina de enrollar aluminio",
+            "title": "Aluminio robusto",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.948Z",
+            "updatedAt": "2026-05-02T13:38:20.677Z"
+          }
+        },
+        {
+          "id": 350,
+          "sectionId": 367,
+          "type": "CARD",
+          "key": "card-1-3",
+          "name": "Cortinas Metálicas",
+          "sortOrder": 2,
+          "visible": true,
+          "content": {
+            "href": "/productos/cortinas-metalicas.html",
+            "title": "Cortinas Metálicas",
+            "linkLabel": "Más Información",
+            "description": "Seguridad y resistencia con opciones automatizadas y personalizables."
+          },
+          "mediaId": 3,
+          "createdAt": "2026-04-27T23:45:54.528Z",
+          "updatedAt": "2026-04-27T23:45:54.528Z",
+          "media": {
+            "id": 3,
+            "url": "/media/products/cortinas-metalicas/images/WhatsApp Image 2025-11-06 at 14.18.59.jpeg",
+            "type": "IMAGE",
+            "alt": "Repuestos",
+            "title": "Repuestos",
+            "mimeType": null,
+            "fileName": null,
+            "sizeBytes": null,
+            "width": null,
+            "height": null,
+            "source": "marketing_cms_seed",
+            "metadata": null,
+            "isActive": true,
+            "createdAt": "2026-04-27T20:58:36.949Z",
+            "updatedAt": "2026-05-02T20:07:18.089Z"
+          }
+        }
+      ]
+    },
+    {
+      "id": 368,
+      "pageId": 14,
+      "type": "SITE_FOOTER",
+      "key": "site-footer",
+      "name": "Footer del sitio",
+      "sortOrder": 6,
+      "visible": true,
+      "settings": {
+        "title": "Contacto",
+        "socials": [
+          {
+            "href": "https://www.facebook.com/urucortinas",
+            "label": "Facebook",
+            "external": true,
+            "iconClass": "fa fa-facebook"
+          },
+          {
+            "href": "https://www.instagram.com/urucortinas_uy",
+            "label": "Instagram",
+            "external": true,
+            "iconClass": "fa fa-instagram"
+          }
+        ],
+        "contacts": [
+          {
+            "value": "Montevideo, Uruguay",
+            "iconClass": "fa fa-location-arrow"
+          },
+          {
+            "value": "097 365 931",
+            "iconClass": "fa fa-phone"
+          },
+          {
+            "value": "ventas@urucortinas.com.uy",
+            "iconClass": "fa fa-envelope"
+          }
+        ],
+        "linkGroups": []
+      },
+      "createdAt": "2026-04-27T23:45:54.529Z",
+      "updatedAt": "2026-04-27T23:45:54.529Z",
+      "blocks": []
+    },
+    {
+      "id": 431,
+      "pageId": 14,
+      "type": "CTA_BANNER",
+      "key": "shop-cta",
+      "name": "Ver la tienda",
+      "sortOrder": 7,
+      "visible": true,
+      "settings": {
+        "title": "Encontrá la solución ideal en la tienda",
+        "actions": [
+          {
+            "href": "/shop",
+            "label": "Ir a la tienda"
+          },
+          {
+            "href": "/contacto.html",
+            "label": "Pedir presupuesto"
+          }
+        ],
+        "variant": "default",
+        "description": "Explorá el catálogo para comparar modelos, revisar opciones y avanzar con una compra o presupuesto."
+      },
+      "createdAt": "2026-04-27T23:46:40.047Z",
+      "updatedAt": "2026-04-27T23:46:40.047Z",
+      "blocks": []
+    }
+  ]
+}

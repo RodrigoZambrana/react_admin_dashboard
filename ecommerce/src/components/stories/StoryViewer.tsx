@@ -151,27 +151,42 @@ const closeButtonStyle: CSSProperties = {
 
 const progressRailStyle: CSSProperties = {
   position: "absolute",
-  top: "0.75rem",
-  left: "0.75rem",
-  right: "0.75rem",
+  top: "0.6rem",
+  left: "0.6rem",
+  right: "0.6rem",
   zIndex: 3,
-  display: "grid",
-  gridAutoFlow: "column",
+  display: "flex",
   gap: "0.35rem",
+  padding: "0.55rem 0.5rem 0.45rem",
+  borderRadius: "18px",
+  background: "rgba(15, 20, 19, 0.42)",
+  backdropFilter: "blur(8px)",
 };
 
 const progressTrackStyle: CSSProperties = {
-  height: "3px",
+  flex: 1,
+  height: "5px",
   borderRadius: "999px",
-  background: "rgba(255,255,255,0.2)",
+  background: "rgba(255,255,255,0.16)",
   overflow: "hidden",
+  position: "relative",
 };
 
 const progressFillStyle: CSSProperties = {
-  height: "100%",
+  position: "absolute",
+  inset: 0,
   borderRadius: "999px",
-  background: "linear-gradient(90deg, #f7f2e8, #d9a441)",
-  transition: "width 120ms linear",
+  background: "rgba(247, 242, 232, 0.18)",
+};
+
+const progressActiveFillStyle: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  borderRadius: "999px",
+  background: "linear-gradient(90deg, #f7f2e8 0%, #d9a441 100%)",
+  transition: "transform 120ms linear",
+  transformOrigin: "left center",
+  boxShadow: "0 0 0 1px rgba(255,255,255,0.1) inset",
 };
 
 const contentStyle: CSSProperties = {
@@ -425,7 +440,8 @@ export default function StoryViewer({ story, onClose, onAdvanceStory, mode = "pa
               const width = index < activeIndex ? 100 : index === activeIndex ? progress * 100 : 0;
               return (
                 <div key={item.id} style={progressTrackStyle}>
-                  <div style={{ ...progressFillStyle, width: `${width}%` }} />
+                  <div style={progressFillStyle} />
+                  <div style={{ ...progressActiveFillStyle, transform: `scaleX(${Math.max(0, Math.min(1, width / 100))})` }} />
                 </div>
               );
             })}
