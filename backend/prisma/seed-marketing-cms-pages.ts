@@ -1190,9 +1190,9 @@ const homePage: CmsPageSeed = {
       type: CmsPageSectionType.MEDIA_GRID_ENHANCED,
       key: 'home-products-grid',
       settings: {
-        title: 'Familias clave por intención de compra',
+        title: 'Soluciones por tipo de necesidad',
         description:
-          'Entrá por la solución que mejor resuelve tu necesidad: exterior, interior, obra o automatización.',
+          'Encontrá rápido la solución que mejor se adapta a tu proyecto: exterior, interior, obra o automatización.',
         columns: 4,
         gap: 1.1,
         aspectRatio: '4 / 5',
@@ -1409,9 +1409,8 @@ const homePage: CmsPageSeed = {
           type: CmsPageBlockType.CARD,
           name: 'Garantía según producto',
           content: {
-            title: 'Garantía según línea',
-            description:
-              'En varias líneas de aluminio y roller trabajamos con 2 años; en distintas opciones de PVC, la referencia habitual es 1 año.',
+            title: 'Garantía en todos nuestros productos y servicios',
+            description: 'Ofrecemos garantía en todos nuestros productos y servicios.',
             badge: 'Garantía',
             linkLabel: 'Ver garantía',
             href: '/preguntas-frecuentes',
@@ -2061,7 +2060,7 @@ async function buildHomeShopProductsSection(prisma: PrismaClient): Promise<CmsSe
     key: 'home-shop-products',
     settings: {
       title: 'Productos destacados de la tienda',
-      description: 'Productos reales del catálogo con acceso directo a su ficha.',
+      description: 'Una selección comercial para comparar opciones y encontrar la solución adecuada.',
       variant: 'products',
     },
     blocks: HOME_SHOP_PRODUCT_CODES.map((code) => {

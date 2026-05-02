@@ -170,9 +170,10 @@ export const StyledCategoryMenuItem = styled.div`
 
     .child-link {
       font-weight: 400;
-      font-size: 0.86rem;
+      font-size: 0.82rem;
       color: ${({ theme }) => theme.colors.text.muted};
-      opacity: 0.9;
+      opacity: 0.78;
+      letter-spacing: 0.01em;
     }
 
     .mega-menu-content {
