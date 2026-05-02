@@ -63,6 +63,7 @@
 - [seo-analytics-consolidated-2026-04-29.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-analytics-consolidated-2026-04-29.md)
 - [seo-cms-implementation-plan-2026-04-29.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-cms-implementation-plan-2026-04-29.md)
 - [seo-content-architecture-plan-2026-05-02.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-content-architecture-plan-2026-05-02.md)
+- [seo-content-architecture-backlog-2026-05-02.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/seo-content-architecture-backlog-2026-05-02.md)
 
 ## Working Rule
 
