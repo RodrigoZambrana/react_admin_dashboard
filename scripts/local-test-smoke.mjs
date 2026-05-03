@@ -143,6 +143,23 @@ async function main() {
     "admin auth side bg",
     assetHeaders,
   );
+  await fetchWithRetry(
+    "/admin/img/others/auth-cover-bg.jpg",
+    (response, body) => {
+      if (response.status !== 200) {
+        throw new Error(`expected HTTP 200, got ${response.status}`);
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("image/")) {
+        throw new Error(`expected image content-type, got "${contentType}"`);
+      }
+      if (body.length === 0) {
+        throw new Error("expected image payload");
+      }
+    },
+    "admin auth cover bg",
+    assetHeaders,
+  );
 
   const homepage = await fetch(`${withTrailingSlash(BASE_URL)}`, {
     redirect: "manual",
