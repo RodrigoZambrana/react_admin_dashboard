@@ -9,6 +9,8 @@ import PublicRoute from '@/components/route/PublicRoute'
 import AuthorityGuard from '@/components/route/AuthorityGuard'
 import AppRoute from '@/components/route/AppRoute'
 import type { LayoutType } from '@/@types/theme'
+import appConfig from '@/configs/app.config'
+import { appPath } from '@/constants/route.constant'
 
 interface ViewsProps {
     pageContainerType?: 'default' | 'gutterless' | 'contained'
@@ -49,7 +51,7 @@ const AllRoutes = (props: AllRoutesProps) => {
             {/* Public wrapper for auth pages and default index */}
             <Route element={<PublicRoute />}>
                 {/* index -> sign-in when unauthenticated; when authenticated PublicRoute will redirect */}
-                <Route index element={<Navigate replace to="/sign-in" />} />
+                <Route index element={<Navigate replace to={appPath('sign-in')} />} />
                 {publicRoutes.map((route) => (
                     <Route
                         key={route.path}
@@ -66,7 +68,7 @@ const AllRoutes = (props: AllRoutesProps) => {
             </Route>
 
             {/* Fallback */}
-            <Route path="*" element={<Navigate replace to="/" />} />
+            <Route path="*" element={<Navigate replace to={appConfig.authenticatedEntryPath} />} />
         </Routes>
     )
 }

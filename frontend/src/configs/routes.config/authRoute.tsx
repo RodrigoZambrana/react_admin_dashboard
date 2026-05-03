@@ -1,41 +1,42 @@
 import { lazy } from 'react'
 import type { Routes } from '@/@types/routes'
 import { applyClientRouteOverrides } from '../clientConfig'
+import { appPath } from '@/constants/route.constant'
 
 const baseAuthRoute: Routes = [
     {
         key: 'accessDenied',
-        path: `/access-denied`,
+        path: appPath('access-denied'),
         component: lazy(() => import('@/views/pages/AccessDenied')),
         authority: [],
     },
     {
         key: 'signIn',
-        path: `/sign-in`,
+        path: appPath('sign-in'),
         component: lazy(() => import('@/views/auth/SignIn')),
         authority: [],
     },
     {
         key: 'signUp',
-        path: `/sign-up`,
+        path: appPath('sign-up'),
         component: lazy(() => import('@/views/auth/SignUp')),
         authority: [],
     },
     {
         key: 'forgotPassword',
-        path: `/forgot-password`,
+        path: appPath('forgot-password'),
         component: lazy(() => import('@/views/auth/ForgotPassword')),
         authority: [],
     },
     {
         key: 'resetPassword',
-        path: `/reset-password`,
+        path: appPath('reset-password'),
         component: lazy(() => import('@/views/auth/ResetPassword')),
         authority: [],
     },
     {
         key: 'signOut',
-        path: `/sign-out`,
+        path: appPath('sign-out'),
         component: lazy(() => import('@/views/auth/SignOut')),
         authority: [],
     },

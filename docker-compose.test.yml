@@ -24,6 +24,7 @@ x-backend-common: &backend-common
     ALLOWED_ORIGINS: http://localhost:8080
     NEXT_PUBLIC_SITE_URL: http://localhost:8080
     STOREFRONT_BASE_URL: http://localhost:8080
+    MEDIA_ROOT: /app/media
 
 x-admin-build-args: &admin-build-args
   VITE_APP_NAME: Sistema Administrativo (Test)
@@ -41,6 +42,9 @@ x-storefront-build-args: &storefront-build-args
   NEXT_PUBLIC_STOREFRONT_API_URL: http://localhost:8080/api/storefront
   STOREFRONT_API_URL: http://backend:3000/api/storefront
   NEXT_PUBLIC_SITE_URL: http://localhost:8080
+  NEXT_PUBLIC_ANALYTICS_API_URL: http://localhost:8080/api/analytics
+  NEXT_PUBLIC_MEDIA_BASE_URL: http://localhost:8080/media
+  NEXT_PUBLIC_MEDIA_PROVIDER: local
   NEXT_PUBLIC_STOREFRONT_HOME_PATH: /
   NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED: false
   NEXT_PUBLIC_ENABLE_STOREFRONT_MOCKS: false
@@ -95,6 +99,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ../urucortinas-storage/media:/app/media
+      - ../urucortinas-storage/uploads:/app/uploads
     expose:
       - "3000"
     healthcheck:
@@ -129,6 +136,19 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    environment:
+      NODE_ENV: production
+      CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
+      NEXT_PUBLIC_CLIENT_SLUG: ${NEXT_PUBLIC_CLIENT_SLUG:-urucortinas}
+      STOREFRONT_API_URL: http://backend:3000/api/storefront
+      NEXT_PUBLIC_STOREFRONT_API_URL: http://localhost:8080/api/storefront
+      AUTH_API_URL: http://backend:3000/api
+      NEXT_PUBLIC_AUTH_API_URL: http://localhost:8080/api
+      NEXT_PUBLIC_ANALYTICS_API_URL: http://localhost:8080/api/analytics
+      NEXT_PUBLIC_SITE_URL: http://localhost:8080
+      NEXT_PUBLIC_STOREFRONT_HOME_PATH: /
+      NEXT_PUBLIC_MEDIA_PROVIDER: local
+      NEXT_PUBLIC_MEDIA_BASE_URL: http://localhost:8080/media
     expose:
       - "3000"
     healthcheck:

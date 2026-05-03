@@ -3,8 +3,26 @@ import react from "@vitejs/plugin-react";
 import path from "path";
 import dynamicImport from "vite-plugin-dynamic-import";
 
+const normalizePrefix = (value: string | undefined): string => {
+  if (!value) {
+    return "/";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "/";
+  }
+
+  const prefixed = trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+  return prefixed === "/" ? "/" : prefixed.replace(/\/+$/u, "");
+};
+
+const appPrefixPath = normalizePrefix(process.env.VITE_APP_PREFIX_PATH);
+const buildBase = appPrefixPath === "/" ? "/" : `${appPrefixPath}/`;
+
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: buildBase,
   plugins: [
     react({
       babel: {

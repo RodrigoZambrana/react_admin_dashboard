@@ -11,6 +11,7 @@ import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
 import type { AxiosError } from 'axios'
 import { useTranslation } from 'react-i18next'
+import { appPath } from '@/constants/route.constant'
 
 interface ForgotPasswordFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -26,7 +27,7 @@ const validationSchema = Yup.object().shape({
 })
 
 const ForgotPasswordForm = (props: ForgotPasswordFormProps) => {
-    const { disableSubmit = false, className, signInUrl = '/sign-in' } = props
+    const { disableSubmit = false, className, signInUrl = appPath('sign-in') } = props
 
     const { t } = useTranslation()
 

@@ -13,6 +13,7 @@ import type { CommonProps } from '@/@types/common'
 import type { AxiosError } from 'axios'
 import { useTranslation } from 'react-i18next'
 import { PASSWORD_COMPLEXITY_REGEX } from '@/constants/security.constant'
+import { appPath } from '@/constants/route.constant'
 
 interface ResetPasswordFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -39,7 +40,7 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
     const {
         disableSubmit = false,
         className,
-        signInUrl = '/sign-in',
+        signInUrl = appPath('sign-in'),
         showBackLink = true,
     } = props
 
@@ -73,7 +74,7 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
     }
 
     const onContinue = () => {
-        navigate('/sign-in')
+        navigate(appPath('sign-in'))
     }
 
     return (

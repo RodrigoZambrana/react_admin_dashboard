@@ -10,6 +10,8 @@ POSTGRES_STACK_NAME ?= postgres-local
 POSTGRES_CONTAINER_NAME ?= postgres-local
 POSTGRES_VOLUME_NAME ?= postgres-local
 POSTGRES_NETWORK_NAME ?= postgres-local
+POSTGRES_USER ?= postgres
+POSTGRES_DB ?= react_admin_dashboard
 STACK_RUNTIME_ROOT ?= ../.docker/$(APP_STACK_NAME)
 POSTGRES_HOST_PORT ?= 5432
 COMPOSE_DEV := deploy/docker-compose.dev.yml
@@ -21,6 +23,9 @@ COMPOSE_PROD := deploy/docker-compose.prod.yml
 COMPOSE_LOCAL_TEST := docker-compose.test.yml
 LOCAL_TEST_ENV_FILE := .env.test
 LOCAL_TEST_BASE_URL ?= http://127.0.0.1:8080
+LOCAL_TEST_RESTORE_DUMP ?= $(HOME)/Documents/UrucortinasBackups/latest.sql.gz
+BACKUP_OUT_DIR ?= $(HOME)/Documents/UrucortinasBackups
+MEDIA_STORAGE_ROOT ?= $(abspath $(CURDIR)/../urucortinas-storage)
 DEV_STACK_ENV := APP_STACK_NAME=$(APP_STACK_NAME) STACK_RUNTIME_ROOT=$(STACK_RUNTIME_ROOT) POSTGRES_NETWORK_NAME=$(POSTGRES_NETWORK_NAME)
 POSTGRES_STACK_ENV := POSTGRES_STACK_NAME=$(POSTGRES_STACK_NAME) POSTGRES_CONTAINER_NAME=$(POSTGRES_CONTAINER_NAME) POSTGRES_VOLUME_NAME=$(POSTGRES_VOLUME_NAME) POSTGRES_NETWORK_NAME=$(POSTGRES_NETWORK_NAME) POSTGRES_HOST_PORT=$(POSTGRES_HOST_PORT)
 LOCAL_TEST_COMPOSE := docker compose --env-file $(LOCAL_TEST_ENV_FILE) -f $(COMPOSE_LOCAL_TEST)
@@ -91,6 +96,7 @@ prod-down:
 
 ## Start the reproducible local test environment
 local-test-up:
+	$(MAKE) storage-bootstrap
 	$(LOCAL_TEST_COMPOSE) up --build -d
 	LOCAL_TEST_BASE_URL=$(LOCAL_TEST_BASE_URL) node scripts/local-test-smoke.mjs
 
@@ -100,13 +106,35 @@ local-test-down:
 
 ## Reset the reproducible local test environment from scratch and smoke test it
 local-test-reset:
+	$(MAKE) storage-bootstrap
 	$(LOCAL_TEST_COMPOSE) down -v --remove-orphans
 	$(LOCAL_TEST_COMPOSE) up --build -d
 	LOCAL_TEST_BASE_URL=$(LOCAL_TEST_BASE_URL) node scripts/local-test-smoke.mjs
 
+## Restore the urucortinas backup dump into local test and boot the app
+local-test-restore:
+	$(MAKE) storage-bootstrap
+	RESTORE_DUMP=$(LOCAL_TEST_RESTORE_DUMP) LOCAL_TEST_BASE_URL=$(LOCAL_TEST_BASE_URL) sh scripts/local-test-restore.sh
+
 ## Show local test environment logs
 local-test-logs:
 	$(LOCAL_TEST_COMPOSE) logs -f
+
+## Initialize the external media/uploads storage from the repository copy when empty
+storage-bootstrap:
+	MEDIA_STORAGE_ROOT="$(MEDIA_STORAGE_ROOT)" sh scripts/sync-media-storage.sh bootstrap
+
+## Push the current repository media/uploads trees to the external storage root
+storage-push:
+	MEDIA_STORAGE_ROOT="$(MEDIA_STORAGE_ROOT)" sh scripts/sync-media-storage.sh push
+
+## Pull the external media/uploads storage root back into the repository tree
+storage-pull:
+	MEDIA_STORAGE_ROOT="$(MEDIA_STORAGE_ROOT)" sh scripts/sync-media-storage.sh pull
+
+## Show the current external media/uploads storage summary
+storage-status:
+	MEDIA_STORAGE_ROOT="$(MEDIA_STORAGE_ROOT)" sh scripts/sync-media-storage.sh status
 
 ## Run only the local test smoke checks
 local-test-smoke:
@@ -120,17 +148,12 @@ security-audit:
 security-loop:
 	node scripts/security-loop.mjs loop --allow-force
 
-## Generate a compressed backup of the PostgreSQL database using docker compose
+## Generate a real logical backup of the live PostgreSQL database outside the repository
 backup:
-	@if [ ! -f deploy/docker-compose.$(ENV).yml ]; then \
-		if [ "$(ENV)" != "dev" ]; then echo "Unknown environment $(ENV)." && exit 1; fi; \
-	fi
-	mkdir -p backups
-	@if [ "$(ENV)" = "dev" ]; then \
-		$(POSTGRES_STACK_ENV) docker compose -f $(COMPOSE_POSTGRES_LOCAL) exec -T db pg_dump -U $$POSTGRES_USER $$POSTGRES_DB | gzip > backups/`date +%Y%m%d%H%M%S`_$(ENV).sql.gz; \
-	else \
-		docker compose -f deploy/docker-compose.$(ENV).yml exec -T db pg_dump -U $$POSTGRES_USER $$POSTGRES_DB | gzip > backups/`date +%Y%m%d%H%M%S`_$(ENV).sql.gz; \
-	fi
+	BACKUP_OUT_DIR="$(BACKUP_OUT_DIR)" POSTGRES_CONTAINER_NAME="$(POSTGRES_CONTAINER_NAME)" POSTGRES_USER="$(POSTGRES_USER)" POSTGRES_DB="$(POSTGRES_DB)" sh scripts/backup-postgres-real.sh
+
+## Alias for the real logical backup of the live PostgreSQL database
+backup-real: backup
 
 ## Rollback the remote deployment to the previous release. Provide SSH_HOST, SSH_USER, SSH_PORT via env vars or make vars.
 rollback:

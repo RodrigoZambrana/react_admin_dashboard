@@ -1,6 +1,7 @@
 import { PropsWithChildren } from 'react'
 import { Navigate } from 'react-router-dom'
 import useAuthority from '@/utils/hooks/useAuthority'
+import { appPath } from '@/constants/route.constant'
 
 type AuthorityGuardProps = PropsWithChildren<{
     userAuthority?: string[]
@@ -14,7 +15,7 @@ const AuthorityGuard = (props: AuthorityGuardProps) => {
 
     // ProtectedRoute already ensures authentication.
     // Here, only handle insufficient authority -> Access Denied
-    return <>{roleMatched ? children : <Navigate to="/access-denied" />}</>
+    return <>{roleMatched ? children : <Navigate to={appPath('access-denied')} />}</>
 }
 
 export default AuthorityGuard

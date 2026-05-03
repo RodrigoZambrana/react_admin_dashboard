@@ -37,6 +37,36 @@ const hasAnyValue = (values: Array<unknown>): boolean =>
     return Boolean(value)
   })
 
+const isSecureConfigReadError = (error: unknown): boolean => {
+  if (!(error instanceof Error)) {
+    return false
+  }
+
+  return (
+    error.message.includes('Unable to read secure configuration value.') ||
+    error.message.includes('Unsupported state or unable to authenticate data')
+  )
+}
+
+async function readSecureJsonOrReset<T>(
+  secureConfig: SecureConfigService,
+  prisma: PrismaClient,
+  key: string,
+): Promise<T | null> {
+  try {
+    const record = await secureConfig.getJson<T>(key)
+    return record?.value ?? null
+  } catch (error) {
+    if (!isSecureConfigReadError(error)) {
+      throw error
+    }
+
+    console.warn(`[seed] Secure config "${key}" could not be decrypted. Resetting it.`)
+    await prisma.secureConfig.deleteMany({ where: { key } })
+    return null
+  }
+}
+
 export async function seedIntegrations(
   prisma: PrismaClient,
   environment: SeedEnvironment,
@@ -141,7 +171,7 @@ export async function seedIntegrations(
       googlePayload.storefrontSiteUrl,
     ])
   ) {
-    const before = await secureConfig.getJson('integrations.google')
+    const before = await readSecureJsonOrReset(secureConfig, prisma, 'integrations.google')
     if (!before) {
       await secureConfig.setJson('integrations.google', googlePayload)
       secureEntriesCreated += 1
@@ -149,7 +179,7 @@ export async function seedIntegrations(
   }
 
   if (hasAnyValue([mpPayload.accessToken, mpPayload.publicKey, mpPayload.integratorId, mpPayload.applicationId])) {
-    const before = await secureConfig.getJson('payments.mercadopago')
+    const before = await readSecureJsonOrReset(secureConfig, prisma, 'payments.mercadopago')
     if (!before) {
       await secureConfig.setJson('payments.mercadopago', mpPayload)
       secureEntriesCreated += 1
@@ -157,7 +187,7 @@ export async function seedIntegrations(
   }
 
   if (hasAnyValue([emailPayload.smtp?.host, emailPayload.smtp?.user, emailPayload.smtp?.password, emailPayload.fromAddress])) {
-    const before = await secureConfig.getJson('email.provider.config')
+    const before = await readSecureJsonOrReset(secureConfig, prisma, 'email.provider.config')
     if (!before) {
       await secureConfig.setJson('email.provider.config', emailPayload)
       secureEntriesCreated += 1
@@ -174,7 +204,7 @@ export async function seedIntegrations(
       inboxPayload.displayName,
     ])
   ) {
-    const before = await secureConfig.getJson('inbox.email.config')
+    const before = await readSecureJsonOrReset(secureConfig, prisma, 'inbox.email.config')
     if (!before) {
       await secureConfig.setJson('inbox.email.config', inboxPayload)
       secureEntriesCreated += 1

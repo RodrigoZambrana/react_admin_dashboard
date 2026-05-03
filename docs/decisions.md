@@ -283,6 +283,15 @@
 - The database stores only the managed metadata and relative file path; the file itself must survive container rebuilds
 - Reason: without a host-mounted upload directory, managed documents become undeletable/undownloadable after container recreation even if the `KnowledgeDocument` row still exists
 
+### Operational media storage is a host-mounted external root, not an image layer
+
+- Product images, CMS assets and uploaded files are served from a host-mounted storage root outside the repository tree
+- The local test stack mounts that storage root into the backend container so `/media` and `/uploads` remain readable after rebuilds
+- A sync script is used to bootstrap, push or pull that storage root so the same file set can be promoted to staging or remote infrastructure without baking it into the Docker image
+- Same-origin absolute media URLs must be canonicalized back to relative paths before they reach the Next image optimizer; legacy requests such as `/_next/image?url=http://localhost:8080/media/...` are redirected at the edge to `/media/...`
+- Host asset namespaces must stay explicit: storefront assets resolve under `/assets/*`, while the admin UI resolves under `/admin/assets/*`
+- Reason: media must behave like durable application state, not like build-time assets that disappear on container recreation or get mixed into git history
+
 ### Knowledge persistence starts before retrieval indexing
 
 - The first production slice stores curated knowledge and candidate review directly in PostgreSQL

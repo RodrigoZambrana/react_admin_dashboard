@@ -9,7 +9,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const withTrailingSlash = (url) => (url.endsWith("/") ? url : `${url}/`);
 
-async function fetchWithRetry(path, assertion, label) {
+async function fetchWithRetry(path, assertion, label, headers = {}) {
   const startedAt = Date.now();
   let attempt = 0;
   let delayMs = INITIAL_DELAY_MS;
@@ -20,9 +20,7 @@ async function fetchWithRetry(path, assertion, label) {
     try {
       const response = await fetch(`${BASE_URL}${path}`, {
         redirect: "manual",
-        headers: {
-          Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
-        },
+        headers,
       });
       const body = await response.text();
       assertion(response, body);
@@ -79,14 +77,124 @@ const assertJsonOk = (response, body) => {
   }
 };
 
+const assertJavascriptBundle = (response, body) => {
+  if (response.status !== 200) {
+    throw new Error(`expected HTTP 200, got ${response.status}`);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("javascript")) {
+    throw new Error(`expected JavaScript content-type, got "${contentType}"`);
+  }
+
+  const trimmed = body.trimStart();
+  if (trimmed.startsWith("<!DOCTYPE html") || trimmed.startsWith("<html")) {
+    throw new Error("expected JavaScript payload, got HTML");
+  }
+};
+
 async function main() {
   console.log(`[smoke] base=${BASE_URL}`);
 
-  await fetchWithRetry("/api/health", assertJsonOk, "/api/health");
-  await fetchWithRetry("/", (response, body) => assertHtml(response, body, 200), "/");
-  await fetchWithRetry("/admin", (response, body) => assertHtml(response, body, 200), "/admin");
+  const htmlHeaders = {
+    Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
+  };
+  const assetHeaders = {
+    Accept: "*/*",
+  };
 
-  const response = await fetch(`${withTrailingSlash(BASE_URL)}`);
+  await fetchWithRetry("/api/health", assertJsonOk, "/api/health", {
+    Accept: "application/json",
+  });
+  await fetchWithRetry("/", (response, body) => assertHtml(response, body, 200), "/", htmlHeaders);
+  await fetchWithRetry("/admin", (response, body) => assertHtml(response, body, 200), "/admin", htmlHeaders);
+  await fetchWithRetry("/admin/sign-in", (response, body) => assertHtml(response, body, 200), "/admin/sign-in", htmlHeaders);
+
+  const homepage = await fetch(`${withTrailingSlash(BASE_URL)}`, {
+    redirect: "manual",
+    headers: {
+      Accept: "text/html,application/json;q=0.9,*/*;q=0.8",
+    },
+  });
+  const html = await homepage.text();
+  const chunkMatch = html.match(/\/_next\/static\/chunks\/[^"'\\s>]+\.js/g);
+  if (!chunkMatch || chunkMatch.length === 0) {
+    throw new Error("[smoke] could not find any Next chunk URLs in homepage HTML");
+  }
+
+  const uniqueChunks = [...new Set(chunkMatch)].slice(0, 3);
+  for (const chunkPath of uniqueChunks) {
+    await fetchWithRetry(chunkPath, assertJavascriptBundle, `chunk ${chunkPath}`, assetHeaders);
+  }
+
+  const adminHtmlResponse = await fetch(`${withTrailingSlash(BASE_URL)}admin`, {
+    headers: htmlHeaders,
+  });
+  const adminHtml = await adminHtmlResponse.text();
+  const adminAssetMatch = adminHtml.match(/\/admin\/assets\/[^"'\\s>]+(?:\.js|\.css)/g);
+  if (!adminAssetMatch || adminAssetMatch.length === 0) {
+    throw new Error("[smoke] could not find admin asset URLs in /admin HTML");
+  }
+
+  const uniqueAdminAssets = [...new Set(adminAssetMatch)].slice(0, 2);
+  for (const assetPath of uniqueAdminAssets) {
+    await fetchWithRetry(
+      assetPath,
+      assetPath.endsWith(".css")
+        ? (response, body) => {
+            if (response.status !== 200) {
+              throw new Error(`expected HTTP 200, got ${response.status}`);
+            }
+            const contentType = response.headers.get("content-type") || "";
+            if (!contentType.includes("text/css")) {
+              throw new Error(`expected CSS content-type, got "${contentType}"`);
+            }
+            if (!body.includes("{")) {
+              throw new Error("expected CSS payload");
+            }
+          }
+        : assertJavascriptBundle,
+      `admin asset ${assetPath}`,
+      assetHeaders,
+    );
+  }
+
+  await fetchWithRetry(
+    "/_next/image?url=%2Fmedia%2Fstories%2Fproyectos%2Fpaneles-7.jpeg&w=640&q=75",
+    (response, body) => {
+      if (response.status !== 200) {
+        throw new Error(`expected HTTP 200, got ${response.status}`);
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("image/")) {
+        throw new Error(`expected image content-type, got "${contentType}"`);
+      }
+      if (body.length === 0) {
+        throw new Error("expected image payload");
+      }
+    },
+    "home paneles image",
+    assetHeaders,
+  );
+
+  await fetchWithRetry(
+    "/_next/image?url=http%3A%2F%2Flocalhost%3A8080%2Fmedia%2Fproducts%2Fbandas-verticales%2Fimages%2Fbandas_6.jpeg&w=640&q=75",
+    (response) => {
+      if (response.status !== 307) {
+        throw new Error(`expected HTTP 307, got ${response.status}`);
+      }
+      const location = response.headers.get("location") || "";
+      if (!location.includes("/_next/image?url=%2Fmedia%2Fproducts%2Fbandas-verticales%2Fimages%2Fbandas_6.jpeg")) {
+        throw new Error(`expected canonicalized location, got "${location}"`);
+      }
+    },
+    "legacy absolute image redirect",
+    assetHeaders,
+  );
+
+  const response = await fetch(`${withTrailingSlash(BASE_URL)}`, {
+    headers: htmlHeaders,
+  });
   if (!response.ok) {
     throw new Error(`[smoke] base url returned ${response.status}`);
   }

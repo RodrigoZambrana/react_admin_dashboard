@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import classNames from 'classnames'
 import { Link } from 'react-router-dom'
 import { APP_NAME } from '@/constants/app.constant'
+import { appPath, publicAssetPath } from '@/constants/route.constant'
 import { apiGetCompanyProfile } from '@/services/SettingsService'
 import store from '@/store'
 import type { CommonProps } from '@/@types/common'
@@ -14,14 +15,31 @@ interface LogoProps extends CommonProps {
     customSrc?: string | null
 }
 
-const LOGO_SRC_PATH = '/img/logo/'
 const COMPANY_LOGO_EVENT = 'app:company-logo-changed'
 
 let cachedCompanyLogo: string | null | undefined
 let pendingLogoRequest: Promise<string | null> | null = null
 
 const resolveDefaultLogo = (mode: 'light' | 'dark', type: 'full' | 'streamline') =>
-    `${LOGO_SRC_PATH}logo-${mode}-${type}.png`
+    publicAssetPath('img', 'logo', `logo-${mode}-${type}.png`)
+
+const normalizeLogoSrc = (value: string): string => {
+    const trimmed = value.trim()
+
+    if (!trimmed.length) {
+        return trimmed
+    }
+
+    if (/^(?:https?:)?\/\//u.test(trimmed) || trimmed.startsWith('data:')) {
+        return trimmed
+    }
+
+    if (trimmed.startsWith('/img/') || trimmed.startsWith('img/')) {
+        return publicAssetPath(trimmed)
+    }
+
+    return trimmed
+}
 
 const normalizeLogoValue = (value: string | null | undefined): string | null | undefined => {
     if (typeof value === 'string') {
@@ -140,13 +158,13 @@ const Logo = (props: LogoProps) => {
 
     const resolvedSrc =
         logoSrc && typeof logoSrc === 'string' && logoSrc.trim().length
-            ? logoSrc
+            ? normalizeLogoSrc(logoSrc)
             : resolveDefaultLogo(mode, type)
 
     const combinedImgClass = classNames('max-h-full w-auto object-contain', imgClass)
 
     return (
-        <Link to="/">
+        <Link to={appPath()}>
             <div
                 className={classNames('logo flex items-center', className)}
                 style={{

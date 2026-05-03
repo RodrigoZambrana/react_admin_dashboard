@@ -15,6 +15,7 @@ const normalizePrefix = (value: string | undefined): string => {
 export const ROOT = '/'
 export const APP_PREFIX_PATH = normalizePrefix(import.meta.env.VITE_APP_PREFIX_PATH)
 export const AUTH_PREFIX_PATH = '/auth'
+export const PUBLIC_BASE_PATH = normalizePrefix(import.meta.env.BASE_URL)
 
 export const appPath = (...segments: string[]): string => {
     const suffix = segments
@@ -28,4 +29,18 @@ export const appPath = (...segments: string[]): string => {
     }
 
     return `${APP_PREFIX_PATH}/${suffix.replace(/^\/+/u, '')}`
+}
+
+export const publicAssetPath = (...segments: string[]): string => {
+    const suffix = segments
+        .flatMap((segment) => segment.split('/'))
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+        .join('/')
+
+    if (!suffix) {
+        return PUBLIC_BASE_PATH
+    }
+
+    return `${PUBLIC_BASE_PATH}/${suffix.replace(/^\/+/u, '')}`
 }

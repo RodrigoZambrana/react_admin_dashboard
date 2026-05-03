@@ -3,6 +3,7 @@ import appConfig from '@/configs/app.config'
 import useAuth from '@/utils/hooks/useAuth'
 import { useAppSelector } from '@/store'
 import Loading from '@/components/shared/Loading'
+import { appPath } from '@/constants/route.constant'
 
 const { authenticatedEntryPath } = appConfig
 
@@ -16,7 +17,7 @@ const PublicRoute = () => {
     }
 
     // Allow access to Access Denied page even when authenticated
-    if (location.pathname === '/access-denied') {
+    if (location.pathname === appPath('access-denied')) {
         return <Outlet />
     }
 

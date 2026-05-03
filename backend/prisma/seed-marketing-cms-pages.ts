@@ -101,7 +101,7 @@ const HOME_SHOP_CATEGORY_IMAGES: Record<string, string> = {
   'Cortinas de enrollar': '/uploads/cms/legacy-assets/img/portfolio/catalanas/catalana_2.jpeg',
   'Motores cortinas y persianas': '/uploads/cms/legacy-assets/img/portfolio/motores/persianas_motorizadas.jpg',
   Cortinas: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
-  'Paneles tradicionales': '/uploads/cms/legacy-assets/img/portfolio/paneles/paneles.png',
+  'Paneles tradicionales': '/media/stories/proyectos/paneles-7.jpeg',
   'Cortinas metalicas': '/uploads/cms/legacy-assets/img/portfolio/cortinas_metalicas/cortina_metalica_1.jpg',
 }
 

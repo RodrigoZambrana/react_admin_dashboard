@@ -11,6 +11,7 @@ import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
 import appConfig from '@/configs/app.config'
+import { appPath } from '@/constants/route.constant'
 import { useTranslation } from 'react-i18next'
 import { executeRecaptchaAction, preloadRecaptcha } from '@/utils/security/recaptcha'
 import { useEffect, useState } from 'react'
@@ -40,8 +41,8 @@ const SignInForm = (props: SignInFormProps) => {
     const {
         disableSubmit = false,
         className,
-        forgotPasswordUrl = '/forgot-password',
-        signUpUrl = '/sign-up',
+        forgotPasswordUrl = appPath('forgot-password'),
+        signUpUrl = appPath('sign-up'),
     } = props
 
     // Flags keep navigation logic available without rendering the UI copy yet

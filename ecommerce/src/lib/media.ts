@@ -4,6 +4,47 @@ import type { StoredMediaRecord } from "@/types/cloudinary-upload";
 
 const normalizeBase = (value: string) => (value.endsWith("/") ? value.slice(0, -1) : value);
 
+const getOrigin = (value: string | null | undefined) => {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+};
+
+const normalizeSameOriginUrl = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    const publicOrigins = [
+      env.publicSiteOrigin,
+      getOrigin(env.publicMediaBaseUrl),
+      getOrigin(env.publicApiBaseUrl),
+      getOrigin(env.publicAuthApiBaseUrl),
+    ].filter((origin): origin is string => Boolean(origin));
+
+    if (publicOrigins.includes(url.origin)) {
+      return `${url.pathname}${url.search}${url.hash}`;
+    }
+
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
+};
+
 const resolveMediaBaseUrl = () => normalizeBase(env.publicMediaBaseUrl || "http://localhost:3000/media");
 
 const resolveUploadsBaseUrl = () => {
@@ -29,8 +70,12 @@ export const getMediaUrl = (publicId: string) => {
     return "";
   }
 
-  if (/^(https?:|data:)/i.test(trimmed)) {
+  if (/^data:/i.test(trimmed)) {
     return trimmed;
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return normalizeSameOriginUrl(trimmed);
   }
 
   const normalized = normalizePublicId(trimmed);
@@ -39,10 +84,10 @@ export const getMediaUrl = (publicId: string) => {
   }
 
   if (/^cms\/legacy-assets\//i.test(normalized)) {
-    return `${resolveUploadsBaseUrl()}/${normalized}`;
+    return normalizeSameOriginUrl(`${resolveUploadsBaseUrl()}/${normalized}`);
   }
 
-  return `${resolveMediaBaseUrl()}/${normalized}`;
+  return normalizeSameOriginUrl(`${resolveMediaBaseUrl()}/${normalized}`);
 };
 
 const extractCloudinaryPublicId = (value: string) => {

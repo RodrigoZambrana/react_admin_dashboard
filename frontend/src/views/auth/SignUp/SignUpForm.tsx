@@ -12,6 +12,7 @@ import { PASSWORD_COMPLEXITY_REGEX } from '@/constants/security.constant'
 import type { SignUpCredential } from '@/@types/auth'
 import type { CommonProps } from '@/@types/common'
 import { useTranslation } from 'react-i18next'
+import { appPath } from '@/constants/route.constant'
 
 interface SignUpFormProps extends CommonProps {
     disableSubmit?: boolean
@@ -42,7 +43,7 @@ const validationSchema = Yup.object().shape({
 })
 
 const SignUpForm = (props: SignUpFormProps) => {
-    const { disableSubmit = false, className, signInUrl = '/sign-in' } = props
+    const { disableSubmit = false, className, signInUrl = appPath('sign-in') } = props
 
     const { signUp } = useAuth()
 
