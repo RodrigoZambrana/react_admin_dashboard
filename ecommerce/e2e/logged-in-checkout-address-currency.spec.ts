@@ -48,7 +48,7 @@ async function addParametricProductFromShop(page: Page, name: string, slug: stri
 
 function cartLineLocator(page: Page) {
   return page.locator(
-    '[data-testid^="cart-line-"]:not([data-testid*="-increase-"]):not([data-testid*="-decrease-"])'
+    '[data-testid^="cart-line-"]:not([data-testid*="-increase-"]):not([data-testid*="-decrease-"]):not([data-testid*="-quantity-"]):not([data-testid*="-remove-"])'
   );
 }
 

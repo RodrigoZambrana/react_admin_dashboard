@@ -4,7 +4,7 @@ export const reportMeta = {
   baselineCommit: "8004d89e",
   updateCommand: "node tools/qa/generate-use-cases-report.mjs",
   notes:
-    "Contrato vivo del sistema: VERIFICADA = corrida/paso validado; DEFINIDA = existe cobertura alineada pero no rerun en este informe; PENDIENTE = no existe prueba automatizada suficiente todavía. La hoja Contrato vivo normaliza tipo, inputs, outputs, sistemas involucrados, dependencias, estado y trazabilidad. La hoja Hallazgos queda como registro de errores con clasificación obligatoria. Para este proceso se excluye Chat Platform y se trabaja sobre ecommerce, backend, analytics e integraciones auxiliares. Los bloques de auto-respuesta, wording registry, hybrid intent y grounding quedan fuera del gate de esta entrega manual-only.",
+    "Contrato vivo del sistema: VERIFICADA = corrida/paso validado; DEFINIDA = existe cobertura alineada pero no rerun en este informe; PENDIENTE = no existe prueba automatizada suficiente todavía. La hoja Contrato vivo normaliza tipo, inputs, outputs, sistemas involucrados, dependencias, estado y trazabilidad. La hoja Hallazgos queda como registro de errores con clasificación obligatoria. Para este proceso se excluye Chat Platform y cualquier chat automatizado con IA; el foco manual queda en Meta, Mail y Webchat. Snapshot de manuales 2026-05-03: ecommerce crítico de checkout quedó verde y el bloque manual de canales quedó en 18/18; mantener como punto de partida para la siguiente iteración.",
 };
 
 const c = (
@@ -59,6 +59,34 @@ export const findingsHeaders = [
   "Estado",
   "Caso / documento vinculado",
   "Notas",
+];
+
+const currentRunFindings = [
+  {
+    ID: "QA-ECOM-VITEST-001",
+    Tipo: "deuda técnica",
+    "Sistema afectado": "frontend",
+    "Flujo impactado": "helpers storefront/SEO y render de contenido CMS",
+    "Pasos de reproducción": "Ejecutar `cd ecommerce && npx vitest run` con la configuración actual del repo.",
+    Severidad: "media",
+    Estado: "open",
+    "Caso / documento vinculado":
+      "ecommerce/src/lib/page-metadata.spec.ts; ecommerce/src/lib/seo/robots.spec.ts; ecommerce/src/lib/seo/sitemap.spec.ts; ecommerce/src/lib/seo/public-pricing.spec.ts; ecommerce/src/lib/seo/structured-data.spec.ts; ecommerce/src/lib/analytics/eventSchema.spec.ts; ecommerce/src/components/cms/rich-text.spec.ts",
+    Notas:
+      "Las suites fallan antes de llegar a las aserciones con un error de lectura sobre `config`; hay que normalizar el setup de vitest o corregir la dependencia que asume un entorno distinto.",
+  },
+  {
+    ID: "QA-ECOM-ADMIN-AI-001",
+    Tipo: "bug funcional",
+    "Sistema afectado": "frontend",
+    "Flujo impactado": "admin AI settings / knowledge management",
+    "Pasos de reproducción": "Ejecutar `cd ecommerce && npx playwright test --workers=1 e2e/admin-ai-settings.spec.ts`.",
+    Severidad: "alta",
+    Estado: "open",
+    "Caso / documento vinculado": "ecommerce/e2e/admin-ai-settings.spec.ts",
+    Notas:
+      "La corrida quedó fallando en navegación a runtime settings, creación/reindexado de knowledge y pantallas de documentos; requiere validación funcional antes de cerrar manuales.",
+  },
 ];
 
 function compactJoin(values, separator = "; ") {
@@ -183,6 +211,7 @@ export function buildContractRows() {
 
 export function buildFindingTemplateRows() {
   return [
+    ...currentRunFindings,
     {
       ID: "",
       Tipo: "bug funcional | inconsistencia entre servicios | desalineación con documento | gap funcional | deuda técnica",

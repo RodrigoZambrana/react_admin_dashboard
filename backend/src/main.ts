@@ -32,7 +32,7 @@ async function bootstrap() {
   }
   await app.register(helmet as any, Object.keys(helmetOptions).length ? helmetOptions : undefined)
 const defaultAllowedOrigins = (
-  process.env.DEFAULT_ALLOWED_ORIGINS ??
+  process.env.DEFAULT_ALLOWED_ORIGINS ||
   'http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080'
 )
     .split(',')
@@ -47,6 +47,8 @@ const defaultAllowedOrigins = (
     new Set([...defaultAllowedOrigins, ...envAllowedOrigins]),
   )
 
+  const normalizeOrigin = (value: string) => value.trim().replace(/\/$/, '')
+
   await app.register(cors as any, {
     origin: (origin, cb) => {
       if (!origin) {
@@ -54,13 +56,22 @@ const defaultAllowedOrigins = (
         return
       }
 
+      if (isDevelopment) {
+        cb(null, true)
+        return
+      }
+
+      const normalizedOrigin = normalizeOrigin(origin)
+
       if (allowedOrigins.includes('*')) {
         cb(null, true)
         return
       }
 
       const match = allowedOrigins.find(
-        (allowed) => origin === allowed || origin.endsWith(allowed),
+        (allowed) =>
+          normalizedOrigin === normalizeOrigin(allowed) ||
+          normalizedOrigin.endsWith(normalizeOrigin(allowed)),
       )
 
       if (match) {

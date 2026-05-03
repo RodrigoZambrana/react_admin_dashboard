@@ -6,6 +6,9 @@ const createPrisma = () => ({
   product: {
     findMany: vi.fn(),
   },
+  productCategory: {
+    findMany: vi.fn().mockResolvedValue([]),
+  },
   standardSize: {
     findMany: vi.fn(),
   },

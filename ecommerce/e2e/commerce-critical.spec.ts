@@ -17,7 +17,7 @@ const CART_STORAGE_KEY = "storefront.cart.v1";
 
 function cartLineLocator(page: Page) {
   return page.locator(
-    '[data-testid^="cart-line-"]:not([data-testid*="-increase-"]):not([data-testid*="-decrease-"])'
+    '[data-testid^="cart-line-"]:not([data-testid*="-increase-"]):not([data-testid*="-decrease-"]):not([data-testid*="-quantity-"]):not([data-testid*="-remove-"])'
   );
 }
 

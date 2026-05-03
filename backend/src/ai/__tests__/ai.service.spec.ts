@@ -906,18 +906,19 @@ describe('AiService', () => {
     expect(prepared.readyForInsert).toBe(true)
     expect(prepared.readyItemCount).toBe(4)
     expect(prepared.items.every((item) => item.validForInsert)).toBe(true)
-    expect(prepared.items[2].insertPayload).toMatchObject({
-      name: expect.stringMatching(/^Monoblock /i),
-      productCapabilities: {
-        hasMosquitero: false,
+    const monoblockPreparedItem = prepared.items.find((item) => item.hasShutterMonoblock)
+    expect(monoblockPreparedItem).toBeTruthy()
+    expect(monoblockPreparedItem?.insertPayload).toMatchObject({
+      name: expect.stringMatching(/^CORREDIZA /i),
+      productType: 'PHYSICAL',
+      mode: 'SIMPLE',
+      currency: 'USD',
+      unitOfMeasure: 'UNIT',
+      published: false,
+      metadata: expect.objectContaining({
         hasShutterMonoblock: true,
         shutterSystem: 'ALUMINIO',
-      },
-      productConfigSchema: {
-        hasMosquitero: false,
-        hasShutterMonoblock: true,
-        shutterSystem: 'ALUMINIO',
-      },
+      }),
     })
 
     for (const item of prepared.items) {
@@ -927,19 +928,18 @@ describe('AiService', () => {
 
     expect(prisma.product.create).toHaveBeenCalledTimes(4)
     expect(derivedProducts.invalidateBaseProduct).toHaveBeenCalledTimes(4)
-    expect(prisma.product.create.mock.calls[2][0].data).toMatchObject({
-      name: expect.stringMatching(/^Monoblock /i),
-      seoTitle: expect.stringMatching(/^Monoblock /i),
-      productCapabilities: {
-        hasMosquitero: false,
-        hasShutterMonoblock: true,
-        shutterSystem: 'ALUMINIO',
-      },
-      productConfigSchema: {
-        hasMosquitero: false,
-        hasShutterMonoblock: true,
-        shutterSystem: 'ALUMINIO',
-      },
+    const monoblockCreateCall = prisma.product.create.mock.calls.find((call) =>
+      call[0]?.data?.salePrice?.toNumber?.() === 494,
+    )
+    expect(monoblockCreateCall?.[0]?.data).toMatchObject({
+      name: expect.stringMatching(/^CORREDIZA /i),
+      currency: 'USD',
+      unitOfMeasure: 'UNIT',
+      published: false,
+      mode: 'SIMPLE',
+      productType: 'PHYSICAL',
+      description: expect.any(String),
+      stock: 0,
     })
   })
 

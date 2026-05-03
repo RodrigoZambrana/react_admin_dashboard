@@ -12,7 +12,11 @@ import {
 } from "react";
 
 import type { Money, ProductMode, ProductSummary, ProductVariantAttribute } from "@/types/storefront";
-import { extractProductIdFromCartLineId, isParametricCartLineId } from "@/lib/checkout/order-items";
+import {
+  extractProductIdFromCartLineId,
+  hasMeaningfulParametricConfiguration,
+  isParametricCartLineId
+} from "@/lib/checkout/order-items";
 import { normalizeMoney } from "@/lib/utils/format";
 import { useToast } from "@/contexts/ToastContext";
 import { trackEvent } from "@/lib/analytics/trackEvent";
@@ -123,7 +127,8 @@ export const upgradeCartState = (state: CartState | null | undefined): UpgradedC
       (product as { config?: unknown }).config;
     const configuration = coerceCartConfiguration(rawConfiguration);
     const looksParametric = isParametricCartLineId(normalizedLineId);
-    const requiresDynamicParametricConfiguration = Boolean(configuration || looksParametric);
+    const requiresDynamicParametricConfiguration =
+      looksParametric || hasMeaningfulParametricConfiguration(configuration);
 
     if (requiresDynamicParametricConfiguration && !configuration) {
       droppedInvalidParametricItems += 1;
@@ -137,7 +142,7 @@ export const upgradeCartState = (state: CartState | null | undefined): UpgradedC
         ...product,
         id: normalizedLineId,
         productId: normalizedProductId,
-        mode: product.mode ?? (configuration || looksParametric ? "parametric" : undefined),
+        mode: product.mode ?? (requiresDynamicParametricConfiguration ? "parametric" : undefined),
         variantId,
         variantKey: typeof product.variantKey === "string" ? product.variantKey : undefined,
         variantLabel: product.variantLabel ?? null,

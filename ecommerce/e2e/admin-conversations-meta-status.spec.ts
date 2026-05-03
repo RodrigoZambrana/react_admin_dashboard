@@ -15,8 +15,7 @@ import {
 const channelAdapterBaseUrl =
   process.env.PLAYWRIGHT_CHANNEL_ADAPTER_URL ?? "http://127.0.0.1:4200";
 
-function signMetaPayload(payload: unknown) {
-  const raw = JSON.stringify(payload);
+function signMetaPayload(raw: string) {
   const digest = createHmac("sha256", channelAdapterMetaAppSecret)
     .update(raw)
     .digest("hex");
@@ -138,43 +137,31 @@ test("admin inbox syncs Meta outbound delivery status back into the conversation
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(replyMessage).toBeVisible({ timeout: 20_000 });
 
+  const statusPayload = {
+    statuses: [
+      {
+        conversationId,
+        inboxAccountId: null,
+        channel: "facebook",
+        messageId: manualReplyPayload.id,
+        providerMessageId: manualReplyPayload.id,
+        status: "delivered",
+        timestamp: `${Math.floor(Date.now() / 1000)}`,
+        metadata: {
+          source: "playwright-meta-status",
+        },
+      },
+    ],
+  };
+  const rawStatusPayload = JSON.stringify(statusPayload);
+
   const statusResponse = await request.post(
     `${channelAdapterBaseUrl}/webhooks/meta`,
     {
       headers: {
-        "x-hub-signature-256": signMetaPayload({
-          statuses: [
-            {
-              conversationId,
-              inboxAccountId: null,
-              channel: "facebook",
-              messageId: manualReplyPayload.id,
-              providerMessageId: manualReplyPayload.id,
-              status: "delivered",
-              timestamp: `${Math.floor(Date.now() / 1000)}`,
-              metadata: {
-                source: "playwright-meta-status",
-              },
-            },
-          ],
-        }),
+        "x-hub-signature-256": signMetaPayload(rawStatusPayload),
       },
-      data: {
-        statuses: [
-          {
-            conversationId,
-            inboxAccountId: null,
-            channel: "facebook",
-            messageId: manualReplyPayload.id,
-            providerMessageId: manualReplyPayload.id,
-            status: "delivered",
-            timestamp: `${Math.floor(Date.now() / 1000)}`,
-            metadata: {
-              source: "playwright-meta-status",
-            },
-          },
-        ],
-      },
+      data: rawStatusPayload,
     },
   );
 

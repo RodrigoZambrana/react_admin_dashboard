@@ -149,6 +149,7 @@ const cardOverlayLinkStyle: CSSProperties = {
   inset: 0,
   zIndex: 1,
   display: "block",
+  pointerEvents: "none",
   textDecoration: "none",
   color: "inherit",
 };
@@ -412,7 +413,13 @@ function ProductCard1({
   return (
     <Fragment>
       <Wrapper borderRadius={12} data-testid={`product-card-${slug}`} {...props}>
-        <Link aria-label={title} href={detailHref} style={cardOverlayLinkStyle} onClick={handleSelectItem}>
+        <Link
+          aria-hidden="true"
+          tabIndex={-1}
+          aria-label={title}
+          href={detailHref}
+          style={cardOverlayLinkStyle}
+          onClick={handleSelectItem}>
           <span style={srOnlyStyle}>{title}</span>
         </Link>
         <div className="image-holder">

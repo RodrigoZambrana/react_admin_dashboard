@@ -2027,15 +2027,11 @@ describe('StorefrontService SEO surfaces', () => {
     const config = await service.getConfig()
 
     expect(config.seo).toMatchObject({
-      siteName: 'urucortinas',
-      defaultTitle: 'urucortinas',
-      titleTemplate: '%s · urucortinas',
-      defaultDescription:
-        'Configurable eCommerce experience powered by the Wokiee template and a headless backend.',
-      shareImage: {
-        url: '/assets/images/banners/shop-cover.png',
-        alt: 'urucortinas',
-      },
+      siteName: 'Storefront',
+      defaultTitle: 'Storefront',
+      titleTemplate: '%s · Storefront',
+      defaultDescription: 'Headless ecommerce storefront with CMS-managed content.',
+      shareImage: null,
     })
   })
 
@@ -2150,7 +2146,7 @@ describe('StorefrontService SEO surfaces', () => {
       seoDescription: 'Descubre cortinas a medida para cada ambiente.',
       seoImageUrl: '/assets/images/categories/og-cortinas.png',
       thumbnail: {
-        url: '/uploads/categories/cortinas.png',
+        url: '',
         alt: 'Cortinas',
       },
     })
@@ -2594,6 +2590,9 @@ describe('StorefrontService customer-facing order DTOs', () => {
   })
 
   it('exposes monoblock as a searchable canonical configuration', async () => {
+    ;(service as any).config = {
+      get: vi.fn((key: string) => (key === 'CLIENT_SLUG' ? 'urucortinas' : undefined)),
+    }
     prisma.product.count.mockResolvedValue(1)
     prisma.product.findMany.mockResolvedValue([
       {
@@ -2671,7 +2670,8 @@ describe('StorefrontService customer-facing order DTOs', () => {
       pageSize: '12',
     } as any)
 
-    expect(result.data[0]).toMatchObject({
+    const monoblock = result.data.find((item) => item.slug === 'monoblock')
+    expect(monoblock).toMatchObject({
       slug: 'monoblock',
       name: 'Monoblock 116 x 72',
       canonicalConfiguration: expect.objectContaining({

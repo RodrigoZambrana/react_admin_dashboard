@@ -31,7 +31,7 @@ const LEGACY_MJML_TAG_PATTERN = /<\s*\/?\s*mj-[a-z0-9-]+\b/i
 const HTML_SCRIPT_PATTERN = /<\s*script\b/i
 const HTML_EVENT_HANDLER_PATTERN = /\son[a-z]+\s*=/i
 const HTML_JAVASCRIPT_URL_PATTERN = /\b(?:href|src)\s*=\s*["']\s*javascript:/i
-const MAX_TEMPLATE_MARKUP_CHARS = 120_000
+const MAX_TEMPLATE_MARKUP_CHARS = 1_000_000
 
 const EVENT_LABELS: Record<string, Record<string, string>> = {
   en: {

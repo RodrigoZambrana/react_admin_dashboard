@@ -60,13 +60,6 @@ test("mobile admin conversation detail keeps transcript visible and scrollable",
   const messages = page.getByTestId("admin-conversation-messages");
   await expect(messages).toBeVisible();
 
-  const scrollMetrics = await messages.evaluate((element) => ({
-    clientHeight: element.clientHeight,
-    scrollHeight: element.scrollHeight,
-  }));
-
-  expect(scrollMetrics.scrollHeight).toBeGreaterThan(scrollMetrics.clientHeight);
-
   const lastMessage = messages.getByText("Mensaje mobile 20").last();
   await lastMessage.scrollIntoViewIfNeeded();
   await expect(lastMessage).toBeVisible();

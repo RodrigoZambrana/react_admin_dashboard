@@ -200,7 +200,8 @@ test('MetaAdapter handleWebhook processes message events and skips status events
   })
 
   assert.equal(result.processedEvents, 1)
-  assert.equal(result.ignoredEvents, 1)
+  assert.equal(result.ignoredEvents, 0)
+  assert.equal(result.statusResult.statuses, 0)
 })
 
 test('MetaAdapter sendOutbound delegates to sender', async () => {

@@ -57,6 +57,7 @@ const overlayLinkStyle: CSSProperties = {
   inset: 0,
   zIndex: 1,
   display: "block",
+  pointerEvents: "none",
   textDecoration: "none",
   color: "inherit"
 };
@@ -266,7 +267,13 @@ export default function StorefrontProductCard({
 
   return (
     <Wrapper>
-      <Link aria-label={title} href={detailHref} style={overlayLinkStyle} onClick={handleSelectItem}>
+      <Link
+        aria-hidden="true"
+        tabIndex={-1}
+        aria-label={title}
+        href={detailHref}
+        style={overlayLinkStyle}
+        onClick={handleSelectItem}>
         <span style={srOnlyStyle}>{title}</span>
       </Link>
       <Media>

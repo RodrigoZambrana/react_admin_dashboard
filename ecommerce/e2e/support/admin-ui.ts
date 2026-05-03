@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
 const adminAppBaseUrl = process.env.PLAYWRIGHT_ADMIN_APP_URL ?? "http://localhost:8080";
+const adminApiBaseUrl = process.env.PLAYWRIGHT_ADMIN_API_URL ?? "http://localhost:4000/api";
 const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? "desarrollo@software-strategy.com";
 const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? "Pass123";
 
@@ -8,36 +9,51 @@ export async function loginAsAdminUser(
   page: Page,
   credentials?: { email?: string; password?: string },
 ) {
-  const targetUrl = `${adminAppBaseUrl}/sign-in`;
-  const emailInput = page.locator('input[name="email"]');
-  const passwordInput = page.locator('input[name="password"]');
+  const response = await fetch(`${adminApiBaseUrl}/sign-in`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      email: credentials?.email ?? adminEmail,
+      password: credentials?.password ?? adminPassword,
+    }),
+  });
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
-
-    try {
-      await emailInput.waitFor({ state: "visible", timeout: 8_000 });
-    } catch (error) {
-      if (/\/app\//.test(page.url())) {
-        await expect(page).toHaveURL(/\/app\//);
-        return;
-      }
-
-      if (attempt === 2) {
-        throw error;
-      }
-
-      await page.reload({ waitUntil: "domcontentloaded" });
-      continue;
-    }
-
-    await emailInput.fill(credentials?.email ?? adminEmail);
-    await passwordInput.fill(credentials?.password ?? adminPassword);
-    await page.locator('button[type="submit"]').click();
-    await page.waitForURL(/\/app\//, { timeout: 20_000 });
-    await expect(page).toHaveURL(/\/app\//);
-    return;
+  if (!response.ok) {
+    throw new Error(`Admin sign-in failed with status ${response.status}`);
   }
+
+  const payload = (await response.json()) as {
+    token?: string;
+    accessToken?: string;
+    data?: { token?: string; accessToken?: string };
+  };
+  const token =
+    payload.token ??
+    payload.accessToken ??
+    payload.data?.token ??
+    payload.data?.accessToken;
+
+  if (!token) {
+    throw new Error("Admin sign-in did not return a token");
+  }
+
+  await page.context().addCookies([
+    {
+      name: "access_token",
+      value: token,
+      domain: "localhost",
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax",
+    },
+  ]);
+
+  await page.goto(`${adminAppBaseUrl}/app/sales/dashboard`, {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page).toHaveURL(/\/app\//);
 }
 
 export async function loginAsAdmin(page: Page) {

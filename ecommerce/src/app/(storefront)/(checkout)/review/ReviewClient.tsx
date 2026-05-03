@@ -33,7 +33,10 @@ import {
   readActiveOrderLock,
   writeOrderLock
 } from "@/utils/orderLock";
-import { clearPersistedCheckoutOrderItems } from "@/utils/checkoutStorage";
+import {
+  clearPersistedCheckoutOrderItems,
+  loadPersistedCheckoutOrderItems
+} from "@/utils/checkoutStorage";
 import type { MercadoPagoNormalizedStatus } from "@/utils/mercadopago";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 
@@ -41,6 +44,8 @@ const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
 };
 const POSTAL_CODE_FALLBACK = "00000";
+
+const isCashPaymentMethod = (method?: string | null) => method === "cod" || method === "cash";
 
 type ReviewItem = {
   id: number | string;
@@ -217,6 +222,17 @@ export default function ReviewClient() {
   const { formatMoney: formatDisplayMoney } = useMoneyFormatter();
   const toast = useToast();
   const { currency: activeCurrency } = useCurrency();
+  const persistedOrderItems = useMemo(
+    () => loadPersistedCheckoutOrderItems(checkoutToken),
+    [checkoutToken]
+  );
+
+  const orderItemsData = useMemo(() => {
+    if (persistedOrderItems && persistedOrderItems.length > 0) {
+      return { items: persistedOrderItems, error: null };
+    }
+    return buildCheckoutOrderItems(cartState.items);
+  }, [cartState.items, persistedOrderItems]);
 
   const reviewItems = useMemo<ReviewItem[]>(() => {
     if (preparedSummary?.items?.length) {
@@ -257,8 +273,6 @@ export default function ReviewClient() {
       router.replace("/payment");
     }
   }, [hasPayment, lastOrder, router]);
-
-  const orderItemsData = useMemo(() => buildCheckoutOrderItems(cartState.items), [cartState.items]);
 
   const previewPayload = useMemo<CreateOrderPayload | null>(() => {
     if (!shippingOption?.id || orderItemsData.items.length === 0 || orderItemsData.error) {
@@ -526,10 +540,17 @@ export default function ReviewClient() {
         writeOrderLock(orderLockKey);
       }
       setLastOrder(order);
+      const orderLabel = order.orderNumber || order.reference || `#${order.uuid}`;
+      const isCashOrder = isCashPaymentMethod(normalizedPayment?.method);
+      if (isCashOrder) {
+        setLastOrder(order);
+        setCashRedirectOrderUuid(order.uuid);
+        router.replace(`/payment/success?method=cod&orderUuid=${encodeURIComponent(order.uuid)}`);
+        return;
+      }
+
       clearCart();
       clearPersistedCheckoutOrderItems(checkoutToken);
-      const orderLabel = order.orderNumber || order.reference || `#${order.uuid}`;
-      const isCashOrder = normalizedPayment?.method === "cod";
       toast.success({
         title: t(
           isCashOrder
@@ -549,10 +570,6 @@ export default function ReviewClient() {
                 : "checkout.review.toast.success.description"
             )
       });
-      if (isCashOrder) {
-        setCashRedirectOrderUuid(order.uuid);
-        return;
-      }
       reset();
     } catch (cause) {
       const message = isApiError(cause)
@@ -619,7 +636,7 @@ export default function ReviewClient() {
     if (!source) {
       return t("checkout.review.paymentSummary.notSet");
     }
-    if (source.method === "cod") {
+    if (isCashPaymentMethod(source.method)) {
       return t("checkout.review.paymentSummary.cod");
     }
     const status = normalizeMercadoPagoStatus(source.status);
@@ -639,7 +656,7 @@ export default function ReviewClient() {
     if (!payment) {
       return false;
     }
-    if (payment.method === "cod") {
+    if (isCashPaymentMethod(payment.method)) {
       return true;
     }
     return Boolean(payment.paymentIntentId) && isMercadoPagoPaymentConfirmed(payment.status);
@@ -670,7 +687,7 @@ export default function ReviewClient() {
       : t("checkout.delivery.estimate.pending"));
 
   const hasOrderConfirmation = Boolean(lastOrder);
-  const isCashConfirmation = (confirmedPayment ?? payment)?.method === "cod";
+  const isCashConfirmation = isCashPaymentMethod((confirmedPayment ?? payment)?.method);
   const confirmationSummary = lastOrder?.summary;
   const confirmationName =
     confirmedContact?.name || contactName || t("checkout.review.confirmation.defaultName");

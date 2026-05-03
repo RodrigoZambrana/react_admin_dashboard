@@ -571,6 +571,11 @@ export class AnalyticsAiInsightsService {
 
   private buildQualityBySource(bundle: AnalyticsInsightBundle): AnalyticsSourceQuality[] {
     const sources: ReportSource[] = ['ga4', 'ads', 'search_console', 'meta']
+    const metaAds = bundle.meta_ads ?? {
+      spend: 0,
+      clicks: 0,
+      impressions: 0,
+    }
     return sources.map((source) => {
       if (source === 'ga4') {
         const status = bundle.measurement.conversionMeasurementReady
@@ -610,7 +615,7 @@ export class AnalyticsAiInsightsService {
 
       if (source === 'meta') {
         const metaSignal =
-          bundle.meta_ads.spend > 0 || bundle.meta_ads.clicks > 0 || bundle.meta_ads.impressions > 0
+          metaAds.spend > 0 || metaAds.clicks > 0 || metaAds.impressions > 0
         const status = metaSignal
           ? bundle.measurement.metaConversionMeasurementReady
             ? 'ok'
@@ -676,7 +681,7 @@ export class AnalyticsAiInsightsService {
       case 'meta':
         return ready
           ? 'Meta tiene señal suficiente para remarketing, exclusión y lectura de performance.'
-          : bundle.meta_ads.spend > 0 || bundle.meta_ads.clicks > 0
+          : (bundle.meta_ads?.spend ?? 0) > 0 || (bundle.meta_ads?.clicks ?? 0) > 0
             ? 'Meta ya aporta tráfico o gasto, pero todavía falta calidad de match o medición para conclusiones fuertes.'
             : 'Meta todavía no aporta una señal útil en la ventana analizada.'
       default:

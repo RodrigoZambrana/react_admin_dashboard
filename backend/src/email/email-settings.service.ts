@@ -66,11 +66,18 @@ export class EmailSettingsService {
   }
 
   private async loadStoredProviderConfig(): Promise<EmailProviderConfig | null> {
-    const stored = await this.secureConfig.getJson<EmailProviderConfig>(EmailSettingsService.EMAIL_PROVIDER_CONFIG_KEY)
-    if (!stored) {
+    try {
+      const stored = await this.secureConfig.getJson<EmailProviderConfig>(EmailSettingsService.EMAIL_PROVIDER_CONFIG_KEY)
+      if (!stored) {
+        return null
+      }
+      return stored.value
+    } catch (error) {
+      this.logger.warn(
+        `Falling back to environment email provider config because secure config could not be read: ${(error as Error).message}`,
+      )
       return null
     }
-    return stored.value
   }
 
   async resolveEmailProviderConfig(): Promise<EmailProviderConfig> {

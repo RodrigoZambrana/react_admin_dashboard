@@ -17,6 +17,47 @@ export const PARAMETRIC_LINE_MARKER = ":PARAM:";
 export const isParametricCartLineId = (value: unknown): boolean =>
   typeof value === "string" && value.includes(PARAMETRIC_LINE_MARKER);
 
+const PARAMETRIC_CONFIGURATION_KEYS = new Set([
+  "derived",
+  "width",
+  "widthMm",
+  "width_mm",
+  "height",
+  "heightMm",
+  "height_mm",
+  "reference",
+  "sizeId",
+  "series",
+  "serie",
+  "familyId",
+  "family_id",
+  "material",
+  "color",
+  "glass",
+  "vidrio",
+  "hasMosquitero",
+  "hasShutterMonoblock",
+  "monoblockEnabled",
+  "mosquitoNet"
+]);
+
+export const hasMeaningfulParametricConfiguration = (value: unknown): value is Record<string, unknown> => {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const config = value as Record<string, unknown>;
+  return Object.entries(config).some(([key, rawValue]) => {
+    if (!PARAMETRIC_CONFIGURATION_KEYS.has(key)) {
+      return false;
+    }
+    if (key === "derived") {
+      return rawValue === true;
+    }
+    return rawValue !== undefined && rawValue !== null && String(rawValue).trim().length > 0;
+  });
+};
+
 export const extractProductIdFromCartLineId = (value: unknown): number | null => {
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;
@@ -172,30 +213,30 @@ export const buildCheckoutOrderItems = (items: CartLineItem[]): CheckoutOrderIte
           ? rawVariantId
           : undefined;
 
-      const hasConfigObject = item.product.configuration && typeof item.product.configuration === "object";
+      const hasConfigObject = hasMeaningfulParametricConfiguration(item.product.configuration);
       const looksParametric = isParametricCartLineId(item.product.id);
       const requiresDynamicParametricConfiguration = Boolean(hasConfigObject || looksParametric);
 
-      const { payload: derivedPayload, error: derivedError } = normalizeDerivedConfiguration(item);
-      if (derivedError) {
-        configError = configError ?? derivedError;
-        return null;
-      }
-
-      if (derivedPayload) {
-        return {
-          productId,
-          quantity: Math.max(1, item.quantity),
-          variantId,
-          ...derivedPayload,
-          configuration:
-            item.product.configuration && typeof item.product.configuration === "object"
-              ? (item.product.configuration as Record<string, unknown>)
-              : undefined
-        };
-      }
-
       if (requiresDynamicParametricConfiguration) {
+        const { payload: derivedPayload, error: derivedError } = normalizeDerivedConfiguration(item);
+        if (derivedError) {
+          configError = configError ?? derivedError;
+          return null;
+        }
+
+        if (derivedPayload) {
+          return {
+            productId,
+            quantity: Math.max(1, item.quantity),
+            variantId,
+            ...derivedPayload,
+            configuration:
+              item.product.configuration && typeof item.product.configuration === "object"
+                ? (item.product.configuration as Record<string, unknown>)
+                : undefined
+          };
+        }
+
         const { config, error } = normalizeParametricConfiguration(item);
         if (error) {
           configError = configError ?? error;
