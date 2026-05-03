@@ -344,10 +344,6 @@ export default function MultimediaViewer({ product, media, initialMediaSlug = nu
     return () => window.removeEventListener("resize", updateCompact);
   }, []);
 
-  if (!filteredMedia.length) {
-    return <div style={emptyStyle}>Este producto todavía no tiene imágenes ni videos asociados.</div>;
-  }
-
   const activeIndex = useMemo(() => {
     if (!initialMediaSlug) {
       return null;
@@ -368,6 +364,10 @@ export default function MultimediaViewer({ product, media, initialMediaSlug = nu
       document.body.style.overflow = "";
     };
   }, [activeIndex]);
+
+  if (!filteredMedia.length) {
+    return <div style={emptyStyle}>Este producto todavía no tiene imágenes ni videos asociados.</div>;
+  }
 
   const openMedia = (index: number) => {
     const item = filteredMedia[index];
@@ -492,7 +492,6 @@ export default function MultimediaViewer({ product, media, initialMediaSlug = nu
       {mounted && activeItem
         ? createPortal(
             <div
-              aria-modal="true"
               onClick={closeModal}
               role="presentation"
               style={modalOverlayStyle}>

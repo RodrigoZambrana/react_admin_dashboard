@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import { useLocation, useNavigate, matchPath } from 'react-router-dom'
 import classNames from 'classnames'
 import {
@@ -40,9 +41,9 @@ const MobileBottomNav = () => {
 
     const [isCustomerDrawerOpen, setCustomerDrawerOpen] = useState(false)
     const isConversationRoute = location.pathname.startsWith(
-        '/app/crm/conversations',
+        appPath('/crm/conversations'),
     )
-    const isMailRoute = location.pathname.startsWith('/app/crm/mail')
+    const isMailRoute = location.pathname.startsWith(appPath('/crm/mail'))
 
     const broadcastDrawerClose = useCallback(() => {
         window.dispatchEvent(new Event('app:drawer-close-all'))
@@ -75,7 +76,7 @@ const MobileBottomNav = () => {
                 key: 'home',
                 label: t('text.mobileNav.home', { defaultValue: 'Home' }),
                 icon: HiOutlineHome,
-                to: '/app/sales/dashboard',
+                to: appPath('/sales/dashboard'),
             },
             {
                 key: 'messages',
@@ -83,7 +84,7 @@ const MobileBottomNav = () => {
                     defaultValue: 'Messages',
                 }),
                 icon: HiOutlineChatAlt2,
-                to: '/app/crm/conversations',
+                to: appPath('/crm/conversations'),
             },
             {
                 key: 'agenda',
@@ -91,7 +92,7 @@ const MobileBottomNav = () => {
                     defaultValue: 'Agenda',
                 }),
                 icon: HiOutlineClipboardList,
-                to: '/app/calendar/activities',
+                to: appPath('/calendar/activities'),
             },
             {
                 key: 'addCustomer',
@@ -109,7 +110,7 @@ const MobileBottomNav = () => {
                     defaultValue: 'Quick budget',
                 }),
                 icon: HiOutlineDocumentText,
-                to: '/app/sales/budget-quick',
+                to: appPath('/sales/budget-quick'),
             })
         }
         items.push({
@@ -118,7 +119,7 @@ const MobileBottomNav = () => {
                 defaultValue: 'Add Order',
             }),
             icon: HiOutlinePlusCircle,
-            to: '/app/sales/order-new',
+            to: appPath('/sales/order-new'),
         })
         return items
     }, [openCustomerDrawer, openMobileMenu, t])
@@ -131,7 +132,7 @@ const MobileBottomNav = () => {
                     defaultValue: 'Messages',
                 }),
                 icon: HiOutlineChatAlt2,
-                to: '/app/crm/conversations',
+                to: appPath('/crm/conversations'),
             },
             {
                 key: 'messagesMail',
@@ -139,7 +140,7 @@ const MobileBottomNav = () => {
                     defaultValue: 'Mailbox',
                 }),
                 icon: HiOutlineDocumentText,
-                to: '/app/crm/mail/inbox',
+                to: appPath('/crm/mail/inbox'),
             },
             {
                 key: 'messagesAi',
@@ -147,7 +148,7 @@ const MobileBottomNav = () => {
                     defaultValue: 'AI',
                 }),
                 icon: HiOutlinePlusCircle,
-                to: '/app/settings/ai',
+                to: appPath('/settings/ai'),
             },
             {
                 key: 'messagesGeneral',
@@ -155,7 +156,7 @@ const MobileBottomNav = () => {
                     defaultValue: 'General',
                 }),
                 icon: HiOutlineHome,
-                to: '/app/crm/customers',
+                to: appPath('/crm/customers'),
             },
         ],
         [t],
@@ -178,7 +179,7 @@ const MobileBottomNav = () => {
     }
 
     const isCustomerNavActive = useMemo(() => {
-        return location.pathname === '/app/sales/order-new'
+        return location.pathname === appPath('/sales/order-new')
     }, [location.pathname])
 
     const isItemActive = (item: MobileNavItem) => {
@@ -188,7 +189,7 @@ const MobileBottomNav = () => {
 
         return Boolean(
             matchPath(
-                { path: item.to, end: item.to === '/app/sales/dashboard' },
+                { path: item.to, end: item.to === appPath('/sales/dashboard') },
                 location.pathname,
             ),
         )

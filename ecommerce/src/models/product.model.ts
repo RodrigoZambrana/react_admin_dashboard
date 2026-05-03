@@ -17,7 +17,7 @@ interface Product {
   slug: string;
   price: number;
   title: string;
-  rating: number;
+  rating?: number;
   discount: number;
   thumbnail: string;
   id: string;
@@ -29,11 +29,11 @@ interface Product {
   shortDescription?: string;
   descriptionHtml?: string;
   shop?: Shop;
-  brand?: string;
-  size?: string[];
-  status?: string;
-  colors?: string[];
-  images?: string[];
+  brand?: string | null;
+  size?: string[] | null;
+  status?: string | null;
+  colors?: string[] | null;
+  images?: string[] | null;
   categories: any[];
   reviews?: Review[];
   published?: boolean;

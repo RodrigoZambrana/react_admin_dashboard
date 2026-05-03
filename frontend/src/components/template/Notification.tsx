@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, type MouseEvent } from 'react'
+import { appPath } from '@/constants/route.constant'
 import { useNavigate } from 'react-router-dom'
 import classNames from 'classnames'
 import dayjs from 'dayjs'
@@ -119,29 +120,29 @@ const resolveNotificationPath = (item: NotificationItem): string => {
 
     if (type === 'order') {
         if (hasEntityId(entityId)) {
-            return `/app/sales/order-details/${entityId}`
+            return `${appPath('sales/order-details/')}${entityId}`
         }
-        return '/app/sales/order-list'
+        return appPath('/sales/order-list')
     }
     if (type === 'quote') {
         if (hasEntityId(entityId)) {
-            return `/app/sales/budget-details/${entityId}`
+            return `${appPath('sales/budget-details/')}${entityId}`
         }
-        return '/app/sales/budget-list'
+        return appPath('/sales/budget-list')
     }
     if (type === 'payment') {
         if (hasEntityId(entityId)) {
-            return `/app/accounting/payments?paymentId=${entityId}`
+            return `${appPath('accounting/payments')}?paymentId=${entityId}`
         }
-        return '/app/accounting/payments'
+        return appPath('/accounting/payments')
     }
     if (type === 'customer') {
         if (hasEntityId(entityId)) {
-            return `/app/crm/customer-details?id=${entityId}`
+            return `${appPath('crm/customer-details')}?id=${entityId}`
         }
-        return '/app/crm/customers'
+        return appPath('/crm/customers')
     }
-    return `/app/notifications/${item.id}`
+    return `${appPath('notifications/')}${item.id}`
 }
 
 const _Notification = ({ className }: { className?: string }) => {

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import Container from "@component/Container";
 import Card from "@component/Card";
 import Grid from "@component/grid/Grid";
@@ -638,14 +638,6 @@ const SocialFeedSection = ({ section }: { section: CmsRenderableSection }) => {
   const [activeProfileTab, setActiveProfileTab] = useState(defaultProfileTabKey);
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [activePostIndex, setActivePostIndex] = useState<number | null>(null);
-  const getPostIndexFromHash = (hash: string) => {
-    const normalizedHash = normalizeMediaAnchor(hash);
-    if (!normalizedHash) return null;
-    const index = galleryPosts.findIndex((post) => {
-      return post.anchor === normalizedHash || normalizeMediaAnchor(post.link || "") === normalizedHash;
-    });
-    return index >= 0 ? index : null;
-  };
   const openPost = (index: number) => {
     setActivePostIndex(index);
     const post = galleryPosts[index];
@@ -689,6 +681,17 @@ const SocialFeedSection = ({ section }: { section: CmsRenderableSection }) => {
   const selectedProfileTab = profileTabs.find((tab) => tab.key === activeProfileTab) ?? profileTabs[0];
   const visiblePosts = selectedProfileTab ? posts.filter((post) => matchesSocialProfileTab(selectedProfileTab.kind, post)) : posts;
   const galleryPosts = visiblePosts.slice(0, 9);
+  const getPostIndexFromHash = useCallback(
+    (hash: string) => {
+      const normalizedHash = normalizeMediaAnchor(hash);
+      if (!normalizedHash) return null;
+      const index = galleryPosts.findIndex((post) => {
+        return post.anchor === normalizedHash || normalizeMediaAnchor(post.link || "") === normalizedHash;
+      });
+      return index >= 0 ? index : null;
+    },
+    [galleryPosts],
+  );
 
   useEffect(() => {
     if (displayMode !== "profile") return;
@@ -701,7 +704,7 @@ const SocialFeedSection = ({ section }: { section: CmsRenderableSection }) => {
     syncFromHash();
     window.addEventListener("hashchange", syncFromHash);
     return () => window.removeEventListener("hashchange", syncFromHash);
-  }, [displayMode, galleryPosts]);
+  }, [displayMode, galleryPosts, getPostIndexFromHash]);
 
   if (!stories.length && !posts.length) return null;
 
@@ -1058,7 +1061,7 @@ const MultimediaHubSection = ({ section }: { section: CmsRenderableSection }) =>
       (
         item,
       ): item is {
-        id: string | number;
+        id: number;
         cardTitle: string;
         cardDescription: string;
         primaryHref: string;
@@ -1184,12 +1187,12 @@ const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }
           }
         : null;
     }).filter((item): item is {
-      id: string | number;
+      id: number;
       slug: string;
       title: string;
       price: number;
-      basePrice?: number;
-      currencyCode?: string;
+      basePrice: number | undefined;
+      currencyCode: string | undefined;
       off: number;
       rating: number;
       imgUrl: string | null;
@@ -1216,7 +1219,7 @@ const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }
                   currencyCode={item.currencyCode}
                   off={item.off}
                   rating={item.rating}
-                  images={item.images}
+                  images={item.images ?? undefined}
                   imgUrl={item.imgUrl}
                 />
               </div>
@@ -1356,10 +1359,10 @@ const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }
           : null;
       })
       .filter(
-        (
-          item,
-        ): item is {
-          id: string | number;
+      (
+        item,
+      ): item is {
+          id: number;
           title: string;
           description: string;
           href: string;
@@ -1488,7 +1491,7 @@ const MediaGridEnhancedSection = ({ section }: { section: CmsRenderableSection }
         (
           item,
         ): item is {
-          id: string | number;
+          id: number;
           title: string;
           description: string;
           href: string;

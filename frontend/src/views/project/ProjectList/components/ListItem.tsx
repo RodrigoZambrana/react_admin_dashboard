@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { appPath } from '@/constants/route.constant'
 import ItemDropdown from './ItemDropdown'
 import Members from './Members'
 import ProgressionBar from './ProgressionBar'
@@ -38,7 +39,7 @@ const ListItem = ({ data, cardBorder }: ListItemProps) => {
                     <div className="my-1 sm:my-0 col-span-12 sm:col-span-2 md:col-span-3 lg:col-span-3 md:flex md:items-center">
                         <div className="flex flex-col">
                             <h6 className="font-bold">
-                                <Link to="/app/project/scrum-board">
+                                <Link to={appPath("/project/scrum-board")}>
                                     {name}
                                 </Link>
                             </h6>

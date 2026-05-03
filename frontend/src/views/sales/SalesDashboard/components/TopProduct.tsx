@@ -1,4 +1,5 @@
 import Button from '@/components/ui/Button'
+import { appPath } from '@/constants/route.constant'
 import Card from '@/components/ui/Card'
 import Table from '@/components/ui/Table'
 import Avatar from '@/components/ui/Avatar'
@@ -70,7 +71,7 @@ const TopProduct = ({ data = [], className }: TopProductProps) => {
         <Card className={className}>
             <div className="flex items-center justify-between mb-4">
                 <h4>{t('sales.dashboard.topProduct.title')}</h4>
-                <Button size="sm" onClick={() => navigate('/app/products/list')}>
+                <Button size="sm" onClick={() => navigate(appPath('/products/list'))}>
                     {t('sales.dashboard.topProduct.viewProducts')}
                 </Button>
             </div>

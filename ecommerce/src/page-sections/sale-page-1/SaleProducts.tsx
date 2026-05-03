@@ -76,7 +76,7 @@ function SaleProducts({
                 mode={item.mode}
                 title={item.title}
                 off={item.discount}
-                images={item.images}
+                images={item.images ?? undefined}
                 imgUrl={item.thumbnail}
                 rating={item.rating || 4}
                 variantKey={item.variantKey ?? null}

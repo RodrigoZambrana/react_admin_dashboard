@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
 import { useTranslation } from 'react-i18next'
@@ -212,7 +213,7 @@ const ActivityCustomerInfo = ({
                         disabled={!customer.id}
                         onClick={() => {
                             if (customer.id) {
-                                navigate(`/app/crm/customer-details?id=${customer.id}`)
+                                navigate(`${appPath('crm/customer-details')}?id=${customer.id}`)
                             }
                         }}
                     >

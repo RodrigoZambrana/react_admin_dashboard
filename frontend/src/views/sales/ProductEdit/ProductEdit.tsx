@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Loading from '@/components/shared/Loading'
 import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
 import toast from '@/components/ui/toast'
@@ -127,7 +128,7 @@ const ProductEdit = () => {
     }
 
     const handleDiscard = () => {
-        navigate('/app/products/list')
+        navigate(appPath('/products/list'))
     }
 
     const handleDelete = async (setDialogOpen: OnDeleteCallback) => {
@@ -155,7 +156,7 @@ const ProductEdit = () => {
                 placement: 'top-center',
             },
         )
-        navigate('/app/products/list')
+        navigate(appPath('/products/list'))
     }
 
     useEffect(() => {

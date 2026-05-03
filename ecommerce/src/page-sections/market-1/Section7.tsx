@@ -131,7 +131,7 @@ export default function Section7({ shops, brands, title, productList }: Props) {
                   currencyCode={item.currency}
                   off={item.discount}
                   rating={item.rating}
-                  images={item.images}
+                  images={item.images ?? undefined}
                   imgUrl={item.thumbnail}
                 />
               </Grid>

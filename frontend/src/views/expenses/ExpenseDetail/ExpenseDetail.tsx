@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { appPath } from '@/constants/route.constant'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import dayjs from 'dayjs'
@@ -114,12 +115,12 @@ const ExpenseDetail = () => {
 
     const handleEdit = () => {
         if (data) {
-            navigate(`/app/accounting/expenses/edit/${data.id}`)
+            navigate(`${appPath('accounting/expenses/edit/')}${data.id}`)
         }
     }
 
     const handleBack = () => {
-        navigate('/app/accounting/expenses/list')
+        navigate(appPath('/accounting/expenses/list'))
     }
 
     const detailItems = useMemo(

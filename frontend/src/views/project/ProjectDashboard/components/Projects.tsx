@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { appPath } from '@/constants/route.constant'
 import Button from '@/components/ui/Button'
 import { useNavigate } from 'react-router-dom'
 import ListItem, { ListItemData } from '../../ProjectList/components/ListItem'
@@ -13,7 +14,7 @@ const Projects = ({ data = [] }: ProjectsProps) => {
     const { t } = useTranslation()
 
     const onViewAllProjects = () => {
-        navigate('/app/project/project-list')
+        navigate(appPath('/project/project-list'))
     }
 
     return (

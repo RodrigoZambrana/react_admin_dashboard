@@ -7,11 +7,10 @@ import Container from "@component/Container";
 import Navbar from "@component/navbar/Navbar";
 import MultimediaGallery from "@/components/multimedia/MultimediaGallery";
 import { StorefrontApi, isApiError } from "@/lib/api/storefront";
-import { env } from "@/lib/env";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import type { StorefrontProductMediaResponse } from "@/types/storefront";
 
-export const revalidate = env.publicMediaProvider === "local" ? 0 : 300;
+export const revalidate = 300;
 
 const loadMultimediaDetail = cache(async (slug: string): Promise<StorefrontProductMediaResponse | null> => {
   try {

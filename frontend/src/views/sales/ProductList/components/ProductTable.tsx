@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import { useTranslation } from 'react-i18next'
 import Avatar from '@/components/ui/Avatar'
 import { apiPutSalesProduct } from '@/services/SalesService'
@@ -208,7 +209,7 @@ const ActionColumn = ({ row }: { row: Product }) => {
     const navigate = useNavigate()
 
     const onEdit = () => {
-        navigate(`/app/products/edit/${row.id}`)
+        navigate(`${appPath('products/edit/')}${row.id}`)
     }
 
     const onDelete = () => {

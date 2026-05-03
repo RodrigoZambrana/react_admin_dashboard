@@ -1,7 +1,14 @@
 "use client";
 
 import { ComponentPropsWithRef } from "react";
-import { SpaceProps, ColorProps, LayoutProps, BorderProps, BackgroundProps } from "styled-system";
+import {
+  SpaceProps,
+  ColorProps,
+  LayoutProps,
+  BorderProps,
+  BackgroundProps,
+  GridProps
+} from "styled-system";
 import { colorOptions } from "interfaces";
 import { StyledButton } from "./styles";
 import { useTranslatedNode } from "@/state/i18n-context";
@@ -22,6 +29,7 @@ export type StyledButtonProps = ColorProps &
   BorderProps &
   SpaceProps &
   LayoutProps &
+  GridProps &
   ButtonBaseProps;
 
 export type ButtonProps = StyledButtonProps &

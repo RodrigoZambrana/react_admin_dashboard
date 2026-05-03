@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Table from '@/components/ui/Table'
@@ -43,7 +44,7 @@ const ExpenseColumn = ({ row }: ExpenseColumnPros) => {
     const navigate = useNavigate()
 
     const onView = useCallback(() => {
-        navigate(`/app/accounting/expenses/edit/${row.id}`)
+        navigate(`${appPath('accounting/expenses/edit/')}${row.id}`)
     }, [navigate, row])
 
     return (
@@ -115,7 +116,7 @@ const RecentExpenses = ({ data = [], className }: RecentExpensesProps) => {
                 <h4>{t('expenses.dashboard.latestExpenses.title')}</h4>
                 <Button
                     size="sm"
-                    onClick={() => navigate('/app/accounting/expenses/list')}
+                    onClick={() => navigate(appPath('/accounting/expenses/list'))}
                 >
                     {t('expenses.dashboard.latestExpenses.viewExpenses')}
                 </Button>

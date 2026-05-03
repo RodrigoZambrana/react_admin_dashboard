@@ -7,11 +7,10 @@ import Container from "@component/Container";
 import Navbar from "@component/navbar/Navbar";
 import StoriesBar from "@/components/stories/StoriesBar";
 import { StorefrontApi } from "@/lib/api/storefront";
-import { env } from "@/lib/env";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import { getMediaUrl } from "@/lib/media";
 
-export const revalidate = env.publicMediaProvider === "local" ? 0 : 60;
+export const revalidate = 60;
 
 export async function generateMetadata(): Promise<Metadata> {
   return buildStorefrontPageMetadata({

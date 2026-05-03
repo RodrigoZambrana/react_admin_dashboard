@@ -639,10 +639,16 @@ export default function ReviewClient() {
     if (isCashPaymentMethod(source.method)) {
       return t("checkout.review.paymentSummary.cod");
     }
-    const status = normalizeMercadoPagoStatus(source.status);
-    const brand = source.cardBrand ?? "Mercado Pago";
-    const ending = source.cardLastFour
-      ? ` ${t("checkout.review.paymentSummary.cardEnding", { values: { lastFour: source.cardLastFour } })}`
+
+    const mercadopagoSource = source.method === "mercadopago" ? source : null;
+    if (!mercadopagoSource) {
+      return t("checkout.review.paymentSummary.notSet");
+    }
+
+    const status = normalizeMercadoPagoStatus(mercadopagoSource.status);
+    const brand = mercadopagoSource.cardBrand ?? "Mercado Pago";
+    const ending = mercadopagoSource.cardLastFour
+      ? ` ${t("checkout.review.paymentSummary.cardEnding", { values: { lastFour: mercadopagoSource.cardLastFour } })}`
       : "";
     const statusKey = PAYMENT_STATUS_LABEL_KEYS[status] ?? "checkout.review.paymentStatus.generic";
     const statusLabel = t(statusKey);
@@ -656,8 +662,11 @@ export default function ReviewClient() {
     if (!payment) {
       return false;
     }
-    if (isCashPaymentMethod(payment.method)) {
+    if (payment.method === "cod") {
       return true;
+    }
+    if (payment.method !== "mercadopago") {
+      return false;
     }
     return Boolean(payment.paymentIntentId) && isMercadoPagoPaymentConfirmed(payment.status);
   }, [payment, shippingOption?.id]);

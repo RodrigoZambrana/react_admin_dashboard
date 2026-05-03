@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { appPath } from '@/constants/route.constant'
 
 import appsNavigationConfig from '../apps.navigation.config'
 
@@ -62,7 +63,7 @@ describe('apps navigation config', () => {
           title: 'Email & Integrations',
           translateKey: 'nav.appsSettings.emailConfig',
           icon: '',
-          path: '/app/settings/integrations',
+          path: appPath('/settings/integrations'),
         }),
       ]),
     )

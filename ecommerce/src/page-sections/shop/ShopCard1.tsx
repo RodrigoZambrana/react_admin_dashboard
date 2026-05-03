@@ -15,7 +15,7 @@ import { ShopCard1Wrapper } from "./styles";
 interface ShopCard1Props {
   name: string;
   phone: string;
-  rating: number;
+  rating?: number;
   imgUrl: string;
   address: string;
   shopUrl: string;

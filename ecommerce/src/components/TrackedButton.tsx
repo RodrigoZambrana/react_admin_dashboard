@@ -30,6 +30,7 @@ type TrackedButtonProps = ButtonProps & {
   position?: number | null;
   metadata?: StructuralAnalyticsMetadata;
   onTrackedClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  $active?: boolean;
 };
 
 export default function TrackedButton({

@@ -18,8 +18,12 @@ COMPOSE_AI_PLATFORM := ai-platform/docker-compose.yml
 COMPOSE_POSTGRES_LOCAL := deploy/docker-compose.postgres-local.yml
 COMPOSE_TESTING := deploy/docker-compose.testing.yml
 COMPOSE_PROD := deploy/docker-compose.prod.yml
+COMPOSE_LOCAL_TEST := docker-compose.test.yml
+LOCAL_TEST_ENV_FILE := .env.test
+LOCAL_TEST_BASE_URL ?= http://127.0.0.1:8080
 DEV_STACK_ENV := APP_STACK_NAME=$(APP_STACK_NAME) STACK_RUNTIME_ROOT=$(STACK_RUNTIME_ROOT) POSTGRES_NETWORK_NAME=$(POSTGRES_NETWORK_NAME)
 POSTGRES_STACK_ENV := POSTGRES_STACK_NAME=$(POSTGRES_STACK_NAME) POSTGRES_CONTAINER_NAME=$(POSTGRES_CONTAINER_NAME) POSTGRES_VOLUME_NAME=$(POSTGRES_VOLUME_NAME) POSTGRES_NETWORK_NAME=$(POSTGRES_NETWORK_NAME) POSTGRES_HOST_PORT=$(POSTGRES_HOST_PORT)
+LOCAL_TEST_COMPOSE := docker compose --env-file $(LOCAL_TEST_ENV_FILE) -f $(COMPOSE_LOCAL_TEST)
 
 ## Show available make targets
 help:
@@ -84,6 +88,37 @@ prod-up:
 ## Tear down production stack
 prod-down:
 	docker compose -f $(COMPOSE_PROD) down
+
+## Start the reproducible local test environment
+local-test-up:
+	$(LOCAL_TEST_COMPOSE) up --build -d
+	LOCAL_TEST_BASE_URL=$(LOCAL_TEST_BASE_URL) node scripts/local-test-smoke.mjs
+
+## Tear down the reproducible local test environment
+local-test-down:
+	$(LOCAL_TEST_COMPOSE) down
+
+## Reset the reproducible local test environment from scratch and smoke test it
+local-test-reset:
+	$(LOCAL_TEST_COMPOSE) down -v --remove-orphans
+	$(LOCAL_TEST_COMPOSE) up --build -d
+	LOCAL_TEST_BASE_URL=$(LOCAL_TEST_BASE_URL) node scripts/local-test-smoke.mjs
+
+## Show local test environment logs
+local-test-logs:
+	$(LOCAL_TEST_COMPOSE) logs -f
+
+## Run only the local test smoke checks
+local-test-smoke:
+	LOCAL_TEST_BASE_URL=$(LOCAL_TEST_BASE_URL) node scripts/local-test-smoke.mjs
+
+## Run the cross-project vulnerability audit and refresh the latest security report
+security-audit:
+	node scripts/security-loop.mjs scan
+
+## Execute the continuous remediation loop until blocking vulnerabilities are gone or manual action is required
+security-loop:
+	node scripts/security-loop.mjs loop --allow-force
 
 ## Generate a compressed backup of the PostgreSQL database using docker compose
 backup:

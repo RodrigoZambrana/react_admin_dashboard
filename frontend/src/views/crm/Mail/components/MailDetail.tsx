@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { appPath } from '@/constants/route.constant'
 import classNames from 'classnames'
 import Loading from '@/components/shared/Loading'
 import DoubleSidedImage from '@/components/shared/DoubleSidedImage'
@@ -294,7 +295,7 @@ const MailDetail = () => {
             return
         }
 
-        navigate(`/app/crm/conversations/${conversationId}`, { replace: true })
+        navigate(`${appPath('crm/conversations/')}${conversationId}`, { replace: true })
     }, [id, isInboxCategory, navigate, resolvedMail])
 
     const hasMail = !isEmpty(resolvedMail)

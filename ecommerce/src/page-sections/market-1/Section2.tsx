@@ -61,7 +61,7 @@ export default function Section2() {
                   currencyCode={item.currency}
                   off={item.discount ?? 0}
                   imgUrl={item.thumbnail}
-                  images={item.images}
+                  images={item.images ?? undefined}
                   rating={item.rating ?? 4}
                 />
               </Grid>

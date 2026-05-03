@@ -390,7 +390,10 @@ export default function BudgetCalculatorPanel({
 
   const activeCurrency = selectedCurrency ?? baseCurrency;
   const sourceCurrency = calculation?.currency ?? selectedProduct?.currency ?? baseCurrency;
-  const formatBudgetAmount = (amount: number, source?: string) => formatAmount(amount, source ?? sourceCurrency);
+  const formatBudgetAmount = useCallback(
+    (amount: number, source?: string) => formatAmount(amount, source ?? sourceCurrency),
+    [formatAmount, sourceCurrency],
+  );
   const draftSubtotal = useMemo(
     () => draftItems.reduce((sum, item) => sum + item.totalPrice * item.qty, 0),
     [draftItems],

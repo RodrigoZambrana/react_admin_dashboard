@@ -1,4 +1,5 @@
 import { clientConfig } from './clientConfig'
+import { APP_PREFIX_PATH } from '@/constants/route.constant'
 
 export type AppConfig = {
     apiPrefix: string
@@ -16,9 +17,9 @@ const siteKey = isRecaptchaEnabled ? import.meta.env.VITE_RECAPTCHA_SITE_KEY || 
 
 const baseAppConfig: AppConfig = {
     apiPrefix: '/api',
-    authenticatedEntryPath: '/app/sales/dashboard',
+    authenticatedEntryPath: `${APP_PREFIX_PATH}/sales/dashboard`,
     unAuthenticatedEntryPath: '/sign-in',
-    tourPath: '/app/account/kyc-form',
+    tourPath: `${APP_PREFIX_PATH}/account/kyc-form`,
     locale: 'en',
     enableMock: false,
     recaptchaSiteKey: siteKey,

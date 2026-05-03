@@ -33,7 +33,7 @@ const Wrapper = styled.div(({ theme }) => ({
 type ProductCard4Props = {
   title: string;
   price: number;
-  rating: number;
+  rating?: number;
   imgUrl: string;
   reviewCount: number;
   id?: number | string;

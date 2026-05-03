@@ -1,4 +1,5 @@
 import Button from '@/components/ui/Button'
+import { appPath } from '@/constants/route.constant'
 import { HiDownload, HiOutlineTrash, HiOutlinePlusCircle } from 'react-icons/hi'
 import ExpensesTableSearch from './ExpensesTableSearch'
 import { setDeleteMode, useAppDispatch, useAppSelector } from '../store'
@@ -34,7 +35,7 @@ const ExpensesTableTools = () => {
     )
     return (
         <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-            <Link to="/app/accounting/expenses/new">
+            <Link to={appPath("/accounting/expenses/new")}>
                 <Button variant="solid" size="sm" icon={<HiOutlinePlusCircle />}> 
                     {t('expenses.new.title')}
                 </Button>

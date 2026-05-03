@@ -5,13 +5,12 @@ import AppLayout from "@/components/layout/layout-1";
 import Container from "@component/Container";
 import Navbar from "@component/navbar/Navbar";
 import MultimediaGrid from "@/components/multimedia/MultimediaGrid";
-import { env } from "@/lib/env";
 import { getMediaUrl } from "@/lib/media";
 import { StorefrontApi } from "@/lib/api/storefront";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import type { ProductSummary } from "@/types/storefront";
 
-export const revalidate = env.publicMediaProvider === "local" ? 0 : 300;
+export const revalidate = 300;
 
 const loadMultimediaCatalog = async (): Promise<ProductSummary[]> => {
   const catalog = await StorefrontApi.listProductsWithMedia();

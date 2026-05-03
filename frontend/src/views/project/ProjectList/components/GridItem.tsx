@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { appPath } from '@/constants/route.constant'
 import ItemDropdown from './ItemDropdown'
 import Members from './Members'
 import ProgressionBar from './ProgressionBar'
@@ -31,7 +32,7 @@ const GridItem = ({ data }: GridItemProps) => {
         <Card bodyClass="h-full">
             <div className="flex flex-col justify-between h-full">
                 <div className="flex justify-between">
-                    <Link to="/app/scrum-board">
+                    <Link to={appPath("/scrum-board")}>
                         <h6>{name}</h6>
                     </Link>
                     <ItemDropdown />

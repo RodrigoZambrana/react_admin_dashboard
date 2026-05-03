@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import Container from "@component/Container";
-import { listMockTemplateHomes } from "@/lib/mock-template-homes";
+import { isMockTemplateHomesEnabled } from "@/lib/mock-template-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,12 @@ const cardStyle = {
   boxShadow: "0 18px 60px rgba(15, 23, 42, 0.08)",
 };
 
-export default function MockTemplatesIndexPage() {
+export default async function MockTemplatesIndexPage() {
+  if (!isMockTemplateHomesEnabled()) {
+    notFound();
+  }
+
+  const { listMockTemplateHomes } = await import("@/lib/mock-template-homes");
   const templates = listMockTemplateHomes();
 
   return (

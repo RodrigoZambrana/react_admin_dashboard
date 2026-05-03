@@ -277,7 +277,7 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
 
         <div ref={railStageRef} style={railStageResolved}>
           <div style={railResolved} onTransitionEnd={onTrackTransitionEnd}>
-            {orderedStories.map((story) =>
+            {orderedStories.map((story, index) =>
               onStorySelect ? (
                 <button
                   key={story.id}

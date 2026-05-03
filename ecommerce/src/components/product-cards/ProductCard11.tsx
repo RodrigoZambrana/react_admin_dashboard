@@ -66,7 +66,7 @@ type ProductCard11Props = {
   title: string;
   price: number;
   imgUrl: string;
-  rating: number;
+  rating?: number;
   id?: number | string;
 };
 // ===================================================

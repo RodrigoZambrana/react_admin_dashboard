@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import { useNavigate, useParams } from 'react-router-dom'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Button from '@/components/ui/Button'
@@ -491,7 +492,7 @@ const Conversations = () => {
             return
         }
         setSelectedConversationId(nextId)
-        void navigate(`/app/crm/conversations/${nextId}`, {
+        void navigate(`${appPath('crm/conversations/')}${nextId}`, {
             replace: !routeConversationId,
         })
     }, [navigate, routeConversationId, selectedConversationId, visibleItems])
@@ -602,7 +603,7 @@ const Conversations = () => {
             if (isMobile) {
                 setMobilePane('detail')
             }
-            void navigate(`/app/crm/conversations/${detail.id}`)
+            void navigate(`${appPath('crm/conversations/')}${detail.id}`)
         } catch (actionError) {
             console.error(actionError)
             setDetailError('No fue posible crear el chat interno.')
@@ -660,7 +661,7 @@ const Conversations = () => {
                         if (isMobile) {
                             setMobilePane('detail')
                         }
-                        void navigate(`/app/crm/conversations/${conversation.id}`)
+                        void navigate(`${appPath('crm/conversations/')}${conversation.id}`)
                     }}
                     title={getConversationDisplayTitle(conversation)}
                     subject={formatTitle(conversation.subject)}

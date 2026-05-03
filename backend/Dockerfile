@@ -2,6 +2,7 @@
 
 FROM node:20-alpine AS deps
 WORKDIR /app
+ENV SECURITY_LOOP_SKIP=1
 COPY package*.json ./
 COPY prisma ./prisma
 RUN npm install --legacy-peer-deps
@@ -19,7 +20,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ARG CLIENT_SLUG=core
 ENV CLIENT_SLUG=${CLIENT_SLUG}
-RUN apk add --no-cache postgresql-client
+RUN apk add --no-cache postgresql-client curl
 COPY --from=deps /app/node_modules ./node_modules
 COPY package*.json ./
 COPY prisma.config.ts ./prisma.config.ts
@@ -28,6 +29,7 @@ COPY src/common/security ./src/common/security
 COPY src/common/media ./src/common/media
 COPY src/prisma ./src/prisma
 COPY src/storefront/defaults ./src/storefront/defaults
+COPY src/storefront/site-routes.ts ./src/storefront/site-routes.ts
 COPY src/storefront/utils.ts ./src/storefront/utils.ts
 COPY src/storefront/types.ts ./src/storefront/types.ts
 COPY --from=build /app/dist ./dist
@@ -37,4 +39,6 @@ COPY entrypoint.sh ./entrypoint.sh
 RUN npm prune --omit=dev
 RUN chmod +x ./entrypoint.sh
 EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=5 \
+  CMD curl -fsS http://127.0.0.1:3000/api/health >/dev/null || exit 1
 ENTRYPOINT ["./entrypoint.sh"]

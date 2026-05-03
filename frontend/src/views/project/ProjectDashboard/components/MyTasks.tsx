@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import Table from '@/components/ui/Table'
@@ -73,7 +74,7 @@ const MyTasks = ({ data = [] }: MyTasksProps) => {
                         <ActionLink
                             themeColor={false}
                             className="font-semibold"
-                            to="/app/project/scrum-board"
+                            to={appPath('/project/scrum-board')}
                         >
                             {taskId}
                         </ActionLink>
@@ -111,7 +112,7 @@ const MyTasks = ({ data = [] }: MyTasksProps) => {
     })
 
     const onViewAllTask = () => {
-        navigate('/app/project/issue')
+        navigate(appPath('/project/issue'))
     }
 
     return (

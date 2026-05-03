@@ -1,4 +1,5 @@
 import Header from '@/components/template/Header'
+import { appPath } from '@/constants/route.constant'
 import SidePanel from '@/components/template/SidePanel'
 import UserDropdown from '@/components/template/UserDropdown'
 import LanguageSelector from '@/components/template/LanguageSelector'
@@ -30,7 +31,7 @@ const HeaderActionsEnd = () => {
 const StackedSideLayout = () => {
     const location = useLocation()
     const isMessagingRoute = location.pathname.startsWith(
-        '/app/crm/conversations',
+        appPath('/crm/conversations'),
     )
 
     return (

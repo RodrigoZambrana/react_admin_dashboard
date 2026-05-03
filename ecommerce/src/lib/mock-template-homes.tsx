@@ -129,7 +129,8 @@ import apiGrocery3 from "@/utils/__api__/grocery-3";
 import apiHealthBeauty from "@/utils/__api__/health-beauty";
 import apiMarket1 from "@/utils/__api__/market-1";
 import apiMarket2 from "@/utils/__api__/market-2";
-import { withMockTemplateRuntime } from "@/lib/mock-template-runtime";
+import { normalizeProductList } from "@/utils/__api__/normalize-product";
+import { isMockTemplateHomesEnabled, withMockTemplateRuntime } from "@/lib/mock-template-runtime";
 
 export type MockTemplateHomeKey =
   | "landing"
@@ -171,6 +172,7 @@ const FashionOneTemplate = async (): Promise<ReactElement> => {
     apiFashion1.getTrendingItems(),
     apiFashion1.getDealOfTheWeekList(),
   ]);
+  const normalizedTrendingItems = normalizeProductList(trendingItems);
 
   return (
     <ContainerBox my="2rem">
@@ -182,7 +184,7 @@ const FashionOneTemplate = async (): Promise<ReactElement> => {
       <Fashion1Section4 />
       <Fashion1Section5 list={dealOfTheWeek} />
       <Fashion1Section6 list={hotDealList} />
-      <Fashion1Section7 products={trendingItems} />
+      <Fashion1Section7 products={normalizedTrendingItems} />
       <Fashion1Section8 />
       <Fashion1Section9 />
     </ContainerBox>
@@ -226,15 +228,18 @@ const FurnitureShopTemplate = async (): Promise<ReactElement> => {
       apiFurniture.getFurnitureShopNavList(),
       apiFurniture.getTopSellingProducts(),
     ]);
+  const normalizedTopNewProducts = normalizeProductList(topNewProducts);
+  const normalizedFurnitureProducts = normalizeProductList(furnitureProducts);
+  const normalizedTopSellingProducts = normalizeProductList(topSellingProducts);
 
   return (
     <Fragment>
       <FurnitureSection1 mainCarouselData={mainCarouselData} />
       <ContainerBox>
         <FurnitureContentBox sidebarNavList={sidebarNavList} />
-        <FurnitureSection3 products={topNewProducts} title="Top New Product" />
-        <FurnitureSection3 products={topSellingProducts} title="Top Selling Product" />
-        <FurnitureSection4 products={furnitureProducts} />
+        <FurnitureSection3 products={normalizedTopNewProducts} title="Top New Product" />
+        <FurnitureSection3 products={normalizedTopSellingProducts} title="Top Selling Product" />
+        <FurnitureSection4 products={normalizedFurnitureProducts} />
       </ContainerBox>
     </Fragment>
   );
@@ -251,14 +256,17 @@ const GadgetShopTemplate = async (): Promise<ReactElement> => {
       apiGadget.getMainCarousel(),
       apiGadget.getFeaturedCategories(),
     ]);
+  const normalizedTopPickList = normalizeProductList(topPickList);
+  const normalizedNewArrivalsData = normalizeProductList(newArrivalsData);
+  const normalizedMostViewedList = normalizeProductList(mostViewedList);
 
   return (
     <Box my="2rem">
-      <GadgetSection1 mainCarousel={mainCarouselData} topPickList={topPickList} />
+      <GadgetSection1 mainCarousel={mainCarouselData} topPickList={normalizedTopPickList} />
       <GadgetSection2 categories={featuredCategories} />
       <GadgetSection3 bannerData={twoBanner} />
-      <GadgetSection4 products={mostViewedList} />
-      <GadgetSection5 products={newArrivalsData} />
+      <GadgetSection4 products={normalizedMostViewedList} />
+      <GadgetSection5 products={normalizedNewArrivalsData} />
       <GadgetSection6 />
       <GadgetSection7 blogs={blogLists} />
     </Box>
@@ -269,6 +277,8 @@ const GiftShopTemplate = async (): Promise<ReactElement> => {
   const popularProducts = await apiGift.getPopularProducts();
   const topSailedProducts = await apiGift.getTopSailedProducts();
   const categoryNavigation = await apiGift.getCategoryNavigation();
+  const normalizedPopularProducts = normalizeProductList(popularProducts);
+  const normalizedTopSailedProducts = normalizeProductList(topSailedProducts);
 
   return (
     <Fragment>
@@ -279,8 +289,8 @@ const GiftShopTemplate = async (): Promise<ReactElement> => {
           <GiftSection3 />
           <GiftSection4 />
         </GiftContentBox>
-        <GiftSection5 products={popularProducts} title="Popular Items" />
-        <GiftSection5 products={topSailedProducts} title="Top Sale Items" />
+        <GiftSection5 products={normalizedPopularProducts} title="Popular Items" />
+        <GiftSection5 products={normalizedTopSailedProducts} title="Top Sale Items" />
         <GiftSection6 />
       </ContainerBox>
     </Fragment>
@@ -293,14 +303,16 @@ const GroceryOneTemplate = async (): Promise<ReactElement> => {
     apiGrocery1.getTrendingProducts(),
     apiGrocery1.getGrocery1Navigation(),
   ]);
+  const normalizedPopularProducts = normalizeProductList(popularProducts);
+  const normalizedTrendingProducts = normalizeProductList(trendingProducts);
 
   return (
     <Fragment>
       <Grocery1Section1 />
       <Grocery1Section2 id="services-area" />
       <SidenavContainer navFixedComponentID="services-area" SideNav={<SideNavbar navList={grocery1NavList} />}>
-        <Grocery1Section3 title="Popular Products" products={popularProducts} />
-        <Grocery1Section3 title="Trending Products" products={trendingProducts} />
+        <Grocery1Section3 title="Popular Products" products={normalizedPopularProducts} />
+        <Grocery1Section3 title="Trending Products" products={normalizedTrendingProducts} />
         <Grocery1Section4 />
         <Grocery1Section5 />
         <Footer2 />
@@ -318,6 +330,10 @@ const GroceryTwoTemplate = async (): Promise<ReactElement> => {
       apiGrocery2.getBestHomeProducts(),
       apiGrocery2.getBestSellProducts(),
     ]);
+  const normalizedDairyProducts = normalizeProductList(dairyProducts);
+  const normalizedFeaturedProducts = normalizeProductList(featuredProducts);
+  const normalizedBestHomeProducts = normalizeProductList(bestHomeProducts);
+  const normalizedBestSellProducts = normalizeProductList(bestSellProducts);
 
   return (
     <Grocery2Wrapper>
@@ -333,19 +349,19 @@ const GroceryTwoTemplate = async (): Promise<ReactElement> => {
           <Grocery2Section3 />
         </Box>
         <Box mb="3rem">
-          <Grocery2Section4 title="Featured Items" products={featuredProducts} />
+          <Grocery2Section4 title="Featured Items" products={normalizedFeaturedProducts} />
         </Box>
         <Box mb="3rem">
-          <Grocery2Section4 title="Best Seller in Your Area" products={bestSellProducts} />
+          <Grocery2Section4 title="Best Seller in Your Area" products={normalizedBestSellProducts} />
         </Box>
         <Box mb="3rem">
           <Grocery2Section5 />
         </Box>
         <Box mb="3rem">
-          <Grocery2Section4 title="Best of Home Essentials" products={bestHomeProducts} />
+          <Grocery2Section4 title="Best of Home Essentials" products={normalizedBestHomeProducts} />
         </Box>
         <Box mb="3rem">
-          <Grocery2Section4 title="Snacks, Drinks, Dairy & More" products={dairyProducts} />
+          <Grocery2Section4 title="Snacks, Drinks, Dairy & More" products={normalizedDairyProducts} />
         </Box>
         <Box mb="3rem">
           <Grocery2Section6 />
@@ -363,14 +379,20 @@ const GroceryThreeTemplate = async (): Promise<ReactElement> => {
     apiGrocery3.getMainCarousel(),
     apiGrocery3.getTopSailedProducts(),
   ]);
+  const normalizedAllProducts = normalizeProductList(allProducts);
+  const normalizedTopSailedProducts = normalizeProductList(topSailedProducts);
+  const normalizedMainCarouselData = mainCarouselData.map((item) => ({
+    ...item,
+    description: item.description ?? undefined,
+  }));
 
   return (
     <Fragment>
-      <Grocery3Section1 carouselData={mainCarouselData} />
+      <Grocery3Section1 carouselData={normalizedMainCarouselData} />
       <ContainerBox>
         <Grocery3Section2 offerProducts={offerCards} />
-        <Grocery3Section3 products={topSailedProducts} />
-        <Grocery3Section4 products={allProducts} />
+        <Grocery3Section3 products={normalizedTopSailedProducts} />
+        <Grocery3Section4 products={normalizedAllProducts} />
       </ContainerBox>
     </Fragment>
   );
@@ -382,6 +404,8 @@ const HealthBeautyTemplate = async (): Promise<ReactElement> => {
   const navigationList = await apiHealthBeauty.getNavigation();
   const topNewProducts = await apiHealthBeauty.getTopNewProducts();
   const mainCarouselData = await apiHealthBeauty.getMainCarousel();
+  const normalizedAllProducts = normalizeProductList(allProducts);
+  const normalizedTopNewProducts = normalizeProductList(topNewProducts);
 
   return (
     <Fragment>
@@ -390,8 +414,8 @@ const HealthBeautyTemplate = async (): Promise<ReactElement> => {
         <Box mb="4rem">
           <HealthBeautySection2 />
         </Box>
-        <HealthBeautySection3 title="Top New Products" products={topNewProducts} />
-        <HealthBeautySection4 products={allProducts} />
+        <HealthBeautySection3 title="Top New Products" products={normalizedTopNewProducts} />
+        <HealthBeautySection4 products={normalizedAllProducts} />
         <HealthBeautySection5 services={serviceList as any} />
         <Footer2 />
       </SidenavContainer>
@@ -419,6 +443,8 @@ const MarketOneTemplate = async (): Promise<ReactElement> => {
     apiMarket1.getMobileBrands(),
     apiMarket1.getOpticsBrands(),
   ]);
+  const normalizedMobileList = normalizeProductList(mobileList);
+  const normalizedOpticsList = normalizeProductList(opticsList);
 
   return (
     <main>
@@ -428,10 +454,10 @@ const MarketOneTemplate = async (): Promise<ReactElement> => {
       <Market1Section4 />
       <Market1Section5 />
       <Market1Section13 />
-      <Market1Section6 carBrands={carBrands} carList={carList} />
-      <Market1Section7 shops={mobileShops} brands={mobileBrands} title="Mobile Phones" productList={mobileList} />
+      <Market1Section6 />
+      <Market1Section7 shops={mobileShops} brands={mobileBrands} title="Mobile Phones" productList={normalizedMobileList} />
       <Market1Section8 />
-      <Market1Section7 shops={opticsShops} brands={opticsBrands} title="Optics / Watch" productList={opticsList} />
+      <Market1Section7 shops={opticsShops} brands={opticsBrands} title="Optics / Watch" productList={normalizedOpticsList} />
       <Market1Section10 />
       <Market1Section11 />
       <Market1Section12 />
@@ -448,6 +474,19 @@ const MarketTwoTemplate = async (): Promise<ReactElement> => {
       apiMarket2.getElectronicsProducts(),
       apiMarket2.getWomenFashionProducts(),
     ]);
+  const normalizedProducts = normalizeProductList(products);
+  const normalizedMenFashionProducts = {
+    ...menFashionProducts,
+    products: normalizeProductList(menFashionProducts.products),
+  };
+  const normalizedElectronicsProducts = {
+    ...electronicsProducts,
+    products: normalizeProductList(electronicsProducts.products),
+  };
+  const normalizedWomenFashionProducts = {
+    ...womenFashionProducts,
+    products: normalizeProductList(womenFashionProducts.products),
+  };
 
   return (
     <Box bg="#F6F6F6">
@@ -456,13 +495,13 @@ const MarketTwoTemplate = async (): Promise<ReactElement> => {
       <Market2Section3 />
       <Market2Section4 />
       <Market2Section5 />
-      <Market2Section6 data={electronicsProducts} />
+      <Market2Section6 data={normalizedElectronicsProducts} />
       <Market2Section7 />
-      <Market2Section6 data={menFashionProducts} />
+      <Market2Section6 data={normalizedMenFashionProducts} />
       <Market2Section8 />
-      <Market2Section6 data={womenFashionProducts} />
+      <Market2Section6 data={normalizedWomenFashionProducts} />
       <Market2Section9 brands={brands as any} />
-      <Market2Section10 products={products} />
+      <Market2Section10 products={normalizedProducts} />
     </Box>
   );
 };
@@ -551,6 +590,10 @@ export const mockTemplateHomes: MockTemplateEntry[] = [
 export const listMockTemplateHomes = () => mockTemplateHomes;
 
 export const getMockTemplateHome = (template: string) => {
+  if (!isMockTemplateHomesEnabled()) {
+    throw new Error("Mock template homes are disabled in this environment.");
+  }
+
   const normalized = template.trim().toLowerCase();
   const entry = mockTemplateHomes.find((item) => item.key === normalized);
   if (!entry) {
@@ -560,6 +603,10 @@ export const getMockTemplateHome = (template: string) => {
 };
 
 export async function renderMockTemplateHome(template: string): Promise<ReactElement> {
+  if (!isMockTemplateHomesEnabled()) {
+    throw new Error("Mock template homes are disabled in this environment.");
+  }
+
   const entry = getMockTemplateHome(template);
   return withMockTemplateRuntime(() => entry.render());
 }

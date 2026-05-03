@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEvent, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import Link, { type LinkProps } from "next/link";
 
 import { trackEvent } from "@/lib/analytics/trackEvent";
@@ -29,6 +29,7 @@ type TrackedLinkProps = LinkProps & {
   position?: number | null;
   metadata?: StructuralAnalyticsMetadata;
   onTrackedClick?: (event: MouseEvent<HTMLAnchorElement>) => void;
+  style?: CSSProperties;
 };
 
 export default function TrackedLink({

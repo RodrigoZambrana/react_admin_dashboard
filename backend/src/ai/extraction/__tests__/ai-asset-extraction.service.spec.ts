@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import * as XLSX from 'xlsx'
+import ExcelJS from 'exceljs'
 import { AiAssetExtractionService } from '../ai-asset-extraction.service'
 
 describe('AiAssetExtractionService', () => {
@@ -59,12 +59,11 @@ describe('AiAssetExtractionService', () => {
   })
 
   it('extracts deterministic rows from xlsx', async () => {
-    const workbook = XLSX.utils.book_new()
-    const sheet = XLSX.utils.json_to_sheet([
-      { nombre: 'Roller Blackout', precio: 950, moneda: 'UYU', stock: 2 },
-    ])
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Productos')
-    const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }) as Buffer
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Productos')
+    sheet.addRow(['nombre', 'precio', 'moneda', 'stock'])
+    sheet.addRow(['Roller Blackout', 950, 'UYU', 2])
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
 
     const result = await service.extractOne({
       assetType: 'xlsx',

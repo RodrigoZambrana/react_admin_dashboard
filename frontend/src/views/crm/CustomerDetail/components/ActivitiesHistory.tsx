@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import { useSelector } from 'react-redux'
 import { useTranslation } from 'react-i18next'
 import Table from '@/components/ui/Table'
@@ -24,7 +25,7 @@ const columns = (t: (k: string) => string, customerId?: string | number | null) 
         header: t('text.columns.activity', { defaultValue: 'Actividad' }),
         cell: (props) => {
             const row = props.row.original
-            const linkTarget = `/app/calendar/activities/details?id=${row.id}${
+            const linkTarget = `${appPath('calendar/activities/details')}?id=${row.id}${
                 customerId ? `&customerId=${customerId}` : ''
             }`
             return (
@@ -64,7 +65,7 @@ const columns = (t: (k: string) => string, customerId?: string | number | null) 
         header: t('text.columns.actions'),
         cell: (props) => {
             const row = props.row.original
-            const linkTarget = `/app/calendar/activities/details?id=${row.id}${
+            const linkTarget = `${appPath('calendar/activities/details')}?id=${row.id}${
                 customerId ? `&customerId=${customerId}` : ''
             }`
             return (

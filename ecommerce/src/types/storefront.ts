@@ -364,6 +364,7 @@ export interface ProductImage extends ImageAsset {
 
 export interface ProductSummary {
   id: number;
+  productId?: number | string;
   slug: string;
   name: string;
   updatedAt?: string;
@@ -1029,7 +1030,16 @@ export interface CreateOrderPayload {
     zip?: string;
     country: string;
   };
-  items: Array<{ productId: number; quantity: number; variantId?: number; configuration?: Record<string, unknown> }>;
+  items: Array<{
+    productId: number;
+    quantity: number;
+    variantId?: number;
+    width?: number;
+    height?: number;
+    derived?: boolean;
+    reference?: number;
+    configuration?: Record<string, unknown>;
+  }>;
   notes?: string;
   paymentIntentId?: string;
   checkoutToken?: string;

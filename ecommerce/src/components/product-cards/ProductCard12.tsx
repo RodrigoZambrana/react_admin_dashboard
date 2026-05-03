@@ -107,7 +107,7 @@ interface ProductCard12Props {
   title: string;
   price: number;
   imgUrl: string;
-  rating: number;
+  rating?: number;
   images: string[];
 }
 // =============================================================

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Card from '@/components/ui/Card'
 import Avatar from '@/components/ui/Avatar'
 import Button from '@/components/ui/Button'
@@ -54,7 +55,7 @@ const CustomerProfileAction = ({ id }: { id?: string }) => {
                     {t('text.messages.customerDeleted')}
                 </Notification>,
             )
-            navigate('/app/crm/customers')
+            navigate(appPath('/crm/customers'))
         } catch (error) {
             const responseMessage =
                 (typeof error === 'object' &&

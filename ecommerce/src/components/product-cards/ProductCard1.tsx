@@ -174,7 +174,7 @@ interface ProductCard1Props extends CardProps {
   title: string;
   price: number;
   imgUrl?: string | null;
-  rating: number;
+  rating?: number;
   images?: string[];
   id?: string | number;
   basePrice?: number;

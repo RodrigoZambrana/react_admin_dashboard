@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { appPath } from '@/constants/route.constant'
 import Avatar from '@/components/ui/Avatar'
 import IconText from '@/components/shared/IconText'
 import { HiMail, HiPhone, HiExternalLink, HiOutlineUser } from 'react-icons/hi'
@@ -60,7 +61,7 @@ const CustomerInfo = ({ data }: CustomerInfoProps) => {
             <h5 className="mb-4">{t('text.columns.customer')}</h5>
             <Link
                 className="group flex items-center justify-between"
-                to={data?.id ? `/app/crm/customer-details?id=${data.id}` : '#'}
+                to={data?.id ? `${appPath('crm/customer-details')}?id=${data.id}` : '#'}
             >
                 <div className="flex items-center">
                     <Avatar shape="circle" src={data?.img || undefined} icon={<HiOutlineUser />} />

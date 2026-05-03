@@ -21,7 +21,7 @@ export default async function Section6() {
               price={item.price}
               off={item.discount}
               rating={item.rating}
-              images={item.images}
+              images={item.images ?? undefined}
               imgUrl={item.thumbnail}
             />
           </Grid>

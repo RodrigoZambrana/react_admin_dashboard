@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Select from '@/components/ui/Select'
 import dayjs from 'dayjs'
 import { useNavigate } from 'react-router-dom'
@@ -66,7 +67,7 @@ export function useOrderColumns({ t, statuses, onChangeStatus, selectOnly: _sele
                     return (
                         <span
                             className={`cursor-pointer select-none font-semibold hover:${textTheme}`}
-                            onClick={() => navigate(`/app/sales/order-details/${displayIdentifier}`)}
+                            onClick={() => navigate(`${appPath('sales/order-details/')}${displayIdentifier}`)}
                         >
                             #{displayIdentifier}
                         </span>

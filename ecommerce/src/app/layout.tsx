@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import type { PropsWithChildren } from "react";
+import { Suspense, type PropsWithChildren } from "react";
 import localFont from "next/font/local";
 // THEME PROVIDER
 import StyledComponentsRegistry from "@lib/registry";
@@ -52,7 +52,9 @@ export default async function RootLayout({ children }: PropsWithChildren) {
             <ThemeProvider>
               <ToastProvider>
                 <CartProvider>
-                  <AnalyticsBootstrap />
+                  <Suspense fallback={null}>
+                    <AnalyticsBootstrap />
+                  </Suspense>
                   <StructuredData
                     schemas={[
                       buildOrganizationJsonLd(storefrontConfig),

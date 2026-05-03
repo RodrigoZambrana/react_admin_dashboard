@@ -4,6 +4,10 @@ export type CheckoutOrderItemInput = {
   productId: number;
   quantity: number;
   variantId?: number;
+  width?: number;
+  height?: number;
+  derived?: boolean;
+  reference?: number;
   configuration?: Record<string, unknown>;
 };
 

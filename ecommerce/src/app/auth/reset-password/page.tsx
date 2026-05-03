@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import ResetPasswordClient from "./reset-password-client";
 
@@ -10,6 +11,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Page() {
-  return <ResetPasswordClient />;
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordClient />
+    </Suspense>
+  );
 }
-

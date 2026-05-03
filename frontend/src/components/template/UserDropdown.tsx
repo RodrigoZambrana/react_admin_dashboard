@@ -1,4 +1,5 @@
 import Dropdown from '@/components/ui/Dropdown'
+import { appPath } from '@/constants/route.constant'
 import withHeaderItem from '@/utils/hoc/withHeaderItem'
 import useAuth from '@/utils/hooks/useAuth'
 import { useAppSelector } from '@/store'
@@ -20,17 +21,17 @@ type DropdownList = {
 const dropdownItemList: DropdownList[] = [
     {
         labelKey: 'user.menu.profile',
-        path: '/app/account/settings/profile',
+        path: appPath('/account/settings/profile'),
         icon: <HiOutlineUser />,
     },
     {
         labelKey: 'user.menu.accountSetting',
-        path: '/app/account/settings/profile',
+        path: appPath('/account/settings/profile'),
         icon: <HiOutlineCog />,
     },
     {
         labelKey: 'user.menu.activityLog',
-        path: '/app/account/activity-log',
+        path: appPath('/account/activity-log'),
         icon: <FiActivity />,
     },
 ]

@@ -34,6 +34,7 @@ ecommerce/.cache/
 .docker/
 backups/db/*.sql
 backups/db/*_legacy_postgres_local.sql
+backups/local-test-env_*/
 
 # Prisma
 backend/prisma/generated/

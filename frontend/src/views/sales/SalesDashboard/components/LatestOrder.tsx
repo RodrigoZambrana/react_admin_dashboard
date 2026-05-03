@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { appPath } from '@/constants/route.constant'
 import Button from '@/components/ui/Button'
 import DataTable from '@/components/shared/DataTable'
 import { useOrderColumns, type Order } from '@/views/sales/OrderList/components/useOrderColumns'
@@ -113,7 +114,7 @@ const LatestOrder = ({ data = [], className }: LatestOrderProps) => {
         <Card className={className}>
             <div className="flex items-center justify-between mb-6">
                 <h4>{t('sales.dashboard.latestOrders.title')}</h4>
-                <Button size="sm" onClick={() => navigate('/app/sales/order-list')}>
+                <Button size="sm" onClick={() => navigate(appPath('/sales/order-list'))}>
                     {t('sales.dashboard.latestOrders.viewOrders')}
                 </Button>
             </div>

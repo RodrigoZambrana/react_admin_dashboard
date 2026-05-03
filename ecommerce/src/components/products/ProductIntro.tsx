@@ -289,9 +289,9 @@ interface Props {
   discount?: number;
   rating?: number;
   ratingCount?: number;
-  brand?: string;
-  status?: string;
-  shortDescription?: string;
+  brand?: string | null;
+  status?: string | null;
+  shortDescription?: string | null;
   mode?: ProductMode;
   configuration?: Record<string, unknown> | null;
   canonicalConfiguration?: CanonicalConfiguration | null;

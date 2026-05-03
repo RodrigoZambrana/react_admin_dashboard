@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
 import VerifyPhoneClient from "./verify-phone-client";
 
@@ -10,6 +11,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function Page() {
-  return <VerifyPhoneClient />;
+  return (
+    <Suspense fallback={null}>
+      <VerifyPhoneClient />
+    </Suspense>
+  );
 }
-

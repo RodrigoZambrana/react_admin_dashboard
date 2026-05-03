@@ -1,4 +1,4 @@
-import { color, space, border, layout, shadow, compose, variant } from "styled-system";
+import { color, space, border, layout, shadow, compose, variant, grid } from "styled-system";
 import styled from "styled-components";
 import { isValidProp } from "@utils/utils";
 import { StyledButtonProps } from "./Button";
@@ -91,5 +91,5 @@ export const StyledButton = styled.button.withConfig({
         }
       }
     }),
-  compose(color, layout, space, border, shadow)
+  compose(color, layout, grid, space, border, shadow)
 );

@@ -111,7 +111,7 @@ interface ProductCard10Props {
   title: string;
   price: number;
   imgUrl: string;
-  rating: number;
+  rating?: number;
   images: string[];
   id: string | number;
 }

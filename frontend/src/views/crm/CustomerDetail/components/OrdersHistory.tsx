@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import { useTranslation } from 'react-i18next'
 import Table from '@/components/ui/Table'
 import Badge from '@/components/ui/Badge'
@@ -149,7 +150,7 @@ const OrdersHistory = () => {
     const ordersTable = useReactTable({
         data,
         columns: buildColumns(t, formatAmount, {
-            detailsPath: '/app/sales/order-details',
+            detailsPath: appPath('/sales/order-details'),
         }),
         state: {
             sorting,
@@ -162,7 +163,7 @@ const OrdersHistory = () => {
     const budgetsTable = useReactTable({
         data: budgets,
         columns: buildColumns(t, formatAmount, {
-            detailsPath: '/app/sales/budget-details',
+            detailsPath: appPath('/sales/budget-details'),
         }),
         state: {
             sorting: budgetSorting,

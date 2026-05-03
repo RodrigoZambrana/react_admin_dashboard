@@ -102,7 +102,7 @@ export const categories = [
   {
     id: "4c9681ac-69e7-4ab6-b819-971b8ee9563b",
     name: "Birthday Gift",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/Gift Shop/Product 1.png",
     slug: "birthday-gift",
     parent: [],
@@ -112,7 +112,7 @@ export const categories = [
   {
     id: "c8305a8a-a71e-4240-a01f-6b6336be20d9",
     name: "Couple Gift",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/Gift Shop/Product 2.png",
     slug: "couple-gift",
     parent: [],
@@ -122,7 +122,7 @@ export const categories = [
   {
     id: "ce8d812a-1df6-4c00-84a0-e4ef9780adcd",
     name: "Baby Doll",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/Gift Shop/Product 4.png",
     slug: "baby-doll",
     parent: [],

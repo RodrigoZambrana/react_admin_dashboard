@@ -38,7 +38,7 @@ export const useComponentTracking = ({
   threshold = 0.35,
   once = true
 }: ComponentTrackingInput) => {
-  const ref = useRef<HTMLElement | null>(null);
+  const ref = useRef<any>(null);
   const hasTrackedRef = useRef(false);
 
   useEffect(() => {

@@ -1,4 +1,5 @@
 import Header from '@/components/template/Header'
+import { appPath } from '@/constants/route.constant'
 import SideNavToggle from '@/components/template/SideNavToggle'
 import LanguageSelector from '@/components/template/LanguageSelector'
 import Notification from '@/components/template/Notification'
@@ -36,7 +37,7 @@ const HeaderActionsEnd = () => {
 const ClassicLayout = () => {
     const location = useLocation()
     const isMessagingRoute = location.pathname.startsWith(
-        '/app/crm/conversations',
+        appPath('/crm/conversations'),
     )
 
     return (

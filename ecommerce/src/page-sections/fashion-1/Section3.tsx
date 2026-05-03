@@ -26,7 +26,7 @@ export default async function Section3() {
                 title={item.title}
                 price={item.price}
                 imgUrl={item.thumbnail}
-                images={item.images}
+                images={item.images ?? undefined}
                 category={
                   Array.isArray(item.categories)
                     ? item.categories[0]?.name ?? item.categories[0]

@@ -28,6 +28,7 @@ import {
   loadPersistedCheckoutState
 } from "@/utils/checkoutStorage";
 import { buildCheckoutOrderItems } from "@/lib/checkout/order-items";
+import { getAnalyticsContext } from "@/lib/analytics";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { CartLineItem } from "@/state/cart-context";
 import PurchaseAnalytics from "@/components/analytics/PurchaseAnalytics";

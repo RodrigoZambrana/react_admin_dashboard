@@ -81,7 +81,7 @@ export const categories = [
   {
     id: "3a9c3d66-f3e3-413f-ae98-b50086caecd9",
     name: "Fruits & Vegatables",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/icons/healthy-food.svg",
     slug: "fruits-and-vegatables",
     parent: [],
@@ -91,7 +91,7 @@ export const categories = [
   {
     id: "5d915d18-bb8a-4003-85ea-75b82d11efb0",
     name: "Fish & meat",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/icons/fish.svg",
     slug: "fish-and-meat",
     parent: [],
@@ -101,7 +101,7 @@ export const categories = [
   {
     id: "6cbe6d04-606e-4d80-99f1-0f8439bb21bc",
     name: "Rice & Flour",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/icons/wheat-flour.svg",
     slug: "rice-and-flour",
     parent: [],
@@ -111,7 +111,7 @@ export const categories = [
   {
     id: "5c65740a-73e5-4de4-8bfc-22698413b090",
     name: "Fruits & Vegatables",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/products/Orange 1kg 2.png",
     slug: "fruits-and-vegatables",
     parent: [],
@@ -121,7 +121,7 @@ export const categories = [
   {
     id: "130c51ab-c814-4075-8ecd-b49d4558c8c7",
     name: "Baby Food",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/icons/feeding-bottle.svg",
     slug: "baby-food",
     parent: [],
@@ -131,7 +131,7 @@ export const categories = [
   {
     id: "ed98259a-d8c9-43f7-9e10-46a53cd6f606",
     name: "Personal Care",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/icons/skincare.svg",
     slug: "personal-care",
     parent: [],

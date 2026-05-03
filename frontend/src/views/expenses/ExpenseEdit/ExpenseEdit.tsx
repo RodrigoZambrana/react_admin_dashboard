@@ -1,4 +1,5 @@
 import { FormItem, FormContainer } from '@/components/ui/Form'
+import { appPath } from '@/constants/route.constant'
 import Input from '@/components/ui/Input'
 import Select from '@/components/ui/Select'
 import Button from '@/components/ui/Button'
@@ -152,7 +153,7 @@ const ExpenseEdit = () => {
                     {t('expenses.edit.updated.desc')}
                 </Notification>,
             )
-            navigate('/app/accounting/expenses/list')
+            navigate(appPath('/accounting/expenses/list'))
         }
     }
 
@@ -194,7 +195,7 @@ const ExpenseEdit = () => {
                                             )
                                         }
                                     />
-                                    <Link to="/app/accounting/expenses/categories">
+                                    <Link to={appPath("/accounting/expenses/categories")}>
                                         <Button size="sm" variant="twoTone" icon={<HiOutlineAdjustments />}>
                                             {t('expenses.categories.actions.manage')}
                                         </Button>

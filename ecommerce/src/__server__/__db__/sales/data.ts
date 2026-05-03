@@ -7,7 +7,7 @@ export const categories = [
     image: null,
     slug: "furniture",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -17,7 +17,7 @@ export const categories = [
     image: null,
     slug: "women",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -27,7 +27,7 @@ export const categories = [
     image: null,
     slug: "electronics",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -37,7 +37,7 @@ export const categories = [
     image: null,
     slug: "cosmetics",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
 ];
@@ -51,7 +51,7 @@ export const categoriesTwo = [
     image: null,
     slug: "men",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -61,7 +61,7 @@ export const categoriesTwo = [
     image: null,
     slug: "photos",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -71,7 +71,7 @@ export const categoriesTwo = [
     image: null,
     slug: "clothes",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -81,7 +81,7 @@ export const categoriesTwo = [
     image: null,
     slug: "furniture",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -91,7 +91,7 @@ export const categoriesTwo = [
     image: null,
     slug: "sport",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -101,7 +101,7 @@ export const categoriesTwo = [
     image: null,
     slug: "women",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -111,7 +111,7 @@ export const categoriesTwo = [
     image: null,
     slug: "automobile",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -121,7 +121,7 @@ export const categoriesTwo = [
     image: null,
     slug: "accessories",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -131,7 +131,7 @@ export const categoriesTwo = [
     image: null,
     slug: "eelctronics",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -141,7 +141,7 @@ export const categoriesTwo = [
     image: null,
     slug: "hardware",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -151,7 +151,7 @@ export const categoriesTwo = [
     image: null,
     slug: "cosmetics",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
   {
@@ -161,7 +161,7 @@ export const categoriesTwo = [
     image: null,
     slug: "baby-products",
     parent: [],
-    description: null,
+    description: undefined,
     for: { demo: "sale-page-1", type: "categories" },
   },
 ];

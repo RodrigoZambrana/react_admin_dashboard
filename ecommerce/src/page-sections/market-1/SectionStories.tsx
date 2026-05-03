@@ -291,6 +291,16 @@ function StoryRailPrevArrow({ onClick }: CustomArrowProps) {
 
 function SectionStories({ stories }: Props) {
   const t = useTranslation();
+  const pathname = usePathname();
+  const pageType = resolvePageType(pathname);
+  const storiesRef = useComponentTracking({
+    pageType,
+    componentType: "stories_carousel",
+    componentId: "home_stories_carousel",
+    metadata: {
+      story_count: stories.length,
+    },
+  });
   const [activeStoryIndex, setActiveStoryIndex] = useState<number | null>(null);
   const [activeAssetIndex, setActiveAssetIndex] = useState(0);
 

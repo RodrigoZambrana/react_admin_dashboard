@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, TouchEvent } from "react";
 import { useRouter } from "next/navigation";
 
@@ -282,13 +282,41 @@ export default function StoryViewer({ story, onClose, onAdvanceStory, mode = "pa
   const sidePaneStyleResolved =
     isCompact ? compactSidePaneStyle : mode === "overlay" ? overlaySidePaneStyle : sidePaneStyle;
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     if (onClose) {
       onClose();
       return;
     }
     router.push("/stories");
-  };
+  }, [onClose, router]);
+
+  const go = useCallback((direction: "prev" | "next") => {
+    if (!items.length) {
+      return false;
+    }
+
+    elapsedBeforePauseRef.current = 0;
+    startedAtRef.current = null;
+    setProgress(0);
+    if (direction === "next" && activeIndex >= items.length - 1) {
+      const advanced = onAdvanceStory?.("next") ?? false;
+      if (!advanced) {
+        handleClose();
+      }
+      return advanced;
+    }
+
+    if (direction === "prev" && activeIndex <= 0) {
+      const advanced = onAdvanceStory?.("prev") ?? false;
+      if (!advanced) {
+        handleClose();
+      }
+      return advanced;
+    }
+
+    setActiveIndex((current) => clampIndex(direction === "next" ? current + 1 : current - 1, items.length));
+    return true;
+  }, [activeIndex, handleClose, items.length, onAdvanceStory]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(max-width: 900px)");
@@ -353,7 +381,7 @@ export default function StoryViewer({ story, onClose, onAdvanceStory, mode = "pa
         frameRef.current = null;
       }
     };
-  }, [activeDuration, activeItem, items.length, paused]);
+  }, [activeDuration, activeItem, items.length, paused, go]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -368,34 +396,6 @@ export default function StoryViewer({ story, onClose, onAdvanceStory, mode = "pa
       // autoplay best effort
     });
   }, [activeItem, paused]);
-
-  const go = (direction: "prev" | "next") => {
-    if (!items.length) {
-      return false;
-    }
-
-    elapsedBeforePauseRef.current = 0;
-    startedAtRef.current = null;
-    setProgress(0);
-    if (direction === "next" && activeIndex >= items.length - 1) {
-      const advanced = onAdvanceStory?.("next") ?? false;
-      if (!advanced) {
-        handleClose();
-      }
-      return advanced;
-    }
-
-    if (direction === "prev" && activeIndex <= 0) {
-      const advanced = onAdvanceStory?.("prev") ?? false;
-      if (!advanced) {
-        handleClose();
-      }
-      return advanced;
-    }
-
-    setActiveIndex((current) => clampIndex(direction === "next" ? current + 1 : current - 1, items.length));
-    return true;
-  };
 
   const onTouchStart = (event: TouchEvent<HTMLElement>) => {
     touchStartX.current = event.touches[0]?.clientX ?? null;

@@ -1,4 +1,5 @@
 import { createContext, useContext, useMemo, type ReactNode } from 'react'
+import { appPath } from '@/constants/route.constant'
 import type { SalesDocumentResource } from '@/services/SalesService'
 
 export type SalesDocumentMode = 'order' | 'budget'
@@ -58,11 +59,11 @@ const buildConfig = (mode: SalesDocumentMode): SalesDocumentConfig => {
             translationBase: 'sales.budgets',
             documentLabel: 'budget',
             routes: {
-                list: '/app/sales/budget-list',
-                create: '/app/sales/budget-new',
-                edit: '/app/sales/budget-edit',
-                details: '/app/sales/budget-details',
-                invoice: '/app/sales/budget-document',
+                list: appPath('/sales/budget-list'),
+                create: appPath('/sales/budget-new'),
+                edit: appPath('/sales/budget-edit'),
+                details: appPath('/sales/budget-details'),
+                invoice: appPath('/sales/budget-document'),
             },
             defaults: BUDGET_DEFAULTS,
             customerRequired: true,
@@ -77,11 +78,11 @@ const buildConfig = (mode: SalesDocumentMode): SalesDocumentConfig => {
         translationBase: 'sales.orders',
         documentLabel: 'order',
         routes: {
-            list: '/app/sales/order-list',
-            create: '/app/sales/order-new',
-            edit: '/app/sales/order-edit',
-            details: '/app/sales/order-details',
-            invoice: '/app/account/invoice',
+            list: appPath('/sales/order-list'),
+            create: appPath('/sales/order-new'),
+            edit: appPath('/sales/order-edit'),
+            details: appPath('/sales/order-details'),
+            invoice: appPath('/account/invoice'),
         },
         defaults: ORDER_DEFAULTS,
         customerRequired: true,

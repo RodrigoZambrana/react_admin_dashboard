@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import classNames from 'classnames'
 import ScrollBar from '@/components/ui/ScrollBar'
 import Avatar from '@/components/ui/Avatar'
@@ -820,7 +821,7 @@ const MailList = () => {
             null
 
         if (conversationId) {
-            navigate(`/app/crm/conversations/${conversationId}`)
+            navigate(`${appPath('crm/conversations/')}${conversationId}`)
             return
         }
 

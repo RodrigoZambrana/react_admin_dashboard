@@ -37,7 +37,7 @@ export default function SaleProducts2({ products, meta }: Props) {
               currencyCode={item.currency}
               title={item.title}
               off={item.discount}
-              images={item.images}
+              images={item.images ?? undefined}
               imgUrl={item.thumbnail}
               rating={item.rating || 4}
             />

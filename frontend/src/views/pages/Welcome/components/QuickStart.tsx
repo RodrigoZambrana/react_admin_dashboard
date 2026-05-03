@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import useThemeClass from '@/utils/hooks/useThemeClass'
@@ -29,7 +30,7 @@ const quickStartList: QuickStartType[] = [
         key: 'completeAccount',
         id: '0',
         disabled: false,
-        navigate: '/app/account/kyc-form',
+        navigate: appPath('/account/kyc-form'),
     },
     {
         key: 'createWorkspace',

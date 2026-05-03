@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Card from '@/components/ui/Card'
 import Container from '@/components/shared/Container'
 import Calendar from '@/components/ui/Calendar'
@@ -411,7 +412,7 @@ const CalendarActivities = () => {
     }, [mappedActivities, searchTerm])
 
     const handleNavigate = (item: CalendarListItem) => {
-        navigate(`/app/calendar/activities/details?id=${encodeURIComponent(item.id)}`)
+        navigate(`${appPath('calendar/activities/details')}?id=${encodeURIComponent(item.id)}`)
     }
 
     const renderActivityItem = (

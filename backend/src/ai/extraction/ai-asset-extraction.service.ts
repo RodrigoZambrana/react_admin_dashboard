@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common'
 import { parse as parseCsv } from 'csv-parse/sync'
+import ExcelJS from 'exceljs'
 import { PDFParse } from 'pdf-parse'
-import * as XLSX from 'xlsx'
 import {
   OpenAiClientService,
   type OpenAiRuntimeConfig,
@@ -164,18 +164,23 @@ export class AiAssetExtractionService {
     detectedContentType?: string | null,
   ): Promise<ExtractedAsset> {
     try {
-      const workbook = XLSX.read(buffer, { type: 'buffer' })
+      const workbook = new ExcelJS.Workbook()
+      const workbookInput = buffer as unknown as Parameters<
+        typeof workbook.xlsx.load
+      >[0]
+      await workbook.xlsx.load(workbookInput)
       const rows: ExtractedStructuredRow[] = []
-      for (const sheetName of workbook.SheetNames) {
-        const sheet = workbook.Sheets[sheetName]
-        const matrix = XLSX.utils.sheet_to_json<(string | number | boolean | null)[]>(
-          sheet,
-          {
-            header: 1,
-            raw: false,
-            defval: '',
-          },
-        )
+      for (const sheet of workbook.worksheets) {
+        const matrix: string[][] = []
+
+        sheet.eachRow({ includeEmpty: false }, (row) => {
+          const columnCount = Math.max(row.cellCount, sheet.columnCount)
+          const values = Array.from({ length: columnCount }, (_value, index) =>
+            row.getCell(index + 1).text.trim(),
+          )
+          matrix.push(values)
+        })
+
         const [headerRow, ...dataRows] = matrix
         const headers =
           Array.isArray(headerRow) && headerRow.length > 0
@@ -188,7 +193,7 @@ export class AiAssetExtractionService {
           if (!Array.isArray(dataRow)) {
             continue
           }
-          const row: ExtractedStructuredRow = { _sheet: sheetName }
+          const row: ExtractedStructuredRow = { _sheet: sheet.name }
           dataRow.forEach((value, index) => {
             row[headers[index] || `column_${index + 1}`] =
               value === '' ? null : value ?? null
@@ -222,7 +227,7 @@ export class AiAssetExtractionService {
         byteLength: buffer.byteLength,
         usedOpenAi: false,
         reason: 'xlsx_parsed',
-        sheetCount: workbook.SheetNames.length,
+        sheetCount: workbook.worksheets.length,
       })
     } catch (error) {
       return this.buildResult({

@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useMemo, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Avatar from '@/components/ui/Avatar'
 import Select from '@/components/ui/Select'
 import Tooltip from '@/components/ui/Tooltip'
@@ -50,7 +51,7 @@ const ActionColumn = ({
     }
 
     const onView = useCallback(() => {
-        navigate(`/app/crm/customer-details?id=${row.id}`)
+        navigate(`${appPath('crm/customer-details')}?id=${row.id}`)
     }, [navigate, row])
 
     return (
@@ -89,7 +90,7 @@ const NameColumn = ({ row }: { row: Customer }) => {
             <Avatar size={28} shape="circle" src={row.img || undefined} icon={<HiOutlineUser />} />
             <Link
                 className={`hover:${textTheme} ml-2 rtl:mr-2 font-semibold`}
-                to={`/app/crm/customer-details?id=${row.id}`}
+                to={`${appPath('crm/customer-details')}?id=${row.id}`}
             >
                 {row.name}
             </Link>

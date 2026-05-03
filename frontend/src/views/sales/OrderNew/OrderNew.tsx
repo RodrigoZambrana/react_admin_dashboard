@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import {
     Formik,
     Form,
@@ -3697,7 +3698,7 @@ const formInitialValues = useMemo(() => {
                                                                 variant="twoTone"
                                                                 onClick={() =>
                                                                     navigate(
-                                                                        `/app/calendar/activities/details?id=${encodeURIComponent(
+                                                                        `${appPath('calendar/activities/details')}?id=${encodeURIComponent(
                                                                             selectedActivityOption.value,
                                                                         )}`,
                                                                     )

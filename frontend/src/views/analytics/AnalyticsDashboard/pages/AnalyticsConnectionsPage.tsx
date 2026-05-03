@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -118,7 +119,7 @@ type PropertyOption = {
 }
 
 const buildConnectionsReturnPath = () =>
-    new URL('/app/analytics/connections', window.location.origin).toString()
+    new URL(appPath('/analytics/connections'), window.location.origin).toString()
 
 const AnalyticsConnectionsPage = () => {
     const { loading, refreshing, error, data, reload } = useAnalyticsOperationsData()
@@ -775,7 +776,7 @@ const AnalyticsConnectionsPage = () => {
                                     variant="plain"
                                     icon={<HiOutlineExternalLink />}
                                     onClick={() => {
-                                        window.location.href = '/app/analytics/insights'
+                                        window.location.href = appPath('/analytics/insights')
                                     }}
                                 >
                                     Insights IA

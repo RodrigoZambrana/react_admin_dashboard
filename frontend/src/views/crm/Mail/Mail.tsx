@@ -1,4 +1,5 @@
 import AdaptableCard from '@/components/shared/AdaptableCard'
+import { appPath } from '@/constants/route.constant'
 import MailSidebar from './components/MailSidebar'
 import MailBody from './components/MailBody'
 import { injectReducer } from '@/store/'
@@ -23,28 +24,28 @@ const Mail = () => {
             key: 'messages',
             label: 'Mensajes',
             icon: TbMessage2Heart,
-            to: '/app/crm/conversations',
-            active: location.pathname.startsWith('/app/crm/conversations'),
+            to: appPath('/crm/conversations'),
+            active: location.pathname.startsWith(appPath('/crm/conversations')),
         },
         {
             key: 'mail',
             label: 'Correo',
             icon: TbMailHeart,
-            to: '/app/crm/mail/inbox',
-            active: location.pathname.startsWith('/app/crm/mail'),
+            to: appPath('/crm/mail/inbox'),
+            active: location.pathname.startsWith(appPath('/crm/mail')),
         },
         {
             key: 'ai',
             label: 'Agente de chat',
             icon: TbRobot,
-            to: '/app/settings/ai/runtime',
-            active: location.pathname.startsWith('/app/settings/ai'),
+            to: appPath('/settings/ai/runtime'),
+            active: location.pathname.startsWith(appPath('/settings/ai')),
         },
         {
             key: 'general',
             label: 'General',
             icon: TbHome,
-            to: '/app/crm/customers',
+            to: appPath('/crm/customers'),
             active: false,
         },
     ]

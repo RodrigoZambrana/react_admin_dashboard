@@ -1,4 +1,5 @@
 import { useState, useEffect, Suspense, lazy } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Tabs from '@/components/ui/Tabs'
 import AdaptableCard from '@/components/shared/AdaptableCard'
 import Container from '@/components/shared/Container'
@@ -49,7 +50,7 @@ const Settings = () => {
 
     const onTabChange = (val: string) => {
         setCurrentTab(val)
-        navigate(`/app/account/settings/${val}`)
+        navigate(`${appPath('account/settings/')}${val}`)
     }
 
     const fetchData = async () => {

@@ -50,6 +50,10 @@ export const filterSearchCategoryOptions = (
     return options.filter((option) => option.slug);
   }
 
+  if (!selectedCategorySlug) {
+    return options.filter((option) => option.slug);
+  }
+
   return options.filter(
     (option) =>
       option.slug &&

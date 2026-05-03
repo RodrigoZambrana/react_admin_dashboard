@@ -16,7 +16,7 @@ import Dropdown from '@/components/ui/Dropdown'
 import Notification from '@/components/ui/Notification'
 import Spinner from '@/components/ui/Spinner'
 import toast from '@/components/ui/toast'
-import { APP_PREFIX_PATH } from '@/constants/route.constant'
+import { APP_PREFIX_PATH, appPath } from '@/constants/route.constant'
 import useResponsive from '@/utils/hooks/useResponsive'
 import { apiGetUsers } from '@/services/UsersService'
 import ConversationsService, {
@@ -3020,7 +3020,7 @@ const ConversationsV2 = () => {
                 return
             }
             if (visibleItems[0]) {
-                navigate(`/app/crm/conversations/${visibleItems[0].id}`, {
+                navigate(`${appPath('crm/conversations/')}${visibleItems[0].id}`, {
                     replace: true,
                 })
             }
@@ -3043,7 +3043,7 @@ const ConversationsV2 = () => {
             visibleItems.length > 0 &&
             !visibleItems.some((conversation) => conversation.id === conversationId)
         ) {
-            navigate(`/app/crm/conversations/${visibleItems[0].id}`, {
+            navigate(`${appPath('crm/conversations/')}${visibleItems[0].id}`, {
                 replace: true,
             })
         }
@@ -3224,7 +3224,7 @@ const ConversationsV2 = () => {
                 })
         }
 
-        navigate(`/app/crm/conversations/${id}`)
+        navigate(`${appPath('crm/conversations/')}${id}`)
     }
 
     const handleBulkOwnerAction = useCallback(
@@ -4013,7 +4013,7 @@ const ConversationsV2 = () => {
             setContactSearch('')
             setNewChatForm({ message: '' })
             await loadList(search)
-            navigate(`/app/crm/conversations/${created.id}`)
+            navigate(`${appPath('crm/conversations/')}${created.id}`)
         } catch (error) {
             console.error(error)
             setNewChatError('No fue posible iniciar el mensaje.')
@@ -4907,7 +4907,7 @@ const ConversationsV2 = () => {
                                         className="header-action-btn"
                                         type="button"
                                         aria-label="Volver a la lista"
-                                        onClick={() => navigate('/app/crm/conversations')}
+                                        onClick={() => navigate(appPath('/crm/conversations'))}
                                     >
                                         <TbArrowLeft size={20} />
                                     </button>
@@ -6143,7 +6143,7 @@ const ConversationsV2 = () => {
                                                         ) {
                                                             setSelectedConversation(null)
                                                             navigate(
-                                                                '/app/crm/conversations',
+                                                                appPath('/crm/conversations'),
                                                             )
                                                         }
                                                         setIsConversationMenuOpen(false)

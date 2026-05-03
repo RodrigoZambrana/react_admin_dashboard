@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { appPath } from '@/constants/route.constant'
 import classNames from 'classnames'
 import Menu from '@/components/ui/Menu'
 import Badge from '@/components/ui/Badge'
@@ -216,7 +217,7 @@ const MailSidebarBootstrap = () => {
                 if (queryMailboxId) {
                     nextSearch.set('mailbox', queryMailboxId)
                 }
-                navigate(`/app/crm/mail/inbox?${nextSearch.toString()}`, {
+                navigate(`${appPath('crm/mail/inbox')}${nextSearch.toString()}`, {
                     replace: true,
                 })
             }
@@ -363,7 +364,7 @@ const MailSidebarBootstrap = () => {
         }
 
         navigate(
-            `/app/crm/mail/inbox?account=${encodeURIComponent(
+            `${appPath('crm/mail/inbox')}?account=${encodeURIComponent(
                 selectedInboxAccountId,
             )}&mailbox=${encodeURIComponent(selectedInboxMailboxId)}`,
             { replace: true },
@@ -510,7 +511,7 @@ const MailSideBarContent = () => {
             searchParams.set('mailbox', selectedInboxMailboxId)
         }
         const nextSearch = searchParams.toString()
-        navigate(`/app/crm/mail/${pathValue}${nextSearch ? `?${nextSearch}` : ''}`, {
+        navigate(`${appPath('crm/mail/')}${pathValue}${nextSearch ? `?${nextSearch}` : ''}`, {
             replace: true,
         })
     }

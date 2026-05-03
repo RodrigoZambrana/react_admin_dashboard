@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import Select from '@/components/ui/Select'
 import { apiGetExpenseStatuses, apiGetPaymentMethods } from '@/services/SettingsService'
 import { apiUpdateExpense } from '@/services/ExpensesService'
@@ -100,7 +101,7 @@ const ExpenseIdColumn = ({ row }: { row: Expense }) => {
     const navigate = useNavigate()
 
     const onView = useCallback(() => {
-        navigate(`/app/accounting/expenses/detail/${row.id}`)
+        navigate(`${appPath('accounting/expenses/detail/')}${row.id}`)
     }, [navigate, row])
 
     return (
@@ -125,10 +126,10 @@ const ActionColumn = ({ row }: { row: Expense }) => {
     }
 
     const onView = useCallback(() => {
-        navigate(`/app/accounting/expenses/detail/${row.id}`)
+        navigate(`${appPath('accounting/expenses/detail/')}${row.id}`)
     }, [navigate, row])
     const onEdit = useCallback(() => {
-        navigate(`/app/accounting/expenses/edit/${row.id}`)
+        navigate(`${appPath('accounting/expenses/edit/')}${row.id}`)
     }, [navigate, row])
 
     return (

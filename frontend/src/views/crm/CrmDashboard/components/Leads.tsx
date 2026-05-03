@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { appPath } from '@/constants/route.constant'
 import Button from '@/components/ui/Button'
 import Table from '@/components/ui/Table'
 import Tag from '@/components/ui/Tag'
@@ -113,7 +114,7 @@ const Leads = ({ data = [], className }: LeadsProps) => {
     })
 
     const onNavigate = () => {
-        navigate('/app/crm/customers')
+        navigate(appPath('/crm/customers'))
     }
 
     return (

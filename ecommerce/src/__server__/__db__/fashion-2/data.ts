@@ -21,11 +21,11 @@ export const categories = [
   {
     id: "96c813a8-efff-4a51-8926-fc674757a135",
     name: "Men's Fashion",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/products/t-shirt4.png",
     slug: "men's-fashion",
     parent: [],
-    description: null,
+    description: undefined,
     for: {
       demo: "fashion-2",
       type: "top-categories",
@@ -34,11 +34,11 @@ export const categories = [
   {
     id: "76f4a1dd-fd27-461e-8b59-bfc3c1da6895",
     name: "Women's Fashion",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/products/t-shirt5.png",
     slug: "women's-fashion",
     parent: [],
-    description: null,
+    description: undefined,
     for: {
       demo: "fashion-2",
       type: "top-categories",
@@ -47,11 +47,11 @@ export const categories = [
   {
     id: "e6d2c2e3-d973-4367-98d8-0c140fbaf390",
     name: "Gadgets",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/products/smartwatch-2.png",
     slug: "gadgets",
     parent: [],
-    description: null,
+    description: undefined,
     for: {
       demo: "fashion-2",
       type: "top-categories",
@@ -60,11 +60,11 @@ export const categories = [
   {
     id: "f7b1da64-4d03-4a10-b364-67a2589b9de1",
     name: "Cosmatics",
-    icon: null,
+    icon: undefined,
     image: "/assets/images/products/casmatics.jpg",
     slug: "cosmatics",
     parent: [],
-    description: null,
+    description: undefined,
     for: {
       demo: "fashion-2",
       type: "top-categories",

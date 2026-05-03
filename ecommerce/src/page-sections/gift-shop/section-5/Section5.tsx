@@ -44,7 +44,7 @@ export default function Section5({ products, title }: Props) {
                 price={item.price}
                 off={item.discount}
                 rating={item.rating}
-                images={item.images}
+                images={item.images ?? undefined}
                 imgUrl={item.thumbnail}
               />
             </Box>

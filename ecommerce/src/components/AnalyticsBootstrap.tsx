@@ -54,7 +54,7 @@ export default function AnalyticsBootstrap() {
 
   useOperationalSignals({
     pageType: resolvePageType(pathname),
-    pathname,
+    pathname: pathname ?? "",
   });
 
   return null;

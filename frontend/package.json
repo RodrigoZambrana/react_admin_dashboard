@@ -7,10 +7,15 @@
     "build": "node ./scripts/run-vite-with-client-slug.mjs build",
     "preview": "node ./scripts/run-vite-with-client-slug.mjs preview --host 0.0.0.0 --port 4173",
     "sync:common": "node ./scripts/sync-shared-common.mjs",
-    "predev": "npm run sync:common",
-    "prebuild": "npm run sync:common",
+    "security:audit": "if [ -n \"$SECURITY_LOOP_SKIP\" ]; then echo '[security] frontend audit skipped'; else node ../scripts/security-loop.mjs scan --project frontend; fi",
+    "security:gate:dev": "if [ -n \"$SECURITY_LOOP_SKIP\" ]; then echo '[security] frontend dev gate skipped'; else node ../scripts/security-loop.mjs gate --project frontend --phase dev; fi",
+    "security:gate:build": "if [ -n \"$SECURITY_LOOP_SKIP\" ]; then echo '[security] frontend build gate skipped'; else node ../scripts/security-loop.mjs gate --project frontend --phase build; fi",
+    "security:gate:install": "if [ -n \"$SECURITY_LOOP_SKIP\" ]; then echo '[security] frontend install gate skipped'; else node ../scripts/security-loop.mjs gate --project frontend --phase install; fi",
+    "predev": "npm run sync:common && npm run security:gate:dev",
+    "prebuild": "npm run sync:common && npm run security:gate:build",
     "prestart": "npm run sync:common",
     "prepreview": "npm run sync:common",
+    "postinstall": "npm run security:gate:install",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:conversation-debug": "eslint src/views/crm/ConversationDebug src/services/ConversationsService.ts src/configs/routes.config/appsRoute.tsx src/configs/navigation.config/apps.navigation.config.ts --ext .ts,.tsx",
     "lint:fix": "npm run lint -- --fix",
@@ -118,7 +123,7 @@
     "vitest": "^4.1.0"
   },
   "overrides": {
-    "lodash-es": "4.17.23",
+    "lodash-es": "4.18.1",
     "mdast-util-to-hast": "13.2.1",
     "react-simple-maps": {
       "react": "19.0.0",

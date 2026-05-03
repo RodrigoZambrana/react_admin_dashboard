@@ -15,9 +15,8 @@ import {
   type ProductPageSearchParams
 } from "@/lib/storefront/product-page";
 import { mapProductSummaryToProduct } from "@/lib/storefront/adapters";
-import { env } from "@/lib/env";
 
-export const revalidate = env.publicMediaProvider === "local" ? 0 : 300;
+export const revalidate = 300;
 
 export async function generateMetadata({
   params,

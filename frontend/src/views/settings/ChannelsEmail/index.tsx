@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { appPath } from '@/constants/route.constant'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Card from '@/components/ui/Card'
@@ -1120,7 +1121,7 @@ const ChannelsEmailSettings = () => {
                                                                 icon={<HiOutlineExternalLink />}
                                                                 onClick={() =>
                                                                     navigate(
-                                                                        `/app/crm/mail/inbox?account=${encodeURIComponent(
+                                                                        `${appPath('crm/mail/inbox')}?account=${encodeURIComponent(
                                                                             account.id,
                                                                         )}`,
                                                                     )

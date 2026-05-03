@@ -287,7 +287,7 @@ export function CartView() {
 
   if (state.items.length === 0) {
     return (
-      <div ref={cartRef}>
+      <div ref={cartRef as never}>
         <Card1>
         <FlexBox
           alignItems="center"
@@ -311,7 +311,7 @@ export function CartView() {
   }
 
   return (
-    <div ref={cartRef}>
+    <div ref={cartRef as never}>
       <Grid container spacing={6}>
         <Grid item lg={8} md={8} xs={12}>
           {state.items.map((item) => (

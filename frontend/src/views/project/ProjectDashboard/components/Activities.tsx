@@ -1,4 +1,5 @@
 import Card from '@/components/ui/Card'
+import { appPath } from '@/constants/route.constant'
 import Button from '@/components/ui/Button'
 import Timeline from '@/components/ui/Timeline'
 import Event from '@/views/account/ActivityLog/components/Event'
@@ -25,7 +26,7 @@ const Activities = ({ data = [] }: ActivitiesProps) => {
     const { t } = useTranslation()
 
     const onViewAllActivity = () => {
-        navigate('/app/account/activity-log')
+        navigate(appPath('/account/activity-log'))
     }
 
     return (
