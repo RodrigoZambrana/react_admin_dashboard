@@ -2,7 +2,11 @@ import { useEffect, useState } from 'react'
 import classNames from 'classnames'
 import { Link } from 'react-router-dom'
 import { APP_NAME } from '@/constants/app.constant'
-import { appPath, publicAssetPath } from '@/constants/route.constant'
+import {
+    appPath,
+    normalizeAdminAssetSrc,
+    publicAssetPath,
+} from '@/constants/route.constant'
 import { apiGetCompanyProfile } from '@/services/SettingsService'
 import store from '@/store'
 import type { CommonProps } from '@/@types/common'
@@ -24,21 +28,7 @@ const resolveDefaultLogo = (mode: 'light' | 'dark', type: 'full' | 'streamline')
     publicAssetPath('img', 'logo', `logo-${mode}-${type}.png`)
 
 const normalizeLogoSrc = (value: string): string => {
-    const trimmed = value.trim()
-
-    if (!trimmed.length) {
-        return trimmed
-    }
-
-    if (/^(?:https?:)?\/\//u.test(trimmed) || trimmed.startsWith('data:')) {
-        return trimmed
-    }
-
-    if (trimmed.startsWith('/img/') || trimmed.startsWith('img/')) {
-        return publicAssetPath(trimmed)
-    }
-
-    return trimmed
+    return normalizeAdminAssetSrc(value)
 }
 
 const normalizeLogoValue = (value: string | null | undefined): string | null | undefined => {

@@ -109,6 +109,23 @@ async function main() {
   await fetchWithRetry("/", (response, body) => assertHtml(response, body, 200), "/", htmlHeaders);
   await fetchWithRetry("/admin", (response, body) => assertHtml(response, body, 200), "/admin", htmlHeaders);
   await fetchWithRetry("/admin/sign-in", (response, body) => assertHtml(response, body, 200), "/admin/sign-in", htmlHeaders);
+  await fetchWithRetry(
+    "/admin/img/logo/logo-dark-full.png",
+    (response, body) => {
+      if (response.status !== 200) {
+        throw new Error(`expected HTTP 200, got ${response.status}`);
+      }
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("image/")) {
+        throw new Error(`expected image content-type, got "${contentType}"`);
+      }
+      if (body.length === 0) {
+        throw new Error("expected image payload");
+      }
+    },
+    "admin logo asset",
+    assetHeaders,
+  );
 
   const homepage = await fetch(`${withTrailingSlash(BASE_URL)}`, {
     redirect: "manual",
