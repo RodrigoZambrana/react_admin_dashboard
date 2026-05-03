@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useMemo, useState } from "react";
-import Link from "next/link";
+import { usePathname } from "next/navigation";
 import styled from "styled-components";
 import SlickCarousel, { CustomArrowProps, Settings } from "react-slick";
 import { IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react";
@@ -15,6 +15,10 @@ import { H3, Paragraph, Small, Span } from "@component/Typography";
 import { ArrowButton } from "@component/carousel/styles";
 import { useTranslation } from "@/state/i18n-context";
 import type { CmsContentAsset, CmsContentEntry } from "@/types/storefront";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
+import { resolvePageType } from "@/lib/analytics/pageType";
+import TrackedButton from "@component/TrackedButton";
+import TrackedLink from "@component/TrackedLink";
 
 const StoriesCarouselRoot = styled.div`
   position: relative;
@@ -405,15 +409,30 @@ function SectionStories({ stories }: Props) {
 
   return (
     <>
-      <Box pt="2.75rem" pb="5.5rem" mb="1.5rem" style={{ backgroundColor: "#fbf7ef" }}>
-        <Container>
-          <StoriesCarouselRoot>
-            <SlickCarousel {...carouselSettings}>
-              {stories.map((story, index) => {
+      <div ref={storiesRef}>
+        <Box pt="2.75rem" pb="5.5rem" mb="1.5rem" style={{ backgroundColor: "#fbf7ef" }}>
+          <Container>
+            <StoriesCarouselRoot>
+              <SlickCarousel {...carouselSettings}>
+                {stories.map((story, index) => {
                 const cover = story.thumbnail?.url ?? getPrimaryAsset(story)?.posterUrl ?? getPrimaryAsset(story)?.mediaUrl;
                 return (
                   <StorySlide key={`cms-story-${story.id}`}>
-                    <StoryTrigger type="button" onClick={() => openStory(index)} data-testid={`home-story-${story.id}`}>
+                    <TrackedButton
+                      as={StoryTrigger}
+                      type="button"
+                      pageType={pageType}
+                      componentType="stories_carousel"
+                      componentId="home_stories_carousel"
+                      ctaId="stories.home.open"
+                      ctaName="open_story"
+                      ctaType="primary"
+                      ctaContext="content"
+                      ctaLocation="story_card"
+                      position={index + 1}
+                      metadata={{ story_id: story.id, story_title: story.title, position: index + 1 }}
+                      onTrackedClick={() => openStory(index)}
+                      data-testid={`home-story-${story.id}`}>
                       <StoryRing>
                         <StoryThumb>
                           {cover ? (
@@ -432,7 +451,7 @@ function SectionStories({ stories }: Props) {
                       <StoryTitle fontSize="12px" fontWeight={600} color="text.primary">
                         {story.title}
                       </StoryTitle>
-                    </StoryTrigger>
+                    </TrackedButton>
                   </StorySlide>
                 );
               })}
@@ -575,16 +594,31 @@ function SectionStories({ stories }: Props) {
               </Box>
 
               <FlexBox mt="auto" flexWrap="wrap" style={{ gap: "0.75rem" }}>
-                <Link href={activeAsset.externalUrl || activeStory.cta?.href || "#"}>
+                <TrackedLink
+                  href={activeAsset.externalUrl || activeStory.cta?.href || "#"}
+                  pageType={pageType}
+                  componentType="stories_carousel"
+                  componentId="home_stories_carousel"
+                  ctaId="stories.home.cta"
+                  ctaName="open_story"
+                  ctaType="primary"
+                  ctaContext="content"
+                  ctaLocation="story_viewer"
+                  metadata={{
+                    story_id: activeStory.id,
+                    story_title: activeStory.title,
+                    href: activeAsset.externalUrl || activeStory.cta?.href || "#",
+                  }}>
                   <Button variant="contained" color="primary">
                     {activeStory.cta?.label || t("home.stories.viewProduct", { defaultMessage: "Ver más" })}
                   </Button>
-                </Link>
+                </TrackedLink>
               </FlexBox>
             </SidePane>
           </ViewerCard>
         </Overlay>
       ) : null}
+      </div>
     </>
   );
 }

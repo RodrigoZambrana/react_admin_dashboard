@@ -841,6 +841,108 @@ describe('AiService', () => {
     expect(parsed.summary).toMatch(/PROBBA 1100x1200/i)
   })
 
+  it('prepares and ingests a standard abertura batch with monoblock variants', async () => {
+    const { prisma, service, derivedProducts } = createService()
+    prisma.product.create
+      .mockResolvedValueOnce({
+        id: 101,
+        name: 'Corrediza PROBBA NEGRO DVH(4/9/5) 1160x720',
+      })
+      .mockResolvedValueOnce({
+        id: 102,
+        name: 'Corrediza PROBBA NEGRO DVH(4/9/5) 765x720',
+      })
+      .mockResolvedValueOnce({
+        id: 103,
+        name: 'Monoblock Corrediza PROBBA NEGRO DVH(4/9/5) 1160x720',
+      })
+      .mockResolvedValueOnce({
+        id: 104,
+        name: 'Monoblock Corrediza PROBBA NEGRO DVH(4/9/5) 765x720',
+      })
+
+    const text = [
+      'Corrediza 2h2g serie probba negro dvh4/9/5 cierre fenix 116 x 72 usd 340',
+      'Corrediza 2h2g serie probba negro dvh4/9/5 cierre fenix 76.5 x 72 usd 290',
+      '',
+      'Monoblock aluminio corrediza 2h2g negro serie probba dvh4/9/5 cierre fenix 116 x 72 usd 494',
+      'Monoblock aluminio corrediza 2h2g negro serie probba dvh4/9/5 cierre fenix 76.5 x 72 usd 402',
+    ].join('\n')
+
+    const parsed = await service.parseAberturas({
+      text,
+      source: 'whatsapp',
+    })
+
+    expect(parsed.itemCount).toBe(4)
+    expect(parsed.items).toHaveLength(4)
+    expect(parsed.items[0]).toMatchObject({
+      familyId: 'VENTANA_CORREDIZA',
+      serie: 'PROBBA',
+      color: 'NEGRO',
+      widthMm: 1160,
+      heightMm: 720,
+      price: 340,
+      currency: 'USD',
+      hasShutterMonoblock: false,
+    })
+    expect(parsed.items[2]).toMatchObject({
+      familyId: 'VENTANA_CORREDIZA',
+      serie: 'PROBBA',
+      color: 'NEGRO',
+      widthMm: 1160,
+      heightMm: 720,
+      price: 494,
+      currency: 'USD',
+      hasShutterMonoblock: true,
+      shutterSystem: 'ALUMINIO',
+    })
+
+    const prepared = await service.prepareAberturasInsert({
+      text,
+      source: 'whatsapp',
+    })
+
+    expect(prepared.readyForInsert).toBe(true)
+    expect(prepared.readyItemCount).toBe(4)
+    expect(prepared.items.every((item) => item.validForInsert)).toBe(true)
+    expect(prepared.items[2].insertPayload).toMatchObject({
+      name: expect.stringMatching(/^Monoblock /i),
+      productCapabilities: {
+        hasMosquitero: false,
+        hasShutterMonoblock: true,
+        shutterSystem: 'ALUMINIO',
+      },
+      productConfigSchema: {
+        hasMosquitero: false,
+        hasShutterMonoblock: true,
+        shutterSystem: 'ALUMINIO',
+      },
+    })
+
+    for (const item of prepared.items) {
+      expect(item.insertPayload).toBeTruthy()
+      await service.createProduct(item.insertPayload as never)
+    }
+
+    expect(prisma.product.create).toHaveBeenCalledTimes(4)
+    expect(derivedProducts.invalidateBaseProduct).toHaveBeenCalledTimes(4)
+    expect(prisma.product.create.mock.calls[2][0].data).toMatchObject({
+      name: expect.stringMatching(/^Monoblock /i),
+      seoTitle: expect.stringMatching(/^Monoblock /i),
+      productCapabilities: {
+        hasMosquitero: false,
+        hasShutterMonoblock: true,
+        shutterSystem: 'ALUMINIO',
+      },
+      productConfigSchema: {
+        hasMosquitero: false,
+        hasShutterMonoblock: true,
+        shutterSystem: 'ALUMINIO',
+      },
+    })
+  })
+
   it('prepares aberturas quote drafts with parametric pricing matches', async () => {
     const { service, parametricPricing } = createService()
 

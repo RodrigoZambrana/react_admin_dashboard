@@ -14,6 +14,7 @@ import useCart from "@hook/useCart";
 import ProductQuickActions from "./ProductQuickActions";
 import { trackEvent } from "@/lib/analytics";
 import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { buildCanonicalAnalyticsContext } from "@/lib/analytics/product-context";
 import { env } from "@/lib/env";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import {
@@ -21,6 +22,7 @@ import {
   buildPublishedParametricLineId
 } from "@/lib/storefront/published-parametric";
 import type { InventoryStatus, ProductMode, ProductVariantAttribute } from "@/types/storefront";
+import type { CanonicalConfiguration } from "@/types/storefront";
 
 const Wrapper = styled(Box)({
   position: "relative",
@@ -90,6 +92,7 @@ export type StorefrontProductCardProps = {
   variantKey?: string | null;
   variantLabel?: string | null;
   configuration?: Record<string, unknown> | null;
+  canonicalConfiguration?: CanonicalConfiguration | null;
 };
 
 export default function StorefrontProductCard({
@@ -109,7 +112,8 @@ export default function StorefrontProductCard({
   variantId,
   variantKey,
   variantLabel,
-  configuration
+  configuration,
+  canonicalConfiguration
 }: StorefrontProductCardProps) {
   const { state, dispatch } = useCart();
   const { formatAmount, baseCurrency } = useMoneyFormatter();
@@ -120,7 +124,7 @@ export default function StorefrontProductCard({
       : id;
   const detailHref =
     mode === "parametric"
-      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined)
+      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined, id)
       : `/product/${slug}`;
   const cartItem = state.cart.find((item) => item.id === cartLineId || item.slug === slug);
   const primaryImage = typeof imgUrl === "string" && imgUrl.trim() ? imgUrl.trim() : undefined;
@@ -136,6 +140,10 @@ export default function StorefrontProductCard({
   }, [images, primaryImage]);
 
   const handleAddToCart = useCallback(() => {
+    const canonicalContext = buildCanonicalAnalyticsContext({
+      canonicalConfiguration: canonicalConfiguration ?? null,
+      configuration: configuration ?? null
+    });
     dispatch({
       type: "CHANGE_CART_AMOUNT",
       payload: {
@@ -178,6 +186,7 @@ export default function StorefrontProductCard({
         currency: currencyCode ?? baseCurrency,
         variant_id: variantId ?? null,
         variant_key: variantKey ?? null,
+        ...canonicalContext
       },
       data: {
         product_id: id,
@@ -187,6 +196,7 @@ export default function StorefrontProductCard({
         currency: currencyCode ?? baseCurrency,
         variant_id: variantId ?? null,
         variant_key: variantKey ?? null,
+        ...canonicalContext
       },
     });
   }, [
@@ -195,6 +205,7 @@ export default function StorefrontProductCard({
     cartLineId,
     cartItem?.qty,
     configuration,
+    canonicalConfiguration,
     currencyCode,
     dispatch,
     id,
@@ -210,6 +221,10 @@ export default function StorefrontProductCard({
   ]);
 
   const handleSelectItem = useCallback(() => {
+    const canonicalContext = buildCanonicalAnalyticsContext({
+      canonicalConfiguration: canonicalConfiguration ?? null,
+      configuration: configuration ?? null
+    });
     void trackEvent({
       event_name: "select_item",
       event_category: "ecommerce",
@@ -218,7 +233,7 @@ export default function StorefrontProductCard({
       component_type: "product_card",
       component_id: "storefront_product_card",
       cta_id: "product.card.view_detail",
-      cta_name: "view_product",
+      cta_name: "view_item",
       cta_type: "secondary",
       cta_context: "ecommerce",
       cta_location: "product_card",
@@ -230,6 +245,7 @@ export default function StorefrontProductCard({
         currency: currencyCode ?? baseCurrency,
         variant_id: variantId ?? null,
         variant_key: variantKey ?? null,
+        ...canonicalContext
       },
       data: {
         product_id: id,
@@ -238,9 +254,10 @@ export default function StorefrontProductCard({
         currency: currencyCode ?? baseCurrency,
         variant_id: variantId ?? null,
         variant_key: variantKey ?? null,
+        ...canonicalContext
       },
     });
-  }, [baseCurrency, currencyCode, id, price, slug, variantId, variantKey]);
+  }, [baseCurrency, canonicalConfiguration, configuration, currencyCode, id, price, slug, variantId, variantKey]);
 
   const normalizedRating = typeof rating === "number" ? rating : null;
   const normalizedReviews = typeof reviewCount === "number" ? reviewCount : null;

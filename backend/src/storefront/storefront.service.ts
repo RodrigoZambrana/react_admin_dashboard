@@ -84,6 +84,7 @@ import type {
   ProductReviewSummaryDto,
   DerivedProductDto,
   ProductMediaResponseDto,
+  CanonicalConfigurationDto,
 } from './types'
 import { StorefrontProductQueryDto } from './dto/product-query.dto'
 import {
@@ -961,11 +962,38 @@ type ProductWithVariants = Prisma.ProductGetPayload<{
   }
 }>
 
+type CanonicalConfigurationWithProduct = {
+  id: number
+  tenantId: string
+  baseProductId: number
+  configurationRules: Prisma.JsonValue
+  canonicalName: string
+  baseLabel: string | null
+  slug: string
+  indexable: boolean
+  seoTitle: string | null
+  seoDescription: string | null
+  searchTerms: string[]
+  visibilityRules: Prisma.JsonValue | null
+  createdAt: Date
+  updatedAt: Date
+  baseProduct: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>
+}
+
+type CanonicalConfigurationDelegate = {
+  upsert(args: Record<string, unknown>): Promise<unknown>
+  findMany(args: Record<string, unknown>): Promise<Array<CanonicalConfigurationWithProduct>>
+}
+
+const isPlainRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
 type PublicOrderTimelineMetadata = Record<string, unknown> | null
 
 @Injectable()
 export class StorefrontService implements OnModuleInit {
   private readonly logger = new Logger(StorefrontService.name)
+  private readonly publicCache = new Map<string, unknown>()
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -1002,10 +1030,14 @@ export class StorefrontService implements OnModuleInit {
   }
 
   private async readPublicCache<T>(key: string): Promise<T | null> {
+    if (this.publicCache.has(key)) {
+      return this.publicCache.get(key) as T
+    }
     return this.publicResponseCache.get<T>(key)
   }
 
   private async writePublicCache<T>(key: string, value: T, ttlMs: number): Promise<T> {
+    this.publicCache.set(key, value)
     return this.publicResponseCache.set(key, value, ttlMs)
   }
 
@@ -1019,6 +1051,9 @@ export class StorefrontService implements OnModuleInit {
   }
 
   async invalidatePublicCache(prefix?: string) {
+    if (!prefix) {
+      this.publicCache.clear()
+    }
     await this.publicResponseCache.invalidate(prefix)
   }
 
@@ -1087,6 +1122,206 @@ export class StorefrontService implements OnModuleInit {
     fallbackCurrency?: string | null,
   ): Promise<PublishedParametricVariantDefinition | null> {
     return this.publishedProductResolver.resolvePublishedParametricVariant(productId, rawConfiguration, fallbackCurrency)
+  }
+
+  private getCanonicalTenantScope(): string {
+    const tenant = this.getClientSlug()
+    return tenant.length > 0 ? tenant : 'global'
+  }
+
+  private toCanonicalConfigurationDto(
+    configuration: CanonicalConfigurationWithProduct,
+  ): CanonicalConfigurationDto {
+    const configurationRules = isPlainRecord(configuration.configurationRules) ? configuration.configurationRules : {}
+    const visibilityRules = isPlainRecord(configuration.visibilityRules) ? configuration.visibilityRules : null
+    return {
+      id: configuration.id,
+      tenantId: configuration.tenantId,
+      baseProductId: configuration.baseProductId,
+      baseLabel: configuration.baseLabel ?? null,
+      canonicalName: configuration.canonicalName,
+      slug: configuration.slug,
+      indexable: configuration.indexable,
+      configurationRules,
+      seoTitle: configuration.seoTitle ?? null,
+      seoDescription: configuration.seoDescription ?? null,
+      searchTerms: configuration.searchTerms ?? [],
+      visibilityRules,
+    }
+  }
+
+  private async ensureDefaultCanonicalConfigurations(): Promise<void> {
+    const tenantId = this.getCanonicalTenantScope()
+    if (tenantId !== 'urucortinas' && tenantId !== 'global') {
+      return
+    }
+
+    const configuredProductId = await this.parametricPricing.getDefaultParametricProductId().catch(() => null)
+    const candidateProduct = configuredProductId
+      ? await this.prisma.product.findFirst({
+          where: {
+            id: configuredProductId,
+            published: true,
+            productType: ProductType.PHYSICAL,
+            mode: ProductMode.PARAMETRIC,
+          },
+          select: { id: true },
+        })
+      : null
+
+    const fallbackProduct = candidateProduct
+      ? candidateProduct
+      : await this.prisma.product.findFirst({
+          where: {
+            published: true,
+            productType: ProductType.PHYSICAL,
+            mode: ProductMode.PARAMETRIC,
+            OR: [
+              { name: { contains: 'abertura', mode: 'insensitive' } },
+              { name: { contains: 'ventana', mode: 'insensitive' } },
+              { productCode: { contains: 'abertura', mode: 'insensitive' } },
+            ],
+          },
+          orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+          select: { id: true },
+        })
+
+    if (!fallbackProduct) {
+      return
+    }
+
+    const canonicalConfigurationClient = this.prisma as PrismaService & {
+      canonicalConfiguration: CanonicalConfigurationDelegate
+    }
+
+    await canonicalConfigurationClient.canonicalConfiguration.upsert({
+      where: {
+        tenantId_slug: {
+          tenantId,
+          slug: 'monoblock',
+        },
+      },
+      update: {
+        baseProductId: fallbackProduct.id,
+        canonicalName: 'Monoblock',
+        baseLabel: 'Abertura',
+        indexable: true,
+        configurationRules: {
+          hasShutterMonoblock: true,
+          monoblock: true,
+        },
+        seoTitle: 'Ventanas monoblock a medida',
+        seoDescription:
+          'Aberturas con persiana integradas para proyectos que buscan una sola solución comercial y técnica.',
+        searchTerms: ['monoblock', 'abertura con persiana', 'aberturas con persiana'],
+        visibilityRules: { default: true },
+      },
+      create: {
+        tenantId,
+        baseProductId: fallbackProduct.id,
+        canonicalName: 'Monoblock',
+        baseLabel: 'Abertura',
+        slug: 'monoblock',
+        indexable: true,
+        configurationRules: {
+          hasShutterMonoblock: true,
+          monoblock: true,
+        },
+        seoTitle: 'Ventanas monoblock a medida',
+        seoDescription:
+          'Aberturas con persiana integradas para proyectos que buscan una sola solución comercial y técnica.',
+        searchTerms: ['monoblock', 'abertura con persiana', 'aberturas con persiana'],
+        visibilityRules: { default: true },
+      },
+    })
+  }
+
+  private async resolveCanonicalConfigurationByIdentifier(
+    identifier: string,
+  ): Promise<CanonicalConfigurationWithProduct | null> {
+    const trimmed = identifier.trim()
+    if (!trimmed) {
+      return null
+    }
+
+    const normalized = trimmed.toLowerCase()
+    const tenantId = this.getCanonicalTenantScope()
+    const canonicalConfigurationClient = this.prisma as PrismaService & {
+      canonicalConfiguration: CanonicalConfigurationDelegate
+    }
+
+    const configurations = await canonicalConfigurationClient.canonicalConfiguration.findMany({
+      where: {
+        indexable: true,
+        OR: [{ tenantId }, { tenantId: 'global' }],
+      },
+      include: {
+        baseProduct: {
+          include: {
+            images: true,
+            category: true,
+          },
+        },
+      },
+    })
+
+    return (
+      configurations.find((configuration) => {
+        if (configuration.slug.trim().toLowerCase() === normalized) {
+          return true
+        }
+        if (configuration.canonicalName.trim().toLowerCase() === normalized) {
+          return true
+        }
+        return (configuration.searchTerms ?? []).some((term) => term.trim().toLowerCase() === normalized)
+      }) ?? null
+    )
+  }
+
+  private async listCanonicalConfigurationsForSearch(term?: string | null): Promise<CanonicalConfigurationWithProduct[]> {
+    const tenantId = this.getCanonicalTenantScope()
+    const canonicalConfigurationClient = this.prisma as PrismaService & {
+      canonicalConfiguration: CanonicalConfigurationDelegate
+    }
+
+    const configurations = await canonicalConfigurationClient.canonicalConfiguration.findMany({
+      where: {
+        indexable: true,
+        OR: [{ tenantId }, { tenantId: 'global' }],
+      },
+      include: {
+        baseProduct: {
+          include: {
+            images: true,
+            category: true,
+          },
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    })
+
+    const normalized = term?.trim().toLowerCase() ?? ''
+    if (!normalized) {
+      return []
+    }
+
+    const filtered = configurations.filter((configuration) => {
+      if (configuration.slug.trim().toLowerCase().includes(normalized)) {
+        return true
+      }
+      if (configuration.canonicalName.trim().toLowerCase().includes(normalized)) {
+        return true
+      }
+      return (configuration.searchTerms ?? []).some((searchTerm) =>
+        searchTerm.trim().toLowerCase().includes(normalized),
+      )
+    })
+    const scoped = filtered.filter((configuration) => configuration.tenantId === tenantId)
+    if (scoped.length > 0) {
+      return scoped
+    }
+
+    return filtered.filter((configuration) => configuration.tenantId === 'global')
   }
 
   private buildProductTypeCode(familyId?: string | null): string {
@@ -1846,6 +2081,13 @@ export class StorefrontService implements OnModuleInit {
       const message = error instanceof Error ? error.message : String(error)
       this.logger.warn(`Storefront payment reconciliation bootstrap failed: ${message}`)
     }
+
+    try {
+      await this.ensureDefaultCanonicalConfigurations()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      this.logger.warn(`Storefront canonical configuration bootstrap failed: ${message}`)
+    }
   }
 
   async getConfig(): Promise<StorefrontConfig> {
@@ -2075,6 +2317,7 @@ export class StorefrontService implements OnModuleInit {
           seoTitle: true,
           seoDescription: true,
           seoImageUrl: true,
+          catalogExposureMode: true,
           parentId: true,
           installServiceProductId: true,
           _count: { select: { products: true } },
@@ -2093,6 +2336,7 @@ export class StorefrontService implements OnModuleInit {
           seoTitle: category.seoTitle ?? null,
           seoDescription: category.seoDescription ?? null,
           seoImageUrl: category.seoImageUrl ?? null,
+          catalogExposureMode: category.catalogExposureMode ?? null,
           thumbnail: imageUrl
             ? mapImageAssetDto({ id: `category-${category.id}`, url: imageUrl, alt: category.name })
             : null,
@@ -2423,12 +2667,16 @@ export class StorefrontService implements OnModuleInit {
     const page = parsePositiveInt(query.page, 1)
     const pageSize = Math.min(parsePositiveInt(query.pageSize, 12), 48)
     const clientSlug = this.getClientSlug()
+    const searchTerm = query.search?.trim() ?? ''
+    const categoryFilter = query.category?.trim() ?? ''
+    const normalizedCategoryFilter = categoryFilter.toLowerCase()
+    const effectiveCategoryFilter = normalizedCategoryFilter === 'all' ? null : categoryFilter || null
     const cacheKey = `storefront:products:${JSON.stringify({
       tenant: clientSlug || null,
       page,
       pageSize,
-      category: query.category?.trim() ?? null,
-      search: query.search?.trim() ?? null,
+      category: effectiveCategoryFilter,
+      search: searchTerm || null,
       sort: query.sort ?? null,
       tag: query.tag ?? null,
     })}`
@@ -2440,8 +2688,8 @@ export class StorefrontService implements OnModuleInit {
         where.unitOfMeasure = { not: SalesUnit.SQUARE_METER }
       }
 
-      if (query.category) {
-        const trimmed = query.category.trim()
+      if (effectiveCategoryFilter) {
+        const trimmed = effectiveCategoryFilter
         const categoryIds = await this.resolveCategoryHierarchyIds(trimmed)
         if (categoryIds && categoryIds.length > 0) {
           where.categoryId = categoryIds.length === 1 ? categoryIds[0] : { in: categoryIds }
@@ -2467,6 +2715,161 @@ export class StorefrontService implements OnModuleInit {
 
       if (query.tag) {
         where.tags = { has: query.tag }
+      }
+
+      if (searchTerm) {
+        const orderBy: Prisma.ProductOrderByWithRelationInput[] = []
+        switch (query.sort) {
+          case 'price-asc':
+            orderBy.push({ salePrice: 'asc' })
+            break
+          case 'price-desc':
+            orderBy.push({ salePrice: 'desc' })
+            break
+          case 'newest':
+            orderBy.push({ createdAt: 'desc' })
+            break
+          default:
+            orderBy.push({ name: 'asc' })
+            break
+        }
+
+        await this.prisma.product.count({
+          where: {
+            ...where,
+            OR: [
+              { name: { contains: searchTerm, mode: 'insensitive' } },
+              { description: { contains: searchTerm, mode: 'insensitive' } },
+              { productCode: { contains: searchTerm, mode: 'insensitive' } },
+            ],
+          },
+        })
+
+        const [products, canonicalConfigurations] = await Promise.all([
+          this.prisma.product.findMany({
+            where: {
+              ...where,
+              OR: [
+                { name: { contains: searchTerm, mode: 'insensitive' } },
+                { description: { contains: searchTerm, mode: 'insensitive' } },
+                { productCode: { contains: searchTerm, mode: 'insensitive' } },
+              ],
+            },
+            orderBy,
+            include: {
+              images: {
+                where: { variantId: null },
+                orderBy: { sortOrder: 'asc' },
+              },
+              category: true,
+            },
+          }),
+          this.listCanonicalConfigurationsForSearch(searchTerm),
+        ])
+
+        const canonicalCandidateProductIds = Array.from(
+          new Set(canonicalConfigurations.map((configuration) => configuration.baseProductId)),
+        )
+        const canonicalCandidateProducts =
+          canonicalCandidateProductIds.length > 0
+            ? await this.prisma.product.findMany({
+                where: {
+                  published: true,
+                  productType: ProductType.PHYSICAL,
+                  ...(clientSlug === 'urucortinas' ? { unitOfMeasure: { not: SalesUnit.SQUARE_METER } } : {}),
+                  id: { in: canonicalCandidateProductIds },
+                },
+                orderBy,
+                include: {
+                  images: {
+                    where: { variantId: null },
+                    orderBy: { sortOrder: 'asc' },
+                  },
+                  category: true,
+                },
+              })
+            : []
+
+        const reviewStats = await this.loadProductReviewStats(
+          Array.from(
+            new Set([
+              ...products.map((product) => product.id),
+              ...canonicalCandidateProducts.map((product) => product.id),
+            ]),
+          ),
+        )
+        const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions([
+          ...products,
+          ...canonicalCandidateProducts,
+        ])
+        const productItems = products.map((product) =>
+          this.toProductSummary(
+            product,
+            publishedParametricDefinitions.get(product.id) ?? null,
+            undefined,
+            reviewStats.get(product.id) ?? null,
+          ),
+        )
+
+        const canonicalItems: ProductSummaryDto[] = []
+        for (const configuration of canonicalConfigurations) {
+          const rules = isPlainRecord(configuration.configurationRules) ? configuration.configurationRules : null
+          if (!rules) {
+            continue
+          }
+          for (const product of canonicalCandidateProducts.filter((candidate) => candidate.id === configuration.baseProductId)) {
+            const publishedDefinition = publishedParametricDefinitions.get(product.id) ?? null
+            const matchingVariants =
+              publishedDefinition?.variants.filter((variant) =>
+                this.matchesCanonicalConfigurationRules(variant, rules),
+              ) ?? []
+            const fallbackCanonicalVariant =
+              matchingVariants.length > 0
+                ? null
+                : await this.resolvePublishedParametricConfiguration(product.id, rules, product.currency)
+            const variantsToExpose = matchingVariants.length > 0 ? matchingVariants : fallbackCanonicalVariant ? [fallbackCanonicalVariant] : []
+
+            for (const canonicalVariant of variantsToExpose) {
+              if (!canonicalVariant) {
+                continue
+              }
+              canonicalItems.push(
+                this.toProductSummary(
+                  product,
+                  publishedDefinition,
+                  canonicalVariant,
+                  reviewStats.get(product.id) ?? null,
+                  configuration,
+                ),
+              )
+            }
+          }
+        }
+
+        const canonicalProductIds = new Set(canonicalItems.map((item) => item.id))
+        const filteredProductItems = productItems.filter((item) => !canonicalProductIds.has(item.id))
+        const merged = Array.from(
+          new Map(
+            [...canonicalItems, ...filteredProductItems].map((item) => [
+              item.canonicalConfiguration
+                ? `${item.slug}:${item.id}:${item.canonicalConfiguration.id}:${item.variantKey ?? ''}`
+                : `${item.slug}:${item.id}`,
+              item,
+            ]),
+          ).values(),
+        )
+        const total = merged.length
+        const totalPages = Math.max(1, Math.ceil(total / pageSize))
+        const start = (page - 1) * pageSize
+        const end = start + pageSize
+
+        return {
+          data: merged.slice(start, end),
+          total,
+          page,
+          pageSize,
+          totalPages,
+        }
       }
 
       const orderBy: Prisma.ProductOrderByWithRelationInput[] = []
@@ -2508,6 +2911,7 @@ export class StorefrontService implements OnModuleInit {
         this.toProductSummary(
           product,
           publishedParametricDefinitions.get(product.id) ?? null,
+          undefined,
           reviewStats.get(product.id) ?? null,
         ),
       )
@@ -2704,11 +3108,14 @@ export class StorefrontService implements OnModuleInit {
       `storefront:product:${identifier.trim().toLowerCase()}`,
       PUBLIC_STOREFRONT_PRODUCTS_CACHE_TTL_MS,
       async () => {
-        const derivedProduct = await this.m2DerivedProducts.resolveM2DerivedProductByIdentifier(
-          identifier,
-        )
+        const canonicalConfiguration = await this.resolveCanonicalConfigurationByIdentifier(identifier)
+        const derivedProduct = canonicalConfiguration
+          ? null
+          : await this.m2DerivedProducts.resolveM2DerivedProductByIdentifier(identifier)
         const resolvedProductId =
-          derivedProduct?.baseProductId ?? (await this.resolveStorefrontProductIdByIdentifier(identifier))
+          canonicalConfiguration?.baseProductId ??
+          derivedProduct?.baseProductId ??
+          (await this.resolveStorefrontProductIdByIdentifier(identifier))
         if (!resolvedProductId) {
           throw new NotFoundException('Product not found')
         }
@@ -2827,13 +3234,22 @@ export class StorefrontService implements OnModuleInit {
         const publishedParametricDefinition = await this.resolvePublishedParametricDefinition(
           product,
         )
+        const canonicalVariant = canonicalConfiguration
+          ? await this.resolvePublishedParametricConfiguration(
+              product.id,
+              canonicalConfiguration.configurationRules as Record<string, unknown>,
+              product.currency,
+            )
+          : null
         const reviewStatsMap = await this.loadProductReviewStats([product.id])
         const reviews = await this.loadProductReviews(product.id, 6)
         const detail = this.toProductDetail(
           product,
           publishedParametricDefinition,
+          canonicalVariant,
           reviewStatsMap.get(product.id) ?? null,
           reviews,
+          canonicalConfiguration,
         )
 
         const relationGroups = new Map<
@@ -2937,6 +3353,7 @@ export class StorefrontService implements OnModuleInit {
           this.toProductSummary(
             item,
             relatedPublishedDefinitions.get(item.id) ?? null,
+            undefined,
             relatedReviewStats.get(item.id) ?? null,
           ),
         )
@@ -3198,6 +3615,7 @@ export class StorefrontService implements OnModuleInit {
           this.toProductSummary(
             item,
             publishedParametricDefinitions.get(item.id) ?? null,
+            undefined,
             reviewStats.get(item.id) ?? null,
           ),
         )
@@ -5066,6 +5484,91 @@ export class StorefrontService implements OnModuleInit {
     return entries.length > 0 ? entries.join(' • ') : null
   }
 
+  private buildPublishedParametricSizeLabel(
+    specifications: Array<{ label: string; value: string }> | undefined,
+  ): string | null {
+    if (!specifications?.length) {
+      return null
+    }
+
+    const width = specifications.find((entry) => entry.label.trim().toLowerCase() === 'ancho')?.value?.trim()
+    const height = specifications.find((entry) => entry.label.trim().toLowerCase() === 'alto')?.value?.trim()
+    if (!width || !height) {
+      return null
+    }
+
+    const widthValue = width.replace(/\s*mm$/i, '').trim()
+    const heightValue = height.replace(/\s*mm$/i, '').trim()
+    if (!widthValue || !heightValue) {
+      return null
+    }
+
+    return `${widthValue} x ${heightValue}`
+  }
+
+  private buildCanonicalDisplayName(
+    canonicalName: string,
+    productName: string,
+    canonicalVariant?: PublishedParametricVariantDefinition | null,
+  ): string {
+    const baseName = this.normalizeConfigString(productName)
+    const canonicalLabel = this.normalizeConfigString(canonicalName)
+    const sizeLabel = this.buildPublishedParametricSizeLabel(canonicalVariant?.specifications)
+
+    if (!canonicalLabel && !baseName) {
+      return ''
+    }
+
+    const normalizedBase = baseName
+      .replace(/^(ventana|puerta|abertura|aberturas|paño fijo|pano fijo|blindex)\s+/i, '')
+      .trim()
+
+    if (sizeLabel) {
+      const titleParts = [canonicalLabel || normalizedBase || baseName, sizeLabel].filter(Boolean)
+      return titleParts.join(' ').trim()
+    }
+
+    if (canonicalLabel && normalizedBase && canonicalLabel.toLowerCase() !== normalizedBase.toLowerCase()) {
+      return `${canonicalLabel} ${normalizedBase}`.trim()
+    }
+
+    return canonicalLabel || normalizedBase || baseName
+  }
+
+  private matchesCanonicalConfigurationRules(
+    variant: PublishedParametricVariantDefinition,
+    rules: Record<string, unknown>,
+  ): boolean {
+    const normalizedRules = isPlainRecord(rules) ? rules : {}
+    const requestedHasMonoblock = this.normalizeConfigBoolean(
+      normalizedRules.hasShutterMonoblock ??
+        normalizedRules.monoblock ??
+        normalizedRules.monoblockEnabled ??
+        normalizedRules.hasMonoblock,
+    )
+    const requestedHasMosquitero = this.normalizeConfigBoolean(
+      normalizedRules.hasMosquitero ?? normalizedRules.mosquitoNet ?? normalizedRules.mosquitero,
+    )
+    const requestedShutterMaterial = this.normalizeConfigString(
+      normalizedRules.shutterMaterial ??
+        normalizedRules.shutter_system ??
+        normalizedRules.shutterSystem ??
+        normalizedRules.monoblockMaterial,
+    )
+
+    if (requestedHasMonoblock !== variant.optionValues.hasShutterMonoblock) {
+      return false
+    }
+    if (requestedHasMosquitero !== variant.optionValues.hasMosquitero) {
+      return false
+    }
+    if (requestedHasMonoblock && requestedShutterMaterial) {
+      return this.normalizeConfigString(variant.optionValues.shutterMaterial) === requestedShutterMaterial
+    }
+
+    return true
+  }
+
   private resolvePublishedParametricDefaultVariant(
     definition?: PublishedParametricProductDefinition | null,
   ): PublishedParametricVariantDefinition | null {
@@ -5188,12 +5691,16 @@ export class StorefrontService implements OnModuleInit {
   private toProductSummary(
     product: Prisma.ProductGetPayload<{ include: { images: true; category: true } }>,
     publishedParametricDefinition?: PublishedParametricProductDefinition | null,
+    canonicalVariant?: PublishedParametricVariantDefinition | null,
     reviewStats?: ProductReviewStatsRecord | null,
+    canonicalConfiguration?: CanonicalConfigurationWithProduct | null,
   ): ProductSummaryDto {
     const thumbnail = product.images?.[0]
-    const defaultPublishedVariant = this.resolvePublishedParametricDefaultVariant(
-      publishedParametricDefinition,
-    )
+    const defaultPublishedVariant = canonicalVariant
+      ? canonicalVariant
+      : this.resolvePublishedParametricDefaultVariant(
+          publishedParametricDefinition,
+        )
     const resolvedCurrency = defaultPublishedVariant?.currency ?? product.currency ?? 'USD'
     const resolvedSalePrice = defaultPublishedVariant?.price ?? decimalToNumber(product.salePrice)
     const publishedVariantLabel = defaultPublishedVariant
@@ -5201,21 +5708,38 @@ export class StorefrontService implements OnModuleInit {
       : publishedParametricDefinition
         ? this.buildPublishedParametricVariantLabel(publishedParametricDefinition.specifications)
         : null
+    const canonicalConfigurationRules =
+      canonicalConfiguration && isPlainRecord(canonicalConfiguration.configurationRules)
+        ? canonicalConfiguration.configurationRules
+        : undefined
+    const sizeLabel = this.buildPublishedParametricSizeLabel(
+      canonicalVariant?.specifications ?? defaultPublishedVariant?.specifications,
+    )
+    const resolvedName = canonicalConfiguration
+      ? this.buildCanonicalDisplayName(canonicalConfiguration.canonicalName, product.name, canonicalVariant)
+      : product.name
     const summary: ProductSummaryDto = {
       id: product.id,
-      slug: buildProductSlug(product.id, product.name, product.productCode ?? undefined),
-      name: product.name,
+      slug: canonicalConfiguration?.slug ?? buildProductSlug(product.id, product.name, product.productCode ?? undefined),
+      name: resolvedName,
       updatedAt: (product.updatedAt ?? product.createdAt ?? new Date()).toISOString(),
-      shortDescription: product.description,
-      seoTitle: product.seoTitle ?? null,
-      seoDescription: product.seoDescription ?? null,
+      shortDescription:
+        canonicalConfiguration?.baseLabel && canonicalConfiguration.canonicalName
+          ? sizeLabel
+            ? `${canonicalConfiguration.canonicalName} (${canonicalConfiguration.baseLabel}) · ${sizeLabel}`
+            : `${canonicalConfiguration.canonicalName} (${canonicalConfiguration.baseLabel})`
+          : product.description,
+      seoTitle: canonicalConfiguration?.seoTitle ?? product.seoTitle ?? null,
+      seoDescription: canonicalConfiguration?.seoDescription ?? product.seoDescription ?? null,
       seoImageUrl: product.seoImageUrl ?? null,
       price: money(resolvedSalePrice, resolvedCurrency),
       salePrice: money(resolvedSalePrice, resolvedCurrency),
       rating: reviewStats ? reviewStats.averageRating : undefined,
       ratingCount: reviewStats ? reviewStats.reviewCount : undefined,
       inventoryStatus: mapInventoryStatus(product),
-      tags: product.tags ?? [],
+      tags: canonicalConfiguration
+        ? [...(product.tags ?? []), ...canonicalConfiguration.searchTerms]
+        : product.tags ?? [],
       categories: product.category
         ? [
             {
@@ -5243,13 +5767,17 @@ export class StorefrontService implements OnModuleInit {
       variantKey: defaultPublishedVariant?.key ?? null,
       variantLabel: publishedVariantLabel,
       configuration:
+        (canonicalVariant?.configuration as Record<string, unknown> | undefined) ??
         defaultPublishedVariant?.configuration ??
         publishedParametricDefinition?.configuration ??
+        canonicalConfigurationRules ??
         undefined,
       specifications:
+        canonicalVariant?.specifications ??
         defaultPublishedVariant?.specifications ??
         publishedParametricDefinition?.specifications ??
         undefined,
+      canonicalConfiguration: canonicalConfiguration ? this.toCanonicalConfigurationDto(canonicalConfiguration) : null,
       measurementType: product.unitOfMeasure === SalesUnit.SQUARE_METER ? 'M2' : undefined,
       isPublic: Boolean(product.published),
       isBudgetCalculable: Boolean(product.isBudgetCalculable),
@@ -5274,10 +5802,18 @@ export class StorefrontService implements OnModuleInit {
   private toProductDetail(
     product: ProductWithVariants,
     publishedParametricDefinition?: PublishedParametricProductDefinition | null,
+    canonicalVariant?: PublishedParametricVariantDefinition | null,
     reviewStats?: ProductReviewStatsRecord | null,
     reviews: ProductReviewSummaryDto[] = [],
+    canonicalConfiguration?: CanonicalConfigurationWithProduct | null,
   ): ProductDetailDto {
-    const summary = this.toProductSummary(product, publishedParametricDefinition, reviewStats)
+    const summary = this.toProductSummary(
+      product,
+      publishedParametricDefinition,
+      canonicalVariant,
+      reviewStats,
+      canonicalConfiguration,
+    )
     const attributes = product.options.map((option) => ({
       id: option.id,
       type: option.type as ProductAttributeType,

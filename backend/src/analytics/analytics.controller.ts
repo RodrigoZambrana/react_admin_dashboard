@@ -150,6 +150,54 @@ export class AnalyticsController {
 
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('structural-quality/anomalies')
+  getStructuralAnomalies(@Query() query: { limit?: string }) {
+    const limit = Number(query.limit ?? 100)
+    return this.analyticsService.listStructuralAnomalies(Number.isFinite(limit) && limit > 0 ? limit : 100)
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('search-intelligence')
+  getSearchIntelligence(
+    @Query() query: { from?: string; to?: string; tenantId?: string },
+  ) {
+    return this.analyticsService.getSearchIntelligence({
+      from: query.from,
+      to: query.to,
+      tenantId: query.tenantId,
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('event-comparisons')
+  getEventComparisons(
+    @Query() query: { limit?: string; tenantId?: string; status?: string; eventName?: string },
+  ) {
+    const limit = Number(query.limit ?? 100)
+    return this.reportParity.listEventComparisons(
+      Number.isFinite(limit) && limit > 0 ? limit : 100,
+      {
+        tenantId: query.tenantId,
+        status: query.status,
+        eventName: query.eventName,
+      },
+    )
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
+  @Get('event-comparisons/summary')
+  getEventComparisonSummary(@Query() query: { tenantId?: string; eventName?: string }) {
+    return this.reportParity.getEventComparisonSummary({
+      tenantId: query.tenantId,
+      eventName: query.eventName,
+    })
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(ROLES.ADMIN, ROLES.SUPERADMIN, ROLES.OPS)
   @Get('marketing/meta')
   getMetaMarketingMetrics(@Query() query: { from?: string; to?: string }) {
     return this.analyticsService.getMetaMarketingMetrics({

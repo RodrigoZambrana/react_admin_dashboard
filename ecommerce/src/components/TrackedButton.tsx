@@ -54,23 +54,27 @@ export default function TrackedButton({
 }: TrackedButtonProps) {
   const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
     if (!disabled) {
-      trackEvent({
-        event_name: eventName,
-        event_category: eventCategory,
-        tenant_id: tenantId ?? env.clientSlug ?? "default",
-        page_type: pageType,
-        component_type: componentType,
-        component_id: componentId,
-        cta_id: ctaId,
-        cta_name: ctaName,
-        cta_type: ctaType,
-        cta_context: ctaContext,
-        cta_location: ctaLocation,
-        position,
-        schema_version: EVENT_SCHEMA_VERSION,
-        metadata,
-        data: metadata,
-      });
+      try {
+        trackEvent({
+          event_name: eventName,
+          event_category: eventCategory,
+          tenant_id: tenantId ?? env.clientSlug ?? "default",
+          page_type: pageType,
+          component_type: componentType,
+          component_id: componentId,
+          cta_id: ctaId,
+          cta_name: ctaName,
+          cta_type: ctaType,
+          cta_context: ctaContext,
+          cta_location: ctaLocation,
+          position,
+          schema_version: EVENT_SCHEMA_VERSION,
+          metadata,
+          data: metadata,
+        });
+      } catch (error) {
+        console.warn("[tracked-button] analytics failed", error);
+      }
     }
 
     onTrackedClick?.(event);
@@ -79,4 +83,3 @@ export default function TrackedButton({
 
   return <Button {...props} type={type} disabled={disabled} onClick={handleClick} />;
 }
-

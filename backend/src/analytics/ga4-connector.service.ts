@@ -463,47 +463,64 @@ export class Ga4ConnectorService {
     const toDate = to ? normalizeTimestamp(to) : new Date()
     let totalRows = 0
     const synced: Array<{ reportKey: string; rows: number }> = []
+    const failed: Array<{ reportKey: string; error: string }> = []
 
     const reports = reportKey
       ? GA4_REPORT_CATALOG.filter((report) => report.key === reportKey)
       : GA4_REPORT_CATALOG
 
     for (const report of reports) {
-      if (!report.apiDefinition || report.apiDefinition.kind !== 'runReport') {
-        continue
-      }
+      try {
+        if (!report.apiDefinition || report.apiDefinition.kind !== 'runReport') {
+          continue
+        }
 
-      const rows = await this.fetchCanonicalReportRows({
-        accessToken,
-        propertyId,
-        reportKey: report.key,
-        dimensions: report.apiDefinition.dimensions,
-        metrics: report.apiDefinition.metrics,
-        dateRanges: report.apiDefinition.dateRanges?.length
-          ? report.apiDefinition.dateRanges.map((range) => ({
-              label: range.label,
-              startDate: range.startDate === 'today' ? this.toGaDate(toDate) : range.startDate,
-              endDate: range.endDate === 'today' ? this.toGaDate(toDate) : range.endDate,
-            }))
-          : [{ label: 'primary', startDate: this.toGaDate(fromDate), endDate: this.toGaDate(toDate) }],
-        limit: report.apiDefinition.limit ?? PAGE_SIZE,
-      })
-
-      await this.reportParity.ingestCanonicalReportRows({
-        reportKey: report.key,
-        source: 'ga4_api',
-        rows,
-        fromDate,
-        toDate,
-        metadata: {
-          connectionId,
+        const rows = await this.fetchCanonicalReportRows({
+          accessToken,
           propertyId,
           reportKey: report.key,
-          reportTitle: report.title,
-        },
-      })
-      totalRows += rows.length
-      synced.push({ reportKey: report.key, rows: rows.length })
+          dimensions: report.apiDefinition.dimensions,
+          metrics: report.apiDefinition.metrics,
+          dateRanges: report.apiDefinition.dateRanges?.length
+            ? report.apiDefinition.dateRanges.map((range) => ({
+                label: range.label,
+                startDate: range.startDate === 'today' ? this.toGaDate(toDate) : range.startDate,
+                endDate: range.endDate === 'today' ? this.toGaDate(toDate) : range.endDate,
+              }))
+            : [{ label: 'primary', startDate: this.toGaDate(fromDate), endDate: this.toGaDate(toDate) }],
+          limit: report.apiDefinition.limit ?? PAGE_SIZE,
+        })
+
+        await this.reportParity.ingestCanonicalReportRows({
+          reportKey: report.key,
+          source: 'ga4_api',
+          rows,
+          fromDate,
+          toDate,
+          metadata: {
+            connectionId,
+            propertyId,
+            reportKey: report.key,
+            reportTitle: report.title,
+          },
+        })
+        if (report.key === 'structural_events_by_event_id') {
+          await this.reportParity.refreshStructuralEventComparison({
+            connectionId,
+            propertyId,
+            reportKey: report.key,
+            rows,
+            fromDate,
+            toDate,
+          })
+        }
+        totalRows += rows.length
+        synced.push({ reportKey: report.key, rows: rows.length })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        this.logger.warn(`GA4 report sync failed for ${report.key}: ${message}`)
+        failed.push({ reportKey: report.key, error: message })
+      }
     }
 
     return {
@@ -512,6 +529,7 @@ export class Ga4ConnectorService {
       fromDate: fromDate.toISOString(),
       toDate: toDate.toISOString(),
       reportsSynced: synced,
+      failedReports: failed,
       totalRows,
     }
   }

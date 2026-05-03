@@ -9,6 +9,7 @@ import ProductView from "@component/products/ProductView";
 import type Product from "@models/product.model";
 import type Shop from "@models/shop.model";
 import type Review from "@models/Review.model";
+import { useProductConfiguration } from "@/hooks/useProductConfiguration";
 
 type Props = {
   product: Product;
@@ -84,9 +85,35 @@ export default function ProductDetailExperience({
   }));
 
   const budgetEnabled = product.isBudgetCalculable && product.measurementType === "M2";
+  const productConfiguration = useProductConfiguration({
+    productTitle: product.title,
+    canonicalConfiguration: product.canonicalConfiguration ?? null,
+    selectedConfiguration: publishedSelectionState,
+  });
 
   return (
     <>
+      {product.canonicalConfiguration ? (
+        <div
+          style={{
+            marginBottom: "1rem",
+            padding: "0.95rem 1rem",
+            border: "1px solid rgba(15, 23, 42, 0.12)",
+            borderRadius: 16,
+            background: "linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(255, 255, 255, 0.94))",
+          }}
+        >
+          <div style={{ fontSize: "0.78rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "#7c2d12" }}>
+            Producto configurado
+          </div>
+          <div style={{ fontSize: "1.05rem", fontWeight: 700, marginTop: 4 }}>{productConfiguration.configurationLabel}</div>
+          {productConfiguration.configurationDescription ? (
+            <div style={{ fontSize: "0.92rem", color: "#334155", marginTop: 4 }}>
+              {productConfiguration.configurationDescription}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <ProductIntro
         id={product.id}
         slug={product.slug}
@@ -99,10 +126,11 @@ export default function ProductDetailExperience({
         brand={product.brand}
         status={product.status}
         shortDescription={product.shortDescription}
-        title={product.title}
+        title={productConfiguration.displayTitle}
         images={product.images && product.images.length > 0 ? product.images : [product.thumbnail]}
         mode={product.mode}
         configuration={product.configuration}
+        canonicalConfiguration={product.canonicalConfiguration ?? null}
         publishedParametricOptions={product.publishedParametricOptions}
         onPublishedParametricVariantChange={setPublishedSelectionState}
         variantAttributes={product.variantAttributes}

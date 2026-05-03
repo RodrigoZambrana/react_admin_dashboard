@@ -1,4 +1,5 @@
 import type { CategorySummary, ProductSummary } from "@/types/storefront";
+import { isAllCategorySlug } from "@/lib/storefront/category-slugs";
 
 export type SearchCategoryOption = {
   key: string;
@@ -45,7 +46,7 @@ export const filterSearchCategoryOptions = (
   options: SearchCategoryOption[],
   selectedCategorySlug?: string,
 ) => {
-  if (!selectedCategorySlug) {
+  if (isAllCategorySlug(selectedCategorySlug)) {
     return options.filter((option) => option.slug);
   }
 

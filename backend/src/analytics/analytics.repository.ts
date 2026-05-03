@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import {
   normalizeAnalyticsEventCategory,
   normalizeAnalyticsEventSource,
+  normalizeAnalyticsEventName,
   normalizeAnalyticsMeasurementStatus,
 } from './event-taxonomy'
 import type {
@@ -19,6 +20,8 @@ import type {
   AnalyticsBaselineSnapshot,
   AnalyticsBaselineCheck,
   AnalyticsDataAnomaly,
+  AnalyticsEventComparison,
+  AnalyticsEventComparisonSummary,
   AnalyticsExportRun,
   AnalyticsDataParityCheck,
   AnalyticsDataParityStatus,
@@ -45,6 +48,17 @@ const asString = (value: unknown): string | null => {
   }
   const trimmed = value.trim()
   return trimmed.length ? trimmed : null
+}
+
+const asNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim().length) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
 }
 
 const extractEventId = (input: AnalyticsEventInput) => {
@@ -535,6 +549,29 @@ export class AnalyticsRepository {
     }
   }
 
+  private mapEventComparison(comparison: any): AnalyticsEventComparison {
+    return {
+      id: comparison.id,
+      tenantId: comparison.tenantId,
+      eventId: comparison.eventId,
+      eventName: comparison.eventName,
+      directEventTimestamp: comparison.directEventTimestamp?.toISOString() ?? null,
+      gaEventTimestamp: comparison.gaEventTimestamp?.toISOString() ?? null,
+      existsInDirect: comparison.existsInDirect,
+      existsInGa: comparison.existsInGa,
+      payloadMatch: comparison.payloadMatch,
+      timeDiffMs: comparison.timeDiffMs ?? null,
+      status: comparison.status,
+      directSource: comparison.directSource ?? null,
+      gaSource: comparison.gaSource ?? null,
+      comparisonDate: comparison.comparisonDate?.toISOString() ?? null,
+      directPayload: (comparison.directPayload as Record<string, unknown>) ?? null,
+      gaPayload: (comparison.gaPayload as Record<string, unknown>) ?? null,
+      createdAt: comparison.createdAt.toISOString(),
+      updatedAt: comparison.updatedAt.toISOString(),
+    }
+  }
+
   private mapExportRun(run: any): AnalyticsExportRun {
     return {
       id: run.id,
@@ -983,8 +1020,15 @@ export class AnalyticsRepository {
   }
 
   async saveEvent(input: AnalyticsEventInput) {
-    const payload = JSON.parse(JSON.stringify(input)) as Prisma.InputJsonValue
-    const eventName = input.event?.trim() || 'unknown_event'
+    const eventName = normalizeAnalyticsEventName(input.event) ?? 'unknown_event'
+    const payload = JSON.parse(
+      JSON.stringify({
+        ...input,
+        event: eventName,
+        event_name: eventName,
+      }),
+    ) as Prisma.InputJsonValue
+    const structuralPayload = (input.data as Record<string, unknown> | undefined) ?? {}
     const category = normalizeAnalyticsEventCategory(
       input.category ?? input.eventCategory ?? (payload as Record<string, unknown>).category,
       eventName,
@@ -998,10 +1042,43 @@ export class AnalyticsRepository {
     const fbp = extractFbp(input)
     const fbc = extractFbc(input)
     const externalTargets = extractExternalTargets(input)
+    const tenantId =
+      asString(input.tenant_id) ??
+      asString(structuralPayload.tenant_id)
+    if (!tenantId) {
+      throw new Error('Missing tenant_id for structural analytics event persistence')
+    }
+    const schemaVersion =
+      Number(input.schema_version ?? structuralPayload.schema_version ?? 1)
+    const pageType = asString(input.page_type) ?? asString(structuralPayload.page_type)
+    const componentType = asString(input.component_type) ?? asString(structuralPayload.component_type)
+    const componentId = asString(input.component_id) ?? asString(structuralPayload.component_id)
+    const ctaId = asString(input.cta_id) ?? asString(structuralPayload.cta_id)
+    const ctaName = asString(input.cta_name) ?? asString(structuralPayload.cta_name)
+    const ctaType = asString(input.cta_type) ?? asString(structuralPayload.cta_type)
+    const ctaContext = asString(input.cta_context) ?? asString(structuralPayload.cta_context)
+    const ctaLocation = asString(input.cta_location) ?? asString(structuralPayload.cta_location)
+    const position =
+      typeof input.position === 'number' && Number.isFinite(input.position)
+        ? input.position
+        : asNumber(structuralPayload.position)
     return this.prisma.analyticsEvent.create({
       data: {
+        tenantId,
+        schemaVersion: Number.isFinite(schemaVersion) && schemaVersion > 0 ? schemaVersion : 1,
+        ingestionSource: 'direct',
+        ingestionPath: 'frontend_api',
         eventName,
         eventCategory: category,
+        pageType,
+        componentType,
+        componentId,
+        ctaId,
+        ctaName,
+        ctaType,
+        ctaContext,
+        ctaLocation,
+        position: position !== null && position !== undefined ? new Prisma.Decimal(position) : null,
         source,
         measurementStatus,
         conversionFlag: category === 'conversion',
@@ -1044,13 +1121,18 @@ export class AnalyticsRepository {
     })
   }
 
-  async listEvents(from: Date, to: Date, eventNames?: string[]) {
+  async listEvents(from: Date, to: Date, eventNames?: string[], tenantId?: string) {
     return this.prisma.analyticsEvent.findMany({
       where: {
         timestamp: {
           gte: from,
           lte: to,
         },
+        ...(tenantId
+          ? {
+              tenantId,
+            }
+          : {}),
         ...(eventNames && eventNames.length
           ? {
               eventName: {
@@ -1161,10 +1243,18 @@ export class AnalyticsRepository {
       return { count: 0 }
     }
 
-    return this.prisma.eventFact.createMany({
-      data: records,
-      skipDuplicates: true,
-    })
+    const operations = records.map((record) =>
+      this.prisma.eventFact.upsert({
+        where: {
+          sourceEventId: record.sourceEventId,
+        },
+        create: record,
+        update: record,
+      }),
+    )
+
+    const result = await this.prisma.$transaction(operations)
+    return { count: result.length }
   }
 
   async getEventFactFunnel(from: Date, to: Date, steps: string[]) {
@@ -2273,5 +2363,128 @@ export class AnalyticsRepository {
     })
 
     return checks.map((check) => this.mapDataQualityCheck(check))
+  }
+
+  async upsertEventComparison(input: {
+    tenantId: string
+    eventId: string
+    eventName: string
+    directEventTimestamp?: Date | null
+    gaEventTimestamp?: Date | null
+    existsInDirect: boolean
+    existsInGa: boolean
+    payloadMatch: boolean
+    timeDiffMs?: number | null
+    status: AnalyticsEventComparison['status'] | string
+    directSource?: string | null
+    gaSource?: string | null
+    comparisonDate?: Date | null
+    directPayload?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | null
+    gaPayload?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput | null
+  }) {
+    const directPayload =
+      input.directPayload === null || input.directPayload === undefined ? Prisma.JsonNull : input.directPayload
+    const gaPayload =
+      input.gaPayload === null || input.gaPayload === undefined ? Prisma.JsonNull : input.gaPayload
+
+    return this.analyticsPrisma.analyticsEventComparison.upsert({
+      where: {
+        tenantId_eventId: {
+          tenantId: input.tenantId,
+          eventId: input.eventId,
+        },
+      },
+      update: {
+        eventName: input.eventName,
+        directEventTimestamp: input.directEventTimestamp ?? null,
+        gaEventTimestamp: input.gaEventTimestamp ?? null,
+        existsInDirect: input.existsInDirect,
+        existsInGa: input.existsInGa,
+        payloadMatch: input.payloadMatch,
+        timeDiffMs: input.timeDiffMs ?? null,
+        status: input.status,
+        directSource: input.directSource ?? null,
+        gaSource: input.gaSource ?? null,
+        comparisonDate: input.comparisonDate ?? null,
+        directPayload,
+        gaPayload,
+      },
+      create: {
+        tenantId: input.tenantId,
+        eventId: input.eventId,
+        eventName: input.eventName,
+        directEventTimestamp: input.directEventTimestamp ?? null,
+        gaEventTimestamp: input.gaEventTimestamp ?? null,
+        existsInDirect: input.existsInDirect,
+        existsInGa: input.existsInGa,
+        payloadMatch: input.payloadMatch,
+        timeDiffMs: input.timeDiffMs ?? null,
+        status: input.status,
+        directSource: input.directSource ?? null,
+        gaSource: input.gaSource ?? null,
+        comparisonDate: input.comparisonDate ?? null,
+        directPayload,
+        gaPayload,
+      },
+    })
+  }
+
+  async listEventComparisons(limit = 100, filters?: { tenantId?: string; status?: string; eventName?: string }) {
+    const comparisons = await this.analyticsPrisma.analyticsEventComparison.findMany({
+      where: {
+        ...(filters?.tenantId ? { tenantId: filters.tenantId } : {}),
+        ...(filters?.status ? { status: filters.status } : {}),
+        ...(filters?.eventName ? { eventName: filters.eventName } : {}),
+      },
+      orderBy: [{ updatedAt: 'desc' }],
+      take: limit,
+    })
+
+    return comparisons.map((comparison) => this.mapEventComparison(comparison))
+  }
+
+  async listEventComparisonSummary(filters?: { tenantId?: string; eventName?: string }) {
+    const comparisons = await this.analyticsPrisma.analyticsEventComparison.findMany({
+      where: {
+        ...(filters?.tenantId ? { tenantId: filters.tenantId } : {}),
+        ...(filters?.eventName ? { eventName: filters.eventName } : {}),
+      },
+    })
+
+    const totalEvents = comparisons.length
+    const matchCount = comparisons.filter((comparison) => comparison.status === 'match').length
+    const missingInGaCount = comparisons.filter((comparison) => comparison.status === 'missing_in_ga').length
+    const missingInDirectCount = comparisons.filter((comparison) => comparison.status === 'missing_in_direct').length
+    const mismatchCount = comparisons.filter((comparison) => comparison.status === 'mismatch').length
+    const purchaseMismatchCount = comparisons.filter(
+      (comparison) => comparison.eventName === 'purchase' && comparison.status === 'mismatch',
+    ).length
+    const timeDiffValues = comparisons
+      .map((comparison) => comparison.timeDiffMs)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+    const averageTimeDiffMs = timeDiffValues.length
+      ? Math.round(timeDiffValues.reduce((sum, value) => sum + value, 0) / timeDiffValues.length)
+      : null
+    const matchRate = totalEvents > 0 ? Number(((matchCount / totalEvents) * 100).toFixed(2)) : 0
+    const trackingHealthScore = totalEvents > 0 ? Number((matchCount / totalEvents).toFixed(4)) : 0
+    const comparisonDates = comparisons
+      .map((comparison) => comparison.comparisonDate)
+      .filter((value): value is Date => value instanceof Date)
+      .sort((left, right) => left.getTime() - right.getTime())
+
+    return {
+      tenantId: filters?.tenantId ?? 'all',
+      totalEvents,
+      matchCount,
+      missingInGaCount,
+      missingInDirectCount,
+      mismatchCount,
+      matchRate,
+      trackingHealthScore,
+      averageTimeDiffMs,
+      purchaseMismatchCount,
+      fromDate: comparisonDates[0]?.toISOString() ?? null,
+      toDate: comparisonDates[comparisonDates.length - 1]?.toISOString() ?? null,
+    } satisfies AnalyticsEventComparisonSummary
   }
 }

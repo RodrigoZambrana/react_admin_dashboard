@@ -13,6 +13,7 @@ import {
   type Ga4ComparableMetricRow,
 } from '../reports/ga4-report-quality'
 import type {
+  AnalyticsEventComparisonSummary,
   AnalyticsDataQualityCheck,
   AnalyticsDataQualitySummary,
 } from '../analytics.types'
@@ -101,6 +102,60 @@ const getQualityStatus = (diffPercent: number, missingBaseline: boolean) => {
     return 'warning' as const
   }
   return 'error' as const
+}
+
+const asString = (value: unknown): string | null => {
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length ? trimmed : null
+}
+
+const asNumber = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string' && value.trim().length) {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+const stableJson = (
+  value: unknown,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput => {
+  if (value === undefined || value === null) {
+    return Prisma.JsonNull
+  }
+  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue
+}
+
+const comparePayloadField = (left: unknown, right: unknown) => {
+  const leftNumber = asNumber(left)
+  const rightNumber = asNumber(right)
+  if (leftNumber !== null || rightNumber !== null) {
+    return Math.abs((leftNumber ?? 0) - (rightNumber ?? 0)) < 0.0001
+  }
+  return asString(left) === asString(right)
+}
+
+const getPayloadObject = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  return value as Record<string, unknown>
+}
+
+const getNestedPayload = (value: unknown, key: string) => {
+  const payload = getPayloadObject(value)
+  const direct = payload[key]
+  if (direct !== undefined && direct !== null) {
+    return direct
+  }
+  const nestedData = getPayloadObject(payload.data)
+  return nestedData[key]
 }
 
 @Injectable()
@@ -213,6 +268,281 @@ export class AnalyticsReportingService {
 
   async listReconciliations(limit = 50, reportKey?: string) {
     return this.repository.listReportReconciliations(limit, reportKey)
+  }
+
+  async listEventComparisons(limit = 100, filters?: { tenantId?: string; status?: string; eventName?: string }) {
+    return this.repository.listEventComparisons(limit, filters)
+  }
+
+  async getEventComparisonSummary(filters?: { tenantId?: string; eventName?: string }) {
+    return this.repository.listEventComparisonSummary(filters)
+  }
+
+  async refreshStructuralEventComparison(params: {
+    connectionId: string
+    propertyId: string
+    reportKey: string
+    rows: Array<Record<string, unknown>>
+    fromDate: Date
+    toDate: Date
+  }) {
+    const report = GA4_REPORT_CATALOG.find((entry) => entry.key === params.reportKey)
+    if (!report || !report.apiDefinition || report.apiDefinition.kind !== 'runReport') {
+      return {
+        totalEvents: 0,
+        comparedEvents: 0,
+        matchedEvents: 0,
+        missingInGa: 0,
+        missingInDirect: 0,
+        mismatchCount: 0,
+        duplicateCount: 0,
+        trackingHealthScore: 0,
+        summaries: [] as AnalyticsEventComparisonSummary[],
+      }
+    }
+
+    const directEvents = await this.repository.listEvents(params.fromDate, params.toDate)
+    const directMap = new Map<
+      string,
+      (typeof directEvents)[number] & {
+        tenantId: string
+        eventId: string
+        payloadObject: Record<string, unknown>
+      }
+    >()
+    for (const event of directEvents) {
+      const payloadObject = getPayloadObject((event as { payload?: unknown }).payload)
+      const tenantId =
+        asString((event as { tenantId?: string | null }).tenantId) ??
+        asString(payloadObject.tenant_id) ??
+        asString(getNestedPayload(payloadObject, 'tenant_id')) ??
+        null
+      const eventId =
+        asString((event as { eventId?: string | null }).eventId) ??
+        asString(payloadObject.event_id) ??
+        asString(getNestedPayload(payloadObject, 'event_id')) ??
+        null
+      if (!tenantId || !eventId) {
+        continue
+      }
+      const key = `${tenantId}|${eventId}`
+      directMap.set(key, {
+        ...(event as (typeof directEvents)[number]),
+        tenantId,
+        eventId,
+        payloadObject,
+      })
+    }
+
+    const gaMap = new Map<
+      string,
+      {
+        tenantId: string
+        eventId: string
+        eventName: string
+        timestamp: string | null
+        productId: string | null
+        value: number | null
+        currency: string | null
+      }
+    >()
+    const missingGaDimensions: Array<{ row: Record<string, unknown>; issues: string[] }> = []
+
+    for (const row of params.rows) {
+      const dimensions = Object.fromEntries(
+        report.dimensionLabels.map((label, index) => [label, row[`dimension_${index}`] ?? null]),
+      ) as Record<string, unknown>
+      const tenantId =
+        asString(dimensions['Tenant id']) ?? asString(dimensions['tenant_id']) ?? null
+      const eventId = asString(dimensions['Event id']) ?? asString(dimensions['event_id']) ?? null
+      const eventName =
+        asString(dimensions['Nombre del evento']) ??
+        asString(dimensions['Event name']) ??
+        asString(dimensions['event_name']) ??
+        null
+      if (!tenantId || !eventId || !eventName) {
+        missingGaDimensions.push({
+          row,
+          issues: [
+            !tenantId ? 'missing_tenant_id' : null,
+            !eventId ? 'missing_event_id' : null,
+            !eventName ? 'missing_event_name' : null,
+          ].filter((value): value is string => Boolean(value)),
+        })
+        continue
+      }
+
+      const key = `${tenantId}|${eventId}`
+      gaMap.set(key, {
+        tenantId,
+        eventId,
+        eventName,
+        timestamp:
+          asString(dimensions['Timestamp']) ??
+          asString(dimensions['timestamp']) ??
+          asString(dimensions['Fecha']) ??
+          asString(dimensions['date']) ??
+          null,
+        productId: asString(dimensions['Product id']) ?? asString(dimensions['product_id']) ?? null,
+        value: asNumber(dimensions['Value']) ?? asNumber(dimensions['value']) ?? null,
+        currency: asString(dimensions['Currency']) ?? asString(dimensions['currency']) ?? null,
+      })
+    }
+
+    if (missingGaDimensions.length > 0) {
+      await Promise.all(
+        missingGaDimensions.slice(0, 25).map(({ issues }) =>
+          this.repository.createDataAnomaly({
+            type: 'invalid_ga_structural_event_row',
+            source: 'ga4',
+            metric: params.reportKey,
+            severity: 'warning',
+            description: `report="${params.reportKey}" issues=${issues.join(',')}`,
+          }),
+        ),
+      )
+    }
+
+    const unionKeys = new Set([...directMap.keys(), ...gaMap.keys()])
+    let matchedEvents = 0
+    let missingInGa = 0
+    let missingInDirect = 0
+    let mismatchCount = 0
+    const directDuplicateCount = Math.max(0, directEvents.length - directMap.size)
+    const gaDuplicateCount = Math.max(0, params.rows.length - gaMap.size)
+    const duplicateCount = directDuplicateCount + gaDuplicateCount
+    const toleranceMs = 10_000
+
+    for (const key of unionKeys) {
+      const direct = directMap.get(key) ?? null
+      const ga = gaMap.get(key) ?? null
+      const [tenantId, eventId] = key.split('|')
+      const directTimestamp = direct?.timestamp ?? null
+      const gaTimestamp = ga?.timestamp ?? null
+      const timeDiffMs =
+        directTimestamp && gaTimestamp
+          ? Math.abs(new Date(directTimestamp).getTime() - new Date(gaTimestamp).getTime())
+          : null
+
+      const directPayload = direct
+        ? {
+            event_name: direct.eventName,
+            tenant_id: direct.tenantId,
+            event_id: direct.eventId,
+            value:
+              asNumber(direct.payloadObject.value) ??
+              asNumber(getNestedPayload(direct.payloadObject, 'value')) ??
+              null,
+            currency:
+              asString(direct.payloadObject.currency) ??
+              asString(getNestedPayload(direct.payloadObject, 'currency')) ??
+              null,
+            product_id:
+              asString(direct.payloadObject.product_id) ??
+              asString(getNestedPayload(direct.payloadObject, 'product_id')) ??
+              asString(getNestedPayload(direct.payloadObject, 'productId')) ??
+              null,
+            timestamp: direct.timestamp.toISOString(),
+          }
+        : null
+
+      const gaPayload = ga
+        ? {
+            event_name: ga.eventName,
+            tenant_id: ga.tenantId,
+            event_id: ga.eventId,
+            value: ga.value,
+            currency: ga.currency,
+            product_id: ga.productId,
+            timestamp: ga.timestamp,
+          }
+        : null
+
+      const payloadMatch =
+        Boolean(direct && ga) &&
+        comparePayloadField(directPayload?.event_name, gaPayload?.event_name) &&
+        comparePayloadField(directPayload?.tenant_id, gaPayload?.tenant_id) &&
+        comparePayloadField(directPayload?.event_id, gaPayload?.event_id) &&
+        comparePayloadField(directPayload?.product_id, gaPayload?.product_id) &&
+        comparePayloadField(directPayload?.value, gaPayload?.value) &&
+        comparePayloadField(directPayload?.currency, gaPayload?.currency) &&
+        (timeDiffMs === null || timeDiffMs <= toleranceMs)
+
+      const status: 'match' | 'missing_in_ga' | 'missing_in_direct' | 'mismatch' =
+        direct && ga
+          ? payloadMatch
+            ? 'match'
+            : 'mismatch'
+          : direct
+            ? 'missing_in_ga'
+            : 'missing_in_direct'
+
+      if (!direct || !ga) {
+        if (direct) {
+          missingInGa += 1
+        } else {
+          missingInDirect += 1
+        }
+      } else if (payloadMatch) {
+        matchedEvents += 1
+      } else {
+        mismatchCount += 1
+        if (direct?.eventName === 'purchase' || ga?.eventName === 'purchase') {
+          await this.repository.createDataAnomaly({
+            type: 'structural_event_mismatch',
+            source: 'ga4',
+            metric: params.reportKey,
+            severity: 'critical',
+            description: `purchase mismatch tenant="${tenantId}" event_id="${eventId}"`,
+          })
+        }
+      }
+
+      await this.repository.upsertEventComparison({
+        tenantId,
+        eventId,
+        eventName: direct?.eventName ?? ga?.eventName ?? 'unknown_event',
+        directEventTimestamp: directTimestamp,
+        gaEventTimestamp: gaTimestamp ? new Date(gaTimestamp) : null,
+        existsInDirect: Boolean(direct),
+        existsInGa: Boolean(ga),
+        payloadMatch,
+        timeDiffMs,
+        status,
+        directSource: direct ? 'direct' : null,
+        gaSource: ga ? 'ga_sync' : null,
+        comparisonDate: directTimestamp ? new Date(directTimestamp) : gaTimestamp ? new Date(gaTimestamp) : null,
+        directPayload: directPayload ? stableJson(directPayload) : null,
+        gaPayload: gaPayload ? stableJson(gaPayload) : null,
+      })
+    }
+
+    const summary = await this.repository.listEventComparisonSummary()
+    const summaries = [summary]
+    const comparedEvents = matchedEvents + mismatchCount
+
+    if (duplicateCount > 0) {
+      await this.repository.createDataAnomaly({
+        type: 'duplicate_structural_event',
+        source: 'ga4',
+        metric: params.reportKey,
+        severity: duplicateCount > 5 ? 'critical' : 'warning',
+        description: `report="${params.reportKey}" duplicate_events=${duplicateCount} direct_duplicates=${directDuplicateCount} ga_duplicates=${gaDuplicateCount}`,
+      })
+    }
+
+    return {
+      totalEvents: unionKeys.size,
+      comparedEvents,
+      matchedEvents,
+      missingInGa,
+      missingInDirect,
+      mismatchCount,
+      duplicateCount,
+      trackingHealthScore:
+        unionKeys.size > 0 ? Number((matchedEvents / unionKeys.size).toFixed(4)) : 0,
+      summaries,
+    }
   }
 
   private async getLatestGa4Connection() {

@@ -28,10 +28,9 @@ import {
   loadPersistedCheckoutState
 } from "@/utils/checkoutStorage";
 import { buildCheckoutOrderItems } from "@/lib/checkout/order-items";
-import { getAnalyticsContext } from "@/lib/analytics";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { CartLineItem } from "@/state/cart-context";
-import { trackPurchase } from "@/lib/analytics";
+import PurchaseAnalytics from "@/components/analytics/PurchaseAnalytics";
 
 const DEFAULT_POSTAL_CODE_BY_COUNTRY: Record<string, string> = {
   UY: "11000"
@@ -76,6 +75,7 @@ function PaymentSuccessContent() {
     shippingOption,
     notes,
     payment,
+    lastOrder,
     setPayment,
     setLastOrder,
     reset,
@@ -89,24 +89,49 @@ function PaymentSuccessContent() {
   const [orderRetryCount, setOrderRetryCount] = useState(0);
   const persistedCheckout = useMemo(() => loadPersistedCheckoutState(), []);
   const isCashSuccessFlow = rawMethod === "cod" || rawMethod === "cash";
-  const persistedCashOrder = useMemo(() => {
-    if (!isCashSuccessFlow) {
-      return null;
-    }
-    const candidate = persistedCheckout?.lastOrder ?? null;
-    if (!candidate) {
-      return null;
-    }
-    if (rawOrderUuid && candidate.uuid !== rawOrderUuid) {
-      return null;
-    }
-    return candidate;
-  }, [isCashSuccessFlow, persistedCheckout?.lastOrder, rawOrderUuid]);
-  const [createdOrder, setCreatedOrder] = useState<OrderSummary | null>(persistedCashOrder);
+  const [persistedCashOrder, setPersistedCashOrder] = useState<OrderSummary | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<OrderSummary | null>(null);
   const cashCleanupDoneRef = useRef(false);
-  const purchaseTrackedRef = useRef(false);
+  const purchaseItemsSnapshotRef = useRef<CartLineItem[]>([]);
   const paymentCheckoutSnapshot =
     payment?.method === "mercadopago" ? payment.checkoutSnapshot ?? null : null;
+  const resolvedCashOrder = persistedCashOrder ?? lastOrder ?? persistedCheckout?.lastOrder ?? null;
+  const effectiveCreatedOrder = createdOrder ?? resolvedCashOrder ?? null;
+
+  useEffect(() => {
+    if (!isCashSuccessFlow) {
+      setPersistedCashOrder(null);
+      return;
+    }
+
+    const currentOrderUuid =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("orderUuid")
+        : rawOrderUuid;
+    const e2ePurchaseOrder =
+      typeof window !== "undefined"
+        ? (window as Window & { __e2ePurchaseOrder__?: OrderSummary | null }).__e2ePurchaseOrder__ ?? null
+        : null;
+    if (e2ePurchaseOrder) {
+      if (currentOrderUuid && e2ePurchaseOrder.uuid !== currentOrderUuid) {
+        setPersistedCashOrder(null);
+        return;
+      }
+      setPersistedCashOrder(e2ePurchaseOrder);
+      return;
+    }
+    const currentPersistedCheckout = loadPersistedCheckoutState();
+    const candidate = currentPersistedCheckout?.lastOrder ?? null;
+    if (!candidate) {
+      setPersistedCashOrder(null);
+      return;
+    }
+    if (currentOrderUuid && candidate.uuid !== currentOrderUuid) {
+      setPersistedCashOrder(null);
+      return;
+    }
+    setPersistedCashOrder(candidate);
+  }, [isCashSuccessFlow, rawOrderUuid]);
 
   const resolvedContact = paymentCheckoutSnapshot?.customer ?? persistedCheckout?.contact ?? contact;
   const resolvedShippingAddress =
@@ -249,6 +274,12 @@ function PaymentSuccessContent() {
     }
     return orderItemsData.error;
   }, [orderItemsData.error, resolvedOrderItems.length]);
+
+  useEffect(() => {
+    if (cartState.items.length > 0) {
+      purchaseItemsSnapshotRef.current = cartState.items;
+    }
+  }, [cartState.items]);
 
   const canAttemptOrderCreation = useMemo(() => {
     const hasResolvablePayment =
@@ -487,14 +518,14 @@ function PaymentSuccessContent() {
     t
   ]);
 
-  const orderLabel = createdOrder ? `#${createdOrder.orderNumber ?? createdOrder.uuid}` : null;
-  const orderTotalLabel = createdOrder
+  const orderLabel = effectiveCreatedOrder ? `#${effectiveCreatedOrder.orderNumber ?? effectiveCreatedOrder.uuid}` : null;
+  const orderTotalLabel = effectiveCreatedOrder
     ? new Intl.NumberFormat(locale === "en" ? "en-US" : "es-UY", {
         style: "currency",
-        currency: createdOrder.summary.grandTotal.currency
-      }).format(createdOrder.summary.grandTotal.amount)
+        currency: effectiveCreatedOrder.summary.grandTotal.currency
+      }).format(effectiveCreatedOrder.summary.grandTotal.amount)
     : null;
-  const deliveryEstimateLabel = createdOrder?.delivery?.estimatedLabel ?? null;
+  const deliveryEstimateLabel = effectiveCreatedOrder?.delivery?.estimatedLabel ?? null;
 
   useEffect(() => {
     if (orderState === "idle" && canAttemptOrderCreation) {
@@ -509,20 +540,14 @@ function PaymentSuccessContent() {
 
     cashCleanupDoneRef.current = true;
 
-    if (persistedCashOrder) {
-      setCreatedOrder(persistedCashOrder);
-      setOrderState("success");
-      setOrderError(null);
-    } else {
-      setCreatedOrder(null);
-      setOrderState("error");
-      setOrderError(
-        t("checkout.payment.success.cashMissingOrder", {
-          defaultMessage:
-            "No pudimos recuperar el resumen del pedido en esta sesión. Revísalo desde Mis pedidos."
-        })
-      );
+    if (!resolvedCashOrder) {
+      cashCleanupDoneRef.current = false;
+      return;
     }
+
+    setCreatedOrder(resolvedCashOrder);
+    setOrderState("success");
+    setOrderError(null);
 
     clearCart();
     clearPersistedCheckoutOrderItems(resolvedCheckoutToken);
@@ -530,13 +555,16 @@ function PaymentSuccessContent() {
   }, [
     clearCart,
     isCashSuccessFlow,
-    persistedCashOrder,
+    resolvedCashOrder,
     reset,
     resolvedCheckoutToken,
     t
   ]);
 
   useEffect(() => {
+    if (isCashSuccessFlow) {
+      return;
+    }
     if (!canAttemptOrderCreation || orderState !== "error" || orderRetryCount >= MAX_ORDER_AUTO_RETRIES) {
       return;
     }
@@ -550,28 +578,26 @@ function PaymentSuccessContent() {
     return () => {
       window.clearTimeout(timer);
     };
-  }, [canAttemptOrderCreation, finalizeOrder, orderRetryCount, orderState]);
+  }, [canAttemptOrderCreation, finalizeOrder, isCashSuccessFlow, orderRetryCount, orderState]);
 
   useEffect(() => {
+    if (isCashSuccessFlow) {
+      return;
+    }
     if (orderItemsError) {
       setOrderError(orderItemsError);
       setOrderState("error");
     }
-  }, [orderItemsError]);
-
-  useEffect(() => {
-    if (purchaseTrackedRef.current) {
-      return;
-    }
-    if (orderState !== "success" || !createdOrder) {
-      return;
-    }
-    trackPurchase(createdOrder);
-    purchaseTrackedRef.current = true;
-  }, [createdOrder, orderState]);
+  }, [isCashSuccessFlow, orderItemsError]);
 
   return (
     <Box py="6rem">
+      <PurchaseAnalytics
+        orderState={orderState}
+        createdOrder={effectiveCreatedOrder}
+        purchaseItemsSnapshot={purchaseItemsSnapshotRef.current}
+        cartItems={cartState.items}
+      />
       <FlexBox flexDirection="column" alignItems="center" justifyContent="center" px="1.5rem">
         <Card1 maxWidth="540px" width="100%" textAlign="center" p="2.5rem">
           <H3 fontWeight="700" mb="0.5rem" color="primary.main">
@@ -676,7 +702,7 @@ function PaymentSuccessContent() {
             mb="2rem"
             maxWidth="100%"
           >
-            {createdOrder ? (
+            {effectiveCreatedOrder ? (
               <>
                 <Typography fontWeight="600" mb="0.5rem">
                   {t("checkout.payment.success.orderReference", {

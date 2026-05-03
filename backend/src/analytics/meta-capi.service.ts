@@ -22,7 +22,7 @@ const META_EVENT_NAME_MAP: Record<string, string> = {
   view_item: 'ViewContent',
   form_submit: 'Lead',
   lead_created: 'Lead',
-  purchase_completed: 'Purchase',
+  purchase: 'Purchase',
   whatsapp_click: 'Contact',
   phone_click: 'Contact',
   add_to_cart: 'AddToCart',
@@ -40,7 +40,9 @@ const normalizeString = (value: unknown) => {
 const sha256Hex = (value: string) =>
   createHash('sha256').update(value.trim().toLowerCase()).digest('hex')
 
-const mapEventName = (eventName: string) => META_EVENT_NAME_MAP[eventName] ?? eventName
+const mapEventName = (eventName: string) => {
+  return META_EVENT_NAME_MAP[eventName] ?? eventName
+}
 
 const getNestedString = (value: unknown, path: string[]): string | null => {
   let current: unknown = value

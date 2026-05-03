@@ -3,7 +3,14 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 
-import { reportMeta, reportSections } from "./use-cases-report.source.mjs";
+import {
+  contractHeaders,
+  findingsHeaders,
+  reportMeta,
+  reportSections,
+  buildContractRows,
+  buildFindingTemplateRows,
+} from "./use-cases-report.source.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -176,14 +183,14 @@ function buildSummaryRows() {
   return rows;
 }
 
-function setTableLayout(sheet, columnWidths, rowCount) {
+function setTableLayout(sheet, columnWidths, rowCount, headerCount = headers.length) {
   sheet["!cols"] = columnWidths.map((width) => ({ wch: width }));
-  sheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowCount, c: headers.length - 1 } }) };
+  sheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowCount, c: headerCount - 1 } }) };
   sheet["!freeze"] = { xSplit: 0, ySplit: 1 };
 }
 
-function autoWidth(rows, min = 12, max = 48) {
-  return headers.map((header, columnIndex) => {
+function autoWidth(rows, rowHeaders, min = 12, max = 48) {
+  return rowHeaders.map((header) => {
     let longest = String(header).length;
     for (const row of rows) {
       const value = normalizeText(row[header]);
@@ -220,6 +227,20 @@ function buildWorkbook() {
   workbook.SheetNames.push("Resumen");
   workbook.Sheets.Resumen = summarySheet;
 
+  const contractRows = buildContractRows();
+  const contractAoA = [contractHeaders, ...contractRows.map((row) => contractHeaders.map((header) => row[header]))];
+  const contractSheet = XLSX.utils.aoa_to_sheet(contractAoA);
+  setTableLayout(contractSheet, autoWidth(contractRows, contractHeaders, 14, 52), contractRows.length, contractHeaders.length);
+  workbook.SheetNames.push("Contrato vivo");
+  workbook.Sheets["Contrato vivo"] = contractSheet;
+
+  const findingsRows = buildFindingTemplateRows();
+  const findingsAoA = [findingsHeaders, ...findingsRows.map((row) => findingsHeaders.map((header) => row[header]))];
+  const findingsSheet = XLSX.utils.aoa_to_sheet(findingsAoA);
+  setTableLayout(findingsSheet, autoWidth(findingsRows, findingsHeaders, 14, 52), findingsRows.length, findingsHeaders.length);
+  workbook.SheetNames.push("Hallazgos");
+  workbook.Sheets.Hallazgos = findingsSheet;
+
   const guideRows = [];
   guideRows.push([
     "Proyecto",
@@ -235,13 +256,15 @@ function buildWorkbook() {
     "Siguiente acción",
   ]);
 
-  const guideEntries = reportSections.flatMap((section) =>
-    section.cases.map((item) => ({
-      project: section.project,
-      ...item,
-      backendState: inferBackendSurfaceState(item),
-    })),
-  );
+  const guideEntries = reportSections
+    .filter((section) => section.sheetName !== "Chat Platform" && String(section.project).toLowerCase() !== "chat platform")
+    .flatMap((section) =>
+      section.cases.map((item) => ({
+        project: section.project,
+        ...item,
+        backendState: inferBackendSurfaceState(item),
+      })),
+    );
 
   guideEntries
     .sort((left, right) => {
@@ -300,7 +323,7 @@ function buildWorkbook() {
     const rows = buildSectionRows(section);
     const aoa = [headers, ...rows.map((row) => headers.map((header) => row[header]))];
     const sheet = XLSX.utils.aoa_to_sheet(aoa);
-    setTableLayout(sheet, autoWidth(rows), rows.length);
+    setTableLayout(sheet, autoWidth(rows, headers), rows.length, headers.length);
     workbook.SheetNames.push(section.sheetName);
     workbook.Sheets[section.sheetName] = sheet;
   }

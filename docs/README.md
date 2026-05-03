@@ -17,6 +17,7 @@
 
 ## Delivery And QA
 
+- [system-loop-operating-model.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/system-loop-operating-model.md)
 - [QA_CENTER.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/QA_CENTER.md)
 - [EXECUTION_ROADMAP.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/EXECUTION_ROADMAP.md)
 - [PRODUCTION_EXECUTION_PROMPTS.md](/Users/rodrigo/git/personal/react_admin_dashboard/docs/PRODUCTION_EXECUTION_PROMPTS.md)

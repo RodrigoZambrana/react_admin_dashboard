@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common'
+import { BadRequestException, Injectable, Logger } from '@nestjs/common'
 import { ConfigService } from '@nestjs/config'
 import { Prisma } from '@prisma/client'
 
@@ -7,6 +7,7 @@ import { MetaCapiService } from './meta-capi.service'
 import {
   normalizeAnalyticsEventCategory,
   normalizeAnalyticsEventSource,
+  normalizeAnalyticsEventName,
   normalizeAnalyticsMeasurementStatus,
 } from './event-taxonomy'
 import type {
@@ -19,9 +20,24 @@ import type {
   AnalyticsSyncRun,
   FunnelMetrics,
   FunnelComparison,
+  AnalyticsSearchIntelligence,
+  AnalyticsSearchIntelligenceSample,
 } from './analytics.types'
 
 const DEFAULT_FUNNEL_STEPS = ['view_item', 'add_to_cart', 'begin_checkout', 'purchase']
+const CTA_REQUIRED_EVENTS = new Set([
+  'select_item',
+  'add_to_cart',
+  'remove_from_cart',
+  'begin_checkout',
+  'add_shipping_info',
+  'add_payment_info',
+  'purchase',
+  'cta_click',
+  'filter_applied',
+  'sort_applied',
+])
+
 const COMPONENT_REQUIRED_EVENTS = new Set([
   'select_item',
   'add_to_cart',
@@ -128,6 +144,99 @@ const extractMeasurementStatus = (event: AnalyticsEventInput) => {
   )
 }
 
+const normalizeSearchQuery = (value: string) =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/gu, '')
+    .trim()
+    .toLowerCase()
+
+const getPayloadObject = (value: unknown) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return {}
+  }
+  return value as Record<string, unknown>
+}
+
+const extractSearchSignal = (event: Awaited<ReturnType<AnalyticsRepository['listEvents']>>[number]) => {
+  const payload = (event.payload as Record<string, unknown> | undefined) ?? {}
+  const data = getPayloadObject(payload.data)
+  const metadata = getPayloadObject(payload.metadata)
+  const query =
+    asString(payload.query) ??
+    asString(data.query) ??
+    asString(metadata.query) ??
+    null
+  const normalizedQuery =
+    asString(data.query_normalized) ??
+    asString(metadata.query_normalized) ??
+    (query ? normalizeSearchQuery(query) : '')
+  const searchStage =
+    asString(data.search_stage) ??
+    asString(metadata.search_stage) ??
+    asString(payload.search_stage) ??
+    (asNumber(data.result_count) !== null || asNumber(metadata.result_count) !== null ? 'results' : 'intent')
+  const searchSource =
+    asString(data.search_source) ??
+    asString(metadata.search_source) ??
+    asString(payload.search_source) ??
+    null
+  const resultCount =
+    asNumber(data.result_count) ??
+    asNumber(data.results_count) ??
+    asNumber(metadata.result_count) ??
+    asNumber(metadata.results_count) ??
+    asNumber(payload.result_count) ??
+    asNumber(payload.results_count)
+  const exactMatchCount =
+    asNumber(data.exact_match_count) ??
+    asNumber(metadata.exact_match_count) ??
+    asNumber(payload.exact_match_count)
+  const hasResults =
+    typeof data.has_results === 'boolean'
+      ? data.has_results
+      : typeof metadata.has_results === 'boolean'
+        ? metadata.has_results
+        : resultCount !== null
+          ? resultCount > 0
+          : false
+  const hasExactResults =
+    typeof data.has_exact_results === 'boolean'
+      ? data.has_exact_results
+      : typeof metadata.has_exact_results === 'boolean'
+        ? metadata.has_exact_results
+        : exactMatchCount !== null
+          ? exactMatchCount > 0
+          : false
+  const categorySlug =
+    asString(data.category_slug) ??
+    asString(metadata.category_slug) ??
+    asString(payload.category_slug) ??
+    null
+  const categoryLabel =
+    asString(data.category_label) ??
+    asString(metadata.category_label) ??
+    asString(payload.category_label) ??
+    null
+
+  return {
+    eventId: asString(event.eventId),
+    eventName: event.eventName,
+    tenantId: event.tenantId,
+    timestamp: event.timestamp,
+    query,
+    normalizedQuery,
+    searchStage,
+    searchSource,
+    resultCount,
+    exactMatchCount,
+    hasResults,
+    hasExactResults,
+    categorySlug,
+    categoryLabel,
+  }
+}
+
 const toDayKey = (value: Date) => value.toISOString().slice(0, 10)
 
 const createComparisonMetric = (current: number, previous: number): ComparisonMetric => {
@@ -185,7 +294,7 @@ const normalizeFactRecord = (
   rawEvent: Awaited<ReturnType<AnalyticsRepository['listUnprocessedEvents']>>[number],
 ) => {
   const payload = rawEvent.payload as Record<string, unknown> | null | undefined
-  const event = asString(payload?.event) ?? rawEvent.eventName
+  const event = normalizeAnalyticsEventName(asString(payload?.event) ?? rawEvent.eventName) ?? rawEvent.eventName
   const timestamp = normalizeTimestamp(
     asString(payload?.timestamp) ?? rawEvent.timestamp.toISOString(),
   )
@@ -220,8 +329,71 @@ const normalizeFactRecord = (
     eventCategory,
   )
   const conversionFlag = eventCategory === 'conversion'
+  const tenantId =
+    asString((rawEvent as { tenantId?: string | null }).tenantId) ??
+    asString(payload?.tenant_id) ??
+    asString((payload?.data as Record<string, unknown> | undefined)?.tenant_id) ??
+    null
+  const schemaVersion =
+    (rawEvent as { schemaVersion?: number | null }).schemaVersion ??
+    asNumber(payload?.schema_version) ??
+    asNumber((payload?.data as Record<string, unknown> | undefined)?.schema_version) ??
+    1
   const page = asString(payload?.page) ?? asString(data.page)
   const path = asString(payload?.path) ?? asString(data.path)
+  const pageType =
+    asString((rawEvent as { pageType?: string | null }).pageType) ??
+    asString(payload?.page_type) ??
+    asString(data.page_type) ??
+    asString(data.pageType) ??
+    null
+  const componentType =
+    asString((rawEvent as { componentType?: string | null }).componentType) ??
+    asString(payload?.component_type) ??
+    asString(data.component_type) ??
+    asString(data.componentType) ??
+    null
+  const componentId =
+    asString((rawEvent as { componentId?: string | null }).componentId) ??
+    asString(payload?.component_id) ??
+    asString(data.component_id) ??
+    asString(data.componentId) ??
+    null
+  const ctaId =
+    asString((rawEvent as { ctaId?: string | null }).ctaId) ??
+    asString(payload?.cta_id) ??
+    asString(data.cta_id) ??
+    asString(data.ctaId) ??
+    null
+  const ctaName =
+    asString((rawEvent as { ctaName?: string | null }).ctaName) ??
+    asString(payload?.cta_name) ??
+    asString(data.cta_name) ??
+    asString(data.ctaName) ??
+    null
+  const ctaType =
+    asString((rawEvent as { ctaType?: string | null }).ctaType) ??
+    asString(payload?.cta_type) ??
+    asString(data.cta_type) ??
+    asString(data.ctaType) ??
+    null
+  const ctaContext =
+    asString((rawEvent as { ctaContext?: string | null }).ctaContext) ??
+    asString(payload?.cta_context) ??
+    asString(data.cta_context) ??
+    asString(data.ctaContext) ??
+    null
+  const ctaLocation =
+    asString((rawEvent as { ctaLocation?: string | null }).ctaLocation) ??
+    asString(payload?.cta_location) ??
+    asString(data.cta_location) ??
+    asString(data.ctaLocation) ??
+    null
+  const position =
+    (rawEvent as { position?: Prisma.Decimal | number | null }).position ??
+    asNumber(payload?.position) ??
+    asNumber(data.position) ??
+    null
   const landingPage =
     asString(payload?.landing_page) ??
     asString(payload?.landingPage) ??
@@ -279,6 +451,8 @@ const normalizeFactRecord = (
         : null
 
   return {
+    tenantId,
+    schemaVersion,
     eventName: event,
     eventCategory,
     source,
@@ -290,6 +464,15 @@ const normalizeFactRecord = (
     userId,
     page,
     path,
+    pageType,
+    componentType,
+    componentId,
+    ctaId,
+    ctaName,
+    ctaType,
+    ctaContext,
+    ctaLocation,
+    position,
     landingPage,
     productId,
     category: productCategory,
@@ -313,6 +496,23 @@ const normalizeFactRecord = (
   }
 }
 
+const validateStructuralFact = (fact: ReturnType<typeof normalizeFactRecord>) => {
+  const issues: string[] = []
+  if (!fact.tenantId) {
+    issues.push('missing_tenant_id')
+  }
+  if (!fact.schemaVersion || !Number.isFinite(fact.schemaVersion) || fact.schemaVersion <= 0) {
+    issues.push('missing_schema_version')
+  }
+  if (COMPONENT_REQUIRED_EVENTS.has(fact.eventName) && !fact.componentId) {
+    issues.push('missing_component_id')
+  }
+  if (CTA_REQUIRED_EVENTS.has(fact.eventName) && !fact.ctaId) {
+    issues.push('missing_cta_id')
+  }
+  return issues
+}
+
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name)
@@ -328,8 +528,11 @@ export class AnalyticsService {
       asString(event.tenant_id) ??
       asString((event.data as Record<string, unknown> | undefined)?.tenant_id) ??
       asString(this.config.get<string>('CLIENT_SLUG')) ??
-      asString(this.config.get<string>('CLIENT')) ??
-      'default'
+      asString(this.config.get<string>('CLIENT'))
+
+    if (!tenantId) {
+      throw new BadRequestException('Missing tenant_id for analytics event ingestion')
+    }
 
     if (!asString(event.tenant_id)) {
       this.logger.warn(
@@ -349,7 +552,7 @@ export class AnalyticsService {
     const structuralPayload = (normalizedEvent.data as Record<string, unknown> | undefined) ?? {}
     const componentId = asString(normalizedEvent.component_id) ?? asString(structuralPayload.component_id)
     const ctaId = asString(normalizedEvent.cta_id) ?? asString(structuralPayload.cta_id)
-    if (normalizedEvent.event !== 'page_view' && COMPONENT_REQUIRED_EVENTS.has(normalizedEvent.event) && (!componentId || !ctaId)) {
+    if (CTA_REQUIRED_EVENTS.has(normalizedEvent.event) && (!componentId || !ctaId)) {
       this.logger.warn(
         `Structural analytics orphan for "${normalizedEvent.event}" tenant="${tenantId}" component_id="${componentId ?? 'missing'}" cta_id="${ctaId ?? 'missing'}"`,
       )
@@ -394,12 +597,27 @@ export class AnalyticsService {
 
     for (const event of events) {
       const payload = (event.payload as Record<string, unknown>) ?? {}
-      const eventName = asString(payload.event) ?? event.eventName
+      const eventName = normalizeAnalyticsEventName(asString(payload.event) ?? event.eventName) ?? event.eventName
       const structuralData = (payload.data as Record<string, unknown> | undefined) ?? {}
-      const tenantId = asString(payload.tenant_id) ?? asString(structuralData.tenant_id) ?? null
-      const schemaVersion = asNumber(payload.schema_version) ?? asNumber(structuralData.schema_version)
-      const componentId = asString(payload.component_id) ?? asString(structuralData.component_id) ?? null
-      const ctaId = asString(payload.cta_id) ?? asString(structuralData.cta_id) ?? null
+      const tenantId =
+        asString((event as { tenantId?: string | null }).tenantId) ??
+        asString(payload.tenant_id) ??
+        asString(structuralData.tenant_id) ??
+        null
+      const schemaVersion =
+        (event as { schemaVersion?: number | null }).schemaVersion ??
+        asNumber(payload.schema_version) ??
+        asNumber(structuralData.schema_version)
+      const componentId =
+        asString((event as { componentId?: string | null }).componentId) ??
+        asString(payload.component_id) ??
+        asString(structuralData.component_id) ??
+        null
+      const ctaId =
+        asString((event as { ctaId?: string | null }).ctaId) ??
+        asString(payload.cta_id) ??
+        asString(structuralData.cta_id) ??
+        null
 
       summary.byEventName.set(eventName, (summary.byEventName.get(eventName) ?? 0) + 1)
 
@@ -416,14 +634,14 @@ export class AnalyticsService {
         summary.missingComponentId += 1
         issues.push('missing_component_id')
       }
-      if (COMPONENT_REQUIRED_EVENTS.has(eventName) && !ctaId) {
+      if (CTA_REQUIRED_EVENTS.has(eventName) && !ctaId) {
         summary.missingCtaId += 1
         issues.push('missing_cta_id')
       }
 
       if (issues.length > 0) {
         summary.invalidEvents += 1
-        if (COMPONENT_REQUIRED_EVENTS.has(eventName) && (!componentId || !ctaId)) {
+        if (CTA_REQUIRED_EVENTS.has(eventName) && (!componentId || !ctaId)) {
           summary.orphanEvents += 1
         }
         if (samples.length < 25) {
@@ -460,6 +678,219 @@ export class AnalyticsService {
     }
   }
 
+  async getSearchIntelligence(input?: { from?: string; to?: string; tenantId?: string }): Promise<{ searchIntelligence: AnalyticsSearchIntelligence }> {
+    const to = input?.to ? normalizeTimestamp(input.to) : new Date()
+    const from = input?.from ? normalizeTimestamp(input.from) : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const fromDay = startOfDayUtc(from)
+    const toDay = endOfDayUtc(to)
+    const searchEvents = await this.repository.listEvents(fromDay, toDay, ['search'], input?.tenantId?.trim() || undefined)
+    const signals = searchEvents.map((event) => extractSearchSignal(event))
+
+    const totalSearchEvents = signals.length
+    const resultSignals = signals.filter((signal) => signal.searchStage === 'results')
+    const intentSignals = signals.filter((signal) => signal.searchStage !== 'results')
+    const exactResultSignals = resultSignals.filter((signal) => signal.hasResults)
+    const zeroResultSignals = resultSignals.filter((signal) => !signal.hasResults)
+    const searchResultAverage =
+      resultSignals.length > 0
+        ? Number(
+            (
+              resultSignals.reduce((sum, signal) => sum + (signal.resultCount ?? 0), 0) /
+              resultSignals.length
+            ).toFixed(2),
+          )
+        : null
+
+    const byTenantMap = new Map<
+      string,
+      {
+        searchEvents: number
+        intentEvents: number
+        resultEvents: number
+        uniqueQueries: Set<string>
+        exactResultEvents: number
+        zeroResultEvents: number
+        resultCountSum: number
+      }
+    >()
+
+    const queryMap = new Map<
+      string,
+      {
+        query: string
+        queryNormalized: string
+        searchEvents: number
+        intentEvents: number
+        resultEvents: number
+        exactResultEvents: number
+        zeroResultEvents: number
+        resultCountSum: number
+        tenantIds: Set<string>
+      }
+    >()
+
+    const samples: AnalyticsSearchIntelligenceSample[] = []
+
+    for (const signal of signals) {
+      const tenantId = signal.tenantId
+      const queryKey = signal.normalizedQuery || signal.query?.trim().toLowerCase() || ''
+      const tenantKey = tenantId ?? 'unknown'
+      const tenantEntry = byTenantMap.get(tenantKey) ?? {
+        searchEvents: 0,
+        intentEvents: 0,
+        resultEvents: 0,
+        uniqueQueries: new Set<string>(),
+        exactResultEvents: 0,
+        zeroResultEvents: 0,
+        resultCountSum: 0,
+      }
+
+      tenantEntry.searchEvents += 1
+      tenantEntry.uniqueQueries.add(queryKey)
+      if (signal.searchStage === 'results') {
+        tenantEntry.resultEvents += 1
+        tenantEntry.resultCountSum += signal.resultCount ?? 0
+        if (signal.hasResults) {
+          tenantEntry.exactResultEvents += 1
+        } else {
+          tenantEntry.zeroResultEvents += 1
+        }
+      } else {
+        tenantEntry.intentEvents += 1
+      }
+      byTenantMap.set(tenantKey, tenantEntry)
+
+      if (!queryKey) {
+        continue
+      }
+
+      const queryEntry = queryMap.get(queryKey) ?? {
+        query: signal.query ?? queryKey,
+        queryNormalized: queryKey,
+        searchEvents: 0,
+        intentEvents: 0,
+        resultEvents: 0,
+        exactResultEvents: 0,
+        zeroResultEvents: 0,
+        resultCountSum: 0,
+        tenantIds: new Set<string>(),
+      }
+
+      queryEntry.searchEvents += 1
+      queryEntry.tenantIds.add(tenantKey)
+      if (signal.searchStage === 'results') {
+        queryEntry.resultEvents += 1
+        queryEntry.resultCountSum += signal.resultCount ?? 0
+        if (signal.hasResults) {
+          queryEntry.exactResultEvents += 1
+        } else {
+          queryEntry.zeroResultEvents += 1
+        }
+      } else {
+        queryEntry.intentEvents += 1
+      }
+      queryMap.set(queryKey, queryEntry)
+
+      if (samples.length < 50) {
+        samples.push({
+          eventId: signal.eventId,
+          tenantId,
+          timestamp: signal.timestamp.toISOString(),
+          query: signal.query,
+          queryNormalized: signal.normalizedQuery,
+          searchStage: signal.searchStage,
+          searchSource: signal.searchSource,
+          resultCount: signal.resultCount,
+          exactMatchCount: signal.exactMatchCount,
+          hasResults: signal.hasResults,
+          hasExactResults: signal.hasExactResults,
+          categorySlug: signal.categorySlug,
+          categoryLabel: signal.categoryLabel,
+        })
+      }
+    }
+
+    const byTenant = Array.from(byTenantMap.entries())
+      .map(([tenantId, summary]) => ({
+        tenantId,
+        searchEvents: summary.searchEvents,
+        intentEvents: summary.intentEvents,
+        resultEvents: summary.resultEvents,
+        uniqueQueries: summary.uniqueQueries.size,
+        exactResultEvents: summary.exactResultEvents,
+        zeroResultEvents: summary.zeroResultEvents,
+        averageResultCount:
+          summary.resultEvents > 0
+            ? Number((summary.resultCountSum / summary.resultEvents).toFixed(2))
+            : null,
+        exactResultRate: summary.resultEvents > 0 ? Number((summary.exactResultEvents / summary.resultEvents).toFixed(4)) : 0,
+        zeroResultRate: summary.resultEvents > 0 ? Number((summary.zeroResultEvents / summary.resultEvents).toFixed(4)) : 0,
+      }))
+      .sort((a, b) => b.searchEvents - a.searchEvents)
+
+    const topQueries = Array.from(queryMap.values())
+      .map((entry) => ({
+        query: entry.query,
+        queryNormalized: entry.queryNormalized,
+        searchEvents: entry.searchEvents,
+        intentEvents: entry.intentEvents,
+        resultEvents: entry.resultEvents,
+        exactResultEvents: entry.exactResultEvents,
+        zeroResultEvents: entry.zeroResultEvents,
+        averageResultCount:
+          entry.resultEvents > 0
+            ? Number((entry.resultCountSum / entry.resultEvents).toFixed(2))
+            : null,
+        exactResultRate: entry.resultEvents > 0 ? Number((entry.exactResultEvents / entry.resultEvents).toFixed(4)) : 0,
+        zeroResultRate: entry.resultEvents > 0 ? Number((entry.zeroResultEvents / entry.resultEvents).toFixed(4)) : 0,
+        tenantIds: Array.from(entry.tenantIds).sort(),
+      }))
+      .sort((a, b) => b.searchEvents - a.searchEvents)
+      .slice(0, 25)
+
+    const zeroResultQueries = topQueries
+      .filter((entry) => entry.zeroResultEvents > 0)
+      .slice(0, 25)
+
+    const trackingHealthScore = totalSearchEvents > 0 ? Number((resultSignals.length / totalSearchEvents).toFixed(4)) : 0
+
+    return {
+      searchIntelligence: {
+        range: {
+          from: fromDay.toISOString(),
+          to: toDay.toISOString(),
+        },
+        filters: {
+          tenantId: input?.tenantId?.trim() || null,
+        },
+        totals: {
+          searchEvents: totalSearchEvents,
+          intentEvents: intentSignals.length,
+          resultEvents: resultSignals.length,
+          uniqueQueries: queryMap.size,
+          exactResultEvents: exactResultSignals.length,
+          zeroResultEvents: zeroResultSignals.length,
+          averageResultCount: searchResultAverage,
+          exactResultRate: resultSignals.length > 0 ? Number((exactResultSignals.length / resultSignals.length).toFixed(4)) : 0,
+          zeroResultRate: resultSignals.length > 0 ? Number((zeroResultSignals.length / resultSignals.length).toFixed(4)) : 0,
+          trackingHealthScore,
+        },
+        byTenant,
+        topQueries,
+        zeroResultQueries,
+        samples,
+      },
+    }
+  }
+
+  async listStructuralAnomalies(limit = 100) {
+    const anomalies = await this.repository.listDataAnomalies(limit)
+    return {
+      total: anomalies.length,
+      anomalies,
+    }
+  }
+
   async getConnections(): Promise<{ connections: AnalyticsConnection[] }> {
     await this.metaCapiService.ensureConnection()
     return {
@@ -489,7 +920,8 @@ export class AnalyticsService {
 
     const rawEventTotals = new Map<string, number>()
     for (const event of metaEvents) {
-      rawEventTotals.set(event.eventName, (rawEventTotals.get(event.eventName) ?? 0) + 1)
+      const canonicalEventName = normalizeAnalyticsEventName(event.eventName) ?? event.eventName
+      rawEventTotals.set(canonicalEventName, (rawEventTotals.get(canonicalEventName) ?? 0) + 1)
     }
 
     const reportingMetaRows = reportingRows.filter((row) => {
@@ -503,7 +935,7 @@ export class AnalyticsService {
     const impressions = reportingMetaRows.reduce((sum, row) => sum + row.impressions, 0)
     const viewContent = rawEventTotals.get('view_item') ?? 0
     const lead = (rawEventTotals.get('form_submit') ?? 0) + (rawEventTotals.get('lead_created') ?? 0)
-    const purchase = rawEventTotals.get('purchase_completed') ?? 0
+    const purchase = rawEventTotals.get('purchase') ?? 0
     const eventVolume = metaEvents.length
     const matchedEvents = metaEvents.filter((event) => {
       const payload = (event.payload as Record<string, unknown>) ?? {}
@@ -749,6 +1181,42 @@ export class AnalyticsService {
     }
 
     const factRows = rawEvents.map((rawEvent) => normalizeFactRecord(rawEvent))
+    const validFacts: Array<ReturnType<typeof normalizeFactRecord>> = []
+    const invalidFacts: Array<{ fact: ReturnType<typeof normalizeFactRecord>; issues: string[] }> = []
+    for (const fact of factRows) {
+      const issues = validateStructuralFact(fact)
+      if (issues.length > 0) {
+        invalidFacts.push({ fact, issues })
+        continue
+      }
+      validFacts.push(fact)
+    }
+
+    if (invalidFacts.length > 0) {
+      await Promise.all(
+        invalidFacts.map(({ fact, issues }) =>
+          this.repository.createDataAnomaly({
+            type: 'invalid_structural_event',
+            source: 'analytics',
+            metric: fact.eventName,
+            severity: 'high',
+            description: [
+              `event="${fact.eventName}"`,
+              `tenant_id="${fact.tenantId ?? 'missing'}"`,
+              `component_id="${fact.componentId ?? 'missing'}"`,
+              `cta_id="${fact.ctaId ?? 'missing'}"`,
+              `issues=${issues.join(',')}`,
+            ].join(' '),
+          }),
+        ),
+      )
+    }
+
+    if (!validFacts.length) {
+      await this.repository.markEventsProcessed(rawEvents.map((event) => event.id))
+      return { processed: rawEvents.length, sessionsUpdated: 0, factsInserted: 0, quarantined: invalidFacts.length }
+    }
+
     const sessionSeed = new Map<
       string,
       {
@@ -761,7 +1229,7 @@ export class AnalyticsService {
       }
     >()
 
-    for (const fact of factRows) {
+    for (const fact of validFacts) {
       const current = sessionSeed.get(fact.sessionId)
       if (!current) {
         sessionSeed.set(fact.sessionId, {
@@ -798,7 +1266,11 @@ export class AnalyticsService {
     )
 
     const inserted = await this.repository.upsertManyFacts(
-      factRows.map((fact) => ({
+      validFacts.map((fact) => ({
+        tenantId: fact.tenantId as string,
+        schemaVersion: fact.schemaVersion ?? 1,
+        ingestionSource: 'direct',
+        ingestionPath: 'frontend_api',
         eventName: fact.eventName,
         eventTimestamp: fact.eventTimestamp,
         eventDate: fact.eventDate,
@@ -839,6 +1311,7 @@ export class AnalyticsService {
       processed: rawEvents.length,
       sessionsUpdated: sessionSeed.size,
       factsInserted: inserted.count,
+      quarantined: invalidFacts.length,
     }
   }
 
@@ -857,6 +1330,37 @@ export class AnalyticsService {
       }
 
       const factRows = batch.map((rawEvent) => normalizeFactRecord(rawEvent))
+      const validFacts: Array<ReturnType<typeof normalizeFactRecord>> = []
+      const invalidFacts: Array<{ fact: ReturnType<typeof normalizeFactRecord>; issues: string[] }> = []
+      for (const fact of factRows) {
+        const issues = validateStructuralFact(fact)
+        if (issues.length > 0) {
+          invalidFacts.push({ fact, issues })
+          continue
+        }
+        validFacts.push(fact)
+      }
+
+      if (invalidFacts.length > 0) {
+        await Promise.all(
+          invalidFacts.map(({ fact, issues }) =>
+            this.repository.createDataAnomaly({
+              type: 'invalid_structural_event',
+              source: 'analytics',
+              metric: fact.eventName,
+              severity: 'high',
+              description: [
+                `event="${fact.eventName}"`,
+                `tenant_id="${fact.tenantId ?? 'missing'}"`,
+                `component_id="${fact.componentId ?? 'missing'}"`,
+                `cta_id="${fact.ctaId ?? 'missing'}"`,
+                `issues=${issues.join(',')}`,
+              ].join(' '),
+            }),
+          ),
+        )
+      }
+
       const sessionSeed = new Map<
         string,
         {
@@ -869,7 +1373,7 @@ export class AnalyticsService {
         }
       >()
 
-      for (const fact of factRows) {
+      for (const fact of validFacts) {
         const current = sessionSeed.get(fact.sessionId)
         if (!current) {
           sessionSeed.set(fact.sessionId, {
@@ -906,7 +1410,11 @@ export class AnalyticsService {
       )
 
       const inserted = await this.repository.upsertManyFacts(
-        factRows.map((fact) => ({
+        validFacts.map((fact) => ({
+          tenantId: fact.tenantId as string,
+          schemaVersion: fact.schemaVersion ?? 1,
+          ingestionSource: 'direct',
+          ingestionPath: 'frontend_api',
           eventName: fact.eventName,
           eventTimestamp: fact.eventTimestamp,
           eventDate: fact.eventDate,
@@ -914,6 +1422,16 @@ export class AnalyticsService {
           userId: fact.userId,
           page: fact.page,
           path: fact.path,
+          pageType: fact.pageType,
+          componentType: fact.componentType,
+          componentId: fact.componentId,
+          ctaId: fact.ctaId,
+          ctaName: fact.ctaName,
+          ctaType: fact.ctaType,
+          ctaContext: fact.ctaContext,
+          ctaLocation: fact.ctaLocation,
+          position:
+            fact.position !== null && fact.position !== undefined ? new Prisma.Decimal(fact.position) : null,
           landingPage: fact.landingPage,
           productId: fact.productId,
           category: fact.category,

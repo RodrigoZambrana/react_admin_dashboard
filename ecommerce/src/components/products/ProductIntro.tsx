@@ -18,6 +18,7 @@ import ProductWishlistButton from "@component/product-cards/ProductWishlistButto
 
 import useCart from "@hook/useCart";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { buildCanonicalAnalyticsContext } from "@/lib/analytics/product-context";
 import {
   buildPublishedParametricLineId,
   buildPublishedParametricSummaryEntries,
@@ -34,6 +35,7 @@ import { filterValidProductImages } from "@/lib/utils/image";
 import { useTranslation } from "@/state/i18n-context";
 import type {
   InventoryStatus,
+  CanonicalConfiguration,
   PublishedParametricOptions,
   ProductAttributeDefinition,
   ProductAttributeType,
@@ -151,6 +153,68 @@ const findVariantForValue = (
     variant.attributes.some((attribute) => attribute.attribute === attributeType && attribute.valueKey === valueKey)
   );
 
+const deriveCanonicalPublishedParametricSelection = (
+  variants: PublishedParametricVariantSummary[],
+  canonicalConfiguration?: CanonicalConfiguration | null
+) => {
+  if (!canonicalConfiguration || variants.length === 0) {
+    return null;
+  }
+
+  const canonicalRules = canonicalConfiguration.configurationRules;
+  if (!canonicalRules || typeof canonicalRules !== "object" || Array.isArray(canonicalRules)) {
+    return null;
+  }
+
+  const rules = canonicalRules as Record<string, unknown>;
+  const baseSelection = toPublishedParametricSelection(variants[0]);
+  const wantsShutter = Boolean(
+    rules.hasShutterMonoblock ?? rules.monoblock ?? rules.monoblockEnabled
+  );
+  const requestedSelection = {
+    ...baseSelection,
+    hasShutterMonoblock: wantsShutter,
+    shutterMaterial:
+      typeof rules.shutterMaterial === "string"
+        ? rules.shutterMaterial
+        : typeof rules.shutterSystem === "string"
+          ? rules.shutterSystem
+          : typeof rules.monoblockMaterial === "string"
+            ? rules.monoblockMaterial
+            : "",
+  };
+
+  if (wantsShutter) {
+    const shutterVariant =
+      variants.find(
+        (variant) =>
+          variant.optionValues.serie === requestedSelection.serie &&
+          variant.optionValues.material === requestedSelection.material &&
+          variant.optionValues.color === requestedSelection.color &&
+          variant.optionValues.vidrio === requestedSelection.vidrio &&
+          variant.optionValues.hasMosquitero === requestedSelection.hasMosquitero &&
+          variant.optionValues.hasShutterMonoblock &&
+          (!requestedSelection.shutterMaterial ||
+            variant.optionValues.shutterMaterial === requestedSelection.shutterMaterial)
+      ) ??
+      variants.find(
+        (variant) =>
+          variant.optionValues.serie === requestedSelection.serie &&
+          variant.optionValues.material === requestedSelection.material &&
+          variant.optionValues.color === requestedSelection.color &&
+          variant.optionValues.vidrio === requestedSelection.vidrio &&
+          variant.optionValues.hasMosquitero === requestedSelection.hasMosquitero &&
+          variant.optionValues.hasShutterMonoblock
+      );
+
+    if (shutterVariant) {
+      return toPublishedParametricSelection(shutterVariant);
+    }
+  }
+
+  return resolvePublishedParametricSelection(variants, requestedSelection, baseSelection);
+};
+
 type AttributeOptionProps = {
   label: string;
   selected: boolean;
@@ -230,6 +294,7 @@ interface Props {
   shortDescription?: string;
   mode?: ProductMode;
   configuration?: Record<string, unknown> | null;
+  canonicalConfiguration?: CanonicalConfiguration | null;
   publishedParametricOptions?: PublishedParametricOptions;
   onPublishedParametricVariantChange?: (payload: {
     specifications: Array<{ label: string; value: string }>;
@@ -267,6 +332,7 @@ export default function ProductIntro({
   shortDescription,
   mode = "simple",
   configuration,
+  canonicalConfiguration,
   publishedParametricOptions,
   onPublishedParametricVariantChange,
   variantAttributes,
@@ -328,34 +394,49 @@ export default function ProductIntro({
       null,
     [publishedParametricOptions?.defaultVariantKey, publishedParametricVariants]
   );
-  const [selectedPublishedParametric, setSelectedPublishedParametric] = useState<PublishedParametricSelection>(
-    toPublishedParametricSelection(defaultPublishedParametricVariant)
+  const canonicalPublishedParametricSelection = useMemo(
+    () => deriveCanonicalPublishedParametricSelection(publishedParametricVariants, canonicalConfiguration ?? null),
+    [canonicalConfiguration, publishedParametricVariants]
   );
+  const [selectedPublishedParametric, setSelectedPublishedParametric] = useState<PublishedParametricSelection>(
+    canonicalPublishedParametricSelection ?? toPublishedParametricSelection(defaultPublishedParametricVariant)
+  );
+  const searchParamsSignature = useMemo(() => searchParams?.toString() ?? "", [searchParams]);
 
   useEffect(() => {
     setSelectedAttributes(initialSelection);
   }, [initialSelection]);
 
   useEffect(() => {
-    setSelectedPublishedParametric(toPublishedParametricSelection(defaultPublishedParametricVariant));
-  }, [defaultPublishedParametricVariant]);
+    setSelectedPublishedParametric(
+      canonicalPublishedParametricSelection ?? toPublishedParametricSelection(defaultPublishedParametricVariant)
+    );
+  }, [canonicalPublishedParametricSelection, defaultPublishedParametricVariant]);
 
   useEffect(() => {
-    if (!defaultPublishedParametricVariant || !searchParams) {
+    if (!defaultPublishedParametricVariant || !searchParams || searchParamsSignature.length === 0) {
       return;
     }
 
+    const defaultSelection =
+      canonicalPublishedParametricSelection ?? toPublishedParametricSelection(defaultPublishedParametricVariant);
     const requestedSelection = selectionFromSearchParams(
       searchParams,
-      toPublishedParametricSelection(defaultPublishedParametricVariant)
+      defaultSelection
     );
     const resolvedSelection = resolvePublishedParametricSelection(
       publishedParametricVariants,
       requestedSelection,
-      toPublishedParametricSelection(defaultPublishedParametricVariant)
+      defaultSelection
     );
     setSelectedPublishedParametric(resolvedSelection);
-  }, [defaultPublishedParametricVariant, publishedParametricVariants, searchParams]);
+  }, [
+    canonicalPublishedParametricSelection,
+    defaultPublishedParametricVariant,
+    publishedParametricVariants,
+    searchParams,
+    searchParamsSignature
+  ]);
 
   const selectedVariant = useMemo(() => {
     if (!attributeTypes.length) {
@@ -651,6 +732,14 @@ export default function ProductIntro({
       includeMaterial: false
     });
   }, [selectedPublishedParametricVariant?.configuration, t]);
+  const canonicalAnalyticsContext = useMemo(
+    () =>
+      buildCanonicalAnalyticsContext({
+        canonicalConfiguration: canonicalConfiguration ?? null,
+        configuration: selectedPublishedParametricVariant?.configuration ?? configuration ?? null
+      }),
+    [canonicalConfiguration, configuration, selectedPublishedParametricVariant?.configuration]
+  );
 
   const handleAddToCart = useCallback(() => {
     if (addToCartDisabled) {
@@ -1152,6 +1241,7 @@ export default function ProductIntro({
                   price: resolvedPrice,
                   currency: resolvedCurrency,
                   quantity: 1,
+                  ...canonicalAnalyticsContext
                 }}
                 onClick={handleAddToCart}>
                 {t("product.actions.addToCart", { defaultMessage: "Add to Cart" })}

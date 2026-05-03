@@ -13,14 +13,13 @@ import TextField from "@component/text-field";
 import Rating from "@component/rating";
 import { Button } from "@component/buttons";
 import { H5, H6, Paragraph, SemiSpan, Span } from "@component/Typography";
+import TrackedButton from "@component/TrackedButton";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "@/state/i18n-context";
-import { trackEvent } from "@/lib/analytics/trackEvent";
-import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
-import { env } from "@/lib/env";
 import { resolvePageType } from "@/lib/analytics/pageType";
 import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
+import { ALL_CATEGORY_SLUG, isAllCategorySlug } from "@/lib/storefront/category-slugs";
 
 type SaleCategoryDefinition = {
   icon: string;
@@ -134,7 +133,7 @@ export default function ShopFilterPanel({
   }, [activeFilters.priceMax, activeFilters.priceMin, priceBounds.max, priceBounds.min]);
 
   const updateQuery = useCallback(
-    (updates: Record<string, string | undefined>, tracking?: { eventName: string; ctaId: string; ctaName: string; metadata?: Record<string, unknown> }) => {
+    (updates: Record<string, string | undefined>) => {
       if (!pathname) return;
 
       const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -149,27 +148,9 @@ export default function ShopFilterPanel({
 
       const query = params.toString();
       router.push(query ? `${pathname}?${query}` : pathname, { scroll: false });
-      if (tracking) {
-        void trackEvent({
-          event_name: tracking.eventName,
-          event_category: "navigation",
-          tenant_id: env.clientSlug,
-          page_type: pageType,
-          component_type: "filter_panel",
-          component_id: "shop_filter_panel",
-          cta_id: tracking.ctaId,
-          cta_name: tracking.ctaName,
-          cta_type: "primary",
-          cta_context: "navigation",
-          cta_location: "filter_panel",
-          schema_version: EVENT_SCHEMA_VERSION,
-          metadata: tracking.metadata,
-          data: tracking.metadata,
-        });
-      }
       if (onClose) onClose();
     },
-    [onClose, pageType, pathname, router, searchParams]
+    [onClose, pathname, router, searchParams]
   );
 
   const handleCategorySelect = useCallback(
@@ -179,15 +160,7 @@ export default function ShopFilterPanel({
         if (onClose) onClose();
         return;
       }
-      updateQuery(
-        { category: slug },
-        {
-          eventName: "filter_applied",
-          ctaId: "filters.category.select",
-          ctaName: "filter_category",
-          metadata: { filter_name: "category", filter_value: normalizedSlug ?? null }
-        }
-      );
+      updateQuery({ category: slug });
     },
     [onClose, selectedCategorySlug, updateQuery]
   );
@@ -195,15 +168,7 @@ export default function ShopFilterPanel({
   const handleRatingToggle = useCallback(
     (value: number) => () => {
       const nextValue = activeFilters.rating === value ? undefined : String(value);
-      updateQuery(
-        { rating: nextValue },
-        {
-          eventName: "filter_applied",
-          ctaId: "filters.rating.select",
-          ctaName: "filter_rating",
-          metadata: { filter_name: "rating", filter_value: value }
-        }
-      );
+      updateQuery({ rating: nextValue });
     },
     [activeFilters.rating, updateQuery]
   );
@@ -222,30 +187,14 @@ export default function ShopFilterPanel({
       [nextMin, nextMax] = [nextMax, nextMin];
     }
 
-    updateQuery(
-      {
-        priceMin: typeof nextMin === "number" ? String(nextMin) : undefined,
-        priceMax: typeof nextMax === "number" ? String(nextMax) : undefined
-      },
-      {
-        eventName: "filter_applied",
-        ctaId: "filters.price.apply",
-        ctaName: "filter_price",
-        metadata: { filter_name: "price", min: nextMin ?? null, max: nextMax ?? null }
-      }
-    );
+    updateQuery({
+      priceMin: typeof nextMin === "number" ? String(nextMin) : undefined,
+      priceMax: typeof nextMax === "number" ? String(nextMax) : undefined
+    });
   }, [minValue, maxValue, updateQuery]);
 
   const handleClearFilters = useCallback(() => {
-    updateQuery(
-      { priceMin: undefined, priceMax: undefined, rating: undefined },
-      {
-        eventName: "filter_applied",
-        ctaId: "filters.clear",
-        ctaName: "clear_filters",
-        metadata: { filter_name: "clear_all" }
-      }
-    );
+    updateQuery({ priceMin: undefined, priceMax: undefined, rating: undefined });
   }, [updateQuery]);
 
   const currencyFormatter = useMemo(
@@ -266,9 +215,9 @@ export default function ShopFilterPanel({
           <H5 mb="0px">{t("Filters")}</H5>
         </FlexBox>
 
-        <ClearButton variant="text" color="primary" onClick={handleClearFilters}>
+        <TrackedButton as={ClearButton} variant="text" color="primary" pageType={pageType} componentType="filter_panel" componentId="shop_filter_panel" eventName="filter_applied" ctaId="filters.clear" ctaName="clear_filters" ctaType="secondary" ctaContext="navigation" ctaLocation="filter_panel" metadata={{ filter_name: "clear_all" }} onTrackedClick={handleClearFilters}>
           {t("Clear all")}
-        </ClearButton>
+        </TrackedButton>
       </FilterHeader>
 
       <Box mb="1.5rem">
@@ -276,24 +225,35 @@ export default function ShopFilterPanel({
         <FlexBox flexDirection="column" gridGap="0.5rem">
           {categories.map((category, index) => {
             const isActive =
-              selectedCategorySlug === undefined
-                ? category.slug === undefined
+              isAllCategorySlug(selectedCategorySlug)
+                ? category.slug === ALL_CATEGORY_SLUG
                 : category.slug === selectedCategorySlug;
             const label = category.title;
             const iconName = category.icon || "filter-3";
             const categoryKey = category.slug ?? `${category.title}-${index}`;
 
             return (
-              <CategoryButton
+              <TrackedButton
+                as={CategoryButton}
                 key={categoryKey}
                 $active={isActive}
                 gridGap="0.75rem"
-                onClick={handleCategorySelect(category.slug)}>
+                pageType={pageType}
+                componentType="filter_panel"
+                componentId="shop_filter_panel"
+                eventName="filter_applied"
+                ctaId="filters.category.select"
+                ctaName="filter_category"
+                ctaType="primary"
+                ctaContext="navigation"
+                ctaLocation="filter_panel"
+                metadata={{ filter_name: "category", filter_value: category.slug ?? null }}
+                onTrackedClick={handleCategorySelect(category.slug)}>
                 <Icon size="20px" color={isActive ? "primary" : "secondary"}>
                   {iconName}
                 </Icon>
                 <Span fontWeight={isActive ? 600 : 500}>{t(label)}</Span>
-              </CategoryButton>
+              </TrackedButton>
             );
           })}
         </FlexBox>
@@ -329,15 +289,25 @@ export default function ShopFilterPanel({
             min={priceBounds.min ?? undefined}
           />
         </FlexBox>
-        <Button
+        <TrackedButton
           fullWidth
           mt="1rem"
           color="primary"
           variant="contained"
-          onClick={handleApplyPrice}
+          pageType={pageType}
+          componentType="filter_panel"
+          componentId="shop_filter_panel"
+          eventName="filter_applied"
+          ctaId="filters.price.apply"
+          ctaName="filter_price"
+          ctaType="primary"
+          ctaContext="navigation"
+          ctaLocation="filter_panel"
+          metadata={{ filter_name: "price", min: Number(minValue) || null, max: Number(maxValue) || null }}
+          onTrackedClick={handleApplyPrice}
           disabled={priceBounds.min === undefined || priceBounds.max === undefined}>
           {t("common.apply", { defaultMessage: "Apply" })}
-        </Button>
+        </TrackedButton>
       </Box>
 
       <Divider my="1.5rem" />
@@ -348,12 +318,27 @@ export default function ShopFilterPanel({
           {ratingOptions.map((option) => {
             const isActive = activeFilters.rating === option;
             return (
-              <RatingOption key={option} $active={isActive} gridGap="0.5rem" onClick={handleRatingToggle(option)}>
+              <TrackedButton
+                as={RatingOption}
+                key={option}
+                $active={isActive}
+                gridGap="0.5rem"
+                pageType={pageType}
+                componentType="filter_panel"
+                componentId="shop_filter_panel"
+                eventName="filter_applied"
+                ctaId="filters.rating.select"
+                ctaName="filter_rating"
+                ctaType="primary"
+                ctaContext="navigation"
+                ctaLocation="filter_panel"
+                metadata={{ filter_name: "rating", filter_value: option }}
+                onTrackedClick={handleRatingToggle(option)}>
                 <Rating value={option} color="warn" outof={5} />
                 <SemiSpan color="text.muted">
                   {t("{count} & up", { values: { count: option } })}
                 </SemiSpan>
-              </RatingOption>
+              </TrackedButton>
             );
           })}
         </FlexBox>

@@ -5,6 +5,10 @@ import type { CSSProperties } from "react";
 import { buildMediaRouteHref } from "@/lib/media-route";
 import { getMediaUrl } from "@/lib/media";
 import type { StorefrontProductMediaStoryItem } from "@/types/storefront";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
 
 type Props = {
   productSlug: string;
@@ -36,17 +40,60 @@ const thumbStyle: CSSProperties = {
 };
 
 export default function MultimediaStoriesRail({ productSlug, stories }: Props) {
+  const railRef = useComponentTracking({
+    pageType: "product",
+    componentType: "multimedia_stories_rail",
+    componentId: "multimedia_stories_rail",
+    metadata: {
+      product_slug: productSlug,
+      story_count: stories.length,
+    },
+  });
+
   if (!stories.length) {
     return null;
   }
 
   return (
-    <div style={railStyle}>
+    <div ref={railRef} style={railStyle}>
       {stories.map((story) => {
         const href = buildMediaRouteHref(productSlug, story.mediaSlug);
 
         return (
-          <Link key={story.id} href={href} scroll={false} style={cardStyle} aria-label={story.title}>
+          <Link
+            key={story.id}
+            href={href}
+            scroll={false}
+            style={cardStyle}
+            aria-label={story.title}
+            onClick={() => {
+              void trackEvent({
+                event_name: "select_item",
+                event_category: "ecommerce",
+                tenant_id: env.clientSlug,
+                page_type: "product",
+                component_type: "multimedia_stories_rail",
+                component_id: "multimedia_stories_rail",
+                cta_id: "multimedia.story.open",
+                cta_name: "open_story",
+                cta_type: "primary",
+                cta_context: "content",
+                cta_location: "multimedia_stories_rail",
+                schema_version: EVENT_SCHEMA_VERSION,
+                metadata: {
+                  story_id: story.id,
+                  story_title: story.title,
+                  media_slug: story.mediaSlug,
+                  product_slug: productSlug,
+                },
+                data: {
+                  story_id: story.id,
+                  story_title: story.title,
+                  media_slug: story.mediaSlug,
+                  product_slug: productSlug,
+                },
+              });
+            }}>
             <div style={thumbStyle}>
               {story.type === "video" ? (
                 <div

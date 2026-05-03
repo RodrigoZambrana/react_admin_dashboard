@@ -369,7 +369,7 @@ export async function runAnalyticsDataTrustChecks(
       }),
       eventFact.count({
         where: {
-          eventName: 'purchase_completed',
+          eventName: 'purchase',
           eventDate: { gte: currentWindowStart, lt: currentWindowEnd },
         },
       }),
@@ -385,7 +385,7 @@ export async function runAnalyticsDataTrustChecks(
   const currentConversionCount = ownPurchasesCurrent
 
   const eventCoverageChecks = await Promise.all(
-    ['whatsapp_click', 'form_submit', 'purchase_completed'].map(async (eventName) => {
+    ['whatsapp_click', 'form_submit', 'purchase'].map(async (eventName) => {
       const count = await eventFact.count({
         where: {
           eventName,

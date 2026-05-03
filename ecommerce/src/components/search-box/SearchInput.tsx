@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import debounce from "lodash/debounce";
 import { IconSearch } from "@tabler/icons-react";
@@ -20,6 +20,7 @@ import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
 import { env } from "@/lib/env";
 import { resolvePageType } from "@/lib/analytics/pageType";
 import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
+import { normalizeSearchValue } from "@/lib/storefront/search-utils";
 
 export default function SearchInput() {
   const [resultList, setResultList] = useState<string[]>([]);
@@ -27,6 +28,7 @@ export default function SearchInput() {
   const t = useTranslation();
   const pathname = usePathname();
   const pageType = resolvePageType(pathname);
+  const lastTrackedQueryRef = useRef<string | null>(null);
   const searchRef = useComponentTracking({
     pageType,
     componentType: "search_input",
@@ -41,6 +43,12 @@ export default function SearchInput() {
         return;
       }
 
+      if (lastTrackedQueryRef.current === trimmed) {
+        return;
+      }
+
+      lastTrackedQueryRef.current = trimmed;
+
       void trackEvent({
         event_name: "search",
         event_category: "navigation",
@@ -54,8 +62,18 @@ export default function SearchInput() {
         cta_context: "navigation",
         cta_location: "search_bar",
         schema_version: EVENT_SCHEMA_VERSION,
-        metadata: { query: trimmed, source: "basic_search" },
-        data: { query: trimmed, source: "basic_search" },
+        metadata: {
+          query: trimmed,
+          query_normalized: normalizeSearchValue(trimmed),
+          search_stage: "intent",
+          search_source: "basic_search",
+        },
+        data: {
+          query: trimmed,
+          query_normalized: normalizeSearchValue(trimmed),
+          search_stage: "intent",
+          search_source: "basic_search",
+        },
       });
     },
     [pageType]

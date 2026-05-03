@@ -7,6 +7,7 @@ import { trackEvent } from "@/lib/analytics/trackEvent";
 import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
 import { env } from "@/lib/env";
 import { resolvePageType } from "@/lib/analytics/pageType";
+import { useOperationalSignals } from "@/lib/analytics/useOperationalSignals";
 
 export default function AnalyticsBootstrap() {
   const pathname = usePathname();
@@ -50,6 +51,11 @@ export default function AnalyticsBootstrap() {
       },
     });
   }, [pathname, searchParams]);
+
+  useOperationalSignals({
+    pageType: resolvePageType(pathname),
+    pathname,
+  });
 
   return null;
 }

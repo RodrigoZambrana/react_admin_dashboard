@@ -115,7 +115,26 @@ export async function seedUruCortinasBaseline(prisma: PrismaClient) {
       data: {
         parentId: (row.parentId as number | null) ?? null,
         installServiceProductId: (row.installServiceProductId as number | null) ?? null,
-      },
+        },
+      })
+  }
+
+  const exposureModeByCategoryName = new Map<string, string>([
+    ['Cortinas', 'M2_DERIVED'],
+    ['Cortinas de enrollar', 'M2_DERIVED'],
+    ['Paneles tradicionales', 'M2_DERIVED'],
+    ['Cortinas metalicas', 'EMPTY_IF_NO_PUBLIC_CALCULABLE'],
+    ['Motores cortinas y persianas', 'UNITARY'],
+  ])
+
+  for (const [categoryName, catalogExposureMode] of exposureModeByCategoryName.entries()) {
+    const category = fixture.productCategories.find((row) => row.name === categoryName)
+    if (!category) {
+      continue
+    }
+    await prisma.productCategory.update({
+      where: { id: category.id as number },
+      data: { catalogExposureMode } as any,
     })
   }
 

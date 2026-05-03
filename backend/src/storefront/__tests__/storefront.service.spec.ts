@@ -70,6 +70,10 @@ const createPrisma = () => ({
     findUnique: vi.fn(),
     findFirst: vi.fn(),
   },
+  canonicalConfiguration: {
+    findMany: vi.fn().mockResolvedValue([]),
+    upsert: vi.fn(),
+  },
   productCategory: {
     findMany: vi.fn(),
   },
@@ -111,6 +115,12 @@ const createCurrencyConversion = () => ({
 
 const createNotifications = () => ({
   notifyOrderReceived: vi.fn().mockResolvedValue(undefined),
+})
+
+const createPublicResponseCache = () => ({
+  get: vi.fn().mockResolvedValue(null),
+  set: vi.fn().mockImplementation(async (_key: string, value: unknown) => value),
+  invalidate: vi.fn().mockResolvedValue(undefined),
 })
 
 const createMercadoPago = () => ({
@@ -250,6 +260,7 @@ describe('StorefrontService.createOrder', () => {
       cmsPages as any,
       growth as any,
       m2DerivedProducts as any,
+      createPublicResponseCache() as any,
     )
 
     vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
@@ -2005,6 +2016,7 @@ describe('StorefrontService SEO surfaces', () => {
       cmsPages as any,
       createGrowth() as any,
       m2DerivedProducts as any,
+      createPublicResponseCache() as any,
     )
 
     vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
@@ -2098,6 +2110,7 @@ describe('StorefrontService SEO surfaces', () => {
       cmsPages as any,
       createGrowth() as any,
       createM2DerivedProducts() as any,
+      {} as any,
     )
 
     vi.spyOn(service as any, 'ensureDefaultPasswordHash').mockResolvedValue(undefined)
@@ -2205,6 +2218,7 @@ describe('StorefrontService.reconcileApprovedPaymentIntent', () => {
       {} as any,
       createGrowth() as any,
       createM2DerivedProducts() as any,
+      createPublicResponseCache() as any,
     )
   })
 
@@ -2394,6 +2408,7 @@ describe('StorefrontService customer-facing order DTOs', () => {
       {} as any,
       createGrowth() as any,
       createM2DerivedProducts() as any,
+      createPublicResponseCache() as any,
     )
   })
 
@@ -2576,6 +2591,94 @@ describe('StorefrontService customer-facing order DTOs', () => {
     expect(result.total).toBe(1)
     expect(result.data).toHaveLength(1)
     expect(result.data[0]?.name).toContain('Ventana corrediza')
+  })
+
+  it('exposes monoblock as a searchable canonical configuration', async () => {
+    prisma.product.count.mockResolvedValue(1)
+    prisma.product.findMany.mockResolvedValue([
+      {
+        id: 502,
+        name: 'Abertura aluminio',
+        productCode: 'AB-502',
+        published: true,
+        productType: 'PHYSICAL',
+        mode: ProductMode.PARAMETRIC,
+        salePrice: decimal(320),
+        costPrice: decimal(180),
+        taxRate: 22,
+        currency: 'UYU',
+        stock: 5,
+        permanentStock: false,
+        status: 0,
+        images: [],
+        category: null,
+      },
+    ])
+    prisma.canonicalConfiguration.findMany.mockResolvedValue([
+      {
+        id: 9001,
+        tenantId: 'urucortinas',
+        baseProductId: 502,
+        configurationRules: { hasShutterMonoblock: true, monoblock: true },
+        canonicalName: 'Monoblock',
+        baseLabel: 'Abertura',
+        slug: 'monoblock',
+        indexable: true,
+        seoTitle: 'Ventanas monoblock a medida',
+        seoDescription: 'Aberturas con persiana integradas.',
+        searchTerms: ['monoblock'],
+        visibilityRules: null,
+        createdAt: new Date('2026-05-02T00:00:00.000Z'),
+        updatedAt: new Date('2026-05-02T00:00:00.000Z'),
+        baseProduct: {
+          id: 502,
+          name: 'Abertura aluminio',
+          productCode: 'AB-502',
+          published: true,
+          productType: 'PHYSICAL',
+          mode: ProductMode.PARAMETRIC,
+          salePrice: decimal(320),
+          costPrice: decimal(180),
+          taxRate: 22,
+          currency: 'UYU',
+          stock: 5,
+          permanentStock: false,
+          status: 0,
+          images: [],
+          category: null,
+        },
+      } as any,
+    ])
+    vi.spyOn(service as any, 'resolvePublishedParametricDefinitions').mockResolvedValue(new Map())
+    vi.spyOn(service as any, 'resolvePublishedParametricConfiguration').mockResolvedValue({
+      key: 'monoblock',
+      price: decimal(320),
+      currency: 'UYU',
+      configuration: { hasShutterMonoblock: true, monoblock: true },
+      specifications: [
+        { label: 'Serie', value: 'PROBBA' },
+        { label: 'Color', value: 'NEGRO' },
+        { label: 'Vidrio', value: 'DVH(4/9/5)' },
+        { label: 'Ancho', value: '116 mm' },
+        { label: 'Alto', value: '72 mm' },
+        { label: 'Monoblock', value: 'ALUMINIO' },
+      ],
+    } as any)
+
+    const result = await service.listProducts({
+      search: 'monoblock',
+      page: '1',
+      pageSize: '12',
+    } as any)
+
+    expect(result.data[0]).toMatchObject({
+      slug: 'monoblock',
+      name: 'Monoblock 116 x 72',
+      canonicalConfiguration: expect.objectContaining({
+        slug: 'monoblock',
+        canonicalName: 'Monoblock',
+      }),
+    })
   })
 
   it('hides square-meter base products from the urucortinas storefront listing', async () => {

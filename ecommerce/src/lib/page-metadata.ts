@@ -203,12 +203,14 @@ export async function buildProductMetadata(
     | "tags"
     | "categories"
     | "mode"
+    | "canonicalConfiguration"
   > & {
     seoTitle?: string | null;
     seoDescription?: string | null;
     seoImageUrl?: string | null;
   },
   canonicalSlug?: string,
+  canonicalPath?: string,
 ): Promise<Metadata> {
   const description =
     normalizeText(product.seoDescription) ||
@@ -232,9 +234,13 @@ export async function buildProductMetadata(
         : []),
       ...(Array.isArray(product.tags) ? product.tags : []),
       product.mode ?? null,
+      product.canonicalConfiguration?.canonicalName ?? null,
+      ...(Array.isArray(product.canonicalConfiguration?.searchTerms)
+        ? product.canonicalConfiguration.searchTerms
+        : []),
     ],
     image,
-    canonicalPath: `/product/${canonicalSlug || product.slug}`,
+    canonicalPath: canonicalPath ?? `/product/${canonicalSlug || product.slug}`,
     openGraphType: "website",
   });
 }

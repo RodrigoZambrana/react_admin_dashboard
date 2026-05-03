@@ -1,10 +1,10 @@
 export const reportMeta = {
   title: "Sistema - Casos de uso detallados",
-  generatedAt: "2026-04-27",
-  baselineCommit: "1aa71aac",
+  generatedAt: "2026-05-03",
+  baselineCommit: "8004d89e",
   updateCommand: "node tools/qa/generate-use-cases-report.mjs",
   notes:
-    "Estado de prueba: VERIFICADA = corrida/paso validado; DEFINIDA = existe cobertura alineada pero no rerun en este informe; PENDIENTE = no existe prueba automatizada suficiente todavía. Estado backend directo: validado por UI, validado por API directa, pendiente de backend, definido pero no cubierto. Los bloques de auto-respuesta, wording registry, hybrid intent y grounding quedan fuera del gate de esta entrega manual-only.",
+    "Contrato vivo del sistema: VERIFICADA = corrida/paso validado; DEFINIDA = existe cobertura alineada pero no rerun en este informe; PENDIENTE = no existe prueba automatizada suficiente todavía. La hoja Contrato vivo normaliza tipo, inputs, outputs, sistemas involucrados, dependencias, estado y trazabilidad. La hoja Hallazgos queda como registro de errores con clasificación obligatoria. Para este proceso se excluye Chat Platform y se trabaja sobre ecommerce, backend, analytics e integraciones auxiliares. Los bloques de auto-respuesta, wording registry, hybrid intent y grounding quedan fuera del gate de esta entrega manual-only.",
 };
 
 const c = (
@@ -32,6 +32,170 @@ const c = (
   nextAction,
   lastValidated,
 });
+
+export const contractHeaders = [
+  "ID",
+  "Tipo",
+  "Descripción",
+  "Comportamiento esperado",
+  "Inputs",
+  "Outputs",
+  "Sistemas involucrados",
+  "Dependencias",
+  "Estado",
+  "Última validación",
+  "Notas / edge cases",
+  "Trazabilidad",
+  "Clasificación de hallazgo",
+];
+
+export const findingsHeaders = [
+  "ID",
+  "Tipo",
+  "Sistema afectado",
+  "Flujo impactado",
+  "Pasos de reproducción",
+  "Severidad",
+  "Estado",
+  "Caso / documento vinculado",
+  "Notas",
+];
+
+function compactJoin(values, separator = "; ") {
+  return values
+    .map((value) => (value == null ? "" : String(value).trim()))
+    .filter(Boolean)
+    .join(separator);
+}
+
+function uniqueList(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function normalizeHintText(value) {
+  return value == null ? "" : String(value).toLowerCase();
+}
+
+function inferContractType(section, item) {
+  const text = normalizeHintText(
+    [section.project, section.sheetName, item.functionality, item.coverage, item.useCase, item.evidence].join(" "),
+  );
+
+  if (/(event|evento|tracking|analytics|ga4|metric|data quality)/.test(text)) {
+    return "evento";
+  }
+
+  if (/(endpoint|api|dto|controller|webhook|route|request|response|contract)/.test(text)) {
+    return "endpoint";
+  }
+
+  if (/(e2e|ui|flow|flujo|checkout|login|register|cart|home|product|order|inbox|mail|conversation|webchat|whatsapp|meta)/.test(text)) {
+    return "flujo";
+  }
+
+  return "feature";
+}
+
+function inferSystemsInvolved(section, item) {
+  const text = normalizeHintText(
+    [section.project, section.sheetName, item.functionality, item.coverage, item.useCase, item.evidence, item.preconditions, item.trigger, item.expected].join(" "),
+  );
+
+  const systems = [];
+  if (/(analytics|tracking|ga4|metric|event|data quality|parity)/.test(text)) {
+    systems.push("analytics");
+  }
+
+  if (/(frontend\/src|ecommerce\/src|frontend\/|ui|e2e|view|page|component|tsx|html|storefront|admin)/.test(text) || ["Ecommerce", "Admin", "Cross-project"].includes(section.project)) {
+    systems.push("frontend");
+  }
+
+  if (/(backend\/src|service|controller|dto|api|webhook|prisma|db|inbox\.service|storefront\.service|auth\.dto|channel-control|ai-platform|channel-adapter)/.test(text) || ["Ecommerce", "Admin", "Chat Platform", "Cross-project", "Security"].includes(section.project)) {
+    systems.push("backend");
+  }
+
+  if (/(mercado pago|google oauth|meta|whatsapp|facebook|instagram|email|imap|smtp|external|provider|payment|ship|google|whatsapp-qr)/.test(text)) {
+    systems.push("externos");
+  }
+
+  const resolved = uniqueList(systems);
+  if (resolved.length > 0) {
+    return resolved.join(", ");
+  }
+
+  if (/analytics|tracking|event/.test(text)) {
+    return "analytics";
+  }
+
+  return "backend";
+}
+
+function inferDependencies(item) {
+  return compactJoin(
+    uniqueList([
+      item.preconditions,
+      item.coverage,
+      item.evidence,
+      item.nextAction && item.nextAction !== "Mantener" ? item.nextAction : "",
+    ]),
+  );
+}
+
+function inferTraceability(item) {
+  return compactJoin([item.evidence]);
+}
+
+function inferContractState(item) {
+  return item.status === "VERIFICADA" ? "valid" : "pending";
+}
+
+function inferNotes(item) {
+  return compactJoin([item.nextAction, item.lastValidated ? `Última validación: ${item.lastValidated}` : ""]);
+}
+
+function inferInputSummary(item) {
+  return compactJoin([item.preconditions, item.trigger], " | ");
+}
+
+function inferOutputSummary(item) {
+  return compactJoin([item.expected]);
+}
+
+export function buildContractRows() {
+  return reportSections.flatMap((section) =>
+    (section.sheetName === "Chat Platform" || normalizeHintText(section.project) === "chat platform" ? [] : section.cases).map((item) => ({
+      ID: item.id,
+      Tipo: inferContractType(section, item),
+      Descripción: item.useCase,
+      "Comportamiento esperado": item.expected,
+      Inputs: inferInputSummary(item),
+      Outputs: inferOutputSummary(item),
+      "Sistemas involucrados": inferSystemsInvolved(section, item),
+      Dependencias: inferDependencies(item),
+      Estado: inferContractState(item),
+      "Última validación": item.lastValidated || "",
+      "Notas / edge cases": inferNotes(item),
+      Trazabilidad: inferTraceability(item),
+      "Clasificación de hallazgo": "",
+    })),
+  );
+}
+
+export function buildFindingTemplateRows() {
+  return [
+    {
+      ID: "",
+      Tipo: "bug funcional | inconsistencia entre servicios | desalineación con documento | gap funcional | deuda técnica",
+      "Sistema afectado": "",
+      "Flujo impactado": "",
+      "Pasos de reproducción": "",
+      Severidad: "crítica | media | baja",
+      Estado: "open | in_progress | fixed | validated",
+      "Caso / documento vinculado": "",
+      Notas: "Registrar evidencia, impacto cruzado y decisión de documentación. Completar una fila por hallazgo real.",
+    },
+  ];
+}
 
 export const reportSections = [
   {

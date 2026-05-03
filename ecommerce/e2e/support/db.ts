@@ -84,6 +84,52 @@ export type ApprovedMercadoPagoIntentSnapshot = {
   externalPaymentId: string;
 };
 
+export type AnalyticsEventSnapshot = {
+  id: string;
+  tenantId: string;
+  eventName: string;
+  eventId: string | null;
+  schemaVersion: number;
+  source: string | null;
+  ingestionPath: string | null;
+  componentId: string | null;
+  ctaId: string | null;
+  timestamp: string;
+  createdAt: string;
+};
+
+export type AnalyticsFactSnapshot = {
+  id: string;
+  tenantId: string;
+  eventName: string;
+  eventId: string | null;
+  schemaVersion: number;
+  ingestionSource: string;
+  ingestionPath: string | null;
+  componentId: string | null;
+  ctaId: string | null;
+  sourceEventId: string;
+  eventTimestamp: string;
+  createdAt: string;
+};
+
+export type AnalyticsComparisonSnapshot = {
+  id: string;
+  tenantId: string;
+  eventId: string;
+  eventName: string;
+  existsInDirect: boolean;
+  existsInGa: boolean;
+  payloadMatch: boolean;
+  timeDiffMs: number | null;
+  status: string;
+  directSource: string | null;
+  gaSource: string | null;
+  comparisonDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SeededConversationMessageSnapshot = {
   conversationId: string;
   messageId: string;
@@ -255,6 +301,388 @@ export async function getLatestPaymentForOrder(orderUuid: string): Promise<Lates
     currency: row.currency,
     method: row.method
   };
+}
+
+export async function waitForLatestAnalyticsEventByEventId(
+  eventId: string,
+  timeoutMs = 20_000
+): Promise<AnalyticsEventSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) =>
+      client.query<{
+        id: string;
+        tenantId: string;
+        eventName: string;
+        eventId: string | null;
+        schemaVersion: number;
+        source: string | null;
+        componentId: string | null;
+        ctaId: string | null;
+        timestamp: Date;
+      }>(
+        `
+          SELECT
+            id,
+            tenant_id AS "tenantId",
+            event_name AS "eventName",
+            event_id AS "eventId",
+            schema_version AS "schemaVersion",
+            source,
+            component_id AS "componentId",
+            cta_id AS "ctaId",
+            timestamp
+          FROM events
+          WHERE event_id = $1
+          ORDER BY timestamp DESC
+          LIMIT 1
+        `,
+        [eventId]
+      )
+    );
+
+    const row = result.rows[0];
+    if (row?.id) {
+      return {
+        id: row.id,
+        tenantId: row.tenantId,
+        eventName: row.eventName,
+        eventId: row.eventId,
+        schemaVersion: row.schemaVersion,
+        source: row.source,
+        ingestionPath: null,
+        componentId: row.componentId,
+        ctaId: row.ctaId,
+        timestamp: row.timestamp.toISOString(),
+        createdAt: row.timestamp.toISOString()
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(`Timed out waiting for analytics event ${eventId}`);
+}
+
+export async function waitForLatestAnalyticsEventByEventName(
+  eventName: string,
+  timeoutMs = 20_000,
+  filters?: { tenantId?: string; payloadOrderId?: string; ctaId?: string; componentId?: string }
+): Promise<AnalyticsEventSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) => {
+      const conditions = ['event_name = $1'];
+      const values: Array<string> = [eventName];
+
+      if (filters?.tenantId) {
+        conditions.push(`tenant_id = $${values.length + 1}`);
+        values.push(filters.tenantId);
+      }
+
+      if (filters?.payloadOrderId) {
+        conditions.push(
+          `(payload -> 'data' ->> 'order_id' = $${values.length + 1} OR payload -> 'metadata' ->> 'order_id' = $${values.length + 1})`
+        );
+        values.push(filters.payloadOrderId);
+      }
+
+      if (filters?.ctaId) {
+        conditions.push(`cta_id = $${values.length + 1}`);
+        values.push(filters.ctaId);
+      }
+
+      if (filters?.componentId) {
+        conditions.push(`component_id = $${values.length + 1}`);
+        values.push(filters.componentId);
+      }
+
+      return client.query<{
+        id: string;
+        tenantId: string;
+        eventName: string;
+        eventId: string | null;
+        schemaVersion: number;
+        source: string | null;
+        componentId: string | null;
+        ctaId: string | null;
+        timestamp: Date;
+      }>(
+        `
+          SELECT
+            id,
+            tenant_id AS "tenantId",
+            event_name AS "eventName",
+            event_id AS "eventId",
+            schema_version AS "schemaVersion",
+            source,
+            component_id AS "componentId",
+            cta_id AS "ctaId",
+            timestamp
+          FROM events
+          WHERE ${conditions.join(" AND ")}
+          ORDER BY timestamp DESC
+          LIMIT 1
+        `,
+        values
+      );
+    });
+
+    const row = result.rows[0];
+    if (row?.id) {
+      return {
+        id: row.id,
+        tenantId: row.tenantId,
+        eventName: row.eventName,
+        eventId: row.eventId,
+        schemaVersion: row.schemaVersion,
+        source: row.source,
+        ingestionPath: null,
+        componentId: row.componentId,
+        ctaId: row.ctaId,
+        timestamp: row.timestamp.toISOString(),
+        createdAt: row.timestamp.toISOString()
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(`Timed out waiting for analytics event ${eventName}`);
+}
+
+export async function waitForLatestAnalyticsFactBySourceEventId(
+  sourceEventId: string,
+  timeoutMs = 20_000
+): Promise<AnalyticsFactSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) =>
+      client.query<{
+        id: string;
+        tenantId: string;
+        eventName: string;
+        eventId: string | null;
+        schemaVersion: number;
+        ingestionSource: string;
+        ingestionPath: string | null;
+        componentId: string | null;
+        ctaId: string | null;
+        sourceEventId: string;
+        eventTimestamp: Date;
+        createdAt: Date;
+      }>(
+        `
+          SELECT
+            id,
+            tenant_id AS "tenantId",
+            event_name AS "eventName",
+            event_id AS "eventId",
+            schema_version AS "schemaVersion",
+            ingestion_source AS "ingestionSource",
+            ingestion_path AS "ingestionPath",
+            component_id AS "componentId",
+            cta_id AS "ctaId",
+            source_event_id AS "sourceEventId",
+            event_timestamp AS "eventTimestamp",
+            created_at AS "createdAt"
+          FROM event_facts
+          WHERE source_event_id = $1
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        [sourceEventId]
+      )
+    );
+
+    const row = result.rows[0];
+    if (row?.id) {
+      return {
+        id: row.id,
+        tenantId: row.tenantId,
+        eventName: row.eventName,
+        eventId: row.eventId,
+        schemaVersion: row.schemaVersion,
+        ingestionSource: row.ingestionSource,
+        ingestionPath: row.ingestionPath,
+        componentId: row.componentId,
+        ctaId: row.ctaId,
+        sourceEventId: row.sourceEventId,
+        eventTimestamp: row.eventTimestamp.toISOString(),
+        createdAt: row.createdAt.toISOString()
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(`Timed out waiting for analytics fact ${sourceEventId}`);
+}
+
+export async function waitForLatestAnalyticsFactByEventName(
+  eventName: string,
+  timeoutMs = 20_000,
+  filters?: { tenantId?: string; ctaId?: string; componentId?: string }
+): Promise<AnalyticsFactSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) => {
+      const conditions = ['event_name = $1'];
+      const values: Array<string> = [eventName];
+
+      if (filters?.tenantId) {
+        conditions.push(`tenant_id = $${values.length + 1}`);
+        values.push(filters.tenantId);
+      }
+
+      if (filters?.ctaId) {
+        conditions.push(`cta_id = $${values.length + 1}`);
+        values.push(filters.ctaId);
+      }
+
+      if (filters?.componentId) {
+        conditions.push(`component_id = $${values.length + 1}`);
+        values.push(filters.componentId);
+      }
+
+      return client.query<{
+        id: string;
+        tenantId: string;
+        eventName: string;
+        eventId: string | null;
+        schemaVersion: number;
+        ingestionSource: string;
+        ingestionPath: string | null;
+        componentId: string | null;
+        ctaId: string | null;
+        sourceEventId: string;
+        eventTimestamp: Date;
+        createdAt: Date;
+      }>(
+        `
+          SELECT
+            id,
+            tenant_id AS "tenantId",
+            event_name AS "eventName",
+            event_id AS "eventId",
+            schema_version AS "schemaVersion",
+            ingestion_source AS "ingestionSource",
+            ingestion_path AS "ingestionPath",
+            component_id AS "componentId",
+            cta_id AS "ctaId",
+            source_event_id AS "sourceEventId",
+            event_timestamp AS "eventTimestamp",
+            created_at AS "createdAt"
+          FROM event_facts
+          WHERE ${conditions.join(" AND ")}
+          ORDER BY created_at DESC
+          LIMIT 1
+        `,
+        values
+      );
+    });
+
+    const row = result.rows[0];
+    if (row?.id) {
+      return {
+        id: row.id,
+        tenantId: row.tenantId,
+        eventName: row.eventName,
+        eventId: row.eventId,
+        schemaVersion: row.schemaVersion,
+        ingestionSource: row.ingestionSource,
+        ingestionPath: row.ingestionPath,
+        componentId: row.componentId,
+        ctaId: row.ctaId,
+        sourceEventId: row.sourceEventId,
+        eventTimestamp: row.eventTimestamp.toISOString(),
+        createdAt: row.createdAt.toISOString()
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(`Timed out waiting for analytics fact ${eventName}`);
+}
+
+export async function waitForLatestAnalyticsComparisonByEventId(
+  eventId: string,
+  timeoutMs = 20_000
+): Promise<AnalyticsComparisonSnapshot> {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) =>
+      client.query<{
+        id: string;
+        tenantId: string;
+        eventId: string;
+        eventName: string;
+        existsInDirect: boolean;
+        existsInGa: boolean;
+        payloadMatch: boolean;
+        timeDiffMs: number | null;
+        status: string;
+        directSource: string | null;
+        gaSource: string | null;
+        comparisonDate: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+      }>(
+        `
+          SELECT
+            id,
+            tenant_id AS "tenantId",
+            event_id AS "eventId",
+            event_name AS "eventName",
+            exists_in_direct AS "existsInDirect",
+            exists_in_ga AS "existsInGa",
+            payload_match AS "payloadMatch",
+            time_diff_ms AS "timeDiffMs",
+            status,
+            direct_source AS "directSource",
+            ga_source AS "gaSource",
+            comparison_date AS "comparisonDate",
+            created_at AS "createdAt",
+            updated_at AS "updatedAt"
+          FROM analytics_event_comparisons
+          WHERE event_id = $1
+          ORDER BY updated_at DESC
+          LIMIT 1
+        `,
+        [eventId]
+      )
+    );
+
+    const row = result.rows[0];
+    if (row?.id) {
+      return {
+        id: row.id,
+        tenantId: row.tenantId,
+        eventId: row.eventId,
+        eventName: row.eventName,
+        existsInDirect: row.existsInDirect,
+        existsInGa: row.existsInGa,
+        payloadMatch: row.payloadMatch,
+        timeDiffMs: row.timeDiffMs,
+        status: row.status,
+        directSource: row.directSource,
+        gaSource: row.gaSource,
+        comparisonDate: row.comparisonDate?.toISOString() ?? null,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: row.updatedAt.toISOString()
+      };
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(`Timed out waiting for analytics comparison ${eventId}`);
 }
 
 export async function getLatestTimelineEventsForOrder(

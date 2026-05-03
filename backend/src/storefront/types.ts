@@ -257,6 +257,7 @@ export interface ProductSummaryDto {
   variantLabel?: string | null
   configuration?: Record<string, unknown> | null
   specifications?: Array<{ label: string; value: string }>
+  canonicalConfiguration?: CanonicalConfigurationDto | null
   measurementType?: 'M2'
   isPublic?: boolean
   isBudgetCalculable?: boolean
@@ -317,6 +318,21 @@ export interface PublishedParametricOptionsDto {
     hasMonoblockOption: boolean
   }
   variants: PublishedParametricVariantDto[]
+}
+
+export interface CanonicalConfigurationDto {
+  id: number
+  tenantId: string
+  baseProductId: number
+  baseLabel?: string | null
+  canonicalName: string
+  slug: string
+  indexable: boolean
+  configurationRules: Record<string, unknown>
+  seoTitle?: string | null
+  seoDescription?: string | null
+  searchTerms: string[]
+  visibilityRules?: Record<string, unknown> | null
 }
 
 export interface ProductDetailDto extends ProductSummaryDto {
@@ -688,6 +704,7 @@ export interface StorefrontCategoryTree {
   seoTitle?: string | null
   seoDescription?: string | null
   seoImageUrl?: string | null
+  catalogExposureMode?: 'AUTO' | 'M2_DERIVED' | 'UNITARY' | 'EMPTY_IF_NO_PUBLIC_CALCULABLE' | null
   thumbnail?: ImageAssetDto | null
   productCount: number
   parentId: number | null

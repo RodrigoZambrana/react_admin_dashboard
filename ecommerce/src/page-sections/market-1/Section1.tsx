@@ -8,11 +8,21 @@ import CarouselCard1 from "@component/carousel-cards/CarouselCard1";
 import { Paragraph, SemiSpan } from "@component/Typography";
 import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
 import { defaultMarket1HeroSlides } from "@/data/market1Defaults";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
 import { useTranslation } from "@/state/i18n-context";
 
 export default function Section1() {
   const config = useStorefrontConfig();
   const t = useTranslation();
+  const heroRef = useComponentTracking({
+    pageType: "home",
+    componentType: "hero",
+    componentId: "home_hero_section_1",
+    metadata: {
+      source: "market_1",
+      slide_count: defaultMarket1HeroSlides.length,
+    },
+  });
 
   const companyProfile = config.companyProfile;
   const brandName =
@@ -33,16 +43,17 @@ export default function Section1() {
     });
 
   return (
-    <Box bg="gray.white" mb="3.75rem">
-      <Container pb="3rem">
-        <Card
+    <div ref={heroRef}>
+      <Box bg="gray.white" mb="3.75rem">
+        <Container pb="3rem">
+          <Card
           borderRadius={24}
           p="2rem"
           style={{
             background:
               "linear-gradient(135deg, rgba(15, 118, 110, 0.12) 0%, rgba(255, 255, 255, 0.98) 58%)",
             border: "1px solid rgba(15, 118, 110, 0.15)",
-          }}>
+            }}>
           <SemiSpan color="primary.main" display="block" mb="0.5rem" fontWeight="700">
             {carouselEyebrow}
           </SemiSpan>
@@ -68,8 +79,9 @@ export default function Section1() {
               />
             ))}
           </Carousel>
-        </Card>
-      </Container>
-    </Box>
+          </Card>
+        </Container>
+      </Box>
+    </div>
   );
 }

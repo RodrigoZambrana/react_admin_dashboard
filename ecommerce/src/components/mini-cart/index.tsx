@@ -73,7 +73,7 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
                   ? (item.configuration as Record<string, unknown>)
                   : null;
               const detailHref = item.slug
-                ? buildPublishedParametricDetailHref(item.slug, normalizedConfiguration)
+                ? buildPublishedParametricDetailHref(item.slug, normalizedConfiguration, item.id)
                 : "/shop";
               const parametricSummary = buildPublishedParametricSummaryEntries(normalizedConfiguration, t, {
                 includeMaterial: false

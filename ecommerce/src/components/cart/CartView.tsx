@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment } from "react";
+import { useEffect, useRef } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import styled from "styled-components";
 import { IconMinus, IconPlus, IconX } from "@tabler/icons-react";
 import { SpaceProps, space } from "styled-system";
@@ -29,6 +30,12 @@ import {
 import { normalizeMoney } from "@/lib/utils/format";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { useTranslation } from "@/state/i18n-context";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
+import { buildCanonicalAnalyticsContext } from "@/lib/analytics/product-context";
 import CheckoutCostSummary from "./CheckoutCostSummary";
 
 // Feature flag to re-enable voucher and shipping estimators when backend is ready.
@@ -36,6 +43,7 @@ const SHOW_VOUCHER_AND_SHIPPING = false;
 
 type CartLineItemCardProps = SpaceProps & {
   item: CartLineItem;
+  pageType: string;
   onIncrease: () => void;
   onDecrease: () => void;
   onRemove: () => void;
@@ -73,7 +81,7 @@ const CartLineItemWrapper = styled.div.withConfig({
   ${space}
 `;
 
-function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: CartLineItemCardProps) {
+function CartLineItemCard({ item, pageType, onIncrease, onDecrease, onRemove, ...rest }: CartLineItemCardProps) {
   const unitPrice = normalizeMoney(item.product.salePrice ?? item.product.price);
   const lineTotal = normalizeMoney({
     amount: unitPrice.amount * item.quantity,
@@ -82,7 +90,7 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
   const { formatMoney } = useMoneyFormatter();
   const t = useTranslation();
 
-  const thumbnailSrc = item.product.thumbnail?.url;
+      const thumbnailSrc = item.product.thumbnail?.url;
   const hasImage = thumbnailSrc && !isMissingProductImage(thumbnailSrc);
   const displayName = item.product.name;
   const attributeSummary = item.product.attributes
@@ -95,7 +103,50 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
     .join(" • ");
   const detailSummary =
     parametricSummary || item.product.selectionSummary || item.product.variantLabel || null;
-  const detailHref = buildPublishedParametricDetailHref(item.product.slug, item.product.configuration);
+  const detailHref = buildPublishedParametricDetailHref(
+    item.product.slug,
+    item.product.configuration,
+    item.product.id,
+  );
+  const handleRemove = () => {
+    const canonicalContext = buildCanonicalAnalyticsContext({
+      canonicalConfiguration: item.product.canonicalConfiguration ?? null,
+      configuration: item.product.configuration ?? null
+    });
+    void trackEvent({
+      event_name: "remove_from_cart",
+      event_category: "ecommerce",
+      tenant_id: env.clientSlug,
+      page_type: pageType,
+      component_type: "cart_line_item",
+      component_id: `cart_line_item_${String(item.product.id)}`,
+      cta_id: "cart.line_item.remove",
+      cta_name: "remove_from_cart",
+      cta_type: "secondary",
+      cta_context: "checkout",
+      cta_location: "cart_line_item",
+      schema_version: EVENT_SCHEMA_VERSION,
+      metadata: {
+        product_id: item.product.id,
+        product_slug: item.product.slug,
+        quantity: item.quantity,
+        unit_price: unitPrice.amount,
+        line_total: lineTotal.amount,
+        currency: unitPrice.currency,
+        ...canonicalContext
+      },
+      data: {
+        product_id: item.product.id,
+        product_slug: item.product.slug,
+        quantity: item.quantity,
+        unit_price: unitPrice.amount,
+        line_total: lineTotal.amount,
+        currency: unitPrice.currency,
+        ...canonicalContext
+      },
+    });
+    onRemove();
+  };
 
   return (
     <CartLineItemWrapper
@@ -130,7 +181,12 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
         ) : null}
 
         <Box position="absolute" right="1rem" top="1rem">
-          <IconButton color="gray.600" padding="4px" ml="12px" onClick={onRemove}>
+          <IconButton
+            color="gray.600"
+            padding="4px"
+            ml="12px"
+            data-testid={`cart-line-remove-${String(item.product.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`}
+            onClick={handleRemove}>
             <IconX size={18} />
           </IconButton>
         </Box>
@@ -188,10 +244,51 @@ function CartLineItemCard({ item, onIncrease, onDecrease, onRemove, ...rest }: C
 export function CartView() {
   const { state, updateQuantity, removeItem } = useStorefrontCart();
   const t = useTranslation();
+  const pathname = usePathname();
+  const pageType = resolvePageType(pathname);
+  const viewTrackedRef = useRef(false);
+  const cartRef = useComponentTracking({
+    pageType,
+    componentType: "cart_view",
+    componentId: "cart_view_root",
+    metadata: {
+      item_count: state.items.length,
+      cart_value: state.items.reduce(
+        (sum, item) => sum + normalizeMoney(item.product.salePrice ?? item.product.price).amount * item.quantity,
+        0,
+      ),
+    },
+  });
+
+  useEffect(() => {
+    if (viewTrackedRef.current) {
+      return;
+    }
+
+    viewTrackedRef.current = true;
+    void trackEvent({
+      event_name: "view_cart",
+      event_category: "ecommerce",
+      tenant_id: env.clientSlug,
+      page_type: pageType,
+      component_type: "cart_view",
+      component_id: "cart_view_root",
+      schema_version: EVENT_SCHEMA_VERSION,
+      metadata: {
+        item_count: state.items.length,
+        has_items: state.items.length > 0,
+      },
+      data: {
+        item_count: state.items.length,
+        has_items: state.items.length > 0,
+      },
+    });
+  }, [pageType, state.items.length]);
 
   if (state.items.length === 0) {
     return (
-      <Card1>
+      <div ref={cartRef}>
+        <Card1>
         <FlexBox
           alignItems="center"
           flexDirection="column"
@@ -208,18 +305,20 @@ export function CartView() {
             </Button>
           </Link>
         </FlexBox>
-      </Card1>
+        </Card1>
+      </div>
     );
   }
 
   return (
-    <Fragment>
+    <div ref={cartRef}>
       <Grid container spacing={6}>
         <Grid item lg={8} md={8} xs={12}>
           {state.items.map((item) => (
             <CartLineItemCard
               key={item.product.id}
               item={item}
+              pageType={pageType}
               mb="1.5rem"
               onDecrease={() => updateQuantity(item.product.id, Math.max(1, item.quantity - 1))}
               onIncrease={() => updateQuantity(item.product.id, item.quantity + 1)}
@@ -229,7 +328,7 @@ export function CartView() {
         </Grid>
 
         <Grid item lg={4} md={4} xs={12}>
-          <CheckoutCostSummary />
+          <CheckoutCostSummary pageType={pageType} />
 
           {SHOW_VOUCHER_AND_SHIPPING && (
             <Card1 mt="1.5rem">
@@ -271,7 +370,7 @@ export function CartView() {
           )}
         </Grid>
       </Grid>
-    </Fragment>
+    </div>
   );
 }
 

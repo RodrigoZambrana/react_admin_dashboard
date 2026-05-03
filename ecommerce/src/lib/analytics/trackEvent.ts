@@ -4,7 +4,11 @@ import { env } from "@/lib/env";
 
 import { getAnalyticsContext } from "./session";
 import { createEventId } from "./tracking";
-import { EVENT_SCHEMA_VERSION, type StructuralAnalyticsEvent } from "./eventSchema";
+import {
+  EVENT_SCHEMA_VERSION,
+  normalizeStructuralEventName,
+  type StructuralAnalyticsEvent,
+} from "./eventSchema";
 
 const getAnalyticsEndpoint = () => {
   try {
@@ -74,9 +78,12 @@ export const trackEvent = (event: StructuralAnalyticsEvent) => {
   }
 
   const context = getAnalyticsContext();
+  const canonicalEventName = normalizeStructuralEventName(event.event_name);
   const eventId = event.event_id?.trim() || createEventId();
   const payload = {
     ...event,
+    event: event.event ?? canonicalEventName,
+    event_name: canonicalEventName,
     event_id: eventId,
     tenant_id: event.tenant_id?.trim() || env.clientSlug || "default",
     schema_version: event.schema_version ?? EVENT_SCHEMA_VERSION,
@@ -99,6 +106,27 @@ export const trackEvent = (event: StructuralAnalyticsEvent) => {
   pushToDataLayer(payload);
   sendPayload(payload);
 
+  const gtagPayload = {
+    ...payload.data,
+    event_id: eventId,
+    tenant_id: payload.tenant_id,
+    schema_version: payload.schema_version,
+    timestamp: payload.timestamp,
+    page_type: payload.page_type,
+    component_type: payload.component_type,
+    component_id: payload.component_id,
+    cta_id: payload.cta_id,
+    cta_name: payload.cta_name,
+    cta_type: payload.cta_type,
+    cta_context: payload.cta_context,
+    cta_location: payload.cta_location,
+    position: payload.position,
+  };
+
+  const gtag = (window as Window & { gtag?: (...args: unknown[]) => void }).gtag;
+  if (gtag) {
+    gtag("event", event.event_name, gtagPayload);
+  }
+
   return eventId;
 };
-

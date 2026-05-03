@@ -19,6 +19,7 @@ import { trackEvent } from "@/lib/analytics/trackEvent";
 import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
 import { env } from "@/lib/env";
 import { resolvePageType } from "@/lib/analytics/pageType";
+import { buildCanonicalAnalyticsContext } from "@/lib/analytics/product-context";
 
 export interface CartProductSnapshot {
   id: string;
@@ -36,6 +37,7 @@ export interface CartProductSnapshot {
   inventoryStatus: ProductSummary["inventoryStatus"];
   attributes?: ProductVariantAttribute[];
   configuration?: Record<string, unknown>;
+  canonicalConfiguration?: ProductSummary["canonicalConfiguration"];
 }
 
 export interface CartLineItem {
@@ -144,7 +146,10 @@ export const upgradeCartState = (state: CartState | null | undefined): UpgradedC
             ? ((product as { selectionSummary?: string }).selectionSummary ?? null)
             : null,
         attributes: Array.isArray(product.attributes) ? product.attributes : undefined,
-        configuration
+        configuration,
+        canonicalConfiguration:
+          (product as { canonicalConfiguration?: ProductSummary["canonicalConfiguration"] }).canonicalConfiguration ??
+          undefined
       }
     };
   })
@@ -290,7 +295,8 @@ const snapshotProduct = (product: ProductSummary): CartProductSnapshot => {
     thumbnail: product.thumbnail,
     inventoryStatus: product.inventoryStatus,
     attributes: Array.isArray(product.attributes) ? product.attributes : undefined,
-    configuration
+    configuration,
+    canonicalConfiguration: product.canonicalConfiguration ?? null
   };
 };
 
@@ -350,6 +356,10 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   const addItem = useCallback(
     (product: ProductSummary, quantity = 1) => {
       dispatch({ type: "ADD_ITEM", payload: { product: snapshotProduct(product), quantity } });
+      const canonicalContext = buildCanonicalAnalyticsContext({
+        canonicalConfiguration: product.canonicalConfiguration ?? null,
+        configuration: product.configuration ?? null
+      });
       void trackEvent({
         event_name: "add_to_cart",
         event_category: "ecommerce",
@@ -371,6 +381,7 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
           currency: product.price.currency,
           variant_id: product.variantId ?? null,
           variant_key: product.variantKey ?? null,
+          ...canonicalContext
         },
         data: {
           product_id: product.productId ?? product.id,
@@ -380,6 +391,7 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
           currency: product.price.currency,
           variant_id: product.variantId ?? null,
           variant_key: product.variantKey ?? null,
+          ...canonicalContext
         },
       });
       toast.success({
@@ -393,6 +405,10 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
   const addItemSnapshot = useCallback(
     (product: CartProductSnapshot, quantity = 1) => {
       dispatch({ type: "ADD_ITEM", payload: { product, quantity } });
+      const canonicalContext = buildCanonicalAnalyticsContext({
+        canonicalConfiguration: product.canonicalConfiguration ?? null,
+        configuration: product.configuration ?? null
+      });
       void trackEvent({
         event_name: "add_to_cart",
         event_category: "ecommerce",
@@ -414,6 +430,7 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
           currency: product.price.currency,
           variant_id: product.variantId ?? null,
           variant_key: product.variantKey ?? null,
+          ...canonicalContext
         },
         data: {
           product_id: product.productId ?? product.id,
@@ -423,6 +440,7 @@ export const StorefrontCartProvider: React.FC<{ children: React.ReactNode }> = (
           currency: product.price.currency,
           variant_id: product.variantId ?? null,
           variant_key: product.variantKey ?? null,
+          ...canonicalContext
         },
       });
       toast.success({

@@ -597,6 +597,44 @@ export type AnalyticsDataAnomaly = {
     detectedAt: string
 }
 
+export type AnalyticsEventComparisonStatus = 'match' | 'missing_in_ga' | 'missing_in_direct' | 'mismatch'
+
+export type AnalyticsEventComparison = {
+  id: string
+  tenantId: string
+  eventId: string
+  eventName: string
+  directEventTimestamp: string | null
+  gaEventTimestamp: string | null
+  existsInDirect: boolean
+  existsInGa: boolean
+  payloadMatch: boolean
+  timeDiffMs: number | null
+  status: AnalyticsEventComparisonStatus
+  directSource: string | null
+  gaSource: string | null
+  comparisonDate: string | null
+  directPayload: Record<string, unknown> | null
+  gaPayload: Record<string, unknown> | null
+  createdAt: string
+  updatedAt: string
+}
+
+export type AnalyticsEventComparisonSummary = {
+  tenantId: string
+  totalEvents: number
+  matchCount: number
+  missingInGaCount: number
+  missingInDirectCount: number
+  mismatchCount: number
+  matchRate: number
+  trackingHealthScore: number
+  averageTimeDiffMs: number | null
+  purchaseMismatchCount: number
+  fromDate: string | null
+  toDate: string | null
+}
+
 export type AnalyticsDataQualityCheck = {
   id: string
   connectionId: string
@@ -681,6 +719,75 @@ export type AnalyticsSearchConsoleDailyMetric = {
   connectionId: string | null
   syncRunId: string | null
   createdAt: string
+}
+
+export type AnalyticsSearchIntelligenceQuerySummary = {
+  query: string
+  queryNormalized: string
+  searchEvents: number
+  intentEvents: number
+  resultEvents: number
+  exactResultEvents: number
+  zeroResultEvents: number
+  averageResultCount: number | null
+  exactResultRate: number
+  zeroResultRate: number
+  tenantIds: string[]
+}
+
+export type AnalyticsSearchIntelligenceTenantSummary = {
+  tenantId: string
+  searchEvents: number
+  intentEvents: number
+  resultEvents: number
+  uniqueQueries: number
+  exactResultEvents: number
+  zeroResultEvents: number
+  averageResultCount: number | null
+  exactResultRate: number
+  zeroResultRate: number
+}
+
+export type AnalyticsSearchIntelligenceSample = {
+  eventId: string | null
+  tenantId: string | null
+  timestamp: string
+  query: string | null
+  queryNormalized: string
+  searchStage: string | null
+  searchSource: string | null
+  resultCount: number | null
+  exactMatchCount: number | null
+  hasResults: boolean
+  hasExactResults: boolean
+  categorySlug: string | null
+  categoryLabel: string | null
+}
+
+export type AnalyticsSearchIntelligence = {
+  range: {
+    from: string
+    to: string
+  }
+  filters: {
+    tenantId: string | null
+  }
+  totals: {
+    searchEvents: number
+    intentEvents: number
+    resultEvents: number
+    uniqueQueries: number
+    exactResultEvents: number
+    zeroResultEvents: number
+    averageResultCount: number | null
+    exactResultRate: number
+    zeroResultRate: number
+    trackingHealthScore: number
+  }
+  byTenant: AnalyticsSearchIntelligenceTenantSummary[]
+  topQueries: AnalyticsSearchIntelligenceQuerySummary[]
+  zeroResultQueries: AnalyticsSearchIntelligenceQuerySummary[]
+  samples: AnalyticsSearchIntelligenceSample[]
 }
 
 export type AnalyticsReportEquivalenceStatus = 'exact' | 'partial' | 'gap'
@@ -773,6 +880,10 @@ export type AnalyticsGa4SyncResult = {
   syncRun: AnalyticsSyncRun
   ga4RowsUpserted: number
   reportingRowsUpserted: number
+  failedReports?: Array<{
+    reportKey: string
+    error: string
+  }>
 }
 
 export type AnalyticsSearchConsoleProperty = {

@@ -9,6 +9,7 @@ import FlexBox from "@component/FlexBox";
 import { H5 } from "@component/Typography";
 import shadows from "@utils/themeShadows";
 import { useTranslation } from "@/state/i18n-context";
+import { ALL_CATEGORY_SLUG } from "@/lib/storefront/category-slugs";
 
 // ==============================================================
 interface SaleCategoryProps {
@@ -26,10 +27,10 @@ export default function SaleCategory({ categories, selectedSlug }: SaleCategoryP
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [activeKey, setActiveKey] = useState<string>(selectedSlug ?? "__all__");
+  const [activeKey, setActiveKey] = useState<string>(selectedSlug ?? ALL_CATEGORY_SLUG);
 
   useEffect(() => {
-    setActiveKey(selectedSlug ?? "__all__");
+    setActiveKey(selectedSlug ?? ALL_CATEGORY_SLUG);
   }, [selectedSlug]);
 
   const handleCategoryClick = useCallback(
@@ -56,9 +57,8 @@ export default function SaleCategory({ categories, selectedSlug }: SaleCategoryP
   return (
     <Box mb="2rem" overflow="hidden">
       <FlexBox m="-0.75rem" flexWrap="wrap">
-        {categories.map((item, ind) => {
-          const categoryKey =
-            item.slug ?? (item.title === "All" ? "__all__" : `__fallback:${ind}`);
+      {categories.map((item, ind) => {
+          const categoryKey = item.slug ?? `__fallback:${ind}`;
           const isSelected = activeKey === categoryKey;
           return (
             <FlexBox

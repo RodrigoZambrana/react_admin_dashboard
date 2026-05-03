@@ -103,11 +103,13 @@ const buildPaginatedResponse = (
   };
 };
 
-const loadAllStorefrontProducts = async (): Promise<ProductSummary[]> => {
+const loadAllStorefrontProducts = async (search?: string): Promise<ProductSummary[]> => {
+  const trimmedSearch = search?.trim() ?? "";
   const firstPage = await apiFetch<PaginatedResponse<ProductSummary>>("products", {
     params: {
       page: 1,
       pageSize: 48,
+      ...(trimmedSearch ? { search: trimmedSearch } : {}),
     },
     ...buildPublicCacheOptions(["products"]),
   });
@@ -122,6 +124,7 @@ const loadAllStorefrontProducts = async (): Promise<ProductSummary[]> => {
           params: {
             page,
             pageSize: 48,
+            ...(trimmedSearch ? { search: trimmedSearch } : {}),
           },
           ...buildPublicCacheOptions(["products"]),
         }),
@@ -309,6 +312,91 @@ const isBaseParametricProduct = (product: ProductSummary): boolean => {
   return Boolean((product.configuration as { derived?: boolean } | null | undefined)?.derived) === false;
 };
 
+const isCatalogExposureMode = (
+  value?: string | null,
+): value is "AUTO" | "M2_DERIVED" | "UNITARY" | "EMPTY_IF_NO_PUBLIC_CALCULABLE" =>
+  value === "AUTO" ||
+  value === "M2_DERIVED" ||
+  value === "UNITARY" ||
+  value === "EMPTY_IF_NO_PUBLIC_CALCULABLE";
+
+const isM2CatalogExposureMode = (value?: string | null) =>
+  value === "M2_DERIVED" || value === "EMPTY_IF_NO_PUBLIC_CALCULABLE";
+
+const findCategoryBySlug = (
+  categories: CategorySummary[],
+  slug?: string | null,
+): CategorySummary | null => {
+  const normalized = normalizeSearchValue(slug ?? "");
+  if (!normalized) {
+    return null;
+  }
+
+  for (const category of categories) {
+    if (
+      normalizeSearchValue(category.slug) === normalized ||
+      normalizeSearchValue(category.name) === normalized
+    ) {
+      return category;
+    }
+
+    if (category.children?.length) {
+      const child = findCategoryBySlug(category.children, normalized);
+      if (child) {
+        return child;
+      }
+    }
+  }
+
+  return null;
+};
+
+const collectCategorySlugs = (category?: CategorySummary | null): string[] => {
+  if (!category) {
+    return [];
+  }
+
+  const slugs = new Set<string>();
+  const stack: CategorySummary[] = [category];
+
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    if (current.slug) {
+      slugs.add(current.slug);
+    }
+    if (current.children?.length) {
+      stack.push(...current.children);
+    }
+  }
+
+  return Array.from(slugs);
+};
+
+const sortStorefrontProducts = (
+  products: ProductSummary[],
+  sort?: ProductListQuery["sort"],
+): ProductSummary[] => {
+  const sorted = [...products];
+  switch (sort) {
+    case "newest":
+      sorted.sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""));
+      break;
+    case "price-asc":
+      sorted.sort((a, b) => a.price.amount - b.price.amount);
+      break;
+    case "price-desc":
+      sorted.sort((a, b) => b.price.amount - a.price.amount);
+      break;
+    case "best-sellers":
+    case "featured":
+    default:
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+      break;
+  }
+
+  return sorted;
+};
+
 const hydrateDerivedProductCategories = (
   product: ProductSummary,
   baseCategories: ProductSummary["categories"],
@@ -332,6 +420,7 @@ const hydrateDerivedProductCategories = (
 const filterAndSortProducts = (
   products: ProductSummary[],
   query: ProductListQuery,
+  categorySlugs?: Set<string>,
 ): ProductSummary[] => {
   const categorySlug = query.categorySlug?.trim() ?? "";
   const term = query.search?.trim() ?? "";
@@ -342,7 +431,9 @@ const filterAndSortProducts = (
     }
 
     if (categorySlug) {
-      const matchesCategory = product.categories?.some((category) => category.slug === categorySlug);
+      const matchesCategory = categorySlugs?.size
+        ? product.categories?.some((category) => categorySlugs.has(category.slug))
+        : product.categories?.some((category) => category.slug === categorySlug);
       if (!matchesCategory) {
         return false;
       }
@@ -544,11 +635,77 @@ export const StorefrontApi = {
   async listProducts(query: ProductListQuery = {}): Promise<PaginatedResponse<ProductSummary>> {
     if (env.clientSlug === "urucortinas") {
       try {
-        const [baseProducts, derivedProducts] = await Promise.all([
+        const searchTerm = query.search?.trim() ?? "";
+        const rawCategorySlug = query.categorySlug?.trim() ?? "";
+        const categorySlug = rawCategorySlug.toLowerCase() === "all" ? "" : rawCategorySlug;
+        let selectedCategorySlugs: Set<string> | undefined;
+
+        if (categorySlug) {
+          const categories = await apiFetch<CategorySummary[]>("categories", {
+            ...buildPublicCacheOptions([buildPublicTag("storefront", "categories")]),
+          });
+          const selectedCategory = findCategoryBySlug(categories, categorySlug);
+          const exposureMode = selectedCategory?.catalogExposureMode ?? null;
+          selectedCategorySlugs = selectedCategory ? new Set(collectCategorySlugs(selectedCategory)) : undefined;
+
+          if (selectedCategory && isM2CatalogExposureMode(exposureMode)) {
+            const derivedProducts = await apiFetch<DerivedProductPayload[]>("m2-derived", {
+              ...buildPublicCacheOptions([buildPublicTag("storefront", "m2-derived")]),
+            });
+
+            const normalizedDerivedProducts = derivedProducts
+              .map((product) => mapDerivedProductToSummary(product))
+              .filter((product) =>
+                (product.categories ?? []).some((category) => selectedCategorySlugs?.has(category.slug) ?? false),
+              );
+
+            const filtered = normalizedDerivedProducts.filter((product) => {
+              if (searchTerm) {
+                const haystack = [
+                  product.name,
+                  product.shortDescription ?? "",
+                  product.slug,
+                  ...(product.tags ?? []),
+                ].join(" ");
+                if (!normalizeSearchValue(haystack).includes(normalizeSearchValue(searchTerm))) {
+                  return false;
+                }
+              }
+
+              if (query.tag && !(product.tags ?? []).includes(query.tag)) {
+                return false;
+              }
+
+              return true;
+            });
+
+            return buildPaginatedResponse(sortStorefrontProducts(filtered, query.sort), query);
+          }
+
+          if (selectedCategory && exposureMode === "UNITARY") {
+            return apiFetch<PaginatedResponse<ProductSummary>>("products", {
+              params: {
+                page: query.page,
+                pageSize: query.pageSize,
+                category: query.categorySlug,
+                search: query.search,
+                sort: query.sort,
+                tag: query.tag,
+              },
+              ...buildPublicCacheOptions([
+                "products",
+                ...(query.categorySlug ? [`category:${query.categorySlug}`] : []),
+              ]),
+            });
+          }
+        }
+
+        const [baseProducts, derivedProducts, searchProducts] = await Promise.all([
           loadAllStorefrontProducts(),
           apiFetch<DerivedProductPayload[]>("m2-derived", {
             ...buildPublicCacheOptions([buildPublicTag("storefront", "m2-derived")]),
           }),
+          searchTerm ? loadAllStorefrontProducts(searchTerm) : Promise.resolve([] as ProductSummary[]),
         ]);
 
         const baseCategoriesById = new Map<number, NonNullable<ProductSummary["categories"]>>(
@@ -561,17 +718,18 @@ export const StorefrontApi = {
             baseCategoriesById.get(product.baseProductId),
           ),
         );
+        const normalizedSearchProducts = searchProducts.filter((product) => !isBaseParametricProduct(product));
 
         const merged = Array.from(
           new Map(
-            [...normalizedBaseProducts, ...normalizedDerivedProducts].map((product) => [
+            [...normalizedBaseProducts, ...normalizedDerivedProducts, ...normalizedSearchProducts].map((product) => [
               product.slug,
               product,
             ]),
           ).values(),
         );
 
-        const filtered = filterAndSortProducts(merged, query);
+        const filtered = filterAndSortProducts(merged, query, selectedCategorySlugs);
         return buildPaginatedResponse(filtered, query);
       } catch (error) {
         if (isSnapshotFallbackEnabled()) {

@@ -21,6 +21,7 @@ import {
   buildSearchCategoryOptions,
   findMatchingSearchCategories,
 } from "@/lib/storefront/search-utils";
+import { ALL_CATEGORY_SLUG, isAllCategorySlug } from "@/lib/storefront/category-slugs";
 
 export const revalidate = 180;
 export async function generateMetadata(): Promise<Metadata> {
@@ -38,7 +39,7 @@ type SaleCategoryDefinition = {
   slug?: string;
 };
 
-const DEFAULT_SALE_CATEGORIES: SaleCategoryDefinition[] = [{ icon: "category", title: "All" }];
+const DEFAULT_SALE_CATEGORIES: SaleCategoryDefinition[] = [{ icon: "category", title: "All", slug: ALL_CATEGORY_SLUG }];
 
 const SALE_CATEGORY_ICONS = ["women-dress", "beauty-products", "camera", "sofa"];
 
@@ -54,7 +55,7 @@ const mapCategoriesForSale = (categories: CategorySummary[]): SaleCategoryDefini
       slug: category.slug
     }));
 
-  return [{ icon: "category", title: "All" }, ...mapped];
+  return [{ icon: "category", title: "All", slug: ALL_CATEGORY_SLUG }, ...mapped];
 };
 
 const parseNumberParam = (input: string | string[] | undefined): number | undefined => {
@@ -181,9 +182,10 @@ export default async function ShopPage({ searchParams }: SearchParams) {
   const pageParam = Array.isArray(params?.page) ? params?.page[0] : params?.page;
   const requestedPage = pageParam ? Math.max(Number(pageParam), 1) : 1;
   const categoryParam = Array.isArray(params?.category) ? params?.category[0] : params?.category;
-  const selectedCategorySlug = typeof categoryParam === "string" && categoryParam.length > 0
-    ? categoryParam
-    : undefined;
+  const selectedCategorySlug =
+    typeof categoryParam === "string" && categoryParam.trim().length > 0
+      ? categoryParam.trim().toLowerCase()
+      : ALL_CATEGORY_SLUG;
   const searchTerm = extractSearchTerm(params ?? {});
   const sort = extractSortParam(params?.sort);
   const priceMin = parseNumberParam(params?.priceMin ?? params?.minPrice ?? params?.price_min);
@@ -203,16 +205,17 @@ export default async function ShopPage({ searchParams }: SearchParams) {
     if (mapped.length > 0) {
       saleCategories = mapped;
     }
-    selectedCategoryLabel = selectedCategorySlug
-      ? mapped.find((category) => category.slug === selectedCategorySlug)?.title
-      : undefined;
+    selectedCategoryLabel = isAllCategorySlug(selectedCategorySlug)
+      ? undefined
+      : mapped.find((category) => category.slug === selectedCategorySlug)?.title;
 
-    if (!selectedCategorySlug && searchTerm) {
+    if (isAllCategorySlug(selectedCategorySlug) && searchTerm) {
       const searchCategoryOptions = buildSearchCategoryOptions(categories);
       matchedCategorySlugs = findMatchingSearchCategories(searchCategoryOptions, searchTerm)
         .map((category) => category.slug)
         .filter((slug): slug is string => Boolean(slug));
     }
+
   } catch (error) {
     if (!isApiError(error)) {
       console.warn("[sale-page] Failed to load storefront categories.", error);
@@ -223,16 +226,21 @@ export default async function ShopPage({ searchParams }: SearchParams) {
   try {
     const productSources = [
       fetchStorefrontProducts(
-        {
-          categorySlug: selectedCategorySlug,
-          search: searchTerm,
-          sort,
-        },
-        PAGE_SIZE
+        isAllCategorySlug(selectedCategorySlug)
+          ? {
+              search: searchTerm,
+              sort,
+            }
+          : {
+              categorySlug: selectedCategorySlug,
+              search: searchTerm,
+              sort,
+            },
+        PAGE_SIZE,
       ),
     ];
 
-    if (!selectedCategorySlug && searchTerm && matchedCategorySlugs.length > 0) {
+    if (isAllCategorySlug(selectedCategorySlug) && searchTerm && matchedCategorySlugs.length > 0) {
       const extraCategorySources = matchedCategorySlugs.slice(0, 3).map((slug) =>
         fetchStorefrontProducts(
           {

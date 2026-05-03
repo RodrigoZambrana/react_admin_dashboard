@@ -7,6 +7,7 @@ import type {
   ProductAttributeDefinition,
   ProductVariantAttribute,
   PublishedParametricOptions,
+  CanonicalConfiguration,
   BudgetMeasurementType,
   BudgetCalculationStrategy
 } from "@/types/storefront";
@@ -47,6 +48,7 @@ interface Product {
   publishedParametricOptions?: PublishedParametricOptions;
   variantLabel?: string | null;
   configuration?: Record<string, unknown> | null;
+  canonicalConfiguration?: CanonicalConfiguration | null;
   variants?: Array<{
     id: number;
     key: string;

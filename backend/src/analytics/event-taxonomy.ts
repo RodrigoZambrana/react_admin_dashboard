@@ -1,8 +1,47 @@
+export const ANALYTICS_EVENT_NAMES = [
+  'page_view',
+  'component_view',
+  'select_item',
+  'view_item',
+  'view_cart',
+  'add_to_cart',
+  'remove_from_cart',
+  'begin_checkout',
+  'purchase',
+  'cta_click',
+  'search',
+  'scroll_depth',
+  'time_on_page',
+  'error_event',
+  'filter_applied',
+  'sort_applied',
+  'whatsapp_click',
+  'phone_click',
+  'form_submit',
+  'lead_created',
+] as const
+
+export type AnalyticsEventName = (typeof ANALYTICS_EVENT_NAMES)[number]
+
+export const normalizeAnalyticsEventName = (value: string | null | undefined) => {
+  if (!value) {
+    return null
+  }
+  const trimmed = value.trim()
+  if (!trimmed.length) {
+    return null
+  }
+  if ((ANALYTICS_EVENT_NAMES as readonly string[]).includes(trimmed)) {
+    return trimmed as AnalyticsEventName
+  }
+  return trimmed
+}
+
 export const CONVERSION_EVENT_NAMES = [
   'whatsapp_click',
   'phone_click',
   'form_submit',
-  'purchase_completed',
+  'purchase',
   'lead_created',
 ] as const
 
@@ -22,7 +61,7 @@ export const normalizeAnalyticsEventCategory = (
   if (value === 'conversion' || value === 'engagement') {
     return value
   }
-  return isConversionEventName(eventName) ? 'conversion' : 'engagement'
+  return isConversionEventName(normalizeAnalyticsEventName(eventName)) ? 'conversion' : 'engagement'
 }
 
 export const normalizeAnalyticsEventSource = (value: unknown): AnalyticsEventSource => {

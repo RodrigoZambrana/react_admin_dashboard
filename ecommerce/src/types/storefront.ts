@@ -393,6 +393,7 @@ export interface ProductSummary {
   variantLabel?: string | null;
   configuration?: Record<string, unknown> | null;
   specifications?: Array<{ label: string; value: string }>;
+  canonicalConfiguration?: CanonicalConfiguration | null;
 }
 
 export interface ProductReviewCustomer {
@@ -440,6 +441,21 @@ export interface ProductDetail extends Omit<ProductSummary, "attributes"> {
   attributes?: ProductAttributeDefinition[];
   variants?: ProductVariant[];
   publishedParametricOptions?: PublishedParametricOptions;
+}
+
+export interface CanonicalConfiguration {
+  id: number;
+  tenantId: string;
+  baseProductId: number;
+  baseLabel?: string | null;
+  canonicalName: string;
+  slug: string;
+  indexable: boolean;
+  configurationRules: Record<string, unknown>;
+  seoTitle?: string | null;
+  seoDescription?: string | null;
+  searchTerms: string[];
+  visibilityRules?: Record<string, unknown> | null;
 }
 
 export interface StorefrontProductMediaItem {
@@ -664,6 +680,7 @@ export interface CategorySummary {
   seoTitle?: string | null;
   seoDescription?: string | null;
   seoImageUrl?: string | null;
+  catalogExposureMode?: "AUTO" | "M2_DERIVED" | "UNITARY" | "EMPTY_IF_NO_PUBLIC_CALCULABLE" | null;
   thumbnail?: ImageAsset | null;
   productCount: number;
   parentId?: number | null;

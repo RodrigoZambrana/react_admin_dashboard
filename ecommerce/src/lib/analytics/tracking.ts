@@ -24,7 +24,6 @@ const toMetaEventName = (event: string) => {
     case "lead_created":
       return "Lead";
     case "purchase":
-    case "purchase_completed":
       return "Purchase";
     case "whatsapp_click":
     case "phone_click":

@@ -6,7 +6,8 @@ import type {
   CategorySummary,
   ProductDetail,
   ProductAttributeType,
-  ProductVariantAttribute
+  ProductVariantAttribute,
+  CanonicalConfiguration
 } from "@/types/storefront";
 
 export const FALLBACK_CATEGORY_IMAGE = "/assets/images/banners/banner-8.png";
@@ -39,6 +40,18 @@ const resolveProductImageUrl = (
     return resolved;
   }
   return image.url ?? null;
+};
+
+const mapCanonicalConfiguration = (
+  configuration?: CanonicalConfiguration | null,
+): CanonicalConfiguration | null => {
+  if (!configuration) {
+    return null;
+  }
+  return {
+    ...configuration,
+    searchTerms: Array.isArray(configuration.searchTerms) ? configuration.searchTerms : [],
+  };
 };
 
 export const mapProductSummaryToProduct = (product: ProductSummary): Product => {
@@ -75,6 +88,7 @@ export const mapProductSummaryToProduct = (product: ProductSummary): Product => 
     variantKey: product.variantKey ?? null,
     variantLabel: product.variantLabel ?? null,
     configuration: product.configuration ?? null,
+    canonicalConfiguration: mapCanonicalConfiguration(product.canonicalConfiguration ?? null),
     specifications: product.specifications ?? undefined,
     categories:
       product.categories?.map((category) => ({
@@ -184,6 +198,7 @@ export const mapProductDetailToProduct = (product: ProductDetail): Product => {
     calculationStrategy: product.calculationStrategy ?? undefined,
     variantKey: product.variantKey ?? null,
     publishedParametricOptions: product.publishedParametricOptions ?? undefined,
+    canonicalConfiguration: mapCanonicalConfiguration(product.canonicalConfiguration ?? null),
     variantAttributes: attributeDefinitions,
     variants: variantEntries,
   };

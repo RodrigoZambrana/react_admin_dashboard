@@ -21,6 +21,7 @@ import { useI18n, useTranslation } from "@/state/i18n-context";
 import type { StorefrontShippingOption } from "@/types/storefront";
 import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
 import { resolvePageType } from "@/lib/analytics/pageType";
+import { buildCanonicalAnalyticsContext } from "@/lib/analytics/product-context";
 import {
   DEFAULT_URUGUAY_CITY,
   DEFAULT_URUGUAY_DEPARTMENT,
@@ -196,6 +197,7 @@ export default function CheckoutForm({
   const t = useTranslation();
   const { locale } = useI18n();
   const pageType = resolvePageType(pathname);
+  const cartItems = cartState.items;
   const checkoutRef = useComponentTracking({
     pageType,
     componentType: "checkout_form",
@@ -730,7 +732,19 @@ export default function CheckoutForm({
                   ctaLocation="checkout_actions"
                   eventName="begin_checkout"
                   eventCategory="conversion"
-                  metadata={{ step: "payment" }}
+                  metadata={{
+                    step: "payment",
+                    items_count: cartItems.length,
+                    cart_value: cartItems.reduce((sum, item) => sum + item.product.price.amount * item.quantity, 0),
+                    items: cartItems.map(({ product, quantity }) => ({
+                      ...product,
+                      quantity,
+                      ...buildCanonicalAnalyticsContext({
+                        canonicalConfiguration: product.canonicalConfiguration ?? null,
+                        configuration: product.configuration ?? null
+                      })
+                    }))
+                  }}
                 >
                   Continue to payment
                 </TrackedButton>

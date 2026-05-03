@@ -6,6 +6,8 @@ export type PublishedParametricSelection = {
   material: string;
   color: string;
   vidrio: string;
+  widthMm?: number;
+  heightMm?: number;
   hasMosquitero: boolean;
   hasShutterMonoblock: boolean;
   shutterMaterial: string;
@@ -13,7 +15,7 @@ export type PublishedParametricSelection = {
 
 type SelectionField = keyof PublishedParametricSelection;
 
-const BASE_FIELDS: Array<SelectionField> = ["serie", "material", "color", "vidrio"];
+const BASE_FIELDS: Array<SelectionField> = ["serie", "material", "color", "vidrio", "widthMm", "heightMm"];
 
 export const toPublishedParametricSelection = (
   variant?: PublishedParametricVariant | null
@@ -22,6 +24,8 @@ export const toPublishedParametricSelection = (
   material: variant?.optionValues.material ?? "",
   color: variant?.optionValues.color ?? "",
   vidrio: variant?.optionValues.vidrio ?? "",
+  widthMm: variant?.optionValues.widthMm,
+  heightMm: variant?.optionValues.heightMm,
   hasMosquitero: variant?.optionValues.hasMosquitero ?? false,
   hasShutterMonoblock: variant?.optionValues.hasShutterMonoblock ?? false,
   shutterMaterial: variant?.optionValues.shutterMaterial ?? ""
@@ -35,6 +39,8 @@ export const matchesPublishedParametricVariant = (
   variant.optionValues.material === selection.material &&
   variant.optionValues.color === selection.color &&
   variant.optionValues.vidrio === selection.vidrio &&
+  variant.optionValues.widthMm === selection.widthMm &&
+  variant.optionValues.heightMm === selection.heightMm &&
   variant.optionValues.hasMosquitero === selection.hasMosquitero &&
   variant.optionValues.hasShutterMonoblock === selection.hasShutterMonoblock &&
   variant.optionValues.shutterMaterial === selection.shutterMaterial;
@@ -54,6 +60,14 @@ const isCompatibleWithSelection = (
   }
 
   if (!ignored.has("hasMosquitero") && variant.optionValues.hasMosquitero !== selection.hasMosquitero) {
+    return false;
+  }
+
+  if (!ignored.has("widthMm") && selection.widthMm !== undefined && variant.optionValues.widthMm !== selection.widthMm) {
+    return false;
+  }
+
+  if (!ignored.has("heightMm") && selection.heightMm !== undefined && variant.optionValues.heightMm !== selection.heightMm) {
     return false;
   }
 
@@ -218,6 +232,20 @@ export const buildPublishedParametricSummaryEntries = (
     material: coerceString((selection as Record<string, unknown>).material),
     color: coerceString((selection as Record<string, unknown>).color),
     vidrio: coerceString((selection as Record<string, unknown>).vidrio ?? (selection as Record<string, unknown>).glass),
+    widthMm:
+      typeof (selection as Record<string, unknown>).widthMm === "number"
+        ? Number((selection as Record<string, unknown>).widthMm)
+        : typeof (selection as Record<string, unknown>).widthMm === "string" &&
+            Number.isFinite(Number((selection as Record<string, unknown>).widthMm))
+          ? Number((selection as Record<string, unknown>).widthMm)
+          : undefined,
+    heightMm:
+      typeof (selection as Record<string, unknown>).heightMm === "number"
+        ? Number((selection as Record<string, unknown>).heightMm)
+        : typeof (selection as Record<string, unknown>).heightMm === "string" &&
+            Number.isFinite(Number((selection as Record<string, unknown>).heightMm))
+          ? Number((selection as Record<string, unknown>).heightMm)
+          : undefined,
     hasMosquitero: coerceBoolean(
       (selection as Record<string, unknown>).hasMosquitero ?? (selection as Record<string, unknown>).mosquitoNet
     ),
@@ -277,14 +305,20 @@ export const buildPublishedParametricSummaryEntries = (
 
 export const buildPublishedParametricDetailHref = (
   slug: string,
-  configuration?: Record<string, unknown> | null
+  configuration?: Record<string, unknown> | null,
+  productId?: string | number | null,
 ) => {
   const params = new URLSearchParams();
+  if (productId !== null && productId !== undefined && String(productId).trim().length > 0) {
+    params.set("id", String(productId).trim());
+  }
   if (configuration) {
     const mappings: Array<[string, unknown]> = [
       ["serie", configuration.serie],
       ["color", configuration.color],
       ["vidrio", configuration.vidrio ?? configuration.glass],
+      ["widthMm", configuration.widthMm],
+      ["heightMm", configuration.heightMm],
       ["hasMosquitero", configuration.hasMosquitero ?? configuration.mosquitoNet],
       ["hasShutterMonoblock", configuration.hasShutterMonoblock ?? configuration.monoblockEnabled],
       ["shutterMaterial", configuration.shutterMaterial ?? configuration.shutterSystem]
@@ -293,6 +327,8 @@ export const buildPublishedParametricDetailHref = (
     mappings.forEach(([key, value]) => {
       if (typeof value === "boolean") {
         params.set(key, value ? "1" : "0");
+      } else if (typeof value === "number" && Number.isFinite(value)) {
+        params.set(key, String(value));
       } else if (typeof value === "string" && value.trim().length > 0) {
         params.set(key, value.trim());
       }
@@ -317,6 +353,12 @@ export const selectionFromSearchParams = (
     serie: searchParams.get("serie")?.trim() || defaultSelection.serie,
     color: searchParams.get("color")?.trim() || defaultSelection.color,
     vidrio: searchParams.get("vidrio")?.trim() || defaultSelection.vidrio,
+    widthMm: searchParams.has("widthMm")
+      ? Number(searchParams.get("widthMm"))
+      : defaultSelection.widthMm,
+    heightMm: searchParams.has("heightMm")
+      ? Number(searchParams.get("heightMm"))
+      : defaultSelection.heightMm,
     hasMosquitero: searchParams.has("hasMosquitero")
       ? coerceBoolean(searchParams.get("hasMosquitero"))
       : defaultSelection.hasMosquitero,

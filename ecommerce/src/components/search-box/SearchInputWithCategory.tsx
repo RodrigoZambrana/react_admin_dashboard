@@ -46,6 +46,7 @@ import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
 import { env } from "@/lib/env";
 import { resolvePageType } from "@/lib/analytics/pageType";
 import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
+import { ALL_CATEGORY_SLUG, isAllCategorySlug } from "@/lib/storefront/category-slugs";
 
 const dropdownVariants = {
   hidden: {
@@ -73,8 +74,9 @@ const dropdownVariants = {
 type CategoryOption = ReturnType<typeof buildSearchCategoryOptions>[number];
 
 const DEFAULT_CATEGORY: CategoryOption = {
-  key: "all",
+  key: ALL_CATEGORY_SLUG,
   label: "All Categories",
+  slug: ALL_CATEGORY_SLUG,
   depth: 0,
   lineage: [],
   lineageLabels: [],
@@ -136,7 +138,7 @@ export default function SearchInputWithCategory() {
 
   useEffect(() => {
     const currentCategorySlug = searchParams?.get("category") ?? undefined;
-    if (!currentCategorySlug) {
+    if (isAllCategorySlug(currentCategorySlug)) {
       setSelectedCategory(DEFAULT_CATEGORY);
       return;
     }
@@ -224,7 +226,7 @@ export default function SearchInputWithCategory() {
         component_type: "search_input",
         component_id: "search_input_with_category",
         cta_id: "search.category.select",
-        cta_name: "select_category",
+        cta_name: "open_category",
         cta_type: "secondary",
         cta_context: "navigation",
         cta_location: "search_bar",
@@ -325,13 +327,19 @@ export default function SearchInputWithCategory() {
       schema_version: EVENT_SCHEMA_VERSION,
       metadata: {
         query: trimmed,
+        query_normalized: normalizeSearchValue(trimmed),
         category_slug: selectedCategory.slug ?? null,
         matched_category: exactCategoryMatch?.slug ?? null,
+        search_stage: "intent",
+        search_source: "search_input_with_category",
       },
       data: {
         query: trimmed,
+        query_normalized: normalizeSearchValue(trimmed),
         category_slug: selectedCategory.slug ?? null,
         matched_category: exactCategoryMatch?.slug ?? null,
+        search_stage: "intent",
+        search_source: "search_input_with_category",
       },
     });
 
@@ -527,7 +535,7 @@ export default function SearchInputWithCategory() {
                     return (
                       <Link
                         href={buildShopSearchHref(targetQuery, selectedCategory.slug)}
-                        key={product.slug}
+                        key={`${product.slug}-${product.id}`}
                         onClick={handleResultNavigation}>
                         <CategoryNavigationRow
                           icon="right-arrow-2"

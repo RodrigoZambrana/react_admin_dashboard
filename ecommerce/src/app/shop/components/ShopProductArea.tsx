@@ -16,6 +16,7 @@ import SaleProducts from "@sections/sale-page-1/SaleProducts";
 
 import ShopFilterPanel, { ActiveFilters, PriceFilter } from "./ShopFilterPanel";
 import ShopResultsToolbar from "./ShopResultsToolbar";
+import ShopSearchIntelligence from "./ShopSearchIntelligence";
 import { useTranslation } from "@/state/i18n-context";
 
 import type Product from "@models/product.model";
@@ -111,6 +112,14 @@ function ShopProductArea({
             selectedCategoryLabel={selectedCategoryLabel}
             currentSort={sortParam}
             currentView={currentView}
+          />
+
+          <ShopSearchIntelligence
+            total={meta.total}
+            products={products}
+            searchTerm={searchTerm}
+            selectedCategorySlug={selectedCategorySlug}
+            selectedCategoryLabel={selectedCategoryLabel}
           />
 
           <SaleProducts

@@ -30,6 +30,7 @@ type BaseProductRecord = Prisma.ProductGetPayload<{
     name: true
     productCode: true
     description: true
+    categoryId: true
     category: {
       select: {
         id: true
@@ -165,10 +166,13 @@ export class M2DerivedProductsService {
   private async buildDerivedProductsForBaseProduct(
     product: BaseProductRecord,
     sizes: StandardSizeDto[],
+    categoryById: Map<number, { id: number; name: string }>,
   ): Promise<DerivedProductDto[]> {
     const base = product as unknown as BudgetProductSource
     const images = product.images.map((image) => this.toImageDto(image))
     const baseStock = Number(product.stock ?? 0)
+    const fallbackCategory =
+      product.category ?? (product.categoryId ? categoryById.get(product.categoryId) ?? null : null)
 
     const derived = await Promise.all(
       sizes.map(async (size) => {
@@ -202,7 +206,15 @@ export class M2DerivedProductsService {
                   name: product.category.name,
                 },
               ]
-            : [],
+            : fallbackCategory
+              ? [
+                  {
+                    id: fallbackCategory.id,
+                    slug: buildProductSlug(fallbackCategory.id, fallbackCategory.name),
+                    name: fallbackCategory.name,
+                  },
+                ]
+              : [],
           measurementType: 'M2',
           isPublic: true,
           isBudgetCalculable: true,
@@ -218,7 +230,7 @@ export class M2DerivedProductsService {
   async listM2DerivedProducts(): Promise<DerivedProductDto[]> {
     this.assertTenant()
 
-    const [baseProducts, standardSizeBundle] = await Promise.all([
+    const [baseProducts, categoryRecords, standardSizeBundle] = await Promise.all([
       this.prisma.product.findMany({
         where: {
           productType: ProductType.PHYSICAL,
@@ -241,6 +253,13 @@ export class M2DerivedProductsService {
           productType: true,
           stock: true,
           updatedAt: true,
+          categoryId: true,
+          category: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           images: {
             select: {
               id: true,
@@ -252,11 +271,18 @@ export class M2DerivedProductsService {
           },
         },
       }) as Promise<BaseProductRecord[]>,
+      this.prisma.productCategory.findMany({
+        select: {
+          id: true,
+          name: true,
+        },
+      }),
       this.getActiveStandardSizes(),
     ])
 
     const sizes = standardSizeBundle.sizes
     const standardSizesVersion = standardSizeBundle.version
+    const categoryById = new Map(categoryRecords.map((category) => [category.id, category]))
 
     if (!baseProducts.length || !sizes.length) {
       return []
@@ -273,7 +299,7 @@ export class M2DerivedProductsService {
           return cached
         }
 
-        const value = await this.buildDerivedProductsForBaseProduct(product, sizes)
+        const value = await this.buildDerivedProductsForBaseProduct(product, sizes, categoryById)
         return this.cache.set(cacheKey, value, {
           baseProductId: product.id,
           priceVersion,

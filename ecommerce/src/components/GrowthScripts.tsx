@@ -59,9 +59,7 @@ export default function GrowthScripts({ config }: Props) {
                 window.dataLayer = window.dataLayer || [];
                 function gtag(){dataLayer.push(arguments);}
                 gtag('js', new Date());
-                ${gtagIds
-                  .map((id) => `gtag('config', '${id}', { send_page_view: true });`)
-                  .join("\n")}
+                ${gtagIds.map((id) => `gtag('config', '${id}', { send_page_view: false });`).join("\n")}
               `,
             }}
           />
@@ -90,7 +88,6 @@ export default function GrowthScripts({ config }: Props) {
                 s.parentNode.insertBefore(t,s)}(window, document,'script',
                 'https://connect.facebook.net/en_US/fbevents.js');
                 fbq('init', '${metaPixel.pixelId}');
-                fbq('track', 'PageView');
               })();
             `,
           }}

@@ -2,6 +2,18 @@
 
 Runner de QA por bloques para validar storefront, backend y admin sobre el entorno local.
 
+El proceso sistémico unificado se documenta en:
+
+- [docs/system-loop-operating-model.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/system-loop-operating-model.md)
+
+El contrato vivo del sistema para este proceso está en:
+
+- [docs/qa/system-use-cases-report.xlsx](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/qa/system-use-cases-report.xlsx)
+
+La fuente estructurada del contrato es:
+
+- [tools/qa/use-cases-report.source.mjs](/Users/rodrigo/Git/personal/react_admin_dashboard/tools/qa/use-cases-report.source.mjs)
+
 ## Comando base
 
 ```bash
@@ -79,7 +91,11 @@ El workbook incluye también una capa explícita de estado por respuesta backend
 - `pendiente de backend`
 - `definido pero no cubierto`
 
-Además agrega la hoja `Guia manual`, que consolida todos los casos de uso disponibles como índice de arranque para pruebas manuales transversales.
+Además agrega:
+
+- hoja `Contrato vivo`, que normaliza el contrato operativo del sistema para ecommerce, backend, analytics e integraciones auxiliares
+- hoja `Hallazgos`, que registra errores con clasificación obligatoria
+- hoja `Guia manual`, que consolida todos los casos de uso disponibles como índice de arranque para pruebas manuales transversales
 
 Regla de trabajo:
 

@@ -4,6 +4,7 @@ import Icon from "@component/icon/Icon";
 import FlexBox from "@component/FlexBox";
 import { H5 } from "@component/Typography";
 import { useTranslation } from "@/state/i18n-context";
+import { ALL_CATEGORY_SLUG } from "@/lib/storefront/category-slugs";
 
 // ===========================================================
 interface SaleNavbarProps {
@@ -17,10 +18,10 @@ export default function SaleNavbar({ categories, selectedSlug }: SaleNavbarProps
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [activeKey, setActiveKey] = useState<string>(selectedSlug ?? "__all__");
+  const [activeKey, setActiveKey] = useState<string>(selectedSlug ?? ALL_CATEGORY_SLUG);
 
   useEffect(() => {
-    setActiveKey(selectedSlug ?? "__all__");
+    setActiveKey(selectedSlug ?? ALL_CATEGORY_SLUG);
   }, [selectedSlug]);
 
   const handleCategoryClick = useCallback(
@@ -47,8 +48,7 @@ export default function SaleNavbar({ categories, selectedSlug }: SaleNavbarProps
   return (
     <FlexBox bg="white" overflowX="auto" height="5rem">
       {categories.map((item, ind) => {
-        const categoryKey =
-          item.slug ?? (item.title === "All" ? "__all__" : `__fallback:${ind}`);
+        const categoryKey = item.slug ?? `__fallback:${ind}`;
         const isSelected = activeKey === categoryKey;
         return (
           <FlexBox

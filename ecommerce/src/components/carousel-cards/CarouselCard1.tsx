@@ -3,9 +3,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import styled from "styled-components";
+import { usePathname } from "next/navigation";
 // GLOBAL CUSTOM COMPONENTS
 import { Button } from "@component/buttons";
 import Typography from "@component/Typography";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
 import { useTranslation } from "@/state/i18n-context";
 
 // STYLED COMPONENT
@@ -114,6 +119,36 @@ export default function CarouselCard1({
   descriptionValues
 }: Props) {
   const t = useTranslation();
+  const pathname = usePathname();
+  const pageType = resolvePageType(pathname);
+  const handleCtaClick = () => {
+    if (!href) {
+      return;
+    }
+
+    void trackEvent({
+      event_name: "cta_click",
+      event_category: "engagement",
+      tenant_id: env.clientSlug,
+      page_type: pageType,
+      component_type: "hero",
+      component_id: "home_hero_carousel_card",
+      cta_id: "home.hero.shop_now",
+      cta_name: "open_listing",
+      cta_type: "primary",
+      cta_context: "navigation",
+      cta_location: "hero",
+      schema_version: EVENT_SCHEMA_VERSION,
+      metadata: {
+        href,
+        title,
+      },
+      data: {
+        href,
+        title,
+      },
+    });
+  };
   const content = (
     <div className="content">
       {eyebrow ? (
@@ -130,7 +165,7 @@ export default function CarouselCard1({
         </Typography>
 
       {href ? (
-        <Link href={href}>
+        <Link href={href} onClick={handleCtaClick}>
           <Button className="button-link" variant="contained" color="primary" p="1rem 1.5rem">
             {t(buttonText, { defaultMessage: buttonText })}
           </Button>

@@ -4,9 +4,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
+import { usePathname } from "next/navigation";
 
 import { getMediaUrl } from "@/lib/media";
 import type { StorySummary } from "@/types/stories";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
+import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
 
 type Props = {
   stories: StorySummary[];
@@ -145,6 +151,16 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
   const directionRef = useRef<"left" | "right" | null>(null);
   const railStageRef = useRef<HTMLDivElement | null>(null);
   const storyStep = isCompact ? 104 : 106;
+  const pathname = usePathname();
+  const pageType = resolvePageType(pathname);
+  const storiesRef = useComponentTracking({
+    pageType,
+    componentType: "stories_bar",
+    componentId: "stories_bar_main",
+    metadata: {
+      story_count: stories.length,
+    },
+  });
 
   useEffect(() => {
     setOrderedStories(stories);
@@ -230,11 +246,29 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
   };
 
   return (
-    <section style={shellStyle} aria-label="Historias">
+    <section ref={storiesRef} style={shellStyle} aria-label="Historias">
       <div style={railShellResolved}>
         <button
           aria-label="Desplazar historias a la izquierda"
-          onClick={() => rotate("left")}
+          onClick={() => {
+            void trackEvent({
+              event_name: "cta_click",
+              event_category: "engagement",
+              tenant_id: env.clientSlug,
+              page_type: pageType,
+              component_type: "stories_bar",
+              component_id: "stories_bar_main",
+              cta_id: "stories.nav.previous",
+              cta_name: "navigate_previous",
+              cta_type: "secondary",
+              cta_context: "content",
+              cta_location: "stories_bar",
+              schema_version: EVENT_SCHEMA_VERSION,
+              metadata: { direction: "left" },
+              data: { direction: "left" },
+            });
+            rotate("left");
+          }}
           style={navButtonResolved}
           type="button"
         >
@@ -248,7 +282,35 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
                 <button
                   key={story.id}
                   type="button"
-                  onClick={() => onStorySelect(story)}
+                  onClick={() => {
+                    void trackEvent({
+                      event_name: "select_item",
+                      event_category: "ecommerce",
+                      tenant_id: env.clientSlug,
+                      page_type: pageType,
+                      component_type: "stories_bar",
+                      component_id: "stories_bar_main",
+                      cta_id: "stories.story.open",
+                      cta_name: "open_story",
+                      cta_type: "primary",
+                      cta_context: "content",
+                      cta_location: "story_card",
+                      schema_version: EVENT_SCHEMA_VERSION,
+                      metadata: {
+                        story_id: story.id,
+                        story_slug: story.slug,
+                        story_title: story.title,
+                        position: index + 1,
+                      },
+                      data: {
+                        story_id: story.id,
+                        story_slug: story.slug,
+                        story_title: story.title,
+                        position: index + 1,
+                      },
+                    });
+                    onStorySelect(story);
+                  }}
                   style={buttonStyle}
                 >
                   <div style={ringStyle}>
@@ -268,8 +330,37 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
                   </strong>
                 </button>
               ) : (
-                <Link key={story.id} href={`/stories/${encodeURIComponent(story.slug)}`} style={cardStyle}>
-                  <div style={ringStyle}>
+                <Link
+                  key={story.id}
+                  href={`/stories/${encodeURIComponent(story.slug)}`}
+                  onClick={() => {
+                    void trackEvent({
+                      event_name: "select_item",
+                      event_category: "ecommerce",
+                      tenant_id: env.clientSlug,
+                      page_type: pageType,
+                      component_type: "stories_bar",
+                      component_id: "stories_bar_main",
+                      cta_id: "stories.story.open",
+                      cta_name: "open_story",
+                      cta_type: "primary",
+                      cta_context: "content",
+                      cta_location: "story_card",
+                      schema_version: EVENT_SCHEMA_VERSION,
+                      metadata: {
+                        story_id: story.id,
+                        story_slug: story.slug,
+                        story_title: story.title,
+                      },
+                      data: {
+                        story_id: story.id,
+                        story_slug: story.slug,
+                        story_title: story.title,
+                      },
+                    });
+                  }}
+                  style={cardStyle}>
+                <div style={ringStyle}>
                     <div style={thumbStyle}>
                       <Image
                         alt={story.title}
@@ -292,7 +383,25 @@ export default function StoriesBar({ stories, onStorySelect }: Props) {
 
         <button
           aria-label="Desplazar historias a la derecha"
-          onClick={() => rotate("right")}
+          onClick={() => {
+            void trackEvent({
+              event_name: "cta_click",
+              event_category: "engagement",
+              tenant_id: env.clientSlug,
+              page_type: pageType,
+              component_type: "stories_bar",
+              component_id: "stories_bar_main",
+              cta_id: "stories.nav.next",
+              cta_name: "navigate_next",
+              cta_type: "secondary",
+              cta_context: "content",
+              cta_location: "stories_bar",
+              schema_version: EVENT_SCHEMA_VERSION,
+              metadata: { direction: "right" },
+              data: { direction: "right" },
+            });
+            rotate("right");
+          }}
           style={navButtonResolved}
           type="button"
         >

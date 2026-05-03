@@ -18,6 +18,7 @@ import { Button } from "@component/buttons";
 import NoImagePlaceholder from "@component/NoImagePlaceholder";
 import { trackEvent } from "@/lib/analytics";
 import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { buildCanonicalAnalyticsContext } from "@/lib/analytics/product-context";
 import { env } from "@/lib/env";
 import { filterValidProductImages, isMissingProductImage } from "@/lib/utils/image";
 import { StorefrontApi } from "@/lib/api/storefront";
@@ -30,7 +31,7 @@ import ProductQuickActions from "./ProductQuickActions";
 import { deviceSize } from "@utils/constants";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
 import { useTranslation } from "@/state/i18n-context";
-import type { ProductMode } from "@/types/storefront";
+import type { CanonicalConfiguration, ProductMode } from "@/types/storefront";
 
 // STYLED COMPONENT
 const Wrapper = styled(Card)`
@@ -181,6 +182,7 @@ interface ProductCard1Props extends CardProps {
   variantKey?: string | null;
   variantLabel?: string | null;
   configuration?: Record<string, unknown> | null;
+  canonicalConfiguration?: CanonicalConfiguration | null;
 }
 // =======================================================================
 
@@ -199,6 +201,7 @@ function ProductCard1({
   variantKey,
   variantLabel,
   configuration,
+  canonicalConfiguration,
   ...props
 }: ProductCard1Props) {
   const t = useTranslation();
@@ -257,7 +260,7 @@ function ProductCard1({
   const formattedListPrice = showListPrice ? formatAmount(baselineAmount, resolvedCurrency) : null;
   const detailHref =
     mode === "parametric" && slug
-      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined)
+      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined, id ?? null)
       : `/product/${slug}`;
 
   const handleCartAmountChange = useCallback(
@@ -310,6 +313,10 @@ function ProductCard1({
 
       if (amount > previousAmount) {
         const addedQuantity = Math.max(1, amount - previousAmount);
+        const canonicalContext = buildCanonicalAnalyticsContext({
+          canonicalConfiguration: canonicalConfiguration ?? null,
+          configuration: resolvedConfiguration ?? null
+        });
         void trackEvent({
           event_name: "add_to_cart",
           event_category: "ecommerce",
@@ -330,6 +337,7 @@ function ProductCard1({
             price: effectivePrice,
             currency: productCurrency,
             variant_key: variantKey ?? null,
+            ...canonicalContext
           },
           data: {
             product_id: id ?? slug,
@@ -338,6 +346,7 @@ function ProductCard1({
             price: effectivePrice,
             currency: productCurrency,
             variant_key: variantKey ?? null,
+            ...canonicalContext
           },
         });
       }
@@ -357,12 +366,17 @@ function ProductCard1({
       title,
       derivedM2BaseProductId,
       derivedM2Configuration,
+      canonicalConfiguration,
       variantKey,
       variantLabel
     ]
   );
 
   const handleSelectItem = useCallback(() => {
+    const canonicalContext = buildCanonicalAnalyticsContext({
+      canonicalConfiguration: canonicalConfiguration ?? null,
+      configuration: configuration ?? null
+    });
     void trackEvent({
       event_name: "select_item",
       event_category: "ecommerce",
@@ -371,7 +385,7 @@ function ProductCard1({
       component_type: "product_card",
       component_id: "product_card_1",
       cta_id: "product.card.view_detail",
-      cta_name: "view_product",
+      cta_name: "view_item",
       cta_type: "secondary",
       cta_context: "ecommerce",
       cta_location: "product_card",
@@ -382,6 +396,7 @@ function ProductCard1({
         price: effectivePrice,
         currency: productCurrency,
         variant_key: variantKey ?? null,
+        ...canonicalContext
       },
       data: {
         product_id: id ?? slug,
@@ -389,9 +404,10 @@ function ProductCard1({
         price: effectivePrice,
         currency: productCurrency,
         variant_key: variantKey ?? null,
+        ...canonicalContext
       },
     });
-  }, [effectivePrice, id, productCurrency, slug, variantKey]);
+  }, [canonicalConfiguration, configuration, effectivePrice, id, productCurrency, slug, variantKey]);
 
   return (
     <Fragment>

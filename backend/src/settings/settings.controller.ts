@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { JwtAuthGuard } from '../auth/jwt-auth.guard'
 import {
+  CatalogExposureMode,
   InstallationChargeScope,
   InstallationPricePresentationMode,
   InstallationResolutionMode,
@@ -70,6 +71,7 @@ type ProductCategoryConfig = {
   seoTitle?: string | null
   seoDescription?: string | null
   seoImageUrl?: string | null
+  catalogExposureMode?: string | null
   parent?: string | null
   installable?: boolean
   installationResolutionMode?: string | null
@@ -687,6 +689,23 @@ export class SettingsController {
     return match as InstallationPricePresentationMode
   }
 
+  private resolveCatalogExposureMode(
+    value: unknown,
+    fallback: CatalogExposureMode | null = null,
+  ): CatalogExposureMode | null {
+    if (value === null || value === undefined || value === '') {
+      return fallback
+    }
+    const normalized = String(value).trim().toUpperCase().replace(/[\s-]+/g, '_')
+    const match = (Object.values(CatalogExposureMode) as string[]).find(
+      (candidate) => candidate === normalized,
+    )
+    if (!match) {
+      throw new BadRequestException('Invalid catalog exposure mode')
+    }
+    return match as CatalogExposureMode
+  }
+
   private normalizeCategoryServicePayload(
     input: unknown,
     categoryName: string,
@@ -845,6 +864,7 @@ export class SettingsController {
       seoTitle?: string | null
       seoDescription?: string | null
       seoImageUrl?: string | null
+      catalogExposureMode?: string | null
       parentId?: number | string | null
       installable?: boolean
       installationResolutionMode?: string | null
@@ -862,6 +882,7 @@ export class SettingsController {
     const seoTitle = this.normalizeOptionalString(body.seoTitle)
     const seoDescription = this.normalizeOptionalString(body.seoDescription)
     const seoImageUrl = this.normalizeOptionalString(body.seoImageUrl)
+    const catalogExposureMode = this.resolveCatalogExposureMode(body.catalogExposureMode)
     const parentId = this.parseCategoryParentId(body.parentId)
     await this.ensureValidCategoryParent(null, parentId)
 
@@ -891,6 +912,7 @@ export class SettingsController {
           seoTitle: seoTitle ?? null,
           seoDescription: seoDescription ?? null,
           seoImageUrl: seoImageUrl ?? null,
+          catalogExposureMode,
           parentId,
           installationResolutionMode,
           installationChargeScope,
@@ -939,6 +961,7 @@ export class SettingsController {
       seoTitle?: string | null
       seoDescription?: string | null
       seoImageUrl?: string | null
+      catalogExposureMode?: string | null
       parentId?: number | string | null
       installable?: boolean
       installationResolutionMode?: string | null
@@ -989,6 +1012,10 @@ export class SettingsController {
     const seoImageUrl = this.normalizeOptionalString(body.seoImageUrl)
     if (seoImageUrl !== undefined) {
       data.seoImageUrl = seoImageUrl
+    }
+    const catalogExposureMode = this.resolveCatalogExposureMode(body.catalogExposureMode)
+    if (catalogExposureMode !== undefined) {
+      data.catalogExposureMode = catalogExposureMode
     }
     if (Object.prototype.hasOwnProperty.call(body, 'parentId')) {
       const parentId = this.parseCategoryParentId(body.parentId)
@@ -1365,6 +1392,7 @@ export class SettingsController {
           seoTitle: category.seoTitle ?? null,
           seoDescription: category.seoDescription ?? null,
           seoImageUrl: category.seoImageUrl ?? null,
+          catalogExposureMode: category.catalogExposureMode ?? null,
           parent: category.parentId ? categoryNameById.get(category.parentId) ?? null : null,
           installable: Boolean(service),
           installationResolutionMode:
@@ -1512,6 +1540,7 @@ export class SettingsController {
               seoTitle: string | null
               seoDescription: string | null
               seoImageUrl: string | null
+              catalogExposureMode: CatalogExposureMode | null
               parentName: string | null
               installable: boolean
               installationResolutionMode: InstallationResolutionMode | null
@@ -1543,6 +1572,7 @@ export class SettingsController {
             const seoTitleValue = this.normalizeOptionalString(raw['seoTitle'])
             const seoDescriptionValue = this.normalizeOptionalString(raw['seoDescription'])
             const seoImageUrlValue = this.normalizeOptionalString(raw['seoImageUrl'])
+            const catalogExposureModeValue = this.resolveCatalogExposureMode(raw['catalogExposureMode'])
             const parentName = this.sanitizeName(raw['parent'])
             const rawService = raw['service']
             const installableFlag = raw['installable']
@@ -1573,6 +1603,7 @@ export class SettingsController {
               seoTitle: seoTitleValue ?? null,
               seoDescription: seoDescriptionValue ?? null,
               seoImageUrl: seoImageUrlValue ?? null,
+              catalogExposureMode: catalogExposureModeValue ?? null,
               parentName: parentName ?? null,
               installable,
               installationResolutionMode,
@@ -1808,6 +1839,7 @@ export class SettingsController {
                   seoTitle: entry.seoTitle,
                   seoDescription: entry.seoDescription,
                   seoImageUrl: entry.seoImageUrl,
+                  catalogExposureMode: entry.catalogExposureMode,
                   parentId,
                   installationResolutionMode: entry.installationResolutionMode,
                   installationChargeScope: entry.installationChargeScope,

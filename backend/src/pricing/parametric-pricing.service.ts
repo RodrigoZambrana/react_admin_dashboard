@@ -1365,6 +1365,9 @@ export class ParametricPricingService {
           Object.entries(raw).map(([key, value]) => [this.normalizeString(key).toLowerCase(), value]),
         )
 
+        const productName = this.normalizeString(
+          normalizeKeyed['product_name'] ?? normalizeKeyed['productname'],
+        ) || null
         const productCode = this.normalizeString(normalizeKeyed['product_code']) || null
         const categoryIdRaw = this.normalizeString(normalizeKeyed['category_id'])
         let categoryId: number | null = null
@@ -1484,20 +1487,24 @@ export class ParametricPricingService {
             return
           }
 
-          const derivedName = this.buildProductName(
+          const standardName = this.buildProductName(
+            undefined,
             variant.familyId,
             variant.serie,
             variant.color,
             variant.vidrio,
             variant.widthMm,
             variant.heightMm,
-            Boolean(variant.hasMosquitero),
-            variant.hasShutterMonoblock,
-            variant.shutterMaterial,
           )
+          const derivedName = productName || standardName
           if (!derivedName) {
             warnings.push(`Row ${position}: unable to infer product name`)
             return
+          }
+          if (productName && this.normalizeComparableName(productName) !== this.normalizeComparableName(standardName)) {
+            warnings.push(
+              `Row ${position}: product_name does not match the standard opening naming pattern (${standardName})`,
+            )
           }
 
           const productKey = this.buildProductGroupingKey({
@@ -1783,25 +1790,101 @@ export class ParametricPricingService {
   }
 
   private buildProductName(
+    explicitName: string | null | undefined,
     familyId: string,
     serie: string,
     color: string,
     vidrio: string,
     widthMm: number,
     heightMm: number,
-    hasMosquitero: boolean,
-    hasShutterMonoblock: boolean,
-    shutterSystem: string,
   ) {
-    const family = this.prettifyLabel(familyId)
-    const serieLabel = this.prettifyLabel(serie)
-    const colorLabel = this.prettifyLabel(color)
-    const glassLabel = this.prettifyLabel(vidrio)
+    const explicit = this.normalizeString(explicitName ?? '')
+    if (explicit) {
+      return explicit
+    }
+
+    const family = this.formatOpeningFamilyName(familyId)
+    const serieLabel = this.formatOpeningLabel(serie)
+    const colorLabel = this.formatOpeningLabel(color)
+    const glassLabel = this.formatOpeningLabel(vidrio)
     const sizeLabel =
       Number.isFinite(widthMm) && Number.isFinite(heightMm) && widthMm > 0 && heightMm > 0
         ? `${widthMm}x${heightMm}`
         : ''
     return [family, serieLabel, colorLabel, glassLabel, sizeLabel].filter(Boolean).join(' ').trim()
+  }
+
+  private formatOpeningFamilyName(value: string) {
+    const upper = this.normalizeString(value).toUpperCase()
+
+    if (upper.includes('CORREDIZA')) {
+      return 'Ventana Corrediza'
+    }
+    if (upper.includes('BATIENTE')) {
+      return upper.includes('PUERTA') ? 'Puerta Batiente' : 'Ventana Batiente'
+    }
+    if (upper.includes('OSCILOBATIENTE')) {
+      return 'Ventana Oscilobatiente'
+    }
+    if (upper.includes('PROYECTANTE')) {
+      return 'Ventana Proyectante'
+    }
+    if (upper.includes('PANO FIJO') || upper.includes('PAÑO FIJO') || upper.includes('PANO_FIJO')) {
+      return 'Paño Fijo'
+    }
+    if (upper.includes('BLINDEX')) {
+      return 'Puerta Blindex'
+    }
+
+    return this.formatOpeningLabel(value)
+  }
+
+  private formatOpeningLabel(value: string) {
+    return value
+      .replace(/_/g, ' ')
+      .split(/\s+/)
+      .map((part) => this.formatOpeningLabelPart(part))
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+  }
+
+  private formatOpeningLabelPart(value: string) {
+    const token = value.trim()
+    if (!token) {
+      return ''
+    }
+
+    const upper = token.toUpperCase()
+    if (upper.startsWith('DVH')) {
+      return upper
+    }
+    if (/^\d+MM$/.test(upper)) {
+      return upper
+    }
+    if (/^\d+[A-Z0-9]+$/.test(upper)) {
+      return upper
+    }
+    if (/^[A-Z]+\d+$/.test(upper)) {
+      return `${upper.charAt(0)}${upper.slice(1).toLowerCase()}`
+    }
+    if (/^[A-Z]+$/.test(upper) && upper.length <= 2) {
+      return upper
+    }
+    if (/^[A-Z0-9]+$/.test(upper)) {
+      return `${upper.charAt(0)}${upper.slice(1).toLowerCase()}`
+    }
+
+    return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase()
+  }
+
+  private normalizeComparableName(value: string) {
+    return value
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim()
   }
 
   private buildProductGroupingKey(params: {
