@@ -12,6 +12,7 @@ import FlexBox from "@component/FlexBox";
 import { IconButton } from "@component/buttons";
 import { H5, Paragraph } from "@component/Typography";
 import { useTranslation } from "@/state/i18n-context";
+import styled from "styled-components";
 
 type ShopResultsToolbarProps = {
   total: number;
@@ -25,6 +26,42 @@ type SortOption = {
   label: string;
   value: string;
 };
+
+const ToolbarCard = styled(FlexBox)`
+  gap: 1rem;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    padding: 0.875rem;
+    flex-direction: column;
+    align-items: stretch;
+  }
+`;
+
+const ToolbarControls = styled(FlexBox)`
+  gap: 0.75rem 1rem;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+`;
+
+const ToolbarLabel = styled(Paragraph)`
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    display: none;
+  }
+`;
+
+const SortBox = styled(Box)`
+  min-width: 220px;
+
+  @media (max-width: ${({ theme }) => theme.breakpoints.md}) {
+    min-width: 0;
+    width: 100%;
+  }
+`;
 
 export default function ShopResultsToolbar({
   total,
@@ -152,7 +189,7 @@ export default function ShopResultsToolbar({
   );
 
   return (
-    <FlexBox
+    <ToolbarCard
       as={Card}
       mb="30px"
       p="1.25rem"
@@ -167,24 +204,24 @@ export default function ShopResultsToolbar({
         {hasResultsContext ? <Paragraph color="text.muted">{resultsText}</Paragraph> : null}
       </Box>
 
-      <FlexBox alignItems="center" flexWrap="wrap" style={{ gap: "0.75rem 1rem" }}>
-        <Paragraph color="text.muted">
+      <ToolbarControls alignItems="center" flexWrap="wrap">
+        <ToolbarLabel color="text.muted">
           {t("shop.results.sortBy", { defaultMessage: "Sort by:" })}
-        </Paragraph>
+        </ToolbarLabel>
 
-        <Box minWidth="220px">
-            <Select
-              value={selectedSort}
+        <SortBox>
+          <Select
+            value={selectedSort}
             options={sortOptions}
             onChange={(option) => handleSortChange(option as SortOption | null)}
             placeholder="Sort by"
             isSearchable={false}
           />
-        </Box>
+        </SortBox>
 
-        <Paragraph color="text.muted">
+        <ToolbarLabel color="text.muted">
           {t("shop.results.view", { defaultMessage: "View:" })}
-        </Paragraph>
+        </ToolbarLabel>
 
         <IconButton onClick={handleViewChange("grid")} aria-label={t("shop.results.viewGrid", { defaultMessage: "Grid view" })}>
           <IconLayoutGrid
@@ -199,7 +236,7 @@ export default function ShopResultsToolbar({
             color={currentView === "list" ? theme.colors.primary.main : "currentColor"}
           />
         </IconButton>
-      </FlexBox>
-    </FlexBox>
+      </ToolbarControls>
+    </ToolbarCard>
   );
 }

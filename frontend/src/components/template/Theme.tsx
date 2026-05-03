@@ -14,6 +14,7 @@ import {
 } from '@/store'
 import { fetchThemeConfig } from '@/store/slices/theme/themeSlice'
 import { apiGetSession, apiSignOut } from '@/services/AuthService'
+import { captureAnalyticsAttributionFromLocation } from '@/services/AnalyticsEventService'
 import { useNavigate } from 'react-router-dom'
 
 const normalizeLanguagePreference = (lang?: string | null) => {
@@ -206,6 +207,10 @@ const Theme = (props: CommonProps) => {
     }, [dispatch, navigate, initialized, isSignedIn, token, expiresAt])
 
     useDarkMode()
+
+    useEffect(() => {
+        captureAnalyticsAttributionFromLocation()
+    }, [])
 
     const currentTheme = {
         ...themeConfig,

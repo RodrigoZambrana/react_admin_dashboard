@@ -26,6 +26,11 @@ server {
     proxy_set_header   X-Forwarded-Proto $scheme;
   }
 
+  location ^~ /app/ {
+    rewrite ^/app/(.*)$ /$1 break;
+    try_files $uri $uri/ /index.html;
+  }
+
   location / {
     try_files $uri $uri/ @spa_fallback;
   }

@@ -68,6 +68,8 @@ import { AnalyticsUsageService } from './analytics-usage.service'
     AnalyticsInsightAiService,
     AnalyticsDataTrustService,
     AnalyticsDataParityService,
+    AnalyticsRepository,
+    AdsConnectorService,
   ],
 })
 export class AnalyticsModule {}

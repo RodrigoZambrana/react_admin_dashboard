@@ -2671,6 +2671,14 @@ export class StorefrontService implements OnModuleInit {
     const categoryFilter = query.category?.trim() ?? ''
     const normalizedCategoryFilter = categoryFilter.toLowerCase()
     const effectiveCategoryFilter = normalizedCategoryFilter === 'all' ? null : categoryFilter || null
+    const ratingThreshold =
+      typeof query.rating === 'number' && Number.isFinite(query.rating)
+        ? Math.min(5, Math.max(1, Math.trunc(query.rating)))
+        : undefined
+    const minPrice =
+      typeof query.priceMin === 'number' && Number.isFinite(query.priceMin) ? query.priceMin : undefined
+    const maxPrice =
+      typeof query.priceMax === 'number' && Number.isFinite(query.priceMax) ? query.priceMax : undefined
     const cacheKey = `storefront:products:${JSON.stringify({
       tenant: clientSlug || null,
       page,
@@ -2679,10 +2687,25 @@ export class StorefrontService implements OnModuleInit {
       search: searchTerm || null,
       sort: query.sort ?? null,
       tag: query.tag ?? null,
+      priceMin: minPrice ?? null,
+      priceMax: maxPrice ?? null,
+      rating: ratingThreshold ?? null,
     })}`
 
     return this.getOrSetPublicCache(cacheKey, PUBLIC_STOREFRONT_PRODUCTS_CACHE_TTL_MS, async () => {
       const where: Prisma.ProductWhereInput = { published: true, productType: ProductType.PHYSICAL }
+      const matchesSummaryFilters = (product: { price: { amount: number }; rating?: number | null }) => {
+        if (typeof minPrice === 'number' && product.price.amount < minPrice) {
+          return false
+        }
+        if (typeof maxPrice === 'number' && product.price.amount > maxPrice) {
+          return false
+        }
+        if (typeof ratingThreshold === 'number' && (product.rating ?? 0) < ratingThreshold) {
+          return false
+        }
+        return true
+      }
 
       if (clientSlug === 'urucortinas') {
         where.unitOfMeasure = { not: SalesUnit.SQUARE_METER }
@@ -2717,23 +2740,106 @@ export class StorefrontService implements OnModuleInit {
         where.tags = { has: query.tag }
       }
 
-      if (searchTerm) {
-        const orderBy: Prisma.ProductOrderByWithRelationInput[] = []
-        switch (query.sort) {
-          case 'price-asc':
-            orderBy.push({ salePrice: 'asc' })
-            break
-          case 'price-desc':
-            orderBy.push({ salePrice: 'desc' })
-            break
-          case 'newest':
-            orderBy.push({ createdAt: 'desc' })
-            break
-          default:
-            orderBy.push({ name: 'asc' })
-            break
+      if (typeof minPrice === 'number' || typeof maxPrice === 'number') {
+        where.salePrice = {
+          ...(typeof minPrice === 'number' ? { gte: new Prisma.Decimal(minPrice) } : {}),
+          ...(typeof maxPrice === 'number' ? { lte: new Prisma.Decimal(maxPrice) } : {}),
+        }
+      }
+
+      const orderBy: Prisma.ProductOrderByWithRelationInput[] = []
+      switch (query.sort) {
+        case 'price-asc':
+          orderBy.push({ salePrice: 'asc' })
+          break
+        case 'price-desc':
+          orderBy.push({ salePrice: 'desc' })
+          break
+        case 'newest':
+          orderBy.push({ createdAt: 'desc' })
+          break
+        default:
+          orderBy.push({ name: 'asc' })
+          break
+      }
+
+      if (typeof ratingThreshold === 'number') {
+        const candidateIds = await this.prisma.product.findMany({
+          where,
+          select: { id: true },
+        })
+        if (!candidateIds.length) {
+          return {
+            data: [],
+            total: 0,
+            page,
+            pageSize,
+            totalPages: 1,
+          }
         }
 
+        const reviewStatsMap = await this.loadProductReviewStats(candidateIds.map((item) => item.id))
+        const eligibleIds = candidateIds
+          .map((item) => item.id)
+          .filter((id) => (reviewStatsMap.get(id)?.averageRating ?? 0) >= ratingThreshold)
+
+        if (!eligibleIds.length) {
+          return {
+            data: [],
+            total: 0,
+            page,
+            pageSize,
+            totalPages: 1,
+          }
+        }
+
+        const [total, products] = await this.prisma.$transaction([
+          this.prisma.product.count({
+            where: {
+              ...where,
+              id: { in: eligibleIds },
+            },
+          }),
+          this.prisma.product.findMany({
+            where: {
+              ...where,
+              id: { in: eligibleIds },
+            },
+            orderBy,
+            skip: (page - 1) * pageSize,
+            take: pageSize,
+            include: {
+              images: {
+                where: { variantId: null },
+                orderBy: { sortOrder: 'asc' },
+              },
+              category: true,
+            },
+          }),
+        ])
+
+        const publishedParametricDefinitions = await this.resolvePublishedParametricDefinitions(products)
+        const reviewStats = await this.loadProductReviewStats(products.map((product) => product.id))
+        const data = products.map((product) =>
+          this.toProductSummary(
+            product,
+            publishedParametricDefinitions.get(product.id) ?? null,
+            undefined,
+            reviewStats.get(product.id) ?? null,
+          ),
+        )
+        const totalPages = Math.max(1, Math.ceil(total / pageSize))
+
+        return {
+          data,
+          total,
+          page,
+          pageSize,
+          totalPages,
+        }
+      }
+
+      if (searchTerm) {
         await this.prisma.product.count({
           where: {
             ...where,
@@ -2847,10 +2953,13 @@ export class StorefrontService implements OnModuleInit {
         }
 
         const canonicalProductIds = new Set(canonicalItems.map((item) => item.id))
-        const filteredProductItems = productItems.filter((item) => !canonicalProductIds.has(item.id))
+        const filteredProductItems = productItems
+          .filter((item) => !canonicalProductIds.has(item.id))
+          .filter((item) => matchesSummaryFilters(item))
+        const filteredCanonicalItems = canonicalItems.filter((item) => matchesSummaryFilters(item))
         const merged = Array.from(
           new Map(
-            [...canonicalItems, ...filteredProductItems].map((item) => [
+            [...filteredCanonicalItems, ...filteredProductItems].map((item) => [
               item.canonicalConfiguration
                 ? `${item.slug}:${item.id}:${item.canonicalConfiguration.id}:${item.variantKey ?? ''}`
                 : `${item.slug}:${item.id}`,
@@ -2870,22 +2979,6 @@ export class StorefrontService implements OnModuleInit {
           pageSize,
           totalPages,
         }
-      }
-
-      const orderBy: Prisma.ProductOrderByWithRelationInput[] = []
-      switch (query.sort) {
-        case 'price-asc':
-          orderBy.push({ salePrice: 'asc' })
-          break
-        case 'price-desc':
-          orderBy.push({ salePrice: 'desc' })
-          break
-        case 'newest':
-          orderBy.push({ createdAt: 'desc' })
-          break
-        default:
-          orderBy.push({ name: 'asc' })
-          break
       }
 
       const [total, products] = await this.prisma.$transaction([

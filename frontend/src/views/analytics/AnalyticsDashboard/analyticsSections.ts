@@ -12,6 +12,7 @@ export type AnalyticsSectionKey =
     | 'connections'
     | 'systemHealth'
     | 'insights'
+    | 'dataAccess'
     | 'dataQuality'
     | 'dataParity'
     | 'exports'
@@ -90,6 +91,12 @@ export const analyticsSections: AnalyticsSection[] = [
         path: appPath('/analytics/insights'),
         title: 'Insights IA',
         subtitle: 'Resumen ejecutivo, oportunidades y evidencia priorizada.',
+    },
+    {
+        key: 'dataAccess',
+        path: appPath('/analytics/data-access'),
+        title: 'Acceso a datos',
+        subtitle: 'Panel seguro para consumir la DAL y emitir API keys de servicio.',
     },
     {
         key: 'dataQuality',

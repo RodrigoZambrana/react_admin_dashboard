@@ -35,6 +35,8 @@ import { KnowledgeModule } from './knowledge/knowledge.module'
 import { GrowthModule } from './growth/growth.module'
 import { BudgetModule } from './budget/budget.module'
 import { AnalyticsModule } from './analytics/analytics.module'
+import { ConversionsModule } from './conversions/conversions.module'
+import { InsightsModule } from './insights/insights.module'
 import { CloudinaryModule } from './cloudinary/cloudinary.module'
 import { MediaModule } from './media/media.module'
 import { StoriesModule } from './stories/stories.module'
@@ -88,6 +90,8 @@ import { ObservabilityService } from './common/observability/observability.servi
     GrowthModule,
     BudgetModule,
     AnalyticsModule,
+    ConversionsModule,
+    InsightsModule,
     CloudinaryModule,
     MediaModule,
     StoriesModule,

@@ -8,7 +8,7 @@ import {
   waitForLatestOrderByCustomerEmail
 } from "./support/db";
 import { buildTestCustomer } from "./support/factories";
-import { fetchProductDetail } from "./support/storefront-api";
+import { fetchProductDetail, registerCustomer } from "./support/storefront-api";
 
 const SIMPLE_PRODUCT_SLUG = "cortinas-roller";
 const PARAMETRIC_PRODUCT_SLUG = "ventana-corrediza-20-natural-3mm-1800x1000";
@@ -21,17 +21,35 @@ async function bootstrapStorefrontContext(page: Page, currency: "USD" | "UYU") {
   }, currency);
 }
 
-async function registerStorefrontCustomer(page: Page, customer: ReturnType<typeof buildTestCustomer>) {
-  await page.goto("/account/register");
-  await page.getByTestId("auth-register-first-name").fill(customer.firstName);
-  await page.getByTestId("auth-register-last-name").fill(customer.lastName);
-  await page.getByTestId("auth-register-email").fill(customer.email);
-  await page.getByTestId("auth-register-phone").fill(customer.phone);
-  await page.getByTestId("auth-register-password").fill(customer.password);
-  await page.getByTestId("auth-register-confirm-password").fill(customer.password);
-  await page.getByTestId("auth-register-agreement").check();
-  await page.getByTestId("auth-register-submit").click();
-  await page.waitForURL("**/", { timeout: 20_000 });
+async function loginCustomer(page: Page, customer: ReturnType<typeof buildTestCustomer>) {
+  const response = await page.request.post("http://localhost:4000/api/storefront/auth/login", {
+    data: {
+      identifier: customer.email,
+      password: customer.password
+    }
+  });
+  expect(response.ok()).toBeTruthy();
+  const payload = (await response.json()) as { accessToken?: string };
+  expect(payload.accessToken).toBeTruthy();
+  await page.context().addCookies([
+    {
+      name: "access_token",
+      value: payload.accessToken!,
+      domain: "localhost",
+      path: "/",
+      httpOnly: true,
+      sameSite: "Lax"
+    }
+  ]);
+}
+
+async function registerStorefrontCustomer(
+  page: Page,
+  request: Parameters<typeof registerCustomer>[0],
+  customer: ReturnType<typeof buildTestCustomer>
+) {
+  await registerCustomer(request, customer);
+  await loginCustomer(page, customer);
 }
 
 async function addSimpleProductFromDetail(page: Page, slug: string) {
@@ -151,7 +169,7 @@ test.describe("logged in checkout persistence and customer email gating", () => 
     await bootstrapStorefrontContext(page, "UYU");
 
     const customer = buildTestCustomer(Date.now() + 2000);
-    await registerStorefrontCustomer(page, customer);
+    await registerStorefrontCustomer(page, request, customer);
     const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
     const parametric = await fetchProductDetail(request, PARAMETRIC_PRODUCT_SLUG);
 
@@ -192,7 +210,7 @@ test.describe("logged in checkout persistence and customer email gating", () => 
     await bootstrapStorefrontContext(page, "UYU");
 
     const customer = buildTestCustomer(Date.now() + 3000);
-    await registerStorefrontCustomer(page, customer);
+    await registerStorefrontCustomer(page, request, customer);
     const verifyLink = await waitForEmailActionLink(customer.email, "verify_email");
 
     await page.goto(verifyLink.url);

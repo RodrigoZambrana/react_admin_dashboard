@@ -2,15 +2,26 @@ import { Fragment } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 
+import CmsPageShell, { CmsPageBody } from "@/components/cms/CmsPageShell";
 import ProductDetailExperience from "@component/products/ProductDetailExperience";
 import StructuredData from "@/components/seo/StructuredData";
 import ProductViewAnalytics from "@/components/seo/ProductViewAnalytics";
 import ProductMultimediaCta from "@/components/products/ProductMultimediaCta";
-import { CmsPageBody } from "@/components/cms/CmsPageShell";
-import { buildProductBreadcrumbs, buildProductJsonLd } from "@/lib/seo/structured-data";
-import { buildStorefrontPageMetadata, buildProductMetadata } from "@/lib/page-metadata";
+import {
+  buildArticleJsonLd,
+  buildCmsBreadcrumbs,
+  buildCmsFaqJsonLd,
+  buildProductBreadcrumbs,
+  buildProductJsonLd,
+} from "@/lib/seo/structured-data";
+import {
+  buildStorefrontPageMetadata,
+  buildProductMetadata,
+  buildCmsPageMetadata,
+} from "@/lib/page-metadata";
 import { loadProductPageData, buildProductSearchKey, type ProductPageSearchParams } from "@/lib/storefront/product-page";
 import { mapProductSummaryToProduct } from "@/lib/storefront/adapters";
+import { getStorefrontConfig } from "@/lib/storefront-config";
 
 export const revalidate = 300;
 
@@ -26,12 +37,18 @@ export async function generateMetadata({
   const productData = await loadProductPageData(resolvedParams.slug, buildProductSearchKey(resolvedSearchParams));
 
   if (!productData) {
-    return buildStorefrontPageMetadata({
-      title: "Producto no disponible",
-      description: "No pudimos resolver la ficha del producto solicitado.",
-      canonicalPath: `/${resolvedParams.slug}`,
-      noIndex: true,
-    });
+    const { StorefrontApi } = await import("@/lib/api/storefront");
+    try {
+      const cmsPage = await StorefrontApi.getCmsPage(resolvedParams.slug);
+      return buildCmsPageMetadata(cmsPage, `/${resolvedParams.slug}`);
+    } catch {
+      return buildStorefrontPageMetadata({
+        title: "Producto no disponible",
+        description: "No pudimos resolver la ficha del producto solicitado.",
+        canonicalPath: `/${resolvedParams.slug}`,
+        noIndex: true,
+      });
+    }
   }
 
   return buildProductMetadata(productData.productDetail, resolvedParams.slug, `/${resolvedParams.slug}`);
@@ -50,7 +67,26 @@ export default async function ProductDetails({
   const productData = await loadProductPageData(resolvedParams.slug, buildProductSearchKey(resolvedSearchParams));
 
   if (!productData) {
-    notFound();
+    const { StorefrontApi } = await import("@/lib/api/storefront");
+    try {
+      const cmsPage = await StorefrontApi.getCmsPage(resolvedParams.slug);
+      const config = await getStorefrontConfig();
+      const faqSchema = buildCmsFaqJsonLd(cmsPage);
+      return (
+        <>
+          <StructuredData
+            schemas={[
+              buildArticleJsonLd(config, cmsPage),
+              buildCmsBreadcrumbs(config, cmsPage),
+              ...(faqSchema ? [faqSchema] : []),
+            ]}
+          />
+          <CmsPageShell page={cmsPage} />
+        </>
+      );
+    } catch {
+      notFound();
+    }
   }
 
   const { product, productDetail, relatedProducts, frequentlyBought, storefrontConfig, cmsPage } = productData;

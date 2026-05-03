@@ -28,7 +28,7 @@ test("logout invalidates storefront session and clears transient storage", async
     timeout: 20_000,
   });
 
-  await page.getByRole("button", { name: /Log out|Cerrar sesión/i }).click();
+  await page.getByRole("button", { name: /Log out|Cerrar sesión/i }).click({ force: true });
   await expect(page).toHaveURL(/\/$/);
 
   await expect

@@ -6,10 +6,11 @@ import Avatar from "@component/avatar";
 import Icon from "@component/icon/Icon";
 import Divider from "@component/Divider";
 import FlexBox from "@component/FlexBox";
-import { Button } from "@component/buttons";
+import { Button, IconButton } from "@component/buttons";
 import Typography, { H5, Paragraph, Tiny } from "@component/Typography";
 import useCart from "@hook/useCart";
 import { useMoneyFormatter } from "@/hooks/useMoneyFormatter";
+import { IconX } from "@tabler/icons-react";
 import {
   buildPublishedParametricDetailHref,
   buildPublishedParametricSummaryEntries
@@ -19,10 +20,13 @@ import { useTranslation } from "@/state/i18n-context";
 import { StyledMiniCart } from "./styles";
 
 // ==============================================================
-type MiniCartProps = { toggleSidenav?: () => void };
+type MiniCartProps = {
+  toggleSidenav?: () => void;
+  onClose?: () => void;
+};
 // ==============================================================
 
-export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
+export default function MiniCart({ toggleSidenav = () => {}, onClose }: MiniCartProps) {
   const { state, dispatch, itemCount, subtotal } = useCart();
   const { formatMoney, formatAmount, baseCurrency } = useMoneyFormatter();
   const t = useTranslation();
@@ -43,11 +47,27 @@ export default function MiniCart({ toggleSidenav = () => {} }: MiniCartProps) {
   return (
     <StyledMiniCart>
       <div className="cart-list">
-        <FlexBox alignItems="center" m="0px 20px" height="74px">
-          <Icon size="1.5rem">bag</Icon>
-          <Typography fontWeight={600} fontSize="16px" ml="0.5rem">
-            {itemCountLabel}
-          </Typography>
+        <FlexBox alignItems="center" justifyContent="space-between" m="0px 20px" height="74px">
+          <FlexBox alignItems="center">
+            <Icon size="1.5rem">bag</Icon>
+            <Typography fontWeight={600} fontSize="16px" ml="0.5rem">
+              {itemCountLabel}
+            </Typography>
+          </FlexBox>
+
+          {onClose ? (
+            <IconButton
+              type="button"
+              size="small"
+              variant="text"
+              color="default"
+              onClick={onClose}
+              aria-label="Cerrar carrito"
+              title="Cerrar carrito"
+              p="0.55rem">
+              <IconX size={18} stroke={1.8} />
+            </IconButton>
+          ) : null}
         </FlexBox>
 
         <Divider />

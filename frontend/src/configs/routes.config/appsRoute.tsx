@@ -270,6 +270,15 @@ const baseAppsRoute: Routes = [
         },
     },
     {
+        key: 'appsAnalytics.dataAccess',
+        path: `${APP_PREFIX_PATH}/analytics/data-access`,
+        component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsDataAccessPage')),
+        authority: getRolesForFeature(FEATURES.SETTINGS),
+        meta: {
+            header: 'Acceso a datos',
+        },
+    },
+    {
         key: 'appsAnalytics.dataQuality',
         path: `${APP_PREFIX_PATH}/analytics/data-quality`,
         component: lazy(() => import('@/views/analytics/AnalyticsDashboard/pages/AnalyticsDataQualityPage')),

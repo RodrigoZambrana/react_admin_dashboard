@@ -108,7 +108,7 @@ export default function HeaderTwo({ className }: HeaderProps) {
             position="right"
             handle={CART_HANDLE}
             onClose={handleCloseCart}>
-            <MiniCart />
+            <MiniCart onClose={handleCloseCart} />
           </Sidenav>
         </FlexBox>
       </Container>

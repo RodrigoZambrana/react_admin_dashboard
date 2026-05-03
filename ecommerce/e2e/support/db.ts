@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { Client } from "pg";
 
 import { aiPlatformDatabaseUrl, databaseUrl, storefrontBaseUrl } from "./env";
@@ -9,6 +9,15 @@ type EmailActionLink = {
   url: string;
   subject: string;
   locale: string;
+};
+
+type OtpCodeSnapshot = {
+  codeHash: string;
+  attempts: number;
+  expiresAt: string;
+  consumedAt: string | null;
+  target: string | null;
+  channel: string | null;
 };
 
 export type LatestOrderSnapshot = {
@@ -147,6 +156,36 @@ function normalizeActionUrl(url: string): string {
   return target.toString();
 }
 
+function normalizePhoneNumber(value: string): string {
+  const cleaned = value.trim().replace(/[^\d+]/g, "");
+  if (!cleaned) {
+    return "";
+  }
+  if (cleaned.startsWith("+")) {
+    return cleaned.replace(/\s+/g, "");
+  }
+  if (cleaned.startsWith("598")) {
+    return `+${cleaned}`;
+  }
+  const digits = cleaned.replace(/\D/g, "");
+  return digits ? `+598${digits.replace(/^0+/, "")}` : "";
+}
+
+function hashOtpValue(value: string, secret: string): string {
+  return createHmac("sha256", secret).update(value).digest("hex");
+}
+
+function resolveOtpCode(hash: string, secret = "local-dev-auth-otp-secret-change-me", length = 4): string {
+  const upperBound = 10 ** length;
+  for (let value = 0; value < upperBound; value += 1) {
+    const candidate = value.toString().padStart(length, "0");
+    if (hashOtpValue(candidate, secret) === hash) {
+      return candidate;
+    }
+  }
+  throw new Error("Unable to resolve OTP code from hash");
+}
+
 async function withClient<T>(
   callback: (client: Client) => Promise<T>,
   connectionString = databaseUrl
@@ -199,6 +238,49 @@ export async function waitForEmailActionLink(
   }
 
   throw new Error(`Timed out waiting for ${event} email for ${toAddress}`);
+}
+
+export async function waitForLatestPhoneOtpCode(
+  phone: string,
+  timeoutMs = 20_000,
+): Promise<string> {
+  const deadline = Date.now() + timeoutMs;
+  const normalizedPhone = normalizePhoneNumber(phone);
+  if (!normalizedPhone) {
+    throw new Error(`Invalid phone number: ${phone}`);
+  }
+
+  while (Date.now() < deadline) {
+    const result = await withClient(async (client) =>
+      client.query<OtpCodeSnapshot>(
+        `
+          SELECT
+            "codeHash" AS "codeHash",
+            attempts,
+            "expiresAt" AS "expiresAt",
+            "consumedAt" AS "consumedAt",
+            target,
+            channel
+          FROM otp_codes
+          WHERE target = $1
+            AND channel = 'sms'
+            AND "consumedAt" IS NULL
+          ORDER BY "createdAt" DESC
+          LIMIT 1
+        `,
+        [normalizedPhone],
+      ),
+    );
+
+    const row = result.rows[0];
+    if (row?.codeHash) {
+      return resolveOtpCode(row.codeHash);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
+  throw new Error(`Timed out waiting for OTP code for ${normalizedPhone}`);
 }
 
 export async function waitForLatestOrderByCustomerEmail(

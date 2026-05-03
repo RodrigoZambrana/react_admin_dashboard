@@ -1661,6 +1661,39 @@ model AnalyticsConnectionCredential {
   @@map("analytics_connection_credentials")
 }
 
+model AnalyticsConversionReceipt {
+  id                      String   @id @default(cuid())
+  tenantId                String   @default("global") @map("tenant_id")
+  internalEventName       String   @map("internal_event_name")
+  canonicalConversionName String   @map("canonical_conversion_name")
+  adsConversionAction     String?  @map("ads_conversion_action")
+  adsConversionResource   String?  @map("ads_conversion_resource")
+  transactionId           String?  @map("transaction_id")
+  eventId                 String?  @map("event_id")
+  gclid                   String?
+  wbraid                  String?
+  gbraid                  String?
+  userIdentifiers         Json?    @db.JsonB @map("user_identifiers")
+  value                   Decimal? @db.Decimal(18, 4)
+  currency                String?
+  status                  String
+  reason                  String?
+  dedupeKey               String   @unique @map("dedupe_key")
+  requestPayload          Json     @db.JsonB @map("request_payload")
+  responsePayload         Json?    @db.JsonB @map("response_payload")
+  errorMessage            String?  @map("error_message")
+  attemptCount            Int      @default(0) @map("attempt_count")
+  lastAttemptAt           DateTime? @map("last_attempt_at")
+  sentAt                  DateTime? @map("sent_at")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, status])
+  @@index([tenantId, canonicalConversionName])
+  @@index([createdAt])
+  @@map("analytics_conversion_receipts")
+}
+
 model AnalyticsSyncRun {
   id              String   @id @default(cuid())
   connectionId    String   @map("connection_id")

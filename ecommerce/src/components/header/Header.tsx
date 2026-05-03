@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { usePathname } from "next/navigation";
 import type { FormikHelpers } from "formik";
 import { useTheme } from "styled-components";
-import { IconCategoryFilled, IconChevronDown, IconShoppingCart, IconUser } from "@tabler/icons-react";
+import { IconCategoryFilled, IconChevronDown, IconShoppingCart, IconUser, IconX } from "@tabler/icons-react";
 
 import Login, { type LoginFormValues } from "@sections/auth/Login";
 
@@ -400,9 +400,22 @@ export default function Header({ isFixed, className }: HeaderProps) {
             onClose={handleCloseAccountMenu}
             handle={<AccountButton />}>
             <Box p="1.25rem" height="100%" display="flex" flexDirection="column" onClickCapture={handleAccountNavClick}>
-              <H4 mb="0.75rem" fontWeight={600}>
-                {t("My Account")}
-              </H4>
+              <FlexBox alignItems="center" justifyContent="space-between" mb="0.75rem">
+                <H4 fontWeight={600}>{t("My Account")}</H4>
+
+                <IconButton
+                  type="button"
+                  size="small"
+                  variant="text"
+                  color="default"
+                  onClick={handleCloseAccountMenu}
+                  aria-label="Cerrar cuenta"
+                  title="Cerrar cuenta"
+                  p="0.55rem">
+                  <IconX size={18} stroke={1.8} />
+                </IconButton>
+              </FlexBox>
+
               <Box flex="1 1 0" overflow="auto" pr="0.25rem">
                 <DashboardNavigation />
               </Box>
@@ -418,13 +431,27 @@ export default function Header({ isFixed, className }: HeaderProps) {
             scroll
             onClose={handleCloseCart}
             handle={<CartButton />}>
-            <MiniCart />
+            <MiniCart onClose={handleCloseCart} />
           </Sidenav>
         </FlexBox>
       </Container>
 
       <Modal open={loginOpen} onClose={handleCloseLogin}>
         <Box width="min(90vw, 520px)">
+          <FlexBox justifyContent="flex-end" mb="0.5rem">
+            <IconButton
+              type="button"
+              size="small"
+              variant="text"
+              color="default"
+              onClick={handleCloseLogin}
+              aria-label="Cerrar inicio de sesión"
+              title="Cerrar inicio de sesión"
+              p="0.55rem">
+              <IconX size={18} stroke={1.8} />
+            </IconButton>
+          </FlexBox>
+
           <Login
             onSubmit={handleLoginSubmit}
             submitting={loginSubmitting}

@@ -34,6 +34,11 @@ export type AnalyticsEventInput = {
   utm_source?: string | null
   utm_medium?: string | null
   utm_campaign?: string | null
+  gclid?: string | null
+  wbraid?: string | null
+  gbraid?: string | null
+  transaction_id?: string | null
+  currency?: string | null
   device?: string | null
   country?: string | null
   value?: number | null

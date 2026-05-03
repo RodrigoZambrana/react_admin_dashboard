@@ -1661,7 +1661,7 @@ export class SalesDocumentsService {
     await this.prisma.order.deleteMany({ where: { id: { in: numericIds }, documentType } })
 
     await Promise.all(documents.map((doc) => deleteSalesDocumentFile(doc.documentFilePath)))
-    return true
+    return { deleted: numericIds.length }
   }
 
   async getDocumentDetails(documentType: DocumentType, id: number) {
@@ -2160,7 +2160,7 @@ export class SalesDocumentsService {
         .sendBudgetCreated({ budgetId: created.id })
         .catch((error) => this.logger.error(`Failed to dispatch budget created email for ${created.id}: ${(error as Error).message}`))
     }
-    return true
+    return created.id
   }
 
   async replaceDocument(

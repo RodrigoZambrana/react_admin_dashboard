@@ -163,6 +163,10 @@ export class AdsConnectorService {
     private readonly analyticsQueue: AnalyticsQueueService,
   ) {}
 
+  async resolveAccessToken(connectionId: string) {
+    return this.getValidAccessToken(connectionId)
+  }
+
   async startOAuth(
     returnPath?: string,
     frontendOrigin?: string | null,

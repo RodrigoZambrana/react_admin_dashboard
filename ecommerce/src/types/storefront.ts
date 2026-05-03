@@ -875,6 +875,9 @@ export interface ProductListQuery {
   search?: string;
   sort?: "newest" | "price-asc" | "price-desc" | "featured" | "best-sellers";
   tag?: string;
+  priceMin?: number;
+  priceMax?: number;
+  rating?: number;
 }
 
 export interface CustomerProfile {

@@ -368,10 +368,13 @@ const CustomerForm = forwardRef<FormikRef, CustomerFormProps>((props, ref) => {
                         category: 'conversion',
                         source: 'web',
                         measurement_status: 'partial',
+                        currency: null,
                         metadata: {
                             form: 'crm_customer_form',
                             has_phone: Boolean(primaryPhone),
                             has_email: Boolean(values.email?.trim?.()),
+                            email: values.email || null,
+                            phone: primaryPhone || null,
                         },
                     })
                     await onFormSubmit?.(values)

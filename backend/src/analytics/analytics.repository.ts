@@ -110,6 +110,13 @@ export class AnalyticsRepository {
         upsert: (args?: unknown) => Promise<any>
         delete: (args?: unknown) => Promise<any>
       }
+      analyticsConversionReceipt: {
+        findUnique: (args?: unknown) => Promise<any | null>
+        findMany: (args?: unknown) => Promise<any[]>
+        create: (args?: unknown) => Promise<any>
+        update: (args?: unknown) => Promise<any>
+        upsert: (args?: unknown) => Promise<any>
+      }
       analyticsInsight: { findMany: (args?: unknown) => Promise<any[]> }
       analyticsInsightHistory: {
         create: (args?: unknown) => Promise<any>
@@ -731,6 +738,97 @@ export class AnalyticsRepository {
   async getConnectionCredentials(connectionId: string) {
     return this.analyticsPrisma.analyticsConnectionCredential.findUnique({
       where: { connectionId },
+    })
+  }
+
+  async findConversionReceiptByDedupeKey(dedupeKey: string) {
+    return this.analyticsPrisma.analyticsConversionReceipt.findUnique({
+      where: { dedupeKey },
+    })
+  }
+
+  async listConversionReceipts(limit = 50) {
+    return this.analyticsPrisma.analyticsConversionReceipt.findMany({
+      orderBy: [{ createdAt: 'desc' }],
+      take: limit,
+    })
+  }
+
+  async createConversionReceipt(input: {
+    tenantId?: string
+    internalEventName: string
+    canonicalConversionName: string
+    adsConversionAction?: string | null
+    adsConversionResource?: string | null
+    transactionId?: string | null
+    eventId?: string | null
+    gclid?: string | null
+    wbraid?: string | null
+    gbraid?: string | null
+    userIdentifiers?: Prisma.InputJsonValue | null
+    value?: number | null
+    currency?: string | null
+    status: string
+    reason?: string | null
+    dedupeKey: string
+    requestPayload: Prisma.InputJsonValue
+    responsePayload?: Prisma.InputJsonValue | null
+    errorMessage?: string | null
+    attemptCount?: number
+    lastAttemptAt?: Date | null
+    sentAt?: Date | null
+  }) {
+    return this.analyticsPrisma.analyticsConversionReceipt.create({
+      data: {
+        tenantId: input.tenantId ?? 'global',
+        internalEventName: input.internalEventName,
+        canonicalConversionName: input.canonicalConversionName,
+        adsConversionAction: input.adsConversionAction ?? null,
+        adsConversionResource: input.adsConversionResource ?? null,
+        transactionId: input.transactionId ?? null,
+        eventId: input.eventId ?? null,
+        gclid: input.gclid ?? null,
+        wbraid: input.wbraid ?? null,
+        gbraid: input.gbraid ?? null,
+        userIdentifiers: input.userIdentifiers ?? undefined,
+        value: input.value ?? null,
+        currency: input.currency ?? null,
+        status: input.status,
+        reason: input.reason ?? null,
+        dedupeKey: input.dedupeKey,
+        requestPayload: input.requestPayload,
+        responsePayload: input.responsePayload ?? null,
+        errorMessage: input.errorMessage ?? null,
+        attemptCount: input.attemptCount ?? 0,
+        lastAttemptAt: input.lastAttemptAt ?? null,
+        sentAt: input.sentAt ?? null,
+      },
+    })
+  }
+
+  async updateConversionReceipt(
+    id: string,
+    input: Partial<{
+      status: string
+      reason: string | null
+      responsePayload: Prisma.InputJsonValue | null
+      errorMessage: string | null
+      attemptCount: number
+      lastAttemptAt: Date | null
+      sentAt: Date | null
+    }>,
+  ) {
+    return this.analyticsPrisma.analyticsConversionReceipt.update({
+      where: { id },
+      data: {
+        status: input.status,
+        reason: input.reason,
+        responsePayload: input.responsePayload ?? undefined,
+        errorMessage: input.errorMessage,
+        attemptCount: input.attemptCount,
+        lastAttemptAt: input.lastAttemptAt,
+        sentAt: input.sentAt,
+      },
     })
   }
 

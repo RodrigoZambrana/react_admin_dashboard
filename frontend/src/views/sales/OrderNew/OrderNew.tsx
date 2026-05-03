@@ -1989,13 +1989,25 @@ const formInitialValues = useMemo(() => {
                     }
 
                     try {
-                        const res = await apiCreateSalesOrder<boolean, any>(payload, resource)
+                        const res = await apiCreateSalesOrder<any, any>(payload, resource)
+                        const createdOrderId =
+                            typeof (res as any)?.data === 'object' && (res as any)?.data !== null
+                                ? ((res as any).data.id ?? (res as any).data.uuid ?? null)
+                                : (res as any)?.data ?? null
                         if ((res as any).data || (res as any) === true) {
                             void trackAnalyticsEvent({
                                 event: mode === 'budget' ? 'lead_created' : 'purchase_completed',
                                 category: 'conversion',
                                 source: 'web',
                                 measurement_status: 'partial',
+                                transaction_id:
+                                    createdOrderId !== null && createdOrderId !== undefined
+                                        ? String(createdOrderId)
+                                        : documentId
+                                          ? String(documentId)
+                                          : null,
+                                currency: orderCurrencyValue,
+                                value: typeof grandTotal === 'number' ? grandTotal : null,
                                 metadata: {
                                     mode,
                                     resource,
@@ -2003,6 +2015,8 @@ const formInitialValues = useMemo(() => {
                                     order_currency: orderCurrencyValue,
                                     items_count: values.items.length,
                                     document_id: documentId ?? null,
+                                    email: values.budgetCustomerEmail || null,
+                                    phone: values.budgetCustomerPhone || null,
                                 },
                             })
                             toast.push(

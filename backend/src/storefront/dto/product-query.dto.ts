@@ -7,6 +7,12 @@ const toInt = (value?: string | number | null) => {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
+const toNumber = (value?: string | number | null) => {
+  if (value === undefined || value === null) return undefined
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
 export class StorefrontProductQueryDto {
   @IsOptional()
   @Transform(({ value }) => toInt(value) ?? 1)
@@ -35,4 +41,18 @@ export class StorefrontProductQueryDto {
   @IsOptional()
   @IsString()
   tag?: string
+
+  @IsOptional()
+  @Transform(({ value }) => toNumber(value))
+  priceMin?: number
+
+  @IsOptional()
+  @Transform(({ value }) => toNumber(value))
+  priceMax?: number
+
+  @IsOptional()
+  @Transform(({ value }) => toInt(value))
+  @IsInt()
+  @Min(1)
+  rating?: number
 }
