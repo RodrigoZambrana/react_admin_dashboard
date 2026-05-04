@@ -351,10 +351,10 @@ En el Droplet los despliegues residen en `/opt/app/releases/<SHA>` y existe un s
 
 ## Backups de base de datos
 
-- Se puede lanzar manualmente un backup comprimido con `make backup ENV=prod POSTGRES_USER=postgres POSTGRES_DB=dashboard` (requiere `docker compose` y variables adecuadas).
+- Se puede lanzar manualmente un backup lógico real con `make backup ENV=prod POSTGRES_USER=postgres POSTGRES_DB=dashboard` (requiere `docker compose` y variables adecuadas). El archivo queda en formato custom de PostgreSQL (`.dump`) y se valida con `pg_restore -l`.
 - Para automatizarlo diariamente en el Droplet agrega una tarea cron que ejecute:
   ```bash
-  0 2 * * * cd /opt/app/current/deploy && docker compose -f docker-compose.prod.yml exec -T db pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip > /var/backups/postgres/$(date +\%Y\%m\%d).sql.gz
+  0 2 * * * cd /opt/app/current/deploy && docker compose -f docker-compose.prod.yml exec -T db pg_dump -Fc -U "$POSTGRES_USER" "$POSTGRES_DB" > /var/backups/postgres/$(date +\%Y\%m\%d).dump
   ```
   Opcionalmente sincroniza `/var/backups/postgres` con S3/Spaces.
 

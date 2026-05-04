@@ -23,7 +23,7 @@ COMPOSE_PROD := deploy/docker-compose.prod.yml
 COMPOSE_LOCAL_TEST := docker-compose.test.yml
 LOCAL_TEST_ENV_FILE := .env.test
 LOCAL_TEST_BASE_URL ?= http://127.0.0.1:8080
-LOCAL_TEST_RESTORE_DUMP ?= $(HOME)/Documents/UrucortinasBackups/latest.sql.gz
+LOCAL_TEST_RESTORE_DUMP ?= $(HOME)/Documents/UrucortinasBackups/latest.dump
 BACKUP_OUT_DIR ?= $(HOME)/Documents/UrucortinasBackups
 MEDIA_STORAGE_ROOT ?= $(abspath $(CURDIR)/../urucortinas-storage)
 DEV_STACK_ENV := APP_STACK_NAME=$(APP_STACK_NAME) STACK_RUNTIME_ROOT=$(STACK_RUNTIME_ROOT) POSTGRES_NETWORK_NAME=$(POSTGRES_NETWORK_NAME)

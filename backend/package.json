@@ -61,6 +61,7 @@
     "prisma:resolve:consolidated-baseline": "prisma migrate resolve --applied 20260428170000_consolidated_baseline",
     "prisma:resolve:squashed-baseline": "prisma migrate resolve --applied 20260428170000_consolidated_baseline",
     "prisma:seed": "ts-node --project tsconfig.seed.json --transpile-only prisma/seed.ts",
+    "bootstrap:schema:local": "sh scripts/bootstrap-consolidated-schema-local-db.sh",
     "prisma:deploy": "prisma migrate deploy",
     "postinstall": "npm run prisma:generate && npm run security:gate:install",
     "reset-admin": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reset-admin.ts",
