@@ -1,36 +1,30 @@
 import { StorefrontApi } from "@/lib/api/storefront";
 import type {
   CmsPublicPageSummary,
-  ProductSummary,
+  SeoIndexable,
   StorefrontConfig,
 } from "@/types/storefront";
 import type { MetadataRoute } from "next";
 import { resolveAbsoluteUrl } from "./urls";
 
-const PAGE_SIZE = 100;
-
 // Only structural storefront routes live here. Content-managed CMS paths are resolved dynamically
 // from persistence and merged below, so adding/removing a CMS page automatically updates the sitemap.
 const STRUCTURAL_ROUTES = ["/", "/categories", "/contacto", "/shop", "/tienda", "/presupuesto"] as const;
 
-const loadAllProducts = async (): Promise<ProductSummary[]> => {
-  const firstPage = await StorefrontApi.listProducts({ page: 1, pageSize: PAGE_SIZE });
-  const pages: typeof firstPage[] = [firstPage];
-
-  if (firstPage.totalPages > 1) {
-    const remaining = Array.from({ length: firstPage.totalPages - 1 }, (_, index) => index + 2);
-    const settled = await Promise.allSettled(
-      remaining.map((page) => StorefrontApi.listProducts({ page, pageSize: PAGE_SIZE })),
-    );
-
-    for (const result of settled) {
-      if (result.status === "fulfilled") {
-        pages.push(result.value);
-      }
-    }
+const buildMirrorPaths = (path: string): string[] => {
+  if (path.startsWith("/product/")) {
+    const slug = path.replace("/product/", "");
+    return [`/${slug}`, `/aberturas/${slug}`];
   }
-
-  return pages.flatMap((page) => page.data);
+  if (path.startsWith("/aberturas/")) {
+    const slug = path.replace("/aberturas/", "");
+    return [`/${slug}`, `/product/${slug}`];
+  }
+  if (/^\/[^/]+$/.test(path)) {
+    const slug = path.slice(1);
+    return [`/product/${slug}`, `/aberturas/${slug}`];
+  }
+  return [];
 };
 
 const normalizeDate = (value?: string | null): Date | undefined => {
@@ -49,29 +43,45 @@ const mergeLatest = (current: Date | undefined, candidate?: string | null): Date
 export const buildStorefrontSitemap = async (
   config: StorefrontConfig,
 ): Promise<MetadataRoute.Sitemap> => {
-  const [products, cmsPages] = await Promise.all([
-    loadAllProducts().catch(() => [] as ProductSummary[]),
+  const [indexables, cmsPages] = await Promise.all([
+    StorefrontApi.listSeoIndexables().catch(() => [] as SeoIndexable[]),
     StorefrontApi.listCmsPages().catch(() => [] as CmsPublicPageSummary[]),
   ]);
 
   const staticEntries = STRUCTURAL_ROUTES.map((path) => ({
     url: resolveAbsoluteUrl(path, config),
     lastModified: undefined,
+    priority: path === "/" ? 1 : 0.7,
   }));
 
-  const productEntries = products.map((product) => ({
-    url: resolveAbsoluteUrl(`/product/${product.slug}`, config),
-    lastModified: normalizeDate(product.updatedAt),
+  const reservedPaths = new Set<string>();
+  for (const entry of indexables) {
+    reservedPaths.add(entry.path);
+    for (const mirrorPath of buildMirrorPaths(entry.path)) {
+      reservedPaths.add(mirrorPath);
+    }
+  }
+
+  const productEntries = indexables.map((entry) => ({
+    url: resolveAbsoluteUrl(entry.path, config),
+    lastModified: normalizeDate(entry.updatedAt),
+    priority: entry.entityType === "canonical" ? 0.9 : entry.entityType === "category" ? 0.75 : 0.8,
   }));
 
-  const cmsEntries = cmsPages.map((page) => ({
-    url: resolveAbsoluteUrl(page.path ? `/${page.path}` : "/", config),
-    lastModified: normalizeDate(page.updatedAt),
-  }));
+  const cmsEntries = cmsPages
+    .filter((page) => {
+      const pagePath = page.path ? `/${page.path.replace(/^\/+/, "")}` : "/";
+      return !reservedPaths.has(pagePath);
+    })
+    .map((page) => ({
+      url: resolveAbsoluteUrl(page.path ? `/${page.path}` : "/", config),
+      lastModified: normalizeDate(page.updatedAt),
+      priority: page.path ? 0.6 : 1,
+    }));
 
   let latestProductDate: Date | undefined;
-  for (const product of products) {
-    latestProductDate = mergeLatest(latestProductDate, product.updatedAt);
+  for (const entry of indexables) {
+    latestProductDate = mergeLatest(latestProductDate, entry.updatedAt);
   }
 
   let latestCmsDate: Date | undefined;
@@ -83,7 +93,7 @@ export const buildStorefrontSitemap = async (
     .filter((value): value is Date => Boolean(value))
     .sort((a, b) => b.getTime() - a.getTime())[0];
 
-  const entries = new Map<string, { url: string; lastModified?: Date }>();
+  const entries = new Map<string, { url: string; lastModified?: Date; priority?: number }>();
   for (const entry of staticEntries) {
     entries.set(entry.url, { url: entry.url, lastModified: entry.lastModified });
   }
@@ -95,7 +105,7 @@ export const buildStorefrontSitemap = async (
   }
 
   const homeUrl = resolveAbsoluteUrl("/", config);
-  entries.set(homeUrl, { url: homeUrl, lastModified: homepageLastModified });
+  entries.set(homeUrl, { url: homeUrl, lastModified: homepageLastModified, priority: 1 });
 
   return Array.from(entries.values());
 };

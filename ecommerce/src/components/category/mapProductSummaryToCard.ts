@@ -48,6 +48,7 @@ export const mapProductSummaryToCardProps = (
   return {
     id: product.id,
     slug: product.slug,
+    routePath: product.routePath,
     title: product.name,
     price: unitPrice,
     imgUrl: thumbnail && !isMissingProductImage(thumbnail) ? thumbnail : undefined,

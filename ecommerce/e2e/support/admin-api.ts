@@ -90,6 +90,7 @@ type ManagedAdminUserResponse = {
 
 type AdminConversationPayload = {
   id: string;
+  conversationId: string;
 };
 
 type InboxAccountPayload = {

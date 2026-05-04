@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
   OnModuleInit,
@@ -1121,7 +1122,12 @@ export class StorefrontService implements OnModuleInit {
     rawConfiguration?: Record<string, unknown> | null,
     fallbackCurrency?: string | null,
   ): Promise<PublishedParametricVariantDefinition | null> {
-    return this.publishedProductResolver.resolvePublishedParametricVariant(productId, rawConfiguration, fallbackCurrency)
+    const resolvedProductId = await this.resolveStorefrontParametricProductId(productId)
+    return this.publishedProductResolver.resolvePublishedParametricVariant(
+      resolvedProductId,
+      rawConfiguration,
+      fallbackCurrency,
+    )
   }
 
   private getCanonicalTenantScope(): string {
@@ -1156,7 +1162,7 @@ export class StorefrontService implements OnModuleInit {
       return
     }
 
-    const configuredProductId = await this.parametricPricing.getDefaultParametricProductId().catch(() => null)
+    const configuredProductId = await this.parametricPricing.getSharedAberturasMatrixProductId().catch(() => null)
     const candidateProduct = configuredProductId
       ? await this.prisma.product.findFirst({
           where: {
@@ -1194,35 +1200,11 @@ export class StorefrontService implements OnModuleInit {
       canonicalConfiguration: CanonicalConfigurationDelegate
     }
 
-    await canonicalConfigurationClient.canonicalConfiguration.upsert({
-      where: {
-        tenantId_slug: {
-          tenantId,
-          slug: 'monoblock',
-        },
-      },
-      update: {
-        baseProductId: fallbackProduct.id,
-        canonicalName: 'Monoblock',
-        baseLabel: 'Abertura',
-        indexable: true,
-        configurationRules: {
-          hasShutterMonoblock: true,
-          monoblock: true,
-        },
-        seoTitle: 'Ventanas monoblock a medida',
-        seoDescription:
-          'Aberturas con persiana integradas para proyectos que buscan una sola solución comercial y técnica.',
-        searchTerms: ['monoblock', 'abertura con persiana', 'aberturas con persiana'],
-        visibilityRules: { default: true },
-      },
-      create: {
-        tenantId,
-        baseProductId: fallbackProduct.id,
-        canonicalName: 'Monoblock',
-        baseLabel: 'Abertura',
+    const defaultConfigurations = [
+      {
         slug: 'monoblock',
-        indexable: true,
+        canonicalName: 'Monoblock',
+        baseLabel: 'Abertura',
         configurationRules: {
           hasShutterMonoblock: true,
           monoblock: true,
@@ -1231,9 +1213,72 @@ export class StorefrontService implements OnModuleInit {
         seoDescription:
           'Aberturas con persiana integradas para proyectos que buscan una sola solución comercial y técnica.',
         searchTerms: ['monoblock', 'abertura con persiana', 'aberturas con persiana'],
-        visibilityRules: { default: true },
       },
-    })
+      {
+        slug: 'ventana-con-mosquitero',
+        canonicalName: 'Ventana con mosquitero',
+        baseLabel: 'Abertura',
+        configurationRules: {
+          hasMosquitero: true,
+          mosquitero: true,
+        },
+        seoTitle: 'Ventanas con mosquitero a medida',
+        seoDescription:
+          'Aberturas con mosquitero integradas para mejorar ventilacion, confort y proteccion en el hogar.',
+        searchTerms: ['mosquitero', 'ventana con mosquitero', 'abertura con mosquitero'],
+      },
+      {
+        slug: 'ventana-corrediza-a-medida',
+        canonicalName: 'Ventana corrediza a medida',
+        baseLabel: 'Abertura',
+        configurationRules: {
+          familyId: 'VENTANA_CORREDIZA',
+        },
+        seoTitle: 'Ventanas corredizas a medida',
+        seoDescription:
+          'Ventanas corredizas de aluminio a medida con configuraciones indexables para obra nueva o recambio.',
+        searchTerms: ['ventana corrediza', 'ventana a medida', 'abertura corrediza'],
+      },
+    ] as const
+
+    for (const configuration of defaultConfigurations) {
+      await canonicalConfigurationClient.canonicalConfiguration.upsert({
+        where: {
+          tenantId_slug: {
+            tenantId,
+            slug: configuration.slug,
+          },
+        },
+        update: {
+          baseProductId: fallbackProduct.id,
+          canonicalName: configuration.canonicalName,
+          baseLabel: configuration.baseLabel,
+          indexable: true,
+          configurationRules: configuration.configurationRules,
+          seoTitle: configuration.seoTitle,
+          seoDescription: configuration.seoDescription,
+          searchTerms: configuration.searchTerms,
+          visibilityRules: { default: true },
+        },
+        create: {
+          tenantId,
+          baseProductId: fallbackProduct.id,
+          canonicalName: configuration.canonicalName,
+          baseLabel: configuration.baseLabel,
+          slug: configuration.slug,
+          indexable: true,
+          configurationRules: configuration.configurationRules,
+          seoTitle: configuration.seoTitle,
+          seoDescription: configuration.seoDescription,
+          searchTerms: configuration.searchTerms,
+          visibilityRules: { default: true },
+        },
+      })
+    }
+  }
+
+  async ensureCanonicalDefaults(): Promise<void> {
+    await this.ensureDefaultCanonicalConfigurations()
   }
 
   private async resolveCanonicalConfigurationByIdentifier(
@@ -1322,6 +1367,87 @@ export class StorefrontService implements OnModuleInit {
     }
 
     return filtered.filter((configuration) => configuration.tenantId === 'global')
+  }
+
+  private async listCanonicalAlternativeSummaries(
+    product: ProductWithVariants,
+    publishedDefinition: PublishedParametricProductDefinition | null,
+    reviewStats: ProductReviewStatsRecord | null,
+    currentCanonicalConfiguration?: CanonicalConfigurationWithProduct | null,
+  ): Promise<ProductSummaryDto[]> {
+    const tenantId = this.getCanonicalTenantScope()
+    const canonicalConfigurationClient = this.prisma as PrismaService & {
+      canonicalConfiguration: CanonicalConfigurationDelegate
+    }
+
+    const configurations = await canonicalConfigurationClient.canonicalConfiguration.findMany({
+      where: {
+        baseProductId: product.id,
+        indexable: true,
+        OR: [{ tenantId }, { tenantId: 'global' }],
+      },
+      include: {
+        baseProduct: {
+          include: {
+            images: true,
+            category: true,
+          },
+        },
+      },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    })
+
+    const dedupedConfigurations = new Map<string, CanonicalConfigurationWithProduct>()
+    configurations.forEach((configuration) => {
+      if (!dedupedConfigurations.has(configuration.slug)) {
+        dedupedConfigurations.set(configuration.slug, configuration)
+      }
+    })
+
+    const summaries: ProductSummaryDto[] = []
+
+    for (const configuration of dedupedConfigurations.values()) {
+      if (currentCanonicalConfiguration && configuration.id === currentCanonicalConfiguration.id) {
+        continue
+      }
+
+      const rules = isPlainRecord(configuration.configurationRules) ? configuration.configurationRules : null
+      if (!rules) {
+        continue
+      }
+
+      const matchingVariants =
+        publishedDefinition?.variants.filter((variant) =>
+          this.matchesCanonicalConfigurationRules(variant, rules),
+        ) ?? []
+      const fallbackCanonicalVariant =
+        matchingVariants.length > 0
+          ? null
+          : await this.resolvePublishedParametricConfiguration(product.id, rules, product.currency)
+      const variantsToExpose = matchingVariants.length > 0 ? matchingVariants : fallbackCanonicalVariant ? [fallbackCanonicalVariant] : []
+
+      for (const canonicalVariant of variantsToExpose) {
+        if (!canonicalVariant) {
+          continue
+        }
+
+        summaries.push(
+          this.toProductSummary(
+            product,
+            publishedDefinition,
+            canonicalVariant,
+            reviewStats,
+            configuration,
+          ),
+        )
+      }
+    }
+
+    return Array.from(
+      new Map(
+        summaries.map((item) => [`${item.routePath}:${item.variantKey ?? ''}`, item]),
+      ).values(),
+    )
   }
 
   private buildProductTypeCode(familyId?: string | null): string {
@@ -3344,6 +3470,14 @@ export class StorefrontService implements OnModuleInit {
           reviews,
           canonicalConfiguration,
         )
+        const canonicalAlternatives = canonicalConfiguration
+          ? []
+          : await this.listCanonicalAlternativeSummaries(
+              product,
+              publishedParametricDefinition ?? null,
+              reviewStatsMap.get(product.id) ?? null,
+              null,
+            )
 
         const relationGroups = new Map<
           ProductRelationType,
@@ -3418,7 +3552,14 @@ export class StorefrontService implements OnModuleInit {
 
         const relatedRelations = mapRelatedGroup(ProductRelationType.RELATED)
         if (relatedRelations.length) {
-          detail.relatedProducts = relatedRelations
+          detail.relatedProducts = Array.from(
+            new Map(
+              [...canonicalAlternatives, ...relatedRelations].map((item) => [
+                `${item.routePath}:${item.variantKey ?? ''}`,
+                item,
+              ]),
+            ).values(),
+          )
           return finalizeDetail(detail)
         }
 
@@ -3442,13 +3583,20 @@ export class StorefrontService implements OnModuleInit {
 
         const relatedPublishedDefinitions = await this.resolvePublishedParametricDefinitions(related)
         const relatedReviewStats = await this.loadProductReviewStats(related.map((item) => item.id))
-        detail.relatedProducts = related.map((item) =>
-          this.toProductSummary(
-            item,
-            relatedPublishedDefinitions.get(item.id) ?? null,
-            undefined,
-            relatedReviewStats.get(item.id) ?? null,
-          ),
+        detail.relatedProducts = Array.from(
+          new Map(
+            [
+              ...canonicalAlternatives,
+              ...related.map((item) =>
+                this.toProductSummary(
+                  item,
+                  relatedPublishedDefinitions.get(item.id) ?? null,
+                  undefined,
+                  relatedReviewStats.get(item.id) ?? null,
+                ),
+              ),
+            ].map((item) => [`${item.routePath}:${item.variantKey ?? ''}`, item]),
+          ).values(),
         )
         return finalizeDetail(detail)
       },
@@ -3726,16 +3874,8 @@ export class StorefrontService implements OnModuleInit {
       throw new NotFoundException('Product not found')
     }
 
-    const ownMatrixRows = await this.prisma.dimensionPriceMatrix.count({
-      where: { productId },
-    })
-
-    if (ownMatrixRows > 0) {
-      return productId
-    }
-
     if (product.mode === ProductMode.PARAMETRIC) {
-      return this.parametricPricing.getDefaultParametricProductId()
+      return product.id
     }
 
     return productId
@@ -5555,11 +5695,22 @@ export class StorefrontService implements OnModuleInit {
     }
 
     const resolvedProductId = await this.resolveStorefrontParametricProductId(product.id)
-    return this.publishedProductResolver.resolvePublishedParametricProduct(
+    const definition = await this.publishedProductResolver.resolvePublishedParametricProduct(
       resolvedProductId,
       product.currency,
       product.salePrice,
     )
+
+    if (!definition) {
+      this.logger.error(
+        `[storefront] Parametric product ${product.id} resolved to shared matrix product ${resolvedProductId}, but no published definition was produced.`,
+      )
+      throw new InternalServerErrorException(
+        'La matriz compartida de aberturas no pudo resolverse para este producto paramétrico.',
+      )
+    }
+
+    return definition
   }
 
   private buildPublishedParametricVariantLabel(
@@ -5811,9 +5962,22 @@ export class StorefrontService implements OnModuleInit {
     const resolvedName = canonicalConfiguration
       ? this.buildCanonicalDisplayName(canonicalConfiguration.canonicalName, product.name, canonicalVariant)
       : product.name
+    const categorySlug = product.category ? buildCategorySlug(product.category.id, product.category.name) : null
+    const routePath = this.resolveStorefrontProductRoutePath(
+      canonicalConfiguration?.slug ?? buildProductSlug(product.id, product.name, product.productCode ?? undefined),
+      product.mode,
+      product.category
+        ? {
+            slug: categorySlug,
+            name: product.category.name,
+          }
+        : null,
+      canonicalConfiguration,
+    )
     const summary: ProductSummaryDto = {
       id: product.id,
       slug: canonicalConfiguration?.slug ?? buildProductSlug(product.id, product.name, product.productCode ?? undefined),
+      routePath,
       name: resolvedName,
       updatedAt: (product.updatedAt ?? product.createdAt ?? new Date()).toISOString(),
       shortDescription:
@@ -5890,6 +6054,28 @@ export class StorefrontService implements OnModuleInit {
       return 'limited'
     }
     return 'in-stock'
+  }
+
+  private isAberturasRouteCategory(category?: { slug?: string | null; name?: string | null } | null): boolean {
+    const haystack = `${category?.slug ?? ''} ${category?.name ?? ''}`.trim().toLowerCase()
+    return haystack.includes('abertura')
+  }
+
+  private resolveStorefrontProductRoutePath(
+    slug: string,
+    mode: ProductMode,
+    category?: { slug?: string | null; name?: string | null } | null,
+    canonicalConfiguration?: CanonicalConfigurationWithProduct | null,
+  ): string {
+    if (canonicalConfiguration?.slug) {
+      return `/${canonicalConfiguration.slug}`
+    }
+
+    if (mode === ProductMode.PARAMETRIC || this.isAberturasRouteCategory(category)) {
+      return `/aberturas/${slug}`
+    }
+
+    return `/product/${slug}`
   }
 
   private toProductDetail(

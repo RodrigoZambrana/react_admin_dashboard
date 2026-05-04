@@ -54,6 +54,7 @@ import {
 import { StorefrontCreateOrderReviewDto } from './dto/product-review.dto'
 import { StorefrontSecurityService } from './security/storefront-security.service'
 import { StoriesService } from '../stories/stories.service'
+import { StorefrontSeoService } from './storefront-seo.service'
 
 @Controller('storefront')
 export class StorefrontController {
@@ -66,6 +67,7 @@ export class StorefrontController {
     private readonly sessionCookies: StorefrontSessionCookieService,
     private readonly security: StorefrontSecurityService,
     private readonly stories: StoriesService,
+    private readonly seo: StorefrontSeoService,
   ) {}
 
   private toClientSession<T extends { refreshToken?: string | null }>(session: T) {
@@ -143,6 +145,18 @@ export class StorefrontController {
   @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
   listProducts(@Query() query: StorefrontProductQueryDto) {
     return this.storefront.listProducts(query)
+  }
+
+  @Get('seo/resolve')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+  resolveSeo(@Query('path') path?: string, @Query('locale') locale?: string) {
+    return this.seo.resolveByPath(path ?? '/', locale ?? 'es')
+  }
+
+  @Get('seo/indexables')
+  @Header('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600')
+  listSeoIndexables(@Query('locale') locale?: string) {
+    return this.seo.listIndexables(locale ?? 'es')
   }
 
   @Get('products/:identifier/media')

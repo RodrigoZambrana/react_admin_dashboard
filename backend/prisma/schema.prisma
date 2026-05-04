@@ -209,6 +209,12 @@ enum CmsMediaType {
   AUDIO
 }
 
+enum SeoEntityType {
+  PRODUCT
+  CANONICAL
+  CATEGORY
+}
+
 enum InboxChannelType {
   EMAIL
   WHATSAPP
@@ -957,6 +963,33 @@ model CanonicalConfiguration {
   @@unique([tenantId, slug])
   @@index([baseProductId, indexable])
   @@index([tenantId, indexable])
+}
+
+model SeoMetadata {
+  id            Int           @id @default(autoincrement())
+  tenantId      String        @default("global")
+  entityType    SeoEntityType
+  entityId      Int
+  slug          String
+  title         String?
+  description   String?
+  keywords      String[]      @default([])
+  ogTitle       String?
+  ogDescription String?
+  ogImage       String?
+  canonicalUrl  String?
+  robots        String?
+  schemaType    String?
+  schemaPayload Json?
+  searchTerms   String[]      @default([])
+  language      String        @default("es")
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@unique([tenantId, entityType, entityId, language], map: "seo_metadata_tenant_entity_language_unique")
+  @@unique([tenantId, slug, language], map: "seo_metadata_tenant_slug_language_unique")
+  @@index([entityType, entityId], map: "seo_metadata_entity_lookup_idx")
+  @@index([tenantId, entityType, slug], map: "seo_metadata_tenant_entity_slug_idx")
 }
 
 model StandardSize {

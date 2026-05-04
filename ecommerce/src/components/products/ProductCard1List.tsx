@@ -24,6 +24,7 @@ export default function ProductGridView({ products }: Props) {
             <ProductCard1
               id={item.id}
               slug={item.slug}
+              routePath={item.routePath}
               price={item.price}
               basePrice={item.basePrice}
               currencyCode={item.currency}
@@ -36,6 +37,7 @@ export default function ProductGridView({ products }: Props) {
               variantKey={item.variantKey ?? null}
               variantLabel={item.variantLabel ?? null}
               configuration={item.configuration ?? null}
+              canonicalConfiguration={item.canonicalConfiguration ?? null}
             />
           </Grid>
         ))}

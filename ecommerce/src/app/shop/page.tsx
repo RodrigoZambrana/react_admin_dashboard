@@ -108,8 +108,9 @@ const priceBoundsFromProducts = (products: Product[]): PriceFilter => {
   return { min, max };
 };
 
-const isMobileListingRequest = () => {
-  const userAgent = headers().get("user-agent")?.toLowerCase() ?? "";
+const isMobileListingRequest = async () => {
+  const headerStore = await headers();
+  const userAgent = headerStore.get("user-agent")?.toLowerCase() ?? "";
   return /mobile|iphone|ipod|android.*mobile|iemobile|blackberry|opera mini/.test(userAgent);
 };
 
@@ -128,7 +129,7 @@ export default async function ShopPage({ searchParams }: SearchParams) {
   const priceMin = parseNumberParam(params?.priceMin ?? params?.minPrice ?? params?.price_min);
   const priceMax = parseNumberParam(params?.priceMax ?? params?.maxPrice ?? params?.price_max);
   const rating = parseNumberParam(params?.rating);
-  const pageSize = isMobileListingRequest() ? MOBILE_PAGE_SIZE : PAGE_SIZE;
+  const pageSize = (await isMobileListingRequest()) ? MOBILE_PAGE_SIZE : PAGE_SIZE;
 
   let products: Product[] = [];
   let meta: Meta = { page: requestedPage, pageSize, total: 0, totalPage: 1 };

@@ -1,0 +1,10 @@
+# syntax=docker/dockerfile:1
+
+FROM nginx:1.27-alpine
+
+RUN apk add --no-cache openssl
+
+COPY deploy/nginx.prod.conf.template /etc/nginx/templates/default.conf.template
+COPY deploy/reverse-proxy-entrypoint.sh /docker-entrypoint.d/10-generate-certs.sh
+
+RUN chmod +x /docker-entrypoint.d/10-generate-certs.sh

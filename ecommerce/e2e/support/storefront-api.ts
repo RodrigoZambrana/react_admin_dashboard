@@ -3,6 +3,7 @@ import { expect, type APIRequestContext } from "@playwright/test";
 import { storefrontApiBaseUrl } from "./env";
 import type { TestCustomer } from "./factories";
 import type { CreateOrderPayload } from "@/types/storefront";
+import type { InventoryStatus } from "@/types/storefront";
 
 type ProductSummary = {
   id: number;
@@ -16,6 +17,7 @@ export type ProductDetailSummary = ProductSummary & {
     amount: number;
     currency: string;
   } | null;
+  inventoryStatus: InventoryStatus;
   publishedParametricOptions?: {
     defaultConfiguration?: Record<string, unknown> | null;
     defaultVariantKey?: string | null;
@@ -83,6 +85,7 @@ export async function fetchProductDetail(
     name: product.name ?? product.slug,
     mode: product.mode ?? null,
     price: product.price ?? null,
+    inventoryStatus: product.inventoryStatus ?? "in-stock",
     publishedParametricOptions: product.publishedParametricOptions ?? null
   };
 }

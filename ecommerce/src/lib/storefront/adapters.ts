@@ -69,6 +69,7 @@ export const mapProductSummaryToProduct = (product: ProductSummary): Product => 
   return {
     id: String(product.id),
     slug: product.slug,
+    routePath: product.routePath,
     title: product.name,
     price: salePrice,
     rating: product.rating ?? 4,
@@ -155,6 +156,7 @@ export const mapProductDetailToProduct = (product: ProductDetail): Product => {
   return {
     id: String(product.id),
     slug: product.slug,
+    routePath: product.routePath,
     title: product.name,
     price: salePrice,
     rating: product.rating ?? 4,

@@ -42,6 +42,12 @@ At a minimum the backend file must define `DATABASE_URL`, authentication secrets
 If any value contains spaces, wrap it in double quotes so the file can be safely
 loaded by shells and helper scripts.
 
+Canonical deployment contract
+- [`deploy/env/production-testing-contract.md`](/Users/rodrigo/Git/personal/react_admin_dashboard/deploy/env/production-testing-contract.md)
+- documents the exact variables required by the system
+- shows which values change between `prod` and `testing`
+- is the reference to update before changing Docker, ingress or environment files
+
 For the dev stack, do not depend on `ecommerce/.env` or other ad hoc files created in
 one worktree. The canonical command is expected to resolve from the versioned files
 above, with `.local` overlays used only when a developer needs an extra override.

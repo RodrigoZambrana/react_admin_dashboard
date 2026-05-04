@@ -366,6 +366,7 @@ export interface ProductSummary {
   id: number;
   productId?: number | string;
   slug: string;
+  routePath: string;
   name: string;
   updatedAt?: string;
   shortDescription?: string | null;
@@ -457,6 +458,48 @@ export interface CanonicalConfiguration {
   seoDescription?: string | null;
   searchTerms: string[];
   visibilityRules?: Record<string, unknown> | null;
+}
+
+export type SeoEntityType = "product" | "canonical" | "category";
+
+export interface ResolvedSeoMetadata {
+  entityType: SeoEntityType;
+  entityId: number;
+  tenantId: string;
+  slug: string;
+  routePath: string;
+  title: string;
+  description: string;
+  keywords: string[];
+  ogTitle?: string | null;
+  ogDescription?: string | null;
+  ogImage?: string | null;
+  canonicalUrl: string;
+  robots: string;
+  schemaType?: string | null;
+  schemaPayload?: Record<string, unknown> | Array<Record<string, unknown>> | null;
+  searchTerms: string[];
+  language: string;
+  semantic: {
+    materials: string[];
+    dimensions: string[];
+    uses: string[];
+    attributes: Array<{ label: string; value: string }>;
+    productType?: string | null;
+    category?: string | null;
+    variantLabel?: string | null;
+    customizations?: string[];
+  };
+}
+
+export interface SeoIndexable {
+  entityType: SeoEntityType;
+  entityId: number;
+  tenantId: string;
+  slug: string;
+  path: string;
+  canonicalUrl: string;
+  updatedAt: string;
 }
 
 export interface StorefrontProductMediaItem {

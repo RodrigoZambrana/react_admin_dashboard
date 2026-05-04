@@ -19,7 +19,7 @@ const outputDir = path.join(repoRoot, "docs", "qa");
 const outputPath = path.join(outputDir, "system-use-cases-report.xlsx");
 
 const require = createRequire(import.meta.url);
-const XLSX = require(path.join(repoRoot, "backend", "node_modules", "xlsx"));
+const ExcelJS = require(path.join(repoRoot, "backend", "node_modules", "exceljs"));
 
 const headers = [
   "ID",
@@ -90,46 +90,46 @@ function inferBackendSurfaceState(item) {
 
   const evidence = `${item.evidence} ${item.coverage} ${item.nextAction}`.toLowerCase();
   const directBackendSignals = [
-    'backend/src',
-    '__tests__',
-    '/api/',
-    '/dto/',
-    'dto-validation',
-    'channel-control',
-    'inbox.service',
-    'storefront.service',
-    'admin-conversations',
-    'channel-conversation-bridge',
-    'auth.dto',
-    'storefront/dto',
+    "backend/src",
+    "__tests__",
+    "/api/",
+    "/dto/",
+    "dto-validation",
+    "channel-control",
+    "inbox.service",
+    "storefront.service",
+    "admin-conversations",
+    "channel-conversation-bridge",
+    "auth.dto",
+    "storefront/dto",
   ];
   const hasDirectBackendSignal = directBackendSignals.some((signal) => evidence.includes(signal));
   const hasUiSignal = /(\be2e\b|\bui\b|frontend\/src|\.tsx\b|storefront\/src|ecommerce\/src)/i.test(evidence);
 
-  if (item.status === 'VERIFICADA') {
+  if (item.status === "VERIFICADA") {
     if (hasDirectBackendSignal) {
-      return 'validado por API directa';
+      return "validado por API directa";
     }
     if (hasUiSignal) {
-      return 'validado por UI';
+      return "validado por UI";
     }
   }
 
-  if (item.status === 'DEFINIDA') {
+  if (item.status === "DEFINIDA") {
     if (hasDirectBackendSignal) {
-      return 'pendiente de backend';
+      return "pendiente de backend";
     }
-    return 'definido pero no cubierto';
+    return "definido pero no cubierto";
   }
 
-  if (item.status === 'PENDIENTE') {
+  if (item.status === "PENDIENTE") {
     if (hasDirectBackendSignal) {
-      return 'pendiente de backend';
+      return "pendiente de backend";
     }
-    return 'definido pero no cubierto';
+    return "definido pero no cubierto";
   }
 
-  return 'definido pero no cubierto';
+  return "definido pero no cubierto";
 }
 
 function countByStatus(section) {
@@ -183,10 +183,15 @@ function buildSummaryRows() {
   return rows;
 }
 
-function setTableLayout(sheet, columnWidths, rowCount, headerCount = headers.length) {
-  sheet["!cols"] = columnWidths.map((width) => ({ wch: width }));
-  sheet["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: rowCount, c: headerCount - 1 } }) };
-  sheet["!freeze"] = { xSplit: 0, ySplit: 1 };
+function columnLetter(index) {
+  let value = index;
+  let result = "";
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    result = String.fromCharCode(65 + remainder) + result;
+    value = Math.floor((value - 1) / 26);
+  }
+  return result;
 }
 
 function autoWidth(rows, rowHeaders, min = 12, max = 48) {
@@ -201,60 +206,85 @@ function autoWidth(rows, rowHeaders, min = 12, max = 48) {
 }
 
 function buildWorkbook() {
-  const workbook = XLSX.utils.book_new();
-  workbook.Props = {
-    Title: reportMeta.title,
-    Subject: "Detalle granular de casos de uso y estado de pruebas",
-    Author: "Codex",
-    CreatedDate: new Date(`${reportMeta.generatedAt}T00:00:00-03:00`),
-    Company: "Codex",
-    Keywords: "qa,excel,system use cases,testing",
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Codex";
+  workbook.created = new Date(`${reportMeta.generatedAt}T00:00:00-03:00`);
+  workbook.modified = new Date(`${reportMeta.generatedAt}T00:00:00-03:00`);
+  workbook.title = reportMeta.title;
+  workbook.subject = "Detalle granular de casos de uso y estado de pruebas";
+  workbook.company = "Codex";
+  workbook.keywords = "qa,excel,system use cases,testing";
+
+  const headerStyle = {
+    font: { bold: true },
+    fill: { type: "pattern", pattern: "solid", fgColor: { argb: "FFF2F2F2" } },
+    alignment: { vertical: "middle", horizontal: "center", wrapText: true },
   };
 
-  const summaryRows = buildSummaryRows();
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
-  summarySheet["!cols"] = [
-    { wch: 30 },
-    { wch: 92 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 18 },
-    { wch: 20 },
-    { wch: 24 },
-    { wch: 22 },
-    { wch: 26 },
+  function applyLayout(sheet, columnWidths, rowCount, headerCount) {
+    sheet.columns = columnWidths.map((width) => ({ width }));
+    sheet.autoFilter = `A1:${columnLetter(headerCount)}${rowCount + 1}`;
+    sheet.views = [{ state: "frozen", ySplit: 1 }];
+    sheet.getRow(1).eachCell((cell) => {
+      cell.style = headerStyle;
+    });
+  }
+
+  function addTableSheet(name, rows, columnWidths, headerCount) {
+    const sheet = workbook.addWorksheet(name);
+    rows.forEach((row) => sheet.addRow(row));
+    applyLayout(sheet, columnWidths, Math.max(0, rows.length - 1), headerCount);
+    return sheet;
+  }
+
+  const summarySheet = workbook.addWorksheet("Resumen");
+  buildSummaryRows().forEach((row) => summarySheet.addRow(row));
+  summarySheet.columns = [
+    { width: 30 },
+    { width: 92 },
+    { width: 18 },
+    { width: 18 },
+    { width: 18 },
+    { width: 20 },
+    { width: 24 },
+    { width: 22 },
+    { width: 26 },
   ];
-  workbook.SheetNames.push("Resumen");
-  workbook.Sheets.Resumen = summarySheet;
+  summarySheet.getRow(7).eachCell((cell) => {
+    cell.style = headerStyle;
+  });
 
   const contractRows = buildContractRows();
-  const contractAoA = [contractHeaders, ...contractRows.map((row) => contractHeaders.map((header) => row[header]))];
-  const contractSheet = XLSX.utils.aoa_to_sheet(contractAoA);
-  setTableLayout(contractSheet, autoWidth(contractRows, contractHeaders, 14, 52), contractRows.length, contractHeaders.length);
-  workbook.SheetNames.push("Contrato vivo");
-  workbook.Sheets["Contrato vivo"] = contractSheet;
+  addTableSheet(
+    "Contrato vivo",
+    [contractHeaders, ...contractRows.map((row) => contractHeaders.map((header) => row[header]))],
+    autoWidth(contractRows, contractHeaders, 14, 52),
+    contractHeaders.length,
+  );
 
   const findingsRows = buildFindingTemplateRows();
-  const findingsAoA = [findingsHeaders, ...findingsRows.map((row) => findingsHeaders.map((header) => row[header]))];
-  const findingsSheet = XLSX.utils.aoa_to_sheet(findingsAoA);
-  setTableLayout(findingsSheet, autoWidth(findingsRows, findingsHeaders, 14, 52), findingsRows.length, findingsHeaders.length);
-  workbook.SheetNames.push("Hallazgos");
-  workbook.Sheets.Hallazgos = findingsSheet;
+  addTableSheet(
+    "Hallazgos",
+    [findingsHeaders, ...findingsRows.map((row) => findingsHeaders.map((header) => row[header]))],
+    autoWidth(findingsRows, findingsHeaders, 14, 52),
+    findingsHeaders.length,
+  );
 
-  const guideRows = [];
-  guideRows.push([
-    "Proyecto",
-    "ID",
-    "Funcionalidad",
-    "Caso de uso",
-    "Estado de la prueba",
-    "Estado backend directo",
-    "Precondiciones",
-    "Disparador / pasos",
-    "Resultado esperado",
-    "Evidencia",
-    "Siguiente acción",
-  ]);
+  const guideRows = [
+    [
+      "Proyecto",
+      "ID",
+      "Funcionalidad",
+      "Caso de uso",
+      "Estado de la prueba",
+      "Estado backend directo",
+      "Precondiciones",
+      "Disparador / pasos",
+      "Resultado esperado",
+      "Evidencia",
+      "Siguiente acción",
+    ],
+  ];
 
   const guideEntries = reportSections
     .filter((section) => section.sheetName !== "Chat Platform" && String(section.project).toLowerCase() !== "chat platform")
@@ -295,37 +325,17 @@ function buildWorkbook() {
       ]);
     });
 
-  const guideSheet = XLSX.utils.aoa_to_sheet(guideRows);
-  guideSheet["!cols"] = [
-    { wch: 14 },
-    { wch: 14 },
-    { wch: 22 },
-    { wch: 52 },
-    { wch: 18 },
-    { wch: 24 },
-    { wch: 42 },
-    { wch: 42 },
-    { wch: 58 },
-    { wch: 52 },
-    { wch: 26 },
-  ];
-  guideSheet["!autofilter"] = {
-    ref: XLSX.utils.encode_range({
-      s: { r: 0, c: 0 },
-      e: { r: Math.max(0, guideRows.length - 1), c: 10 },
-    }),
-  };
-  guideSheet["!freeze"] = { xSplit: 0, ySplit: 1 };
-  workbook.SheetNames.push("Guia manual");
-  workbook.Sheets["Guia manual"] = guideSheet;
+  addTableSheet(
+    "Guia manual",
+    guideRows,
+    [14, 14, 22, 52, 18, 24, 42, 42, 58, 52, 26],
+    11,
+  );
 
   for (const section of reportSections) {
     const rows = buildSectionRows(section);
-    const aoa = [headers, ...rows.map((row) => headers.map((header) => row[header]))];
-    const sheet = XLSX.utils.aoa_to_sheet(aoa);
-    setTableLayout(sheet, autoWidth(rows, headers), rows.length, headers.length);
-    workbook.SheetNames.push(section.sheetName);
-    workbook.Sheets[section.sheetName] = sheet;
+    const tableRows = [headers, ...rows.map((row) => headers.map((header) => row[header]))];
+    addTableSheet(section.sheetName, tableRows, autoWidth(rows, headers), headers.length);
   }
 
   return workbook;
@@ -334,8 +344,14 @@ function buildWorkbook() {
 async function main() {
   await fs.mkdir(outputDir, { recursive: true });
   const workbook = buildWorkbook();
-  XLSX.writeFile(workbook, outputPath, { bookType: "xlsx", compression: true });
-  console.log(JSON.stringify({ outputPath, sheets: workbook.SheetNames, sections: reportSections.length }, null, 2));
+  await workbook.xlsx.writeFile(outputPath);
+  console.log(
+    JSON.stringify(
+      { outputPath, sheets: workbook.worksheets.map((sheet) => sheet.name), sections: reportSections.length },
+      null,
+      2,
+    ),
+  );
 }
 
 main().catch((error) => {

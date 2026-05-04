@@ -260,7 +260,16 @@ const HeroSection = ({ section }: { section: CmsRenderableSection }) => {
     <Container className={styles.sectionContainer}>
       <section className={styles.heroShell}>
         <div className={styles.heroStage}>
-          {mediaUrl ? <img alt={mediaAlt} className={styles.heroStageImage} src={mediaUrl} /> : null}
+          {mediaUrl ? (
+            <NextImage
+              alt={mediaAlt}
+              className={styles.heroStageImage}
+              height={1200}
+              src={mediaUrl}
+              unoptimized
+              width={2000}
+            />
+          ) : null}
           <div className={styles.heroOverlay}>
             <div className={styles.heroCopy}>
               {eyebrow ? <span className={styles.heroEyebrow}>{eyebrow}</span> : null}
@@ -1889,7 +1898,7 @@ const FeatureGridSection = ({
               ) : null}
               {mediaUrl ? (
                 <div className={styles.featureCardMedia}>
-                  <img alt={mediaAlt} src={mediaUrl} />
+                  <NextImage alt={mediaAlt} height={720} src={mediaUrl} unoptimized width={960} />
                 </div>
               ) : iconClass ? (
                 <div className={styles.featureCardIcon}>
@@ -1941,7 +1950,9 @@ const MediaGridSection = ({ section }: { section: CmsRenderableSection }) => (
                 ariaLabel: linkLabel || title || "Abrir detalle",
               })
             ) : null}
-            <div className={styles.mediaThumb}>{mediaUrl ? <img alt={mediaAlt} src={mediaUrl} /> : null}</div>
+            <div className={styles.mediaThumb}>
+              {mediaUrl ? <NextImage alt={mediaAlt} height={720} src={mediaUrl} unoptimized width={960} /> : null}
+            </div>
             <div className={styles.mediaBody}>
               {title ? <h3>{title}</h3> : null}
               {description ? <p>{description}</p> : null}
@@ -2044,7 +2055,7 @@ const MediaCarouselSection = ({ section }: { section: CmsRenderableSection }) =>
                 ) : null}
                 {mediaUrl ? (
                   <div className={variant === "logos" ? styles.carouselLogoMedia : styles.carouselCardMedia}>
-                    <img alt={mediaAlt} src={mediaUrl} />
+                    <NextImage alt={mediaAlt} height={720} src={mediaUrl} unoptimized width={960} />
                   </div>
                 ) : null}
                 {variant !== "logos" ? (
@@ -2100,7 +2111,7 @@ const ContentSplitSection = ({
         <div className={styles.contentSplitMedia}>
           {imageUrl ? (
             <div className={styles.contentSplitMediaFrame}>
-              <img alt={imageAlt} src={imageUrl} />
+              <NextImage alt={imageAlt} height={960} src={imageUrl} unoptimized width={1280} />
             </div>
           ) : null}
 
@@ -2116,7 +2127,7 @@ const ContentSplitSection = ({
                     onClick={() => setActiveIndex(index)}
                     type="button"
                   >
-                    {thumbUrl ? <img alt={thumbAlt} src={thumbUrl} /> : null}
+                    {thumbUrl ? <NextImage alt={thumbAlt} height={320} src={thumbUrl} unoptimized width={320} /> : null}
                   </button>
                 );
               })}

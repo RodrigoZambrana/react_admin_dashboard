@@ -136,6 +136,7 @@ const createMercadoPago = () => ({
 
 const createParametricPricing = () => ({
   quote: vi.fn(),
+  getSharedAberturasMatrixProductId: vi.fn((productId?: number) => productId ?? 2115),
   getDefaultParametricProductId: vi.fn((productId?: number) => productId ?? 2115),
 })
 
@@ -1052,6 +1053,10 @@ describe('StorefrontService.createOrder', () => {
         images: [],
       },
     ])
+    prisma.product.findUnique.mockResolvedValue({
+      id: 2115,
+      mode: ProductMode.PARAMETRIC,
+    })
     const publishedParametricVariant = {
       configuration: {
         familyId: 'VENTANA_CORREDIZA',
@@ -1264,6 +1269,10 @@ describe('StorefrontService.createOrder', () => {
         images: [],
       },
     ])
+    prisma.product.findUnique.mockResolvedValue({
+      id: 2115,
+      mode: ProductMode.PARAMETRIC,
+    })
     publishedProductResolver.resolvePublishedParametricProduct.mockResolvedValue(null)
     prisma.productVariant.findMany.mockResolvedValue([])
     prisma.shippingOption.findUnique.mockResolvedValue({
@@ -1373,6 +1382,10 @@ describe('StorefrontService.createOrder', () => {
         productCode: 'VENT-01',
       },
     ])
+    prisma.product.findUnique.mockResolvedValue({
+      id: 2115,
+      mode: ProductMode.PARAMETRIC,
+    })
     prisma.productVariant.findMany.mockResolvedValue([])
     prisma.shippingOption.findUnique.mockResolvedValue({ id: 3, name: 'Envío Montevideo' })
     const publishedParametricVariant = {
@@ -1467,6 +1480,10 @@ describe('StorefrontService.createOrder', () => {
         productCode: 'VENT-01',
       },
     ])
+    prisma.product.findUnique.mockResolvedValue({
+      id: 2115,
+      mode: ProductMode.PARAMETRIC,
+    })
     prisma.productVariant.findMany.mockResolvedValue([
       {
         id: 901,
@@ -1986,6 +2003,8 @@ describe('StorefrontService SEO surfaces', () => {
   let googleConfig: ReturnType<typeof createGoogleConfig>
   let cmsPages: ReturnType<typeof createCmsPages>
   let m2DerivedProducts: ReturnType<typeof createM2DerivedProducts>
+  let parametricPricing: ReturnType<typeof createParametricPricing>
+  let publishedProductResolver: ReturnType<typeof createPublishedProductResolver>
 
   beforeEach(() => {
     prisma = createPrisma()
@@ -1994,6 +2013,8 @@ describe('StorefrontService SEO surfaces', () => {
     googleConfig = createGoogleConfig()
     cmsPages = createCmsPages()
     m2DerivedProducts = createM2DerivedProducts()
+    parametricPricing = createParametricPricing()
+    publishedProductResolver = createPublishedProductResolver()
     cmsPages.getPublicPageByPath.mockResolvedValue({ sections: [] })
 
     service = new StorefrontService(
@@ -2006,11 +2027,11 @@ describe('StorefrontService SEO surfaces', () => {
       { sendWelcome: vi.fn().mockResolvedValue(undefined) } as any,
       createMercadoPago() as any,
       googleConfig as any,
-      createParametricPricing() as any,
+      parametricPricing as any,
       {} as any,
       { commitStorefrontItems: vi.fn().mockResolvedValue(undefined) } as any,
       createPaymentSettlement() as any,
-      createPublishedProductResolver() as any,
+      publishedProductResolver as any,
       { sendEmailVerification: vi.fn().mockResolvedValue(undefined) } as any,
       {} as any,
       cmsPages as any,
@@ -2066,6 +2087,61 @@ describe('StorefrontService SEO surfaces', () => {
       seoImageUrl: '/assets/images/company/og.png',
       googleSiteVerification: 'tenant-google-site-verification',
     })
+  })
+
+  it('resolves published parametric variants through the parametric product itself', async () => {
+    prisma.product.findUnique.mockResolvedValue({
+      id: 5,
+      mode: ProductMode.PARAMETRIC,
+    })
+    publishedProductResolver.resolvePublishedParametricVariant.mockResolvedValue({
+      id: 10,
+      key: 'default',
+      price: 100,
+      currency: 'UYU',
+      configuration: { familyId: 'VENTANA_CORREDIZA' },
+      specifications: [],
+      optionValues: {
+        familyId: 'VENTANA_CORREDIZA',
+        serie: '20',
+        material: 'ALUMINIO',
+        color: 'BLANCO',
+        vidrio: '3MM',
+        widthMm: 1200,
+        heightMm: 1000,
+        hasMosquitero: false,
+        hasShutterMonoblock: false,
+        shutterMaterial: '',
+      },
+    })
+
+    await (service as any).resolvePublishedParametricConfiguration(5, { familyId: 'VENTANA_CORREDIZA' }, 'UYU')
+
+    expect(publishedProductResolver.resolvePublishedParametricVariant).toHaveBeenCalledWith(
+      5,
+      { familyId: 'VENTANA_CORREDIZA' },
+      'UYU',
+    )
+  })
+
+  it('fails fast when a parametric product has no published matrix definition', async () => {
+    const salePrice = decimal(100)
+    prisma.product.findUnique.mockResolvedValue({
+      id: 5,
+      mode: ProductMode.PARAMETRIC,
+    })
+    publishedProductResolver.resolvePublishedParametricProduct.mockResolvedValue(null)
+
+    await expect(
+      (service as any).resolvePublishedParametricDefinition({
+        id: 5,
+        mode: ProductMode.PARAMETRIC,
+        currency: 'UYU',
+        salePrice,
+      }),
+    ).rejects.toThrow('La matriz compartida de aberturas no pudo resolverse para este producto paramétrico.')
+
+    expect(publishedProductResolver.resolvePublishedParametricProduct).toHaveBeenCalledWith(5, 'UYU', salePrice)
   })
 
   it('maps CMS SEO fields into the storefront page payload', async () => {

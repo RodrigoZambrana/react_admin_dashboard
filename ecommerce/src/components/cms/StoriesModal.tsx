@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { IconChevronLeft, IconChevronRight, IconX } from "@tabler/icons-react";
 
+import NextImage from "@/components/NextImage";
 import styles from "./CmsPageShell.module.css";
 
 type StoryItem = {
@@ -146,10 +147,13 @@ export default function StoriesModal({
       <source src={activeStory.mediaUrl} />
     </video>
   ) : (
-    <img
+    <NextImage
       alt={activeStory.alt ?? activeStory.title}
       className={styles.storyModalImage}
       src={activeStory.mediaUrl}
+      height={1200}
+      unoptimized
+      width={1200}
     />
   );
 

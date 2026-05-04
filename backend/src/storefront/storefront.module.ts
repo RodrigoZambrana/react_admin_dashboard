@@ -23,6 +23,7 @@ import { M2DerivedController } from './m2-derived.controller'
 import { PublicResponseCacheService } from '../common/cache/public-response-cache.service'
 import { NextRevalidationService } from '../common/cache/next-revalidation.service'
 import { StoriesModule } from '../stories/stories.module'
+import { StorefrontSeoService } from './storefront-seo.service'
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { StoriesModule } from '../stories/stories.module'
     M2DerivedProductsService,
     PublicResponseCacheService,
     NextRevalidationService,
+    StorefrontSeoService,
   ],
   exports: [
     StorefrontService,
@@ -58,6 +60,7 @@ import { StoriesModule } from '../stories/stories.module'
     M2DerivedProductsService,
     PublicResponseCacheService,
     NextRevalidationService,
+    StorefrontSeoService,
   ],
 })
 export class StorefrontModule {}

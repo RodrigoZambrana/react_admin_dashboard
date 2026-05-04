@@ -78,6 +78,7 @@ const srOnlyStyle: CSSProperties = {
 export type StorefrontProductCardProps = {
   id: string | number;
   slug: string;
+  routePath?: string | null;
   title: string;
   price: number;
   imgUrl?: string | null;
@@ -99,6 +100,7 @@ export type StorefrontProductCardProps = {
 export default function StorefrontProductCard({
   id,
   slug,
+  routePath,
   title,
   price,
   imgUrl,
@@ -124,8 +126,12 @@ export default function StorefrontProductCard({
       ? buildPublishedParametricLineId(id, variantKey)
       : id;
   const detailHref =
-    mode === "parametric"
-      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined, id)
+    typeof routePath === "string" && routePath.trim().length > 0
+      ? routePath
+      : canonicalConfiguration?.slug
+      ? `/${canonicalConfiguration.slug}`
+      : mode === "parametric"
+      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined, id, "/aberturas")
       : `/product/${slug}`;
   const cartItem = state.cart.find((item) => item.id === cartLineId || item.slug === slug);
   const primaryImage = typeof imgUrl === "string" && imgUrl.trim() ? imgUrl.trim() : undefined;

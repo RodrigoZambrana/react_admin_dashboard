@@ -237,6 +237,7 @@ export interface ProductVariantDto {
 export interface ProductSummaryDto {
   id: number
   slug: string
+  routePath: string
   name: string
   updatedAt?: string
   shortDescription?: string | null
@@ -333,6 +334,48 @@ export interface CanonicalConfigurationDto {
   seoDescription?: string | null
   searchTerms: string[]
   visibilityRules?: Record<string, unknown> | null
+}
+
+export type SeoEntityTypeDto = 'product' | 'canonical' | 'category'
+
+export interface ResolvedSeoMetadataDto {
+  entityType: SeoEntityTypeDto
+  entityId: number
+  tenantId: string
+  slug: string
+  routePath: string
+  title: string
+  description: string
+  keywords: string[]
+  ogTitle?: string | null
+  ogDescription?: string | null
+  ogImage?: string | null
+  canonicalUrl: string
+  robots: string
+  schemaType?: string | null
+  schemaPayload?: Record<string, unknown> | Array<Record<string, unknown>> | null
+  searchTerms: string[]
+  language: string
+  semantic: {
+    materials: string[]
+    dimensions: string[]
+    uses: string[]
+    attributes: Array<{ label: string; value: string }>
+    productType?: string | null
+    category?: string | null
+    variantLabel?: string | null
+    customizations?: string[]
+  }
+}
+
+export interface SeoIndexableDto {
+  entityType: SeoEntityTypeDto
+  entityId: number
+  tenantId: string
+  slug: string
+  path: string
+  canonicalUrl: string
+  updatedAt: string
 }
 
 export interface ProductDetailDto extends ProductSummaryDto {

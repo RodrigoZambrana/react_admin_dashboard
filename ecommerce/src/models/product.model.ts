@@ -15,6 +15,7 @@ import type {
 interface Product {
   unit?: any;
   slug: string;
+  routePath?: string;
   price: number;
   title: string;
   rating?: number;

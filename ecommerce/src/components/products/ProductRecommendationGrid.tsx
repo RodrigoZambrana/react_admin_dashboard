@@ -25,6 +25,7 @@ export default function ProductRecommendationGrid({ title, products }: Props) {
               hoverEffect
               id={item.id}
               slug={item.slug}
+              routePath={item.routePath}
               price={item.price}
               basePrice={item.basePrice}
               currencyCode={item.currency}
@@ -37,6 +38,7 @@ export default function ProductRecommendationGrid({ title, products }: Props) {
               variantKey={item.variantKey ?? null}
               variantLabel={item.variantLabel ?? null}
               configuration={item.configuration ?? null}
+              canonicalConfiguration={item.canonicalConfiguration ?? null}
             />
           </Grid>
         ))}

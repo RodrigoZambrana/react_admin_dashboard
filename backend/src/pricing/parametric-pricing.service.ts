@@ -1,4 +1,11 @@
-import { BadRequestException, Injectable, Inject, NotFoundException, Logger } from '@nestjs/common'
+import {
+  BadRequestException,
+  Injectable,
+  Inject,
+  InternalServerErrorException,
+  NotFoundException,
+  Logger,
+} from '@nestjs/common'
 import { Prisma, ProductMode, ProductType, SalesUnit } from '@prisma/client'
 import type {
   DimensionPriceMatrix,
@@ -2176,7 +2183,7 @@ export class ParametricPricingService {
     }
     let mapped = await this.fetchSearchRows(criteria, { nearestConfig: config.nearest })
     if (!mapped.length) {
-      const productId = await this.resolveDefaultParametricProductId()
+      const productId = await this.resolveSharedAberturasMatrixProductId()
       mapped = await this.fetchSearchRows(criteria, { productId, nearestConfig: config.nearest })
     }
     return this.buildSearchResult(mapped, criteria, request, limit, config.nearest, marginMultiplier)
@@ -2623,7 +2630,7 @@ export class ParametricPricingService {
     }
   }
 
-  private getConfiguredParametricProductId(): number | null {
+  private getConfiguredSharedAberturasMatrixProductId(): number | null {
     const metadataSources: Array<Record<string, unknown> | undefined> = [
       this.clientConfig?.metadata,
       this.clientConfig?.backend?.metadata,
@@ -2645,24 +2652,44 @@ export class ParametricPricingService {
     return null
   }
 
-  private async resolveDefaultParametricProductId(): Promise<number> {
-    const configured = this.getConfiguredParametricProductId()
-    if (configured) {
-      return configured
-    }
-    const fallback = await this.prisma.dimensionPriceMatrix.findFirst({
-      select: { productId: true },
-      orderBy: { productId: 'asc' },
-    })
-    if (!fallback) {
+  private async resolveSharedAberturasMatrixProductId(): Promise<number> {
+    const configured = this.getConfiguredSharedAberturasMatrixProductId()
+    const sharedMatrixProductId =
+      configured ??
+      (
+        await this.prisma.dimensionPriceMatrix.findFirst({
+          select: { productId: true },
+          orderBy: { productId: 'asc' },
+        })
+      )?.productId
+
+    if (!sharedMatrixProductId) {
       throw new NotFoundException('No hay matrices paramétricas disponibles.')
     }
-    return fallback.productId
+
+    const publishedRows = await this.prisma.dimensionPriceMatrix.count({
+      where: { productId: sharedMatrixProductId },
+    })
+
+    if (publishedRows <= 0) {
+      this.logger.error(
+        `[parametric-pricing] Shared aberturas matrix product ${sharedMatrixProductId} has no published rows.`,
+      )
+      throw new InternalServerErrorException(
+        'La matriz paramétrica compartida de aberturas no tiene filas publicadas.',
+      )
+    }
+
+    return sharedMatrixProductId
+  }
+
+  async getSharedAberturasMatrixProductId(): Promise<number> {
+    this.assertFeatureEnabled()
+    return this.resolveSharedAberturasMatrixProductId()
   }
 
   async getDefaultParametricProductId(): Promise<number> {
-    this.assertFeatureEnabled()
-    return this.resolveDefaultParametricProductId()
+    return this.getSharedAberturasMatrixProductId()
   }
 
   private evaluateMatrixRow(

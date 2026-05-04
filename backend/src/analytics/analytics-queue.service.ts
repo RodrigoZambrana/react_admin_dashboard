@@ -95,11 +95,10 @@ export class AnalyticsQueueService implements OnModuleInit, OnModuleDestroy {
       this.config.get<string>('REDIS_URL')
 
     if (!connectionString) {
-      if ((this.config.get<string>('NODE_ENV') ?? 'development') === 'production') {
-        throw new Error('Analytics queue requires Redis in production.')
-      }
       this.inlineMode = true
-      this.logger.warn('No Redis connection string provided for analytics queue. Falling back to inline mode.')
+      this.logger.warn(
+        'No Redis connection string provided for analytics queue. Falling back to inline mode.',
+      )
       return
     }
 

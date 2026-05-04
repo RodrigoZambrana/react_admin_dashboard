@@ -9,6 +9,7 @@ El proceso sistémico unificado se documenta en:
 El contrato vivo del sistema para este proceso está en:
 
 - [docs/qa/system-use-cases-report.xlsx](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/qa/system-use-cases-report.xlsx)
+- [docs/qa/manual-functional-master.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/qa/manual-functional-master.md)
 
 La fuente estructurada del contrato es:
 

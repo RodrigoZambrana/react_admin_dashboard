@@ -27,6 +27,11 @@ const parseBuffer = (value: unknown) =>
 
 const readFixture = (): BaselineFixture => JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as BaselineFixture
 
+const shouldEnsureUrucortinasBaseline = () => {
+  const tenant = String(process.env.CLIENT_SLUG ?? '').trim().toLowerCase()
+  return tenant === '' || tenant === 'urucortinas' || tenant === 'global'
+}
+
 const syncSequence = async (prisma: PrismaClient, tableRef: string, column = 'id') => {
   const identifier =
     tableRef.includes('.') || tableRef.includes('"') ? tableRef : `"${tableRef}"`
@@ -40,14 +45,68 @@ export async function seedUruCortinasBaseline(prisma: PrismaClient) {
     return
   }
 
-  const existingProducts = await prisma.product.count()
-  const existingTemplates = await prisma.emailTemplate.count()
-  if (existingProducts > 0 || existingTemplates > 0) {
-    console.log('[seed] Baseline already present; skipping urucortinas baseline fixture.')
+  if (!shouldEnsureUrucortinasBaseline()) {
     return
   }
 
   const fixture = readFixture()
+  const existingProducts = await prisma.product.count()
+  const existingTemplates = await prisma.emailTemplate.count()
+  if (existingProducts > 0 || existingTemplates > 0) {
+    const matrixCount = await prisma.dimensionPriceMatrix.count()
+    if (matrixCount === 0 && fixture.dimensionPriceMatrix.length > 0) {
+      const matrixProductIds = Array.from(
+        new Set(
+          fixture.dimensionPriceMatrix
+            .map((row) => Number(row.productId))
+            .filter((value) => Number.isFinite(value) && value > 0),
+        ),
+      )
+
+      const existingMatrixProducts = await prisma.product.findMany({
+        where: { id: { in: matrixProductIds } },
+        select: { id: true },
+      })
+      const existingMatrixProductIds = new Set(existingMatrixProducts.map((product) => product.id))
+      const missingMatrixProducts = fixture.products
+        .filter((row) => matrixProductIds.includes(Number(row.id)))
+        .filter((row) => !existingMatrixProductIds.has(Number(row.id)))
+
+      if (missingMatrixProducts.length > 0) {
+        await prisma.product.createMany({
+          data: missingMatrixProducts.map((row) => ({
+            ...row,
+            createdAt: parseDate(row.createdAt),
+            updatedAt: parseDate(row.updatedAt),
+          })) as any,
+          skipDuplicates: true,
+        })
+      }
+
+      await prisma.systemConfig.createMany({
+        data: fixture.systemConfig as any,
+        skipDuplicates: true,
+      })
+
+      await prisma.dimensionPriceMatrix.createMany({
+        data: fixture.dimensionPriceMatrix.map((row) => ({
+          ...row,
+          referenceDate: parseDate(row.referenceDate),
+          createdAt: parseDate(row.createdAt),
+          updatedAt: parseDate(row.updatedAt),
+        })) as any,
+        skipDuplicates: true,
+      })
+
+      await syncSequence(prisma, 'public."Product"')
+      await syncSequence(prisma, 'public.dimension_price_matrix')
+      console.log('[seed] Restored fixed urucortinas shared aberturas matrix from baseline fixture.')
+      return
+    }
+
+    console.log('[seed] Baseline already present; skipping urucortinas baseline fixture.')
+    return
+  }
 
   await prisma.calendarEventType.createMany({
     data: fixture.calendarEventTypes.map((row) => ({

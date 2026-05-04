@@ -21,6 +21,15 @@ x-storefront-common: &storefront-common
   environment:
     NODE_ENV: production
     PORT: 3000
+    NEXT_PUBLIC_STOREFRONT_API_URL: ${NEXT_PUBLIC_STOREFRONT_API_URL:-/api/storefront}
+    STOREFRONT_API_URL: ${STOREFRONT_API_URL:-http://backend:3000/api/storefront}
+    NEXT_PUBLIC_AUTH_API_URL: ${NEXT_PUBLIC_AUTH_API_URL:-/api}
+    AUTH_API_URL: ${AUTH_API_URL:-http://backend:3000/api}
+    NEXT_PUBLIC_ANALYTICS_API_URL: ${NEXT_PUBLIC_ANALYTICS_API_URL:-/api/analytics}
+    ANALYTICS_API_URL: ${ANALYTICS_API_URL:-http://backend:3000/api/analytics}
+    NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://midominio.com}
+    NEXT_PUBLIC_MEDIA_BASE_URL: ${NEXT_PUBLIC_MEDIA_BASE_URL:-/media}
+    NEXT_PUBLIC_MEDIA_PROVIDER: ${NEXT_PUBLIC_MEDIA_PROVIDER:-local}
 
 services:
   frontend:
@@ -32,17 +41,18 @@ services:
       args:
         VITE_APP_NAME: ${VITE_APP_NAME:-Sistema Administrativo}
         VITE_API_URL: ${VITE_API_URL:-/api}
+        VITE_APP_PREFIX_PATH: ${VITE_APP_PREFIX_PATH:-/admin}
         VITE_CLIENT_SLUG: ${VITE_CLIENT_SLUG:-core}
         VITE_STATE_SIGNATURE_KEY: ${VITE_STATE_SIGNATURE_KEY:-__set_prod_state_signature_key__}
         VITE_RECAPTCHA_ENABLED: ${VITE_RECAPTCHA_ENABLED:-false}
         VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-}
         VITE_PARAMETRIC_IMPORT_TIMEOUT_MS: ${VITE_PARAMETRIC_IMPORT_TIMEOUT_MS:-120000}
-    ports:
-      - "8080:80"
+    expose:
+      - "80"
     environment:
-      SERVER_NAME: ${APP_DOMAIN_PROD:-localhost}
-      BACKEND_HOST: backend
-      BACKEND_PORT: 3000
+      SERVER_NAME: ${APP_DOMAIN_PROD:-midominio.com}
+    networks:
+      - app-network
   backend:
     <<: *backend-common
     build:
@@ -51,10 +61,12 @@ services:
       # Override CLIENT_SLUG para apuntar a una variante específica durante la build (e.g. urucortinas)
       args:
         CLIENT_SLUG: ${CLIENT_SLUG:-core}
-    ports:
-      - "4000:3000"
+    expose:
+      - "3000"
     depends_on:
       - redis
+    networks:
+      - app-network
   analytics-worker:
     <<: *backend-common
     build:
@@ -72,6 +84,8 @@ services:
     depends_on:
       - redis
       - backend
+    networks:
+      - app-network
   analytics-health-monitor:
     <<: *backend-common
     build:
@@ -110,6 +124,8 @@ services:
     depends_on:
       - redis
       - backend
+    networks:
+      - app-network
   storefront:
     <<: *storefront-common
     build:
@@ -118,9 +134,13 @@ services:
       args:
         CLIENT_SLUG: ${CLIENT_SLUG:-core}
         NEXT_PUBLIC_CLIENT_SLUG: ${NEXT_PUBLIC_CLIENT_SLUG:-core}
-        NEXT_PUBLIC_STOREFRONT_API_URL: ${NEXT_PUBLIC_STOREFRONT_API_URL:-https://api.example.com/api/storefront}
-        STOREFRONT_API_URL: ${STOREFRONT_API_URL:-https://api.example.com/api/storefront}
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://storefront.example.com}
+        NEXT_PUBLIC_STOREFRONT_API_URL: ${NEXT_PUBLIC_STOREFRONT_API_URL:-/api/storefront}
+        STOREFRONT_API_URL: ${STOREFRONT_API_URL:-http://backend:3000/api/storefront}
+        NEXT_PUBLIC_AUTH_API_URL: ${NEXT_PUBLIC_AUTH_API_URL:-/api}
+        AUTH_API_URL: ${AUTH_API_URL:-http://backend:3000/api}
+        NEXT_PUBLIC_ANALYTICS_API_URL: ${NEXT_PUBLIC_ANALYTICS_API_URL:-/api/analytics}
+        ANALYTICS_API_URL: ${ANALYTICS_API_URL:-http://backend:3000/api/analytics}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://midominio.com}
         NEXT_PUBLIC_STOREFRONT_HOME_PATH: ${NEXT_PUBLIC_STOREFRONT_HOME_PATH:-/}
         NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED: ${NEXT_PUBLIC_GOOGLE_BUTTON_ENABLED:-true}
         NEXT_PUBLIC_ENABLE_STOREFRONT_MOCKS: ${NEXT_PUBLIC_ENABLE_STOREFRONT_MOCKS:-false}
@@ -137,32 +157,29 @@ services:
         NEXT_PUBLIC_MP_FAILURE_URL: ${NEXT_PUBLIC_MP_FAILURE_URL:-/payment/error}
         SNAPSHOT_ACCESS_TOKEN: ${SNAPSHOT_ACCESS_TOKEN:-}
       target: runtime
-    ports:
-      - "${STOREFRONT_HTTP_PORT:-3000}:3000"
+    expose:
+      - "3000"
     depends_on:
       - backend
-    labels:
-      - "traefik.enable=${TRAEFIK_ENABLE_STOREFRONT:-false}"
-      - "traefik.http.routers.storefront.rule=Host(`${TRAEFIK_STOREFRONT_HOST:-storefront.local}`)"
-      - "traefik.http.routers.storefront.entrypoints=${TRAEFIK_ENTRYPOINT:-web}"
-      - "traefik.http.services.storefront.loadbalancer.server.port=3000"
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/api/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
+    networks:
+      - app-network
 
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis_data_prod:/data
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
 
   db:
     image: postgres:16-alpine
@@ -180,7 +197,43 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
+
+  reverse-proxy:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.reverse-proxy
+    restart: unless-stopped
+    environment:
+      SERVER_NAME: ${APP_DOMAIN_PROD:-midominio.com}
+      BACKEND_HOST: backend
+      BACKEND_PORT: 3000
+      FRONTEND_HOST: frontend
+      FRONTEND_PORT: 80
+      STOREFRONT_HOST: storefront
+      STOREFRONT_PORT: 3000
+    depends_on:
+      - frontend
+      - backend
+      - storefront
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - reverse_proxy_certs:/etc/nginx/certs
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fk https://127.0.0.1/health || curl -f http://127.0.0.1/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
 
 volumes:
   postgres_data_prod:
-  redis_data_prod:
+  reverse_proxy_certs:
+
+networks:
+  app-network:
+    driver: bridge

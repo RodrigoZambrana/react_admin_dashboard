@@ -138,10 +138,13 @@ export default function SocialPostDetailModal({ open, posts, initialIndex, onClo
         <source src={activePost.mediaUrl} />
       </video>
     ) : (
-      <img
+      <NextImage
         alt={activePost.title}
         className={styles.socialPostDetailCompactMediaElement}
+        height={960}
         src={activePost.mediaUrl}
+        unoptimized
+        width={960}
       />
     );
 

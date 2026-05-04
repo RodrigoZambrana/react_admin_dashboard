@@ -1,82 +1,239 @@
 {
-  "generatedAt": "2026-05-03T18:25:56.211Z",
+  "generatedAt": "2026-05-04T00:45:21.421Z",
   "projects": [
     {
-      "name": "frontend",
-      "cwd": "/Users/rodrigo/Git/personal/react_admin_dashboard/frontend",
-      "lockfileHash": "fa5b8432c48866cf8675cf02a03f082b28b1e39ccc2793ac438774f1b857c34e",
+      "name": "backend",
+      "cwd": "/Users/rodrigo/Git/personal/react_admin_dashboard/backend",
+      "lockfileHash": "98dacf072fa557af26bab3027e3dfa37ce5b9cf379690b639ea1fe82004704b6",
       "metadata": {
         "vulnerabilities": {
           "info": 0,
-          "low": 2,
-          "moderate": 0,
+          "low": 0,
+          "moderate": 3,
           "high": 0,
           "critical": 0,
-          "total": 2
+          "total": 3
         },
         "dependencies": {
-          "prod": 351,
-          "dev": 555,
-          "optional": 107,
-          "peer": 0,
+          "prod": 571,
+          "dev": 239,
+          "optional": 52,
+          "peer": 6,
           "peerOptional": 0,
-          "total": 913
+          "total": 828
         }
       },
       "vulnerabilities": [
         {
-          "key": "frontend:quill",
-          "project": "frontend",
-          "dependency": "quill",
-          "severity": "low",
-          "impact": "low-runtime",
-          "type": "transitive",
+          "key": "backend:exceljs",
+          "project": "backend",
+          "dependency": "exceljs",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
           "exposure": "runtime",
-          "status": "open",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "exceljs",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "exceljs 4.4.0 sigue arrastrando uuid 8.x y no expone una ruta de upgrade limpia sin reemplazar nuevamente la libreria. El uso esta acotado al extractor deterministico de adjuntos XLSX y no procesa ejecucion de codigo.",
+            "mitigation": "Mantener los limites de tamano de archivo, usar el parser solo dentro del backend y revaluar el reemplazo si el upstream no corrige uuid."
+          },
           "fixAvailable": {
             "available": true,
             "mode": "major",
             "target": {
-              "name": "react-quill-new",
-              "version": "3.7.0",
+              "name": "exceljs",
+              "version": "3.4.0",
               "isSemVerMajor": true
             }
           },
           "paths": [
-            "node_modules/quill"
+            "node_modules/exceljs"
           ],
           "advisoryTitles": [
-            "Quill is vulnerable to XSS via HTML export feature"
+            "uuid"
           ]
         },
         {
-          "key": "frontend:react-quill-new",
-          "project": "frontend",
-          "dependency": "react-quill-new",
-          "severity": "low",
-          "impact": "low-runtime",
+          "key": "backend:mercadopago",
+          "project": "backend",
+          "dependency": "mercadopago",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
           "type": "direct",
           "exposure": "runtime",
-          "status": "open",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "mercadopago",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "mercadopago 2.12.0 sigue dependiendo de uuid 9.x y no publica una version corregida. El SDK esta encapsulado en el modulo de pagos y no expone directamente las APIs vulnerables al resto del sistema.",
+            "mitigation": "Mantener mercadopago en su version mas reciente, limitar el SDK al modulo de pagos y volver a evaluar en cada corrida del security loop."
+          },
           "fixAvailable": {
             "available": true,
             "mode": "major",
             "target": {
-              "name": "react-quill-new",
-              "version": "3.7.0",
+              "name": "mercadopago",
+              "version": "0.5.0",
               "isSemVerMajor": true
             }
           },
           "paths": [
-            "node_modules/react-quill-new"
+            "node_modules/mercadopago"
           ],
           "advisoryTitles": [
-            "quill"
+            "uuid"
+          ]
+        },
+        {
+          "key": "backend:uuid",
+          "project": "backend",
+          "dependency": "uuid",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "uuid",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "mercadopago 2.12.0 sigue dependiendo de uuid 9.x y no publica una version corregida. El uso queda encapsulado en el servicio de pagos y no expone directamente las APIs v3/v5/v6 al exterior.",
+            "mitigation": "Mantener mercadopago en su version mas reciente, limitar el SDK al modulo de pagos y volver a evaluar en cada corrida del security loop."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "mercadopago",
+              "version": "0.5.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/exceljs/node_modules/uuid",
+            "node_modules/uuid"
+          ],
+          "advisoryTitles": [
+            "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided"
           ]
         }
       ],
       "blocking": [],
-      "acceptedModerate": [],
+      "acceptedModerate": [
+        {
+          "key": "backend:exceljs",
+          "project": "backend",
+          "dependency": "exceljs",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "exceljs",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "exceljs 4.4.0 sigue arrastrando uuid 8.x y no expone una ruta de upgrade limpia sin reemplazar nuevamente la libreria. El uso esta acotado al extractor deterministico de adjuntos XLSX y no procesa ejecucion de codigo.",
+            "mitigation": "Mantener los limites de tamano de archivo, usar el parser solo dentro del backend y revaluar el reemplazo si el upstream no corrige uuid."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "exceljs",
+              "version": "3.4.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/exceljs"
+          ],
+          "advisoryTitles": [
+            "uuid"
+          ]
+        },
+        {
+          "key": "backend:mercadopago",
+          "project": "backend",
+          "dependency": "mercadopago",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "mercadopago",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "mercadopago 2.12.0 sigue dependiendo de uuid 9.x y no publica una version corregida. El SDK esta encapsulado en el modulo de pagos y no expone directamente las APIs vulnerables al resto del sistema.",
+            "mitigation": "Mantener mercadopago en su version mas reciente, limitar el SDK al modulo de pagos y volver a evaluar en cada corrida del security loop."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "mercadopago",
+              "version": "0.5.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/mercadopago"
+          ],
+          "advisoryTitles": [
+            "uuid"
+          ]
+        },
+        {
+          "key": "backend:uuid",
+          "project": "backend",
+          "dependency": "uuid",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "uuid",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "mercadopago 2.12.0 sigue dependiendo de uuid 9.x y no publica una version corregida. El uso queda encapsulado en el servicio de pagos y no expone directamente las APIs v3/v5/v6 al exterior.",
+            "mitigation": "Mantener mercadopago en su version mas reciente, limitar el SDK al modulo de pagos y volver a evaluar en cada corrida del security loop."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "mercadopago",
+              "version": "0.5.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/exceljs/node_modules/uuid",
+            "node_modules/uuid"
+          ],
+          "advisoryTitles": [
+            "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided"
+          ]
+        }
+      ],
       "unresolvedModerate": []
     }
   ]

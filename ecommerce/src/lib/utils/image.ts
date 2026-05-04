@@ -1,5 +1,3 @@
-"use client";
-
 const KNOWN_PLACEHOLDER_SEGMENTS = [
   "/assets/images/banners/banner-8.png",
   "/assets/images/products/iphone-xi.png",

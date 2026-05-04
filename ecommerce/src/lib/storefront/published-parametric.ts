@@ -307,6 +307,7 @@ export const buildPublishedParametricDetailHref = (
   slug: string,
   configuration?: Record<string, unknown> | null,
   productId?: string | number | null,
+  basePath = "/product",
 ) => {
   const params = new URLSearchParams();
   if (productId !== null && productId !== undefined && String(productId).trim().length > 0) {
@@ -336,7 +337,8 @@ export const buildPublishedParametricDetailHref = (
   }
 
   const query = params.toString();
-  return query ? `/product/${slug}?${query}` : `/product/${slug}`;
+  const normalizedBasePath = basePath.startsWith("/") ? basePath : `/${basePath}`;
+  return query ? `${normalizedBasePath}/${slug}?${query}` : `${normalizedBasePath}/${slug}`;
 };
 
 export const buildPublishedParametricLineId = (

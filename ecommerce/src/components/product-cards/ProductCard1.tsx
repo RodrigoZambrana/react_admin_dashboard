@@ -171,6 +171,7 @@ const srOnlyStyle: CSSProperties = {
 interface ProductCard1Props extends CardProps {
   off?: number;
   slug: string;
+  routePath?: string | null;
   title: string;
   price: number;
   imgUrl?: string | null;
@@ -191,6 +192,7 @@ function ProductCard1({
   id,
   off,
   slug,
+  routePath,
   title,
   price,
   imgUrl,
@@ -260,8 +262,10 @@ function ProductCard1({
   const formattedSalePrice = formatAmount(saleAmount, resolvedCurrency);
   const formattedListPrice = showListPrice ? formatAmount(baselineAmount, resolvedCurrency) : null;
   const detailHref =
-    mode === "parametric" && slug
-      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined, id ?? null)
+    typeof routePath === "string" && routePath.trim().length > 0
+      ? routePath
+      : mode === "parametric" && slug
+      ? buildPublishedParametricDetailHref(slug, configuration ?? undefined, id ?? null, "/aberturas")
       : `/product/${slug}`;
 
   const handleCartAmountChange = useCallback(

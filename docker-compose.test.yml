@@ -11,6 +11,7 @@ x-backend-common: &backend-common
     LOCAL_TEST_ENV: "true"
     PRISMA_APPLY_MIGRATIONS: "true"
     RUN_PRISMA_SEED_ON_BOOT: "true"
+    SEED_BASELINE: "true"
     DB_HOST: db
     DB_PORT: 5432
     DB_USER: postgres

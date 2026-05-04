@@ -20,6 +20,8 @@ import type {
   CmsRenderablePage,
   CmsPublicPageSummary,
   ProductSummary,
+  ResolvedSeoMetadata,
+  SeoIndexable,
   StorefrontShippingOption,
   StorefrontConfig,
   BudgetAddToCartRequest,
@@ -249,6 +251,7 @@ const mapDerivedProductToSummary = (product: DerivedProductPayload): ProductSumm
   return {
     id: product.baseProductId * 1000 + product.sizeId,
     slug: product.slug,
+    routePath: `/product/${product.slug}`,
     name: product.name,
     updatedAt: product.updatedAt,
     shortDescription: product.description ?? null,
@@ -654,7 +657,7 @@ export const StorefrontApi = {
             const normalizedDerivedProducts = derivedProducts
               .map((product) => mapDerivedProductToSummary(product))
               .filter((product) =>
-                (product.categories ?? []).some((category) => selectedCategorySlugs?.has(category.slug) ?? false),
+                (product.categories ?? []).some((category) => category.slug === selectedCategory.slug),
               );
 
             const filtered = normalizedDerivedProducts.filter((product) => {
@@ -774,6 +777,20 @@ export const StorefrontApi = {
       }
       throw error;
     }
+  },
+
+  async resolveSeo(path: string, locale = "es"): Promise<ResolvedSeoMetadata> {
+    return apiFetch<ResolvedSeoMetadata>("seo/resolve", {
+      params: { path, locale },
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "seo", locale, path)])
+    });
+  },
+
+  async listSeoIndexables(locale = "es"): Promise<SeoIndexable[]> {
+    return apiFetch<SeoIndexable[]>("seo/indexables", {
+      params: { locale },
+      ...buildPublicCacheOptions([buildPublicTag("storefront", "seo-indexables", locale)])
+    });
   },
 
   async getProduct(slugOrId: string, tagSlug?: string): Promise<ProductDetail> {
