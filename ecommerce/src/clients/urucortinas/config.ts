@@ -32,6 +32,11 @@ const config: StorefrontClientVariantConfig = {
       defaultTitle: "urucortinas",
       titleTemplate: "%s · urucortinas",
       defaultDescription: "Cortinas a medida con producción nacional y asesoramiento personalizado."
+    },
+    features: {
+      languageSelector: false,
+      supportedLocales: ["es"],
+      defaultLocale: "es"
     }
   }
 };

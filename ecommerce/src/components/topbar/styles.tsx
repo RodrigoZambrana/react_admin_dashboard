@@ -45,10 +45,13 @@ export const StyledTopbar = styled.div`
   }
 
   .topbar-right {
+    gap: 0.5rem;
+
     .link {
       padding-right: 30px;
       color: white;
     }
+
     .dropdown-handler {
       display: flex;
       align-items: center;
@@ -65,9 +68,24 @@ export const StyledTopbar = styled.div`
         margin-left: 0.5rem;
       }
     }
+
+    .currency-selector {
+      min-width: 104px;
+      max-width: 104px;
+      flex: 0 0 104px;
+    }
+
     @media only screen and (max-width: 900px) {
+      gap: 0.35rem;
+
       .link {
         display: none;
+      }
+
+      .currency-selector {
+        min-width: 92px;
+        max-width: 92px;
+        flex-basis: 92px;
       }
     }
   }

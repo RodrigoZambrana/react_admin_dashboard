@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { IconChevronRight } from "@tabler/icons-react";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -22,6 +22,9 @@ type AccordionMenuProps = {
   onNavigate?: () => void;
   onSelectItem?: (item: AccordionMenuNode) => void;
   selectedHref?: string;
+  expandRootItemsByDefault?: boolean;
+  parentRowAction?: "select" | "toggle";
+  reserveTrailingSpaceForLeafItems?: boolean;
 };
 
 const normalizeHref = (href?: string) => {
@@ -54,6 +57,7 @@ const findInitiallyExpandedKeys = (
   items: AccordionMenuNode[],
   pathname: string,
   searchParams: ReadonlyURLSearchParams | null,
+  expandRootItemsByDefault: boolean,
   depth = 0,
 ) => {
   const expanded = new Set<string>();
@@ -61,14 +65,23 @@ const findInitiallyExpandedKeys = (
   items.forEach((item) => {
     const hasChildren = (item.children?.length ?? 0) > 0;
     const childExpanded = hasChildren
-      ? findInitiallyExpandedKeys(item.children ?? [], pathname, searchParams, depth + 1)
+      ? findInitiallyExpandedKeys(
+          item.children ?? [],
+          pathname,
+          searchParams,
+          expandRootItemsByDefault,
+          depth + 1
+        )
       : new Set<string>();
     childExpanded.forEach((key) => expanded.add(key));
 
     const selfActive = matchesCurrentLocation(item.href, pathname, searchParams);
     const branchActive = childExpanded.size > 0;
 
-    if ((depth === 0 && hasChildren) || (hasChildren && (selfActive || branchActive))) {
+    if (
+      (depth === 0 && hasChildren && expandRootItemsByDefault) ||
+      (hasChildren && (selfActive || branchActive))
+    ) {
       expanded.add(item.key);
     }
   });
@@ -143,6 +156,8 @@ const AccordionRow = ({
   onNavigate,
   onToggle,
   onSelectItem,
+  parentRowAction,
+  reserveTrailingSpaceForLeafItems,
 }: {
   item: AccordionMenuNode;
   depth: number;
@@ -152,12 +167,22 @@ const AccordionRow = ({
   onNavigate?: () => void;
   onToggle: () => void;
   onSelectItem?: (item: AccordionMenuNode) => void;
+  parentRowAction: "select" | "toggle";
+  reserveTrailingSpaceForLeafItems: boolean;
 }) => {
   const hasChildren = (item.children?.length ?? 0) > 0;
+  const handleToggleClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    onToggle();
+  };
+  const shouldRenderSplitControls = hasChildren && onSelectItem && parentRowAction === "select";
+  const leafEndSpacer = reserveTrailingSpaceForLeafItems ? (
+    <span className="mobile-accordion-end-spacer" aria-hidden="true" />
+  ) : null;
 
   return (
     <StyledMobileAccordionItem>
-      {hasChildren && onSelectItem ? (
+      {shouldRenderSplitControls ? (
         <div
           className="mobile-accordion-row mobile-accordion-row-split"
           data-depth={depth}
@@ -173,7 +198,7 @@ const AccordionRow = ({
           </button>
           <button
             type="button"
-            onClick={onToggle}
+            onClick={handleToggleClick}
             aria-expanded={expanded}
             aria-label={expanded ? `Collapse ${item.title}` : `Expand ${item.title}`}
             className="mobile-accordion-chevron-trigger"
@@ -189,7 +214,7 @@ const AccordionRow = ({
       ) : hasChildren ? (
         <button
           type="button"
-          onClick={onToggle}
+          onClick={handleToggleClick}
           aria-expanded={expanded}
           aria-label={expanded ? `Collapse ${item.title}` : `Expand ${item.title}`}
           className="mobile-accordion-row"
@@ -216,6 +241,7 @@ const AccordionRow = ({
             data-branch-active={branchActive}
           >
             <RowContent title={item.title} icon={item.icon} depth={depth} active={active} />
+            {leafEndSpacer}
           </button>
         ) : (
           <Link
@@ -227,11 +253,13 @@ const AccordionRow = ({
             data-branch-active={branchActive}
           >
             <RowContent title={item.title} icon={item.icon} depth={depth} active={active} />
+            {leafEndSpacer}
           </Link>
         )
       ) : (
         <div className="mobile-accordion-row" data-depth={depth} data-active={active} data-branch-active={branchActive}>
           <RowContent title={item.title} icon={item.icon} depth={depth} active={active} />
+          {leafEndSpacer}
         </div>
       )}
     </StyledMobileAccordionItem>
@@ -244,16 +272,19 @@ export default function AccordionMenu({
   onNavigate,
   onSelectItem,
   selectedHref,
+  expandRootItemsByDefault = true,
+  parentRowAction = "select",
+  reserveTrailingSpaceForLeafItems = false,
 }: AccordionMenuProps) {
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(() =>
-    findInitiallyExpandedKeys(items, pathname, searchParams),
+    findInitiallyExpandedKeys(items, pathname, searchParams, expandRootItemsByDefault),
   );
 
   useEffect(() => {
-    setExpandedKeys(findInitiallyExpandedKeys(items, pathname, searchParams));
-  }, [items, pathname, searchParams]);
+    setExpandedKeys(findInitiallyExpandedKeys(items, pathname, searchParams, expandRootItemsByDefault));
+  }, [expandRootItemsByDefault, items, pathname, searchParams]);
 
   const toggleExpanded = (key: string) => {
     setExpandedKeys((prev) => {
@@ -289,6 +320,8 @@ export default function AccordionMenu({
             onNavigate={onNavigate}
             onToggle={() => toggleExpanded(item.key)}
             onSelectItem={onSelectItem}
+            parentRowAction={parentRowAction}
+            reserveTrailingSpaceForLeafItems={reserveTrailingSpaceForLeafItems}
           />
 
           {hasChildren && expanded ? (

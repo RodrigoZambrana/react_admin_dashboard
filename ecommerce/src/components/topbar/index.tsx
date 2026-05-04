@@ -26,11 +26,12 @@ type CurrencyOption = {
 
 export default function Topbar() {
   const storefrontConfig = useStorefrontConfig();
-  const { locale, setLocale } = useI18n();
+  const { locale, setLocale, availableLocales } = useI18n();
   const t = useTranslation();
   const { currency, availableCurrencies, setCurrency } = useCurrency();
   const companyProfile = storefrontConfig.companyProfile;
   const helpLinks = storefrontConfig.navigation?.helpLinks ?? [];
+  const storefrontFeatures = storefrontConfig.features;
 
   const logoSrc = companyProfile?.logo ?? null;
   const brandName =
@@ -42,7 +43,13 @@ export default function Topbar() {
   const phone = companyProfile?.phone ?? null;
   const email = companyProfile?.email ?? null;
 
-  const activeLanguage = LANGUAGES.find((item) => item.locale === locale) ?? LANGUAGES[0];
+  const languageOptions = useMemo(
+    () => LANGUAGES.filter((item) => availableLocales.includes(item.locale)),
+    [availableLocales]
+  );
+  const activeLanguage = languageOptions.find((item) => item.locale === locale) ?? languageOptions[0] ?? LANGUAGES[0];
+  const showLanguageSelector =
+    storefrontFeatures?.languageSelector !== false && languageOptions.length > 1;
 
   const handleLanguageClick = useCallback(
     (langLocale: (typeof LANGUAGES)[number]["locale"]) => () => setLocale(langLocale),
@@ -120,25 +127,27 @@ export default function Topbar() {
             {helpLinks[1]?.label ? t(helpLinks[1].label) : t("Need Help?")}
           </NavLink>
 
-          <Menu
-            direction="right"
-            handler={(handleOpen) => (
-              <div className="dropdown-handler" onClick={handleOpen}>
-                <Image src={activeLanguage.imgUrl} alt={activeLanguage.title} />
-                <Small fontWeight="600">{activeLanguage.shortLabel}</Small>
-                <IconChevronDown size={16} stroke={1.5} />
-              </div>
-            )}>
-            {LANGUAGES.map((item) => (
-              <MenuItem key={item.id} onClick={handleLanguageClick(item.locale)}>
-                <Image src={item.imgUrl} borderRadius="2px" mr="0.5rem" alt={item.title} />
-                <Small fontWeight="600">{item.title}</Small>
-              </MenuItem>
-            ))}
-          </Menu>
+          {showLanguageSelector ? (
+            <Menu
+              direction="right"
+              handler={(handleOpen) => (
+                <div className="dropdown-handler" onClick={handleOpen}>
+                  <Image src={activeLanguage.imgUrl} alt={activeLanguage.title} />
+                  <Small fontWeight="600">{activeLanguage.shortLabel}</Small>
+                  <IconChevronDown size={16} stroke={1.5} />
+                </div>
+              )}>
+              {languageOptions.map((item) => (
+                <MenuItem key={item.id} onClick={handleLanguageClick(item.locale)}>
+                  <Image src={item.imgUrl} borderRadius="2px" mr="0.5rem" alt={item.title} />
+                  <Small fontWeight="600">{item.title}</Small>
+                </MenuItem>
+              ))}
+            </Menu>
+          ) : null}
 
           {currencyOptions.length > 0 ? (
-            <div className="dropdown-handler" style={{ minWidth: "120px" }}>
+            <div className="dropdown-handler currency-selector">
               <Select
                 options={currencyOptions}
                 value={selectedCurrency}

@@ -1,3 +1,5 @@
+import type { SupportedLocale } from "@/translations";
+
 export type MoneyCurrency = string;
 
 export interface Money {
@@ -121,6 +123,11 @@ export interface StorefrontConfig {
   navigation: NavigationConfig;
   theme: StorefrontTheme;
   seo: SeoConfig;
+  features?: {
+    languageSelector?: boolean;
+    supportedLocales?: SupportedLocale[];
+    defaultLocale?: SupportedLocale;
+  };
   policies: StorefrontPolicy[];
   announcement?: AnnouncementBanner | null;
   companyProfile?: CompanyProfile | null;

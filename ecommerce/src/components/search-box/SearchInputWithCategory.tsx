@@ -40,7 +40,9 @@ import {
   getSearchCategoryContext,
   normalizeSearchValue,
 } from "@/lib/storefront/search-utils";
-import { mapCategorySummariesToAccordionNodes } from "@/lib/storefront/menu-nodes";
+import {
+  type AccordionMenuNode
+} from "@/lib/storefront/menu-nodes";
 import { trackEvent } from "@/lib/analytics/trackEvent";
 import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
 import { env } from "@/lib/env";
@@ -75,11 +77,44 @@ type CategoryOption = ReturnType<typeof buildSearchCategoryOptions>[number];
 
 const DEFAULT_CATEGORY: CategoryOption = {
   key: ALL_CATEGORY_SLUG,
-  label: "All Categories",
+  label: "search.categories.all",
   slug: ALL_CATEGORY_SLUG,
   depth: 0,
   lineage: [],
   lineageLabels: [],
+};
+
+const buildSearchAccordionNodes = ({
+  categories,
+  selectParentLabel,
+}: {
+  categories: CategorySummary[];
+  selectParentLabel: (categoryName: string) => string;
+}): AccordionMenuNode[] => {
+  const mapNodes = (items: CategorySummary[], depth = 0): AccordionMenuNode[] =>
+    items.map((category, index) => {
+      const hasChildren = (category.children?.length ?? 0) > 0;
+      const nestedChildren = hasChildren ? mapNodes(category.children ?? [], depth + 1) : undefined;
+
+      return {
+        key: `${depth}:${index}:${category.slug ?? category.id ?? category.name}`,
+        title: category.name,
+        href: hasChildren ? undefined : buildShopSearchHref("", category.slug),
+        icon: depth === 0 ? "category" : undefined,
+        children: hasChildren
+          ? [
+              {
+                key: `${depth}:${index}:${category.slug ?? category.id ?? category.name}:self`,
+                title: selectParentLabel(category.name),
+                href: buildShopSearchHref("", category.slug),
+              },
+              ...(nestedChildren ?? []),
+            ]
+          : undefined,
+      };
+    });
+
+  return mapNodes(categories);
 };
 
 const buildShopSearchHref = (query: string, categorySlug?: string) => {
@@ -153,14 +188,35 @@ export default function SearchInputWithCategory() {
     return filterSearchCategoryOptions(categoryOptions, selectedCategory.slug);
   }, [categoryOptions, selectedCategory.slug]);
 
-  const categoryAccordionItems = useMemo(
-    () => mapCategorySummariesToAccordionNodes(categories, new Array(Math.max(categories.length, 1)).fill("category")),
-    [categories],
-  );
-
   const matchedCategories = useMemo(() => {
     return findMatchingSearchCategories(scopedCategoryOptions, query).slice(0, 5);
   }, [query, scopedCategoryOptions]);
+  const defaultCategoryLabel = t("search.categories.all", {
+    defaultMessage: "Todas las categorías",
+  });
+  const selectParentCategoryLabel = useCallback(
+    (categoryName: string) =>
+      t("search.categories.viewAllIn", {
+        defaultMessage: "All in {category}",
+        values: { category: categoryName },
+      }),
+    [t]
+  );
+  const categoryAccordionItems = useMemo<AccordionMenuNode[]>(
+    () => [
+      {
+        key: DEFAULT_CATEGORY.key,
+        title: defaultCategoryLabel,
+        href: buildShopSearchHref("", DEFAULT_CATEGORY.slug),
+        icon: "category"
+      },
+      ...buildSearchAccordionNodes({
+        categories,
+        selectParentLabel: selectParentCategoryLabel,
+      })
+    ],
+    [categories, defaultCategoryLabel, selectParentCategoryLabel],
+  );
 
   const debouncedSearch = useMemo(
     () =>
@@ -231,15 +287,21 @@ export default function SearchInputWithCategory() {
         cta_context: "navigation",
         cta_location: "search_bar",
         schema_version: EVENT_SCHEMA_VERSION,
-        metadata: { category_slug: nextSelection.slug ?? null, category_label: nextSelection.label },
-        data: { category_slug: nextSelection.slug ?? null, category_label: nextSelection.label },
+        metadata: {
+          category_slug: nextSelection.slug ?? null,
+          category_label: isAllCategorySlug(nextSelection.slug) ? defaultCategoryLabel : nextSelection.label
+        },
+        data: {
+          category_slug: nextSelection.slug ?? null,
+          category_label: isAllCategorySlug(nextSelection.slug) ? defaultCategoryLabel : nextSelection.label
+        },
       });
       setSelectedCategory(nextSelection);
       if (query.trim()) {
         debouncedSearch(query, nextSelection.slug);
       }
     },
-    [categoryOptions, debouncedSearch, pageType, query],
+    [categoryOptions, debouncedSearch, defaultCategoryLabel, pageType, query],
   );
 
   const handleAccordionCategorySelect = useCallback(
@@ -357,11 +419,11 @@ export default function SearchInputWithCategory() {
 
   const hasResults = results.length > 0 || matchedCategories.length > 0 || isSearching || query.trim().length > 0;
   const isDesktopCategorySelector = (width ?? 1200) >= 900;
-  const selectedCategoryHref = selectedCategory.slug ? buildShopSearchHref("", selectedCategory.slug) : undefined;
+  const selectedCategoryHref = buildShopSearchHref("", selectedCategory.slug);
 
   const isSelectedBranch = useCallback(
     (category: CategorySummary): boolean => {
-      if (!selectedCategory.slug) {
+      if (isAllCategorySlug(selectedCategory.slug)) {
         return false;
       }
 
@@ -405,7 +467,11 @@ export default function SearchInputWithCategory() {
             className="category-dropdown"
             handler={(openMenu) => (
               <button type="button" className="dropdown-handler" onClick={openMenu}>
-                <span>{t(selectedCategory.label, { defaultMessage: selectedCategory.label })}</span>
+                <span>
+                  {!isAllCategorySlug(selectedCategory.slug)
+                    ? t(selectedCategory.label, { defaultMessage: selectedCategory.label })
+                    : defaultCategoryLabel}
+                </span>
                 <IconChevronDown size={18} stroke={1.5} />
               </button>
             )}>
@@ -414,8 +480,8 @@ export default function SearchInputWithCategory() {
                 <StyledCategoryMenuItem key="all-categories-option">
                   <CategoryNavigationRow
                     icon="category"
-                    title={t(DEFAULT_CATEGORY.label, { defaultMessage: DEFAULT_CATEGORY.label })}
-                    active={!selectedCategory.slug}
+                    title={defaultCategoryLabel}
+                    active={isAllCategorySlug(selectedCategory.slug)}
                     showChevron={false}
                     minWidth="220px"
                     onClick={() => handleCategorySelectBySlug(undefined)}
@@ -469,19 +535,14 @@ export default function SearchInputWithCategory() {
               </Box>
             ) : (
               <Box minWidth="240px">
-                <button
-                  type="button"
-                  className={`sub-category-link${!selectedCategory.slug ? " active" : ""}`}
-                  onClick={() => handleCategorySelectBySlug(undefined)}
-                >
-                  <Span className="sub-category-title" color="text.muted" fontSize="14px">
-                    {t(DEFAULT_CATEGORY.label, { defaultMessage: DEFAULT_CATEGORY.label })}
-                  </Span>
-                </button>
                 <AccordionMenu
                   items={categoryAccordionItems}
+                  heading={t("Categories", { defaultMessage: "Categorías" })}
                   onSelectItem={handleAccordionCategorySelect}
                   selectedHref={selectedCategoryHref}
+                  expandRootItemsByDefault={false}
+                  parentRowAction="toggle"
+                  reserveTrailingSpaceForLeafItems
                 />
               </Box>
             )}

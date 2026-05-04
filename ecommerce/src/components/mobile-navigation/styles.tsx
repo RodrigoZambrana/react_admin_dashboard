@@ -14,12 +14,14 @@ export const StyledMobileAccordionItem = styled.div`
     width: 100%;
     display: flex;
     align-items: center;
+    flex-wrap: nowrap;
     gap: 0.85rem;
     min-height: 48px;
     padding: 0.7rem 0.9rem;
     border-radius: 12px;
     cursor: pointer;
     color: ${({ theme }) => theme.colors.text.primary};
+    overflow: hidden;
     transition:
       background-color 180ms ease,
       color 180ms ease,
@@ -76,11 +78,13 @@ export const StyledMobileAccordionItem = styled.div`
     min-width: 0;
     display: flex;
     align-items: center;
+    flex-wrap: nowrap;
     gap: 0.85rem;
     min-height: inherit;
     padding: inherit;
     cursor: pointer;
     color: inherit;
+    overflow: hidden;
   }
 
   .mobile-accordion-chevron-trigger {
@@ -112,11 +116,20 @@ export const StyledMobileAccordionItem = styled.div`
     display: inline-flex;
     align-items: center;
     line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .mobile-accordion-chevron {
     margin-left: auto;
     flex: 0 0 auto;
     transition: transform 200ms ease, color 180ms ease;
+  }
+
+  .mobile-accordion-end-spacer {
+    width: 44px;
+    min-width: 44px;
+    flex: 0 0 44px;
   }
 `;

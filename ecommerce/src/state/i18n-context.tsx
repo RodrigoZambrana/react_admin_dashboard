@@ -124,10 +124,29 @@ export const translateNode = (
   return node;
 };
 
-export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const I18nProvider: React.FC<{
+  children: ReactNode;
+  defaultLocale?: SupportedLocale;
+  availableLocales?: SupportedLocale[];
+}> = ({ children, defaultLocale = INITIAL_LOCALE, availableLocales }) => {
   const router = useRouter();
-  const [locale, setLocaleState] = useState<SupportedLocale>(INITIAL_LOCALE);
+  const normalizedAvailableLocales = useMemo<SupportedLocale[]>(() => {
+    const candidateLocales = (availableLocales ?? SUPPORTED_LOCALES).filter(isSupportedLocale);
+    return candidateLocales.length > 0 ? Array.from(new Set(candidateLocales)) : SUPPORTED_LOCALES;
+  }, [availableLocales]);
+  const resolvedDefaultLocale = useMemo<SupportedLocale>(() => {
+    if (normalizedAvailableLocales.includes(defaultLocale)) {
+      return defaultLocale;
+    }
+    return normalizedAvailableLocales[0] ?? INITIAL_LOCALE;
+  }, [defaultLocale, normalizedAvailableLocales]);
+  const [locale, setLocaleState] = useState<SupportedLocale>(resolvedDefaultLocale);
   const hasBootstrapped = useRef(false);
+  const isAllowedLocale = useCallback(
+    (value: string): value is SupportedLocale =>
+      isSupportedLocale(value) && normalizedAvailableLocales.includes(value),
+    [normalizedAvailableLocales]
+  );
 
   const persistLocale = useCallback((value: SupportedLocale) => {
     if (typeof window === "undefined") return;
@@ -146,7 +165,7 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     try {
       const stored = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-      if (stored && isSupportedLocale(stored)) {
+      if (stored && isAllowedLocale(stored)) {
         setLocaleState(stored);
         return;
       }
@@ -155,10 +174,18 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     const browserLocale = detectBrowserLocale();
-    if (browserLocale) {
+    if (browserLocale && isAllowedLocale(browserLocale)) {
       setLocaleState(browserLocale);
+      return;
     }
-  }, []);
+
+    setLocaleState(resolvedDefaultLocale);
+    persistLocale(resolvedDefaultLocale);
+  }, [isAllowedLocale, persistLocale, resolvedDefaultLocale]);
+
+  useEffect(() => {
+    setLocaleState((current) => (isAllowedLocale(current) ? current : resolvedDefaultLocale));
+  }, [isAllowedLocale, resolvedDefaultLocale]);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -168,26 +195,30 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const setLocale = useCallback(
     (next: SupportedLocale) => {
-      if (!isSupportedLocale(next)) return;
+      if (!isAllowedLocale(next)) return;
       setLocaleState(next);
       persistLocale(next);
       startTransition(() => {
         router.refresh();
       });
     },
-    [persistLocale, router]
+    [isAllowedLocale, persistLocale, router]
   );
 
   const toggleLocale = useCallback(() => {
+    if (normalizedAvailableLocales.length <= 1) {
+      return;
+    }
     setLocaleState((current) => {
-      const next = current === "es" ? "en" : "es";
+      const currentIndex = normalizedAvailableLocales.indexOf(current);
+      const next = normalizedAvailableLocales[(currentIndex + 1) % normalizedAvailableLocales.length];
       persistLocale(next);
       return next;
     });
     startTransition(() => {
       router.refresh();
     });
-  }, [persistLocale, router]);
+  }, [normalizedAvailableLocales, persistLocale, router]);
 
   const translate = useCallback(
     (key: string, params?: TranslateParams) => {
@@ -229,9 +260,9 @@ export const I18nProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setLocale,
       toggleLocale,
       t: translate,
-      availableLocales: SUPPORTED_LOCALES
+      availableLocales: normalizedAvailableLocales
     }),
-    [locale, setLocale, toggleLocale, translate]
+    [locale, normalizedAvailableLocales, setLocale, toggleLocale, translate]
   );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;

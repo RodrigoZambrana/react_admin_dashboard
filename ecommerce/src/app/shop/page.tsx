@@ -8,7 +8,6 @@ import { buildCollectionPageJsonLd } from "@/lib/seo/structured-data";
 import { resolveAbsoluteUrl } from "@/lib/seo/urls";
 import { mapProductSummaryToProduct } from "@/lib/storefront/adapters";
 import Container from "@component/Container";
-import Hidden from "@component/hidden";
 
 import SaleNavbar from "@sections/sale-page-1/SaleNavbar";
 import SaleCategory from "@sections/sale-page-1/SaleCategory";
@@ -201,9 +200,7 @@ export default async function ShopPage({ searchParams }: SearchParams) {
       <Container mt="2rem">
         <SaleNavbar categories={saleCategories} selectedSlug={selectedCategorySlug} />
 
-        <Hidden down="sm">
-          <SaleCategory categories={saleCategories} selectedSlug={selectedCategorySlug} />
-        </Hidden>
+        <SaleCategory categories={saleCategories} selectedSlug={selectedCategorySlug} />
 
         <ShopProductArea
           products={products}

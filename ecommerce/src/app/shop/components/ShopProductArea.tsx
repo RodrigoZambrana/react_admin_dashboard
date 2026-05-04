@@ -51,7 +51,8 @@ const DesktopFilterWrapper = styled(Box)`
 
 const MobileFilterButton = styled(Button)`
   position: fixed;
-  right: 1.5rem;
+  left: 1.5rem;
+  right: auto;
   bottom: 5.5rem;
   border-radius: 999px;
   box-shadow: ${({ theme }) => theme.shadows[3]};

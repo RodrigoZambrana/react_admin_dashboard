@@ -48,7 +48,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     <html lang="es" suppressHydrationWarning>
       <body className={publicSans.className}>
         <StyledComponentsRegistry>
-          <I18nProvider>
+          <I18nProvider
+            availableLocales={storefrontConfig.features?.supportedLocales}
+            defaultLocale={storefrontConfig.features?.defaultLocale}
+          >
             <ThemeProvider>
               <ToastProvider>
                 <CartProvider>

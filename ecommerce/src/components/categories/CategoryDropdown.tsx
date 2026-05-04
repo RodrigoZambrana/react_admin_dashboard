@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
+import { usePathname, useRouter } from "next/navigation";
 
 import Box from "@component/Box";
 import Card from "@component/Card";
@@ -10,9 +11,17 @@ import CategoryMenuItem from "./CategoryMenuItem";
 import { StyledCategoryDropdown } from "./styles";
 import type { CategorySummary } from "@/types/storefront";
 import { buildFallbackCategorySummaries } from "@/lib/storefront/category-utils";
-import { buildShopCategoryHref, mapCategorySummariesToAccordionNodes } from "@/lib/storefront/menu-nodes";
+import {
+  buildShopCategoryHref,
+  mapCategorySummariesToAccordionNodes,
+  type AccordionMenuNode
+} from "@/lib/storefront/menu-nodes";
 import navigations from "@data/navigations";
 import AccordionMenu from "@component/mobile-navigation/AccordionMenu";
+import { trackEvent } from "@/lib/analytics/trackEvent";
+import { EVENT_SCHEMA_VERSION } from "@/lib/analytics/eventSchema";
+import { env } from "@/lib/env";
+import { resolvePageType } from "@/lib/analytics/pageType";
 
 // =========================================
 type CategoryDropdownProps = {
@@ -33,9 +42,12 @@ export default function CategoryDropdown({
   onNavigate,
   interactionMode = "hover",
 }: CategoryDropdownProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const fallbackCategories = useMemo(() => buildFallbackCategorySummaries(), []);
   const fallbackIcons = useMemo(() => navigations.map((item) => item.icon || "category"), []);
   const iconList = icons && icons.length ? icons : fallbackIcons;
+  const pageType = resolvePageType(pathname);
 
   const categoryData = useMemo(
     () => (categories && categories.length > 0 ? categories : fallbackCategories),
@@ -45,9 +57,50 @@ export default function CategoryDropdown({
     () => mapCategorySummariesToAccordionNodes(categoryData, iconList),
     [categoryData, iconList]
   );
+  const handleAccordionSelection = useCallback(
+    (item: AccordionMenuNode) => {
+      if (!item.href) {
+        return;
+      }
+
+      void trackEvent({
+        event_name: "cta_click",
+        event_category: "engagement",
+        tenant_id: env.clientSlug,
+        page_type: pageType,
+        component_type: "category_menu",
+        component_id: "mobile_category_menu",
+        cta_id: "navigation.category.select",
+        cta_name: "category_select",
+        cta_type: "primary",
+        cta_context: "navigation",
+        cta_location: "mobile_category_menu",
+        schema_version: EVENT_SCHEMA_VERSION,
+        metadata: {
+          category_name: item.title,
+          category_href: item.href
+        },
+        data: {
+          category_name: item.title,
+          category_href: item.href
+        }
+      });
+
+      router.push(item.href, { scroll: false });
+      onNavigate?.();
+    },
+    [onNavigate, pageType, router]
+  );
 
   if (interactionMode === "accordion") {
-    return <AccordionMenu items={accordionItems} onNavigate={onNavigate} />;
+    return (
+      <AccordionMenu
+        items={accordionItems}
+        onNavigate={onNavigate}
+        onSelectItem={handleAccordionSelection}
+        expandRootItemsByDefault={false}
+      />
+    );
   }
 
   return (

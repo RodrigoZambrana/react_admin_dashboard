@@ -50,6 +50,11 @@ const FALLBACK_CONFIG: StorefrontConfig = {
       alt: "urucortinas",
     },
   },
+  features: {
+    languageSelector: true,
+    supportedLocales: ["es", "en"],
+    defaultLocale: "es",
+  },
   companyProfile: {
     legalName: "urucortinas",
     tradeName: "urucortinas",
