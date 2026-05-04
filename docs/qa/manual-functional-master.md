@@ -29,6 +29,18 @@ La fuente viva y detallada sigue siendo:
 - Si un cambio toca más de un sistema, hay que validar el handoff completo.
 - Si aparece un bug, se registra en `Hallazgos` y se re-testea el flujo afectado antes de cerrar.
 
+## Última validación runtime
+
+- `2026-05-03`: se recompiló y reinició el admin local.
+- `Product List` ya no muestra keys crudas; `appsProducts.products` fue corregido a `nav.appsProducts.products` y en runtime se ve `Productos`.
+- `OrderNew` quedó alineado con la misma traducción y en runtime muestra `Pedidos confirmados · Agregar Pedido` y `Productos` sin keys visibles.
+- `Pedidos confirmados` sigue mostrando la orden generada por storefront `#0de8759e-0e10-53e2-979a-bc616529b441`, validando consistencia storefront → admin.
+- `2026-05-03`: se validó storefront en runtime hasta `PDP -> carrito` con el producto paramétrico `Producto Variable QA API 2` (`/product/qa-var-003`) y el handoff al checkout quedó consistente hasta el paso de dirección.
+- `2026-05-03`: `CMS Pages` cargó correctamente en `localhost:8080/admin/cms/pages?scope=store` y mostró páginas publicadas como `Quiénes somos`, `Preguntas frecuentes`, `Reparación urgente` y `Persianas de enrollar`.
+- `2026-05-03`: `GET /api/healthz` y `GET /api/health` respondieron `200` con estado `ok`.
+- `2026-05-03`: checkout bloqueó en la validación de `Barrio`; la UI mostró `Debes seleccionar el barrio.` y no aceptó la selección del combo durante la corrida, por lo que ese caso sigue abierto como bloqueo funcional del flujo de compra.
+- `2026-05-03`: luego de fijar `Barrio` en `Aguada` y completar los campos de contacto/dirección mínimos, el checkout aceptó los datos pero `Continuar al pago` no avanzó al siguiente paso en esta corrida. Queda como posible bloqueo de transición del flujo.
+
 ## Orden de ejecución recomendado
 
 1. Navegación base
@@ -110,6 +122,11 @@ En cada caso:
 5. Regenerar el workbook
 6. Volver a ejecutar los bloques críticos
 
+## Hallazgos abiertos en esta corrida
+
+- `ECOM-CHK-BARRIO-001`: el checkout bloquea la selección de barrio en el primer intento. Reproducir en `localhost:8080/checkout`, completar datos personales y de envío, abrir el selector de barrio e intentar avanzar. Resultado actual: el formulario inicialmente muestra el error `Debes seleccionar el barrio.` aunque el dropdown sí lista opciones.
+- `ECOM-CHK-TRANS-001`: con `Barrio` ya seleccionado y los campos mínimos completos, `Continuar al pago` no avanzó al siguiente paso en esta corrida. Reproducir en `localhost:8080/checkout`, completar nombre, apellido, email, teléfono, calle, número y barrio, y pulsar `Continuar al pago`. Resultado actual: permanece en `Detalles`.
+
 ## Punto de partida operativo
 
 - Si el cambio afecta navegación, búsqueda o PDP, ejecutar primero `ECOM-HOME`, `ECOM-SEARCH`, `ECOM-PROD` y `ECOM-CAN`.
@@ -122,4 +139,3 @@ En cada caso:
 
 Este documento ordena la ejecución manual.  
 La verdad detallada y fila por fila vive en el workbook y en su fuente estructurada.
-

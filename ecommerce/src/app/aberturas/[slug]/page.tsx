@@ -5,8 +5,6 @@ import type { Metadata } from "next";
 import ProductDetailExperience from "@component/products/ProductDetailExperience";
 import StructuredData from "@/components/seo/StructuredData";
 import ProductViewAnalytics from "@/components/seo/ProductViewAnalytics";
-import ProductMultimediaCta from "@/components/products/ProductMultimediaCta";
-import { CmsPageBody } from "@/components/cms/CmsPageShell";
 import {
   loadProductPageData,
   buildProductSearchKey,
@@ -119,7 +117,7 @@ export default async function ProductDetails({
     notFound();
   }
 
-  const { product, productDetail, relatedProducts, frequentlyBought, cmsPage } = productData;
+  const { product, productDetail, relatedProducts, frequentlyBought } = productData;
   const structuredData = seoDocument?.schemaPayload
     ? Array.isArray(seoDocument.schemaPayload)
       ? seoDocument.schemaPayload
@@ -129,19 +127,6 @@ export default async function ProductDetails({
   return (
     <Fragment>
       <StructuredData schemas={structuredData} />
-      <section style={{ padding: "1.5rem 1rem 0", maxWidth: "1280px", margin: "0 auto" }}>
-        <h1>{seoDocument?.title ?? product.title}</h1>
-        <p>{seoDocument?.description ?? productDetail.description ?? product.title}</p>
-        {productDetail.specifications?.length ? (
-          <ul>
-            {productDetail.specifications.slice(0, 6).map((spec) => (
-              <li key={`${spec.label}-${spec.value}`}>
-                {spec.label}: {spec.value}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
       <ProductViewAnalytics product={product} />
       <ProductDetailExperience
         product={product}
@@ -152,12 +137,6 @@ export default async function ProductDetails({
           Array.isArray(productDetail?.suggestedAddOns)
             ? productDetail.suggestedAddOns.map(mapProductSummaryToProduct)
             : []
-        }
-        beforeDetails={
-          <>
-            <ProductMultimediaCta product={product} />
-            {cmsPage ? <CmsPageBody page={cmsPage} /> : null}
-          </>
         }
         installationAddOn={productDetail?.installationAddOn ?? null}
         reviews={Array.isArray(productDetail?.reviews) ? productDetail.reviews : []}

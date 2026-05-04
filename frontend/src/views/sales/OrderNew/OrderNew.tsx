@@ -2891,7 +2891,7 @@ const formInitialValues = useMemo(() => {
                                                 title={t('text.columns.customer')}
                                             />
                                             <Steps.Item
-                                                title={t('text.titles.products')}
+                                                title={t('nav.appsProducts.products')}
                                             />
                                             <Steps.Item
                                                 title={docSummary(
@@ -3303,7 +3303,7 @@ const formInitialValues = useMemo(() => {
                             {currentStep === 1 && (
                                 <div className="flex flex-col gap-6">
                                     <Card bodyClass="p-5">
-                                        <h4 className="mb-4">{t('text.titles.products')}</h4>
+                                        <h4 className="mb-4">{t('nav.appsProducts.products')}</h4>
                                         <FormContainer>
                                             {itemsOnlyMode && (
                                                 <BudgetQuickSummaryWatcher
@@ -3397,7 +3397,7 @@ const formInitialValues = useMemo(() => {
                                                             type="button"
                                                             onClick={() => setNewProductOpen(true)}
                                                         >
-                                                            {t('text.actions.add')} {t('text.titles.products')}
+                                                            {t('text.actions.add')} {t('nav.appsProducts.products')}
                                                         </Button>
                                                         <div className="font-semibold md:ml-auto">
                                                             {itemsOnlyMode
@@ -4074,7 +4074,7 @@ const formInitialValues = useMemo(() => {
                                 onRequestClose={closeNewProductDrawer}
                                 width={640}
                                 bodyClass="p-0"
-                                title={t('text.actions.add') + ' ' + t('text.titles.products')}
+                                title={t('text.actions.add') + ' ' + t('nav.appsProducts.products')}
                             >
                                 <div className="p-6">
                                     <ProductForm

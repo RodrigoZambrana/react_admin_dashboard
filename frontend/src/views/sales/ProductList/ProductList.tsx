@@ -342,7 +342,7 @@ const ProductList = () => {
     const card = (
         <AdaptableCard className="h-full" bodyClass="h-full">
             <div className="lg:flex items-center justify-between mb-4">
-                <h3 className="mb-4 lg:mb-0">{t('text.titles.products')}</h3>
+                <h3 className="mb-4 lg:mb-0">{t('nav.appsProducts.products')}</h3>
                 <ProductTableTools onAddProduct={handleAddProductClick} isParametricView={isParametricView} />
             </div>
             <ProductTable marginPercent={aberturasMarginPercent} />

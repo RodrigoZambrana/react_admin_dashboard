@@ -878,7 +878,7 @@ const ProductTable = ({
 
         if (!isColumnHidden('sku')) {
             cols.push({
-                header: t('text.labels.codeSku') || 'Code (SKU)',
+                header: t('text.labels.sku') || 'SKU',
                 accessorKey: 'productCode',
                 cell: (props) => {
                     const skuValue = props.row.original.productCode
