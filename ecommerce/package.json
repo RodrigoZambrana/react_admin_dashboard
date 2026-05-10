@@ -14,6 +14,10 @@
     "test:integrity": "node ../tools/qa/validate-governance.mjs --workspace ecommerce",
     "test:e2e": "playwright test",
     "test:smoke": "node ../tools/qa/validate-targets.mjs --cwd e2e admin-signin-smoke.spec.ts commerce-critical.spec.ts mercadopago-success.spec.ts && playwright test --workers=1 admin-signin-smoke.spec.ts commerce-critical.spec.ts mercadopago-success.spec.ts -g \"works with seeded credentials|does not crash|keeps a single cart line for the same published parametric base variant added from shop and detail|Mercado Pago success flow\"",
+    "test:e2e:mobile": "node ../tools/qa/validate-targets.mjs --cwd e2e mobile-storefront-core.spec.ts && playwright test --workers=1 mobile-storefront-core.spec.ts",
+    "test:e2e:search": "node ../tools/qa/validate-targets.mjs --cwd e2e storefront-search.spec.ts && playwright test --workers=1 storefront-search.spec.ts",
+    "test:e2e:perf": "node ../tools/qa/validate-targets.mjs --cwd e2e storefront-visual-stability.spec.ts && playwright test --workers=1 storefront-visual-stability.spec.ts",
+    "test:e2e:canonical": "node ../tools/qa/validate-targets.mjs --cwd e2e storefront-canonical-handoff.spec.ts && playwright test --workers=1 storefront-canonical-handoff.spec.ts",
     "test:e2e:critical": "node ../tools/qa/validate-targets.mjs --cwd e2e commerce-critical.spec.ts mercadopago-success.spec.ts && playwright test --workers=1 commerce-critical.spec.ts mercadopago-success.spec.ts -g \"keeps a single cart line for the same published parametric base variant added from shop and detail|Mercado Pago success flow\"",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui"

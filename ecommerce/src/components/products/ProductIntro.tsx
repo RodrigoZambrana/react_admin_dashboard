@@ -775,6 +775,7 @@ export default function ProductIntro({
         thumbnail: snapshotThumbnail,
         inventoryStatus,
         attributes: variantAttributesForCart,
+        canonicalConfiguration: canonicalConfiguration ?? null,
         configuration: isPublishedParametricProduct
           ? selectedPublishedParametricVariant?.configuration
           : isDerivedM2Product

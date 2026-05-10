@@ -1,19 +1,20 @@
 # Coverage Gaps
 
-Fecha de auditoria: `2026-05-08`
+Fecha de auditoria: `2026-05-10`
 
 ## Gaps funcionales prioritarios
 
 | Dominio | Estado workbook | Evidencia actual | Gap real | Prioridad |
 | --- | --- | --- | --- | --- |
-| `ECOM-SEARCH-001` / `002` | `DEFINIDA` | codigo y componentes, sin rerun valido | busqueda visible y empty state sin proteccion automatizada demostrable | P0 |
-| `ECOM-CAN-001` | `DEFINIDA` | codigo y backend, sin cierre E2E valido | canonicidad monoblock puede romper PDP -> carrito -> checkout | P0 |
 | `ECOM-ANL-001` / `002` | `DEFINIDA` | specs en UI y backend, sin rerun de flujo | eventos estructurales pueden degradarse sin deteccion end-to-end | P0 |
-| `ECOM-MOB-001` | `DEFINIDA` | evidencia indirecta | no existe smoke movil core verificable hoy | P1 |
-| `ECOM-PERF-001` | `DEFINIDA` | evidencia indirecta | no hay gate de estabilidad visual o carga critica | P1 |
 | `ADMIN-CMS-003` | `DEFINIDA` | metadata + commercial surfaces | falta prueba activa de edicion canonica sin degradar SEO publico | P1 |
 | `CROSS-020` / `021` | `DEFINIDA` | mezcla backend + analytics + e2e | handoff canonicas/analytics sin validacion fresca | P0 |
 | `ECOM-PAY-001` / `002` | `PENDIENTE` | spec inexistente | flujo feliz de Mercado Pago sin proteccion automatizada real | P0 |
+
+## Cerrados en esta ola
+
+- `ECOM-CAN-001` ahora queda cubierto por `ecommerce/e2e/storefront-canonical-handoff.spec.ts` y la metadata canónica validada en runtime.
+- `ECOM-PERF-001` ahora queda cubierto por `ecommerce/e2e/storefront-visual-stability.spec.ts` y la carga inicial estable de home/listing/PDP.
 
 ## Casos marcados como cubiertos con evidencia no confiable
 
@@ -67,7 +68,7 @@ Coverage observada hoy en archivos criticos:
 ### Frontend storefront
 
 - Vitest de utilidades/SEO ya fue recuperado y hoy corre en verde;
-- search, canonicas, mobile y performance siguen sin cierre runtime;
+- canonicas y performance siguen sin cierre runtime;
 - parte de catalogo, auth y PDP esta sostenida por specs `skip`.
 
 ### Frontend admin
