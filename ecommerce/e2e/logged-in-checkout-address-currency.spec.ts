@@ -8,9 +8,7 @@ import {
   waitForLatestOrderByCustomerEmail
 } from "./support/db";
 import { buildTestCustomer } from "./support/factories";
-import { fetchProductDetail, registerCustomer } from "./support/storefront-api";
-
-const SIMPLE_PRODUCT_SLUG = "cortinas-roller";
+import { fetchFirstInStockCatalogProduct, fetchProductDetail, registerCustomer } from "./support/storefront-api";
 const PARAMETRIC_PRODUCT_SLUG = "ventana-corrediza-20-natural-3mm-1800x1000";
 const CART_STORAGE_KEY = "storefront.cart.v1";
 
@@ -22,7 +20,7 @@ async function bootstrapStorefrontContext(page: Page, currency: "USD" | "UYU") {
 }
 
 async function loginCustomer(page: Page, customer: ReturnType<typeof buildTestCustomer>) {
-  const response = await page.request.post("http://localhost:4000/api/storefront/auth/login", {
+  const response = await page.request.post("http://localhost:8080/api/storefront/auth/login", {
     data: {
       identifier: customer.email,
       password: customer.password
@@ -170,7 +168,7 @@ test.describe("logged in checkout persistence and customer email gating", () => 
 
     const customer = buildTestCustomer(Date.now() + 2000);
     await registerStorefrontCustomer(page, request, customer);
-    const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
+    const simple = await fetchFirstInStockCatalogProduct(request);
     const parametric = await fetchProductDetail(request, PARAMETRIC_PRODUCT_SLUG);
 
     await addSimpleProductFromDetail(page, simple.slug);
@@ -220,7 +218,7 @@ test.describe("logged in checkout persistence and customer email gating", () => 
       timeout: 20_000
     });
 
-    const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
+    const simple = await fetchFirstInStockCatalogProduct(request);
 
     await addSimpleProductFromDetail(page, simple.slug);
     await waitForCartItemCount(page, 1);

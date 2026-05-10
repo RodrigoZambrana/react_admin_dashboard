@@ -1,0 +1,12 @@
+{
+  "name": "react_admin_dashboard-monorepo",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "run-qa": "node tools/qa/run-qa.mjs --write-report",
+    "test:integrity": "node tools/qa/monorepo-suite-runner.mjs --suite integrity --write-report",
+    "test:smoke": "node tools/qa/monorepo-suite-runner.mjs --suite smoke --write-report",
+    "test:coverage": "node tools/qa/monorepo-suite-runner.mjs --suite coverage",
+    "test:all": "npm run test:integrity && npm run test:smoke && npm run run-qa"
+  }
+}

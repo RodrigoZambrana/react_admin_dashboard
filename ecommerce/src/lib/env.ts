@@ -78,8 +78,8 @@ const DEFAULT_API_BASE = "http://localhost:4000/api/storefront";
 const DEFAULT_AUTH_API_BASE = "http://localhost:4000/api";
 const DEFAULT_ANALYTICS_API_BASE = "http://localhost:4000/api/analytics";
 const DEFAULT_AI_PLATFORM_BASE = "http://localhost:4110";
-const DEFAULT_SITE_URL = "http://localhost:3000";
-const DEFAULT_MEDIA_BASE_URL = "http://localhost:3000/media";
+const DEFAULT_SITE_URL = "http://localhost:8080";
+const DEFAULT_MEDIA_BASE_URL = "http://localhost:8080/media";
 const DEFAULT_MEDIA_PROVIDER = "local";
 
 const normalizeClientSlug = (value: string | undefined | null) => {

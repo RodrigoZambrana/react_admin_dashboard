@@ -6,7 +6,7 @@ import {
   aiPlatformInternalToken,
 } from "./env";
 
-const adminApiBaseUrl = process.env.PLAYWRIGHT_ADMIN_API_URL ?? "http://127.0.0.1:4000/api";
+const adminApiBaseUrl = process.env.PLAYWRIGHT_ADMIN_API_URL ?? "http://127.0.0.1:8080/api";
 const adminEmail = process.env.PLAYWRIGHT_ADMIN_EMAIL ?? "desarrollo@software-strategy.com";
 const adminPassword = process.env.PLAYWRIGHT_ADMIN_PASSWORD ?? "Pass123";
 const aiPlatformConversationChannel = "email";
@@ -60,7 +60,9 @@ export async function signInAdminUser(
     }
   });
 
-  expect(response.ok()).toBeTruthy();
+  if (!response.ok()) {
+    throw new Error(`Admin sign-in failed with status ${response.status}: ${await response.text()}`);
+  }
   const payload = (await response.json()) as SignInResponse;
   const token = resolveAuthToken(payload);
   expect(token).toBeTruthy();
@@ -171,7 +173,9 @@ export async function createManagedAdminUser(
     }
   });
 
-  expect(createResponse.ok()).toBeTruthy();
+  if (!createResponse.ok()) {
+    throw new Error(`Admin user creation failed with status ${createResponse.status}: ${await createResponse.text()}`);
+  }
   const created = (await createResponse.json()) as ManagedAdminUserResponse;
   expect(created.id).toBeTruthy();
 
@@ -187,7 +191,9 @@ export async function createManagedAdminUser(
     }
   );
 
-  expect(passwordResponse.ok()).toBeTruthy();
+  if (!passwordResponse.ok()) {
+    throw new Error(`Admin password update failed with status ${passwordResponse.status}: ${await passwordResponse.text()}`);
+  }
   return created;
 }
 

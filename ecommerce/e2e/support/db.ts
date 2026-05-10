@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { Client } from "pg";
 
 import { aiPlatformDatabaseUrl, databaseUrl, storefrontBaseUrl } from "./env";
@@ -190,15 +191,89 @@ async function withClient<T>(
   callback: (client: Client) => Promise<T>,
   connectionString = databaseUrl
 ): Promise<T> {
-  const client = new Client({ connectionString });
-  await client.connect();
-
   try {
-    return await callback(client);
-  } finally {
-    await client.end();
+    const client = new Client({ connectionString });
+    await client.connect();
+
+    try {
+      return await callback(client);
+    } finally {
+      await client.end();
+    }
+  } catch (error) {
+    if (!isTcpConnectionFailure(error)) {
+      throw error;
+    }
+
+    const dockerClient = {
+      query: async (text: string, values: unknown[] = []) => ({
+        rows: await queryViaBackendContainer(text, values, connectionString),
+      }),
+      end: async () => undefined,
+    } as Client;
+
+    return await callback(dockerClient);
   }
 }
+
+function isTcpConnectionFailure(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof (error as { code?: string }).code === "string" &&
+      ["ECONNREFUSED", "ETIMEDOUT", "ENETUNREACH"].includes((error as { code?: string }).code ?? "")
+  );
+}
+
+function resolveDockerDatabaseContainer(connectionString: string): string {
+  if (connectionString.includes("ai_platform")) {
+    return process.env.PLAYWRIGHT_AI_PLATFORM_DOCKER_CONTAINER ?? "ai-platform";
+  }
+
+  return process.env.PLAYWRIGHT_DATABASE_DOCKER_CONTAINER ?? "local-test-env-backend-1";
+}
+
+async function queryViaBackendContainer<T extends Record<string, unknown>>(
+  text: string,
+  values: unknown[] = [],
+  connectionString = databaseUrl,
+): Promise<T[]> {
+  const containerName = resolveDockerDatabaseContainer(connectionString);
+  const payloadBase64 = Buffer.from(JSON.stringify({ text, values }), "utf8").toString("base64");
+  const script = `
+    const { PrismaClient } = require('@prisma/client');
+    const payload = JSON.parse(Buffer.from(process.env.PLAYWRIGHT_QUERY_PAYLOAD_B64 || '', 'base64').toString('utf8') || '{}');
+    const client = new PrismaClient();
+    (async () => {
+      try {
+        const result = await client.$queryRawUnsafe(payload.text, ...(payload.values ?? []));
+        process.stdout.write(JSON.stringify({ rows: Array.isArray(result) ? result : [] }));
+      } finally {
+        await client.$disconnect();
+      }
+    })().catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+  `;
+
+  const output = execFileSync(
+    "docker",
+    ["exec", "-i", "-e", `PLAYWRIGHT_QUERY_PAYLOAD_B64=${payloadBase64}`, containerName, "node", "-e", script],
+    {
+      encoding: "utf8",
+    },
+  );
+
+  try {
+    const parsed = JSON.parse(output.trim()) as { rows?: T[] };
+    return parsed.rows ?? [];
+  } catch (error) {
+    throw new Error(`Unable to parse DB query output from ${containerName}: ${String(error)}`);
+  }
+}
+
 
 export async function waitForEmailActionLink(
   toAddress: string,
@@ -238,6 +313,14 @@ export async function waitForEmailActionLink(
   }
 
   throw new Error(`Timed out waiting for ${event} email for ${toAddress}`);
+}
+
+export async function clearPasswordResetTokens(): Promise<void> {
+  await withClient(async (client) =>
+    client.query(`
+      DELETE FROM "PasswordResetToken"
+    `)
+  );
 }
 
 export async function waitForLatestPhoneOtpCode(

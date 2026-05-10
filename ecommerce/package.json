@@ -7,8 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "vitest run --config vitest.config.ts",
+    "test:unit": "vitest run --config vitest.config.ts src/lib/**/*.spec.ts",
+    "test:integration": "vitest run --config vitest.config.ts src/components/**/*.spec.ts src/components/**/*.spec.tsx",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
+    "test:integrity": "node ../tools/qa/validate-governance.mjs --workspace ecommerce",
     "test:e2e": "playwright test",
-    "test:e2e:critical": "playwright test --workers=1 commerce-critical.spec.ts mercadopago-success.spec.ts",
+    "test:smoke": "node ../tools/qa/validate-targets.mjs --cwd e2e admin-signin-smoke.spec.ts commerce-critical.spec.ts mercadopago-success.spec.ts && playwright test --workers=1 admin-signin-smoke.spec.ts commerce-critical.spec.ts mercadopago-success.spec.ts -g \"works with seeded credentials|does not crash|keeps a single cart line for the same published parametric base variant added from shop and detail|Mercado Pago success flow\"",
+    "test:e2e:critical": "node ../tools/qa/validate-targets.mjs --cwd e2e commerce-critical.spec.ts mercadopago-success.spec.ts && playwright test --workers=1 commerce-critical.spec.ts mercadopago-success.spec.ts -g \"keeps a single cart line for the same published parametric base variant added from shop and detail|Mercado Pago success flow\"",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui"
   },
@@ -59,10 +65,12 @@
     "@types/react-slick": "^0.23.13",
     "@types/styled-system": "^5.1.23",
     "@types/styled-system__css": "^5.0.21",
+    "@vitest/coverage-v8": "^4.1.0",
     "eslint": "^8.57.1",
     "eslint-config-next": "^15.5.14",
     "pg": "^8.20.0",
-    "typescript": "5.8.2"
+    "typescript": "5.8.2",
+    "vitest": "^4.1.0"
   },
   "license": "https://themeforest.net/licenses/standard"
 }

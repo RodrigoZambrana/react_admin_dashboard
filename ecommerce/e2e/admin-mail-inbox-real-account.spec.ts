@@ -12,7 +12,7 @@ test("admin mail inbox loads the real account surface and opens a detail when me
 
   await page.goto(
     resolveAdminAppUrl(
-      `/app/crm/mail/inbox?account=${encodeURIComponent(accountId)}&mailbox=INBOX`,
+      `/admin/crm/mail/inbox?account=${encodeURIComponent(accountId)}&mailbox=INBOX`,
     ),
     {
       waitUntil: "domcontentloaded",
@@ -33,7 +33,7 @@ test("admin mail inbox direct url with account and mailbox resolves the real inb
 
   await page.goto(
     resolveAdminAppUrl(
-      `/app/crm/mail/inbox?account=${encodeURIComponent(accountId)}&mailbox=INBOX`,
+      `/admin/crm/mail/inbox?account=${encodeURIComponent(accountId)}&mailbox=INBOX`,
     ),
     {
       waitUntil: "domcontentloaded",
@@ -54,7 +54,7 @@ test("admin mail inbox direct url resolves on mobile without opening the sidebar
 
   await page.goto(
     resolveAdminAppUrl(
-      `/app/crm/mail/inbox?account=${encodeURIComponent(accountId)}&mailbox=INBOX`,
+      `/admin/crm/mail/inbox?account=${encodeURIComponent(accountId)}&mailbox=INBOX`,
     ),
     {
       waitUntil: "domcontentloaded",

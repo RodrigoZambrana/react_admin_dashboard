@@ -1,17 +1,47 @@
 {
   "version": 1,
+  "defaultProfileId": "core",
+  "profiles": {
+    "core": {
+      "description": "Blocking release gate for cross-project, domain, storefront, adapter and static quality checks.",
+      "blockIds": [
+        "storefront-e2e-critical",
+        "storefront-e2e-auth-content",
+        "storefront-e2e-admin-cross-project",
+        "storefront-e2e-account-notifications",
+        "storefront-e2e-account-checkout",
+        "backend-domain-core",
+        "backend-domain-extended",
+        "frontend-admin-unit",
+        "frontend-admin-extended",
+        "channel-adapter-core",
+        "quality-static"
+      ]
+    },
+    "deferred": {
+      "description": "Non-blocking AI and deep-runtime coverage kept out of the release gate while still tracked.",
+      "blockIds": [
+        "storefront-e2e-ai-conversations",
+        "ai-conversation-quality",
+        "real-whatsapp-corpus-sync",
+        "real-webchat-corpus-replay",
+        "live-webchat-probe-loop",
+        "real-chat-remediation-loop",
+        "ai-runtime-smoke"
+      ]
+    }
+  },
   "defaultBlockIds": [
     "storefront-e2e-critical",
     "storefront-e2e-auth-content",
     "storefront-e2e-admin-cross-project",
-    "storefront-e2e-ai-conversations",
-    "ai-conversation-quality",
     "storefront-e2e-account-notifications",
     "storefront-e2e-account-checkout",
     "backend-domain-core",
     "backend-domain-extended",
+    "frontend-admin-unit",
     "frontend-admin-extended",
-    "ai-runtime-smoke",
+    "channel-adapter-core",
     "quality-static"
   ],
   "blocks": [
@@ -21,9 +51,18 @@
       "description": "Flujos comerciales críticos: paramétricos publicados, checkout cash, confirmación admin y regresiones de compra.",
       "kind": "e2e",
       "cwd": "ecommerce",
-      "command": ["npm", "run", "test:e2e:critical"],
+      "command": [
+        "npm",
+        "run",
+        "test:e2e:critical"
+      ],
       "estimatedMinutes": 8,
-      "tags": ["storefront", "critical", "commerce", "e2e"]
+      "tags": [
+        "storefront",
+        "critical",
+        "commerce",
+        "e2e"
+      ]
     },
     {
       "id": "storefront-e2e-auth-content",
@@ -36,13 +75,19 @@
         "run",
         "test:e2e",
         "--",
+        "--workers=1",
         "auth-email.spec.ts",
         "wishlist-post-login.spec.ts",
         "home-stories.spec.ts",
         "admin-signin-smoke.spec.ts"
       ],
       "estimatedMinutes": 10,
-      "tags": ["storefront", "auth", "cms", "e2e"]
+      "tags": [
+        "storefront",
+        "auth",
+        "cms",
+        "e2e"
+      ]
     },
     {
       "id": "storefront-e2e-admin-cross-project",
@@ -55,31 +100,20 @@
         "run",
         "test:e2e",
         "--",
+        "--workers=1",
         "admin-signin-smoke.spec.ts",
-        "admin-ai-settings.spec.ts",
-        "admin-conversations.spec.ts",
-        "admin-conversation-actions.spec.ts",
-        "admin-conversations-internal-chat.spec.ts",
-        "admin-conversations-internal-confirmation.spec.ts",
-        "admin-conversations-inbox-regression.spec.ts",
-        "admin-conversations-subroles.spec.ts",
-        "admin-conversations-mobile-detail.spec.ts",
-        "admin-conversations-message-types.spec.ts",
-        "admin-aberturas-ai-flows.spec.ts",
-        "aberturas-chat-persistence-cross-scope.spec.ts",
-        "storefront-webchat-authenticated-memory.spec.ts",
-        "admin-messaging-regression.spec.ts",
-        "admin-messaging-search-matching.spec.ts",
-        "admin-conversations-routing.spec.ts",
-        "admin-conversations-multichannel.spec.ts",
-        "admin-conversations-email-reply.spec.ts",
-        "admin-conversations-meta-status.spec.ts",
         "admin-mail-inbox-real-account.spec.ts",
         "admin-order-detail-cross-project.spec.ts",
         "admin-commercial-surfaces.spec.ts"
       ],
       "estimatedMinutes": 6,
-      "tags": ["cross-project", "admin", "storefront", "backend", "e2e"]
+      "tags": [
+        "cross-project",
+        "admin",
+        "storefront",
+        "backend",
+        "e2e"
+      ]
     },
     {
       "id": "storefront-e2e-ai-conversations",
@@ -114,7 +148,14 @@
         "admin-conversations-meta-status.spec.ts"
       ],
       "estimatedMinutes": 6,
-      "tags": ["ai", "conversations", "webchat", "admin", "cross-project", "e2e"]
+      "tags": [
+        "ai",
+        "conversations",
+        "webchat",
+        "admin",
+        "cross-project",
+        "e2e"
+      ]
     },
     {
       "id": "ai-conversation-quality",
@@ -123,9 +164,33 @@
       "kind": "quality",
       "cwd": ".",
       "steps": [
-        { "cwd": ".", "command": ["node", "tools/qa/ingest-whatsapp-real-corpus.mjs"] },
-        { "cwd": ".", "command": ["curl", "-fsS", "http://127.0.0.1:4110/health"] },
-        { "cwd": "ai-platform", "command": ["npm", "run", "test", "--workspace", "backend", "--", "--runInBand"] },
+        {
+          "cwd": ".",
+          "command": [
+            "node",
+            "tools/qa/ingest-whatsapp-real-corpus.mjs"
+          ]
+        },
+        {
+          "cwd": ".",
+          "command": [
+            "curl",
+            "-fsS",
+            "http://127.0.0.1:4110/health"
+          ]
+        },
+        {
+          "cwd": "ai-platform",
+          "command": [
+            "npm",
+            "run",
+            "test",
+            "--workspace",
+            "backend",
+            "--",
+            "--runInBand"
+          ]
+        },
         {
           "cwd": "backend",
           "command": [
@@ -154,7 +219,14 @@
         }
       ],
       "estimatedMinutes": 14,
-      "tags": ["ai", "conversation", "quality", "runtime", "knowledge", "e2e"]
+      "tags": [
+        "ai",
+        "conversation",
+        "quality",
+        "runtime",
+        "knowledge",
+        "e2e"
+      ]
     },
     {
       "id": "real-whatsapp-corpus-sync",
@@ -162,9 +234,18 @@
       "description": "Lee exports reales de WhatsApp desde la carpeta externa, genera manifiestos normalizados, clasifica casos y propone regresiones automáticas para QA.",
       "kind": "quality",
       "cwd": ".",
-      "command": ["node", "tools/qa/ingest-whatsapp-real-corpus.mjs"],
+      "command": [
+        "node",
+        "tools/qa/ingest-whatsapp-real-corpus.mjs"
+      ],
       "estimatedMinutes": 1,
-      "tags": ["ai", "conversation", "quality", "real-corpus", "whatsapp"]
+      "tags": [
+        "ai",
+        "conversation",
+        "quality",
+        "real-corpus",
+        "whatsapp"
+      ]
     },
     {
       "id": "real-webchat-corpus-replay",
@@ -172,9 +253,19 @@
       "description": "Reinyecta los textos reales de cliente por el webchat del sitio, captura la respuesta real del runtime del storefront y persiste trazas, transcripts y diagnóstico por turno.",
       "kind": "quality",
       "cwd": ".",
-      "command": ["node", "tools/qa/replay-real-corpus-webchat-run.mjs"],
+      "command": [
+        "node",
+        "tools/qa/replay-real-corpus-webchat-run.mjs"
+      ],
       "estimatedMinutes": 18,
-      "tags": ["ai", "conversation", "quality", "real-corpus", "webchat", "storefront"]
+      "tags": [
+        "ai",
+        "conversation",
+        "quality",
+        "real-corpus",
+        "webchat",
+        "storefront"
+      ]
     },
     {
       "id": "live-webchat-probe-loop",
@@ -182,9 +273,19 @@
       "description": "Genera conversaciones de prueba on-the-fly contra el webchat real, usando taxonomy/quote profiles de la base de conocimiento y auditando participación efectiva del proveedor.",
       "kind": "quality",
       "cwd": ".",
-      "command": ["node", "tools/qa/run-live-webchat-probe-loop.mjs"],
+      "command": [
+        "node",
+        "tools/qa/run-live-webchat-probe-loop.mjs"
+      ],
       "estimatedMinutes": 8,
-      "tags": ["ai", "conversation", "quality", "webchat", "probes", "knowledge"]
+      "tags": [
+        "ai",
+        "conversation",
+        "quality",
+        "webchat",
+        "probes",
+        "knowledge"
+      ]
     },
     {
       "id": "real-chat-remediation-loop",
@@ -192,9 +293,36 @@
       "description": "Ejecuta una iteración completa sobre el chat real: replay del corpus, análisis, probes live derivados del corpus, backlog estructural y rerun explícito.",
       "kind": "quality",
       "cwd": ".",
-      "command": ["node", "tools/qa/run-real-chat-remediation-loop.mjs"],
+      "command": [
+        "node",
+        "tools/qa/run-real-chat-remediation-loop.mjs"
+      ],
       "estimatedMinutes": 24,
-      "tags": ["ai", "conversation", "quality", "webchat", "real-corpus", "loop", "remediation"]
+      "tags": [
+        "ai",
+        "conversation",
+        "quality",
+        "webchat",
+        "real-corpus",
+        "loop",
+        "remediation"
+      ]
+    },
+    {
+      "id": "channel-adapter-core",
+      "name": "Channel Adapter Unit",
+      "description": "Node test suite for Meta, WhatsApp QR, webchat and normalization adapters.",
+      "kind": "unit",
+      "cwd": "services/channel-adapter",
+      "command": [
+        "npm",
+        "test"
+      ],
+      "estimatedMinutes": 1,
+      "tags": [
+        "channel-adapter",
+        "unit"
+      ]
     },
     {
       "id": "storefront-e2e-account-checkout",
@@ -210,7 +338,13 @@
         "logged-in-checkout-address-currency.spec.ts"
       ],
       "estimatedMinutes": 8,
-      "tags": ["storefront", "checkout", "address", "currency", "e2e"]
+      "tags": [
+        "storefront",
+        "checkout",
+        "address",
+        "currency",
+        "e2e"
+      ]
     },
     {
       "id": "storefront-e2e-account-notifications",
@@ -226,7 +360,13 @@
         "account-notifications-order-detail.spec.ts"
       ],
       "estimatedMinutes": 8,
-      "tags": ["storefront", "account", "notifications", "orders", "e2e"]
+      "tags": [
+        "storefront",
+        "account",
+        "notifications",
+        "orders",
+        "e2e"
+      ]
     },
     {
       "id": "backend-domain-core",
@@ -245,7 +385,12 @@
         "src/email/__tests__/email.service.spec.ts"
       ],
       "estimatedMinutes": 4,
-      "tags": ["backend", "unit", "payments", "orders"]
+      "tags": [
+        "backend",
+        "unit",
+        "payments",
+        "orders"
+      ]
     },
     {
       "id": "backend-domain-extended",
@@ -267,7 +412,14 @@
         "src/common/orders/__tests__/address.spec.ts"
       ],
       "estimatedMinutes": 4,
-      "tags": ["backend", "unit", "finance", "stock", "oauth", "privacy"]
+      "tags": [
+        "backend",
+        "unit",
+        "finance",
+        "stock",
+        "oauth",
+        "privacy"
+      ]
     },
     {
       "id": "frontend-admin-unit",
@@ -283,7 +435,11 @@
         "src/views/sales/ProductForm/__tests__/PricingFields.test.tsx"
       ],
       "estimatedMinutes": 2,
-      "tags": ["admin", "frontend", "unit"]
+      "tags": [
+        "admin",
+        "frontend",
+        "unit"
+      ]
     },
     {
       "id": "frontend-admin-extended",
@@ -301,7 +457,13 @@
         "src/views/crm/Mail/utils/__tests__/category.test.ts"
       ],
       "estimatedMinutes": 2,
-      "tags": ["admin", "frontend", "unit", "crm", "identifiers"]
+      "tags": [
+        "admin",
+        "frontend",
+        "unit",
+        "crm",
+        "identifiers"
+      ]
     },
     {
       "id": "ai-runtime-smoke",
@@ -328,7 +490,14 @@
             "ping"
           ]
         },
-        { "cwd": ".", "command": ["curl", "-fsS", "http://127.0.0.1:4110/health"] },
+        {
+          "cwd": ".",
+          "command": [
+            "curl",
+            "-fsS",
+            "http://127.0.0.1:4110/health"
+          ]
+        },
         {
           "cwd": ".",
           "command": [
@@ -369,7 +538,12 @@
         }
       ],
       "estimatedMinutes": 1,
-      "tags": ["ai", "redis", "docker", "smoke"]
+      "tags": [
+        "ai",
+        "redis",
+        "docker",
+        "smoke"
+      ]
     },
     {
       "id": "quality-static",
@@ -378,14 +552,53 @@
       "kind": "quality",
       "cwd": ".",
       "steps": [
-        { "cwd": "backend", "command": ["npm", "run", "lint"] },
-        { "cwd": "backend", "command": ["npm", "run", "build"] },
-        { "cwd": "ecommerce", "command": ["npm", "run", "lint"] },
-        { "cwd": "ecommerce", "command": ["npx", "tsc", "--noEmit"] },
-        { "cwd": "frontend", "command": ["npm", "run", "lint"] }
+        {
+          "cwd": "backend",
+          "command": [
+            "npm",
+            "run",
+            "lint"
+          ]
+        },
+        {
+          "cwd": "backend",
+          "command": [
+            "npm",
+            "run",
+            "build"
+          ]
+        },
+        {
+          "cwd": "ecommerce",
+          "command": [
+            "npm",
+            "run",
+            "lint"
+          ]
+        },
+        {
+          "cwd": "ecommerce",
+          "command": [
+            "npx",
+            "tsc",
+            "--noEmit"
+          ]
+        },
+        {
+          "cwd": "frontend",
+          "command": [
+            "npm",
+            "run",
+            "lint"
+          ]
+        }
       ],
       "estimatedMinutes": 6,
-      "tags": ["quality", "lint", "types"]
+      "tags": [
+        "quality",
+        "lint",
+        "types"
+      ]
     }
   ]
 }

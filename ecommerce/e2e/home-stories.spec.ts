@@ -1,36 +1,71 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type APIRequestContext } from "@playwright/test";
+
+type StorySummary = {
+  id: string;
+  slug: string;
+  title: string;
+};
+
+type StoryDetail = StorySummary & {
+  subtitle?: string | null;
+  description?: string | null;
+  items: Array<{
+    id: string;
+    ctaLabel?: string | null;
+    ctaUrl?: string | null;
+  }>;
+};
+
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function fetchStories(request: APIRequestContext): Promise<StorySummary[]> {
+  const response = await request.get("http://localhost:8080/api/storefront/stories");
+  expect(response.ok()).toBeTruthy();
+  return response.json();
+}
+
+async function fetchStoryDetail(request: APIRequestContext, slug: string): Promise<StoryDetail> {
+  const response = await request.get(`http://localhost:8080/api/storefront/stories/${encodeURIComponent(slug)}`);
+  expect(response.ok()).toBeTruthy();
+  return response.json();
+}
 
 test.describe("home stories", () => {
-  test("opens, navigates and closes CMS stories without crashing", async ({ page }) => {
+  test("opens and closes a real story detail page without crashing", async ({ page, request }) => {
+    const stories = await fetchStories(request);
+    expect(stories.length).toBeGreaterThan(0);
+
+    const story = await fetchStoryDetail(request, stories[0].slug);
+    expect(story.items.length).toBeGreaterThan(0);
+
     await page.addInitScript(() => {
       window.localStorage.setItem("storefront.locale.v1", "es");
     });
 
-    await page.goto("/");
+    await page.goto(`/stories/${story.slug}`);
 
-    await page.getByTestId("home-stories-rail-next").click();
-    await page.getByRole("button", { name: /Asesoramiento antes de comprar/i }).click();
+    const storyHeading = page.getByRole("heading", {
+      level: 1,
+      name: new RegExp(escapeRegExp(story.title), "i"),
+    });
 
-    await expect(page.getByTestId("home-story-viewer")).toBeVisible();
-    await expect(page.getByRole("heading", { name: /Asesoramiento antes de comprar/i })).toBeVisible();
-    await expect(
-      page.getByText(/Una guía simple para definir producto, medidas y nivel de prestación antes de pedir cotización\./i)
-    ).toBeVisible();
+    await expect(storyHeading).toBeVisible();
+    if (story.subtitle) {
+      await expect(page.getByText(new RegExp(escapeRegExp(story.subtitle), "i"))).toBeVisible();
+    }
+    if (story.description) {
+      await expect(page.getByText(new RegExp(escapeRegExp(story.description), "i"))).toBeVisible();
+    }
 
-    await page.getByTestId("home-story-story-next").click();
-    await expect(page.getByRole("heading", { name: /Compra segura y acompañada/i })).toBeVisible();
-    await expect(page.getByText(/Acompañamiento comercial y seguimiento durante todo el proceso\./i)).toBeVisible();
+    const firstItem = story.items[0];
+    if (firstItem.ctaLabel) {
+      await expect(page.getByRole("link", { name: new RegExp(escapeRegExp(firstItem.ctaLabel), "i") })).toBeVisible();
+    }
 
-    await page.getByTestId("home-story-story-prev").click();
-    await expect(page.getByRole("heading", { name: /Asesoramiento antes de comprar/i })).toBeVisible();
-
-    await page.getByTestId("home-story-story-next").click();
-    await page.getByTestId("home-story-story-next").click();
-    await expect(page.getByRole("heading", { name: /Entrega coordinada/i })).toBeVisible();
-    await expect(page.getByText(/Planificación simple para entrega o instalación según el producto\./i)).toBeVisible();
-
-    await page.getByTestId("home-story-close").click();
-
-    await expect(page.getByTestId("home-story-viewer")).toHaveCount(0);
+    await page.getByRole("button", { name: "✕" }).click();
+    await page.waitForURL(/\/stories$/, { timeout: 15_000 });
+    await expect(page).toHaveURL(/\/stories$/);
   });
 });

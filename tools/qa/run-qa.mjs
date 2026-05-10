@@ -4,9 +4,16 @@ import { spawn } from "node:child_process";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 import { generateConversationQualityReport } from "./analyze-conversation-quality.mjs";
+import {
+  loadMonorepoSuiteSummary,
+  normalizeManifestProfiles,
+  writeMonorepoQaStatusReport,
+  repoRoot,
+} from "./monorepo-suite-runner.mjs";
 
-const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "..");
+const currentFilePath = fileURLToPath(import.meta.url);
 const qaRoot = path.join(repoRoot, ".qa");
 const runsRoot = path.join(qaRoot, "runs");
 const manifestPath = path.join(repoRoot, "tools", "qa", "manifest.json");
@@ -14,15 +21,18 @@ const manifestPath = path.join(repoRoot, "tools", "qa", "manifest.json");
 function printUsage() {
   console.log(
     [
-      "Usage: node tools/qa/run-qa.mjs [--all] [--block <id>] [--repeat <n>] [--list]",
+      "Usage: node tools/qa/run-qa.mjs [--all] [--block <id>] [--repeat <n>] [--include-deferred] [--only-deferred] [--list] [--write-report]",
       "",
       "Options:",
-      "  --all           Run all configured blocks",
-      "  --block <id>    Run a specific block (repeatable or comma-separated)",
-      "  --repeat <n>    Repeat the selected sequence n times",
-      "  --list          Print available QA blocks",
-      "  --help          Show this message"
-    ].join("\n")
+      "  --all                Run every configured block",
+      "  --block <id>         Run a specific block (repeatable or comma-separated)",
+      "  --repeat <n>         Repeat the selected sequence n times",
+      "  --include-deferred   Append deferred blocks to the core release gate selection",
+      "  --only-deferred      Run only the deferred profile",
+      "  --list               Print available QA blocks and profile membership",
+      "  --write-report       Refresh docs/testing/monorepo-qa-status.md",
+      "  --help               Show this message",
+    ].join("\n"),
   );
 }
 
@@ -36,6 +46,9 @@ function parseArgs(argv) {
   let runAll = false;
   let listOnly = false;
   let repeat = 1;
+  let includeDeferred = false;
+  let onlyDeferred = false;
+  let writeReport = false;
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
@@ -45,6 +58,18 @@ function parseArgs(argv) {
     }
     if (arg === "--list") {
       listOnly = true;
+      continue;
+    }
+    if (arg === "--include-deferred") {
+      includeDeferred = true;
+      continue;
+    }
+    if (arg === "--only-deferred") {
+      onlyDeferred = true;
+      continue;
+    }
+    if (arg === "--write-report") {
+      writeReport = true;
       continue;
     }
     if (arg === "--help" || arg === "-h") {
@@ -72,39 +97,29 @@ function parseArgs(argv) {
           .slice("--block=".length)
           .split(",")
           .map((item) => item.trim())
-          .filter(Boolean)
+          .filter(Boolean),
       );
       continue;
     }
     throw new Error(`Unknown argument: ${arg}`);
   }
 
+  if (runAll && onlyDeferred) {
+    throw new Error("Cannot combine --all with --only-deferred");
+  }
+  if (selectedBlocks.length > 0 && (runAll || onlyDeferred || includeDeferred)) {
+    throw new Error("Use either explicit --block selection or profile flags, not both");
+  }
+
   return {
     selectedBlocks,
     runAll,
     listOnly,
-    repeat
+    repeat,
+    includeDeferred,
+    onlyDeferred,
+    writeReport,
   };
-}
-
-function resolveSelectedBlocks(manifest, options) {
-  if (options.runAll) {
-    return manifest.blocks;
-  }
-
-  if (options.selectedBlocks.length > 0) {
-    const blockMap = new Map(manifest.blocks.map((block) => [block.id, block]));
-    return options.selectedBlocks.map((id) => {
-      const match = blockMap.get(id);
-      if (!match) {
-        throw new Error(`Unknown QA block: ${id}`);
-      }
-      return match;
-    });
-  }
-
-  const defaultIds = new Set(manifest.defaultBlockIds ?? []);
-  return manifest.blocks.filter((block) => defaultIds.has(block.id));
 }
 
 function formatCommand(command) {
@@ -116,8 +131,7 @@ function buildSummary(output, exitCode) {
   if (!trimmed) {
     return exitCode === 0 ? "Completed without output." : "Failed without captured output.";
   }
-  const lines = trimmed.split(/\r?\n/).slice(-8);
-  return lines.join("\n");
+  return trimmed.split(/\r?\n/).slice(-8).join("\n");
 }
 
 function shouldGenerateConversationQualityReport(blocks) {
@@ -127,8 +141,7 @@ function shouldGenerateConversationQualityReport(blocks) {
       block?.id === "ai-conversation-quality" ||
       tags.includes("ai") ||
       tags.includes("conversations") ||
-      tags.includes("webchat") ||
-      tags.includes("admin")
+      tags.includes("webchat")
     );
   });
 }
@@ -139,14 +152,12 @@ async function executeCommand(command, cwd, logFilePath) {
     const child = spawn(bin, args, {
       cwd,
       env: process.env,
-      stdio: ["ignore", "pipe", "pipe"]
+      stdio: ["ignore", "pipe", "pipe"],
     });
 
     let combinedOutput = "";
-
     const append = (chunk) => {
-      const text = chunk.toString();
-      combinedOutput += text;
+      combinedOutput += chunk.toString();
     };
 
     child.stdout.on("data", append);
@@ -156,7 +167,7 @@ async function executeCommand(command, cwd, logFilePath) {
       await writeFile(logFilePath, combinedOutput, "utf8");
       resolve({
         exitCode: exitCode ?? 1,
-        output: combinedOutput
+        output: combinedOutput,
       });
     });
   });
@@ -168,18 +179,153 @@ async function writeRunSnapshot(run) {
   await writeFile(path.join(qaRoot, "latest.json"), JSON.stringify(run, null, 2), "utf8");
 }
 
+function dedupeBlockIds(ids) {
+  return Array.from(
+    new Set(
+      ids
+        .map((id) => String(id).trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function resolveBlockByIds(manifest, ids) {
+  const blockMap = new Map((manifest.blocks ?? []).map((block) => [block.id, block]));
+  return ids.map((id) => {
+    const block = blockMap.get(id);
+    if (!block) {
+      throw new Error(`Unknown QA block: ${id}`);
+    }
+    return block;
+  });
+}
+
+function buildSelection(manifest, options) {
+  const profiles = normalizeManifestProfiles(manifest);
+  const coreIds = dedupeBlockIds(profiles.core.blockIds);
+  const deferredIds = dedupeBlockIds(profiles.deferred.blockIds);
+
+  if (options.runAll) {
+    return {
+      mode: "all",
+      selectedBlocks: resolveBlockByIds(manifest, [...coreIds, ...deferredIds]),
+      selectedCoreBlockIds: coreIds,
+      selectedDeferredBlockIds: deferredIds,
+      profiles,
+    };
+  }
+
+  if (options.onlyDeferred) {
+    return {
+      mode: "deferred",
+      selectedBlocks: resolveBlockByIds(manifest, deferredIds),
+      selectedCoreBlockIds: [],
+      selectedDeferredBlockIds: deferredIds,
+      profiles,
+    };
+  }
+
+  if (options.selectedBlocks.length > 0) {
+    const selectedIds = dedupeBlockIds(options.selectedBlocks);
+    const selectedCoreBlockIds = selectedIds.filter((id) => coreIds.includes(id));
+    const selectedDeferredBlockIds = selectedIds.filter((id) => deferredIds.includes(id));
+
+    return {
+      mode: "explicit",
+      selectedBlocks: resolveBlockByIds(manifest, selectedIds),
+      selectedCoreBlockIds,
+      selectedDeferredBlockIds,
+      profiles,
+    };
+  }
+
+  if (options.includeDeferred) {
+    return {
+      mode: "core-plus-deferred",
+      selectedBlocks: resolveBlockByIds(manifest, [...coreIds, ...deferredIds]),
+      selectedCoreBlockIds: coreIds,
+      selectedDeferredBlockIds: deferredIds,
+      profiles,
+    };
+  }
+
+  return {
+    mode: manifest.defaultProfileId === "deferred" ? "deferred" : "core",
+    selectedBlocks: resolveBlockByIds(manifest, coreIds),
+    selectedCoreBlockIds: coreIds,
+    selectedDeferredBlockIds: [],
+    profiles,
+  };
+}
+
+function buildStatusCounts(results) {
+  const total = results.length;
+  const passed = results.filter((result) => result.status === "passed").length;
+  const failed = results.filter((result) => result.status === "failed").length;
+  const running = results.filter((result) => result.status === "running").length;
+  const notRun = total - passed - failed - running;
+
+  return { total, passed, failed, running, notRun };
+}
+
+function getExecutionStatus(results, selectedCount) {
+  if (selectedCount === 0) {
+    return "not-selected";
+  }
+  return results.some((result) => result.status === "failed") ? "failed" : "passed";
+}
+
+function printBlockList(manifest) {
+  const profiles = normalizeManifestProfiles(manifest);
+  const membership = new Map();
+
+  for (const blockId of profiles.core.blockIds) {
+    membership.set(blockId, "core");
+  }
+  for (const blockId of profiles.deferred.blockIds) {
+    membership.set(blockId, membership.has(blockId) ? "core+deferred" : "deferred");
+  }
+
+  console.log(`default profile: ${profiles.defaultProfileId}\n`);
+  console.log(`core (${profiles.core.blockIds.length})\n  ${profiles.core.description}\n`);
+  console.log(`deferred (${profiles.deferred.blockIds.length})\n  ${profiles.deferred.description}\n`);
+
+  for (const block of manifest.blocks ?? []) {
+    console.log(
+      [
+        `${block.id} [${membership.get(block.id) ?? "unassigned"}]`,
+        `  ${block.name}`,
+        `  ${block.description}`,
+        `  ${block.cwd}`,
+        "",
+      ].join("\n"),
+    );
+  }
+}
+
 async function main() {
   const manifest = await loadManifest();
   const options = parseArgs(process.argv.slice(2));
 
   if (options.listOnly) {
-    manifest.blocks.forEach((block) => {
-      console.log(`${block.id}\n  ${block.name}\n  ${block.description}\n  ${block.cwd}\n`);
-    });
+    printBlockList(manifest);
     return;
   }
 
-  const selectedBlocks = resolveSelectedBlocks(manifest, options);
+  const selection = buildSelection(manifest, options);
+  const profiles = selection.profiles;
+  const gateTierByBlockId = new Map();
+
+  for (const blockId of profiles.core.blockIds) {
+    gateTierByBlockId.set(blockId, "core");
+  }
+  for (const blockId of profiles.deferred.blockIds) {
+    if (!gateTierByBlockId.has(blockId)) {
+      gateTierByBlockId.set(blockId, "deferred");
+    }
+  }
+
+  const selectedBlocks = selection.selectedBlocks;
   const runId = `qa-${new Date().toISOString().replace(/[:.]/g, "-")}`;
 
   await mkdir(runsRoot, { recursive: true });
@@ -190,11 +336,32 @@ async function main() {
   const run = {
     id: runId,
     status: "running",
+    releaseGateStatus: "running",
+    deferredStatus: selection.selectedDeferredBlockIds.length > 0 ? "running" : "not-selected",
     startedAt: new Date().toISOString(),
     finishedAt: null,
     repeat: options.repeat,
+    selectionMode: selection.mode,
     selectedBlockIds: selectedBlocks.map((block) => block.id),
-    blocks: []
+    selectedCoreBlockIds: selection.selectedCoreBlockIds,
+    selectedDeferredBlockIds: selection.selectedDeferredBlockIds,
+    availableCoreBlockIds: profiles.core.blockIds,
+    availableDeferredBlockIds: profiles.deferred.blockIds,
+    skippedDeferredBlockIds: profiles.deferred.blockIds.filter(
+      (blockId) => !selection.selectedDeferredBlockIds.includes(blockId),
+    ),
+    blocks: [],
+    summary: {
+      core: { total: selection.selectedCoreBlockIds.length, passed: 0, failed: 0, running: 0, notRun: 0 },
+      deferred: {
+        total: selection.selectedDeferredBlockIds.length,
+        passed: 0,
+        failed: 0,
+        running: 0,
+        notRun: 0,
+      },
+      selected: { total: selectedBlocks.length, passed: 0, failed: 0, running: 0, notRun: 0 },
+    },
   };
 
   await writeRunSnapshot(run);
@@ -203,11 +370,16 @@ async function main() {
 
   for (let attempt = 1; attempt <= options.repeat; attempt += 1) {
     for (const block of selectedBlocks) {
-      const steps = Array.isArray(block.steps) && block.steps.length > 0 ? block.steps : [{ cwd: block.cwd, command: block.command }];
+      const steps =
+        Array.isArray(block.steps) && block.steps.length > 0
+          ? block.steps
+          : [{ cwd: block.cwd, command: block.command }];
       const blockStart = Date.now();
+      const gateTier = gateTierByBlockId.get(block.id) ?? "deferred";
       const blockResult = {
         id: `${block.id}${options.repeat > 1 ? `#${attempt}` : ""}`,
         blockId: block.id,
+        gateTier,
         name: block.name,
         description: block.description,
         kind: block.kind,
@@ -220,7 +392,7 @@ async function main() {
         durationMs: null,
         cwd: block.cwd,
         commandDisplay: null,
-        steps: []
+        steps: [],
       };
 
       run.blocks.push(blockResult);
@@ -236,7 +408,7 @@ async function main() {
         const logFilePath = path.join(
           runsRoot,
           runId,
-          `${blockResult.id.replace(/[^a-zA-Z0-9_-]/g, "_")}-step-${stepIndex + 1}.log`
+          `${blockResult.id.replace(/[^a-zA-Z0-9_-]/g, "_")}-step-${stepIndex + 1}.log`,
         );
 
         const startedAt = new Date().toISOString();
@@ -253,7 +425,7 @@ async function main() {
           finishedAt,
           exitCode: execution.exitCode,
           status: execution.exitCode === 0 ? "passed" : "failed",
-          summary: buildSummary(execution.output, execution.exitCode)
+          summary: buildSummary(execution.output, execution.exitCode),
         });
 
         if (execution.exitCode !== 0) {
@@ -270,6 +442,16 @@ async function main() {
     }
   }
 
+  const coreResults = run.blocks.filter((entry) => entry.gateTier === "core");
+  const deferredResults = run.blocks.filter((entry) => entry.gateTier === "deferred");
+
+  run.summary = {
+    core: buildStatusCounts(coreResults),
+    deferred: buildStatusCounts(deferredResults),
+    selected: buildStatusCounts(run.blocks),
+  };
+  run.releaseGateStatus = getExecutionStatus(coreResults, selection.selectedCoreBlockIds.length);
+  run.deferredStatus = getExecutionStatus(deferredResults, selection.selectedDeferredBlockIds.length);
   run.status = overallFailed ? "failed" : "passed";
   run.finishedAt = new Date().toISOString();
   await writeRunSnapshot(run);
@@ -287,14 +469,37 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify({ runId, status: run.status, blocks: run.blocks.length }, null, 2));
+  if (options.writeReport) {
+    await writeMonorepoQaStatusReport({
+      suiteSummary: await loadMonorepoSuiteSummary(),
+      qaRun: run,
+    });
+  }
+
+  console.log(
+    JSON.stringify(
+      {
+        runId,
+        status: run.status,
+        releaseGateStatus: run.releaseGateStatus,
+        deferredStatus: run.deferredStatus,
+        selectedBlocks: run.selectedBlockIds.length,
+        selectedCoreBlocks: run.selectedCoreBlockIds.length,
+        selectedDeferredBlocks: run.selectedDeferredBlockIds.length,
+      },
+      null,
+      2,
+    ),
+  );
 
   if (overallFailed) {
     process.exitCode = 1;
   }
 }
 
-main().catch(async (error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === currentFilePath) {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

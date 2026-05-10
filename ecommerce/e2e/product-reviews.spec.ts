@@ -25,7 +25,7 @@ test("customer can create a product review from an order and see it on the produ
 
   expect(shippingOptions.length).toBeGreaterThan(0);
 
-  await request.post("http://127.0.0.1:4000/api/storefront/auth/register", {
+  await request.post("http://127.0.0.1:8080/api/storefront/auth/register", {
     data: {
       firstName: customer.firstName,
       lastName: customer.lastName,

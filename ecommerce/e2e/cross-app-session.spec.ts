@@ -21,7 +21,7 @@ test("storefront session survives cross-app navigation to admin and back", async
   await loginCustomer(page, customer);
 
   const sessionBefore = await page.evaluate(async () => {
-    const response = await fetch("http://localhost:4000/api/storefront/auth/session", {
+    const response = await fetch("http://localhost:8080/api/storefront/auth/session", {
       credentials: "include",
     });
     return response.ok ? response.text() : null;
@@ -32,7 +32,7 @@ test("storefront session survives cross-app navigation to admin and back", async
   await page.goto("http://localhost:3000", { waitUntil: "domcontentloaded" });
 
   const sessionAfter = await page.evaluate(async () => {
-    const response = await fetch("http://localhost:4000/api/storefront/auth/session", {
+    const response = await fetch("http://localhost:8080/api/storefront/auth/session", {
       credentials: "include",
     });
     return response.ok ? response.text() : null;

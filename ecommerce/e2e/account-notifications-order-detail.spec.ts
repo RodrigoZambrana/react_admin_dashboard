@@ -6,10 +6,12 @@ import {
   waitForLatestOrderByCustomerEmail
 } from "./support/db";
 import { buildTestCustomer } from "./support/factories";
-import { createOrder, fetchProductDetail, listShippingOptions } from "./support/storefront-api";
+import {
+  createOrder,
+  fetchFirstInStockCatalogProduct,
+  listShippingOptions
+} from "./support/storefront-api";
 import { storefrontApiBaseUrl } from "./support/env";
-
-const SIMPLE_PRODUCT_SLUG = "cortinas-roller";
 
 async function gotoWithRetry(page: Page, url: string) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
@@ -153,7 +155,7 @@ test.describe("customer notifications and order detail flows", () => {
     await registerStorefrontCustomer(page, customer);
     await verifyCustomerEmail(page, customer.email);
 
-    const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
+    const simple = await fetchFirstInStockCatalogProduct(request);
     const order = await createCustomerCashOrder(page, simple.id, customer);
     const notifications = await getNotificationsForOrder(order.uuid);
     const customerNotification = notifications.find((row) => row.audience === "CUSTOMER");
@@ -191,7 +193,7 @@ test.describe("customer notifications and order detail flows", () => {
     await registerStorefrontCustomer(page, customer);
     await verifyCustomerEmail(page, customer.email);
 
-    const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
+    const simple = await fetchFirstInStockCatalogProduct(request);
     await createCustomerCashOrder(page, simple.id, customer);
     await createCustomerCashOrder(page, simple.id, customer);
 
@@ -199,9 +201,13 @@ test.describe("customer notifications and order detail flows", () => {
     await openNotificationsPanel(page);
 
     const items = page.locator('[data-testid^="customer-notification-item-"]');
-    await expect(items.first()).toBeVisible({ timeout: 20_000 });
+    await expect
+      .poll(async () => items.count(), {
+        message: "waiting for customer notifications to appear"
+      })
+      .toBeGreaterThanOrEqual(2);
     const initialCount = await items.count();
-    expect(initialCount).toBeGreaterThanOrEqual(2);
+    await expect(items.first()).toBeVisible({ timeout: 20_000 });
 
     await page.locator('[data-testid^="customer-notification-delete-"]').first().click();
     await expect

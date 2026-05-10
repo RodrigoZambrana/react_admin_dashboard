@@ -66,7 +66,13 @@
     "postinstall": "npm run prisma:generate && npm run security:gate:install",
     "reset-admin": "ts-node --compiler-options '{\"module\":\"commonjs\"}' scripts/reset-admin.ts",
     "test": "vitest run",
-    "lint": "tsc --noEmit"
+    "test:unit": "vitest run src/{budget,common,conversions,pricing,qa,users,customers}/**/*.spec.ts src/sales/utils/pricing.spec.ts src/auth/__tests__/{capabilities,otp.utils,roles.guard,user-management-policy}.spec.ts",
+    "test:integration": "vitest run src/auth/__tests__/{auth.service,phone-auth.service}.spec.ts src/storefront/__tests__/{storefront.service,m2-derived-products.service}.spec.ts src/storefront/oauth/__tests__/google-oauth.service.spec.ts src/storefront/payments/__tests__/{mercadopago.service,mercadopago-charge.dto}.spec.ts src/orders/__tests__/*.spec.ts src/accounting/__tests__/*.spec.ts src/email/__tests__/*.spec.ts src/inbox/**/*.spec.ts src/cms/**/*.spec.ts src/analytics/__tests__/{analytics-repository,analytics-search-intelligence.service,analytics-reporting.service,event-taxonomy,analytics-export.service,analytics-normalization.service,data-parity-and-usage.service}.spec.ts",
+    "test:api": "vitest run src/budget/__tests__/budget.controller.spec.ts src/accounting/__tests__/accounting.controller.spec.ts src/customers/__tests__/customers.controller.spec.ts src/sales/sales.controller.spec.ts src/storefront/__tests__/auth.dto.spec.ts src/storefront/payments/__tests__/*.spec.ts src/storefront/oauth/__tests__/google-oauth.service.spec.ts",
+    "test:smoke": "vitest run src/storefront/__tests__/storefront.service.spec.ts src/auth/__tests__/auth.service.spec.ts src/pricing/__tests__/parametric-pricing.service.spec.ts src/orders/__tests__/order-stock-integrity.service.spec.ts src/orders/__tests__/order-payment-settlement.service.spec.ts",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit",
+    "test:integrity": "node ../tools/qa/validate-targets.mjs --cwd . \"src/**/*.spec.ts\""
   },
   "keywords": [],
   "author": "",
@@ -78,6 +84,7 @@
     "diff": "^4.0.4",
     "effect": "^3.20.0",
     "fastify": "^5.8.5",
+    "fast-uri": "^3.1.2",
     "js-yaml": "^4.1.1",
     "@fastify/static": {
       "glob": "^11.1.0"
@@ -140,6 +147,7 @@
     "@types/pdfkit": "0.17.3",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
+    "@vitest/coverage-v8": "^4.1.0",
     "typescript": "^5.9.2",
     "vitest": "^4.1.0"
   }

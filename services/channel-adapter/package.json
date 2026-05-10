@@ -4,7 +4,12 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "start": "node src/main.js"
+    "start": "node src/main.js",
+    "test": "node --test src/channels/meta/meta.adapter.test.js src/channels/meta/meta.sender.test.js src/channels/webchat/webchat.adapter.test.js src/channels/whatsapp-qr/whatsapp-qr.adapter.test.js src/runtime/inbound-turn-coalescer.test.js src/runtime/pending-utterance-assembler.test.js src/normalization/unified-message.test.js",
+    "test:unit": "node --test src/channels/meta/meta.adapter.test.js src/channels/meta/meta.sender.test.js src/channels/webchat/webchat.adapter.test.js src/channels/whatsapp-qr/whatsapp-qr.adapter.test.js src/runtime/inbound-turn-coalescer.test.js src/runtime/pending-utterance-assembler.test.js src/normalization/unified-message.test.js",
+    "test:integrity": "node ../../tools/qa/validate-targets.mjs --cwd . src/channels/meta/meta.adapter.test.js src/channels/meta/meta.sender.test.js src/channels/webchat/webchat.adapter.test.js src/channels/whatsapp-qr/whatsapp-qr.adapter.test.js src/runtime/inbound-turn-coalescer.test.js src/runtime/pending-utterance-assembler.test.js src/normalization/unified-message.test.js",
+    "test:smoke": "node --test src/channels/meta/meta.adapter.test.js src/runtime/inbound-turn-coalescer.test.js src/normalization/unified-message.test.js",
+    "test:coverage": "node --test --experimental-test-coverage src/channels/meta/meta.adapter.test.js src/channels/meta/meta.sender.test.js src/channels/webchat/webchat.adapter.test.js src/channels/whatsapp-qr/whatsapp-qr.adapter.test.js src/runtime/inbound-turn-coalescer.test.js src/runtime/pending-utterance-assembler.test.js src/normalization/unified-message.test.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",

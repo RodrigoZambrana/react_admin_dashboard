@@ -22,8 +22,12 @@
     "prettier": "npx prettier src --check",
     "prettier:fix": "npm run prettier -- --write",
     "test": "vitest run --config vitest.config.ts",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --config vitest.config.ts --coverage",
     "format": "npm run prettier:fix && npm run lint:fix",
-    "dev": "vite"
+    "dev": "vite",
+    "test:integrity": "node ../tools/qa/validate-targets.mjs --cwd . \"src/**/*.test.ts\" \"src/**/*.spec.ts\" \"src/**/*.test.tsx\"",
+    "test:smoke": "vitest run --config vitest.config.ts src/views/sales/components/__tests__/EditableOrderProductsTable.test.tsx src/views/sales/ProductForm/__tests__/PricingFields.test.tsx"
   },
   "dependencies": {
     "@floating-ui/react": "^0.27.2",
@@ -120,6 +124,7 @@
     "typescript": "^5.7.2",
     "vite": "^7.3.1",
     "vite-plugin-dynamic-import": "^1.6.0",
+    "@vitest/coverage-v8": "^4.1.0",
     "vitest": "^4.1.0"
   },
   "overrides": {

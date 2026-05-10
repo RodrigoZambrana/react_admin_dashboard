@@ -22,7 +22,6 @@ export default {
       "@state": resolve(rootDir, "src/state"),
       "@utils": resolve(rootDir, "src/utils"),
       "@common": resolve(rootDir, "../src/common"),
-      vitest: resolve(rootDir, "../backend/node_modules/vitest"),
     },
   },
 };

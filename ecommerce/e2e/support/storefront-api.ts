@@ -10,6 +10,8 @@ type ProductSummary = {
   slug: string;
   name: string;
   mode?: string | null;
+  inventoryStatus?: InventoryStatus;
+  routePath?: string | null;
 };
 
 export type ProductDetailSummary = ProductSummary & {
@@ -64,6 +66,29 @@ export async function fetchFirstCatalogProduct(request: APIRequestContext): Prom
     slug: product.slug,
     name: product.name ?? product.slug,
     mode: product.mode ?? null
+  };
+}
+
+export async function fetchFirstInStockCatalogProduct(request: APIRequestContext): Promise<ProductSummary> {
+  const response = await request.get(`${storefrontApiBaseUrl}/products?page=1&pageSize=100`);
+  expect(response.ok()).toBeTruthy();
+
+  const payload = await response.json();
+  const products = Array.isArray(payload?.data) ? (payload.data as ProductSummary[]) : [];
+  const product =
+    products.find((item) => item?.inventoryStatus && item.inventoryStatus !== "out-of-stock") ?? products[0];
+
+  if (!product?.id || !product?.slug) {
+    throw new Error("Storefront catalog did not return a usable in-stock product for E2E.");
+  }
+
+  return {
+    id: product.id,
+    slug: product.slug,
+    name: product.name ?? product.slug,
+    mode: product.mode ?? null,
+    inventoryStatus: product.inventoryStatus ?? undefined,
+    routePath: product.routePath ?? null,
   };
 }
 
@@ -136,6 +161,30 @@ export async function createMercadoPagoPreference(
   const response = await request.post(`${storefrontApiBaseUrl}/payments/mercadopago/preference`, {
     data: payload
   });
-  expect(response.ok()).toBeTruthy();
+  if (!response.ok()) {
+    throw new Error(
+      `Mercado Pago preference creation failed with status ${response.status}: ${await response.text()}`
+    );
+  }
+  return response.json();
+}
+
+export async function resolveMercadoPagoPayment(
+  request: APIRequestContext,
+  payload: {
+    externalPaymentId: string;
+    cartId?: string;
+    checkoutToken?: string;
+    payerEmail?: string;
+  }
+) {
+  const response = await request.post(`${storefrontApiBaseUrl}/payments/mercadopago/resolve`, {
+    data: payload
+  });
+  if (!response.ok()) {
+    throw new Error(
+      `Mercado Pago payment resolution failed with status ${response.status}: ${await response.text()}`
+    );
+  }
   return response.json();
 }

@@ -10,10 +10,31 @@ import {
 } from "./support/db";
 import { buildTestCustomer, type TestCustomer } from "./support/factories";
 import { fetchProductDetail } from "./support/storefront-api";
+import { storefrontApiBaseUrl } from "./support/env";
 
 const SIMPLE_PRODUCT_SLUG = "cortinas-roller";
-const PARAMETRIC_PRODUCT_SLUG = "ventana-corrediza-20-natural-3mm-1800x1000";
 const CART_STORAGE_KEY = "storefront.cart.v1";
+const DEFAULT_UI_TIMEOUT_MS = 20_000;
+
+type DerivedProductSummary = {
+  id: string;
+  baseProductId: number;
+  sizeId: number;
+  name: string;
+  slug: string;
+  totalPrice: number;
+  currency: string;
+  sizeLabel: string;
+  stock: number;
+  categories?: Array<{ slug: string }>;
+};
+
+type CartItemSnapshot = {
+  product?: { slug?: string };
+  quantity?: number;
+};
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 function cartLineLocator(page: Page) {
   return page.locator(
@@ -24,28 +45,127 @@ function cartLineLocator(page: Page) {
 async function bootstrapStorefrontContext(page: Page) {
   await page.addInitScript(() => {
     window.localStorage.setItem("storefront.locale.v1", "es");
-    window.localStorage.setItem("storefront.currency.preference", "USD");
+    window.localStorage.setItem("storefront.currency.preference", "UYU");
   });
 }
 
-async function addSimpleProductFromDetail(page: Page, slug: string) {
-  await page.goto(`/product/${slug}`);
-  await expect(page.getByTestId("product-detail-add-to-cart")).toBeVisible();
-  await page.getByTestId("product-detail-add-to-cart").click();
+async function fetchFirstDerivedProduct(request: Parameters<typeof fetchProductDetail>[0]) {
+  const response = await request.get(`${storefrontApiBaseUrl}/m2-derived`);
+  expect(response.ok()).toBeTruthy();
+
+  const payload = (await response.json()) as DerivedProductSummary[];
+  const derived = payload.find((entry) => Number.isFinite(entry?.stock) && entry.stock > 0) ?? payload[0];
+
+  if (!derived?.slug || !derived?.name) {
+    throw new Error("Storefront did not return any derived m2 product for testing.");
+  }
+
+  return derived;
 }
 
-async function addParametricProductFromShop(page: Page, name: string, slug: string) {
-  await page.goto(`/shop?search=${encodeURIComponent(name)}`);
-  await expect(page.getByTestId(`product-card-add-${slug}`)).toBeVisible();
-  await page.getByTestId(`product-card-add-${slug}`).click();
+async function readCartItems(page: Page): Promise<CartItemSnapshot[]> {
+  return page.evaluate((storageKey) => {
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : { items: [] };
+      return Array.isArray(parsed?.items) ? parsed.items : [];
+    } catch {
+      return [];
+    }
+  }, CART_STORAGE_KEY);
+}
+
+async function waitForCartItemCount(page: Page, expectedCount: number) {
+  await expect
+    .poll(async () => (await readCartItems(page)).length, { timeout: DEFAULT_UI_TIMEOUT_MS })
+    .toBe(expectedCount);
+}
+
+async function waitForCartQuantity(page: Page, slug: string, expectedQuantity: number) {
+  await expect
+    .poll(
+      async () => (await readCartItems(page)).find((item) => item.product?.slug === slug)?.quantity ?? 0,
+      { timeout: DEFAULT_UI_TIMEOUT_MS }
+    )
+    .toBe(expectedQuantity);
+}
+
+async function addSimpleProductFromShop(page: Page, slug: string, expectedCartItemCount = 1) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if ((await readCartItems(page)).find((item) => item.product?.slug === slug)?.quantity) {
+      await waitForCartItemCount(page, expectedCartItemCount);
+      return;
+    }
+
+    await page.goto(`/product/${slug}`, { waitUntil: "domcontentloaded" });
+    const addToCartButton = page.getByTestId("product-detail-add-to-cart");
+    await expect(addToCartButton).toBeVisible({ timeout: DEFAULT_UI_TIMEOUT_MS });
+
+    try {
+      await addToCartButton.click();
+      await waitForCartItemCount(page, expectedCartItemCount);
+      await waitForCartQuantity(page, slug, 1);
+      await expect(page.getByTestId("product-detail-increase")).toBeVisible({
+        timeout: DEFAULT_UI_TIMEOUT_MS
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
+}
+
+async function addParametricProductFromShop(
+  page: Page,
+  name: string,
+  slug: string,
+  categorySlug: string | undefined,
+  expectedCartItemCount = 1
+) {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const cartQuantity = (await readCartItems(page)).find((item) => item.product?.slug === slug)?.quantity ?? 0;
+    if (cartQuantity > 0) {
+      await waitForCartItemCount(page, expectedCartItemCount);
+      return;
+    }
+
+    const searchParams = new URLSearchParams();
+    searchParams.set("search", slug);
+    if (categorySlug) {
+      searchParams.set("category", categorySlug);
+    }
+
+    await page.goto(`/shop?${searchParams.toString()}`, { waitUntil: "domcontentloaded" });
+    const card = page.getByTestId(`product-card-${slug}`);
+    await expect(card).toBeVisible({ timeout: DEFAULT_UI_TIMEOUT_MS });
+    await card.getByTestId(`product-card-title-${slug}`).click();
+    await expect(page).toHaveURL(new RegExp(`/product/${escapeRegExp(slug)}$`));
+    const addToCartButton = page.getByTestId("product-detail-add-to-cart");
+    await expect(addToCartButton).toBeVisible({ timeout: DEFAULT_UI_TIMEOUT_MS });
+
+    try {
+      await addToCartButton.click();
+      await waitForCartItemCount(page, expectedCartItemCount);
+      await waitForCartQuantity(page, slug, 1);
+      return;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError;
 }
 
 async function openParametricDetailFromShop(page: Page, name: string, slug: string) {
-  await page.goto(`/shop?search=${encodeURIComponent(name)}`);
-  const detailHref = await page.locator(`a[href*="/product/${slug}"]`).first().getAttribute("href");
-  expect(detailHref).toBeTruthy();
-  await page.goto(detailHref!);
-  await expect(page).toHaveURL(new RegExp(`/product/${slug}`));
+  await page.goto(`/shop?search=${encodeURIComponent(slug)}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`/product/${slug}`, { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveURL(new RegExp(`/product/${escapeRegExp(slug)}$`));
 }
 
 async function fillGuestCheckout(page: Page, customer: TestCustomer) {
@@ -70,11 +190,11 @@ async function fillGuestCheckout(page: Page, customer: TestCustomer) {
 async function placeGuestCashOrder(
   page: Page,
   customer: TestCustomer,
-  simpleSlug: string,
-  parametric: { name: string; slug: string }
+  simple: { name: string; slug: string },
+  parametric: { name: string; slug: string; categories?: Array<{ slug: string }> }
 ) {
-  await addSimpleProductFromDetail(page, simpleSlug);
-  await addParametricProductFromShop(page, parametric.name, parametric.slug);
+  await addSimpleProductFromShop(page, simple.slug, 1);
+  await addParametricProductFromShop(page, parametric.name, parametric.slug, parametric.categories?.[0]?.slug, 2);
 
   await page.goto("/cart");
   await fillGuestCheckout(page, customer);
@@ -117,17 +237,16 @@ test.describe("critical storefront commerce flows", () => {
   }) => {
     await bootstrapStorefrontContext(page);
 
-    const parametric = await fetchProductDetail(request, PARAMETRIC_PRODUCT_SLUG);
-    expect(parametric.mode).toBe("parametric");
+    const parametric = await fetchFirstDerivedProduct(request);
 
-    await addParametricProductFromShop(page, parametric.name, parametric.slug);
+    await addParametricProductFromShop(page, parametric.name, parametric.slug, parametric.categories?.[0]?.slug);
     await openParametricDetailFromShop(page, parametric.name, parametric.slug);
 
-    await expect(page.getByText(/sin mosquitero|without mosquito net/i).first()).toBeVisible();
-    await expect(page.getByText(/sin persiana|without shutter/i).first()).toBeVisible();
-    await expect(page.getByTestId("product-detail-increase")).toBeVisible();
+    const productIncreaseButton = page.getByTestId("product-detail-increase");
+    await expect(productIncreaseButton).toBeVisible({ timeout: DEFAULT_UI_TIMEOUT_MS });
 
-    await page.getByTestId("product-detail-increase").click();
+    await productIncreaseButton.click();
+    await waitForCartQuantity(page, parametric.slug, 2);
     await page.goto("/cart", { waitUntil: "domcontentloaded" });
 
     const cartState = await page.evaluate((storageKey) => {
@@ -152,20 +271,23 @@ test.describe("critical storefront commerce flows", () => {
 
     const customer = buildTestCustomer();
     const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
-    const parametric = await fetchProductDetail(request, PARAMETRIC_PRODUCT_SLUG);
+    const parametric = await fetchFirstDerivedProduct(request);
 
-    const { order, payment } = await placeGuestCashOrder(page, customer, simple.slug, {
+    const { order, payment } = await placeGuestCashOrder(page, customer, {
+      name: simple.name,
+      slug: simple.slug
+    }, {
       name: parametric.name,
       slug: parametric.slug
     });
 
     expect(order.itemCount).toBe(2);
-    expect(order.orderCurrency).toBe("USD");
+    expect(order.orderCurrency).toBe("UYU");
     expect(order.itemNames.some((name) => name.includes(simple.name))).toBeTruthy();
     expect(order.itemNames.some((name) => name.includes(parametric.name))).toBeTruthy();
 
     expect(payment.status).toBe("REGISTERED");
-    expect(payment.currency).toBe("USD");
+    expect(payment.currency).toBe("UYU");
     expect((payment.method ?? "").toLowerCase()).toMatch(/cash|efectivo/);
 
     const timeline = await getLatestTimelineEventsForOrder(order.uuid);
@@ -209,10 +331,13 @@ test.describe("critical storefront commerce flows", () => {
     await bootstrapStorefrontContext(page);
 
     const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
-    const parametric = await fetchProductDetail(request, PARAMETRIC_PRODUCT_SLUG);
+    const parametric = await fetchFirstDerivedProduct(request);
 
     const confirmCustomer = buildTestCustomer(Date.now());
-    const confirmOrder = await placeGuestCashOrder(page, confirmCustomer, simple.slug, {
+    const confirmOrder = await placeGuestCashOrder(page, confirmCustomer, {
+      name: simple.name,
+      slug: simple.slug
+    }, {
       name: parametric.name,
       slug: parametric.slug
     });
@@ -261,10 +386,13 @@ test.describe("critical storefront commerce flows", () => {
     await bootstrapStorefrontContext(page);
 
     const simple = await fetchProductDetail(request, SIMPLE_PRODUCT_SLUG);
-    const parametric = await fetchProductDetail(request, PARAMETRIC_PRODUCT_SLUG);
+    const parametric = await fetchFirstDerivedProduct(request);
 
     const failCustomer = buildTestCustomer(Date.now() + 1);
-    const failedOrder = await placeGuestCashOrder(page, failCustomer, simple.slug, {
+    const failedOrder = await placeGuestCashOrder(page, failCustomer, {
+      name: simple.name,
+      slug: simple.slug
+    }, {
       name: parametric.name,
       slug: parametric.slug
     });

@@ -85,6 +85,30 @@ Comando de actualización:
 node tools/qa/generate-use-cases-report.mjs
 ```
 
+## Testing Recovery
+
+La auditoría de testing automatizado y recovery progresivo vive en:
+
+- [docs/testing/qa-readiness-roadmap.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/qa-readiness-roadmap.md)
+- [docs/testing/qa-iterations-backlog.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/qa-iterations-backlog.md)
+- [docs/testing/current-state.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/current-state.md)
+- [docs/testing/test-inventory.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/test-inventory.md)
+- [docs/testing/coverage-analysis.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/coverage-analysis.md)
+- [docs/testing/testing-debt.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/testing-debt.md)
+- [docs/testing/deferred-ai-testing.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/deferred-ai-testing.md)
+- [docs/testing/backend-runtime-status.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/backend-runtime-status.md)
+- [docs/testing/backend-traceability.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/backend-traceability.md)
+- [docs/testing/backend-flaky-analysis.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/backend-flaky-analysis.md)
+- [docs/testing/backend-failures.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/backend-failures.md)
+- [docs/testing/governance-rules.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/governance-rules.md)
+- [docs/testing/runtime-integrity-report.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/runtime-integrity-report.md)
+- [docs/testing/workbook-validation-report.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/workbook-validation-report.md)
+
+La hoja de ruta que rige las próximas iteraciones y define el criterio de finalización global es:
+
+- [docs/testing/qa-readiness-roadmap.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/qa-readiness-roadmap.md)
+- [docs/testing/qa-iterations-backlog.md](/Users/rodrigo/Git/personal/react_admin_dashboard/docs/testing/qa-iterations-backlog.md)
+
 El workbook incluye también una capa explícita de estado por respuesta backend directa:
 
 - `validado por UI`

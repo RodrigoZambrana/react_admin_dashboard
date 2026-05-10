@@ -18,7 +18,7 @@ const normalizeBase = (value?: string | null): string | null => {
 
 export const resolveStorefrontOrigin = (config?: Pick<StorefrontConfig, "companyProfile"> | null): string => {
   const companyWebsite = config?.companyProfile?.website ?? null;
-  return env.publicSiteOrigin ?? env.publicSiteUrl ?? normalizeBase(companyWebsite) ?? "http://localhost:3000";
+  return normalizeBase(companyWebsite) ?? env.publicSiteOrigin ?? env.publicSiteUrl ?? "http://localhost:8080";
 };
 
 export const resolveAbsoluteUrl = (path: string, config?: Pick<StorefrontConfig, "companyProfile"> | null): string => {

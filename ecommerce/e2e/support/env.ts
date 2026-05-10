@@ -1,9 +1,9 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-export const storefrontBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000";
+export const storefrontBaseUrl = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:8080";
 export const storefrontApiBaseUrl =
-  process.env.PLAYWRIGHT_STOREFRONT_API_URL ?? "http://127.0.0.1:4000/api/storefront";
+  process.env.PLAYWRIGHT_STOREFRONT_API_URL ?? "http://127.0.0.1:8080/api/storefront";
 export const aiPlatformApiBaseUrl =
   process.env.PLAYWRIGHT_AI_PLATFORM_URL ?? "http://127.0.0.1:4110";
 export const aiPlatformInternalToken =

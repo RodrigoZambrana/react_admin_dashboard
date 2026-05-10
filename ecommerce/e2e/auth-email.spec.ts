@@ -1,12 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 
-import { waitForEmailActionLink } from "./support/db";
+import { clearPasswordResetTokens, waitForEmailActionLink } from "./support/db";
 import { storefrontApiBaseUrl } from "./support/env";
 import { buildTestCustomer } from "./support/factories";
 import { registerCustomer } from "./support/storefront-api";
 
 async function loginCustomer(page: Page, customer: { email: string; password: string }) {
-  await page.goto("http://localhost:3000", { waitUntil: "domcontentloaded" });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
   await page.getByTestId("header-account-button").click();
   await expect(page.getByTestId("auth-login-form")).toBeVisible({ timeout: 20_000 });
   await page.getByTestId("auth-login-identifier").fill(customer.email);
@@ -26,16 +26,23 @@ test.describe("storefront auth email flows", () => {
     await registerCustomer(request, customer);
 
     await loginCustomer(page, customer);
-    await page.goto("http://localhost:3000/account/profile", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("body")).toContainText(/pendiente de verificación|pending/i);
+    await page.goto("/account/profile", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/account\/profile$/, { timeout: 20_000 });
+    await expect(page.getByTestId("account-email-verification-status")).toContainText(
+      /pendiente de verificación|pending/i,
+      { timeout: 20_000 }
+    );
 
     const verification = await waitForEmailActionLink(customer.email, "verify_email");
     await page.goto(verification.url);
 
     await expect(page.getByText(/fue verificado correctamente|verified successfully/i)).toBeVisible();
 
-    await page.goto("http://localhost:3000/account/profile", { waitUntil: "domcontentloaded" });
-    await expect(page.locator("body")).toContainText(/verificado|verified/i);
+    await page.goto("/account/profile", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/account\/profile$/, { timeout: 20_000 });
+    await expect(page.getByTestId("account-email-verification-status")).toContainText(/verificado|verified/i, {
+      timeout: 20_000
+    });
   });
 
   test("sends a reset link by email and allows choosing a new password", async ({
@@ -51,6 +58,7 @@ test.describe("storefront auth email flows", () => {
 
     await registerCustomer(request, customer);
 
+    await clearPasswordResetTokens();
     const recoveryResponse = await request.post(`${storefrontApiBaseUrl}/auth/password/forgot`, {
       data: {
         channel: "email",

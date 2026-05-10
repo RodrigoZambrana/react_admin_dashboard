@@ -45,15 +45,15 @@ const normalizeSameOriginUrl = (value: string) => {
   }
 };
 
-const resolveMediaBaseUrl = () => normalizeBase(env.publicMediaBaseUrl || "http://localhost:3000/media");
+const resolveMediaBaseUrl = () => normalizeBase(env.publicMediaBaseUrl || "http://localhost:8080/media");
 
 const resolveUploadsBaseUrl = () => {
   try {
-    const mediaBase = new URL(env.publicMediaBaseUrl || "http://localhost:3000/media");
+    const mediaBase = new URL(env.publicMediaBaseUrl || "http://localhost:8080/media");
     mediaBase.pathname = mediaBase.pathname.replace(/\/media\/?$/i, "/uploads");
     return normalizeBase(mediaBase.toString());
   } catch {
-    return normalizeBase(`${env.publicSiteOrigin || "http://localhost:3000"}/uploads`);
+    return normalizeBase(`${env.publicSiteOrigin || "http://localhost:8080"}/uploads`);
   }
 };
 
