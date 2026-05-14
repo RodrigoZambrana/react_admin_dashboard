@@ -400,6 +400,9 @@ const sortStorefrontProducts = (
   return sorted;
 };
 
+const dedupeStorefrontProducts = (products: ProductSummary[]): ProductSummary[] =>
+  Array.from(new Map(products.map((product) => [product.slug || String(product.id), product])).values());
+
 const hydrateDerivedProductCategories = (
   product: ProductSummary,
   baseCategories: ProductSummary["categories"],
@@ -457,6 +460,22 @@ const filterAndSortProducts = (
 
     if (query.tag && !(product.tags ?? []).includes(query.tag)) {
       return false;
+    }
+
+    const priceAmount = product.salePrice?.amount ?? product.price.amount;
+    if (typeof query.priceMin === "number" && priceAmount < query.priceMin) {
+      return false;
+    }
+
+    if (typeof query.priceMax === "number" && priceAmount > query.priceMax) {
+      return false;
+    }
+
+    if (typeof query.rating === "number") {
+      const productRating = product.rating ?? 0;
+      if (productRating < query.rating) {
+        return false;
+      }
     }
 
     return true;
@@ -641,87 +660,53 @@ export const StorefrontApi = {
         const searchTerm = query.search?.trim() ?? "";
         const rawCategorySlug = query.categorySlug?.trim() ?? "";
         const categorySlug = rawCategorySlug.toLowerCase() === "all" ? "" : rawCategorySlug;
+        const categories = categorySlug
+          ? await apiFetch<CategorySummary[]>("categories", {
+              ...buildPublicCacheOptions([buildPublicTag("storefront", "categories")]),
+            })
+          : null;
+        const selectedCategory = categorySlug ? findCategoryBySlug(categories ?? [], categorySlug) : null;
+        const exposureMode = selectedCategory?.catalogExposureMode ?? null;
+        const categorySlugs = selectedCategory
+          ? new Set(collectCategorySlugs(selectedCategory))
+          : undefined;
 
-        if (categorySlug) {
-          const categories = await apiFetch<CategorySummary[]>("categories", {
-            ...buildPublicCacheOptions([buildPublicTag("storefront", "categories")]),
+        if (selectedCategory && exposureMode === "UNITARY") {
+          return apiFetch<PaginatedResponse<ProductSummary>>("products", {
+            params: {
+              page: query.page,
+              pageSize: query.pageSize,
+              category: query.categorySlug,
+              search: query.search,
+              sort: query.sort,
+              tag: query.tag,
+              priceMin: query.priceMin,
+              priceMax: query.priceMax,
+              rating: query.rating,
+            },
+            ...buildPublicCacheOptions([
+              "products",
+              ...(query.categorySlug ? [`category:${query.categorySlug}`] : []),
+            ]),
           });
-          const selectedCategory = findCategoryBySlug(categories, categorySlug);
-          const exposureMode = selectedCategory?.catalogExposureMode ?? null;
-
-          if (selectedCategory && isM2CatalogExposureMode(exposureMode)) {
-            const derivedProducts = await apiFetch<DerivedProductPayload[]>("m2-derived", {
-              ...buildPublicCacheOptions([buildPublicTag("storefront", "m2-derived")]),
-            });
-
-            const normalizedDerivedProducts = derivedProducts
-              .map((product) => mapDerivedProductToSummary(product))
-              .filter((product) =>
-                (product.categories ?? []).some((category) => category.slug === selectedCategory.slug),
-              );
-
-            const filtered = normalizedDerivedProducts.filter((product) => {
-              if (searchTerm) {
-                const haystack = [
-                  product.name,
-                  product.shortDescription ?? "",
-                  product.slug,
-                  ...(product.tags ?? []),
-                ].join(" ");
-                if (!normalizeSearchValue(haystack).includes(normalizeSearchValue(searchTerm))) {
-                  return false;
-                }
-              }
-
-              if (query.tag && !(product.tags ?? []).includes(query.tag)) {
-                return false;
-              }
-
-              return true;
-            });
-
-            return buildPaginatedResponse(sortStorefrontProducts(filtered, query.sort), query);
-          }
-
-          if (selectedCategory && exposureMode === "UNITARY") {
-            return apiFetch<PaginatedResponse<ProductSummary>>("products", {
-              params: {
-                page: query.page,
-                pageSize: query.pageSize,
-                category: query.categorySlug,
-                search: query.search,
-                sort: query.sort,
-                tag: query.tag,
-                priceMin: query.priceMin,
-                priceMax: query.priceMax,
-                rating: query.rating,
-              },
-              ...buildPublicCacheOptions([
-                "products",
-                ...(query.categorySlug ? [`category:${query.categorySlug}`] : []),
-              ]),
-            });
-          }
         }
 
-        return apiFetch<PaginatedResponse<ProductSummary>>("products", {
-          params: {
-            page: query.page,
-            pageSize: query.pageSize,
-            category: query.categorySlug,
-            search: query.search,
-            sort: query.sort,
-            tag: query.tag,
-            priceMin: query.priceMin,
-            priceMax: query.priceMax,
-            rating: query.rating,
-          },
-          ...buildPublicCacheOptions([
-            "products",
-            ...(query.categorySlug ? [`category:${query.categorySlug}`] : []),
-            ...(searchTerm ? [`search:${searchTerm}`] : []),
-          ]),
-        });
+        const [catalogProducts, derivedProducts] = await Promise.all([
+          loadAllStorefrontProducts(searchTerm),
+          apiFetch<DerivedProductPayload[]>("m2-derived", {
+            ...buildPublicCacheOptions([buildPublicTag("storefront", "m2-derived")]),
+          }),
+        ]);
+
+        const normalizedDerivedProducts = derivedProducts.map((product) => mapDerivedProductToSummary(product));
+        const mergedProducts = selectedCategory && isM2CatalogExposureMode(exposureMode)
+          ? normalizedDerivedProducts
+          : [...catalogProducts, ...normalizedDerivedProducts];
+
+        return buildPaginatedResponse(
+          filterAndSortProducts(dedupeStorefrontProducts(mergedProducts), query, categorySlugs),
+          query,
+        );
       } catch (error) {
         if (isSnapshotFallbackEnabled()) {
           const record = await loadStorefrontSnapshot();
@@ -911,10 +896,10 @@ export const StorefrontApi = {
     });
   },
 
-  async login(identifier: string, password: string): Promise<AuthSession> {
+  async login(identifier: string, password: string, recaptchaToken?: string): Promise<AuthSession> {
     return apiFetch<AuthSession>("auth/login", {
       method: "POST",
-      body: JSON.stringify({ identifier, password }),
+      body: JSON.stringify({ identifier, password, recaptchaToken }),
       cache: "no-store"
     });
   },
@@ -932,8 +917,9 @@ export const StorefrontApi = {
       password: string;
       firstName: string;
       lastName: string;
-      phone: string;
+      phone?: string;
       locale?: string;
+      recaptchaToken?: string;
     }
   ): Promise<AuthSession> {
     return apiFetch<AuthSession>("auth/register", {
@@ -965,18 +951,22 @@ export const StorefrontApi = {
     });
   },
 
-  async requestPasswordRecoveryByEmail(email: string): Promise<{ ok: true }> {
+  async requestPasswordRecoveryByEmail(email: string, recaptchaToken?: string): Promise<{ ok: true }> {
     return apiFetch<{ ok: true }>("auth/password/forgot", {
       method: "POST",
-      body: JSON.stringify({ channel: "email", email }),
+      body: JSON.stringify({ channel: "email", email, recaptchaToken }),
       cache: "no-store"
     });
   },
 
-  async resetPasswordByEmail(token: string, newPassword: string): Promise<{ ok: true }> {
+  async resetPasswordByEmail(
+    token: string,
+    newPassword: string,
+    recaptchaToken?: string
+  ): Promise<{ ok: true }> {
     return apiFetch<{ ok: true }>("auth/password/reset", {
       method: "POST",
-      body: JSON.stringify({ channel: "email", token, newPassword }),
+      body: JSON.stringify({ channel: "email", token, newPassword, recaptchaToken }),
       cache: "no-store"
     });
   },

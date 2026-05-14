@@ -15,7 +15,12 @@ import Divide from "./components/Divide";
 import SocialLinks from "./components/SocialLinks";
 import { StyledRoot } from "./styles";
 import useVisibility from "./useVisibility";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+import { resolveStorefrontRecaptchaToken } from "@/lib/security/storefront-recaptcha";
 import { looksLikePhoneNumber } from "@/lib/utils/phone";
+import { normalizePhoneNumber } from "@/lib/utils/phone";
+import { useSession } from "@/state/session-context";
+import { useTranslation } from "@/state/i18n-context";
 
 const defaultValidationSchema = yup.object({
   identifier: yup
@@ -34,8 +39,8 @@ const defaultValidationSchema = yup.object({
 export type LoginFormValues = yup.InferType<typeof defaultValidationSchema>;
 
 const defaultInitialValues: LoginFormValues = {
-  identifier: "091284204",
-  password: "Storefront@2024"
+  identifier: "",
+  password: ""
 };
 
 type LoginProps = {
@@ -43,7 +48,8 @@ type LoginProps = {
   subtitle?: string;
   onSubmit?: (
     values: LoginFormValues,
-    formikHelpers: FormikHelpers<LoginFormValues>
+    formikHelpers: FormikHelpers<LoginFormValues>,
+    meta: { recaptchaToken?: string }
   ) => Promise<void> | void;
   submitting?: boolean;
   errorMessage?: string | null;
@@ -57,8 +63,8 @@ type LoginProps = {
 };
 
 export default function Login({
-  title = "Welcome To Ecommerce",
-  subtitle = "Log in with email & password",
+  title,
+  subtitle,
   onSubmit,
   submitting,
   errorMessage,
@@ -71,6 +77,9 @@ export default function Login({
   googleEnabled = true
 }: LoginProps) {
   const router = useRouter();
+  const t = useTranslation();
+  const storefrontConfig = useStorefrontConfig();
+  const { login, clearError } = useSession();
   const { passwordVisibility, togglePasswordVisibility } = useVisibility();
 
   const [internalSubmitting, setInternalSubmitting] = useState(false);
@@ -78,6 +87,16 @@ export default function Login({
 
   const effectiveSubmitting = submitting ?? internalSubmitting;
   const effectiveGoogleSubmitting = Boolean(googleSubmitting);
+  const resolvedTitle =
+    title ??
+    t("auth.login.modalTitle", {
+      defaultMessage: "Bienvenido"
+    });
+  const resolvedSubtitle =
+    subtitle ??
+    t("auth.login.modalSubtitle", {
+      defaultMessage: "Iniciá sesión con tu correo, teléfono y contraseña"
+    });
 
   const handleGoogleSignIn = useCallback(() => {
     if (!onGoogleSignIn) return;
@@ -92,7 +111,25 @@ export default function Login({
     onSubmit: async (formValues, helpers) => {
       const submitHandler =
         onSubmit ??
-        (async () => {
+        (async (
+          submittedValues: LoginFormValues,
+          helpers: FormikHelpers<LoginFormValues>,
+          meta: { recaptchaToken?: string }
+        ) => {
+          clearError();
+          const trimmedIdentifier = submittedValues.identifier.trim();
+          let payloadIdentifier = trimmedIdentifier;
+
+          if (looksLikePhoneNumber(trimmedIdentifier)) {
+            const normalized = normalizePhoneNumber(trimmedIdentifier);
+            if (!normalized) {
+              helpers.setFieldError("identifier", "Enter a valid phone number");
+              return;
+            }
+            payloadIdentifier = normalized;
+          }
+
+          await login(payloadIdentifier, submittedValues.password, meta.recaptchaToken);
           router.push("/account/profile");
         });
 
@@ -101,7 +138,11 @@ export default function Login({
       }
 
       try {
-        await submitHandler(formValues, helpers);
+        const recaptchaToken = await resolveStorefrontRecaptchaToken(
+          storefrontConfig,
+          "storefront_login"
+        );
+        await submitHandler(formValues, helpers, { recaptchaToken });
       } finally {
         if (managesSubmitting) {
           setInternalSubmitting(false);
@@ -114,12 +155,20 @@ export default function Login({
     <StyledRoot boxShadow="large" borderRadius={8}>
       <form className="content" onSubmit={handleSubmit} data-testid="auth-login-form">
         <H3 textAlign="center" mb="0.5rem">
-          {title}
+          {resolvedTitle}
         </H3>
 
         <H5 fontWeight="600" fontSize="12px" color="gray.800" textAlign="center" mb="2.25rem">
-          {subtitle}
+          {resolvedSubtitle}
         </H5>
+
+        {storefrontConfig.integrations?.recaptcha?.enabled ? (
+          <Small color="text.muted" display="block" textAlign="center" mb="1rem">
+            {t("auth.signIn.recaptchaMessage", {
+              defaultMessage: "reCAPTCHA Enterprise protege esta acción."
+            })}
+          </Small>
+        ) : null}
 
         <TextField
           fullWidth
@@ -130,8 +179,12 @@ export default function Login({
           onBlur={handleBlur}
           value={values.identifier}
           onChange={handleChange}
-          placeholder="you@example.com or +1 (555) 000-0000"
-          label="Email or Phone Number"
+          placeholder={t("auth.login.identifierPlaceholder", {
+            defaultMessage: "tu@email.com o +598 99 000 000"
+          })}
+          label={t("auth.login.identifierLabel", {
+            defaultMessage: "Correo electrónico o teléfono"
+          })}
           errorText={touched.identifier ? errors.identifier : undefined}
         />
 
@@ -174,7 +227,9 @@ export default function Login({
           data-testid="auth-login-submit"
           fullWidth
           disabled={effectiveSubmitting}>
-          {effectiveSubmitting ? "Signing in..." : "Login"}
+          {effectiveSubmitting
+            ? t("auth.login.submitting", { defaultMessage: "Ingresando..." })
+            : t("auth.login.submit", { defaultMessage: "Iniciar sesión" })}
         </Button>
 
         <Divide />
@@ -187,7 +242,7 @@ export default function Login({
         />
 
         <FlexBox justifyContent="center" mb="1.25rem">
-          <SemiSpan>Don’t have account?</SemiSpan>
+          <SemiSpan>{t("auth.login.registerPrompt", { defaultMessage: "¿No tenés cuenta?" })}</SemiSpan>
           <Link href={registerHref}>
             <H6 ml="0.5rem" borderBottom="1px solid" borderColor="gray.900">
               {registerLabel}
@@ -197,7 +252,7 @@ export default function Login({
       </form>
 
       <FlexBox justifyContent="center" bg="gray.200" py="19px">
-        <SemiSpan>Forgot your password?</SemiSpan>
+        <SemiSpan>{t("auth.login.forgotPrompt", { defaultMessage: "¿Olvidaste tu contraseña?" })}</SemiSpan>
         <Link href={forgotPasswordHref}>
           <H6 ml="0.5rem" borderBottom="1px solid" borderColor="gray.900">
             {forgotPasswordLabel}

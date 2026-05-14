@@ -13,6 +13,8 @@ import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useToast } from "@/contexts/ToastContext";
 import { useTranslation } from "@/state/i18n-context";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+import { resolveStorefrontRecaptchaToken } from "@/lib/security/storefront-recaptcha";
 
 type FormValues = {
   email: string;
@@ -25,6 +27,7 @@ const initialValues: FormValues = {
 export default function ForgotPasswordPageClient() {
   const t = useTranslation();
   const toast = useToast();
+  const storefrontConfig = useStorefrontConfig();
   const [submitted, setSubmitted] = useState(false);
 
   const validationSchema = yup.object({
@@ -49,7 +52,14 @@ export default function ForgotPasswordPageClient() {
       validationSchema,
       onSubmit: async (formValues) => {
         try {
-          await StorefrontApi.requestPasswordRecoveryByEmail(formValues.email.trim().toLowerCase());
+          const recaptchaToken = await resolveStorefrontRecaptchaToken(
+            storefrontConfig,
+            "storefront_password_forgot"
+          );
+          await StorefrontApi.requestPasswordRecoveryByEmail(
+            formValues.email.trim().toLowerCase(),
+            recaptchaToken
+          );
           setSubmitted(true);
           toast.success({
             title: t("account.forgotPassword.success.title", {
@@ -90,6 +100,14 @@ export default function ForgotPasswordPageClient() {
             "Por ahora este proceso está disponible únicamente para cuentas con correo electrónico."
         })}
       </Paragraph>
+
+      {storefrontConfig.integrations?.recaptcha?.enabled ? (
+        <Paragraph color="text.muted" mb="1rem">
+          {t("auth.signIn.recaptchaMessage", {
+            defaultMessage: "reCAPTCHA Enterprise protege esta acción."
+          })}
+        </Paragraph>
+      ) : null}
 
       <Paragraph color="text.muted" mb="1.5rem">
         {t("account.forgotPassword.phoneOnlyHint", {

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { FormItem, FormContainer } from '@/components/ui/Form'
 import Button from '@/components/ui/Button'
 import Alert from '@/components/ui/Alert'
@@ -7,6 +7,7 @@ import ActionLink from '@/components/shared/ActionLink'
 import { apiResetPassword } from '@/services/AuthService'
 import useTimeOutMessage from '@/utils/hooks/useTimeOutMessage'
 import { useNavigate } from 'react-router-dom'
+import useQuery from '@/utils/hooks/useQuery'
 import { Field, Form, Formik } from 'formik'
 import * as Yup from 'yup'
 import type { CommonProps } from '@/@types/common'
@@ -51,6 +52,33 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
     const [message, setMessage] = useTimeOutMessage()
 
     const navigate = useNavigate()
+    const query = useQuery()
+    const token = query.get('token')?.trim() || ''
+    const isTokenReset = token.length > 0
+
+    const heading = useMemo(() => {
+        if (resetComplete) {
+            return {
+                title: t('auth.resetPassword.success.title'),
+                subtitle: t('auth.resetPassword.success.subtitle'),
+            }
+        }
+        if (isTokenReset) {
+            return {
+                title: t('auth.resetPassword.setNewPassword.title'),
+                subtitle: t('auth.resetPassword.setNewPassword.subtitle'),
+            }
+        }
+        return {
+            title: t('auth.resetPassword.changePassword.title', {
+                defaultValue: 'Cambiá tu contraseña',
+            }),
+            subtitle: t('auth.resetPassword.changePassword.subtitle', {
+                defaultValue:
+                    'Definí una nueva contraseña para reemplazar la credencial inicial de acceso.',
+            }),
+        }
+    }, [isTokenReset, resetComplete, t])
 
     const onSubmit = async (
         values: ResetPasswordFormSchema,
@@ -59,7 +87,9 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
         const { password } = values
         setSubmitting(true)
         try {
-            const resp = await apiResetPassword({ password })
+            const resp = await apiResetPassword(
+                token ? { password, token } : { password },
+            )
             if (resp.data) {
                 setSubmitting(false)
                 setResetComplete(true)
@@ -82,13 +112,13 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
             <div className="mb-6">
                 {resetComplete ? (
                     <>
-                        <h3 className="mb-1">{t('auth.resetPassword.success.title')}</h3>
-                        <p>{t('auth.resetPassword.success.subtitle')}</p>
+                        <h3 className="mb-1">{heading.title}</h3>
+                        <p>{heading.subtitle}</p>
                     </>
                 ) : (
                     <>
-                        <h3 className="mb-1">{t('auth.resetPassword.setNewPassword.title')}</h3>
-                        <p>{t('auth.resetPassword.setNewPassword.subtitle')}</p>
+                        <h3 className="mb-1">{heading.title}</h3>
+                        <p>{heading.subtitle}</p>
                     </>
                 )}
             </div>
@@ -99,8 +129,8 @@ const ResetPasswordForm = (props: ResetPasswordFormProps) => {
             )}
             <Formik
                 initialValues={{
-                    password: 'Strong@123',
-                    confirmPassword: 'Strong@123',
+                    password: '',
+                    confirmPassword: '',
                 }}
                 validationSchema={validationSchema}
                 onSubmit={(values, { setSubmitting }) => {

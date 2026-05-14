@@ -46,7 +46,7 @@ const SignInForm = (props: SignInFormProps) => {
     } = props
 
     // Flags keep navigation logic available without rendering the UI copy yet
-    const showForgotPasswordLink = false
+    const showForgotPasswordLink = true
     const showSignUpPrompt = false
 
     const [message, setMessage] = useTimeOutMessage()

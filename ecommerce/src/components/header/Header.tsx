@@ -124,7 +124,11 @@ export default function Header({ isFixed, className }: HeaderProps) {
   }, [homePath, logout, router]);
 
   const handleLoginSubmit = useCallback(
-    async (values: LoginFormValues, helpers: FormikHelpers<LoginFormValues>) => {
+    async (
+      values: LoginFormValues,
+      helpers: FormikHelpers<LoginFormValues>,
+      meta: { recaptchaToken?: string }
+    ) => {
       clearError();
       const trimmedIdentifier = values.identifier.trim();
       let payloadIdentifier = trimmedIdentifier;
@@ -142,7 +146,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
       setLoginSubmitting(true);
 
       try {
-        await login(payloadIdentifier, values.password);
+        await login(payloadIdentifier, values.password, meta.recaptchaToken);
         setLoginOpen(false);
       } catch (err) {
         // error handled by session context
@@ -391,7 +395,7 @@ export default function Header({ isFixed, className }: HeaderProps) {
         </FlexBox>
 
         <FlexBox className="header-right desktop-only" alignItems="center" gridGap="1rem">
-          <CustomerNotifications />
+                    <CustomerNotifications onRequireLogin={handleOpenLogin} />
           <Sidenav
             open={accountOpen}
             width={320}

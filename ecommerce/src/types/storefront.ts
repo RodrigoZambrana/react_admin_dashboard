@@ -127,6 +127,7 @@ export interface StorefrontConfig {
     languageSelector?: boolean;
     supportedLocales?: SupportedLocale[];
     defaultLocale?: SupportedLocale;
+    supportLauncher?: "webchat" | "whatsapp";
   };
   policies: StorefrontPolicy[];
   announcement?: AnnouncementBanner | null;

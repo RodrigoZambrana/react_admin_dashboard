@@ -18,6 +18,11 @@ export const StyledTopbar = styled.div`
     display: flex;
     align-items: center;
   }
+  .phone,
+  .email {
+    color: inherit;
+    text-decoration: none;
+  }
   .topbar-left {
     .email {
       margin-inline-start: 20px;

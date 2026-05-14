@@ -24,7 +24,7 @@ interface SessionContextValue {
   session: AuthSession | null;
   status: SessionStatus;
   isAuthenticated: boolean;
-  login: (identifier: string, password: string) => Promise<AuthSession>;
+  login: (identifier: string, password: string, recaptchaToken?: string) => Promise<AuthSession>;
   register: (payload: RegisterPayload) => Promise<AuthSession>;
   loginWithGoogle: (options?: { returnPath?: string }) => Promise<{ session: AuthSession; returnPath: string | null }>;
   logout: () => Promise<void>;
@@ -39,8 +39,9 @@ export interface RegisterPayload {
   password: string;
   firstName: string;
   lastName: string;
-  phone: string;
+  phone?: string;
   locale?: string;
+  recaptchaToken?: string;
 }
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
@@ -388,7 +389,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   );
 
   const login = useCallback(
-    async (identifier: string, password: string) => {
+    async (identifier: string, password: string, recaptchaToken?: string) => {
       try {
         const trimmedIdentifier = identifier.trim();
         let payloadIdentifier = trimmedIdentifier;
@@ -399,7 +400,7 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
           }
           payloadIdentifier = normalized;
         }
-        const sessionResponse = await StorefrontApi.login(payloadIdentifier, password);
+        const sessionResponse = await StorefrontApi.login(payloadIdentifier, password, recaptchaToken);
         return handleAuthSuccess(sessionResponse, "login");
       } catch (cause) {
         handleAuthError(cause, "login");
@@ -681,20 +682,23 @@ export const StorefrontSessionProvider: React.FC<{ children: React.ReactNode }> 
   const register = useCallback(
     async (payload: RegisterPayload) => {
       try {
-        const normalizedPhone = normalizePhoneNumber(payload.phone);
-        if (!payload.phone.trim().length) {
-          throw new Error("Phone number is required");
+        const trimmedEmail = payload.email?.trim() || undefined;
+        const trimmedPhone = payload.phone?.trim() ?? "";
+        const normalizedPhone = trimmedPhone ? normalizePhoneNumber(trimmedPhone) : undefined;
+        if (!trimmedEmail && !trimmedPhone) {
+          throw new Error("At least one contact method is required");
         }
-        if (!normalizedPhone) {
+        if (trimmedPhone && !normalizedPhone) {
           throw new Error("Invalid phone number");
         }
         const sessionResponse = await StorefrontApi.register({
-          email: payload.email?.trim() || undefined,
+          email: trimmedEmail,
           password: payload.password,
           firstName: payload.firstName.trim(),
           lastName: payload.lastName.trim(),
-          phone: normalizedPhone,
-          locale: payload.locale ?? locale ?? "es"
+          phone: normalizedPhone ?? undefined,
+          locale: payload.locale ?? locale ?? "es",
+          recaptchaToken: payload.recaptchaToken
         });
         return handleAuthSuccess(sessionResponse, "register");
       } catch (cause) {

@@ -172,9 +172,11 @@ export async function seedIntegrations(
     ])
   ) {
     const before = await readSecureJsonOrReset(secureConfig, prisma, 'integrations.google')
-    if (!before) {
+    if (!before || process.env.LOCAL_TEST_ENV === 'true') {
       await secureConfig.setJson('integrations.google', googlePayload)
-      secureEntriesCreated += 1
+      if (!before) {
+        secureEntriesCreated += 1
+      }
     }
   }
 

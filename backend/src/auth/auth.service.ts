@@ -9,6 +9,17 @@ import { resolveUserCapabilityEnvelope } from './capabilities'
 import { UserManagementPolicyService } from './user-management-policy'
 
 const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
+const parseBootstrapAdminValue = (value: string | null | undefined) => {
+  if (!value) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
 
 const normalizeLanguagePreference = (value?: string | null) => {
   const normalized = (value || '').trim().toLowerCase()
@@ -80,6 +91,24 @@ export class AuthService {
     }
   }
 
+  private async resolveBootstrapPasswordRotation(userEmail: string) {
+    const record = await this.prisma.systemConfig.findUnique({
+      where: { key: 'auth.bootstrapAdmin' },
+      select: { value: true },
+    })
+    const payload = parseBootstrapAdminValue(record?.value)
+    const bootstrapEmail = String(payload?.email ?? '')
+      .trim()
+      .toLowerCase()
+    const passwordRotationRequired = Boolean(payload?.passwordRotationRequired)
+
+    return Boolean(
+      bootstrapEmail &&
+        passwordRotationRequired &&
+        bootstrapEmail === userEmail.trim().toLowerCase(),
+    )
+  }
+
   async validateUser(email: string, pass: string) {
     const normalizedEmail = (email || '').trim()
     if (!normalizedEmail) {
@@ -120,6 +149,7 @@ export class AuthService {
       role: user.role,
       authority: [user.role],
     })
+    const mustChangePassword = await this.resolveBootstrapPasswordRotation(user.email)
     return {
       token,
       expiresAt,
@@ -135,6 +165,7 @@ export class AuthService {
         capabilityEnvelope: capabilityState.capabilityEnvelope,
         capabilitySource: capabilityState.source,
         userManagementPolicy,
+        mustChangePassword,
       },
     }
   }

@@ -19,7 +19,9 @@ type RequestOptions = {
 };
 
 const buildUrl = (path: string) => {
-  const base = env.authApiBaseUrl.endsWith("/") ? env.authApiBaseUrl : `${env.authApiBaseUrl}/`;
+  const resolvedBase =
+    typeof window === "undefined" ? env.authApiBaseUrl : env.publicAuthApiBaseUrl;
+  const base = resolvedBase.endsWith("/") ? resolvedBase : `${resolvedBase}/`;
   return new URL(path.replace(/^\//, ""), base).toString();
 };
 
@@ -83,6 +85,7 @@ export const AuthApi = {
     name?: string | null;
     lastName?: string | null;
     locale?: string | null;
+    recaptchaToken?: string;
   }) {
     return authFetch<PhoneAuthRegisterResponse>("/auth/register", {
       method: "POST",
@@ -90,21 +93,26 @@ export const AuthApi = {
     });
   },
 
-  sendOtp(payload: { phone: string; type?: "verification" | "recovery" }) {
+  sendOtp(payload: { phone: string; type?: "verification" | "recovery"; recaptchaToken?: string }) {
     return authFetch<{ ok: true }>("/auth/send-otp", {
       method: "POST",
       body: payload,
     });
   },
 
-  verifyOtp(payload: { phone: string; code: string }) {
+  verifyOtp(payload: { phone: string; code: string; recaptchaToken?: string }) {
     return authFetch<PhoneAuthVerifyResponse>("/auth/verify-otp", {
       method: "POST",
       body: payload,
     });
   },
 
-  recover(payload: { method: "sms" | "email"; phone?: string | null; email?: string | null }) {
+  recover(payload: {
+    method: "sms" | "email";
+    phone?: string | null;
+    email?: string | null;
+    recaptchaToken?: string;
+  }) {
     return authFetch<PhoneAuthRecoverResponse>("/auth/recover", {
       method: "POST",
       body: payload,
@@ -112,8 +120,8 @@ export const AuthApi = {
   },
 
   resetPassword(payload:
-    | { method: "sms"; phone: string; code: string; password: string }
-    | { method: "email"; token: string; password: string }) {
+    | { method: "sms"; phone: string; code: string; password: string; recaptchaToken?: string }
+    | { method: "email"; token: string; password: string; recaptchaToken?: string }) {
     return authFetch<PhoneAuthResetResponse>("/auth/reset-password", {
       method: "POST",
       body: payload,

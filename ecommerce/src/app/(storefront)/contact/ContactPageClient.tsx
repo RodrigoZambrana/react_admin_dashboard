@@ -253,7 +253,7 @@ export default function ContactPageClient() {
         </Grid>
       </HeroCard>
 
-      <Grid container spacing={6} mt="1.5rem">
+      <Grid container spacing={6} mt="2.5rem">
         {channelCards.map((card) => (
           <Grid item md={4} xs={12} key={card.key}>
             <InfoCard>

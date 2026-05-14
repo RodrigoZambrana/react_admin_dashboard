@@ -4377,13 +4377,14 @@ export class StorefrontService implements OnModuleInit {
     await this.ensureDefaultPasswordHash()
 
     const email = dto.email ? normalizeEmail(dto.email) : null
-    const phone = sanitizePhoneInput(dto.phone)
+    const rawPhone = dto.phone?.trim() ?? ''
+    const phone = rawPhone ? sanitizePhoneInput(rawPhone) : null
 
-    if (!dto.phone?.trim().length) {
-      throw new BadRequestException('Phone number is required')
+    if (!email && !rawPhone) {
+      throw new BadRequestException('At least one contact method is required')
     }
 
-    if (!phone) {
+    if (rawPhone && !phone) {
       throw new BadRequestException('Invalid phone number')
     }
 

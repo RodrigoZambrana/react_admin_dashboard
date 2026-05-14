@@ -42,6 +42,8 @@ export default function Topbar() {
       : "Storefront");
   const phone = companyProfile?.phone ?? null;
   const email = companyProfile?.email ?? null;
+  const phoneHref = phone ? `tel:${phone.replace(/[^\d+]/g, "")}` : null;
+  const emailHref = email ? `mailto:${email.trim()}` : null;
 
   const languageOptions = useMemo(
     () => LANGUAGES.filter((item) => availableLocales.includes(item.locale)),
@@ -104,17 +106,17 @@ export default function Topbar() {
           </NavLink>
 
           {phone && (
-            <div className="phone">
+            <a className="phone" href={phoneHref ?? undefined}>
               <IconPhone size={16} stroke={1.5} />
               <span>{phone}</span>
-            </div>
+            </a>
           )}
 
           {email && (
-            <div className="email">
+            <a className="email" href={emailHref ?? undefined}>
               <IconMail size={16} stroke={1.5} />
               <span>{email}</span>
-            </div>
+            </a>
           )}
         </div>
 

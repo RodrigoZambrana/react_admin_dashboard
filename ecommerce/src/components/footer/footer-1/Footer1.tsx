@@ -70,13 +70,19 @@ export default function Footer1() {
 
                 {email && (
                   <Typography py="0.3rem" color="gray.500">
-                    {t("contact.page.labels.email", { defaultMessage: "Email" })}: {email}
+                    {t("contact.page.labels.email", { defaultMessage: "Email" })}:{" "}
+                    <a href={`mailto:${email}`} style={{ color: "inherit" }}>
+                      {email}
+                    </a>
                   </Typography>
                 )}
 
                 {phone && (
                   <Typography py="0.3rem" mb="1rem" color="gray.500">
-                    {t("contact.page.labels.phone", { defaultMessage: "Phone" })}: {phone}
+                    {t("contact.page.labels.phone", { defaultMessage: "Phone" })}:{" "}
+                    <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} style={{ color: "inherit" }}>
+                      {phone}
+                    </a>
                   </Typography>
                 )}
               </Grid>

@@ -7,6 +7,7 @@ import Box from "@component/Box";
 import FlexBox from "@component/FlexBox";
 import Menu from "@component/menu";
 import MenuItem from "@component/MenuItem";
+import { Button } from "@component/buttons";
 import IconButton from "@component/buttons/IconButton";
 import Scrollbar from "@component/Scrollbar";
 import Typography, { H6, Small, Tiny } from "@component/Typography";
@@ -145,7 +146,11 @@ const resolveNotificationPath = (notification: CustomerNotification): string => 
   return "/account/orders";
 };
 
-export default function CustomerNotifications() {
+type CustomerNotificationsProps = {
+  onRequireLogin?: () => void;
+};
+
+export default function CustomerNotifications({ onRequireLogin }: CustomerNotificationsProps) {
   const { session, isAuthenticated, logout } = useSession();
   const { locale } = useI18n();
   const t = useTranslation();
@@ -522,6 +527,14 @@ export default function CustomerNotifications() {
               gridGap="0.5rem"
             >
               <Typography color="text.muted">{t("notifications.unauthenticated")}</Typography>
+              <Button
+                variant="contained"
+                color="primary"
+                size="small"
+                onClick={onRequireLogin}
+              >
+                {t("auth.login.title", { defaultMessage: "Iniciar sesión" })}
+              </Button>
             </FlexBox>
           )}
         </Box>

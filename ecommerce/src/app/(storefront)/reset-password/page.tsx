@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { buildStorefrontPageMetadata } from "@/lib/page-metadata";
+import Layout1 from "@/components/layout/layout-1";
 import ResetPasswordPageClient from "./ResetPasswordPageClient";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -10,5 +11,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default function ResetPasswordPage() {
-  return <ResetPasswordPageClient />;
+  return (
+    <Layout1>
+      <ResetPasswordPageClient />
+    </Layout1>
+  );
 }

@@ -25,6 +25,7 @@ x-backend-common: &backend-common
     ALLOWED_ORIGINS: http://localhost:8080
     NEXT_PUBLIC_SITE_URL: http://localhost:8080
     STOREFRONT_BASE_URL: http://localhost:8080
+    GOOGLE_OAUTH_REDIRECT_URI: http://localhost:8080/api/storefront/auth/google/callback
     MEDIA_ROOT: /app/media
 
 x-admin-build-args: &admin-build-args
@@ -33,14 +34,15 @@ x-admin-build-args: &admin-build-args
   VITE_CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
   VITE_APP_PREFIX_PATH: /admin
   VITE_STATE_SIGNATURE_KEY: local-test-state-signature
-  VITE_RECAPTCHA_ENABLED: false
-  VITE_RECAPTCHA_SITE_KEY: ""
+  VITE_RECAPTCHA_ENABLED: ${VITE_RECAPTCHA_ENABLED:-true}
+  VITE_RECAPTCHA_SITE_KEY: ${VITE_RECAPTCHA_SITE_KEY:-6LejMNQrAAAAALMJpL_nnU3fH3Kxtr8fvW2tWaqS}
   VITE_PARAMETRIC_IMPORT_TIMEOUT_MS: 120000
 
 x-storefront-build-args: &storefront-build-args
   CLIENT_SLUG: ${CLIENT_SLUG:-urucortinas}
   NEXT_PUBLIC_CLIENT_SLUG: ${NEXT_PUBLIC_CLIENT_SLUG:-urucortinas}
   NEXT_PUBLIC_STOREFRONT_API_URL: http://localhost:8080/api/storefront
+  NEXT_PUBLIC_AUTH_API_URL: http://localhost:8080/api
   STOREFRONT_API_URL: http://backend:3000/api/storefront
   NEXT_PUBLIC_SITE_URL: http://localhost:8080
   NEXT_PUBLIC_ANALYTICS_API_URL: http://localhost:8080/api/analytics

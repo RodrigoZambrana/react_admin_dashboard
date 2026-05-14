@@ -8,6 +8,7 @@ import AuthShell from "@/components/auth/AuthShell";
 import OtpInput from "@/components/auth/OtpInput";
 import { AuthApi } from "@/lib/api/auth";
 import { isApiError } from "@/lib/http";
+import { resolvePublicRecaptchaToken } from "@/lib/security/public-recaptcha";
 
 export default function ResetPasswordClient() {
   const router = useRouter();
@@ -41,6 +42,7 @@ export default function ResetPasswordClient() {
 
     setLoading(true);
     try {
+      const recaptchaToken = await resolvePublicRecaptchaToken("auth_reset_password");
       if (method === "sms") {
         if (!phone.trim() || code.trim().length < otpLength) {
           setError(`Ingresá el teléfono y el código SMS de ${otpLength} dígitos.`);
@@ -51,6 +53,7 @@ export default function ResetPasswordClient() {
           phone: phone.trim(),
           code: code.trim(),
           password,
+          recaptchaToken,
         });
       } else {
         if (!token.trim()) {
@@ -61,6 +64,7 @@ export default function ResetPasswordClient() {
           method: "email",
           token: token.trim(),
           password,
+          recaptchaToken,
         });
       }
 

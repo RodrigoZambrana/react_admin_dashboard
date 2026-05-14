@@ -259,7 +259,13 @@ export default function ProfileClient() {
             {t("account.profile.details.email", { defaultMessage: "Email" })}
           </Small>
 
-          <span>{profile?.email ?? "—"}</span>
+          {profile?.email ? (
+            <a href={`mailto:${profile.email}`} style={{ color: "inherit" }}>
+              {profile.email}
+            </a>
+          ) : (
+            <span>—</span>
+          )}
           {profile?.email ? (
             <Small
               color={profile.emailVerificationRequired ? "warn.main" : "success.main"}
@@ -292,7 +298,13 @@ export default function ProfileClient() {
             {t("account.profile.details.phone", { defaultMessage: "Phone" })}
           </Small>
 
-          <span>{phoneDisplay}</span>
+          {profile?.phone ? (
+            <a href={`tel:${profile.phone.replace(/[^\d+]/g, "")}`} style={{ color: "inherit" }}>
+              {phoneDisplay}
+            </a>
+          ) : (
+            <span>{phoneDisplay}</span>
+          )}
         </FlexBox>
 
         <FlexBox flexDirection="column" p="0.5rem">

@@ -104,7 +104,7 @@ const priceBoundsFromProducts = (products: Product[]): PriceFilter => {
     return {};
   }
 
-  return { min, max };
+  return { min, max, currency: products[0]?.currency ?? "UYU" };
 };
 
 const isMobileListingRequest = async () => {
@@ -152,24 +152,71 @@ export default async function ShopPage({ searchParams }: SearchParams) {
   }
 
   try {
-    const storefrontPage = await StorefrontApi.listProducts({
-      page: requestedPage,
-      pageSize,
+    const baseQuery = {
       categorySlug: isAllCategorySlug(selectedCategorySlug) ? undefined : selectedCategorySlug,
       search: searchTerm,
       sort,
-      priceMin,
-      priceMax,
       rating,
-    });
+    } satisfies ProductListQuery;
+    const [storefrontPage, storefrontBoundsPage] = await Promise.all([
+      StorefrontApi.listProducts({
+        ...baseQuery,
+        page: requestedPage,
+        pageSize,
+        priceMin,
+        priceMax,
+      }),
+      StorefrontApi.listProducts({
+        ...baseQuery,
+        page: 1,
+        pageSize: 1000,
+      }),
+    ]);
 
     products = storefrontPage.data.map(mapProductSummaryToProduct);
+    const boundsProducts = storefrontBoundsPage.data.map(mapProductSummaryToProduct);
     meta = {
       page: storefrontPage.page,
       pageSize: storefrontPage.pageSize,
       total: storefrontPage.total,
       totalPage: storefrontPage.totalPages,
     };
+    const availablePriceBounds = priceBoundsFromProducts(boundsProducts);
+    const appliedFilters: ActiveFilters = {
+      priceMin,
+      priceMax,
+      rating: typeof rating === "number" && rating > 0 ? Math.min(Math.max(Math.floor(rating), 1), 5) : undefined
+    };
+
+    return (
+      <>
+        <StructuredData
+          schemas={[
+            buildCollectionPageJsonLd(config, {
+              name: "Catálogo",
+              description:
+                "Explora el catálogo público de productos y filtra por categoría, búsqueda o precio.",
+              url: resolveAbsoluteUrl("/shop", config),
+            }),
+          ]}
+        />
+        <Container mt="2rem">
+          <SaleNavbar categories={saleCategories} selectedSlug={selectedCategorySlug} />
+
+          <SaleCategory categories={saleCategories} selectedSlug={selectedCategorySlug} />
+
+          <ShopProductArea
+            products={products}
+            meta={meta}
+            selectedCategorySlug={selectedCategorySlug}
+            selectedCategoryLabel={selectedCategoryLabel}
+            searchTerm={searchTerm}
+            categories={saleCategories}
+            filters={{ priceBounds: availablePriceBounds, active: appliedFilters }}
+          />
+        </Container>
+      </>
+    );
   } catch (error) {
     if (!isApiError(error)) {
       console.warn("[sale-page] Failed to load storefront products.", error);
@@ -178,7 +225,6 @@ export default async function ShopPage({ searchParams }: SearchParams) {
     meta = { page: requestedPage, pageSize, total: 0, totalPage: 1 };
   }
 
-  const availablePriceBounds = priceBoundsFromProducts(products);
   const appliedFilters: ActiveFilters = {
     priceMin,
     priceMax,
@@ -202,16 +248,16 @@ export default async function ShopPage({ searchParams }: SearchParams) {
 
         <SaleCategory categories={saleCategories} selectedSlug={selectedCategorySlug} />
 
-        <ShopProductArea
-          products={products}
-          meta={meta}
-          selectedCategorySlug={selectedCategorySlug}
-          selectedCategoryLabel={selectedCategoryLabel}
-          searchTerm={searchTerm}
-          categories={saleCategories}
-          filters={{ priceBounds: availablePriceBounds, active: appliedFilters }}
-        />
-      </Container>
-    </>
+          <ShopProductArea
+            products={products}
+            meta={meta}
+            selectedCategorySlug={selectedCategorySlug}
+            selectedCategoryLabel={selectedCategoryLabel}
+            searchTerm={searchTerm}
+            categories={saleCategories}
+            filters={{ priceBounds: {}, active: appliedFilters }}
+          />
+        </Container>
+      </>
   );
 }

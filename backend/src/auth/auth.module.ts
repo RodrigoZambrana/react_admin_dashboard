@@ -39,6 +39,6 @@ import { OtpRateLimitService } from './otp-rate-limit.service'
     OtpRateLimitService,
   ],
   controllers: [AuthController],
-  exports: [UserManagementPolicyService],
+  exports: [AuthService, UserManagementPolicyService],
 })
 export class AuthModule {}

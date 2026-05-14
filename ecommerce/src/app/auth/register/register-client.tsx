@@ -8,6 +8,7 @@ import AuthShell from "@/components/auth/AuthShell";
 import { AuthApi } from "@/lib/api/auth";
 import { isApiError } from "@/lib/http";
 import { normalizePhoneNumber } from "@/lib/utils/phone";
+import { resolvePublicRecaptchaToken } from "@/lib/security/public-recaptcha";
 
 export default function RegisterClient() {
   const router = useRouter();
@@ -32,10 +33,12 @@ export default function RegisterClient() {
 
     setLoading(true);
     try {
+      const recaptchaToken = await resolvePublicRecaptchaToken("auth_register");
       const response = await AuthApi.register({
         phone: normalizedPhone,
         email: email.trim() || undefined,
         password,
+        recaptchaToken,
       });
       router.push(
         `/auth/verify-phone?phone=${encodeURIComponent(normalizedPhone)}&length=${response.verification.otpLength}`,

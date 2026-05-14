@@ -13,6 +13,10 @@ export class StorefrontPasswordForgotDto {
   @IsString()
   @MinLength(6)
   phone?: string
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 
 export class StorefrontPasswordVerifyOtpDto {
@@ -42,6 +46,10 @@ export class StorefrontPasswordResetDto {
   @IsString()
   @MinLength(10)
   resetSessionToken?: string
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 
 export class StorefrontPasswordChangeDto {

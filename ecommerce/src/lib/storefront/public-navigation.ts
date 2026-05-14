@@ -5,8 +5,8 @@ import { resolveLocalizedSiteRoute } from "@/lib/site-routes";
 export const buildDefaultPublicNavigation = (): NavigationConfig => ({
   primary: [
     { id: "nav-home", label: "Inicio", href: "/" },
-    { id: "nav-shop", label: "Tienda", href: "/shop" },
     { id: "nav-categories", label: "Categorías", href: "/categories" },
+    { id: "nav-shop", label: "Tienda", href: "/shop" },
     { id: "nav-about", label: "Quiénes somos", href: "/quienes-somos" },
     { id: "nav-faq", label: "Preguntas frecuentes", href: "/preguntas-frecuentes" },
     { id: "nav-contact", label: "Contacto", href: resolveLocalizedSiteRoute("contact", DEFAULT_LOCALE) }

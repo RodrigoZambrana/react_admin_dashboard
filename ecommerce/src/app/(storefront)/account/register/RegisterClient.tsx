@@ -9,6 +9,8 @@ import * as yup from "yup";
 import { useSession } from "@/state/session-context";
 import { useI18n, useTranslation } from "@/state/i18n-context";
 import { normalizePhoneNumber } from "@/lib/utils/phone";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+import { resolveStorefrontRecaptchaToken } from "@/lib/security/storefront-recaptcha";
 
 import Icon from "@component/icon/Icon";
 import FlexBox from "@component/FlexBox";
@@ -33,6 +35,7 @@ type FormValues = typeof initialValues;
 export default function RegisterClient() {
   const router = useRouter();
   const { register, error, clearError } = useSession();
+  const storefrontConfig = useStorefrontConfig();
   const { locale } = useI18n();
   const t = useTranslation();
   const [showPassword, setShowPassword] = useState(false);
@@ -64,12 +67,10 @@ export default function RegisterClient() {
         phone: yup
           .string()
           .trim()
-          .required(
-            t("auth.register.errors.phoneRequired", {
-              defaultMessage: "Debes ingresar un número de teléfono."
-            }),
-          )
-          .min(6, t("Enter a valid phone number", { defaultMessage: "Enter a valid phone number" })),
+          .test("phone-or-empty", t("Enter a valid phone number", { defaultMessage: "Enter a valid phone number" }), (value) => {
+            if (!value || value.trim().length === 0) return true;
+            return value.trim().length >= 6;
+          }),
         password: yup
           .string()
           .required(t("Password is required", { defaultMessage: "Password is required" }))
@@ -98,19 +99,19 @@ export default function RegisterClient() {
     const email = values.email.trim();
     const phone = values.phone.trim();
     const normalizedPhone = phone ? normalizePhoneNumber(phone) : undefined;
+    if (!email && !phone) {
+      const contactMessage = t("auth.register.errors.contactRequired", {
+        defaultMessage: "Debes ingresar un correo o un teléfono."
+      });
+      setFieldError("email", contactMessage);
+      setFieldError("phone", contactMessage);
+      return;
+    }
     if (phone && !normalizedPhone) {
       setFieldError(
         "phone",
         t("Enter a valid phone number", { defaultMessage: "Enter a valid phone number" }),
       );
-      return;
-    }
-    if (!normalizedPhone) {
-      const message = t("Phone number is required", { defaultMessage: "Phone number is required" });
-      const localizedMessage = t("auth.register.errors.phoneRequired", {
-        defaultMessage: "Debes ingresar un número de teléfono."
-      });
-      setFieldError("phone", localizedMessage || message);
       return;
     }
     setSubmitting(true);
@@ -120,8 +121,12 @@ export default function RegisterClient() {
         password: values.password,
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim(),
-        phone: normalizedPhone,
-        locale
+        phone: normalizedPhone ?? undefined,
+        locale,
+        recaptchaToken: await resolveStorefrontRecaptchaToken(
+          storefrontConfig,
+          "storefront_register"
+        )
       });
       router.replace("/account/profile");
     } catch (err) {
@@ -150,20 +155,29 @@ export default function RegisterClient() {
     <StyledRoot mx="auto" my="2rem" boxShadow="large" borderRadius={8}>
       <form className="content" onSubmit={handleSubmit} data-testid="auth-register-form">
         <H3 textAlign="center" mb="0.5rem">
-          {t("auth.register.title", { defaultMessage: "Create your account" })}
+          {t("auth.register.title", { defaultMessage: "Creá tu cuenta" })}
         </H3>
 
         <H5 fontWeight="600" fontSize="12px" color="gray.800" textAlign="center" mb="2.25rem">
           {t("auth.register.subtitle", {
-            defaultMessage: "Fill in the details below to access the storefront dashboard."
+            defaultMessage: "Registrate con correo o teléfono para guardar pedidos, presupuestos y seguimiento."
           })}
         </H5>
 
         <Small color="text.muted" display="block" mb="1rem">
           {t("auth.register.contactRule", {
-            defaultMessage: "Phone number is required. Email is optional."
+            defaultMessage:
+              "Podés crear tu cuenta con correo, con teléfono o con ambos. Si la validación por SMS no está activa, el alta continúa igual."
           })}
         </Small>
+
+        {storefrontConfig.integrations?.recaptcha?.enabled ? (
+          <Small color="text.muted" display="block" mb="1rem">
+            {t("auth.signIn.recaptchaMessage", {
+              defaultMessage: "reCAPTCHA Enterprise protege esta acción."
+            })}
+          </Small>
+        ) : null}
 
         <TextField
           fullWidth
@@ -204,7 +218,7 @@ export default function RegisterClient() {
           onChange={handleChange}
           placeholder={t("auth.register.placeholders.email", { defaultMessage: "you@example.com" })}
           label={t("auth.register.fields.emailOptional", {
-            defaultMessage: "Email address (optional)"
+            defaultMessage: "Correo electrónico"
           })}
           errorText={touched.email ? errors.email : undefined}
           disabled={submitting}
@@ -219,14 +233,14 @@ export default function RegisterClient() {
           value={values.phone}
           onChange={handleChange}
           placeholder={t("auth.register.placeholders.phone", { defaultMessage: "+598 99 000 000" })}
-          label={t("Phone number")}
+          label={t("Phone number", { defaultMessage: "Teléfono" })}
           errorText={touched.phone ? errors.phone : undefined}
           disabled={submitting}
         />
 
         <Small color="text.muted" display="block" mb="0.75rem">
           {t("auth.register.phoneHint", {
-            defaultMessage: "You can enter it with or without +598 or a leading 0. We normalize it automatically."
+            defaultMessage: "Ingresalo con o sin +598. Lo usamos para contactarte y recuperar acceso si hace falta."
           })}
         </Small>
 

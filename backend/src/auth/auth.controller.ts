@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res } from '@nestjs/common'
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common'
 import { AuthService } from './auth.service'
 import { SignInDto } from './dto/sign-in.dto'
 import { SignUpDto } from './dto/sign-up.dto'
@@ -10,11 +10,12 @@ import { PrismaService } from '../prisma/prisma.service'
 import { UserActivityService } from '../user-activity/user-activity.service'
 import { SESSION_TTL_SECONDS } from './auth.config'
 import { PasswordResetService } from './password-reset.service'
-import { PasswordResetConfirmDto, PasswordResetRequestDto } from './dto/password-reset.dto'
+import { PasswordChangeDto, PasswordResetConfirmDto, PasswordResetRequestDto } from './dto/password-reset.dto'
 import { Throttle } from '@nestjs/throttler'
 import { GoogleConfigService } from '../common/integrations/google-config.service'
 import { PhoneAuthService } from './phone-auth.service'
 import { resolveMediaProvider } from '../common/media/media-provider'
+import { JwtAuthGuard } from './jwt-auth.guard'
 import {
   RecoverAccountDto,
   RegisterPhoneDto,
@@ -43,6 +44,18 @@ export class AuthController {
       path: '/',
       maxAge: SESSION_TTL_SECONDS,
     }
+  }
+
+  private async verifyAuthRecaptchaIfEnabled(token: string | undefined, req: FastifyRequest) {
+    const config = await this.googleConfig.getEffectiveConfig()
+    const enabled =
+      config.recaptcha.enabled &&
+      config.recaptcha.storefront.enabled &&
+      Boolean(config.recaptcha.storefront.siteKey)
+    if (!enabled) {
+      return
+    }
+    await this.auth.verifyRecaptcha(token, req.ip)
   }
 
   @Post('/sign-in')
@@ -168,6 +181,17 @@ export class AuthController {
     return { ok: true }
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('/auth/password/change')
+  async changeAuthenticatedPassword(@Body() dto: PasswordChangeDto, @Req() req: FastifyRequest) {
+    const user = (req as FastifyRequest & { user?: { sub?: number } }).user
+    if (!user?.sub) {
+      return { ok: false }
+    }
+    await this.passwordReset.changeAuthenticatedPassword(user.sub, dto.password, req)
+    return { ok: true }
+  }
+
   @Post('/forgot-password')
   @Throttle({ default: { limit: 5, ttl: 300 } })
   async legacyForgotPassword(@Body() dto: PasswordResetRequestDto, @Req() req: FastifyRequest) {
@@ -183,28 +207,33 @@ export class AuthController {
 
   @Post('/auth/register')
   async registerWithPhone(@Body() dto: RegisterPhoneDto, @Req() req: FastifyRequest) {
+    await this.verifyAuthRecaptchaIfEnabled(dto.recaptchaToken, req)
     return this.phoneAuth.register(dto, req)
   }
 
   @Post('/auth/send-otp')
   @Throttle({ default: { limit: 10, ttl: 60 } })
   async sendOtp(@Body() dto: SendOtpDto, @Req() req: FastifyRequest) {
+    await this.verifyAuthRecaptchaIfEnabled(dto.recaptchaToken, req)
     return this.phoneAuth.sendOtp(dto, req)
   }
 
   @Post('/auth/verify-otp')
   async verifyOtp(@Body() dto: VerifyOtpDto, @Req() req: FastifyRequest) {
+    await this.verifyAuthRecaptchaIfEnabled(dto.recaptchaToken, req)
     return this.phoneAuth.verifyOtp(dto, req)
   }
 
   @Post('/auth/recover')
   @Throttle({ default: { limit: 5, ttl: 60 } })
   async recover(@Body() dto: RecoverAccountDto, @Req() req: FastifyRequest) {
+    await this.verifyAuthRecaptchaIfEnabled(dto.recaptchaToken, req)
     return this.phoneAuth.recover(dto, req)
   }
 
   @Post('/auth/reset-password')
   async resetPasswordPhoneAuth(@Body() dto: ResetPasswordDto, @Req() req: FastifyRequest) {
+    await this.verifyAuthRecaptchaIfEnabled(dto.recaptchaToken, req)
     return this.phoneAuth.resetPassword(dto, req)
   }
 }

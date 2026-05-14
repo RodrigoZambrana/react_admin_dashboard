@@ -8,6 +8,7 @@ import AuthShell from "@/components/auth/AuthShell";
 import OtpInput from "@/components/auth/OtpInput";
 import { AuthApi } from "@/lib/api/auth";
 import { isApiError } from "@/lib/http";
+import { resolvePublicRecaptchaToken } from "@/lib/security/public-recaptcha";
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
@@ -48,7 +49,8 @@ export default function VerifyPhoneClient() {
     }
     setLoading(true);
     try {
-      await AuthApi.verifyOtp({ phone: phone.trim(), code: code.trim() });
+      const recaptchaToken = await resolvePublicRecaptchaToken("auth_verify_phone");
+      await AuthApi.verifyOtp({ phone: phone.trim(), code: code.trim(), recaptchaToken });
       setSuccess("Cuenta activada correctamente.");
       window.setTimeout(() => router.push("/"), 1000);
     } catch (cause) {
@@ -67,7 +69,8 @@ export default function VerifyPhoneClient() {
     }
     setResending(true);
     try {
-      await AuthApi.sendOtp({ phone: phone.trim(), type: "verification" });
+      const recaptchaToken = await resolvePublicRecaptchaToken("auth_send_otp");
+      await AuthApi.sendOtp({ phone: phone.trim(), type: "verification", recaptchaToken });
       setSecondsLeft(RESEND_COOLDOWN_SECONDS);
       setSuccess("Enviamos un nuevo código por SMS.");
     } catch (cause) {

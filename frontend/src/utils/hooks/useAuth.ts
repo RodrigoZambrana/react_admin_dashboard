@@ -91,10 +91,13 @@ function useAuth() {
                     }
                 }
                 const redirectUrl = query.get(REDIRECT_URL_KEY)
+                const mustChangePassword = Boolean(resp.data.user?.mustChangePassword)
                 navigate(
-                    redirectUrl
-                        ? redirectUrl
-                        : appConfig.authenticatedEntryPath,
+                    mustChangePassword
+                        ? appPath('reset-password')
+                        : redirectUrl
+                          ? redirectUrl
+                          : appConfig.authenticatedEntryPath,
                 )
                 return {
                     status: 'success',

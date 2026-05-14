@@ -10,6 +10,17 @@ import { ThrottlerException } from '@nestjs/throttler'
 import { PasswordResetChannel } from '@prisma/client'
 
 const PASSWORD_MIN_LENGTH = 8
+const parseBootstrapAdminValue = (value: string | null | undefined) => {
+  if (!value) {
+    return null
+  }
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null
+  } catch {
+    return null
+  }
+}
 
 @Injectable()
 export class PasswordResetService {
@@ -146,15 +157,30 @@ export class PasswordResetService {
 
     const hashedPassword = await bcrypt.hash(newPassword, 12)
     const newSessionVersion = randomInt(1, 2_147_483_646)
+    const passwordChangeRecipient = record.userId
+      ? await this.prisma.user.findUnique({
+          where: { id: record.userId },
+          select: {
+            email: true,
+            name: true,
+            lastName: true,
+            lang: true,
+          },
+        })
+      : null
 
     await this.prisma.$transaction(async (tx) => {
       if (record.userId) {
-        await tx.user.update({
+        const updatedUser = await tx.user.update({
           where: { id: record.userId },
           data: {
             passwordHash: hashedPassword,
           },
+          select: {
+            email: true,
+          },
         })
+        await this.clearBootstrapRotationFlag(tx, updatedUser.email)
       } else if (record.customerId) {
         await tx.customer.update({
           where: { id: record.customerId },
@@ -185,9 +211,66 @@ export class PasswordResetService {
     })
 
     if (record.userId) {
+      if (passwordChangeRecipient?.email) {
+        await this.emailService.sendPasswordReset({
+          email: passwordChangeRecipient.email,
+          displayName:
+            `${passwordChangeRecipient.name ?? ''} ${passwordChangeRecipient.lastName ?? ''}`.trim() ||
+            passwordChangeRecipient.email,
+          locale: passwordChangeRecipient.lang ?? null,
+          isAdmin: true,
+          event: 'password_changed',
+          supportUrl: this.resolveAdminBaseUrl(),
+        })
+      }
       if (req) {
         await this.userActivity.recordPasswordChange(record.userId, 'reset', req)
       }
+    }
+  }
+
+  async changeAuthenticatedPassword(userId: number, newPassword: string, req?: FastifyRequest) {
+    this.validatePassword(newPassword)
+
+    const hashedPassword = await bcrypt.hash(newPassword, 12)
+    const passwordChangeRecipient = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        email: true,
+        name: true,
+        lastName: true,
+        lang: true,
+      },
+    })
+
+    await this.prisma.$transaction(async (tx) => {
+      const updatedUser = await tx.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash: hashedPassword,
+        },
+        select: {
+          email: true,
+        },
+      })
+      await this.clearBootstrapRotationFlag(tx, updatedUser.email)
+    })
+
+    if (req) {
+      await this.userActivity.recordPasswordChange(userId, 'manual', req)
+    }
+
+    if (passwordChangeRecipient?.email) {
+      await this.emailService.sendPasswordReset({
+        email: passwordChangeRecipient.email,
+        displayName:
+          `${passwordChangeRecipient.name ?? ''} ${passwordChangeRecipient.lastName ?? ''}`.trim() ||
+          passwordChangeRecipient.email,
+        locale: passwordChangeRecipient.lang ?? null,
+        isAdmin: true,
+        event: 'password_changed',
+        supportUrl: this.resolveAdminBaseUrl(),
+      })
     }
   }
 
@@ -204,12 +287,10 @@ export class PasswordResetService {
       ? this.config.get<string>('ADMIN_PASSWORD_RESET_URL')
       : this.config.get<string>('CUSTOMER_PASSWORD_RESET_URL')
 
-    const fallbackBase = isAdmin
-      ? this.config.get<string>('ADMIN_APP_URL') ?? ''
-      : this.config.get<string>('STOREFRONT_BASE_URL') ?? ''
+    const fallbackBase = isAdmin ? this.resolveAdminBaseUrl() : this.resolveStorefrontBaseUrl()
 
     const defaultUrl = fallbackBase
-      ? `${fallbackBase.replace(/\/$/, '')}/reset-password?token=${encodedToken}`
+      ? `${fallbackBase.replace(/\/$/, '')}${isAdmin ? '/auth' : ''}/reset-password?token=${encodedToken}`
       : `https://example.com/reset-password?token=${encodedToken}`
 
     if (!template) {
@@ -221,5 +302,74 @@ export class PasswordResetService {
     }
     const separator = template.includes('?') ? '&' : '?'
     return `${template}${separator}token=${encodedToken}`
+  }
+
+  private resolveAdminBaseUrl() {
+    const configured =
+      this.config.get<string>('ADMIN_APP_URL') ??
+      this.config.get<string>('APP_PUBLIC_URL') ??
+      this.resolveDefaultAllowedOrigin()
+    if (!configured) {
+      return ''
+    }
+    const normalized = configured.replace(/\/$/, '')
+    return normalized.endsWith('/admin') ? normalized : `${normalized}/admin`
+  }
+
+  private resolveStorefrontBaseUrl() {
+    return (
+      this.config.get<string>('STOREFRONT_BASE_URL') ??
+      this.config.get<string>('APP_PUBLIC_URL') ??
+      this.resolveDefaultAllowedOrigin() ??
+      ''
+    )
+  }
+
+  private resolveDefaultAllowedOrigin() {
+    return (this.config.get<string>('DEFAULT_ALLOWED_ORIGINS') ?? '')
+      .split(',')
+      .map((value) => value.trim())
+      .find((value) => value.length > 0)
+  }
+
+  private async clearBootstrapRotationFlag(
+    tx: {
+      user: PrismaService['user']
+      systemConfig: PrismaService['systemConfig']
+    },
+    email: string,
+  ) {
+    const record = await tx.systemConfig.findUnique({
+      where: { key: 'auth.bootstrapAdmin' },
+      select: { value: true },
+    })
+    const payload = parseBootstrapAdminValue(record?.value)
+    const bootstrapEmail = String(payload?.email ?? '')
+      .trim()
+      .toLowerCase()
+
+    if (!bootstrapEmail || bootstrapEmail !== email.trim().toLowerCase()) {
+      return
+    }
+
+    await tx.systemConfig.upsert({
+      where: { key: 'auth.bootstrapAdmin' },
+      update: {
+        value: JSON.stringify({
+          ...(payload ?? {}),
+          email: bootstrapEmail,
+          passwordRotationRequired: false,
+          rotatedAt: new Date().toISOString(),
+        }),
+      },
+      create: {
+        key: 'auth.bootstrapAdmin',
+        value: JSON.stringify({
+          email: bootstrapEmail,
+          passwordRotationRequired: false,
+          rotatedAt: new Date().toISOString(),
+        }),
+      },
+    })
   }
 }

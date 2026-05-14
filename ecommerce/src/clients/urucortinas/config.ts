@@ -36,7 +36,8 @@ const config: StorefrontClientVariantConfig = {
     features: {
       languageSelector: false,
       supportedLocales: ["es"],
-      defaultLocale: "es"
+      defaultLocale: "es",
+      supportLauncher: "whatsapp"
     }
   }
 };

@@ -51,6 +51,22 @@ const dedupeNavigationItems = (items: StorefrontNavigationNode[]): StorefrontNav
     });
 };
 
+const orderPrimaryNavigation = (items: StorefrontNavigationNode[]): StorefrontNavigationNode[] => {
+  const nodes = [...items];
+  const homeIndex = nodes.findIndex((item) => (item.url?.trim() ?? "") === "/");
+  const shopIndex = nodes.findIndex((item) => (item.url?.trim() ?? "") === "/shop");
+  const categoriesIndex = nodes.findIndex((item) => (item.url?.trim() ?? "") === "/categories");
+
+  if (homeIndex === -1 || shopIndex === -1 || categoriesIndex === -1) {
+    return nodes;
+  }
+
+  const [categoriesNode] = nodes.splice(categoriesIndex, 1);
+  const targetIndex = Math.max(homeIndex + 1, 1);
+  nodes.splice(targetIndex, 0, categoriesNode);
+  return nodes;
+};
+
 export const useStorefrontNavigation = () => {
   const storefrontConfig = useStorefrontConfig();
   const categories = useStorefrontCategories();
@@ -76,7 +92,7 @@ export const useStorefrontNavigation = () => {
 
     const withMultimedia = hasMultimediaNode ? uniquePrimary : [...uniquePrimary, multimediaNode];
 
-    return withMultimedia.map((item) => {
+    return orderPrimaryNavigation(withMultimedia).map((item) => {
       const normalizedTitle = item.title.trim().toLowerCase();
       const normalizedUrl = item.url?.trim().toLowerCase() ?? "";
       const isCategoriesNode =

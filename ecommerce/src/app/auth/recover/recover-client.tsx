@@ -8,6 +8,7 @@ import AuthShell from "@/components/auth/AuthShell";
 import { AuthApi } from "@/lib/api/auth";
 import { isApiError } from "@/lib/http";
 import { normalizePhoneNumber } from "@/lib/utils/phone";
+import { resolvePublicRecaptchaToken } from "@/lib/security/public-recaptcha";
 
 export default function RecoverClient() {
   const router = useRouter();
@@ -24,13 +25,18 @@ export default function RecoverClient() {
     setSuccess(null);
     setLoading(true);
     try {
+      const recaptchaToken = await resolvePublicRecaptchaToken("auth_recover");
       if (method === "sms") {
         const normalizedPhone = normalizePhoneNumber(phone);
         if (!normalizedPhone) {
           setError("Ingresa un teléfono válido.");
           return;
         }
-        const response = await AuthApi.recover({ method, phone: normalizedPhone });
+        const response = await AuthApi.recover({
+          method,
+          phone: normalizedPhone,
+          recaptchaToken
+        });
         router.push(
           `/auth/reset-password?method=sms&phone=${encodeURIComponent(normalizedPhone)}&length=${response.otpLength ?? 4}`,
         );
@@ -42,7 +48,7 @@ export default function RecoverClient() {
         return;
       }
 
-      await AuthApi.recover({ method, email: email.trim() });
+      await AuthApi.recover({ method, email: email.trim(), recaptchaToken });
       setSuccess("Si el correo existe, enviamos un enlace para restablecer la contraseña.");
     } catch (cause) {
       setError(isApiError(cause) ? cause.message : "No pudimos iniciar la recuperación.");

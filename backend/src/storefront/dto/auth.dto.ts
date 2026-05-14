@@ -26,16 +26,21 @@ export class StorefrontRegisterDto {
   @MinLength(1)
   lastName!: string
 
+  @IsOptional()
   @IsString()
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsSafeString()
   @MinLength(6)
-  phone!: string
+  phone?: string
 
   @IsOptional()
   @IsString()
   @IsIn(['es', 'en'])
   locale?: string
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 
 export class StorefrontLoginDto {
@@ -45,6 +50,10 @@ export class StorefrontLoginDto {
   @IsString()
   @MinLength(8)
   password!: string
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 
 export class StorefrontRefreshDto {

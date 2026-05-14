@@ -712,16 +712,18 @@ export const TEMPLATE_DEFINITIONS: TemplateDefinition[] = [
     category: EmailCategory.AUTH,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'en',
-    version: 2,
-    subject: 'Reset your administrator password',
+    version: 3,
+    subject:
+      "{{#if (eq payload.event 'password_changed')}}Administrator password updated{{else if (eq payload.event 'recovery_notice')}}Administrator recovery requested{{else}}Reset your administrator password{{/if}}",
     body: resetAdminEn,
   },
   {
     category: EmailCategory.AUTH,
     variant: EmailTemplateVariant.ADMIN,
     locale: 'es',
-    version: 2,
-    subject: 'Restablecer contraseña de administrador',
+    version: 3,
+    subject:
+      "{{#if (eq payload.event 'password_changed')}}Contraseña de administrador actualizada{{else if (eq payload.event 'recovery_notice')}}Solicitud de recuperación de administrador{{else}}Restablecer contraseña de administrador{{/if}}",
     body: resetAdminEs,
   },
 ]

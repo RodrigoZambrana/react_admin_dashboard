@@ -35,6 +35,12 @@ const SUPERADMIN_NAME =
 const SUPERADMIN_LAST_NAME = process.env.SEED_SUPERADMIN_LAST_NAME || ''
 const ENABLE_DEMO_SEED = process.env.ENABLE_DEMO_SEED === 'true'
 const DEMO_PASSWORD = process.env.SEED_USER_PASSWORD || 'User@123!'
+const serializeBootstrapAdminValue = (email: string) =>
+  JSON.stringify({
+    email,
+    passwordRotationRequired: true,
+    updatedAt: new Date().toISOString(),
+  })
 
 function maskSecret(value: string) {
   if (!value) return '(empty)'
@@ -153,6 +159,16 @@ async function seedSuperAdmin() {
   })
   if (existing) {
     console.log(`[seed] Superadmin already exists for ${normalizedEmail}`)
+    await prisma.systemConfig.upsert({
+      where: { key: 'auth.bootstrapAdmin' },
+      update: {
+        value: serializeBootstrapAdminValue(normalizedEmail),
+      },
+      create: {
+        key: 'auth.bootstrapAdmin',
+        value: serializeBootstrapAdminValue(normalizedEmail),
+      },
+    })
     return existing
   }
 
@@ -173,6 +189,17 @@ async function seedSuperAdmin() {
       SUPERADMIN_PASSWORD,
     )})`,
   )
+
+  await prisma.systemConfig.upsert({
+    where: { key: 'auth.bootstrapAdmin' },
+    update: {
+      value: serializeBootstrapAdminValue(normalizedEmail),
+    },
+    create: {
+      key: 'auth.bootstrapAdmin',
+      value: serializeBootstrapAdminValue(normalizedEmail),
+    },
+  })
 
   // Clear sensitive env variables to reduce accidental reuse
   delete process.env.SEED_SUPERADMIN_PASSWORD
@@ -750,7 +777,8 @@ async function seedBudgetProduct() {
     name: 'Cortinas Roller',
     productCode: 'cortinas-roller',
     img: '/uploads/cms/legacy-assets/img/portfolio/roller/cortinas_roller_3.jpeg',
-    description: 'Producto semilla para el flujo de presupuesto m².',
+    description:
+      'Cortina roller a medida con telas screen y blackout, pensada para cotizar variantes estándar y personalizadas según el ancho y el alto de tu proyecto.',
     salePrice: 120,
     costPrice: 72,
     costPerItem: 72,

@@ -26,6 +26,7 @@ export type SignInResponse = {
             userManagementPolicySource?: 'database' | 'environment'
             capabilityManagementPolicySource?: 'database' | 'environment'
         }
+        mustChangePassword?: boolean
     }
 }
 
@@ -46,4 +47,5 @@ export type ForgotPassword = {
 
 export type ResetPassword = {
     password: string
+    token?: string
 }

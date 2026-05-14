@@ -55,6 +55,14 @@ const assertHtml = (response, body, expectedStatus = 200) => {
   }
 };
 
+const assertAdminHtml = (response, body, expectedStatus = 200) => {
+  assertHtml(response, body, expectedStatus);
+  const robotsHeader = response.headers.get("x-robots-tag") || "";
+  if (!robotsHeader.toLowerCase().includes("noindex")) {
+    throw new Error(`expected X-Robots-Tag header with noindex, got "${robotsHeader}"`);
+  }
+};
+
 const assertJsonOk = (response, body) => {
   if (response.status !== 200) {
     throw new Error(`expected HTTP 200, got ${response.status}`);
@@ -107,8 +115,19 @@ async function main() {
     Accept: "application/json",
   });
   await fetchWithRetry("/", (response, body) => assertHtml(response, body, 200), "/", htmlHeaders);
-  await fetchWithRetry("/admin", (response, body) => assertHtml(response, body, 200), "/admin", htmlHeaders);
-  await fetchWithRetry("/admin/sign-in", (response, body) => assertHtml(response, body, 200), "/admin/sign-in", htmlHeaders);
+  await fetchWithRetry("/admin", (response, body) => assertAdminHtml(response, body, 200), "/admin", htmlHeaders);
+  await fetchWithRetry(
+    "/admin/sign-in",
+    (response, body) => assertAdminHtml(response, body, 200),
+    "/admin/sign-in",
+    htmlHeaders,
+  );
+  await fetchWithRetry(
+    "/admin/sales/dashboard",
+    (response, body) => assertAdminHtml(response, body, 200),
+    "/admin/sales/dashboard",
+    htmlHeaders,
+  );
   await fetchWithRetry(
     "/admin/img/logo/logo-dark-full.png",
     (response, body) => {
@@ -178,7 +197,7 @@ async function main() {
     await fetchWithRetry(chunkPath, assertJavascriptBundle, `chunk ${chunkPath}`, assetHeaders);
   }
 
-  const adminHtmlResponse = await fetch(`${withTrailingSlash(BASE_URL)}admin`, {
+  const adminHtmlResponse = await fetch(`${withTrailingSlash(BASE_URL)}admin/sales/dashboard`, {
     headers: htmlHeaders,
   });
   const adminHtml = await adminHtmlResponse.text();

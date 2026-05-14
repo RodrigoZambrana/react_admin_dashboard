@@ -23,6 +23,10 @@ export class RegisterPhoneDto {
   @IsOptional()
   @IsString()
   locale?: string
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 
 export class SendOtpDto {
@@ -32,6 +36,10 @@ export class SendOtpDto {
   @IsOptional()
   @IsIn(['verification', 'recovery'])
   type?: 'verification' | 'recovery'
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 
 export class VerifyOtpDto {
@@ -40,6 +48,10 @@ export class VerifyOtpDto {
 
   @IsString()
   code!: string
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 
 export class RecoverAccountDto {
@@ -53,6 +65,10 @@ export class RecoverAccountDto {
   @IsOptional()
   @IsEmail()
   email?: string
+
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
 }
 
 export class ResetPasswordDto {
@@ -78,5 +94,8 @@ export class ResetPasswordDto {
   @IsString()
   @MinLength(8)
   password!: string
-}
 
+  @IsOptional()
+  @IsString()
+  recaptchaToken?: string
+}

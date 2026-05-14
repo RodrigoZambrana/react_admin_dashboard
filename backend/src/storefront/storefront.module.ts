@@ -24,6 +24,7 @@ import { PublicResponseCacheService } from '../common/cache/public-response-cach
 import { NextRevalidationService } from '../common/cache/next-revalidation.service'
 import { StoriesModule } from '../stories/stories.module'
 import { StorefrontSeoService } from './storefront-seo.service'
+import { AuthModule } from '../auth/auth.module'
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { StorefrontSeoService } from './storefront-seo.service'
     GrowthModule,
     BudgetModule,
     StoriesModule,
+    AuthModule,
   ],
   controllers: [StorefrontController, M2DerivedController],
   providers: [

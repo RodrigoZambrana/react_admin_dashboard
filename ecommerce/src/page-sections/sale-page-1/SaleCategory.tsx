@@ -37,7 +37,12 @@ const CategoryGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 
   @media (max-width: 900px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  @media (max-width: 560px) {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 `;
 
@@ -103,23 +108,25 @@ export default function SaleCategory({ categories, selectedSlug }: SaleCategoryP
         </Box>
 
         <ActionRow>
-          <TrackedButton
-            color="primary"
-            variant="outlined"
-            pageType={pageType}
-            componentType="category_section"
-            componentId="shop_category_overview"
-            ctaId="shop.category_section.explore_store"
-            ctaName="explore_store"
-            ctaType="secondary"
-            ctaContext="navigation"
-            ctaLocation="shop_category_section"
-            onTrackedClick={() => router.push("/shop", { scroll: false })}
-          >
-            {t("shop.categorySection.exploreCta", {
-              defaultMessage: "Explorá la tienda"
-            })}
-          </TrackedButton>
+          {pathname !== "/shop" ? (
+            <TrackedButton
+              color="primary"
+              variant="outlined"
+              pageType={pageType}
+              componentType="category_section"
+              componentId="shop_category_overview"
+              ctaId="shop.category_section.explore_store"
+              ctaName="explore_store"
+              ctaType="secondary"
+              ctaContext="navigation"
+              ctaLocation="shop_category_section"
+              onTrackedClick={() => router.push("/shop", { scroll: false })}
+            >
+              {t("shop.categorySection.exploreCta", {
+                defaultMessage: "Explorá la tienda"
+              })}
+            </TrackedButton>
+          ) : null}
 
           <TrackedButton
             color="primary"
@@ -163,7 +170,10 @@ export default function SaleCategory({ categories, selectedSlug }: SaleCategoryP
                 cursor: "pointer",
                 transition: "all 250ms ease-in-out"
               }}>
-              <Icon size="44px" color={isSelected ? "primary" : "secondary"}>
+              <Icon
+                size="44px"
+                color={isSelected ? "primary" : "secondary"}
+                style={{ transition: "inherit" }}>
                 {item.icon}
               </Icon>
 

@@ -463,7 +463,7 @@ export default function SearchInputWithCategory() {
 
           <Menu
             direction="right"
-            closeOnContentClick={!isDesktopCategorySelector}
+            closeOnContentClick
             className="category-dropdown"
             handler={(openMenu) => (
               <button type="button" className="dropdown-handler" onClick={openMenu}>

@@ -14,6 +14,8 @@ import { StorefrontApi, isApiError } from "@/lib/api/storefront";
 import { extractApiErrorMessage } from "@/lib/api/errors";
 import { useToast } from "@/contexts/ToastContext";
 import { useTranslation } from "@/state/i18n-context";
+import { useStorefrontConfig } from "@/app/(storefront)/storefront-context";
+import { resolveStorefrontRecaptchaToken } from "@/lib/security/storefront-recaptcha";
 
 type FormValues = {
   password: string;
@@ -25,6 +27,7 @@ export default function ResetPasswordPageClient() {
   const router = useRouter();
   const t = useTranslation();
   const toast = useToast();
+  const storefrontConfig = useStorefrontConfig();
   const [completed, setCompleted] = useState(false);
 
   const token = searchParams?.get("token")?.trim() ?? "";
@@ -79,7 +82,11 @@ export default function ResetPasswordPageClient() {
         }
 
         try {
-          await StorefrontApi.resetPasswordByEmail(token, formValues.password);
+          const recaptchaToken = await resolveStorefrontRecaptchaToken(
+            storefrontConfig,
+            "storefront_password_reset"
+          );
+          await StorefrontApi.resetPasswordByEmail(token, formValues.password, recaptchaToken);
           setCompleted(true);
           toast.success({
             title: t("account.resetPassword.success.title", {
@@ -121,6 +128,14 @@ export default function ResetPasswordPageClient() {
           defaultMessage: "Ingresa una nueva contraseña para recuperar el acceso a tu cuenta."
         })}
       </Paragraph>
+
+      {storefrontConfig.integrations?.recaptcha?.enabled ? (
+        <Paragraph color="text.muted" mb="1rem">
+          {t("auth.signIn.recaptchaMessage", {
+            defaultMessage: "reCAPTCHA Enterprise protege esta acción."
+          })}
+        </Paragraph>
+      ) : null}
 
       {!token ? (
         <Small color="error.main">

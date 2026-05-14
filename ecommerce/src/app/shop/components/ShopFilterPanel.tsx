@@ -17,6 +17,7 @@ import TrackedButton from "@component/TrackedButton";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTranslation } from "@/state/i18n-context";
+import { useCurrency } from "@/state/currency-context";
 import { resolvePageType } from "@/lib/analytics/pageType";
 import { useComponentTracking } from "@/lib/analytics/useComponentTracking";
 import { ALL_CATEGORY_SLUG, isAllCategorySlug } from "@/lib/storefront/category-slugs";
@@ -30,6 +31,7 @@ type SaleCategoryDefinition = {
 export type PriceFilter = {
   min?: number;
   max?: number;
+  currency?: string;
 };
 
 export type ActiveFilters = {
@@ -104,6 +106,7 @@ export default function ShopFilterPanel({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const t = useTranslation();
+  const { currency: activeCurrency, convertMoney, formatMoney } = useCurrency();
   const pageType = resolvePageType(pathname);
   const filterRef = useComponentTracking({
     pageType,
@@ -114,23 +117,42 @@ export default function ShopFilterPanel({
 
   const [minValue, setMinValue] = useState<string>("");
   const [maxValue, setMaxValue] = useState<string>("");
+  const sourceCurrency = priceBounds.currency ?? "UYU";
+
+  const toDisplayValue = useCallback(
+    (value?: number) => {
+      if (typeof value !== "number") return "";
+      const converted = convertMoney({ amount: value, currency: sourceCurrency }, activeCurrency);
+      return String(Math.round(converted.amount));
+    },
+    [activeCurrency, convertMoney, sourceCurrency]
+  );
+
+  const toSourceValue = useCallback(
+    (value?: number) => {
+      if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+      const converted = convertMoney({ amount: value, currency: activeCurrency }, sourceCurrency);
+      return Math.round(converted.amount);
+    },
+    [activeCurrency, convertMoney, sourceCurrency]
+  );
 
   useEffect(() => {
     setMinValue(
       typeof activeFilters.priceMin === "number"
-        ? String(activeFilters.priceMin)
+        ? toDisplayValue(activeFilters.priceMin)
         : priceBounds.min !== undefined
-          ? String(priceBounds.min)
+          ? toDisplayValue(priceBounds.min)
           : ""
     );
     setMaxValue(
       typeof activeFilters.priceMax === "number"
-        ? String(activeFilters.priceMax)
+        ? toDisplayValue(activeFilters.priceMax)
         : priceBounds.max !== undefined
-          ? String(priceBounds.max)
+          ? toDisplayValue(priceBounds.max)
           : ""
     );
-  }, [activeFilters.priceMax, activeFilters.priceMin, priceBounds.max, priceBounds.min]);
+  }, [activeFilters.priceMax, activeFilters.priceMin, priceBounds.max, priceBounds.min, toDisplayValue]);
 
   const updateQuery = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -177,8 +199,8 @@ export default function ShopFilterPanel({
     const parsedMin = Number(minValue);
     const parsedMax = Number(maxValue);
 
-    const sanitizedMin = Number.isFinite(parsedMin) ? parsedMin : undefined;
-    const sanitizedMax = Number.isFinite(parsedMax) ? parsedMax : undefined;
+    const sanitizedMin = Number.isFinite(parsedMin) ? toSourceValue(parsedMin) : undefined;
+    const sanitizedMax = Number.isFinite(parsedMax) ? toSourceValue(parsedMax) : undefined;
 
     let nextMin = sanitizedMin;
     let nextMax = sanitizedMax;
@@ -191,21 +213,27 @@ export default function ShopFilterPanel({
       priceMin: typeof nextMin === "number" ? String(nextMin) : undefined,
       priceMax: typeof nextMax === "number" ? String(nextMax) : undefined
     });
-  }, [minValue, maxValue, updateQuery]);
+  }, [maxValue, minValue, toSourceValue, updateQuery]);
 
   const handleClearFilters = useCallback(() => {
-    updateQuery({ priceMin: undefined, priceMax: undefined, rating: undefined });
+    updateQuery({
+      category: undefined,
+      priceMin: undefined,
+      priceMax: undefined,
+      query: undefined,
+      search: undefined,
+      rating: undefined,
+      sort: undefined
+    });
   }, [updateQuery]);
-
-  const currencyFormatter = useMemo(
-    () => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }),
-    []
-  );
 
   const formattedPriceRange = useMemo(() => {
     if (priceBounds.min === undefined || priceBounds.max === undefined) return null;
-    return `${currencyFormatter.format(priceBounds.min)} - ${currencyFormatter.format(priceBounds.max)}`;
-  }, [currencyFormatter, priceBounds.max, priceBounds.min]);
+    return `${formatMoney({ amount: priceBounds.min, currency: sourceCurrency }, activeCurrency)} - ${formatMoney(
+      { amount: priceBounds.max, currency: sourceCurrency },
+      activeCurrency
+    )}`;
+  }, [activeCurrency, formatMoney, priceBounds.max, priceBounds.min, sourceCurrency]);
 
   return (
     <Card elevation={5} padding="1.5rem" borderRadius={12} ref={filterRef as never}>
@@ -276,8 +304,8 @@ export default function ShopFilterPanel({
             fullWidth
             value={minValue}
             onChange={(event) => setMinValue(event.target.value)}
-            placeholder={priceBounds.min !== undefined ? String(priceBounds.min) : t("Min")}
-            min={priceBounds.min ?? undefined}
+            placeholder={priceBounds.min !== undefined ? toDisplayValue(priceBounds.min) : t("Min")}
+            min={priceBounds.min !== undefined ? Number(toDisplayValue(priceBounds.min)) : undefined}
           />
           <SemiSpan color="text.muted">{t("to")}</SemiSpan>
           <TextField
@@ -285,8 +313,8 @@ export default function ShopFilterPanel({
             fullWidth
             value={maxValue}
             onChange={(event) => setMaxValue(event.target.value)}
-            placeholder={priceBounds.max !== undefined ? String(priceBounds.max) : t("Max")}
-            min={priceBounds.min ?? undefined}
+            placeholder={priceBounds.max !== undefined ? toDisplayValue(priceBounds.max) : t("Max")}
+            min={priceBounds.min !== undefined ? Number(toDisplayValue(priceBounds.min)) : undefined}
           />
         </FlexBox>
         <TrackedButton

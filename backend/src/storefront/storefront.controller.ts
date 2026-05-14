@@ -55,6 +55,7 @@ import { StorefrontCreateOrderReviewDto } from './dto/product-review.dto'
 import { StorefrontSecurityService } from './security/storefront-security.service'
 import { StoriesService } from '../stories/stories.service'
 import { StorefrontSeoService } from './storefront-seo.service'
+import { AuthService } from '../auth/auth.service'
 
 @Controller('storefront')
 export class StorefrontController {
@@ -68,11 +69,24 @@ export class StorefrontController {
     private readonly security: StorefrontSecurityService,
     private readonly stories: StoriesService,
     private readonly seo: StorefrontSeoService,
+    private readonly auth: AuthService,
   ) {}
 
   private toClientSession<T extends { refreshToken?: string | null }>(session: T) {
     const { refreshToken: _refreshToken, ...publicSession } = session
     return publicSession
+  }
+
+  private async verifyStorefrontRecaptchaIfEnabled(token: string | undefined, req: FastifyRequest) {
+    const config = await this.storefront.getConfig()
+    const recaptchaEnabled =
+      config.integrations?.recaptcha?.enabled && Boolean(config.integrations.recaptcha.siteKey)
+
+    if (!recaptchaEnabled) {
+      return
+    }
+
+    await this.auth.verifyRecaptcha(token, req.ip)
   }
 
   @Get('config')
@@ -216,8 +230,10 @@ export class StorefrontController {
   @Post('auth/register')
   async register(
     @Body() dto: StorefrontRegisterDto,
+    @Req() req: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
+    await this.verifyStorefrontRecaptchaIfEnabled(dto.recaptchaToken, req)
     const session = await this.storefront.registerCustomer(dto)
     this.sessionCookies.setSessionCookies(reply, session)
     return this.toClientSession(session)
@@ -226,8 +242,10 @@ export class StorefrontController {
   @Post('auth/login')
   async login(
     @Body() dto: StorefrontLoginDto,
+    @Req() req: FastifyRequest,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
+    await this.verifyStorefrontRecaptchaIfEnabled(dto.recaptchaToken, req)
     const session = await this.storefront.login(dto)
     this.sessionCookies.setSessionCookies(reply, session)
     return this.toClientSession(session)
@@ -253,6 +271,7 @@ export class StorefrontController {
   @Post('auth/password/forgot')
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async requestPasswordRecovery(@Body() dto: StorefrontPasswordForgotDto, @Req() req: FastifyRequest) {
+    await this.verifyStorefrontRecaptchaIfEnabled(dto.recaptchaToken, req)
     if (dto.channel === 'phone') {
       await this.security.requestPhoneRecovery(dto.phone ?? '', req)
     } else {
@@ -270,6 +289,7 @@ export class StorefrontController {
 
   @Post('auth/password/reset')
   async resetPassword(@Body() dto: StorefrontPasswordResetDto, @Req() req: FastifyRequest) {
+    await this.verifyStorefrontRecaptchaIfEnabled(dto.recaptchaToken, req)
     if (dto.channel === 'phone') {
       await this.security.resetPasswordWithSessionToken(dto.resetSessionToken ?? '', dto.newPassword, req)
     } else {

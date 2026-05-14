@@ -54,6 +54,7 @@ const FALLBACK_CONFIG: StorefrontConfig = {
     languageSelector: true,
     supportedLocales: ["es", "en"],
     defaultLocale: "es",
+    supportLauncher: "webchat",
   },
   companyProfile: {
     legalName: "urucortinas",

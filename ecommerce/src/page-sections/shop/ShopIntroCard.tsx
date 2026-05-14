@@ -66,9 +66,11 @@ export default function ShopIntroCard() {
               <FlexBox color="text.muted" mb="8px" alignItems="center">
                 <IconPhone size={18} />
 
-                <SemiSpan color="text.muted" ml="12px">
-                  (613) 343-9004
-                </SemiSpan>
+                <a href="tel:+16133439004" style={{ color: "inherit" }}>
+                  <SemiSpan color="text.muted" ml="12px">
+                    (613) 343-9004
+                  </SemiSpan>
+                </a>
               </FlexBox>
             </div>
 

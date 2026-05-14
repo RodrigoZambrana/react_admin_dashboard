@@ -27,6 +27,7 @@ server {
   }
 
   location ^~ /app/ {
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
     rewrite ^/app/(.*)$ /$1 break;
     try_files $uri $uri/ /index.html;
   }
@@ -39,6 +40,7 @@ server {
     add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
     add_header Pragma "no-cache" always;
     add_header Expires "0" always;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
     rewrite ^ /index.html break;
   }
 
@@ -46,6 +48,7 @@ server {
     add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate" always;
     add_header Pragma "no-cache" always;
     add_header Expires "0" always;
+    add_header X-Robots-Tag "noindex, nofollow, noarchive" always;
     try_files /index.html =404;
   }
 

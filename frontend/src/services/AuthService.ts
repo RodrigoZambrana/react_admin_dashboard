@@ -42,7 +42,7 @@ export async function apiForgotPassword(data: ForgotPassword) {
 
 export async function apiResetPassword(data: ResetPassword) {
     return ApiService.fetchData({
-        url: '/reset-password',
+        url: data.token ? '/auth/password/reset/confirm' : '/auth/password/change',
         method: 'post',
         data,
     })

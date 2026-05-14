@@ -1,11 +1,11 @@
 # Monorepo QA Status
 
-Generated: 2026-05-10T16:09:26.797Z
+Generated: 2026-05-14T01:13:19.591Z
 
 ## Release signal
 - verdict :: passed
 - test:integrity :: passed :: updated 2026-05-10T16:07:09.162Z
-- test:smoke :: passed :: updated 2026-05-10T16:07:18.828Z
+- test:smoke :: passed :: updated 2026-05-14T01:13:19.588Z
 - run-qa core :: passed :: updated 2026-05-10T16:09:26.795Z
 - run-qa deferred :: not-selected :: passed 0/0
 
@@ -16,7 +16,7 @@ Generated: 2026-05-10T16:09:26.797Z
 - integrity :: ecommerce :: test:integrity :: passed :: 0
 - integrity :: services/channel-adapter :: test:integrity :: passed :: 0
 - integrity :: gaps :: none
-- smoke :: passed :: run monorepo-2026-05-10T16-07-09-407Z :: updated 2026-05-10T16:07:18.828Z
+- smoke :: passed :: run monorepo-2026-05-14T01-13-03-596Z :: updated 2026-05-14T01:13:19.588Z
 - smoke :: backend :: test:smoke :: passed :: 0
 - smoke :: frontend :: test:smoke :: passed :: 0
 - smoke :: ecommerce :: test:smoke :: passed :: 0

@@ -54,9 +54,11 @@ export default function ShopCard1({
         <FlexBox alignItems="center">
           <IconPhone size={16} />
 
-          <SemiSpan color="white" ml="12px">
-            {phone}
-          </SemiSpan>
+          <a href={`tel:${phone.replace(/[^\d+]/g, "")}`} style={{ color: "inherit" }}>
+            <SemiSpan color="white" ml="12px">
+              {phone}
+            </SemiSpan>
+          </a>
         </FlexBox>
       </div>
 

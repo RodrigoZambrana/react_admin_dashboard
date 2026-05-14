@@ -10,6 +10,16 @@ const prisma = new PrismaClient()
 const DEFAULT_EMAIL = process.env.DEFAULT_ADMIN_EMAIL || 'admin@example.com'
 const DEFAULT_NAME = process.env.DEFAULT_ADMIN_NAME || 'Admin'
 const DEFAULT_PASSWORD = process.env.DEFAULT_ADMIN_PASSWORD
+const ALLOW_CREATE =
+  String(process.env.ALLOW_ADMIN_BOOTSTRAP_CREATE || '')
+    .trim()
+    .toLowerCase() === 'true'
+const serializeBootstrapAdminValue = (email: string) =>
+  JSON.stringify({
+    email,
+    passwordRotationRequired: true,
+    updatedAt: new Date().toISOString(),
+  })
 
 async function main() {
   loadEnvFromBackendRoot()
@@ -43,6 +53,11 @@ async function main() {
       `Updated existing admin (id=${target.id}) with email=${DEFAULT_EMAIL} and password=${DEFAULT_PASSWORD}`,
     )
   } else {
+    if (!ALLOW_CREATE) {
+      throw new Error(
+        'Bootstrap admin does not exist. Refusing to create it from reset-admin without ALLOW_ADMIN_BOOTSTRAP_CREATE=true.',
+      )
+    }
     const created = await prisma.user.create({
       data: {
         email: DEFAULT_EMAIL,
@@ -57,6 +72,17 @@ async function main() {
       `Created admin user (id=${created.id}) with email=${DEFAULT_EMAIL} and password=${DEFAULT_PASSWORD}`,
     )
   }
+
+  await prisma.systemConfig.upsert({
+    where: { key: 'auth.bootstrapAdmin' },
+    update: {
+      value: serializeBootstrapAdminValue(DEFAULT_EMAIL.trim().toLowerCase()),
+    },
+    create: {
+      key: 'auth.bootstrapAdmin',
+      value: serializeBootstrapAdminValue(DEFAULT_EMAIL.trim().toLowerCase()),
+    },
+  })
 }
 
 main()

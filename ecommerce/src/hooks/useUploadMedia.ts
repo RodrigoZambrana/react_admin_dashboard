@@ -54,7 +54,12 @@ const buildUploadEndpoint = (cloudName: string, type: CloudinaryUploadType) =>
   `https://api.cloudinary.com/v1_1/${encodeURIComponent(cloudName)}/${type}/upload`;
 
 const buildBackendUploadEndpoint = (path: string) =>
-  new URL(path.replace(/^\//, ""), env.authApiBaseUrl.endsWith("/") ? env.authApiBaseUrl : `${env.authApiBaseUrl}/`).toString();
+  new URL(
+    path.replace(/^\//, ""),
+    (typeof window === "undefined" ? env.authApiBaseUrl : env.publicAuthApiBaseUrl).endsWith("/")
+      ? (typeof window === "undefined" ? env.authApiBaseUrl : env.publicAuthApiBaseUrl)
+      : `${typeof window === "undefined" ? env.authApiBaseUrl : env.publicAuthApiBaseUrl}/`,
+  ).toString();
 
 const uploadWithProgress = (
   endpoint: string,
