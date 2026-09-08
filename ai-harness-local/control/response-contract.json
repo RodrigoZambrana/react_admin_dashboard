@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "format": "markdown",
+  "templatePath": "ai-harness-local/control/auditor-response-template.md",
+  "generatorCommand": "npm run --silent harness:control -- --auditor-response",
+  "sections": [
+    {
+      "id": "control-validity",
+      "heading": "## 1. Validez y frescura del control"
+    },
+    {
+      "id": "portfolio-status",
+      "heading": "## 2. Estado global y pendientes"
+    },
+    {
+      "id": "alignment",
+      "heading": "## 3. Alineamiento con acuerdos y planificación"
+    },
+    {
+      "id": "deviations",
+      "heading": "## 4. Desvíos, evidencia faltante y sobredeclaraciones"
+    },
+    {
+      "id": "human-decisions",
+      "heading": "## 5. Decisiones humanas requeridas"
+    },
+    {
+      "id": "next-task",
+      "heading": "## 6. Única próxima tarea recomendada"
+    }
+  ],
+  "constraints": {
+    "exactOrder": true,
+    "exactlyOnce": true,
+    "singleRecommendation": true,
+    "blockRecommendationWhenControlInvalid": true,
+    "userRetainsFinalAuthority": true
+  }
+}

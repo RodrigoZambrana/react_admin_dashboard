@@ -4,7 +4,12 @@
   "version": "1.0.0",
   "scripts": {
     "harness:doctor": "node ai-harness/harness/doctor.mjs",
+    "harness:backlog:assemble": "node ai-harness/harness/assemble-backlog.mjs",
+    "harness:backlog": "node ai-harness/harness/backlog.mjs",
+    "harness:audit": "node ai-harness/harness/control.mjs --auditor-response",
+    "harness:control": "node ai-harness/harness/control.mjs",
     "harness:progress": "node ai-harness/harness/progress.mjs",
+    "harness:test": "node --test ai-harness/harness/tests/*.test.mjs",
     "harness:verify": "node ai-harness/harness/verify.mjs",
     "run-qa": "node tools/qa/run-qa.mjs --write-report",
     "test:integrity": "node tools/qa/monorepo-suite-runner.mjs --suite integrity --write-report",

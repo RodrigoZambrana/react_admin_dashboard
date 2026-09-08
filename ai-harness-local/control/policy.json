@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "recommendationOrder": ["HAR-001", "HAR-002", "HAR-003", "HAR-004", "HAR-005", "HAR-006", "HAR-007", "HAR-008", "HAR-009", "PF-001", "EC-001", "ARC-001", "SEC-001", "SEC-002", "QA-001", "CFG-001", "DOC-001", "GM-004", "AI-001", "AI-024", "CH-008"],
+  "implementationTypes": ["feature", "implementation", "migration", "refactor", "release"],
+  "requiredPredecessors": [
+    { "taskId": "AI-018", "mustReach": ["AI-009", "AI-016", "AI-017"], "decisionRef": "DEC-005" },
+    { "taskId": "GM-029", "mustReach": ["GM-014", "GM-019", "GM-023", "GM-028"], "decisionRef": "DEC-006" },
+    { "taskId": "GM-030", "mustReach": ["GM-017", "GM-019", "GM-023", "GM-028"], "decisionRef": "DEC-006" },
+    { "taskId": "EC-036", "mustReach": ["ARC-003", "EC-034", "EC-035"], "decisionRef": "DEC-003" },
+    { "taskId": "GM-026", "mustReach": ["ARC-003", "GM-019", "GM-023", "GM-024"], "decisionRef": "DEC-003" },
+    { "taskId": "CH-016", "mustReach": ["ARC-003", "AI-022", "CH-015"], "decisionRef": "DEC-003" }
+  ]
+}

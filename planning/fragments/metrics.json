@@ -1,0 +1,787 @@
+{
+  "tasks": [
+    {
+      "id": "GM-001",
+      "title": "Cerrar el perímetro HTTP de Metrics",
+      "product": "growth-metrics",
+      "type": "security",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Impedir lecturas y mutaciones no autorizadas y aplicar capacidades finas a todas las superficies de Metrics.",
+      "rationale": "Hoy existen receipts, health detallado, jobs y pipelines accesibles sin un límite de confianza uniforme.",
+      "scope": {
+        "in": ["Inventariar rutas, exigir autenticación y capacidades, aislar el collector público y minimizar el health público."],
+        "out": ["Rediseñar dashboards o conectores de proveedores."]
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Ningún endpoint interno responde sin credencial válida y capability suficiente.",
+        "La matriz route×role×capability documenta collector, receipts, datos, jobs, exports y administración."
+      ],
+      "verification": ["Tests controller/E2E 401, 403 y 2xx; escaneo de decorators; regresión del collector público."],
+      "risks": ["Bloquear integraciones legítimas no inventariadas.", "Mantener rutas equivalentes con políticas divergentes."],
+      "decisionsRequired": ["Aprobar la matriz de capacidades y la superficie pública mínima."],
+      "decisionRefs": ["DEC-002", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-001", "backend/src/analytics", "backend/src/conversions"]
+    },
+    {
+      "id": "GM-002",
+      "title": "Definir un contrato seguro de ingesta pública",
+      "product": "growth-metrics",
+      "type": "security",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Aceptar únicamente eventos válidos, acotados y atribuibles a un tenant autorizado.",
+      "rationale": "El collector actual permite payloads amplios y combina persistencia con entregas externas sensibles.",
+      "scope": {
+        "in": ["Versionar DTO/JSON Schema, límites, timestamp skew, firma por tenant/origin, rate limit, dedupe y respuesta estable."],
+        "out": ["Modelar eventos futuros que no tengan productores ni requisitos confirmados."]
+      },
+      "dependencies": ["GM-001", "GM-004"],
+      "acceptanceCriteria": [
+        "Un payload inválido, sobredimensionado, de tenant ajeno o con timestamp absurdo falla sin persistir.",
+        "La ingesta pública no dispara CAPI ni otra mutación de proveedor de forma directa."
+      ],
+      "verification": ["Property/fuzz tests, pruebas de abuso y rate limit, contratos de storefront y ejecución detrás del reverse proxy."],
+      "risks": ["Romper clientes históricos sin estrategia de compatibilidad.", "Confiar en IP u origin como identidad suficiente."],
+      "decisionsRequired": ["Elegir el mecanismo temporal y final de credencial o firma por tenant."],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-002", "backend/src/conversions", "storefront"]
+    },
+    {
+      "id": "GM-003",
+      "title": "Aplicar consentimiento, minimización de PII y retención",
+      "product": "growth-metrics",
+      "type": "compliance",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Separar telemetría necesaria de marketing y aplicar default-deny verificable.",
+      "rationale": "GA/GTM y los identificadores Meta pueden activarse antes de consentimiento, mientras raw conserva PII sin lifecycle suficiente.",
+      "scope": {
+        "in": ["Consent purpose/version, gates para tags y deliveries, redacción, TTL, borrado por sujeto y evidencia legal por tenant/región."],
+        "out": ["Seleccionar un CMP comercial sin requerimiento aprobado."]
+      },
+      "dependencies": ["GM-002", "GM-004"],
+      "acceptanceCriteria": [
+        "Sin consentimiento marketing no se crean IDs Meta ni se cargan o envían tags de marketing.",
+        "Cada señal saliente conserva purpose y evidencia; la PII raw tiene TTL y borrado probado."
+      ],
+      "verification": ["Pruebas de navegador granted/denied/unknown/revoked, inspección de cookies/requests y jobs de retención en dry-run."],
+      "risks": ["Interpretación legal distinta por región.", "Pérdida de medición por una transición de consentimiento mal instrumentada."],
+      "decisionsRequired": ["Aprobar finalidades, bases legales, regiones y períodos de retención."],
+      "decisionRefs": ["DEC-002", "DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-003", "frontend", "storefront", "backend/src/conversions"]
+    },
+    {
+      "id": "GM-004",
+      "title": "Especificar el contrato canónico versionado de eventos y métricas",
+      "product": "growth-metrics",
+      "type": "discovery",
+      "phase": "specification",
+      "priority": "P0",
+      "status": "ready",
+      "objective": "Definir una semántica única y versionada entre Growth, Commerce, Storefront, Admin y Conversation.",
+      "rationale": "Los nombres, categorías y estados de conversión actuales difieren entre productores y consumidores, impidiendo validar resultados.",
+      "scope": {
+        "in": ["Catalogar owners y productores; especificar nombres, versiones, actor, origin, IDs, idempotencia, lifecycle, errores, compatibilidad y deprecación."],
+        "out": ["Crear un paquete shared generalista o implementar migraciones de productores."]
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Existe una especificación revisable para eventos ecommerce, marketing, Meta y WhatsApp con owner y grain explícitos.",
+        "La especificación define compatibilidad, deprecación y fixtures de contrato sin requerir implementación."
+      ],
+      "verification": ["Revisión cruzada de inventario contra backend, admin, storefront, Prisma y Conversation; validación de fixtures v1→vNext."],
+      "risks": ["Omitir productores históricos fuera de las carpetas obvias.", "Confundir especificación canónica con propiedad compartida de datos."],
+      "decisionsRequired": [],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "size": "M",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-004", "backend/src/analytics", "backend/src/conversions", "frontend", "storefront"]
+    },
+    {
+      "id": "GM-005",
+      "title": "Asegurar aislamiento tenant y account end-to-end",
+      "product": "growth-metrics",
+      "type": "architecture",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Impedir colisiones y fugas entre empresas, cuentas y propiedades.",
+      "rationale": "Varias conexiones, agregados y consultas son globales o aceptan un tenant implícito, lo que impide reutilización segura.",
+      "scope": {
+        "in": ["ADR de aislamiento, claves tenant/account/property, auth-derived scope, constraints, backfill y migración de conexiones, facts, receipts, trust, insights y exports."],
+        "out": ["Extraer el producto a otro repositorio o base de datos en esta tarea."]
+      },
+      "dependencies": ["GM-001", "GM-002", "GM-004", "PF-001", "ARC-002"],
+      "acceptanceCriteria": [
+        "Dos tenants pueden reutilizar IDs de fuente, campaña, query o sesión sin colisión ni fuga.",
+        "Toda consulta y job queda scoped y no existe fallback global en producción."
+      ],
+      "verification": ["Suite tenant A/B, constraints Prisma, pruebas negativas y revisión automatizable de queries y jobs."],
+      "risks": ["Backfill ambiguo de filas históricas sin tenant.", "Migración con downtime o constraints incompletos."],
+      "decisionsRequired": ["Aprobar estrategia de aislamiento y tratamiento de datos históricos sin owner inequívoco."],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-005", "backend/prisma/schema.prisma", "backend/src/analytics", "backend/src/growth"]
+    },
+    {
+      "id": "GM-006",
+      "title": "Corregir fechas Ads y Search Console y reparar datos",
+      "product": "growth-metrics",
+      "type": "data",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Restaurar series diarias confiables sin sustituir silenciosamente fechas inválidas por hoy.",
+      "rationale": "El parser espera YYYYMMDD aunque los proveedores normalmente entregan YYYY-MM-DD, contaminando agregados materializados.",
+      "scope": {
+        "in": ["Parser estricto por proveedor, cuarentena, detección y backup de filas sospechosas, reingesta tenant-scoped y reconciliación antes/después."],
+        "out": ["Agregar dimensiones o KPIs nuevos."]
+      },
+      "dependencies": ["GM-005"],
+      "acceptanceCriteria": [
+        "Un formato desconocido produce error o cuarentena y nunca la fecha actual.",
+        "Los rangos reparados concilian con fixtures o consolas dentro de tolerancias documentadas."
+      ],
+      "verification": ["Fixtures reales anonimizados, fake server, reporte de reparación y comparación diaria por tenant/cuenta."],
+      "risks": ["Sobrescribir evidencia histórica antes del backup.", "Reingestar con timezone o cuenta incorrectos."],
+      "decisionsRequired": ["Aprobar ventana de reparación, tolerancias y política para filas no atribuibles."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-006", "backend/src/analytics", "backend/prisma/schema.prisma"]
+    },
+    {
+      "id": "GM-007",
+      "title": "Definir la verdad de conversión ecommerce",
+      "product": "growth-metrics",
+      "type": "architecture",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Distinguir intención, orden creada, pago confirmado, cancelación y refund para compras e ingresos.",
+      "rationale": "El reporting actual puede contar una Order creada y un evento browser como ventas, aunque no exista pago confirmado.",
+      "scope": {
+        "in": ["Lifecycle Commerce, currency, IDs, reglas de revenue/refund, adapter Growth y conciliación con señales browser."],
+        "out": ["Implementar checkout, pagos o fulfillment del ecommerce."]
+      },
+      "dependencies": ["GM-004"],
+      "acceptanceCriteria": [
+        "Purchase y revenue canónicos provienen de estados confirmados por Commerce.",
+        "Cancelaciones y refunds siguen una política explícita y no hay doble conteo browser/server."
+      ],
+      "verification": ["Contract tests Commerce→Growth, escenarios payment/refund y reconciliación orden-evento."],
+      "risks": ["Alinear métricas antes de cerrar el lifecycle real de pagos.", "Perder trazabilidad de órdenes históricas ambiguas."],
+      "decisionsRequired": ["Commerce debe aprobar evento fuente, estados, currency y política contable de refunds."],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-007", "backend/src/growth", "backend/prisma/schema.prisma", "storefront"]
+    },
+    {
+      "id": "GM-008",
+      "title": "Proteger y rediseñar Google Ads conversion delivery",
+      "product": "growth-metrics",
+      "type": "security",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Hacer segura, correcta, idempotente y auditable la carga offline o enhanced conversions.",
+      "rationale": "La entrega actual puede dispararse desde una ruta pública y mezcla identificadores de tag, label y conversion action.",
+      "scope": {
+        "in": ["Source server-truth, consentimiento, action resource válido, outbox, cola, retry, partial failure, dedupe tenant/action y receipt protegido."],
+        "out": ["Crear o editar campañas y conversion actions en Google Ads."]
+      },
+      "dependencies": ["GM-001", "GM-003", "GM-005", "GM-007"],
+      "acceptanceCriteria": [
+        "Un cliente browser no puede fabricar una compra ni seleccionar una action arbitraria.",
+        "Cada transacción se entrega como máximo una vez por tenant/action y los fallos transitorios se reintentan."
+      ],
+      "verification": ["Mock Google Ads API, concurrencia/idempotencia, retry/DLQ, validateOnly sandbox y auditoría del receipt."],
+      "risks": ["Duplicar conversiones durante la migración.", "Confundir delivery de medición con ABM de campañas."],
+      "decisionsRequired": ["Aprobar actions permitidas, source of truth y política de retries/receipts."],
+      "decisionRefs": ["DEC-003", "DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-008", "backend/src/conversions", "backend/src/analytics"]
+    },
+    {
+      "id": "GM-009",
+      "title": "Endurecer OAuth, redirects y secretos",
+      "product": "growth-metrics",
+      "type": "security",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Vincular autorizaciones a actor, tenant y source y reducir exposición de credenciales.",
+      "rationale": "Los redirects y callbacks no prueban uniformemente el contexto, y el token Meta CAPI puede retornar completo al frontend.",
+      "scope": {
+        "in": ["State actor+tenant+source, callback por source, allowlist, secretos write-only/masked, versión, rotación y validación obligatoria."],
+        "out": ["Cambiar de proveedor de secretos sin evidencia de necesidad."]
+      },
+      "dependencies": ["GM-005", "CFG-001"],
+      "acceptanceCriteria": [
+        "Callbacks cruzados, expirados o de otro actor fallan y no existe open redirect.",
+        "Ninguna API o UI devuelve un secreto completo y la rotación funciona sin downtime."
+      ],
+      "verification": ["Tests OAuth negativos, allowlist, snapshots de respuestas y drill de rotación."],
+      "risks": ["Invalidar conexiones existentes durante la rotación.", "Filtrar secretos mediante logs o errores aunque la UI los oculte."],
+      "decisionsRequired": ["Confirmar proveedor de secretos, ownership y período de rotación."],
+      "decisionRefs": ["DEC-003", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-009", "backend/src/analytics", "backend/src/growth", "frontend"]
+    },
+    {
+      "id": "GM-010",
+      "title": "Unificar normalización y cuarentena reintentable",
+      "product": "growth-metrics",
+      "type": "data",
+      "phase": "foundation",
+      "priority": "P0",
+      "status": "proposed",
+      "objective": "Producir el mismo fact válido por batch, backfill o replay y preservar inválidos operables.",
+      "rationale": "Los caminos de normalización no materializan los mismos campos y algunos fallos quedan marcados o descartados sin recuperación clara.",
+      "scope": {
+        "in": ["Mapping único, campos estructurales, quarantine con reason/payload/version, raw state, replay idempotente y métricas de causa."],
+        "out": ["Rediseñar la capa completa de reporting."]
+      },
+      "dependencies": ["GM-004", "GM-005"],
+      "acceptanceCriteria": [
+        "Batch y backfill generan facts equivalentes para el mismo raw/version.",
+        "Un inválido no se marca exitoso ni desaparece y su replay no duplica datos."
+      ],
+      "verification": ["Golden fixtures, comparación de caminos, property tests de idempotencia y replay de quarantine en test."],
+      "risks": ["Cambiar semántica histórica sin versionarla.", "Crecimiento no controlado de quarantine o raw."],
+      "decisionsRequired": ["Aprobar estados raw, ownership de quarantine y política de replay."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-010", "backend/src/analytics", "backend/prisma/schema.prisma"]
+    },
+    {
+      "id": "GM-011",
+      "title": "Formalizar sesión y atribución",
+      "product": "growth-metrics",
+      "type": "data",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Producir sesiones y modelos de atribución explicables y tenant-scoped.",
+      "rationale": "La sesión y el funnel actual mezclan actores y carecen de una semántica completa para identificadores paid y tráfico directo.",
+      "scope": {
+        "in": ["Timeout/renewal, first/last/non-direct touch, UTM y click IDs, timezone, actor storefront/admin y orden del funnel."],
+        "out": ["Atribución algorítmica o basada en ML."]
+      },
+      "dependencies": ["GM-004", "GM-005", "GM-010"],
+      "acceptanceCriteria": [
+        "Las sesiones vencen conforme al contrato y el admin no contamina adquisición storefront.",
+        "Cada conversión expone touchpoints, modelo, timezone y evidencia reproducible."
+      ],
+      "verification": ["Timelines sintéticos cross-day y escenarios direct/organic/paid comparados documentalmente con GA4."],
+      "risks": ["Crear falsas equivalencias con la atribución de proveedores.", "Perder continuidad al migrar IDs de sesión."],
+      "decisionsRequired": ["Aprobar timeout, timezone y modelos de atribución iniciales."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-011", "storefront", "frontend", "backend/src/growth"]
+    },
+    {
+      "id": "GM-012",
+      "title": "Construir reporting canónico con lineage",
+      "product": "growth-metrics",
+      "type": "data",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Reemplazar agregados ambiguos por métricas tipadas, deduplicadas y rastreables.",
+      "rationale": "Key events, purchases, orders y revenue se mezclan sin grain, currency ni lineage uniforme.",
+      "scope": {
+        "in": ["Definiciones KPI, grain, currency, source/account, merge de fuentes, lineage a connection/sync/schema y reglas de dedupe."],
+        "out": ["Imponer un data warehouse externo."]
+      },
+      "dependencies": ["GM-005", "GM-006", "GM-007", "GM-010", "GM-011"],
+      "acceptanceCriteria": [
+        "Cada KPI declara definición, owner, grain, currency, fuente y lineage.",
+        "No se cuenta un proxy como purchase ni una misma compra más de una vez."
+      ],
+      "verification": ["Metric contracts, reconciliation fixtures, constraints/FK y queries de lineage."],
+      "risks": ["Romper series históricas sin versión de métrica.", "Sumar monedas o grains incompatibles."],
+      "decisionsRequired": ["Aprobar catálogo KPI, grains, currencies y tolerancias de dedupe."],
+      "decisionRefs": ["DEC-003", "DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-012", "backend/src/analytics", "backend/src/growth", "backend/prisma/schema.prisma"]
+    },
+    {
+      "id": "GM-013",
+      "title": "Certificar GA4 como fuente read-only",
+      "product": "growth-metrics",
+      "type": "integration",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Declarar GA4 apto con métricas, dimensiones y operación de lectura correctas.",
+      "rationale": "La implementación actual puede tratar keyEvents como compras y no posee evidencia de paridad completa por property.",
+      "scope": {
+        "in": ["Purchase real, properties, timezone/currency, pagination, quotas, timeout, incremental/backfill, freshness, fixture y sandbox."],
+        "out": ["Mutar configuración de GA4."]
+      },
+      "dependencies": ["GM-009", "GM-012"],
+      "acceptanceCriteria": [
+        "Un sync repetido es idempotente por tenant/property/rango.",
+        "Los resultados reproducen consola o export dentro de tolerancias documentadas."
+      ],
+      "verification": ["Unit contracts, fake API, cuenta sandbox y reporte de parity firmado."],
+      "risks": ["Comparar datos con ventanas de atribución o freshness distintas.", "Superar cuotas durante backfill."],
+      "decisionsRequired": ["Aprobar properties de prueba, métricas certificadas y tolerancias."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-013", "backend/src/analytics/connectors", "backend/src/analytics"]
+    },
+    {
+      "id": "GM-014",
+      "title": "Certificar Google Ads reporting read-only",
+      "product": "growth-metrics",
+      "type": "integration",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Medir Google Ads con contexto suficiente y sin capacidad incidental de ABM.",
+      "rationale": "La lectura carece de certificación multi-account y comparte dominio con una entrega de conversiones que sí muta el proveedor.",
+      "scope": {
+        "in": ["Customer/MCC, login-customer-id, campaign identity/status, currency, network, conversions/actions, quotas, timeout y claves naturales."],
+        "out": ["Comandos de campaña y conversion delivery de GM-008."]
+      },
+      "dependencies": ["GM-006", "GM-009", "GM-012"],
+      "acceptanceCriteria": [
+        "Múltiples cuentas no colisionan y coste, CTR, CPA y ROAS exponen moneda y definición.",
+        "Credenciales y runtime de lectura quedan separados del mutation boundary."
+      ],
+      "verification": ["Fixtures searchStream, sandbox, conciliación campaña/día y test de permisos de solo lectura."],
+      "risks": ["Usar permisos excesivos para el conector read-only.", "Comparar métricas con conversion actions o ventanas distintas."],
+      "decisionsRequired": ["Aprobar MCC/accounts, métricas, conversion actions y tolerancias de certificación."],
+      "decisionRefs": ["DEC-003", "DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-014", "backend/src/analytics/connectors", "backend/src/analytics"]
+    },
+    {
+      "id": "GM-015",
+      "title": "Certificar Search Console como fuente read-only",
+      "product": "growth-metrics",
+      "type": "integration",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Producir SEO por property, query y page con freshness explícita.",
+      "rationale": "El retraso propio de Search Console y el scope de property no están representados con suficiente rigor.",
+      "scope": {
+        "in": ["Cutoff de madurez, domain/url property, dimensiones aprobadas, pagination, quotas, timeout y claves tenant+property."],
+        "out": ["Operaciones SEO externas o cambios sobre propiedades."]
+      },
+      "dependencies": ["GM-006", "GM-009", "GM-012"],
+      "acceptanceCriteria": [
+        "Un día no maduro no se marca incompleto y distintas properties no colisionan.",
+        "Los totales concilian dentro de una tolerancia y ventana de freshness documentadas."
+      ],
+      "verification": ["Fixtures paginados, property de prueba y reporte de freshness/parity."],
+      "risks": ["Interpretar retraso normal como incidente.", "Perder filas por límites de dimensiones o paginación."],
+      "decisionsRequired": ["Aprobar properties, dimensiones y cutoff de madurez."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "M",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-015", "backend/src/analytics/connectors", "backend/src/analytics"]
+    },
+    {
+      "id": "GM-016",
+      "title": "Certificar medición Meta Pixel y CAPI",
+      "product": "growth-metrics",
+      "type": "integration",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Obtener cobertura browser/server consentida, deduplicada y recuperable.",
+      "rationale": "El flujo actual genera IDs antes del consentimiento y la entrega CAPI carece de una outbox durable y trust verificable.",
+      "scope": {
+        "in": ["Pixel, catálogo mapping, event ID compartido, consent gate, CAPI outbox, timeout, retries/DLQ, test events, match quality y token lifecycle."],
+        "out": ["Meta Ads Insights y ABM de campañas."]
+      },
+      "dependencies": ["GM-003", "GM-004", "GM-005", "GM-009", "GM-010"],
+      "acceptanceCriteria": [
+        "Un evento consentido aparece una vez tras dedupe y uno denied no sale.",
+        "Los fallos permanecen reintentables y eventos no permitidos no se envían."
+      ],
+      "verification": ["Browser tests, payload snapshots, Meta test events, crash/retry y receipts de delivery."],
+      "risks": ["Duplicar eventos Pixel/CAPI.", "Exponer PII o token durante diagnóstico."],
+      "decisionsRequired": ["Aprobar catálogo Meta, match fields y política de delivery/retry."],
+      "decisionRefs": ["DEC-003", "DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-016", "backend/src/conversions", "storefront", "frontend"]
+    },
+    {
+      "id": "GM-017",
+      "title": "Incorporar Meta Ads Insights read-only",
+      "product": "growth-metrics",
+      "type": "integration",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Reemplazar el pseudo Meta Ads por métricas reales de account, campaign, adset y ad.",
+      "rationale": "La vista actual deriva señales UTM first-party, muestra costos en cero y no consume Ads Insights.",
+      "scope": {
+        "in": ["Auth/token lifecycle, account selector, spend, delivery y conversion metrics, currency/timezone/window, jobs, backfill, freshness, esquema y UI etiquetada."],
+        "out": ["Crear o modificar campañas y usar señales first-party como sustituto de Insights."]
+      },
+      "dependencies": ["GM-009", "GM-012", "GM-016"],
+      "acceptanceCriteria": [
+        "La UI identifica origen y freshness y spend procede de Meta Ads Insights.",
+        "Múltiples ad accounts no colisionan y existe paridad documentada."
+      ],
+      "verification": ["Fixtures Graph API, cuenta de prueba, paginación/rate-limit y conciliación día/campaña."],
+      "risks": ["Permisos o revisión de app insuficientes.", "Confundir ventanas de atribución Meta con conversiones propias."],
+      "decisionsRequired": ["Aprobar cuentas, scopes, niveles de detalle y ventana de atribución."],
+      "decisionRefs": ["DEC-003", "DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-017", "backend/src/growth", "frontend"]
+    },
+    {
+      "id": "GM-018",
+      "title": "Definir contrato y pipeline de señales WhatsApp",
+      "product": "growth-metrics",
+      "type": "integration",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Medir intención, operación del canal y resultado comercial sin confundir actores.",
+      "rationale": "Los enlaces storefront no están instrumentados y los clics de agentes CRM pueden registrarse como conversiones de adquisición.",
+      "scope": {
+        "in": ["Instrumentar enlaces, separar actor, consumir eventos Conversation/Adapter, modelar status/direction/provider y atribuir a lead/order con tenant, dedupe y consent."],
+        "out": ["Automatizar respuestas IA o administrar WhatsApp."]
+      },
+      "dependencies": ["GM-004", "GM-005", "GM-007"],
+      "acceptanceCriteria": [
+        "El reporting separa click, conversación iniciada, respuesta, lead y compra.",
+        "Un clic interno de agente no se envía ni cuenta como adquisición."
+      ],
+      "verification": ["Contracts de productores y journey sintético click→conversation→lead→order con dedupe."],
+      "risks": ["Mezclar números de teléfono o conversaciones entre tenants.", "Atribuir resultado comercial sólo por proximidad temporal."],
+      "decisionsRequired": ["Conversation debe aprobar eventos, estados, identidad de actor y join permitido con lead/order."],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-018", "storefront", "frontend", "backend/src/growth"]
+    },
+    {
+      "id": "GM-019",
+      "title": "Implementar data trust por tenant y fuente",
+      "product": "growth-metrics",
+      "type": "reliability",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Convertir freshness y parity en evidencia que habilite o bloquee decisiones.",
+      "rationale": "Los checks actuales comparan señales no equivalentes y no distinguen canales deshabilitados, datos parciales o tráfico esperado.",
+      "scope": {
+        "in": ["Freshness, expected traffic, coverage, reconciliation, severity/SLO, trust score por dataset y gates para insights/actions."],
+        "out": ["Inventar tolerancias sin baseline operativo."]
+      },
+      "dependencies": ["GM-012", "GM-013", "GM-014", "GM-015", "GM-016", "GM-017", "GM-018"],
+      "acceptanceCriteria": [
+        "Los checks comparan métricas homólogas y respetan canales habilitados por tenant.",
+        "Cada insight expone freshness/trust y no habilita acciones cuando el dataset está degradado."
+      ],
+      "verification": ["Escenarios healthy, stale, partial, no-traffic y mismatch contra snapshots externos."],
+      "risks": ["Falsa confianza por score agregado.", "Bloqueos excesivos por baselines mal calibrados."],
+      "decisionsRequired": ["Aprobar SLO, severidades, tolerancias y política de gating."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-019", "backend/src/growth", "backend/src/analytics", "frontend"]
+    },
+    {
+      "id": "GM-020",
+      "title": "Robustecer colas, retries y entornos",
+      "product": "growth-metrics",
+      "type": "reliability",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Garantizar ejecución durable, recuperable y observable de ingestas y replays.",
+      "rationale": "Redis no persiste en producción/testing, testing omite el worker y locks o estados pueden representar mal jobs largos o reintentados.",
+      "scope": {
+        "in": ["Queue namespace, fail-closed prod, Redis AOF/volume/backup, worker testing, locks, timeout/cancel, checkpoints, retry/DLQ y conteos exactos."],
+        "out": ["Reemplazar BullMQ sin evidencia de necesidad."]
+      },
+      "dependencies": ["GM-005"],
+      "acceptanceCriteria": [
+        "Un restart no pierde jobs y un sync largo no se ejecuta dos veces.",
+        "Testing consume colas y la ausencia de Redis impide presentar un modo durable ficticio."
+      ],
+      "verification": ["Chaos/restart, concurrencia de locks, Compose testing/prod, queue metrics y recovery drill."],
+      "risks": ["Duplicar side effects al reintentar jobs no idempotentes.", "Aumentar retención Redis sin plan de capacidad."],
+      "decisionsRequired": ["Aprobar SLO de cola, políticas retry/DLQ y persistencia por entorno."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-020", "backend/src/analytics", "docker-compose.yml", "docker-compose.testing.yml"]
+    },
+    {
+      "id": "GM-021",
+      "title": "Definir observabilidad, retención, backup y recuperación",
+      "product": "growth-metrics",
+      "type": "reliability",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Operar Growth Metrics con SLO, RPO/RTO y runbooks propios.",
+      "rationale": "No existe evidencia integral de restore ni ownership operativo de lag, cuotas, raw data, Redis y configuración segura.",
+      "scope": {
+        "in": ["Logs/traces, métricas y alertas, retención, backup Postgres/Redis/config, restore/rebuild desde raw, runbooks y ownership."],
+        "out": ["Rediseñar la observabilidad de toda la plataforma."]
+      },
+      "dependencies": ["GM-019", "GM-020", "OPS-001"],
+      "acceptanceCriteria": [
+        "SLO, RPO y RTO quedan publicados y cada alerta enlaza un runbook accionable.",
+        "Un restore aislado recupera datos, lineage y configuración según el procedimiento."
+      ],
+      "verification": ["Restore drill, synthetic checks, prueba de alertas y evidencia de dashboard/SLO."],
+      "risks": ["Backups existentes pero no restaurables.", "Logs con secretos o PII en exceso."],
+      "decisionsRequired": ["Aprobar RPO/RTO, retención, destino de backups y ownership on-call."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-021", "backend/src/analytics", "docker-compose.yml", "infra"]
+    },
+    {
+      "id": "GM-022",
+      "title": "Completar y corregir la experiencia admin de Metrics",
+      "product": "growth-metrics",
+      "type": "product",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Mostrar capacidades reales, estado de datos y acciones seguras sin ceros o etiquetas engañosas.",
+      "rationale": "Hay placeholders, estados incompletos y una vista denominada Meta Ads que no contiene Ads Insights reales.",
+      "scope": {
+        "in": ["Renombrar señales Meta, estados empty/stale/error, retirar placeholders, aplicar capabilities, ocultar secretos y mostrar jobs, receipts, definiciones y lineage."],
+        "out": ["ABM de campañas."]
+      },
+      "dependencies": ["GM-001", "GM-009", "GM-012", "GM-019"],
+      "acceptanceCriteria": [
+        "Ninguna vista presenta ausencia o dato desconocido como cero real ni promete fuentes inexistentes.",
+        "Toda acción visible respeta capability y toda credencial se presenta enmascarada."
+      ],
+      "verification": ["Component/integration tests, accesibilidad, snapshots de estados y E2E conexión→sync→diagnóstico."],
+      "risks": ["Ocultar fallos bajo estados genéricos.", "Acoplar la UI al esquema interno en vez del contrato versionado."],
+      "decisionsRequired": ["Aprobar journeys, nomenclatura y capacidades visibles por rol."],
+      "decisionRefs": ["DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-022", "frontend"]
+    },
+    {
+      "id": "GM-023",
+      "title": "Crear suite de contrato y release gate de Metrics",
+      "product": "growth-metrics",
+      "type": "testing",
+      "phase": "measurement-read-only",
+      "priority": "P1",
+      "status": "proposed",
+      "objective": "Permitir trabajo independiente de agentes sin romper consumidores, seguridad ni datos.",
+      "rationale": "Las pruebas actuales cubren partes del backend y schemas storefront, pero no un gate integral del producto reusable.",
+      "scope": {
+        "in": ["Gates quick/standard/release para contratos, auth, tenancy, consent, conectores, colas, migraciones, replay, UI, adapters, fixtures y smoke runtime."],
+        "out": ["Exigir cobertura porcentual uniforme sin priorización por riesgo."]
+      },
+      "dependencies": ["GM-001", "GM-002", "GM-003", "GM-005", "GM-010", "GM-020", "QA-001", "SEC-003", "CI-001"],
+      "acceptanceCriteria": [
+        "Existen comandos Metrics quick, standard y release con ownership y evidencia definidos.",
+        "Un contrato incompatible, fuga tenant o bypass de consentimiento falla antes de release."
+      ],
+      "verification": ["Ejecución limpia de gates en CI y mutation/negative tests sobre invariantes críticas."],
+      "risks": ["Gate lento que incentive omisiones.", "Fixtures que oculten drift respecto de proveedores reales."],
+      "decisionsRequired": ["Aprobar matriz riesgo×gate, tiempos máximos y evidencias obligatorias."],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-023", "ai-harness", "backend/src/analytics", "frontend", "storefront"]
+    },
+    {
+      "id": "GM-024",
+      "title": "Modularizar Growth Metrics con puertos y adapters",
+      "product": "growth-metrics",
+      "type": "architecture",
+      "phase": "separation",
+      "priority": "P2",
+      "status": "proposed",
+      "objective": "Reducir módulos monolíticos y dependencias compartidas antes de una extracción física.",
+      "rationale": "Controllers, repositories, Prisma y conectores cruzan responsabilidades y dificultan verificar ownership y sustituibilidad.",
+      "scope": {
+        "in": ["Controllers por superficie, repositories por aggregate, ports de source/queue/clock/secrets/events, separar IA del core, retirar Prisma any y aplicar dependency rules."],
+        "out": ["Reescritura total, cambio de framework o extracción a otro repositorio."]
+      },
+      "dependencies": ["GM-004", "GM-012", "GM-023", "ARC-002", "MOD-001"],
+      "acceptanceCriteria": [
+        "Consumidores no importan el repository monolítico ni conectores concretos.",
+        "Los límites de módulo y ownership se validan automáticamente y las unidades tienen tests."
+      ],
+      "verification": ["Dependency graph/lint rules, typecheck sin overlays any críticos y suite release."],
+      "risks": ["Refactor amplio sin cambio observable pero con alta superficie de regresión.", "Crear abstracciones genéricas sin owner ni caso de uso."],
+      "decisionsRequired": ["Aprobar bounded contexts, puertos y orden incremental de migración."],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-024", "backend/src/analytics", "backend/src/growth", "backend/src/conversions"]
+    },
+    {
+      "id": "GM-025",
+      "title": "Desacoplar Commerce y Conversation mediante eventos",
+      "product": "growth-metrics",
+      "type": "architecture",
+      "phase": "separation",
+      "priority": "P2",
+      "status": "proposed",
+      "objective": "Eliminar lecturas directas de tablas ajenas preservando la verdad de cada producto.",
+      "rationale": "Growth calcula métricas con acceso directo a Order y señales de otros dominios, impidiendo independencia real.",
+      "scope": {
+        "in": ["Business-event adapters, outbox del owner, consumer idempotente, read model Growth y dual-read con reconciliation transitoria."],
+        "out": ["Mover tablas, base de datos o repositorios inmediatamente."]
+      },
+      "dependencies": ["GM-007", "GM-018", "GM-024", "ARC-003", "EC-005"],
+      "acceptanceCriteria": [
+        "Growth no usa directamente tablas Order ni conversaciones para sus read models.",
+        "Pérdida, duplicación y replay de eventos están controlados y el owner conserva la verdad."
+      ],
+      "verification": ["Contract/integration tests, dependency scan, dual-read parity y replay idempotente."],
+      "risks": ["Divergencia silenciosa durante dual-read.", "Eventos sin suficiente información para reconstruir el read model."],
+      "decisionsRequired": ["Commerce y Conversation deben aprobar ownership, schema, delivery y política de replay."],
+      "decisionRefs": ["DEC-003", "DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-025", "backend/src/growth", "backend/prisma/schema.prisma"]
+    },
+    {
+      "id": "GM-026",
+      "title": "Hacer separables el runtime y los datos de Growth Metrics",
+      "product": "growth-metrics",
+      "type": "architecture",
+      "phase": "separation",
+      "priority": "P2",
+      "status": "proposed",
+      "objective": "Ejecutar Growth Metrics con configuración, health y lifecycle propios dentro del monorepo.",
+      "rationale": "La reutilización exige independencia operativa verificable antes de considerar una extracción física.",
+      "scope": {
+        "in": ["Worker mínimo, API/query runtime, schema ownership, secretos/Redis, deploy, health, backup/restore y service-to-service auth."],
+        "out": ["Extracción Git antes de contracts, ownership y release gate verificados."]
+      },
+      "dependencies": ["GM-005", "GM-020", "GM-021", "GM-024", "GM-025", "ARC-003", "OPS-001"],
+      "acceptanceCriteria": [
+        "El runtime se despliega y reinicia sin levantar internals de Commerce o AI Platform.",
+        "Datos y contratos tienen owner inequívoco y los consumidores mantienen compatibilidad."
+      ],
+      "verification": ["Entorno aislado, suite release, compatibility tests y restore drill."],
+      "risks": ["Crear un distribuido operacionalmente más complejo sin reducir acoplamiento.", "Duplicar ownership de migraciones o secretos."],
+      "decisionsRequired": ["Aprobar topology, ownership de datos, SLA y gate de extracción futura."],
+      "decisionRefs": ["DEC-003", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-026", "backend/src/analytics", "backend/prisma/schema.prisma", "docker-compose.yml"]
+    },
+    {
+      "id": "GM-027",
+      "title": "Corregir scope y gobernanza del harness para Metrics",
+      "product": "growth-metrics",
+      "type": "governance",
+      "phase": "separation",
+      "priority": "P2",
+      "status": "proposed",
+      "objective": "Asegurar que agentes auditen el producto completo y preserven invariantes y gates.",
+      "rationale": "Metrics cruza Growth, Conversions, Insights, Prisma, tracking, frontend, workers e infraestructura que un scope por carpeta puede omitir.",
+      "scope": {
+        "in": ["Registrar paths/owners, matriz de archivos y verificaciones, reglas read-only/mutation, tenant/consent/trust invariants y links de evidencia/backlog."],
+        "out": ["Modificar código funcional de Metrics."]
+      },
+      "dependencies": ["GM-004", "GM-005", "GM-023", "GM-024"],
+      "acceptanceCriteria": [
+        "Una tarea Metrics carga todos los productores, consumidores, datos, runtime e infraestructura pertinentes.",
+        "Doctor y gates detectan omisiones de scope, evidencia o invariantes."
+      ],
+      "verification": ["Harness doctor, dry-run quick/standard/release y escenarios de routing de agentes."],
+      "risks": ["Scope tan amplio que reduzca el paralelismo.", "Reglas documentadas que no estén ejecutadas por gates."],
+      "decisionsRequired": ["Aprobar ownership de rutas, matriz de riesgo y límites de trabajo concurrente."],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "size": "M",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-027", "ai-harness/AGENTS.md", "ai-harness-local"]
+    },
+    {
+      "id": "GM-028",
+      "title": "Especificar el command plane de campañas",
+      "product": "growth-metrics",
+      "type": "discovery",
+      "phase": "campaign-operations-specification",
+      "priority": "P3",
+      "status": "blocked",
+      "objective": "Definir una frontera provider-neutral, segura y auditable para futuras operaciones de campañas.",
+      "rationale": "ABM antes de contar con datos certificados, requisitos reales y controles de mutación convertiría errores de medición en impacto externo.",
+      "scope": {
+        "in": ["Comandos/diffs, capabilities, approvals, idempotencia, límites, audit, reconcile, rollback/compensation, credenciales separadas y matriz Google/Meta."],
+        "out": ["Ejecutar comandos reales o habilitar autonomía IA."]
+      },
+      "dependencies": ["GM-019", "GM-021", "GM-023", "GM-026"],
+      "acceptanceCriteria": [
+        "ADR y threat model aprobados describen cada comando, precondición, riesgo, rollback y evidencia.",
+        "El command plane no reutiliza incidentalmente credenciales ni runtime de conectores read-only."
+      ],
+      "verification": ["Tabletop de fallos, contract tests del command model y revisión formal de seguridad."],
+      "risks": ["Diseñar comandos sin necesidades operativas reales.", "Normalizar diferencias de proveedor de forma insegura."],
+      "decisionsRequired": ["Validar con usuarios roles, flujos, límites presupuestarios, aprobaciones y comandos iniciales."],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-006", "DEC-007"],
+      "size": "L",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-028", "docs/MASTER_PLAN_2026-09-08.md"],
+      "blockingReason": "Requiere medición read-only certificada, trust y operación recuperable, release gate verde y necesidades de usuarios validadas."
+    },
+    {
+      "id": "GM-029",
+      "title": "Implementar Google Ads Operations con aprobación",
+      "product": "growth-metrics",
+      "type": "integration",
+      "phase": "campaign-operations",
+      "priority": "P3",
+      "status": "blocked",
+      "objective": "Permitir un subconjunto aprobado de ABM Google Ads únicamente bajo el command plane.",
+      "rationale": "Las mutaciones de campañas requieren datos confiables, aprobación humana, límites y recuperación antes de tocar presupuesto o delivery.",
+      "scope": {
+        "in": ["Campaign/budget/status aprobados, dry-run, approval, idempotencia, audit, reconcile, rollback, quotas y kill switch."],
+        "out": ["Autonomía IA o cobertura completa de Google Ads desde el inicio."]
+      },
+      "dependencies": ["GM-014", "GM-028"],
+      "acceptanceCriteria": [
+        "Ningún cambio remoto ocurre sin capability, policy y aprobación verificables.",
+        "Before/after es trazable, repetir un request no duplica cambios y el kill switch bloquea writes."
+      ],
+      "verification": ["Sandbox, concurrencia/idempotencia, approval E2E, rollback y export de auditoría."],
+      "risks": ["Impacto presupuestario o de delivery por comando incorrecto.", "Rollback no equivalente por limitaciones del proveedor."],
+      "decisionsRequired": ["Aprobar comandos Google iniciales, límites, roles, sandbox y responsabilidad operativa."],
+      "decisionRefs": ["DEC-003", "DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-029", "docs/MASTER_PLAN_2026-09-08.md"],
+      "blockingReason": "Bloqueado hasta certificar Google Ads read-only y aprobar GM-028 con controles, sandbox y requisitos operativos."
+    },
+    {
+      "id": "GM-030",
+      "title": "Implementar Meta Ads Operations con aprobación",
+      "product": "growth-metrics",
+      "type": "integration",
+      "phase": "campaign-operations",
+      "priority": "P3",
+      "status": "blocked",
+      "objective": "Permitir un subconjunto aprobado de ABM Meta Ads bajo el mismo modelo seguro.",
+      "rationale": "No existe aún un conector Meta Ads read-only real y cualquier mutación previa carecería de baseline, reconcile y control humano suficiente.",
+      "scope": {
+        "in": ["Campaign/adset/status/budget aprobados, dry-run, approval, audit, reconcile/compensation, scopes y kill switch."],
+        "out": ["Publicación creativa irrestricta o autonomía IA."]
+      },
+      "dependencies": ["GM-017", "GM-028"],
+      "acceptanceCriteria": [
+        "Se aplican los controles de GM-029 y las diferencias Meta quedan documentadas y probadas.",
+        "La confirmación del comando no se infiere de métricas posteriores y todo write respeta el kill switch."
+      ],
+      "verification": ["Cuenta sandbox, aprobación E2E, reconcile eventual, compensation y evidencia de auditoría."],
+      "risks": ["Impacto presupuestario o de delivery por comando incorrecto.", "Scopes/tokens amplios o compensation incompleta."],
+      "decisionsRequired": ["Aprobar comandos Meta iniciales, límites, roles, scopes, sandbox y responsabilidad operativa."],
+      "decisionRefs": ["DEC-003", "DEC-006", "DEC-007"],
+      "size": "XL",
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-030", "docs/MASTER_PLAN_2026-09-08.md"],
+      "blockingReason": "Bloqueado hasta certificar Meta Ads Insights read-only y aprobar GM-028 con controles, sandbox y requisitos operativos."
+    }
+  ]
+}

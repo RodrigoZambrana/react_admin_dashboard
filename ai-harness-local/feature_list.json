@@ -1,0 +1,69 @@
+{
+  "project": "growth-platform",
+  "description": "Índice operativo de sesiones. El backlog completo vive en planning/backlog.json.",
+  "rules": {
+    "one_feature_at_a_time": true,
+    "require_acceptance_and_verification": true,
+    "validStatus": ["pending", "in_progress", "done", "blocked"]
+  },
+  "features": [
+    {
+      "id": "portfolio-audit-backlog-20260908",
+      "type": "discovery",
+      "status": "done",
+      "title": "Auditar productos y consolidar backlog maestro",
+      "objective": "Conocer el estado actual y definir trabajo independiente antes de implementación.",
+      "acceptanceCriteria": [
+        "Todos los productos tienen auditoría basada en evidencia actual.",
+        "Las necesidades confirmadas y decisiones pendientes están registradas.",
+        "El backlog define alcance, dependencias, aceptación, verificación y riesgos.",
+        "El harness valida el backlog y conserva el checkpoint reanudable."
+      ],
+      "git": {
+        "baseBranch": "feature/ai-conversational-platform-standalone",
+        "baseCommit": "1407e5e2"
+      },
+      "completedAt": "2026-09-08",
+      "result": {
+        "summary": "Auditoría integral y backlog gobernado completados sin cambios funcionales.",
+        "backlog": {
+          "tasks": 121,
+          "ready": 12,
+          "blocked": 83,
+          "proposed": 26
+        },
+        "receipt": "ai-harness-local/features/done/2026/2026-09-08-portfolio-audit-backlog-20260908.json"
+      }
+    },
+    {
+      "id": "harness-control-parity-20260908",
+      "type": "harness-governance",
+      "status": "done",
+      "title": "Auditar paridad y crear Chat de Auditoría y Control",
+      "objective": "Establecer capacidades reales, brechas y control read-only reanudable.",
+      "acceptanceCriteria": [
+        "Existe matriz comparativa con evidencia.",
+        "El control determinista informa pendientes, alineamiento y próximo paso.",
+        "Existe una tarea Codex separada que usa el perfil read-only.",
+        "El harness valida y prueba los artefactos nuevos."
+      ],
+      "git": {
+        "baseBranch": "feature/ai-conversational-platform-standalone",
+        "baseCommit": "1407e5e2"
+      },
+      "completedAt": "2026-09-08",
+      "reopenedAt": "2026-09-08",
+      "reopenReason": "El registro conservaba setup_pending y el cierre no probaba una tarea Codex real ni el formato obligatorio de seis secciones.",
+      "result": {
+        "summary": "Paridad auditada; control read-only y tarea Codex real confirmados con contrato validado de seis secciones.",
+        "harnessVersion": "0.3.1",
+        "parityAchieved": false,
+        "auditorClientThreadId": "client-new-thread:e1f7d266-3f46-4406-b7bf-3b440b8058d9",
+        "auditorThreadId": "01a08322-c5dd-7b61-8be4-5be0e675df98",
+        "auditorVerifiedAt": "2026-09-08T19:43:58-03:00",
+        "responseContract": "ai-harness-local/control/response-contract.json",
+        "receipt": "ai-harness-local/features/done/2026/2026-09-08-harness-control-parity-20260908.json"
+      }
+    }
+  ]
+}

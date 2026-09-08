@@ -16,7 +16,7 @@ independientes pero integrados:
 
 ## Orden de prioridades
 
-### Fase 0 — Fundación (completada en este baseline)
+### Fase 0A — Fundación documental y técnica (completada)
 
 - harness independiente;
 - auditoría ejecutable;
@@ -27,9 +27,36 @@ independientes pero integrados:
 Criterio de salida: cualquier nueva sesión puede identificar producto, owner,
 pruebas y próximo hito sin reconstruir todo el contexto.
 
-### Fase 1 — Seguridad y cierre técnico ecommerce (4–6 semanas)
+### Fase 0B — Discovery integral y backlog gobernado (fase actual)
 
-- Remediar dependencias del backend por grupos de riesgo.
+- Auditar plataforma, ecommerce, métricas e IA/canales contra código y pruebas.
+- Registrar necesidades confirmadas, preguntas de negocio y decisiones.
+- Convertir hallazgos en tareas independientes con objetivo, alcance,
+  dependencias, aceptación, verificación y riesgos.
+- Resolver solapamientos transversales de seguridad, calidad, configuración,
+  arquitectura y operación.
+- Validar el backlog con el harness y conservar evidencia de cierre.
+
+Criterio de salida: existe un backlog canónico validado y cada tarea que pueda
+comenzar está marcada `ready`; ninguna implementación queda implícitamente
+autorizada por este plan.
+
+### Gate 0 — Autorización de implementación
+
+La ejecución funcional comienza únicamente cuando la tarea elegida:
+
+- responde a una necesidad confirmada;
+- no tiene decisiones pendientes ni dependencias abiertas;
+- posee criterios de aceptación y verificación observables;
+- tiene producto, owner y frontera de cambios definidos;
+- fue promovida a `ready` por el proceso del harness.
+
+### Fase 1 — Seguridad transversal y cierre técnico ecommerce (estimación posterior al Gate 0)
+
+- Clasificar y remediar dependencias de backend, admin, storefront, AI Platform
+  y Channel Adapter por grupos de riesgo.
+- Corregir autenticación, autorización, tenancy, webhooks e ingresos públicos
+  según threat models aprobados.
 - Corregir warnings de storefront y definir política de fallbacks de build.
 - Inventariar y aislar código demo/legacy sin borrado indiscriminado.
 - Consolidar configuración por ambiente y smoke de Docker.
@@ -43,7 +70,7 @@ Criterios de salida:
 - migración y rollback ensayados;
 - contratos críticos versionados.
 
-### Fase 2 — Ecommerce listo para primer tenant (6–10 semanas)
+### Fase 2 — Ecommerce listo para primer tenant (estimación posterior al Gate 0)
 
 - Recorrido E2E: catálogo → carrito → checkout → pago → orden → stock → email →
   operación admin → fulfillment.
@@ -56,7 +83,7 @@ Criterios de salida:
 Criterio de salida: una compra real controlada puede completarse, operarse,
 auditarse y recuperarse sin intervención técnica improvisada.
 
-### Fase 3 — Growth Metrics reusable read-only (6–8 semanas)
+### Fase 3 — Growth Metrics reusable read-only (estimación posterior al Gate 0)
 
 - Aislar contratos, configuración y tablas del dominio analytics.
 - Actualizar documentación a BullMQ/Redis y eliminar contradicciones.
@@ -69,7 +96,7 @@ auditarse y recuperarse sin intervención técnica improvisada.
 Criterio de salida: un tenant nuevo conecta fuentes sin cambios de código y
 obtiene métricas reconciliadas, frescas y auditables.
 
-### Fase 4 — Inbox omnicanal operable (6–10 semanas)
+### Fase 4 — Inbox omnicanal operable (estimación posterior al Gate 0)
 
 - Consolidar Conversation Platform como único owner.
 - Completar anti-corruption layer con backend/CRM.
@@ -81,7 +108,7 @@ obtiene métricas reconciliadas, frescas y auditables.
 Criterio de salida: operadores administran conversaciones centralizadas aun con
 IA deshabilitada.
 
-### Fase 5 — IA asistida y automatización gradual (8–12 semanas)
+### Fase 5 — IA asistida y automatización gradual (estimación posterior al Gate 0)
 
 - Corpus/evals versionados con conversaciones reales anonimizadas.
 - Respuestas sugeridas y aprobación humana.
@@ -131,20 +158,20 @@ fallback humano comprobados.
 - medir bundle y dependencias;
 - evitar refactors sin criterio de aceptación observable.
 
-## Primer backlog ejecutable
+## Backlog de ejecución
 
-1. Crear inventario y plan de actualización de las 22 vulnerabilidades altas.
-2. Hacer green el backend release gate sin bypass.
-3. Ejecutar y estabilizar el E2E crítico ecommerce conectado a stack local.
-4. Cerrar stock, pago y fulfillment con decisiones de negocio documentadas.
-5. Preparar piloto ecommerce y runbook de go-live.
-6. Actualizar la auditoría analytics contra la implementación BullMQ actual.
-7. Definir contrato de integración Commerce ↔ AI Platform y retirar ownership
-   conversacional duplicado de forma gradual.
+La fuente canónica es `planning/backlog.json`; su lectura humana está en
+`EXECUTION_BACKLOG_2026-09-08.md`. Este plan no reemplaza esa cola ni convierte
+por sí solo un hallazgo en una tarea ejecutable.
+
+La primera ola es deliberadamente de decisiones, contratos, clasificación de
+riesgo y definición de gates. Compra, pago, stock, fulfillment, mutación de
+campañas o automatización IA permanecen bloqueados hasta satisfacer sus
+dependencias.
 
 ## Regla de priorización
 
-Hasta completar la Fase 2, una iniciativa entra al sprint solo si reduce riesgo
-de lanzamiento ecommerce, cierra el recorrido operativo o elimina un bloqueo de
-seguridad. Métricas e IA avanzan en diseño/contratos, no en expansión funcional
-que compita con ese cierre.
+Hasta completar la Fase 2, una iniciativa entra al sprint solo si está `ready`
+en el backlog y reduce riesgo de lanzamiento ecommerce, cierra el recorrido
+operativo o elimina un bloqueo de seguridad. Métricas e IA avanzan en
+discovery, seguridad y contratos que no compitan con ese cierre.

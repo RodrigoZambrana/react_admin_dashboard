@@ -6,7 +6,13 @@ AI_HARNESS_MODE: active
 
 1. Lee `ai-harness-local/progress/current.json` y no abras una segunda tarea si
    hay una sesión `active` o `blocked`.
+   Lee también `ai-harness-local/progress/current.md` para decisiones y cursor
+   humano, y las reglas locales relevantes bajo `custom-project-agent/`.
+   Para auditoría de portfolio, ejecuta además
+   `npm run --silent harness:control -- --json`; si falla o detecta desvío, no
+   expongas una recomendación ejecutable.
 2. Identifica el producto afectado en `ai-harness/config/project.json`.
+   Si existe una tarea, valida primero `npm run harness:backlog -- --id <ID>`.
 3. Para trabajo de producto, lee `docs/TARGET_PRODUCT_ARCHITECTURE.md` y la
    sección pertinente de `docs/MASTER_PLAN_2026-09-08.md`.
 4. Para cambios de código, aplica `ai-harness/docs/workflow.md` y
@@ -31,6 +37,8 @@ AI_HARNESS_MODE: active
 
 - No asumir que una compilación verde equivale a readiness operativo.
 - No declarar cierre sin pruebas y una comprobación funcional proporcional.
+- No implementar una tarea `proposed` o `blocked`; solo `ready` o
+  `in_progress`, con objetivo, alcance, aceptación y verificación completos.
 - No mezclar refactors amplios con cambios funcionales salvo que el plan de la
   tarea lo justifique explícitamente.
 - No introducir imports directos entre productos. La integración nueva usa
@@ -45,6 +53,11 @@ AI_HARNESS_MODE: active
   nunca valores reales.
 - El árbol puede estar sucio por trabajo legítimo previo. Antes de editar,
   delimita archivos propios; nunca uses limpieza Git destructiva.
+- Actualiza checkpoint después de cada bloque significativo. Al cerrar, agrega
+  historia y un recibo compacto; no dependas del chat para reconstruir el cambio.
+- Auditorías paralelas pueden tener owners distintos. Una implementación mantiene
+  un solo integrador por frontera y exige revisión independiente en cambios de
+  alto riesgo.
 
 ## Niveles de verificación
 

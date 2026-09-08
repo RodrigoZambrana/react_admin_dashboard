@@ -11,6 +11,7 @@ pero no es una instalación, copia sincronizada ni enlace a otro repositorio.
 - checkpoints reanudables;
 - verificación proporcional y basada en evidencia;
 - separación entre exploración, implementación y cierre.
+- auditoría read-only de pendientes, requerimientos, decisiones y alineamiento.
 
 ## Qué se adaptó
 
@@ -28,8 +29,22 @@ pero no es una instalación, copia sincronizada ni enlace a otro repositorio.
 ```bash
 npm run harness:doctor
 npm run harness:progress
+npm run harness:control
+npm run harness:audit
+npm run --silent harness:control -- --json
 npm run harness:verify -- --scope changed --level quick
 ```
 
 El mapa ejecutable vive en `config/project.json`. El estado reanudable del
 producto vive en `ai-harness-local/`.
+
+La matriz `ai-harness-local/control/capabilities.json` es explícita: este
+harness todavía no declara paridad general con LACNIC. Las integraciones y
+controles particulares excluidos están documentados; las brechas aplicables
+permanecen como capacidades parciales o planificadas.
+
+`npm run harness:audit` produce el informe humano del auditor con las seis
+secciones obligatorias. El orden, unicidad, contenido mínimo y resultado único
+se validan contra `ai-harness-local/control/response-contract.json`. Un auditor
+en `setup_pending`, una plantilla inválida o una fuente inconsistente bloquean
+la recomendación ejecutable.

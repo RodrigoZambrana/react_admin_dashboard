@@ -1,8 +1,26 @@
 {
   "schemaVersion": 1,
   "status": "idle",
+  "sessionId": null,
+  "mode": null,
+  "startedAt": null,
   "objective": null,
-  "lastCompleted": "2026-09-08: bootstrap del harness, auditoría general y plan maestro",
-  "nextRecommended": "Abrir Fase 1: remediación de seguridad y cierre operativo ecommerce",
+  "lastCompleted": "2026-09-08: HAR-001 cerró corregida con auditor real y contrato validado de seis secciones",
+  "nextRecommended": "Recalcular el control y seleccionar una única tarea elegible",
+  "plan": [
+    { "id": "comparison", "status": "done", "description": "Comparar capacidades con LACNIC y harness-academico" },
+    { "id": "control", "status": "done", "description": "Implementar reporte determinista read-only" },
+    { "id": "tests", "status": "done", "description": "Probar fallos, alineamiento y recomendación" },
+    { "id": "auditor", "status": "done", "description": "Verificar la tarea Codex real y registrar su threadId" },
+    { "id": "response-contract", "status": "done", "description": "Definir, generar y validar las seis secciones obligatorias" },
+    { "id": "validation", "status": "done", "description": "Ejecutar gates, consolidar evidencia y cerrar HAR-001 corregida" }
+  ],
+  "files": [
+    "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+    "docs/audit/",
+    "planning/backlog.json",
+    "ai-harness/",
+    "ai-harness-local/"
+  ],
   "blockers": []
 }

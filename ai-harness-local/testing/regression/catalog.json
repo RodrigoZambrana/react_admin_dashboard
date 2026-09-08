@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "suites": [
+    { "id": "monorepo-integrity", "owner": "platform", "command": "npm run test:integrity", "runtimeRequired": false },
+    { "id": "commerce-backend-smoke", "owner": "commerce-backend", "command": "npm run test:smoke", "cwd": "backend", "runtimeRequired": false },
+    { "id": "admin-unit", "owner": "admin", "command": "npm test", "cwd": "frontend", "runtimeRequired": false },
+    { "id": "storefront-unit", "owner": "storefront", "command": "npm run test:unit", "cwd": "ecommerce", "runtimeRequired": false },
+    { "id": "storefront-critical-e2e", "owner": "storefront", "command": "npm run test:smoke", "cwd": "ecommerce", "runtimeRequired": true },
+    { "id": "ai-platform-unit", "owner": "ai-platform", "command": "npm test", "cwd": "ai-platform", "runtimeRequired": false },
+    { "id": "channel-adapter-unit", "owner": "channel-adapter", "command": "npm test", "cwd": "services/channel-adapter", "runtimeRequired": false }
+  ]
+}

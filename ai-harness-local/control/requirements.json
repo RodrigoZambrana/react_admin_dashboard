@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "summary": "Productos independientes accesibles de forma unificada.",
+      "status": "PARTIAL",
+      "taskRefs": ["PF-001", "ARC-001", "ARC-002", "ARC-003", "EC-036", "GM-026", "AI-022", "CH-016"],
+      "decisionRefs": ["DEC-003"],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
+    },
+    {
+      "id": "REQ-002",
+      "summary": "Soluciones reusables para empresas diferentes y con aislamiento tenant.",
+      "status": "PARTIAL",
+      "taskRefs": ["PF-001", "EC-004", "EC-035", "GM-005", "AI-002", "AI-004", "CH-003"],
+      "decisionRefs": ["DEC-003", "DEC-004"],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
+    },
+    {
+      "id": "REQ-003",
+      "summary": "Cerrar primero ecommerce: CRM, backend, admin y storefront.",
+      "status": "PARTIAL",
+      "taskRefs": ["EC-001", "EC-034", "EC-035"],
+      "decisionRefs": ["DEC-004"],
+      "sourceRefs": ["docs/MASTER_PLAN_2026-09-08.md"]
+    },
+    {
+      "id": "REQ-004",
+      "summary": "Métricas confiables de GA4, Google Ads, Search Console, Meta y WhatsApp.",
+      "status": "PARTIAL",
+      "taskRefs": ["GM-013", "GM-014", "GM-015", "GM-016", "GM-017", "GM-018", "GM-019"],
+      "decisionRefs": ["DEC-006"],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
+    },
+    {
+      "id": "REQ-005",
+      "summary": "Operaciones de campañas con aprobación, límites, auditoría y rollback.",
+      "status": "PARTIAL",
+      "taskRefs": ["GM-028", "GM-029", "GM-030"],
+      "decisionRefs": ["DEC-006"],
+      "sourceRefs": ["docs/MASTER_PLAN_2026-09-08.md"]
+    },
+    {
+      "id": "REQ-006",
+      "summary": "Centralizar canales con operación humana antes de automatizar respuestas IA.",
+      "status": "PARTIAL",
+      "taskRefs": ["AI-009", "AI-016", "AI-017", "AI-018", "CH-007"],
+      "decisionRefs": ["DEC-005"],
+      "sourceRefs": ["docs/MASTER_PLAN_2026-09-08.md"]
+    },
+    {
+      "id": "REQ-007",
+      "summary": "Seguridad, buenas prácticas, modularización, limpieza y separación de responsabilidades explícitas.",
+      "status": "PARTIAL",
+      "taskRefs": ["SEC-001", "SEC-002", "SEC-003", "QA-001", "MOD-001", "CLN-001", "EC-027", "EC-028", "GM-024", "AI-023"],
+      "decisionRefs": ["DEC-002", "DEC-003"],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
+    },
+    {
+      "id": "REQ-008",
+      "summary": "Auditoría integral y backlog detallado antes de implementación.",
+      "status": "SATISFIED",
+      "taskRefs": ["HAR-001"],
+      "decisionRefs": ["DEC-002", "DEC-007", "DEC-008"],
+      "sourceRefs": ["ai-harness-local/features/done/2026/2026-09-08-portfolio-audit-backlog-20260908.json"]
+    },
+    {
+      "id": "REQ-009",
+      "summary": "Trabajo automatizado con agentes especializados, integración única y trazabilidad.",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-001", "HAR-003", "HAR-004", "HAR-005", "HAR-008", "QA-001"],
+      "decisionRefs": ["DEC-007", "DEC-008"],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "ai-harness/AGENTS.md"]
+    }
+  ]
+}

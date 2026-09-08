@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "decisions": [
+    {
+      "id": "DEC-001",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Harness propio e independiente",
+      "decision": "El repositorio mantiene un harness embebido y adaptado a su stack, sin symlink ni sincronización con /Users/rodrigo/Git/ai-harness.",
+      "rationale": "La metodología debe evolucionar con el producto y conservar trazabilidad local.",
+      "consequences": ["Las reglas comunes necesarias se versionan aquí.", "Las decisiones y estado específicos viven en ai-harness-local/."],
+      "sourceRefs": ["AGENTS.md", "ai-harness/README.md"]
+    },
+    {
+      "id": "DEC-002",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Discovery y backlog antes de implementación",
+      "decision": "No comienza una etapa de implementación hasta auditar todos los productos y consolidar tareas con objetivos, dependencias, aceptación y verificación.",
+      "rationale": "Evita producir código sin una necesidad y un resultado final claros.",
+      "consequences": ["Las remediaciones de seguridad se especifican primero.", "Las tareas incompletas quedan proposed o blocked."],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
+    },
+    {
+      "id": "DEC-003",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Separación por contratos antes de repositorios",
+      "decision": "La división real comienza con bounded contexts, ownership de datos, contratos y runtimes separables; la extracción Git ocurre al final.",
+      "rationale": "Mover carpetas con esquema y transacciones compartidos produciría un monolito distribuido.",
+      "consequences": ["Cada extracción tiene gates.", "Commerce/CRM permanece unido hasta resolver sus transacciones y eventos."],
+      "sourceRefs": ["docs/TARGET_PRODUCT_ARCHITECTURE.md", "ai-harness/docs/extraction-gates.md"]
+    },
+    {
+      "id": "DEC-004",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Orden de prioridades del portfolio",
+      "decision": "Primero cerrar ecommerce (CRM, backend y storefront), luego métricas y operaciones de Google/Meta, y luego ampliar la automatización IA.",
+      "rationale": "Ecommerce es la base inmediata para comenzar operaciones.",
+      "consequences": ["La arquitectura de métricas e IA puede avanzar sin desplazar el cierre ecommerce.", "El backlog explicita dependencias entre líneas."],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
+    },
+    {
+      "id": "DEC-005",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Centralización humana antes de autonomía IA",
+      "decision": "Conversation Platform debe centralizar canales y permitir operación humana antes de habilitar respuestas automáticas generales.",
+      "rationale": "La centralización ya entrega valor y crea evidencia para medir calidad y riesgo.",
+      "consequences": ["Las sugerencias IA preceden a la automatización.", "Todo canal conserva fallback humano y kill switch."],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "docs/TARGET_PRODUCT_ARCHITECTURE.md"]
+    },
+    {
+      "id": "DEC-006",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Medición confiable antes de mutar campañas",
+      "decision": "Growth Metrics se consolida primero como producto de conexión, medición y decisión; el ABM de campañas se diseña después con aprobación, límites, auditoría y rollback.",
+      "rationale": "Las mutaciones afectan presupuesto y reputación y requieren una frontera de riesgo propia.",
+      "consequences": ["Read-only y campaign operations tienen backlogs separados.", "Ninguna credencial de lectura implica permiso de escritura."],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "docs/TARGET_PRODUCT_ARCHITECTURE.md"]
+    },
+    {
+      "id": "DEC-007",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Trazabilidad local durable",
+      "decision": "Decisiones, acuerdos, estado, tareas y evidencia de cierre se conservan en archivos versionados del repositorio y no dependen del historial del chat.",
+      "rationale": "Permite reconstruir por qué cambió el producto, qué se verificó y qué falta.",
+      "consequences": ["El harness se versiona con changelog y releases.", "Las reglas locales se mantienen separadas del framework reusable.", "Los cierres generan recibos compactos."],
+      "sourceRefs": ["ai-harness-local/README.md", "ai-harness/CHANGELOG.md"]
+    },
+    {
+      "id": "DEC-008",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Auditor de control separado y sin autoridad de implementación",
+      "decision": "Una tarea dedicada de Codex actuará como auditor de solo lectura: reconstruirá el estado desde fuentes versionadas, controlará alineamiento y recomendará el próximo trabajo elegible sin implementar producto, autoaprobar decisiones ni usar el historial del chat como autoridad.",
+      "rationale": "Separar ejecución y control reduce sobredeclaraciones y permite retomar el programa desde evidencia durable.",
+      "consequences": ["El reporte determinista prevalece sobre la memoria del chat para hechos calculables.", "Las recomendaciones son proyecciones y no reemplazan decisiones humanas.", "Una inconsistencia bloquea la recomendación ejecutable hasta corregir la fuente."],
+      "sourceRefs": ["ai-harness-local/control/README.md", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+    }
+  ]
+}

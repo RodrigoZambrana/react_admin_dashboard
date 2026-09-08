@@ -1,0 +1,40 @@
+{
+  "schema": "ai-harness.feature-close-receipt/v1",
+  "id": "portfolio-audit-backlog-20260908",
+  "title": "Auditar productos y consolidar backlog maestro",
+  "type": "discovery",
+  "implementation_mode": "none",
+  "workflow": "portfolio-discovery",
+  "closure_mode": "normal",
+  "status": "done",
+  "closed_at": "2026-09-08",
+  "git": {
+    "branch": "feature/ai-conversational-platform-standalone",
+    "base_commit": "1407e5e2",
+    "result_commit": null
+  },
+  "evidence": {
+    "audits": [
+      "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md",
+      "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md",
+      "docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md",
+      "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md"
+    ],
+    "requirements": "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+    "backlog": "planning/backlog.json",
+    "backlog_counts": {
+      "tasks": 121,
+      "ready": 12,
+      "blocked": 83,
+      "proposed": 26
+    },
+    "verification": [
+      "npm run harness:backlog:assemble",
+      "npm run harness:backlog",
+      "npm run harness:doctor",
+      "npm run harness:verify -- --scope harness --level standard",
+      "git diff --check"
+    ]
+  },
+  "functional_changes": false
+}

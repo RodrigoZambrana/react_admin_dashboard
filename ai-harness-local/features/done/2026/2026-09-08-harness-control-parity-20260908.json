@@ -1,0 +1,57 @@
+{
+  "schema": "ai-harness.feature-close-receipt/v1",
+  "id": "harness-control-parity-20260908",
+  "backlogTaskId": "HAR-001",
+  "title": "Auditar paridad y crear Chat de Auditoría y Control",
+  "type": "harness-governance",
+  "implementation_mode": "harness-only",
+  "workflow": "harness-development",
+  "closure_mode": "normal",
+  "status": "done",
+  "closed_at": "2026-09-08",
+  "reopened_at": "2026-09-08T19:43:58-03:00",
+  "reopen_reason": "La evidencia registraba setup_pending y no validaba una tarea real ni las seis secciones obligatorias.",
+  "git": {
+    "branch": "feature/ai-conversational-platform-standalone",
+    "base_commit": "1407e5e2",
+    "result_commit": null
+  },
+  "evidence": {
+    "capabilityAudit": "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+    "capabilityMatrix": "ai-harness-local/control/capabilities.json",
+    "requirements": "ai-harness-local/control/requirements.json",
+    "policy": "ai-harness-local/control/policy.json",
+    "controlCommand": "npm run --silent harness:control -- --json",
+    "tests": {
+      "command": "npm run harness:test",
+      "result": "9/9 passed"
+    },
+    "standardGate": {
+      "command": "npm run harness:verify -- --scope harness --level standard",
+      "result": "passed"
+    },
+    "auditorResponse": {
+      "command": "npm run harness:audit",
+      "result": "six sections validated; exactly one recommendation"
+    },
+    "auditor": {
+      "title": "Auditoría y Control — Growth Platform",
+      "requestId": "client-new-thread:e1f7d266-3f46-4406-b7bf-3b440b8058d9",
+      "threadId": "01a08322-c5dd-7b61-8be4-5be0e675df98",
+      "hostId": "local",
+      "verifiedAt": "2026-09-08T19:43:58-03:00",
+      "verificationMethod": "codex.read_thread",
+      "promptPath": "ai-harness-local/control/chat-auditor-prompt.md",
+      "responseContractPath": "ai-harness-local/control/response-contract.json",
+      "requiredSections": 6
+    },
+    "closureCorrection": {
+      "originalStatus": "setup_pending",
+      "result": "confirmed",
+      "controlRejectsPending": true,
+      "responseContractValidated": true
+    },
+    "nextTask": "HAR-002"
+  },
+  "productChanges": false
+}

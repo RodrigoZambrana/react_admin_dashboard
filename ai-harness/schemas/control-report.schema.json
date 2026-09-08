@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Growth Platform Harness Control Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "generatedAt", "validation", "freshness", "facts", "alignment", "humanDecisions", "warnings", "discrepancies", "recommendation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "generatedAt": { "type": "string" },
+    "validation": { "enum": ["OK", "FAIL"] },
+    "freshness": { "enum": ["FRESH", "UNVERIFIABLE"] },
+    "facts": { "type": ["object", "null"] },
+    "alignment": {
+      "type": "object",
+      "required": ["status", "checks"],
+      "properties": {
+        "status": { "enum": ["ALIGNED", "DRIFT", "UNVERIFIABLE"] },
+        "checks": { "type": "array" }
+      }
+    },
+    "humanDecisions": { "type": "object" },
+    "warnings": { "type": "array", "items": { "type": "string" } },
+    "discrepancies": { "type": "array" },
+    "recommendation": { "type": ["object", "null"] }
+  }
+}

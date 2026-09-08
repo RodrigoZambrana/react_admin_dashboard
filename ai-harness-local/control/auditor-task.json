@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "title": "Auditoría y Control — Growth Platform",
+  "mode": "read-only",
+  "canonicalRepository": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+  "promptPath": "ai-harness-local/control/chat-auditor-prompt.md",
+  "responseContractPath": "ai-harness-local/control/response-contract.json",
+  "creation": {
+    "status": "confirmed",
+    "requestId": "client-new-thread:e1f7d266-3f46-4406-b7bf-3b440b8058d9",
+    "threadId": "01a08322-c5dd-7b61-8be4-5be0e675df98",
+    "hostId": "local",
+    "verifiedAt": "2026-09-08T19:43:58-03:00",
+    "verificationMethod": "codex.read_thread",
+    "verifiedTitle": "Auditoría y Control — Growth Platform",
+    "auditCwd": "/Users/rodrigo/Git/personal/react_admin_dashboard"
+  },
+  "authority": false,
+  "notes": "La tarea reconstruye siempre el checkout canónico y no usa su worktree ni el historial como fuente de verdad."
+}

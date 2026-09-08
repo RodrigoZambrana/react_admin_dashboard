@@ -10,9 +10,16 @@ es de cierre y gobernanza: límites difusos, documentación histórica abundante
 readiness operativo no demostrado de punta a punta y deuda de dependencias que
 hoy bloquea el release del backend.
 
-La estrategia recomendada es estabilizar ecommerce primero, convertir métricas
-y conversaciones en módulos con contratos propios, y solo después extraerlos a
-repositorios independientes.
+La estrategia recomendada es cerrar primero discovery y backlog, estabilizar
+ecommerce, convertir métricas y conversaciones en productos con contratos
+propios, y solo después extraerlos a repositorios independientes.
+
+El estado detallado se conserva en cuatro auditorías complementarias:
+
+- `audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md`;
+- `audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md`;
+- `audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md`;
+- `audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md`.
 
 ## Evidencia ejecutada
 
@@ -37,10 +44,13 @@ ambiente productivo.
 
 ### Seguridad de dependencias
 
-El gate de build del backend reportó 30 vulnerabilidades: 22 altas, 7 moderadas
-y 1 baja. Entre las dependencias afectadas hay componentes expuestos a HTTP,
-uploads, correo, parsing, Prisma y clientes de red. El build sin gate demuestra
-que TypeScript compila, pero no habilita un release.
+La inspección de los cinco workspaces reportó 103 hallazgos de dependencias: 3
+críticos, 57 altos, 35 moderados y 8 bajos. Por workspace: backend 34, admin 23,
+storefront 16, AI Platform 24 y Channel Adapter 6. Son hallazgos de árboles de
+dependencias, no una confirmación automática de explotabilidad; deben
+clasificarse por runtime, superficie y versión alcanzable. El storefront y el
+adaptador concentran los críticos observados. El build del backend sin gate
+demuestra que TypeScript compila, pero no habilita un release.
 
 Acción: remediación por grupos con tests de regresión, sin usar un `audit fix
 --force` masivo. Criterio de salida: cero vulnerabilidades críticas/altas
@@ -134,5 +144,7 @@ autónoma general.
 
 ## Recomendación inmediata
 
-Abrir una Fase 1 única: seguridad de runtime y cierre operativo ecommerce. Todo
-trabajo nuevo debe demostrar que contribuye a ese gate o quedar en backlog.
+Cerrar la Fase 0B: aprobar necesidades y decisiones bloqueantes, validar el
+backlog canónico y seleccionar únicamente tareas `ready`. La remediación de
+seguridad será la primera línea técnica, pero no debe comenzar como cambio de
+código sin threat model, alcance, regresiones y criterio de salida registrados.

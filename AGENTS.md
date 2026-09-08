@@ -14,5 +14,11 @@ Reglas de entrada:
   `docs/GENERAL_AUDIT_2026-09-08.md` como baseline inicial.
 - El código histórico bajo `docs/` puede aportar contexto, pero no prevalece
   sobre el código, los tests ni los documentos canónicos anteriores.
+- Toda tarea debe enlazar las decisiones aplicables de
+  `ai-harness-local/decisions/index.json`; un cambio de acuerdo crea una
+  supersesión explícita, no una reescritura silenciosa.
 - No extraigas físicamente un producto a otro repositorio hasta que su contrato,
   ownership de datos y gate de release estén documentados y verificados.
+- Para conocer estado, alineamiento y próximo paso, ejecuta
+  `npm run --silent harness:control -- --json`. El reporte es derivado y no
+  reemplaza las decisiones ni el backlog.

@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-08",
+  "parityTarget": "Capacidades generales del harness LACNIC, excluyendo Java/Maven, Zoho, Ghost Inspector, onboarding organizacional y sincronización con un framework central.",
+  "comparisonBasis": {
+    "lacnic": {
+      "path": "/Users/rodrigo/Git/ai-harness",
+      "commit": "610b7d1655bfdcf88b9f4b01ba4bfdfedc896648"
+    },
+    "academicControl": {
+      "path": "/Users/rodrigo/Git/personal/ati-proyecto-integrador-2026/harness-academico",
+      "commit": "abb0f39a4092fcacfd959a98b474e3a2e6dbfc06"
+    }
+  },
+  "statusDefinitions": {
+    "IMPLEMENTED": "Existe mecanismo ejecutable, prueba y evidencia local.",
+    "PARTIAL": "Existe parte del mecanismo, pero falta control, prueba o cierre funcional.",
+    "PLANNED": "La necesidad está aceptada pero todavía no existe mecanismo suficiente.",
+    "NOT_APPLICABLE": "Capacidad particular de la referencia excluida justificadamente."
+  },
+  "capabilities": [
+    {
+      "id": "CTX-001",
+      "name": "Router y carga progresiva de contexto",
+      "category": "context",
+      "status": "IMPLEMENTED",
+      "evidence": ["AGENTS.md", "ai-harness/AGENTS.md", "ai-harness/config/project.json"],
+      "remaining": "Agregar cápsulas generadas cuando se implemente CTX-002."
+    },
+    {
+      "id": "CTX-002",
+      "name": "Cápsulas reproducibles de contexto",
+      "category": "context",
+      "status": "PLANNED",
+      "taskRefs": ["HAR-004"],
+      "evidence": ["docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"],
+      "remaining": "Faltan schema, builder, fingerprint, presupuesto y validación de cápsulas."
+    },
+    {
+      "id": "CFG-001",
+      "name": "Registro de productos, runtimes y verificación",
+      "category": "configuration",
+      "status": "IMPLEMENTED",
+      "evidence": ["ai-harness/config/project.json", "ai-harness/harness/verify.mjs"],
+      "remaining": "Extender con ownership nominal cuando se definan responsables."
+    },
+    {
+      "id": "PLN-001",
+      "name": "Backlog tipado, dependencias y selección ready",
+      "category": "planning",
+      "status": "IMPLEMENTED",
+      "evidence": ["ai-harness/schemas/backlog.schema.json", "ai-harness/harness/backlog.mjs", "planning/backlog.json"],
+      "remaining": "Agregar transiciones controladas en LIF-001."
+    },
+    {
+      "id": "DEC-001",
+      "name": "Decisiones y supersesión explícita",
+      "category": "governance",
+      "status": "IMPLEMENTED",
+      "evidence": ["ai-harness-local/decisions/index.json", "ai-harness/harness/doctor.mjs"],
+      "remaining": "Agregar schema dedicado y comando de supersesión."
+    },
+    {
+      "id": "STA-001",
+      "name": "Checkpoint, feature list, historia y recibo",
+      "category": "state",
+      "status": "IMPLEMENTED",
+      "evidence": ["ai-harness-local/progress/current.json", "ai-harness-local/feature_list.json", "ai-harness-local/progress/history.md", "ai-harness-local/features/done/2026/2026-09-08-portfolio-audit-backlog-20260908.json"],
+      "remaining": "Automatizar transiciones y validación de recibos en LIF-001."
+    },
+    {
+      "id": "CTL-001",
+      "name": "Auditoría de control y recomendación fail-closed",
+      "category": "control",
+      "status": "IMPLEMENTED",
+      "evidence": ["ai-harness/harness/control.mjs", "ai-harness/harness/tests/control.test.mjs", "ai-harness-local/control/chat-auditor-prompt.md", "ai-harness-local/control/response-contract.json", "ai-harness-local/control/auditor-task.json"],
+      "remaining": "El juicio semántico y las decisiones permanecen humanos."
+    },
+    {
+      "id": "VER-001",
+      "name": "Verificación por scope y nivel",
+      "category": "verification",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-006"],
+      "evidence": ["ai-harness/harness/verify.mjs", "ai-harness/config/project.json"],
+      "remaining": "Faltan recibos por ejecución, política de timeout y gates release certificados en todos los productos."
+    },
+    {
+      "id": "DIA-001",
+      "name": "Doctor local",
+      "category": "diagnostics",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-007"],
+      "evidence": ["ai-harness/harness/doctor.mjs"],
+      "remaining": "Faltan probes de runtimes/servicios, coherencia de herramientas y diagnóstico accionable por integración."
+    },
+    {
+      "id": "LIF-001",
+      "name": "Ciclo start, preclose y close",
+      "category": "lifecycle",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-002"],
+      "evidence": ["ai-harness/docs/workflow.md", "ai-harness-local/feature_list.json"],
+      "remaining": "Hoy las transiciones son manuales; faltan comandos atómicos, guards y recibos validados."
+    },
+    {
+      "id": "GIT-001",
+      "name": "Preflight Git, baseline y write-set",
+      "category": "git",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-002"],
+      "evidence": ["ai-harness/harness/doctor.mjs", "AGENTS.md"],
+      "remaining": "Faltan clasificación de cambios preexistentes, write-set declarado, guard de branch y diff receipt."
+    },
+    {
+      "id": "INT-001",
+      "name": "Intake y slicing estructurados",
+      "category": "intake",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-003"],
+      "evidence": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "ai-harness/docs/backlog-contract.md"],
+      "remaining": "Faltan schema, comando y pruebas de fidelidad entre pedido, necesidad, tarea y aceptación."
+    },
+    {
+      "id": "HND-001",
+      "name": "Delegación, cápsulas y handoff entre agentes",
+      "category": "agents",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-004"],
+      "evidence": ["ai-harness-local/agents/config.example.json", "ai-harness/AGENTS.md"],
+      "remaining": "Faltan contratos request/result, fingerprints, lifecycle y recibos de integración/rechazo."
+    },
+    {
+      "id": "REV-001",
+      "name": "Revisión independiente del candidato",
+      "category": "review",
+      "status": "PLANNED",
+      "taskRefs": ["HAR-005"],
+      "evidence": ["ai-harness/AGENTS.md", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"],
+      "remaining": "Faltan manifiesto completo del candidato, fingerprint y recibo de revisión semántica."
+    },
+    {
+      "id": "TST-001",
+      "name": "Gobierno de testing y regresión",
+      "category": "testing",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-006"],
+      "evidence": ["ai-harness-local/testing/regression/catalog.json", "ai-harness/config/project.json"],
+      "remaining": "Faltan definiciones tipadas, sesiones, baselines, promoción, resultados y recibos reproducibles."
+    },
+    {
+      "id": "SKL-001",
+      "name": "Skills locales por tipo de trabajo",
+      "category": "skills",
+      "status": "PLANNED",
+      "taskRefs": ["HAR-008"],
+      "evidence": ["docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"],
+      "remaining": "Faltan catálogo y skills adaptadas para intake, slicing, implementación, bugfix, review y testing."
+    },
+    {
+      "id": "RUN-001",
+      "name": "Runtime local reproducible y health",
+      "category": "runtime",
+      "status": "PLANNED",
+      "taskRefs": ["HAR-007"],
+      "evidence": ["docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md", "deploy/docker-compose.prod.yml"],
+      "remaining": "Faltan manifiesto local, start/stop/status, health real, cleanup y recovery."
+    },
+    {
+      "id": "FRM-001",
+      "name": "Versionado y evolución del harness",
+      "category": "framework",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-009"],
+      "evidence": ["ai-harness/VERSION", "ai-harness/CHANGELOG.md", "ai-harness/releases/0.2.0.md"],
+      "remaining": "Existe versionado local; faltan matriz de capacidades histórica, migraciones de schema y compatibilidad automatizada."
+    },
+    {
+      "id": "BUG-001",
+      "name": "Workflow de incidente y bugfix productivo",
+      "category": "workflow",
+      "status": "PLANNED",
+      "taskRefs": ["HAR-008"],
+      "evidence": ["docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"],
+      "remaining": "Faltan intake de incidente, reproducción, fix mínimo, regresión, release y cierre específico."
+    },
+    {
+      "id": "DBQ-001",
+      "name": "Política ejecutable de queries y performance",
+      "category": "database",
+      "status": "PLANNED",
+      "taskRefs": ["HAR-008"],
+      "evidence": ["ai-harness-local/custom-project-agent/database-notes.md"],
+      "remaining": "Faltan checks automáticos adaptados a Prisma/PostgreSQL y evidencia de explain/índices."
+    },
+    {
+      "id": "LAC-001",
+      "name": "Integraciones LACNIC/Zoho/Ghost Inspector",
+      "category": "reference-specific",
+      "status": "NOT_APPLICABLE",
+      "evidence": ["docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"],
+      "remaining": "Solo se adaptará una integración externa si surge una necesidad y autorización propias."
+    },
+    {
+      "id": "JVM-001",
+      "name": "Controles Java y Maven",
+      "category": "reference-specific",
+      "status": "NOT_APPLICABLE",
+      "evidence": ["ai-harness/config/project.json"],
+      "remaining": "El stack actual es TypeScript/JavaScript/SQL."
+    },
+    {
+      "id": "ORG-001",
+      "name": "Onboarding y evaluación organizacional LACNIC",
+      "category": "reference-specific",
+      "status": "NOT_APPLICABLE",
+      "evidence": ["docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"],
+      "remaining": "No forma parte del objetivo del producto; podría definirse onboarding técnico propio si aparece la necesidad."
+    }
+  ]
+}

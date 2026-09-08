@@ -3,18 +3,28 @@
 ## Vigentes
 
 - `GENERAL_AUDIT_2026-09-08.md`: baseline verificable del repositorio.
+- `REQUIREMENTS_DISCOVERY_2026-09-08.md`: necesidades confirmadas y decisiones
+  todavía requeridas.
 - `MASTER_PLAN_2026-09-08.md`: prioridades, fases y gates de negocio.
 - `TARGET_PRODUCT_ARCHITECTURE.md`: productos, ownership y fronteras.
+- `EXECUTION_BACKLOG_2026-09-08.md`: vista humana del backlog gobernado.
+- `../planning/backlog.json`: fuente ejecutable y validable de tareas.
 - `ai-harness/`: reglas operativas, verificación y extracción.
+- `audit/HARNESS_CAPABILITY_GAP_2026-09-08.md`: estado de capacidades y camino
+  hacia paridad general con la referencia LACNIC.
 
 ## Referencias activas por dominio
 
-- Ecommerce: `STOREFRONT_CLOSURE.md`, `PRODUCT_READINESS_E2E_ASSESSMENT.md`.
-- Métricas: `analytics-integration-audit-2026-04-29.md`, teniendo en cuenta las
-  correcciones de estado de la auditoría general.
-- IA: `ai-platform/docs/architecture.md` y
-  `ai-platform/docs/legacy-standalone-integration-analysis.md`.
-- Infraestructura: `architecture.md`, `database-backup-restore-runbook.md`.
+- Plataforma: `audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md`.
+- Ecommerce: `audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md`; como referencias,
+  `STOREFRONT_CLOSURE.md` y `PRODUCT_READINESS_E2E_ASSESSMENT.md`.
+- Métricas: `audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md`; el documento
+  `analytics-integration-audit-2026-04-29.md` queda como referencia histórica.
+- IA y canales: `audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md`; como referencias,
+  `../ai-platform/docs/architecture.md` y
+  `../ai-platform/docs/legacy-standalone-integration-analysis.md`.
+- Infraestructura: `architecture.md` y
+  `database-backup-restore-runbook.md`.
 
 ## Política
 

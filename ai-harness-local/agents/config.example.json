@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "rules": {
+    "parallelAuditsAllowed": true,
+    "parallelImplementationSameBoundary": false,
+    "singleIntegrator": true,
+    "requireIndependentReviewForHighRisk": true
+  }
+}

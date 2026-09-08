@@ -7,9 +7,14 @@
     "infrastructure": ["Docker Compose", "PostgreSQL", "Redis", "Qdrant"]
   },
   "canonicalDocs": [
+    "docs/CANONICAL_INDEX.md",
     "docs/GENERAL_AUDIT_2026-09-08.md",
+    "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+    "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
     "docs/MASTER_PLAN_2026-09-08.md",
-    "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+    "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+    "docs/EXECUTION_BACKLOG_2026-09-08.md",
+    "planning/backlog.json"
   ],
   "workspaces": [
     {
@@ -107,7 +112,7 @@
       "packageManager": "node",
       "verification": {
         "quick": ["node harness/doctor.mjs"],
-        "standard": ["node harness/doctor.mjs", "node --check harness/doctor.mjs", "node --check harness/verify.mjs", "node --check harness/progress.mjs"],
+        "standard": ["node harness/doctor.mjs", "node harness/backlog.mjs", "node harness/control.mjs", "node --test harness/tests/*.test.mjs", "node --check harness/assemble-backlog.mjs", "node --check harness/control.mjs", "node --check harness/doctor.mjs", "node --check harness/backlog.mjs", "node --check harness/verify.mjs", "node --check harness/progress.mjs"],
         "release": ["node harness/doctor.mjs", "node harness/verify.mjs --scope harness --level standard --dry-run"]
       }
     }

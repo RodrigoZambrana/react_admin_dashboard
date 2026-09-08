@@ -1,0 +1,1922 @@
+{
+  "tasks": [
+    {
+      "id": "AI-001",
+      "title": "Modelar amenazas y clasificar datos de AI Platform",
+      "product": "Plataforma conversacional",
+      "type": "discovery",
+      "phase": "Fundación transversal",
+      "priority": "P0",
+      "status": "ready",
+      "objective": "Documentar activos, actores, límites de confianza y abusos de las superficies administrativas, públicas, internas y de IA.",
+      "rationale": "La plataforma procesa mensajes, documentos, secretos y datos personales sin un threat model que ordene la remediación.",
+      "scope": {
+        "in": [
+          "DFD y trust boundaries; clasificación y retención; auth, tenant, uploads, webhooks y prompt injection; registro P0/P1 con owner."
+        ],
+        "out": [
+          "Implementar controles o seleccionar proveedores."
+        ]
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Cada endpoint y flujo identifica actor, credencial, tenant source y datos tratados.",
+        "Cada amenaza tiene control esperado, riesgo residual, prioridad y owner revisados por Security y Producto."
+      ],
+      "verification": [
+        "Revisión trazable threat→control→tarea y checklist aprobado."
+      ],
+      "risks": [
+        "Omitir una superficie o clase de datos dejaría riesgos sin remediación."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-001",
+        "ai-platform/backend/src",
+        "services/channel-adapter/src",
+        "docs/MASTER_PLAN_2026-09-08.md"
+      ]
+    },
+    {
+      "id": "AI-002",
+      "title": "Definir contrato de identidad, roles y tenant",
+      "product": "Plataforma conversacional",
+      "type": "architecture",
+      "phase": "Fundación transversal",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Definir autenticación de usuarios/servicios y derivación confiable de tenant, actor, roles y trazas.",
+      "rationale": "Hoy el tenant proviene de un header controlable o default y el bearer del admin no se valida.",
+      "scope": {
+        "in": [
+          "Issuer, audience, claims, roles, tenant membership, service identity, actor/trace y compatibilidad de consumidores."
+        ],
+        "out": [
+          "UI de usuarios, billing o Control Plane completo."
+        ]
+      },
+      "dependencies": [
+        "AI-001",
+        "PF-001",
+        "ARC-002"
+      ],
+      "acceptanceCriteria": [
+        "Existe contrato versionado con ejemplos positivos y negativos por consumidor.",
+        "Producción no confía en x-tenant-id ni DEFAULT_TENANT_ID sin identidad y membership verificadas."
+      ],
+      "verification": [
+        "Revisión arquitectura/security y plan de contract tests productor-consumidor."
+      ],
+      "risks": [
+        "Una adopción parcial puede aparentar aislamiento mientras conserva rutas vulnerables."
+      ],
+      "decisionsRequired": [
+        "Seleccionar issuer/control plane inicial y claims canónicos."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-002",
+        "ai-platform/backend/src/shared/tenant.middleware.ts",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+      ],
+      "blockingReason": "Depende del threat model AI-001 y de una decisión humana sobre issuer y claims."
+    },
+    {
+      "id": "AI-003",
+      "title": "Aplicar autenticación y RBAC a superficies administrativas",
+      "product": "Plataforma conversacional",
+      "type": "security",
+      "phase": "Fase 1 — Seguridad",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Proteger admin, settings, logs, prompts, documentos, knowledge, catálogo, test center, conversaciones y channel control.",
+      "rationale": "Estas superficies aceptan requests sin guards efectivos ni autorización por rol.",
+      "scope": {
+        "in": [
+          "Guards; permisos de lectura/mutación/secrets; actor auditado; CORS exacto; negativos multi-tenant."
+        ],
+        "out": [
+          "Rediseño visual y autenticación pública del webchat."
+        ]
+      },
+      "dependencies": [
+        "AI-002"
+      ],
+      "acceptanceCriteria": [
+        "Toda superficie administrativa devuelve 401 sin identidad y 403 sin permiso.",
+        "Mutaciones registran actor real y ningún rol cruza tenants."
+      ],
+      "verification": [
+        "Unit, HTTP integration, matriz rol/tenant y security regression."
+      ],
+      "risks": [
+        "Una migración incompleta puede bloquear operadores legítimos o dejar endpoints alternativos abiertos."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-003",
+        "ai-platform/backend/src/api",
+        "ai-platform/backend/src/security"
+      ],
+      "blockingReason": "No puede implementarse antes del contrato de identidad AI-002."
+    },
+    {
+      "id": "AI-004",
+      "title": "Completar el invariante Prisma multi-tenant",
+      "product": "Plataforma conversacional",
+      "type": "security",
+      "phase": "Fase 1 — Seguridad",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Cubrir todos los modelos tenant y eliminar el enforcement dual frágil.",
+      "rationale": "Trece modelos dependen de filtros manuales/casts y el aislamiento queda sujeto a disciplina local.",
+      "scope": {
+        "in": [
+          "Matriz modelo-operación; enforcement; nested writes; unique keys; excepciones y pruebas con dos tenants."
+        ],
+        "out": [
+          "Migración legacy o cambios funcionales conversacionales."
+        ]
+      },
+      "dependencies": [
+        "AI-002"
+      ],
+      "acceptanceCriteria": [
+        "Toda operación tenant está cubierta automáticamente o por excepción probada.",
+        "No quedan casts o accesos directos que eludan la política sin test."
+      ],
+      "verification": [
+        "Suite negativa de dos tenants, análisis de repositorios y prisma validate."
+      ],
+      "risks": [
+        "Cambiar middleware puede alterar upserts/unique y migraciones existentes."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-004",
+        "ai-platform/backend/prisma/schema.prisma",
+        "ai-platform/backend/src/persistence"
+      ],
+      "blockingReason": "Requiere una fuente de tenant confiable definida por AI-002."
+    },
+    {
+      "id": "AI-005",
+      "title": "Diseñar identidad segura para webchat público",
+      "product": "Plataforma conversacional",
+      "type": "security",
+      "phase": "Fase 1 — Seguridad",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Distinguir guest y customer autenticado sin confiar en booleanos, scopes o IDs del navegador.",
+      "rationale": "El cliente puede elevar scope y leer sesión sin prueba consistente de posesión.",
+      "scope": {
+        "in": [
+          "Token de sesión; binding Commerce; posesión guest; expiración/revocación; transcript autorizado."
+        ],
+        "out": [
+          "Rediseño del widget o generación IA."
+        ]
+      },
+      "dependencies": [
+        "AI-002"
+      ],
+      "acceptanceCriteria": [
+        "El navegador no puede afirmar customer_authenticated sin prueba Commerce.",
+        "Session/transcript rechazan IDOR entre guests, customers y tenants."
+      ],
+      "verification": [
+        "E2E guest/customer, replay, expiración y negativos cross-tenant/customer."
+      ],
+      "risks": [
+        "Migrar sesiones sin transición puede perder continuidad o exponer transcript."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-005",
+        "ai-platform/backend/src/api",
+        "ecommerce/src"
+      ],
+      "blockingReason": "Depende del contrato de identidad y tenant AI-002."
+    },
+    {
+      "id": "AI-006",
+      "title": "Definir y aplicar política de payloads, attachments y uploads",
+      "product": "Plataforma conversacional",
+      "type": "security",
+      "phase": "Fase 1 — Seguridad",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Evitar DoS, persistencia ilimitada y contenido inseguro en chat y documentos.",
+      "rationale": "Los límites cliente no protegen el servidor y pueden persistirse data URLs grandes en PostgreSQL.",
+      "scope": {
+        "in": [
+          "Límites body/cantidad/tamaño/tipo; storage externo; scan; TTL; ZIP/document protections; error seguro."
+        ],
+        "out": [
+          "OCR o capacidades multimodales nuevas."
+        ]
+      },
+      "dependencies": [
+        "AI-001"
+      ],
+      "acceptanceCriteria": [
+        "Límites server-side uniformes protegen cada ingress/upload.",
+        "Adjuntos no quedan como blobs grandes y la descarga exige autorización."
+      ],
+      "verification": [
+        "Pruebas de frontera, zip bomb, malformed, cleanup y autorización de descarga."
+      ],
+      "risks": [
+        "Límites incorrectos rompen casos válidos; storage externo añade lifecycle."
+      ],
+      "decisionsRequired": [
+        "Aprobar tipos, tamaños, TTL, malware scan y borrado."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-006",
+        "ai-platform/backend/src/documents",
+        "ai-platform/backend/src/api"
+      ],
+      "blockingReason": "Requiere AI-001 y una política humana de archivos y retención."
+    },
+    {
+      "id": "AI-007",
+      "title": "Versionar el contrato canónico Conversation/Channel v1",
+      "product": "Plataforma conversacional",
+      "type": "architecture",
+      "phase": "Fundación transversal",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Definir schemas versionados para threads, mensajes, actores, attachments, tenant, idempotencia, errores y delivery.",
+      "rationale": "AI Platform, adapter, admin, storefront y CRM usan contratos implícitos e incompatibles.",
+      "scope": {
+        "in": [
+          "Schemas inbound/outbound/status; versionado; idempotency/trace; ejemplos por canal; matriz de consumidores."
+        ],
+        "out": [
+          "Implementar providers o rediseñar UI."
+        ]
+      },
+      "dependencies": [
+        "AI-002",
+        "AI-006",
+        "CH-003",
+        "ARC-003"
+      ],
+      "acceptanceCriteria": [
+        "El contrato no filtra Prisma/legacy y documenta ownership, semántica y errores.",
+        "Cada productor/consumidor tiene fixtures y estrategia de compatibilidad."
+      ],
+      "verification": [
+        "Schema tests y golden fixtures en productores y consumidores."
+      ],
+      "risks": [
+        "Acoplar el contrato a un proveedor impediría reutilización."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-007",
+        "services/README.md",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "ai-harness/docs/extraction-gates.md"
+      ],
+      "blockingReason": "Necesita identidad AI-002, política de attachments AI-006 y topología CH-003."
+    },
+    {
+      "id": "AI-008",
+      "title": "Implementar outbox y state machine outbound durable",
+      "product": "Plataforma conversacional",
+      "type": "reliability",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Convertir respuestas persistidas en entregas confiables, idempotentes y reconciliables.",
+      "rationale": "replyAsAgent deja mensajes pending_external sin dispatch, retry, lease ni DLQ.",
+      "scope": {
+        "in": [
+          "Outbox; estados delivery; leases; retry/backoff; idempotency; provider IDs; DLQ/cancelación."
+        ],
+        "out": [
+          "Generación automática y mecánica específica del proveedor."
+        ]
+      },
+      "dependencies": [
+        "AI-004",
+        "AI-007"
+      ],
+      "acceptanceCriteria": [
+        "Crash/retry no duplica envíos y provider IDs quedan enlazados.",
+        "Mensajes estancados/fallidos son visibles, diagnosticables y reintentables."
+      ],
+      "verification": [
+        "Integration con fake adapter, fault injection y E2E del piloto."
+      ],
+      "risks": [
+        "Una state machine defectuosa puede duplicar o perder mensajes."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-008",
+        "ai-platform/backend/src/api",
+        "docs/MASTER_PLAN_2026-09-08.md"
+      ],
+      "blockingReason": "Requiere aislamiento AI-004 y contrato AI-007."
+    },
+    {
+      "id": "AI-009",
+      "title": "Completar el dominio de inbox humano",
+      "product": "Plataforma conversacional",
+      "type": "feature",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Operar conversaciones con IA apagada mediante asignación, colas, takeover, handoff, unread y SLA.",
+      "rationale": "El owner objetivo carece de assignment/handoff y el bridge fuerza controlMode ai.",
+      "scope": {
+        "in": [
+          "Modos human/assisted/auto; needsHuman; assignment/queues; takeover/release; handoff; unread/SLA/permisos."
+        ],
+        "out": [
+          "Sugerencias y auto-dispatch IA."
+        ]
+      },
+      "dependencies": [
+        "AI-002",
+        "AI-004",
+        "AI-007"
+      ],
+      "acceptanceCriteria": [
+        "Un operador autenticado toma, asigna, responde y cede con IA apagada.",
+        "Toda transición conserva actor, timestamp, tenant y motivo bajo concurrencia."
+      ],
+      "verification": [
+        "Unit state machine, HTTP contracts, dos operadores y E2E human-first."
+      ],
+      "risks": [
+        "Semánticas ambiguas pueden causar respuestas dobles."
+      ],
+      "decisionsRequired": [
+        "Aprobar roles, queues, SLA, asignación, takeover y permisos."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-009",
+        "ai-platform/backend/src/api",
+        "frontend/src/services/ConversationsService.ts"
+      ],
+      "blockingReason": "Requiere AI-002, AI-004, AI-007 y definición humana del modelo operativo."
+    },
+    {
+      "id": "AI-010",
+      "title": "Crear API operacional de inbox y retirar cliente híbrido",
+      "product": "Plataforma conversacional",
+      "type": "migration",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Reemplazar filtros client-side y rutas legacy por una API paginada y canónica.",
+      "rationale": "El admin reconstruye vistas desde hasta 500 conversaciones y mezcla dos backends.",
+      "scope": {
+        "in": [
+          "Filtros/paginación server-side; inboxes; queues; contacts; acciones canónicas; adaptación admin; parity."
+        ],
+        "out": [
+          "Borrar tablas legacy antes de migración o rediseño visual."
+        ]
+      },
+      "dependencies": [
+        "AI-009",
+        "AI-013"
+      ],
+      "acceptanceCriteria": [
+        "El admin no carga colecciones masivas ni llama rutas legacy no implementadas.",
+        "Cada acción migrada tiene parity explícita y probada."
+      ],
+      "verification": [
+        "Contract, performance dataset, frontend tests y búsqueda de llamadas legacy."
+      ],
+      "risks": [
+        "Retiro prematuro puede perder capacidades ocultas."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-010",
+        "frontend/src/services/ConversationsService.ts",
+        "frontend/src/views/crm/ConversationsV2/ConversationsV2.tsx"
+      ],
+      "blockingReason": "Requiere dominio human-first AI-009 y contrato CRM AI-013."
+    },
+    {
+      "id": "AI-011",
+      "title": "Asegurar y reutilizar la integración storefront webchat",
+      "product": "Plataforma conversacional",
+      "type": "feature",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Eliminar tenant hardcode y alinear storefront con identidad, configuración y sesión canónicas.",
+      "rationale": "El navegador controla tenant/auth/scope sin aserción Commerce verificable.",
+      "scope": {
+        "in": [
+          "Bootstrap tenant; assertion customer; guest session/TTL; transporte; logout/revocación; errores."
+        ],
+        "out": [
+          "Rediseño visual o respuesta automática."
+        ]
+      },
+      "dependencies": [
+        "AI-005",
+        "AI-007",
+        "EC-005"
+      ],
+      "acceptanceCriteria": [
+        "Un tenant nuevo se configura sin cambiar código.",
+        "Guest/customer no cruzan memoria y human mode funciona E2E."
+      ],
+      "verification": [
+        "Unit frontend y E2E con dos tenants y guest/customer."
+      ],
+      "risks": [
+        "Cambios de sesión pueden perder continuidad."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-011",
+        "ecommerce/src",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+      ],
+      "blockingReason": "Requiere identidad webchat AI-005 y contrato AI-007."
+    },
+    {
+      "id": "AI-012",
+      "title": "Inventariar y planificar retiro del ownership conversacional legacy",
+      "product": "Plataforma conversacional",
+      "type": "migration",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Definir migración de cada tabla, endpoint y consumidor legacy hacia AI Platform.",
+      "rationale": "Backend y AI Platform mantienen modelos solapados que impiden ownership único.",
+      "scope": {
+        "in": [
+          "Matriz source-target; volumen/callers; históricos; dual-read; reconciliación; rollback; delete gate."
+        ],
+        "out": [
+          "Ejecutar migración o borrar código/tablas."
+        ]
+      },
+      "dependencies": [
+        "AI-007",
+        "AI-009"
+      ],
+      "acceptanceCriteria": [
+        "Cada modelo/ruta tiene owner, consumidor, estrategia, rollback y gate.",
+        "No queda shared ownership indefinido."
+      ],
+      "verification": [
+        "Revisión DB/API, diseño de dry-run y aprobación Commerce/Conversation."
+      ],
+      "risks": [
+        "Omisiones pueden perder historia o perpetuar dual-write."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-012",
+        "backend/prisma/schema.prisma",
+        "ai-platform/backend/prisma/schema.prisma"
+      ],
+      "blockingReason": "Solo puede diseñarse sobre AI-007 y el owner human-first AI-009."
+    },
+    {
+      "id": "AI-013",
+      "title": "Definir contrato anti-corruption con CRM",
+      "product": "Plataforma conversacional",
+      "type": "architecture",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Vincular conversación con contact/customer/lead sin compartir Prisma.",
+      "rationale": "La proyección no resuelve customer y las operaciones legacy mezclan ownership.",
+      "scope": {
+        "in": [
+          "Lookup/link; lead/activity events; consentimiento; not-found; eventual consistency/degradación."
+        ],
+        "out": [
+          "Extraer CRM o escribir órdenes/pagos."
+        ]
+      },
+      "dependencies": [
+        "AI-002",
+        "AI-007",
+        "ARC-003",
+        "EC-005",
+        "EC-023"
+      ],
+      "acceptanceCriteria": [
+        "Conversation obtiene identidad autorizada por contrato versionado.",
+        "Fallas CRM no bloquean inbox y cambios se reconcilian."
+      ],
+      "verification": [
+        "Provider/consumer contracts, integration stub y E2E link/unlink."
+      ],
+      "risks": [
+        "Exponer demasiados datos recrea acoplamiento y riesgo PII."
+      ],
+      "decisionsRequired": [
+        "Confirmar owner de customer/lead y consentimiento."
+      ],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-013",
+        "backend/prisma/schema.prisma",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+      ],
+      "blockingReason": "Requiere AI-002, AI-007 y acuerdo de ownership/consentimiento."
+    },
+    {
+      "id": "AI-014",
+      "title": "Resolver ownership de catálogo y reemplazar tools sintéticas",
+      "product": "Plataforma conversacional",
+      "type": "architecture",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Evitar que stubs o catálogo duplicado se traten como verdad comercial.",
+      "rationale": "create_booking/create_quote confirman resultados sintéticos y get_product usa catálogo separado.",
+      "scope": {
+        "in": [
+          "API Commerce vs read-model; draft/confirmed; freshness; idempotencia; stubs solo test."
+        ],
+        "out": [
+          "Checkout, pago, stock o autonomía IA."
+        ]
+      },
+      "dependencies": [
+        "AI-007",
+        "EC-005"
+      ],
+      "acceptanceCriteria": [
+        "Ninguna tool confirma mutaciones inexistentes fuera de test.",
+        "Producto/precio/disponibilidad provienen de Commerce con freshness observable."
+      ],
+      "verification": [
+        "Contract tests, negativos freshness y E2E draft/handoff."
+      ],
+      "risks": [
+        "Tools falsas pueden crear compromisos comerciales."
+      ],
+      "decisionsRequired": [
+        "Elegir Commerce API o read-model gobernado."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-014",
+        "ai-platform/backend/src/tools",
+        "ai-platform/backend/src/catalog",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+      ],
+      "blockingReason": "Depende de AI-007 y de decisión de ownership/replicación."
+    },
+    {
+      "id": "AI-015",
+      "title": "Consolidar knowledge y gobernar el learning",
+      "product": "Plataforma conversacional",
+      "type": "data",
+      "phase": "Fase 5 — IA asistida",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Definir owner, lifecycle, lineage y política para documentos, learning y legacy knowledge.",
+      "rationale": "Hay tres familias, ownership duplicado y learning default sin política integral PII/retención.",
+      "scope": {
+        "in": [
+          "Inventario; clasificación; PII/consent/retention; approval/lineage; dedup; Qdrant; migración."
+        ],
+        "out": [
+          "Migrar corpus completo o entrenar modelos."
+        ]
+      },
+      "dependencies": [
+        "AI-001",
+        "AI-012"
+      ],
+      "acceptanceCriteria": [
+        "Cada fuente tiene owner, scope, lifecycle, lineage y borrado.",
+        "Learning no promueve verdad sensible/no revisada."
+      ],
+      "verification": [
+        "Lineage audit, fixtures anonimizados, delete/retention plan y migration dry-run."
+      ],
+      "risks": [
+        "PII o alucinaciones pueden consolidarse como conocimiento."
+      ],
+      "decisionsRequired": [
+        "Resolver legacy knowledge y política de proveedor/PII/retención/training."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-015",
+        "ai-platform/backend/src/knowledge",
+        "ai-platform/backend/src/documents",
+        "backend/src/knowledge"
+      ],
+      "blockingReason": "Requiere AI-001, AI-012 y decisiones de gobernanza."
+    },
+    {
+      "id": "AI-016",
+      "title": "Construir baseline de evals para asistencia humana",
+      "product": "Plataforma conversacional",
+      "type": "testing",
+      "phase": "Fase 5 — IA asistida",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Crear gates reproducibles de calidad, seguridad, costo y latencia antes de sugerencias.",
+      "rationale": "Los escenarios son heurísticos/tenant-specific y el replay real está roto.",
+      "scope": {
+        "in": [
+          "Corpus anonimizado/versionado; tenants/idiomas/canales; factuality; safety; escalation; latencia/costo; aceptación."
+        ],
+        "out": [
+          "Habilitar sugerencias o usar datos sin gobernanza."
+        ]
+      },
+      "dependencies": [
+        "AI-009",
+        "AI-015"
+      ],
+      "acceptanceCriteria": [
+        "Dataset registra provenance, anonymization y splits reproducibles.",
+        "Thresholds bloquean regresiones de calidad, seguridad, costo y latencia."
+      ],
+      "verification": [
+        "Reporte CI reproducible y revisión humana muestreada."
+      ],
+      "risks": [
+        "Corpus sesgado produce confianza falsa."
+      ],
+      "decisionsRequired": [
+        "Aprobar métricas y thresholds del piloto asistido."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-016",
+        "tools/qa/replay-real-corpus-run.mjs",
+        "docs/MASTER_PLAN_2026-09-08.md"
+      ],
+      "blockingReason": "Requiere inbox AI-009, knowledge AI-015 y thresholds aprobados."
+    },
+    {
+      "id": "AI-017",
+      "title": "Implementar lifecycle de sugerencias aprobables",
+      "product": "Plataforma conversacional",
+      "type": "feature",
+      "phase": "Fase 5 — IA asistida",
+      "priority": "P2",
+      "status": "blocked",
+      "objective": "Asistir al operador con sugerencias auditables que nunca se envían sin aprobación.",
+      "rationale": "No existe lifecycle canónico y el admin proyecta sugerencias vacías.",
+      "scope": {
+        "in": [
+          "Generate/show/accept/edit/reject/expire; grounding; actor; feedback; costo; degradación."
+        ],
+        "out": [
+          "Auto-dispatch o tools mutantes."
+        ]
+      },
+      "dependencies": [
+        "AI-009",
+        "AI-016",
+        "AI-020"
+      ],
+      "acceptanceCriteria": [
+        "Toda sugerencia exige aprobación de operador autorizado.",
+        "Edición, rechazo, grounding, costo y actor quedan auditados."
+      ],
+      "verification": [
+        "Unit state machine, E2E admin y métricas aceptación/edición/rechazo."
+      ],
+      "risks": [
+        "La UI puede inducir aprobación automática."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-017",
+        "frontend/src/views/crm/ConversationsV2/ConversationsV2.tsx",
+        "docs/MASTER_PLAN_2026-09-08.md"
+      ],
+      "blockingReason": "Human-first AI-009, evals AI-016 y observabilidad AI-020 deben cerrar primero."
+    },
+    {
+      "id": "AI-018",
+      "title": "Definir y aplicar gates de automatización acotada",
+      "product": "Plataforma conversacional",
+      "type": "feature",
+      "phase": "Fase 5 — Automatización gradual",
+      "priority": "P2",
+      "status": "blocked",
+      "objective": "Permitir autonomía solo por capability de bajo riesgo con límites, kill switch y fallback.",
+      "rationale": "Automatizar antes de evidencia de sugerencias contradice human-first.",
+      "scope": {
+        "in": [
+          "Allowlist tenant/canal/intent; thresholds; budgets; kill switch; fallback; audit/outcome; rollout."
+        ],
+        "out": [
+          "Autonomía general u operaciones Ads."
+        ]
+      },
+      "dependencies": [
+        "AI-014",
+        "AI-016",
+        "AI-017"
+      ],
+      "acceptanceCriteria": [
+        "Automatización queda off por defecto y solo activa capabilities aprobadas.",
+        "Kill switch, fallback y rollback funcionan bajo fallos."
+      ],
+      "verification": [
+        "Shadow/canary, fault injection, rollback y revisión de outcomes."
+      ],
+      "risks": [
+        "Una capability mal clasificada puede ejecutar acciones indebidas a escala."
+      ],
+      "decisionsRequired": [
+        "Aprobar intents, canales y límites de riesgo/volumen/costo."
+      ],
+      "decisionRefs": [
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-018",
+        "docs/MASTER_PLAN_2026-09-08.md",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+      ],
+      "blockingReason": "Requiere tools AI-014, evals AI-016, sugerencias AI-017 y aprobación del piloto."
+    },
+    {
+      "id": "AI-019",
+      "title": "Mover turns async y learning a workers durables",
+      "product": "Plataforma conversacional",
+      "type": "reliability",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Eliminar pérdidas/duplicados causados por timers y colas process-local.",
+      "rationale": "Reinicios interrumpen PROCESSING, pending turns y learning.",
+      "scope": {
+        "in": [
+          "Queue; leases/retries; recovery/dedup; cancelación real; backpressure; DLQ."
+        ],
+        "out": [
+          "Cambiar decisiones, prompts o comportamiento."
+        ]
+      },
+      "dependencies": [
+        "AI-004",
+        "AI-008"
+      ],
+      "acceptanceCriteria": [
+        "Reiniciar en cada estado recupera sin pérdida/duplicado.",
+        "Cancelación/backpressure son observables y evitan consumo inútil."
+      ],
+      "verification": [
+        "Crash tests, multi-replica, outage y DLQ."
+      ],
+      "risks": [
+        "Retry incorrecto duplica tools o respuestas."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-019",
+        "ai-platform/backend/src/api",
+        "ai-platform/backend/src/knowledge"
+      ],
+      "blockingReason": "Requiere aislamiento AI-004 y primitives de entrega AI-008."
+    },
+    {
+      "id": "AI-020",
+      "title": "Instrumentar observabilidad, SLO y operación conversacional",
+      "product": "Plataforma conversacional",
+      "type": "observability",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Reconstruir y medir inbound, operación humana, outbound y luego IA end-to-end.",
+      "rationale": "Hay ChatLog/readiness parcial, pero no trace común, métricas, SLO ni alertas.",
+      "scope": {
+        "in": [
+          "Trace común; métricas; redaction; SLO/alertas; readiness; costo; synthetic transaction."
+        ],
+        "out": [
+          "Dashboards de negocio o features nuevas."
+        ]
+      },
+      "dependencies": [
+        "AI-007",
+        "AI-008",
+        "OPS-001"
+      ],
+      "acceptanceCriteria": [
+        "Un message ID reconstruye ingreso, humano, dispatch, receipt e IA.",
+        "Alertas detectan backlog, delivery/provider y degradación IA."
+      ],
+      "verification": [
+        "Synthetic transaction, alert/redaction tests y trace audit."
+      ],
+      "risks": [
+        "Telemetría sin redacción filtra contenido sensible."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-020",
+        "ai-platform/backend/src/logging",
+        "ai-platform/backend/src/infrastructure"
+      ],
+      "blockingReason": "Necesita trace contract AI-007 y outbox/states AI-008."
+    },
+    {
+      "id": "AI-021",
+      "title": "Remediar vulnerabilidades de dependencias de AI Platform",
+      "product": "Plataforma conversacional",
+      "type": "security",
+      "phase": "Fase 1 — Seguridad",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Llevar vulnerabilidades critical/high a cero o excepciones compensadas y fechadas.",
+      "rationale": "El audit reporta seis high relevantes en uploads y tráfico externo.",
+      "scope": {
+        "in": [
+          "Nest/Multer; adm-zip; lodash; form-data; undici; regresión uploads/API."
+        ],
+        "out": [
+          "Refactor no requerido o upgrades sin compatibilidad."
+        ]
+      },
+      "dependencies": [
+        "AI-001",
+        "SEC-001",
+        "SEC-003"
+      ],
+      "acceptanceCriteria": [
+        "Audit prod no reporta critical/high aplicable.",
+        "Excepciones documentan control, owner y expiry."
+      ],
+      "verification": [
+        "npm audit --omit=dev, build, 454+ tests y fuzz/DoS upload."
+      ],
+      "risks": [
+        "Upgrades mayores pueden romper parsing/HTTP."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-021",
+        "ai-platform/package-lock.json",
+        "docs/MASTER_PLAN_2026-09-08.md"
+      ],
+      "blockingReason": "AI-001 debe priorizar advisories y controles antes del cambio."
+    },
+    {
+      "id": "AI-022",
+      "title": "Crear runbook, backup/restore y release gate",
+      "product": "Plataforma conversacional",
+      "type": "operations",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Demostrar recuperación, migración, rollback y despliegue operable.",
+      "rationale": "Build/tests no prueban recovery de Postgres, Redis, Qdrant ni adapters.",
+      "scope": {
+        "in": [
+          "RPO/RTO; backup/restore; migración/rollback; secrets; readiness; smoke; rollback de versión."
+        ],
+        "out": [
+          "Extracción Git o HA multi-región."
+        ]
+      },
+      "dependencies": [
+        "AI-020",
+        "AI-021",
+        "CH-015",
+        "OPS-001",
+        "CI-001"
+      ],
+      "acceptanceCriteria": [
+        "Restore y migración/rollback se ensayan con RPO/RTO aceptados.",
+        "Readiness gobierna tráfico y runbook funciona desde artefacto limpio."
+      ],
+      "verification": [
+        "Restore drill, release rehearsal y rollback documentados."
+      ],
+      "risks": [
+        "Backup no restaurable o migración irreversible pierde datos/prolonga incidentes."
+      ],
+      "decisionsRequired": [
+        "Aprobar RPO, RTO, database/schema y conservación."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-022",
+        "ai-platform/docker-compose.yml",
+        "ai-harness/docs/extraction-gates.md"
+      ],
+      "blockingReason": "Depende de AI-020, AI-021, CH-015 y objetivos RPO/RTO."
+    },
+    {
+      "id": "AI-023",
+      "title": "Modularizar el admin conversacional con characterization tests",
+      "product": "Plataforma conversacional",
+      "type": "refactor",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P2",
+      "status": "blocked",
+      "objective": "Separar clientes, mappers, hooks y componentes sin cambiar comportamiento.",
+      "rationale": "ConversationsService y ConversationsV2 son monolíticos y mezclan APIs.",
+      "scope": {
+        "in": [
+          "Characterization; clientes/mappers por owner; hooks; inbox/detail/composer; retiro tras parity."
+        ],
+        "out": [
+          "Nueva feature, rediseño masivo o refactor junto a migración no probada."
+        ]
+      },
+      "dependencies": [
+        "AI-010",
+        "MOD-001",
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "Unidades tienen responsabilidad/contrato y no duplican endpoints.",
+        "Bundle, UI y E2E no regresan."
+      ],
+      "verification": [
+        "Component, E2E inbox, mapper coverage y comparación visual."
+      ],
+      "risks": [
+        "Refactor antes de estabilizar API multiplica cambios."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-023",
+        "frontend/src/services/ConversationsService.ts",
+        "frontend/src/views/crm/ConversationsV2/ConversationsV2.tsx"
+      ],
+      "blockingReason": "Debe esperar API canónica AI-010."
+    },
+    {
+      "id": "AI-024",
+      "title": "Canonicalizar documentación y trazabilidad del harness",
+      "product": "Plataforma conversacional",
+      "type": "documentation",
+      "phase": "Fundación transversal",
+      "priority": "P1",
+      "status": "ready",
+      "objective": "Enlazar estado, findings, decisiones, backlog y evidencias sin borrar historia.",
+      "rationale": "Waves contradictorias y QA stale pueden presentar persistencia como delivery verificado.",
+      "scope": {
+        "in": [
+          "Etiquetas canonical/reference/archive; mapa finding-decision-task-test; current-state; QA refs; receipts."
+        ],
+        "out": [
+          "Reescribir historia, declarar runtime sin evidencia o cambiar código funcional."
+        ]
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "Un agente nuevo identifica owner, estado, gate y evidencia desde docs canónicos.",
+        "Evidencia histórica indica fecha/alcance y no suplanta release actual."
+      ],
+      "verification": [
+        "Harness doctor/backlog, link check y revisión contra código/tests."
+      ],
+      "risks": [
+        "Limpieza agresiva puede perder contexto."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-024",
+        "ai-platform/docs/architecture.md",
+        "ai-platform/docs/progress.md",
+        "ai-harness/docs/backlog-contract.md"
+      ]
+    },
+  {
+      "id": "CH-001",
+      "title": "Remediar dependencias críticas y altas del adapter",
+      "product": "Adaptadores de canales",
+      "type": "security",
+      "phase": "Fase 1 — Seguridad",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Eliminar advisories runtime critical/high antes de tráfico real.",
+      "rationale": "El adapter reporta dos critical y tres high en Baileys, protobufjs, sharp, ws y libsignal.",
+      "scope": {
+        "in": [
+          "Upgrade/reemplazo compatible; regresión login/history/actions; malformed payloads; excepciones fechadas."
+        ],
+        "out": [
+          "Nuevas features WhatsApp o aceptación silenciosa de riesgo."
+        ]
+      },
+      "dependencies": [
+        "AI-001",
+        "CH-008",
+        "SEC-001",
+        "SEC-003"
+      ],
+      "acceptanceCriteria": [
+        "npm audit --omit=dev no reporta critical/high aplicable.",
+        "Login, history, inbound, outbound y acciones soportadas conservan compatibilidad."
+      ],
+      "verification": [
+        "Audit prod, 36+ tests, sesión sandbox y malformed payload tests."
+      ],
+      "risks": [
+        "Cambiar Baileys puede romper protocolo, auth state o mensajes."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-001",
+        "services/channel-adapter/package-lock.json"
+      ],
+      "blockingReason": "Necesita priorización AI-001 y postura WhatsApp CH-008."
+    },
+    {
+      "id": "CH-002",
+      "title": "Endurecer ingress y servidor HTTP del adapter",
+      "product": "Adaptadores de canales",
+      "type": "security",
+      "phase": "Fase 1 — Seguridad",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Proteger webhooks/rutas internas contra suplantación, replay, abuso y fuga de errores.",
+      "rationale": "Webchat/email están abiertos, raw body no limita tamaño y CORS es wildcard.",
+      "scope": {
+        "in": [
+          "Body/time/concurrency/rate limits; firma o retiro; CORS/headers; replay; error seguro; token sin fallback."
+        ],
+        "out": [
+          "Cambiar negocio/prompts o agregar canales."
+        ]
+      },
+      "dependencies": [
+        "AI-001",
+        "AI-002",
+        "SEC-002"
+      ],
+      "acceptanceCriteria": [
+        "Ningún ingress productivo queda sin autenticidad y replay protection.",
+        "Bodies grandes, abuso y credenciales inválidas se rechazan de forma segura/observable."
+      ],
+      "verification": [
+        "HTTP integration, fuzz/boundary, replay y negative auth."
+      ],
+      "risks": [
+        "Hardening incompatible puede rechazar webhooks válidos."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-002",
+        "services/channel-adapter/src/main.js"
+      ],
+      "blockingReason": "Requiere threat model AI-001 e identidad de servicio AI-002."
+    },
+    {
+      "id": "CH-003",
+      "title": "Definir topología e identidad tenant del adapter",
+      "product": "Adaptadores de canales",
+      "type": "architecture",
+      "phase": "Fundación transversal",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Hacer explícita y segura la elección proceso-por-tenant versus worker multi-tenant.",
+      "rationale": "CLIENT_SLUG implica single-tenant pero eventos no transportan tenant validado.",
+      "scope": {
+        "in": [
+          "Tenant identity; credential partition; routing/resources; config discovery; dos tenants."
+        ],
+        "out": [
+          "Onboarding UI o Control Plane completo."
+        ]
+      },
+      "dependencies": [
+        "AI-002"
+      ],
+      "acceptanceCriteria": [
+        "Cada evento/command transporta tenant validado end-to-end.",
+        "Una instancia no mezcla credenciales, mensajes, stores o rate limits."
+      ],
+      "verification": [
+        "Contract tests con dos tenants y negativos cross-tenant."
+      ],
+      "risks": [
+        "Multi-tenant sin fencing mezcla credenciales; proceso por tenant eleva costo."
+      ],
+      "decisionsRequired": [
+        "Elegir proceso-por-tenant o worker multi-tenant y su fencing."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-003",
+        "services/channel-adapter/src",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+      ],
+      "blockingReason": "Depende de AI-002 y de una decisión de topología tenant."
+    },
+    {
+      "id": "CH-004",
+      "title": "Separar servidor, routers y contratos HTTP",
+      "product": "Adaptadores de canales",
+      "type": "refactor",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Hacer testeables bootstrap, routing, auth, parsing, errores y lifecycle.",
+      "rationale": "main.js concentra rutas/bootstrap y no entra en coverage.",
+      "scope": {
+        "in": [
+          "App factory; routers por dominio; DTO validation; lifecycle/shutdown; characterization tests."
+        ],
+        "out": [
+          "Cambiar semántica del proveedor o agregar features."
+        ]
+      },
+      "dependencies": [
+        "CH-002"
+      ],
+      "acceptanceCriteria": [
+        "main.js deja de concentrar routing/bootstrap y acepta puerto efímero en tests.",
+        "Email, clientes y rutas críticas entran en coverage con shutdown controlado."
+      ],
+      "verification": [
+        "HTTP integration por ruta y coverage thresholds."
+      ],
+      "risks": [
+        "Mover rutas sin characterization puede cambiar contratos."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-004",
+        "services/channel-adapter/src/main.js"
+      ],
+      "blockingReason": "Debe estabilizar requisitos de seguridad CH-002."
+    },
+    {
+      "id": "CH-005",
+      "title": "Consumir dispatch durable desde el outbox",
+      "product": "Adaptadores de canales",
+      "type": "feature",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Entregar respuestas humanas al proveedor correcto con ack, retry e idempotencia.",
+      "rationale": "Existen endpoints de dispatch pero nadie procesa pending_external.",
+      "scope": {
+        "in": [
+          "Pull/event/command; ack/nack; provider routing; idempotency; ID/error mapping."
+        ],
+        "out": [
+          "Generación IA o cambio de contenido."
+        ]
+      },
+      "dependencies": [
+        "AI-007",
+        "AI-008",
+        "CH-003"
+      ],
+      "acceptanceCriteria": [
+        "Un outbound lógico produce como máximo un envío bajo crash/retry.",
+        "Éxito/error vuelve a AI Platform enlazado al message ID."
+      ],
+      "verification": [
+        "Fake provider, fault injection y sandbox piloto."
+      ],
+      "risks": [
+        "Ack mal ordenado pierde o duplica envíos."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-005",
+        "services/channel-adapter/src/main.js",
+        "ai-platform/backend/src/api"
+      ],
+      "blockingReason": "Requiere AI-007, AI-008 y CH-003."
+    },
+    {
+      "id": "CH-006",
+      "title": "Sincronizar receipts y reconciliar delivery",
+      "product": "Adaptadores de canales",
+      "type": "reliability",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Converger accepted/sent/delivered/read/failed con eventos duplicados o fuera de orden.",
+      "rationale": "WhatsApp solo actualiza store local y remoteId no tiene mapping definido.",
+      "scope": {
+        "in": [
+          "Meta statuses; WhatsApp messages.update; ordering/late events; stable mapping; UI error/retry."
+        ],
+        "out": [
+          "Analytics de campañas o canales fuera del piloto."
+        ]
+      },
+      "dependencies": [
+        "AI-007",
+        "CH-005"
+      ],
+      "acceptanceCriteria": [
+        "Eventos duplicados/fuera de orden convergen sin regresión.",
+        "UI muestra delivery/fallo/retry del mensaje/proveedor correcto."
+      ],
+      "verification": [
+        "Fixtures duplicate/out-of-order y sandbox receipts."
+      ],
+      "risks": [
+        "Precedencia errónea degrada estados terminales."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-006",
+        "services/channel-adapter/src/adapters",
+        "ai-platform/backend/src/api"
+      ],
+      "blockingReason": "Necesita contrato AI-007 y dispatch/mapping CH-005."
+    },
+    {
+      "id": "CH-007",
+      "title": "Certificar Meta end-to-end con IA apagada",
+      "product": "Adaptadores de canales",
+      "type": "testing",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Validar un canal Meta real desde inbound hasta respuesta humana, delivery y recuperación.",
+      "rationale": "Firma/sender existen pero no hay evidencia actual end-to-end.",
+      "scope": {
+        "in": [
+          "Messenger o Instagram; verify/HMAC; inbound/attachments; outbound/retry/receipts; outage/rotation."
+        ],
+        "out": [
+          "Certificar ambos subcanales o respuestas automáticas."
+        ]
+      },
+      "dependencies": [
+        "AI-009",
+        "CH-001",
+        "CH-002",
+        "CH-003",
+        "CH-004",
+        "CH-005",
+        "CH-006"
+      ],
+      "acceptanceCriteria": [
+        "Human-first completa inbound→inbox→humano→provider→receipt con IA off.",
+        "Firma inválida, rotación y outage son seguros/recuperables."
+      ],
+      "verification": [
+        "Sandbox/provider E2E, signature negatives, retry/disconnect y evidence artifact."
+      ],
+      "risks": [
+        "Sandbox/permisos pueden ocultar diferencias de producción."
+      ],
+      "decisionsRequired": [
+        "Elegir Messenger o Instagram como primer subcanal."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-007",
+        "services/channel-adapter/src/adapters/meta.adapter.js",
+        "docs/MASTER_PLAN_2026-09-08.md"
+      ],
+      "blockingReason": "Requiere AI-009, CH-001..CH-006 y elección de subcanal."
+    },
+    {
+      "id": "CH-008",
+      "title": "Decidir postura de riesgo para WhatsApp QR",
+      "product": "Adaptadores de canales",
+      "type": "discovery",
+      "phase": "Fundación transversal",
+      "priority": "P0",
+      "status": "ready",
+      "objective": "Determinar si Baileys/no oficial es aceptable para piloto o producción y bajo qué límites.",
+      "rationale": "La decisión condiciona seguridad, ban risk, soporte, HA y la inversión futura.",
+      "scope": {
+        "in": [
+          "Términos/ban risk; soporte/security; HA/recovery; alternativa oficial; costo-beneficio; ADR."
+        ],
+        "out": [
+          "Actualizar/refactorizar, conectar cuenta real o implementar canal."
+        ]
+      },
+      "dependencies": [],
+      "acceptanceCriteria": [
+        "ADR aceptado define entornos, mitigaciones, fallback y fecha de revisión.",
+        "Compara Baileys y opción oficial en costo, riesgo y operación."
+      ],
+      "verification": [
+        "Revisión Producto, Security, Legal/Operaciones y decisionRef nuevo."
+      ],
+      "risks": [
+        "Información contractual incompleta puede subestimar bloqueo/soporte."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "S",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-008",
+        "services/channel-adapter/src/adapters/whatsapp-qr.adapter.js",
+        "docs/MASTER_PLAN_2026-09-08.md"
+      ]
+    },
+    {
+      "id": "CH-009",
+      "title": "Proteger y recuperar sesiones WhatsApp",
+      "product": "Adaptadores de canales",
+      "type": "security",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P0",
+      "status": "blocked",
+      "objective": "Cifrar credenciales/estado y soportar fencing, backup y restore.",
+      "rationale": "Auth/config/store usan archivos locales sin cifrado, locking ni escritura atómica.",
+      "scope": {
+        "in": [
+          "Encryption/KMS; atomic writes/locks; permissions/retention; backup/restore; single-writer fencing."
+        ],
+        "out": [
+          "Nuevas acciones WhatsApp o HA multi-región."
+        ]
+      },
+      "dependencies": [
+        "CH-003",
+        "CH-008"
+      ],
+      "acceptanceCriteria": [
+        "Secretos no quedan en claro y dos réplicas no escriben el mismo estado.",
+        "Restore/relogin y corrupción parcial tienen procedimiento probado."
+      ],
+      "verification": [
+        "Filesystem inspection, corruption/crash y restore drill."
+      ],
+      "risks": [
+        "Migrar auth state puede invalidar sesiones."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-009",
+        "services/channel-adapter/src/adapters/whatsapp-qr.adapter.js",
+        "ai-harness/docs/extraction-gates.md"
+      ],
+      "blockingReason": "Depende de topología CH-003 y aceptación CH-008."
+    },
+    {
+      "id": "CH-010",
+      "title": "Descomponer el adapter WhatsApp QR",
+      "product": "Adaptadores de canales",
+      "type": "refactor",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Separar session, store, inbound, history, outbound, operations y rate policy.",
+      "rationale": "Una clase de 2.580 líneas mezcla lifecycle, secretos, mensajes, IA, media y operaciones.",
+      "scope": {
+        "in": [
+          "Characterization; módulos; errores explícitos; interfaces; regression."
+        ],
+        "out": [
+          "Cambiar UX/semántica o agregar acciones."
+        ]
+      },
+      "dependencies": [
+        "CH-001",
+        "CH-009"
+      ],
+      "acceptanceCriteria": [
+        "Cada módulo tiene responsabilidad, interfaz y tests focalizados.",
+        "Errores no se absorben y sandbox conserva comportamiento."
+      ],
+      "verification": [
+        "Regression suite, sandbox smoke y fault tests."
+      ],
+      "risks": [
+        "Refactor stateful puede alterar orden/recovery."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-010",
+        "services/channel-adapter/src/adapters/whatsapp-qr.adapter.js"
+      ],
+      "blockingReason": "Debe estabilizar CH-001 y CH-009."
+    },
+    {
+      "id": "CH-011",
+      "title": "Hacer durables rate limits y quiet hours",
+      "product": "Adaptadores de canales",
+      "type": "reliability",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Mantener límites consistentes por tenant/canal tras restart, escala y timezone.",
+      "rationale": "Contadores son in-memory y quiet hours usan timezone del proceso.",
+      "scope": {
+        "in": [
+          "Counters compartidos/atómicos; timezone/DST; overrides auditados; proactive policy; restart."
+        ],
+        "out": [
+          "Campañas masivas u optimización automática."
+        ]
+      },
+      "dependencies": [
+        "AI-007",
+        "CH-003"
+      ],
+      "acceptanceCriteria": [
+        "Restart/múltiples réplicas no resetean ni duplican límites.",
+        "Timezone/DST y overrides son explícitos y auditados."
+      ],
+      "verification": [
+        "Clock, concurrency y restart con dos tenants."
+      ],
+      "risks": [
+        "Inconsistencia provoca spam, bloqueo o supresión."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-011",
+        "services/channel-adapter/src/adapters/whatsapp-qr.adapter.js"
+      ],
+      "blockingReason": "Requiere AI-007 y partición CH-003."
+    },
+    {
+      "id": "CH-012",
+      "title": "Definir y cerrar el alcance del canal email",
+      "product": "Adaptadores de canales",
+      "type": "architecture",
+      "phase": "Fundación transversal",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Decidir IMAP/SMTP propio versus webhooks firmados de un proveedor.",
+      "rationale": "Hoy solo normaliza webhook/status; no hay transporte ni dispatch.",
+      "scope": {
+        "in": [
+          "ADR/owner; auth/signature; threading/attachments; bounce/status/rate; separación transaccional."
+        ],
+        "out": [
+          "Implementar ambos diseños o mover email Commerce."
+        ]
+      },
+      "dependencies": [
+        "AI-007"
+      ],
+      "acceptanceCriteria": [
+        "ADR define owner, contrato y supported/experimental/disabled.",
+        "UI no promete conexión inexistente e ingress se retira/autentica."
+      ],
+      "verification": [
+        "Revisión architecture/security y contract fixtures."
+      ],
+      "risks": [
+        "Mezclar inbox/transaccional duplica ownership y afecta entregabilidad."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-012",
+        "services/channel-adapter/src",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+      ],
+      "blockingReason": "Debe alinearse a AI-007; la elección del transporte es output de la tarea."
+    },
+    {
+      "id": "CH-013",
+      "title": "Retirar el adapter webchat duplicado",
+      "product": "Adaptadores de canales",
+      "type": "migration",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Conservar una fachada webchat canónica y retirar la duplicada tras cero consumidores.",
+      "rationale": "Storefront llama AI Platform mientras adapter mantiene webhook público sin firma.",
+      "scope": {
+        "in": [
+          "Caller inventory; deprecation; retire webhook/coalescing; E2E canónico."
+        ],
+        "out": [
+          "Rediseñar widget o retirar antes de confirmar callers."
+        ]
+      },
+      "dependencies": [
+        "AI-005",
+        "AI-011"
+      ],
+      "acceptanceCriteria": [
+        "Storefront/admin/tests usan una sola fachada segura.",
+        "Ningún caller depende de /webhooks/webchat antes de retirarlo."
+      ],
+      "verification": [
+        "Code/runtime search, contract tests y storefront E2E."
+      ],
+      "risks": [
+        "Caller no inventariado puede quedar sin servicio."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-013",
+        "services/channel-adapter/src/main.js",
+        "ecommerce/src"
+      ],
+      "blockingReason": "Requiere AI-005 y AI-011."
+    },
+    {
+      "id": "CH-014",
+      "title": "Consolidar ownership de coalescing y cancelación",
+      "product": "Adaptadores de canales",
+      "type": "migration",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Mover timing semántico a AI Platform y dejar batching mecánico en adapter.",
+      "rationale": "Ambos runtimes duplican timers/state y adapter importa vocabulario tenant.",
+      "scope": {
+        "in": [
+          "Retiro/limitación coalescers; quitar tenant-policy import; AbortSignal; owner único; safe migration."
+        ],
+        "out": [
+          "Cambiar prompts/intents o agregar heurísticas tenant."
+        ]
+      },
+      "dependencies": [
+        "AI-019",
+        "CH-013"
+      ],
+      "acceptanceCriteria": [
+        "Una state machine decide cierre y sobrevive reinicios.",
+        "Adapter no importa vocabulario ni mantiene segunda política."
+      ],
+      "verification": [
+        "Fragmented-message E2E, cancellation/cost y import gate."
+      ],
+      "risks": [
+        "Retiro temprano puede aumentar fragmentación/costo."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "M",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-014",
+        "services/channel-adapter/src/coalescing",
+        "services/shared/tenant-policy"
+      ],
+      "blockingReason": "Requiere workers AI-019 y retiro webchat CH-013."
+    },
+    {
+      "id": "CH-015",
+      "title": "Agregar observabilidad, readiness y runbook del adapter",
+      "product": "Adaptadores de canales",
+      "type": "observability",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Operar canales con logs redactados, trazas, métricas, health real y alertas.",
+      "rationale": "Health siempre ok, Pino silent y no hay SLO/runbook por provider.",
+      "scope": {
+        "in": [
+          "Structured/redacted logs; trace; provider/AI/storage readiness; metrics/alerts; runbook/synthetic."
+        ],
+        "out": [
+          "Dashboards de negocio o capabilities nuevas."
+        ]
+      },
+      "dependencies": [
+        "AI-020",
+        "CH-003",
+        "CH-005",
+        "CH-006",
+        "OPS-001"
+      ],
+      "acceptanceCriteria": [
+        "Health distingue alive/ready/degraded según dependencias.",
+        "Alertas detectan backlog/disconnect/error sin secretos/PII."
+      ],
+      "verification": [
+        "Dependency outage, redaction tests y synthetic message."
+      ],
+      "risks": [
+        "Health superficial enruta tráfico inválido; logs filtran datos."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-015",
+        "services/channel-adapter/src/main.js",
+        "ai-harness/docs/extraction-gates.md"
+      ],
+      "blockingReason": "Necesita AI-020, CH-003, CH-005 y CH-006."
+    },
+    {
+      "id": "CH-016",
+      "title": "Hacer independiente el runtime y despliegue del adapter",
+      "product": "Adaptadores de canales",
+      "type": "operations",
+      "phase": "Fase 6 — Extracción física",
+      "priority": "P2",
+      "status": "blocked",
+      "objective": "Cumplir gate de ejecución separable sin backend legacy ni servicios manuales.",
+      "rationale": "Overlay depende del backend principal y AI Platform externa.",
+      "scope": {
+        "in": [
+          "Compose/dev contract; dependencies; config validation; shutdown/replicas; pipeline/rollback."
+        ],
+        "out": [
+          "Extracción Git o canales nuevos."
+        ]
+      },
+      "dependencies": [
+        "AI-022",
+        "CH-009",
+        "CH-015",
+        "ARC-003",
+        "CI-001"
+      ],
+      "acceptanceCriteria": [
+        "Stack inicia limpio sin backend legacy.",
+        "Config inválida falla temprano y deploy/rollback preserva estado tenant."
+      ],
+      "verification": [
+        "Clean-room compose, config negatives y image rollback."
+      ],
+      "risks": [
+        "Topología irreproducible falla solo al desplegar."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-016",
+        "deploy/docker-compose.channel-adapter.yml",
+        "services/channel-adapter/Dockerfile",
+        "ai-harness/docs/extraction-gates.md"
+      ],
+      "blockingReason": "Requiere AI-022, CH-009 y CH-015."
+    },
+    {
+      "id": "CH-017",
+      "title": "Crear suite release por canal y fallos de proveedor",
+      "product": "Adaptadores de canales",
+      "type": "testing",
+      "phase": "Fase 4 — Inbox omnicanal operable",
+      "priority": "P1",
+      "status": "blocked",
+      "objective": "Convertir tests unitarios en evidencia operacional reproducible por canal.",
+      "rationale": "Suite actual no certifica servidor, clientes, proveedores, reconnect o delivery E2E.",
+      "scope": {
+        "in": [
+          "Contract/webhook; idempotency/retry; disconnect/reconnect; malformed; sandbox/artifacts; support matrix."
+        ],
+        "out": [
+          "Certificar canales fuera del release o IA automática."
+        ]
+      },
+      "dependencies": [
+        "CH-007",
+        "CH-015",
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "Cada canal declara supported/experimental/disabled y gate exacto.",
+        "Release del piloto reproduce sandbox/fallos/recovery y archiva evidencia."
+      ],
+      "verification": [
+        "Pipeline release, artifacts y aprobación operativa."
+      ],
+      "risks": [
+        "Mocks excesivos certifican comportamiento distinto al real."
+      ],
+      "decisionsRequired": [],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-005",
+        "DEC-007"
+      ],
+      "size": "L",
+      "sourceRefs": [
+        "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-017",
+        "services/channel-adapter/test",
+        "services/channel-adapter/package.json",
+        "docs/MASTER_PLAN_2026-09-08.md"
+      ],
+      "blockingReason": "Requiere certificación CH-007 y observabilidad CH-015."
+    }
+  ]
+}

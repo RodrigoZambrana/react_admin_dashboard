@@ -34,6 +34,10 @@ ecommerce/.cache/
 .docker/
 ai-harness-local/evidence/
 ai-harness-local/tmp/
+ai-harness-local/testing/.env
+ai-harness-local/testing/.auth/
+ai-harness-local/testing/runs/
+ai-harness-local/agents/handoffs/
 backups/db/*.sql
 backups/db/*_legacy_postgres_local.sql
 backups/local-test-env_*/
