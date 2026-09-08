@@ -4,9 +4,76 @@
   "rules": {
     "one_feature_at_a_time": true,
     "require_acceptance_and_verification": true,
-    "validStatus": ["pending", "in_progress", "done", "blocked"]
+    "validStatus": [
+      "pending",
+      "in_progress",
+      "done",
+      "blocked"
+    ]
   },
   "features": [
+    {
+      "id": "harness-lifecycle-git-20260908",
+      "backlogTaskId": "HAR-002",
+      "type": "harness-governance",
+      "status": "done",
+      "title": "Automatizar lifecycle y preflight Git",
+      "objective": "Convertir apertura, preclose y cierre en transiciones atómicas que fijen baseline, write-set y evidencia Git.",
+      "scope": {
+        "in": [
+          "start/preclose/close",
+          "Baseline y branch",
+          "Write-set y cambios preexistentes",
+          "Recibos y recovery"
+        ],
+        "out": [
+          "Crear commits sin autorización",
+          "Resolver conflictos destructivamente",
+          "Integraciones remotas"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Las transiciones inválidas fallan sin modificar estado.",
+        "Start conserva baseline, tarea, alcance y write-set.",
+        "Preclose comprueba aceptación, verificación y diff.",
+        "Close actualiza backlog, feature, checkpoint, historia y recibo de forma coherente o revierte."
+      ],
+      "verification": [
+        "Tests con repositorios Git temporales para árbol limpio, sucio, worktree y recuperación de fallo."
+      ],
+      "decisionRefs": [
+        "DEC-001",
+        "DEC-002",
+        "DEC-007",
+        "DEC-008"
+      ],
+      "git": {
+        "baseBranch": "feature/ai-conversational-platform-standalone",
+        "baseCommit": "8cfb3c43352a9df050e2141ad1082b84da26af23",
+        "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+        "preexistingChanges": []
+      },
+      "writeSet": [
+        "package.json",
+        "planning/backlog.json",
+        "ai-harness/",
+        "ai-harness-local/README.md",
+        "ai-harness-local/control/capabilities.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/features/done/",
+        "ai-harness-local/progress/",
+        "ai-harness-local/receipts/"
+      ],
+      "startedAt": "2026-09-08T23:10:00-03:00",
+      "phase": "preclose",
+      "preparedAt": "2026-09-08T23:15:12.049Z",
+      "completedAt": "2026-09-08T23:15:22.437Z",
+      "result": {
+        "summary": "Lifecycle atómico implementado con baseline, branch, write-set, evidencia Git, rollback y recovery verificados en repositorios temporales.",
+        "receipt": "ai-harness-local/receipts/2026/2026-09-08/harness-lifecycle-git-20260908.json",
+        "featureReceipt": "ai-harness-local/features/done/2026/2026-09-08-harness-lifecycle-git-20260908.json"
+      }
+    },
     {
       "id": "portfolio-audit-backlog-20260908",
       "type": "discovery",

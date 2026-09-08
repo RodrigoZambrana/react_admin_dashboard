@@ -140,6 +140,10 @@ try {
 
   const gitDir = git('rev-parse', '--absolute-git-dir').trim()
   const commonDir = git('rev-parse', '--path-format=absolute', '--git-common-dir').trim()
+  const lifecycleJournal = join(gitDir, 'ai-harness-lifecycle-transaction.json')
+  if (existsSync(lifecycleJournal)) {
+    add(errors, 'Hay una transición lifecycle interrumpida; ejecutar npm run harness:lifecycle -- recover')
+  } else add(ok, 'Sin transacciones lifecycle pendientes de recovery')
   if (gitDir !== commonDir) add(warnings, 'Checkout enlazado/worktree: confirmar estrategia antes de cambios amplios')
   else add(ok, 'Checkout canónico')
 } catch (error) {

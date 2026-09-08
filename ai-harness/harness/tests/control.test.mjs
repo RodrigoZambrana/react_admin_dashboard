@@ -58,14 +58,14 @@ test('reconstruye el estado y conserva la paridad como no alcanzada', () => {
   assert.equal(report.alignment.status, 'ALIGNED')
   assert.equal(report.facts.harness.parityAchieved, false)
   assert.equal(report.facts.requirements.total, 9)
-  assert.equal(report.recommendation.taskId, 'HAR-002')
-  assert.equal(report.recommendation.action, 'START')
+  assert.ok(report.recommendation.taskId)
+  assert.equal(report.recommendation.action, report.facts.backlog.inProgressIds.length ? 'CONTINUE' : 'START')
 })
 
 test('el prompt recomendado queda enlazado al fingerprint vigente', () => {
   const report = buildControlReport(root)
 
-  assert.ok(report.recommendation.prompt.content.includes('HAR-002'))
+  assert.ok(report.recommendation.prompt.content.includes(report.recommendation.taskId))
   assert.equal(report.recommendation.prompt.sourcesFingerprint, report.facts.harness.sourcesFingerprint)
   assert.match(report.recommendation.prompt.contentSha256, /^[0-9a-f]{64}$/u)
 })
@@ -78,9 +78,9 @@ test('genera la respuesta auditora con seis secciones obligatorias y una única 
   assert.deepEqual(validateAuditorResponse(content, contract, { expectedRecommendation: report.recommendation }), [])
   assert.ok(contract.sections.every(({ heading }) => content.includes(`${heading}\n`)))
   assert.equal((content.match(/^- Tarea:/gmu) ?? []).length, 1)
-  assert.ok(content.includes('- Destino: **NEW_CHAT**.'))
+  assert.ok(content.includes(`- Destino: **${report.recommendation.handoff.destination}**.`))
   assert.ok(content.includes(`\`\`\`text\n${report.recommendation.prompt.content}\`\`\``))
-  assert.ok(content.includes('HAR-002'))
+  assert.ok(content.includes(report.recommendation.taskId))
 })
 
 test('el validador rechaza secciones ausentes, duplicadas, vacías o sin resultado único', () => {
@@ -93,16 +93,19 @@ test('el validador rechaza secciones ausentes, duplicadas, vacías o sin resulta
   const empty = `${valid.slice(0, emptyStart)}\n\n${valid.slice(emptyEnd)}`
   const ambiguous = valid.replace('- Tarea:', '- **Recomendación bloqueada** placeholder\n- Tarea:')
   const additional = valid.replace(contract.sections[3].heading, `## Sección no permitida\n\n- Extra.\n\n${contract.sections[3].heading}`)
-  const wrongDestination = valid.replace('**NEW_CHAT**', '**CONTINUE_EXISTING_TASK**')
-  const changedPrompt = valid.replaceAll('Convertir apertura, preclose y cierre', 'Alterar apertura, preclose y cierre')
+  const report = buildControlReport(root)
+  const actualDestination = report.recommendation.handoff.destination
+  const wrongDestinationValue = actualDestination === 'NEW_CHAT' ? 'CONTINUE_EXISTING_TASK' : 'NEW_CHAT'
+  const wrongDestination = valid.replace(`**${actualDestination}**`, `**${wrongDestinationValue}**`)
+  const changedPrompt = valid.replaceAll(report.recommendation.objective, `${report.recommendation.objective} alterado`)
 
   assert.ok(validateAuditorResponse(missing, contract).length > 0)
   assert.ok(validateAuditorResponse(duplicate, contract).length > 0)
   assert.ok(validateAuditorResponse(empty, contract).length > 0)
   assert.ok(validateAuditorResponse(ambiguous, contract).length > 0)
   assert.ok(validateAuditorResponse(additional, contract).length > 0)
-  assert.ok(validateAuditorResponse(wrongDestination, contract, { expectedRecommendation: buildControlReport(root).recommendation }).length > 0)
-  assert.ok(validateAuditorResponse(changedPrompt, contract, { expectedRecommendation: buildControlReport(root).recommendation }).length > 0)
+  assert.ok(validateAuditorResponse(wrongDestination, contract, { expectedRecommendation: report.recommendation }).length > 0)
+  assert.ok(validateAuditorResponse(changedPrompt, contract, { expectedRecommendation: report.recommendation }).length > 0)
 })
 
 test('el handoff distingue nuevo chat, continuidad y bloqueo sin ejecutar en el auditor', () => {

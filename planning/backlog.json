@@ -2823,7 +2823,7 @@
       "type": "harness-governance",
       "phase": "Harness parity",
       "priority": "P0",
-      "status": "ready",
+      "status": "done",
       "objective": "Convertir apertura, preclose y cierre en transiciones atómicas que fijen baseline, write-set y evidencia Git.",
       "rationale": "El ciclo actual depende de edición manual y no impide estados parciales o mezcla de cambios preexistentes.",
       "scope": {

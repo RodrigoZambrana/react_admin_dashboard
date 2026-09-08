@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.0 — 2026-09-08
+
+- Agrega `harness:lifecycle start|preclose|close|recover` con transacciones
+  multiarchivo y journal por checkout.
+- Fija baseline, branch, worktree, cambios preexistentes y write-set, y rechaza
+  drift Git o cambios fuera de alcance.
+- Preclose exige evidencia completa y emite un diff receipt; close actualiza
+  backlog, feature, checkpoint, historia y recibos o revierte todo.
+- Incorpora schemas, documentación y pruebas con repositorios limpios, sucios,
+  linked worktrees e inyección de fallos.
+
 ## 0.3.2 — 2026-09-08
 
 - La recomendación auditora declara si el trabajo debe comenzar en un chat

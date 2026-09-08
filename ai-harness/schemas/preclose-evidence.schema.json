@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-harness.preclose-evidence.schema.json",
+  "title": "AI Harness preclose evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "taskId", "acceptance", "verification"],
+  "properties": {
+    "schema": { "const": "ai-harness.preclose-evidence/v1" },
+    "taskId": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9]{3}$" },
+    "acceptance": { "$ref": "#/$defs/evidenceList" },
+    "verification": { "$ref": "#/$defs/evidenceList" }
+  },
+  "$defs": {
+    "evidenceList": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["requirement", "status", "evidence"],
+        "properties": {
+          "requirement": { "type": "string", "minLength": 1 },
+          "status": { "const": "passed" },
+          "evidence": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

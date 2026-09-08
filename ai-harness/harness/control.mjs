@@ -366,14 +366,30 @@ export function buildControlReport(root = defaultRoot) {
   }
 
   const activeFeatures = (featureList?.features ?? []).filter(({ status }) => status === 'in_progress')
+  const activeTasks = tasks.filter(({ status }) => status === 'in_progress')
   if (activeFeatures.length > 1) {
     addDiscrepancy('MULTIPLE_ACTIVE_FEATURES', 'ai-harness-local/feature_list.json', `${activeFeatures.length} activas`)
   }
   if (current?.status === 'active' && activeFeatures[0]?.id !== current.sessionId) {
     addDiscrepancy('STATE_MISMATCH', 'ai-harness-local/progress/current.json', 'La sesión no coincide con feature_list.json.')
   }
+  if (current?.status === 'active' && !['implementation', 'preclose'].includes(current.phase)) {
+    addDiscrepancy('STATE_MISMATCH', 'ai-harness-local/progress/current.json', `Fase lifecycle inválida: ${current.phase ?? 'ausente'}.`)
+  }
   if (current?.status === 'idle' && activeFeatures.length) {
     addDiscrepancy('STATE_MISMATCH', 'ai-harness-local/progress/current.json', 'Hay feature activa con checkpoint idle.')
+  }
+  if (activeTasks.length > 1) {
+    addDiscrepancy('MULTIPLE_ACTIVE_TASKS', 'planning/backlog.json', `${activeTasks.length} tareas in_progress`)
+  }
+  if (current?.status === 'active'
+    && (activeTasks.length !== 1
+      || activeTasks[0]?.id !== current.backlogTaskId
+      || activeFeatures[0]?.backlogTaskId !== current.backlogTaskId)) {
+    addDiscrepancy('STATE_MISMATCH', 'planning/backlog.json', 'Backlog, feature y checkpoint no describen la misma tarea activa.')
+  }
+  if (current?.status === 'idle' && activeTasks.length) {
+    addDiscrepancy('STATE_MISMATCH', 'planning/backlog.json', 'Hay una tarea in_progress con checkpoint idle.')
   }
 
   const auditorPath = 'ai-harness-local/control/auditor-task.json'
@@ -515,8 +531,9 @@ export function buildControlReport(root = defaultRoot) {
     .find((task) => task?.status === 'ready')
     ?? tasks.find(({ status }) => status === 'ready')
   const nextTask = inProgressTask ?? nextReady ?? null
+  const promptHead = inProgressTask && current?.git?.baseCommit ? current.git.baseCommit : head
   const prompt = validation === 'OK' && alignmentStatus === 'ALIGNED'
-    ? makePrompt(nextTask, head, sourcesFingerprint)
+    ? makePrompt(nextTask, promptHead, sourcesFingerprint)
     : null
   const promptSha256 = prompt ? createHash('sha256').update(prompt).digest('hex') : null
   const openDecisionEntries = tasks.flatMap((task) =>
@@ -567,6 +584,8 @@ export function buildControlReport(root = defaultRoot) {
         status: current?.status ?? null,
         sessionId: current?.sessionId ?? null,
         objective: current?.objective ?? null,
+        phase: current?.phase ?? null,
+        baseCommit: current?.git?.baseCommit ?? null,
       },
       auditor: {
         title: auditorTask?.title ?? null,

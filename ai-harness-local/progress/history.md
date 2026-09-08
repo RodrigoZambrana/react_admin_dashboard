@@ -71,3 +71,10 @@
   copiable; el auditor no lo ejecuta dentro de su propio chat.
 - El validador comprueba que el destino corresponda a `START`/`CONTINUE` y que
   el prompt coincida exactamente con el reporte fuente.
+
+## 2026-09-08 — HAR-002: Automatizar lifecycle y preflight Git
+
+- Lifecycle atómico implementado con baseline, branch, write-set, evidencia Git, rollback y recovery verificados en repositorios temporales.
+- Baseline: `8cfb3c43352a9df050e2141ad1082b84da26af23`; HEAD al cierre: `8cfb3c43352a9df050e2141ad1082b84da26af23`; branch: `feature/ai-conversational-platform-standalone`.
+- Preclose validó 4 criterios, 1 verificaciones y 21 rutas del write-set.
+- Recibo: `ai-harness-local/receipts/2026/2026-09-08/harness-lifecycle-git-20260908.json`.

@@ -1,0 +1,294 @@
+{
+  "schema": "ai-harness.lifecycle-close-receipt/v1",
+  "sessionId": "harness-lifecycle-git-20260908",
+  "backlogTaskId": "HAR-002",
+  "status": "done",
+  "startedAt": "2026-09-08T23:10:00-03:00",
+  "preparedAt": "2026-09-08T23:15:12.049Z",
+  "closedAt": "2026-09-08T23:15:22.437Z",
+  "summary": "Lifecycle atómico implementado con baseline, branch, write-set, evidencia Git, rollback y recovery verificados en repositorios temporales.",
+  "task": {
+    "id": "HAR-002",
+    "title": "Automatizar lifecycle y preflight Git",
+    "scope": {
+      "in": [
+        "start/preclose/close",
+        "Baseline y branch",
+        "Write-set y cambios preexistentes",
+        "Recibos y recovery"
+      ],
+      "out": [
+        "Crear commits sin autorización",
+        "Resolver conflictos destructivamente",
+        "Integraciones remotas"
+      ]
+    },
+    "acceptanceCriteria": [
+      "Las transiciones inválidas fallan sin modificar estado.",
+      "Start conserva baseline, tarea, alcance y write-set.",
+      "Preclose comprueba aceptación, verificación y diff.",
+      "Close actualiza backlog, feature, checkpoint, historia y recibo de forma coherente o revierte."
+    ],
+    "verification": [
+      "Tests con repositorios Git temporales para árbol limpio, sucio, worktree y recuperación de fallo."
+    ],
+    "decisionRefs": [
+      "DEC-001",
+      "DEC-002",
+      "DEC-007",
+      "DEC-008"
+    ]
+  },
+  "git": {
+    "branch": "feature/ai-conversational-platform-standalone",
+    "baseCommit": "8cfb3c43352a9df050e2141ad1082b84da26af23",
+    "headAtClose": "8cfb3c43352a9df050e2141ad1082b84da26af23",
+    "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+    "linkedWorktree": false,
+    "preexistingChanges": [],
+    "diff": {
+      "schema": "ai-harness.git-diff-receipt/v1",
+      "baseCommit": "8cfb3c43352a9df050e2141ad1082b84da26af23",
+      "head": "8cfb3c43352a9df050e2141ad1082b84da26af23",
+      "branch": "feature/ai-conversational-platform-standalone",
+      "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+      "linkedWorktree": false,
+      "changedPaths": [
+        "ai-harness-local/README.md",
+        "ai-harness-local/control/capabilities.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/progress/current.json",
+        "ai-harness-local/progress/current.md",
+        "ai-harness/CHANGELOG.md",
+        "ai-harness/README.md",
+        "ai-harness/VERSION",
+        "ai-harness/config/project.json",
+        "ai-harness/docs/lifecycle.md",
+        "ai-harness/docs/workflow.md",
+        "ai-harness/harness/control.mjs",
+        "ai-harness/harness/doctor.mjs",
+        "ai-harness/harness/lifecycle.mjs",
+        "ai-harness/harness/tests/control.test.mjs",
+        "ai-harness/harness/tests/lifecycle.test.mjs",
+        "ai-harness/releases/0.4.0.md",
+        "ai-harness/schemas/lifecycle-close-receipt.schema.json",
+        "ai-harness/schemas/preclose-evidence.schema.json",
+        "package.json",
+        "planning/backlog.json"
+      ],
+      "ownedPaths": [
+        "ai-harness-local/README.md",
+        "ai-harness-local/control/capabilities.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/progress/current.json",
+        "ai-harness-local/progress/current.md",
+        "ai-harness/CHANGELOG.md",
+        "ai-harness/README.md",
+        "ai-harness/VERSION",
+        "ai-harness/config/project.json",
+        "ai-harness/docs/lifecycle.md",
+        "ai-harness/docs/workflow.md",
+        "ai-harness/harness/control.mjs",
+        "ai-harness/harness/doctor.mjs",
+        "ai-harness/harness/lifecycle.mjs",
+        "ai-harness/harness/tests/control.test.mjs",
+        "ai-harness/harness/tests/lifecycle.test.mjs",
+        "ai-harness/releases/0.4.0.md",
+        "ai-harness/schemas/lifecycle-close-receipt.schema.json",
+        "ai-harness/schemas/preclose-evidence.schema.json",
+        "package.json",
+        "planning/backlog.json"
+      ],
+      "preservedPreexistingPaths": [],
+      "nameStatus": [
+        {
+          "status": "M",
+          "path": "ai-harness-local/README.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/control/capabilities.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/feature_list.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/progress/current.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/progress/current.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/CHANGELOG.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/README.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/VERSION"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/config/project.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/docs/workflow.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/harness/control.mjs"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/harness/doctor.mjs"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/harness/tests/control.test.mjs"
+        },
+        {
+          "status": "M",
+          "path": "package.json"
+        },
+        {
+          "status": "M",
+          "path": "planning/backlog.json"
+        }
+      ],
+      "workingTree": [
+        {
+          "status": " M",
+          "path": "ai-harness-local/README.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/control/capabilities.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/feature_list.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/progress/current.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/progress/current.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/CHANGELOG.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/README.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/VERSION"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/config/project.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/docs/workflow.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/harness/control.mjs"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/harness/doctor.mjs"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/harness/tests/control.test.mjs"
+        },
+        {
+          "status": " M",
+          "path": "package.json"
+        },
+        {
+          "status": " M",
+          "path": "planning/backlog.json"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/docs/lifecycle.md"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/harness/lifecycle.mjs"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/harness/tests/lifecycle.test.mjs"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/releases/0.4.0.md"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/schemas/lifecycle-close-receipt.schema.json"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/schemas/preclose-evidence.schema.json"
+        }
+      ],
+      "candidateFingerprint": "89861a40fc4fc0fef0fc30cf211b997df0e58c1e3299b528b1891809524451a3"
+    }
+  },
+  "evidence": {
+    "schema": "ai-harness.preclose-evidence/v1",
+    "taskId": "HAR-002",
+    "acceptance": [
+      {
+        "requirement": "Las transiciones inválidas fallan sin modificar estado.",
+        "status": "passed",
+        "evidence": "lifecycle.test.mjs cubre transición inválida, evidencia incompleta, branch cambiada, write-set violado y candidato alterado; las instantáneas de autoridades permanecen idénticas."
+      },
+      {
+        "requirement": "Start conserva baseline, tarea, alcance y write-set.",
+        "status": "passed",
+        "evidence": "La regresión de start limpio comprueba task snapshot, scope, baseCommit, baseBranch, worktree, preexistingChanges y writeSet."
+      },
+      {
+        "requirement": "Preclose comprueba aceptación, verificación y diff.",
+        "status": "passed",
+        "evidence": "Las regresiones exigen cobertura literal de aceptación/verificación y comprueban ownedPaths, preservedPreexistingPaths, nameStatus, workingTree y candidateFingerprint."
+      },
+      {
+        "requirement": "Close actualiza backlog, feature, checkpoint, historia y recibo de forma coherente o revierte.",
+        "status": "passed",
+        "evidence": "La regresión de close inyecta fallo después de siete escrituras, verifica rollback incluso de ambos recibos y luego comprueba el cierre coherente."
+      }
+    ],
+    "verification": [
+      {
+        "requirement": "Tests con repositorios Git temporales para árbol limpio, sucio, worktree y recuperación de fallo.",
+        "status": "passed",
+        "evidence": "npm run harness:verify -- --scope harness --level standard pasó: 20/20 tests, incluidos repositorio limpio, sucio, linked worktree, rollback inmediato, recovery desde journal y refresh de preclose."
+      }
+    ]
+  },
+  "decisionRefs": [
+    "DEC-001",
+    "DEC-002",
+    "DEC-007",
+    "DEC-008"
+  ],
+  "productChanges": false
+}

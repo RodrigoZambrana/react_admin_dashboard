@@ -50,7 +50,7 @@
       "category": "planning",
       "status": "IMPLEMENTED",
       "evidence": ["ai-harness/schemas/backlog.schema.json", "ai-harness/harness/backlog.mjs", "planning/backlog.json"],
-      "remaining": "Agregar transiciones controladas en LIF-001."
+      "remaining": "Extender schemas del backlog cuando aparezcan nuevos tipos de tarea."
     },
     {
       "id": "DEC-001",
@@ -66,7 +66,7 @@
       "category": "state",
       "status": "IMPLEMENTED",
       "evidence": ["ai-harness-local/progress/current.json", "ai-harness-local/feature_list.json", "ai-harness-local/progress/history.md", "ai-harness-local/features/done/2026/2026-09-08-portfolio-audit-backlog-20260908.json"],
-      "remaining": "Automatizar transiciones y validación de recibos en LIF-001."
+      "remaining": "Agregar migraciones explícitas cuando cambie el schema de estado."
     },
     {
       "id": "CTL-001",
@@ -98,19 +98,17 @@
       "id": "LIF-001",
       "name": "Ciclo start, preclose y close",
       "category": "lifecycle",
-      "status": "PARTIAL",
+      "status": "IMPLEMENTED",
       "taskRefs": ["HAR-002"],
-      "evidence": ["ai-harness/docs/workflow.md", "ai-harness-local/feature_list.json"],
-      "remaining": "Hoy las transiciones son manuales; faltan comandos atómicos, guards y recibos validados."
+      "evidence": ["ai-harness/harness/lifecycle.mjs", "ai-harness/harness/tests/lifecycle.test.mjs", "ai-harness/docs/lifecycle.md"]
     },
     {
       "id": "GIT-001",
       "name": "Preflight Git, baseline y write-set",
       "category": "git",
-      "status": "PARTIAL",
+      "status": "IMPLEMENTED",
       "taskRefs": ["HAR-002"],
-      "evidence": ["ai-harness/harness/doctor.mjs", "AGENTS.md"],
-      "remaining": "Faltan clasificación de cambios preexistentes, write-set declarado, guard de branch y diff receipt."
+      "evidence": ["ai-harness/harness/lifecycle.mjs", "ai-harness/harness/tests/lifecycle.test.mjs", "ai-harness/schemas/lifecycle-close-receipt.schema.json"]
     },
     {
       "id": "INT-001",

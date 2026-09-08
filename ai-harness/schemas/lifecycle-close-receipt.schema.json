@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-harness.lifecycle-close-receipt.schema.json",
+  "title": "AI Harness lifecycle close receipt",
+  "type": "object",
+  "required": [
+    "schema",
+    "sessionId",
+    "backlogTaskId",
+    "status",
+    "startedAt",
+    "preparedAt",
+    "closedAt",
+    "summary",
+    "task",
+    "git",
+    "evidence",
+    "decisionRefs",
+    "productChanges"
+  ],
+  "properties": {
+    "schema": { "const": "ai-harness.lifecycle-close-receipt/v1" },
+    "sessionId": { "type": "string", "minLength": 1 },
+    "backlogTaskId": { "type": "string", "pattern": "^[A-Z]{2,4}-[0-9]{3}$" },
+    "status": { "const": "done" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "preparedAt": { "type": "string", "format": "date-time" },
+    "closedAt": { "type": "string", "format": "date-time" },
+    "summary": { "type": "string", "minLength": 1 },
+    "task": { "type": "object" },
+    "git": {
+      "type": "object",
+      "required": ["branch", "baseCommit", "headAtClose", "worktree", "linkedWorktree", "preexistingChanges", "diff"],
+      "properties": {
+        "branch": { "type": "string", "minLength": 1 },
+        "baseCommit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "headAtClose": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "worktree": { "type": "string", "minLength": 1 },
+        "linkedWorktree": { "type": "boolean" },
+        "preexistingChanges": { "type": "array" },
+        "diff": {
+          "type": "object",
+          "required": ["baseCommit", "head", "branch", "changedPaths", "ownedPaths", "preservedPreexistingPaths", "nameStatus", "workingTree", "candidateFingerprint"]
+        }
+      }
+    },
+    "evidence": { "type": "object" },
+    "decisionRefs": { "type": "array", "items": { "type": "string" } },
+    "productChanges": { "type": "boolean" }
+  }
+}

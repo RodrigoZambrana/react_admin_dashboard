@@ -6,40 +6,24 @@ Id: ninguno
 
 ## Objetivo
 
-No hay una tarea activa. `HAR-001` quedó corregida con tarea auditora real y
-contrato obligatorio de seis secciones.
+No hay una tarea activa. `HAR-002` cerró mediante lifecycle atómico.
 
 ## Plan
 
-- [x] Comparar capacidades generales, adaptadas y no aplicables.
-- [x] Registrar cobertura de requerimientos y reglas de alineamiento.
-- [x] Implementar el reporte determinista y su recomendación única.
-- [x] Agregar pruebas automatizadas y gate del harness.
-- [x] Verificar la tarea Codex real y registrar su `threadId`.
-- [x] Incorporar y probar el contrato de seis secciones.
-- [x] Actualizar versión, documentación y recibo de cierre corregido.
+- [x] Lifecycle atómico implementado con baseline, branch, write-set, evidencia Git, rollback y recovery verificados en repositorios temporales.
 
 ## Último paso completado
 
-La tarea `Auditoría y Control — Growth Platform` fue confirmada mediante su
-identificador real. El control bloquea estados pendientes y genera el formato
-obligatorio de seis secciones.
+Cierre gobernado de `HAR-002` a las `2026-09-08T23:15:22.437Z`.
 
 ## Paso actual
 
-Esperar selección humana de la próxima tarea calculada por el control.
+Esperar el siguiente cálculo del control.
 
 ## Próximo paso
 
-Ejecutar `npm run harness:audit` y presentar su única recomendación elegible.
-
-## Decisiones vigentes
-
-- El auditor es read-only y no tiene autoridad de implementación o aprobación.
-- Los hechos calculables provienen de archivos versionados y Git.
-- Las recomendaciones son proyecciones; una inconsistencia las bloquea.
-- Las particularidades LACNIC/Java/Zoho no son requisitos de paridad local.
+Ejecutar `npm run --silent harness:control -- --json`.
 
 ## Bloqueos
 
-- Ninguno para recalcular la próxima recomendación.
+- Ninguno.

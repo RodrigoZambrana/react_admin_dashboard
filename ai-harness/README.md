@@ -31,12 +31,18 @@ npm run harness:doctor
 npm run harness:progress
 npm run harness:control
 npm run harness:audit
+npm run harness:lifecycle -- recover
 npm run --silent harness:control -- --json
 npm run harness:verify -- --scope changed --level quick
 ```
 
 El mapa ejecutable vive en `config/project.json`. El estado reanudable del
 producto vive en `ai-harness-local/`.
+
+Las aperturas y cierres gobernados usan `harness:lifecycle start`, `preclose` y
+`close`. Estas transiciones fijan contexto Git y write-set, validan evidencia y
+diff, y escriben todas las fuentes de verdad mediante una transacción con
+rollback y recovery. El contrato completo está en `docs/lifecycle.md`.
 
 La matriz `ai-harness-local/control/capabilities.json` es explícita: este
 harness todavía no declara paridad general con LACNIC. Las integraciones y

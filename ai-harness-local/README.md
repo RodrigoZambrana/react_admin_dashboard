@@ -17,6 +17,7 @@ Contenido versionado:
 - `testing/regression/catalog.json`: inventario de suites existentes.
 - `control/`: matriz de capacidades, cobertura de requerimientos, guardrails,
   tarea confirmada y contrato durable de respuesta del auditor read-only.
+- `receipts/`: recibos compactos y versionados generados por cierres atómicos.
 
 Los secretos, handoffs, runs y evidencia voluminosa están ignorados por Git.
 Una tarea nueva debe poder reconstruirse usando esta carpeta, el backlog y el
@@ -25,3 +26,7 @@ código, sin requerir el chat donde se originó.
 El estado global se consulta con `npm run harness:control`; el informe humano de
 seis secciones se genera con `npm run harness:audit`. Ambos resultados son una
 proyección calculada y nunca sustituyen al backlog, decisiones o checkpoint.
+
+Las transiciones de estado se realizan con `npm run harness:lifecycle`. Un
+journal incompleto bloquea nuevas transiciones hasta ejecutar `recover`; nunca
+se corrige editando parcialmente las fuentes de verdad.

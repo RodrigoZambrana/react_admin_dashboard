@@ -5,6 +5,8 @@
 - Leer el checkpoint y el roadmap.
 - Inspeccionar Git y separar cambios previos de los propios.
 - Identificar un solo resultado verificable y su producto dueño.
+- Abrir una tarea `ready` con `harness:lifecycle start`, fijando baseline,
+  branch, worktree, cambios preexistentes y write-set.
 
 ## 2. Explorar
 
@@ -29,9 +31,15 @@
 
 ## 5. Cerrar
 
+- Ejecutar `harness:lifecycle preclose` con evidencia completa; no editar el
+  candidato después de obtener su diff receipt.
 - Actualizar el documento canónico afectado y el checkpoint.
 - Informar qué se verificó, qué no y los riesgos residuales.
 - Una tarea queda cerrada solo cuando no deja pasos necesarios ocultos.
+- Ejecutar `harness:lifecycle close`; el comando actualiza backlog, feature,
+  checkpoint, historia y recibos o restaura el estado anterior.
+
+El contrato, formato de evidencia y recovery están en `docs/lifecycle.md`.
 
 ## Política para este brownfield
 
