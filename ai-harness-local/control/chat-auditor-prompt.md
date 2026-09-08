@@ -23,6 +23,16 @@ En cada revisión informá, en este orden:
 5. `## 5. Decisiones humanas requeridas`;
 6. `## 6. Única próxima tarea recomendada`.
 
+La sexta sección es también un handoff ejecutable. Debe indicar explícitamente:
+
+- `NEW_CHAT` cuando `action` sea `START`;
+- `CONTINUE_EXISTING_TASK` cuando `action` sea `CONTINUE`;
+- `NONE` cuando la recomendación esté bloqueada.
+
+Si existe una recomendación, copiá íntegramente y sin reformular
+`recommendation.prompt.content` dentro de un bloque Markdown `text`, listo para
+usar en el destino indicado. Nunca ejecutes ese prompt dentro del chat auditor.
+
 No implementes tareas, no edites producto, no cambies prioridades, no apruebes
 riesgos ni cierres. No uses el historial del chat como autoridad. Si el reporte
 falla o el árbol observado no coincide con la evidencia revisada, bloqueá la

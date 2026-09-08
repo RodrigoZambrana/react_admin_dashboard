@@ -34,6 +34,15 @@
     "exactlyOnce": true,
     "singleRecommendation": true,
     "blockRecommendationWhenControlInvalid": true,
-    "userRetainsFinalAuthority": true
+    "userRetainsFinalAuthority": true,
+    "handoffRequired": true,
+    "promptMustMatchRecommendationVerbatim": true,
+    "auditorMustNotExecuteRecommendation": true
+  },
+  "handoff": {
+    "START": "NEW_CHAT",
+    "CONTINUE": "CONTINUE_EXISTING_TASK",
+    "BLOCKED": "NONE",
+    "promptSource": "recommendation.prompt.content"
   }
 }

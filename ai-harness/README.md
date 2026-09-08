@@ -48,3 +48,8 @@ secciones obligatorias. El orden, unicidad, contenido mínimo y resultado único
 se validan contra `ai-harness-local/control/response-contract.json`. Un auditor
 en `setup_pending`, una plantilla inválida o una fuente inconsistente bloquean
 la recomendación ejecutable.
+
+La sexta sección incluye un handoff explícito: `NEW_CHAT`,
+`CONTINUE_EXISTING_TASK` o `NONE`. Para una recomendación ejecutable también
+incluye el prompt completo derivado por el control, listo para copiar en el
+destino indicado y nunca para ejecutar dentro del chat auditor.

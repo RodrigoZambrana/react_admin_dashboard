@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2 — 2026-09-08
+
+- La recomendación auditora declara si el trabajo debe comenzar en un chat
+  nuevo o continuar en una tarea de implementación existente.
+- La sexta sección incluye el prompt gobernado completo en un bloque copiable.
+- El validador compara el handoff y el prompt contra el reporte fuente y rechaza
+  omisiones, alteraciones o ejecución dentro del chat auditor.
+
 ## 0.3.1 — 2026-09-08
 
 - Corrige el cierre de `HAR-001` vinculándolo con una tarea Codex real y

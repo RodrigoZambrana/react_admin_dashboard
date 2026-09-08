@@ -41,3 +41,9 @@ fuente de verdad.
 respuesta. La tarea Codex confirmada queda registrada en `auditor-task.json`;
 un estado `setup_pending` bloquea el cierre y cualquier recomendación hasta que
 exista un `threadId` verificado mediante la interfaz pública de tareas.
+
+La última sección no termina en una descripción general: declara el destino del
+handoff y reproduce literalmente el prompt gobernado. `START` implica
+`NEW_CHAT`; `CONTINUE` implica `CONTINUE_EXISTING_TASK`; una recomendación
+bloqueada implica `NONE`. El auditor informa y entrega el handoff, pero no lo
+ejecuta.

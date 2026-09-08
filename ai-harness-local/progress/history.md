@@ -62,3 +62,12 @@
   única tarea a partir del control vigente.
 - El nuevo `threadId` quedó registrado en `control/auditor-task.json`; la tarea
   anterior se conserva allí como sustituida para mantener trazabilidad.
+
+## 2026-09-08 — Handoff ejecutable del auditor
+
+- Se corrigió la sexta sección para indicar si corresponde `NEW_CHAT`,
+  `CONTINUE_EXISTING_TASK` o `NONE`.
+- Toda recomendación ejecutable incluye ahora el prompt gobernado completo y
+  copiable; el auditor no lo ejecuta dentro de su propio chat.
+- El validador comprueba que el destino corresponda a `START`/`CONTINUE` y que
+  el prompt coincida exactamente con el reporte fuente.

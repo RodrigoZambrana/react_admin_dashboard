@@ -66,10 +66,24 @@ const makePrompt = (task, head, sourcesFingerprint) => {
   return `${lines.join('\n')}\n`
 }
 
-export const validateAuditorResponse = (content, contract, { requireOutcome = true } = {}) => {
+export const validateAuditorResponse = (
+  content,
+  contract,
+  { requireOutcome = true, expectedRecommendation } = {},
+) => {
   const errors = []
   const sections = Array.isArray(contract?.sections) ? contract.sections : []
   const contentLines = String(content).split(/\r?\n/u)
+  const visibleLines = []
+  let insideFence = false
+  for (const [index, line] of contentLines.entries()) {
+    if (line.startsWith('```')) {
+      insideFence = !insideFence
+      continue
+    }
+    if (!insideFence) visibleLines.push({ index, line })
+  }
+  if (insideFence) errors.push('La respuesta contiene un bloque de código sin cerrar.')
   const sectionIds = sections.map(({ id }) => id)
   if (sections.length !== requiredAuditorSectionIds.length
     || sectionIds.some((id, index) => id !== requiredAuditorSectionIds[index])) {
@@ -78,7 +92,7 @@ export const validateAuditorResponse = (content, contract, { requireOutcome = tr
   }
 
   const allowedHeadings = sections.map(({ heading }) => heading)
-  const observedH2 = contentLines.filter((line) => line.startsWith('## '))
+  const observedH2 = visibleLines.filter(({ line }) => line.startsWith('## ')).map(({ line }) => line)
   if (observedH2.length !== allowedHeadings.length
     || observedH2.some((heading, index) => heading !== allowedHeadings[index])) {
     errors.push('La respuesta debe contener únicamente los seis encabezados H2 canónicos.')
@@ -92,9 +106,7 @@ export const validateAuditorResponse = (content, contract, { requireOutcome = tr
       errors.push(`La sección ${section?.id ?? 'desconocida'} no tiene un heading Markdown válido.`)
       continue
     }
-    const matches = contentLines
-      .map((line, index) => line === heading ? index : -1)
-      .filter((index) => index >= 0)
+    const matches = visibleLines.filter(({ line }) => line === heading).map(({ index }) => index)
     if (matches.length !== 1) {
       errors.push(`La sección ${section.id} debe aparecer exactamente una vez.`)
       continue
@@ -113,11 +125,42 @@ export const validateAuditorResponse = (content, contract, { requireOutcome = tr
 
     if (requireOutcome) {
       const recommendationStart = sectionPositions.at(-1).index + 1
-      const recommendationLines = contentLines.slice(recommendationStart)
+      const recommendationLines = visibleLines
+        .filter(({ index }) => index >= recommendationStart)
+        .map(({ line }) => line)
       const taskLines = recommendationLines.filter((line) => line.startsWith('- Tarea:'))
       const blockedLines = recommendationLines.filter((line) => line.startsWith('- **Recomendación bloqueada**'))
       if (taskLines.length + blockedLines.length !== 1) {
         errors.push('La última sección debe contener exactamente una tarea o una recomendación bloqueada.')
+      }
+
+      const destinationLines = recommendationLines.filter((line) => line.startsWith('- Destino: **'))
+      if (destinationLines.length !== 1
+        || !/^- Destino: \*\*(NEW_CHAT|CONTINUE_EXISTING_TASK|NONE)\*\*\.$/u.test(destinationLines[0])) {
+        errors.push('La última sección debe declarar exactamente un destino de handoff válido.')
+      }
+
+      if (expectedRecommendation !== undefined) {
+        const expectedDestination = expectedRecommendation?.handoff?.destination ?? 'NONE'
+        if (!destinationLines.includes(`- Destino: **${expectedDestination}**.`)) {
+          errors.push(`El destino no coincide con la acción gobernada: ${expectedDestination}.`)
+        }
+
+        const promptMarker = '- Prompt exacto para copiar:'
+        if (expectedRecommendation) {
+          const markerIndex = content.indexOf(promptMarker)
+          const fenceStart = markerIndex >= 0 ? content.indexOf('```text\n', markerIndex) : -1
+          const promptStart = fenceStart >= 0 ? fenceStart + '```text\n'.length : -1
+          const fenceEnd = promptStart >= 0 ? content.indexOf('\n```', promptStart) : -1
+          const copiedPrompt = promptStart >= 0 && fenceEnd >= 0
+            ? `${content.slice(promptStart, fenceEnd)}\n`
+            : null
+          if (copiedPrompt !== expectedRecommendation.prompt?.content) {
+            errors.push('El prompt copiable no coincide exactamente con recommendation.prompt.content.')
+          }
+        } else if (content.includes(promptMarker)) {
+          errors.push('Una recomendación bloqueada no debe publicar un prompt ejecutable.')
+        }
       }
     }
   }
@@ -179,14 +222,28 @@ export const renderAuditorResponse = (report, contract) => {
 
   lines.push('', headings['next-task'], '')
   if (report.recommendation) {
+    const destination = report.recommendation.handoff?.destination
+      ?? (report.recommendation.action === 'CONTINUE' ? 'CONTINUE_EXISTING_TASK' : 'NEW_CHAT')
     lines.push(
       `- Acción: **${report.recommendation.action}**.`,
+      `- Destino: **${destination}**.`,
+      destination === 'NEW_CHAT'
+        ? '- Uso: crear un nuevo chat de implementación y pegar allí el prompt completo. No ejecutarlo dentro del chat auditor.'
+        : `- Uso: continuar en la tarea de implementación asociada a \`${report.recommendation.handoff?.sessionId ?? 'la sesión activa'}\`. No ejecutarlo dentro del chat auditor.`,
       `- Tarea: **${report.recommendation.taskId} — ${report.recommendation.title}**.`,
       `- Propósito: ${report.recommendation.objective}`,
       `- Motivo: ${report.recommendation.reason}`,
+      '- Prompt exacto para copiar:',
+      '',
+      '```text',
+      ...report.recommendation.prompt.content.trimEnd().split('\n'),
+      '```',
     )
   } else {
-    lines.push('- **Recomendación bloqueada** hasta corregir el control o el alineamiento. No corresponde iniciar otra tarea.')
+    lines.push(
+      '- Destino: **NONE**.',
+      '- **Recomendación bloqueada** hasta corregir el control o el alineamiento. No corresponde iniciar otra tarea ni se publica un prompt ejecutable.',
+    )
   }
 
   return `${lines.join('\n')}\n`
@@ -540,6 +597,10 @@ export function buildControlReport(root = defaultRoot) {
       reason: inProgressTask
         ? 'Existe una única tarea en progreso y debe cerrarse antes de abrir otra.'
         : 'Es la primera tarea ready según el orden de gobierno aceptado.',
+      handoff: {
+        destination: inProgressTask ? 'CONTINUE_EXISTING_TASK' : 'NEW_CHAT',
+        sessionId: inProgressTask ? current?.sessionId ?? null : null,
+      },
       prompt: {
         content: prompt,
         contentSha256: promptSha256,
@@ -573,7 +634,7 @@ if (isMain) {
     const contractPath = join(defaultRoot, 'ai-harness-local/control/response-contract.json')
     const contract = existsSync(contractPath) ? JSON.parse(readFileSync(contractPath, 'utf8')) : null
     const content = renderAuditorResponse(report, contract)
-    const errors = validateAuditorResponse(content, contract)
+    const errors = validateAuditorResponse(content, contract, { expectedRecommendation: report.recommendation })
     process.stdout.write(content)
     if (errors.length) {
       for (const error of errors) console.error(`INVALID_AUDITOR_RESPONSE: ${error}`)

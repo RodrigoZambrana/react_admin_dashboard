@@ -51,6 +51,15 @@
       "controlRejectsPending": true,
       "responseContractValidated": true
     },
+    "postClosureEnhancements": [
+      {
+        "date": "2026-09-08",
+        "harnessVersion": "0.3.2",
+        "reason": "El informe estructurado no entregaba el prompt exacto ni indicaba dónde continuar.",
+        "result": "La sexta sección declara NEW_CHAT, CONTINUE_EXISTING_TASK o NONE e incluye el prompt copiable validado contra la recomendación.",
+        "tests": "10/10 passed"
+      }
+    ],
     "nextTask": "HAR-002"
   },
   "productChanges": false

@@ -75,9 +75,11 @@ test('genera la respuesta auditora con seis secciones obligatorias y una única 
   const contract = JSON.parse(readFileSync(join(root, 'ai-harness-local/control/response-contract.json'), 'utf8'))
   const content = renderAuditorResponse(report, contract)
 
-  assert.deepEqual(validateAuditorResponse(content, contract), [])
-  assert.equal((content.match(/^## /gmu) ?? []).length, 6)
+  assert.deepEqual(validateAuditorResponse(content, contract, { expectedRecommendation: report.recommendation }), [])
+  assert.ok(contract.sections.every(({ heading }) => content.includes(`${heading}\n`)))
   assert.equal((content.match(/^- Tarea:/gmu) ?? []).length, 1)
+  assert.ok(content.includes('- Destino: **NEW_CHAT**.'))
+  assert.ok(content.includes(`\`\`\`text\n${report.recommendation.prompt.content}\`\`\``))
   assert.ok(content.includes('HAR-002'))
 })
 
@@ -91,12 +93,43 @@ test('el validador rechaza secciones ausentes, duplicadas, vacías o sin resulta
   const empty = `${valid.slice(0, emptyStart)}\n\n${valid.slice(emptyEnd)}`
   const ambiguous = valid.replace('- Tarea:', '- **Recomendación bloqueada** placeholder\n- Tarea:')
   const additional = valid.replace(contract.sections[3].heading, `## Sección no permitida\n\n- Extra.\n\n${contract.sections[3].heading}`)
+  const wrongDestination = valid.replace('**NEW_CHAT**', '**CONTINUE_EXISTING_TASK**')
+  const changedPrompt = valid.replaceAll('Convertir apertura, preclose y cierre', 'Alterar apertura, preclose y cierre')
 
   assert.ok(validateAuditorResponse(missing, contract).length > 0)
   assert.ok(validateAuditorResponse(duplicate, contract).length > 0)
   assert.ok(validateAuditorResponse(empty, contract).length > 0)
   assert.ok(validateAuditorResponse(ambiguous, contract).length > 0)
   assert.ok(validateAuditorResponse(additional, contract).length > 0)
+  assert.ok(validateAuditorResponse(wrongDestination, contract, { expectedRecommendation: buildControlReport(root).recommendation }).length > 0)
+  assert.ok(validateAuditorResponse(changedPrompt, contract, { expectedRecommendation: buildControlReport(root).recommendation }).length > 0)
+})
+
+test('el handoff distingue nuevo chat, continuidad y bloqueo sin ejecutar en el auditor', () => {
+  const contract = JSON.parse(readFileSync(join(root, 'ai-harness-local/control/response-contract.json'), 'utf8'))
+  const startReport = buildControlReport(root)
+  const continueReport = structuredClone(startReport)
+  continueReport.recommendation.action = 'CONTINUE'
+  continueReport.recommendation.handoff = {
+    destination: 'CONTINUE_EXISTING_TASK',
+    sessionId: 'feature-example',
+  }
+  const continueContent = renderAuditorResponse(continueReport, contract)
+  assert.ok(continueContent.includes('- Destino: **CONTINUE_EXISTING_TASK**.'))
+  assert.ok(continueContent.includes('`feature-example`'))
+  assert.deepEqual(
+    validateAuditorResponse(continueContent, contract, { expectedRecommendation: continueReport.recommendation }),
+    [],
+  )
+
+  const blockedReport = structuredClone(startReport)
+  blockedReport.validation = 'FAIL'
+  blockedReport.freshness = 'UNVERIFIABLE'
+  blockedReport.recommendation = null
+  const blockedContent = renderAuditorResponse(blockedReport, contract)
+  assert.ok(blockedContent.includes('- Destino: **NONE**.'))
+  assert.ok(!blockedContent.includes('- Prompt exacto para copiar:'))
+  assert.deepEqual(validateAuditorResponse(blockedContent, contract, { expectedRecommendation: null }), [])
 })
 
 test('los guardrails estratégicos conservan caminos de dependencias', () => {

@@ -21,3 +21,8 @@
 ## 6. Única próxima tarea recomendada
 
 - Recomendar exactamente una tarea elegible con acción, propósito y motivo, o declarar la recomendación bloqueada.
+- Indicar `NEW_CHAT`, `CONTINUE_EXISTING_TASK` o `NONE` como destino.
+- Para `START`, indicar que se debe crear un chat de implementación nuevo.
+- Para `CONTINUE`, identificar la sesión activa que debe retomarse.
+- Incluir íntegramente `recommendation.prompt.content` en un bloque `text`
+  copiable. El auditor nunca ejecuta ese prompt dentro de su propio chat.
