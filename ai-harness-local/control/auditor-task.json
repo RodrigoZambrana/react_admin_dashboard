@@ -7,14 +7,23 @@
   "responseContractPath": "ai-harness-local/control/response-contract.json",
   "creation": {
     "status": "confirmed",
-    "requestId": "client-new-thread:e1f7d266-3f46-4406-b7bf-3b440b8058d9",
-    "threadId": "01a08322-c5dd-7b61-8be4-5be0e675df98",
+    "provisioningResult": "immediate",
+    "threadId": "01a0833c-48c9-7300-971a-a402643c04a3",
     "hostId": "local",
-    "verifiedAt": "2026-09-08T19:43:58-03:00",
+    "verifiedAt": "2026-09-08T19:58:03-03:00",
     "verificationMethod": "codex.read_thread",
     "verifiedTitle": "Auditoría y Control — Growth Platform",
-    "auditCwd": "/Users/rodrigo/Git/personal/react_admin_dashboard"
+    "auditCwd": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+    "firstAuditCompleted": true,
+    "responseContractVerified": true
   },
+  "supersedes": [
+    {
+      "threadId": "01a08322-c5dd-7b61-8be4-5be0e675df98",
+      "supersededAt": "2026-09-08T19:58:03-03:00",
+      "reason": "El usuario solicitó un nuevo chat auditor después de confirmar la cobertura documental y el formato obligatorio."
+    }
+  ],
   "authority": false,
   "notes": "La tarea reconstruye siempre el checkout canónico y no usa su worktree ni el historial como fuente de verdad."
 }

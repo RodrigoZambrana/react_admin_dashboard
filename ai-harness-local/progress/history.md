@@ -53,3 +53,12 @@
   commit `46e382d57176d480c9711f411a2ccfa92f124238`.
 - `HAR-001` vuelve a `done`; la próxima recomendación debe reconstruirse desde
   el control y no desde este historial.
+
+## 2026-09-08 — Renovación del Chat de Auditoría y Control
+
+- Se creó una nueva tarea local `Auditoría y Control — Growth Platform` con
+  acceso directo al checkout canónico y perfil estrictamente read-only.
+- La primera auditoría respetó las seis secciones del contrato y recomendó una
+  única tarea a partir del control vigente.
+- El nuevo `threadId` quedó registrado en `control/auditor-task.json`; la tarea
+  anterior se conserva allí como sustituida para mantener trazabilidad.
