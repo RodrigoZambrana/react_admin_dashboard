@@ -49,5 +49,7 @@
   las seis secciones obligatorias del informe.
 - El control ahora falla cerrado ante `setup_pending`, identidad incompleta o
   una plantilla incompatible.
+- La implementación y la auditoría consolidada quedaron registradas en el
+  commit `46e382d57176d480c9711f411a2ccfa92f124238`.
 - `HAR-001` vuelve a `done`; la próxima recomendación debe reconstruirse desde
   el control y no desde este historial.
