@@ -4,10 +4,14 @@ Fecha: 2026-09-08
 
 ## Principio rector
 
-La plataforma será un conjunto de soluciones independientes, reutilizables y
-multi-tenant, unificadas por identidad, navegación y contratos. Independencia
-significa poder versionar, probar, desplegar y operar un producto sin modificar
-los internos de otro; no exige repositorios separados desde el primer día.
+La plataforma será un conjunto de soluciones independientes y reutilizables,
+unificadas por identidad, navegación y contratos, bajo el modelo híbrido
+aprobado en
+`adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md`. El piloto usa data
+planes dedicados; un producto solo puede ejecutar SaaS compartido después de
+certificar su aislamiento tenant. Independencia significa poder versionar,
+probar, desplegar y operar un producto sin modificar los internos de otro; no
+exige repositorios separados desde el primer día.
 
 ```mermaid
 flowchart LR
@@ -76,6 +80,22 @@ Capacidad transversal futura para tenants, usuarios, permisos, suscripciones,
 feature flags e inventario de integraciones. No debe convertirse ahora en un
 proyecto grande: se extraerá desde contratos que ya necesitan los tres productos.
 
+## Consecuencias de tenancy y deployment
+
+| Producto | Clase inicial | Condición para ejecución compartida |
+| --- | --- | --- |
+| Commerce Core + CRM | Dedicado | Scope tenant completo en datos core, auth, jobs y storage, con pruebas negativas |
+| Admin Web | Dedicado | Identidad y configuración runtime ligadas a tenant confiable, sin selección arbitraria del cliente |
+| Storefront Web | Dedicado | Resolución por dominio/identidad confiable y eliminación de dependencia tenant en build/hardcodes |
+| Growth Metrics | Dedicado en el piloto | Conexiones, credenciales, colas, eventos y reporting íntegramente tenant-scoped |
+| Conversation Platform | Dedicado en el piloto | Configuración/secretos tenant-scoped, sin default productivo, más pruebas de fuga |
+| Channel Adapters | Dedicado | Credenciales, sesiones, retries e idempotencia resueltos por tenant en cada mensaje |
+| Control Plane | Futuro y fuera de alcance | Contrato y necesidad operativa demostrados por los productos |
+
+El onboarding aprobado para UruCortinas es manual y auditable. Cada producto
+provisiona únicamente los recursos que posee y valida `tenantId` en sus
+fronteras; el detalle de aislamiento, deployment y onboarding está en ADR-009.
+
 ## Contratos compartidos
 
 - `tenantId`, identidad y capacidades;
@@ -99,6 +119,18 @@ consumidores y política de versionado.
 | credenciales y métricas de fuentes, atribución, insights | Growth Metrics |
 | credenciales del canal y transporte proveedor | Channel Adapters |
 | tenant, usuario y capability global | Control Plane (gradual) |
+
+## Ownership de configuración
+
+- El tenant decide valores de negocio: marca, dominio, locale/moneda, catálogo,
+  precios, políticas, cuentas de integración, contenido y capacidades elegidas
+  dentro del catálogo permitido.
+- La plataforma define y versiona schemas, defaults seguros, guardrails,
+  compatibilidad y clases de deployment.
+- El producto dueño de cada dato valida la configuración y custodia secretos;
+  el tenant autoriza y puede revocar las credenciales aportadas.
+- Las variantes `src/clients/<slug>` existentes son bootstrap/compatibilidad,
+  no un control plane ni un almacén permitido de secretos.
 
 ## Decisión de migración
 

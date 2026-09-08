@@ -83,11 +83,13 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "M",
       "sourceRefs": [
         "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-002",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "ai-platform/backend/src/shared/tenant.middleware.ts",
         "docs/TARGET_PRODUCT_ARCHITECTURE.md"
       ],
@@ -173,11 +175,13 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "L",
       "sourceRefs": [
         "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-004",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "ai-platform/backend/prisma/schema.prisma",
         "ai-platform/backend/src/persistence"
       ],
@@ -618,7 +622,7 @@
       "phase": "Architecture",
       "priority": "P0",
       "status": "blocked",
-      "blockingReason": "Requiere modelo de tenancy e inventario actual aprobados.",
+      "blockingReason": "Requiere el inventario actual ARC-001 y confirmar owners futuros de identidad global y CRM.",
       "objective": "Asignar owner objetivo a cada dato y comportamiento y marcar superficies legacy con estrategia de retiro.",
       "rationale": "Evita duplicar lógica, tablas o responsabilidades durante la modularización.",
       "scope": {
@@ -652,11 +656,13 @@
       ],
       "decisionRefs": [
         "DEC-003",
-        "DEC-004"
+        "DEC-004",
+        "DEC-009"
       ],
       "size": "M",
       "sourceRefs": [
         "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "ai-harness/docs/extraction-gates.md"
       ]
     },
@@ -834,16 +840,18 @@
         "Multi-tenant sin fencing mezcla credenciales; proceso por tenant eleva costo."
       ],
       "decisionsRequired": [
-        "Elegir proceso-por-tenant o worker multi-tenant y su fencing."
+        "Aprobar si, después del piloto dedicado, el adapter conserva proceso-por-tenant o adopta worker compartido con fencing certificado."
       ],
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "M",
       "sourceRefs": [
         "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-003",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "services/channel-adapter/src",
         "docs/TARGET_PRODUCT_ARCHITECTURE.md"
       ],
@@ -1166,11 +1174,13 @@
         "DEC-002",
         "DEC-003",
         "DEC-004",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "M",
       "sourceRefs": [
         "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md",
         "backend/src/app.module.ts",
         "backend/prisma/schema.prisma"
@@ -1215,17 +1225,19 @@
         "Una migración incompleta puede mezclar datos o romper integridad referencial"
       ],
       "decisionsRequired": [
-        "Elegir base por tenant, esquema por tenant, filas compartidas con tenantId o despliegue por cliente transitorio"
+        "Aprobar la estrategia lógica futura (base, schema o filas) y el tratamiento de datos históricos; el despliegue permanece dedicado hasta pasar su gate"
       ],
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
         "DEC-004",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "L",
       "sourceRefs": [
         "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md",
         "backend/prisma/schema.prisma"
       ],
@@ -2366,7 +2378,8 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "L",
       "sourceRefs": [
@@ -2511,11 +2524,13 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "XL",
       "sourceRefs": [
         "docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-005",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "backend/prisma/schema.prisma",
         "backend/src/analytics",
         "backend/src/growth"
@@ -3036,7 +3051,7 @@
       "type": "decision",
       "phase": "Discovery",
       "priority": "P0",
-      "status": "ready",
+      "status": "done",
       "objective": "Acordar si la plataforma será SaaS compartido, despliegue dedicado o híbrido y seleccionar el primer segmento/tenant piloto.",
       "rationale": "Tenancy condiciona datos, configuración, aislamiento, despliegue y extracción de todos los productos.",
       "scope": {
@@ -3066,12 +3081,14 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-004"
+        "DEC-004",
+        "DEC-009"
       ],
       "size": "M",
       "sourceRefs": [
         "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
-        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md"
       ]
     },
     {
@@ -4891,18 +4908,20 @@
         "Usar datos o reglas ad hoc del piloto puede ocultar falta de reusabilidad"
       ],
       "decisionsRequired": [
-        "Seleccionar tenant piloto, datos legales, responsables y criterio explícito go-live o no-go"
+        "Confirmar datos legales, responsables operativos y criterio explícito go-live o no-go; Rodrigo conserva la aceptación del piloto"
       ],
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
         "DEC-004",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "XL",
       "sourceRefs": [
         "docs/MASTER_PLAN_2026-09-08.md",
         "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md"
       ],
       "blockingReason": "Requiere tenancy EC-004, CRM EC-023, continuidad EC-024 y release gate EC-034."
@@ -5869,11 +5888,13 @@
       "decisionRefs": [
         "DEC-003",
         "DEC-004",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "M",
       "sourceRefs": [
         "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
       ]
     },

@@ -80,6 +80,16 @@
       "rationale": "Separar ejecución y control reduce sobredeclaraciones y permite retomar el programa desde evidencia durable.",
       "consequences": ["El reporte determinista prevalece sobre la memoria del chat para hechos calculables.", "Las recomendaciones son proyecciones y no reemplazan decisiones humanas.", "Una inconsistencia bloquea la recomendación ejecutable hasta corregir la fuente."],
       "sourceRefs": ["ai-harness-local/control/README.md", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+    },
+    {
+      "id": "DEC-009",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Tenancy híbrido y piloto UruCortinas dedicado",
+      "decision": "La plataforma adopta un modelo híbrido. UruCortinas es el primer tenant piloto y usa data planes dedicados; un producto solo puede ejecutar SaaS compartido después de certificar aislamiento tenant. Rodrigo es responsable de aceptación del piloto.",
+      "rationale": "Commerce/CRM y las topologías actuales seleccionan cliente a nivel de build o proceso y no tienen scope tenant completo, mientras AI Platform y partes de Growth ya permiten evolucionar hacia ejecución compartida con gates adicionales.",
+      "consequences": ["Todo contrato transporta y valida tenantId incluso en despliegues dedicados.", "Commerce, Admin, Storefront, Growth Metrics, Conversation Platform y Channel Adapters se despliegan dedicados para el piloto.", "AI Platform y Growth Metrics son candidatos a ejecución compartida futura, no capacidades ya certificadas.", "El tenant decide valores de negocio y la plataforma posee schemas, defaults, guardrails, custodia y enforcement.", "Esta decisión no autoriza migraciones ni implementación de Control Plane."],
+      "sourceRefs": ["docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md", "docs/TARGET_PRODUCT_ARCHITECTURE.md"]
     }
   ]
 }

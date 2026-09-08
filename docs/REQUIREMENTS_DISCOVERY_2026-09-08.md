@@ -43,10 +43,14 @@ tareas de discovery/decisión y bloquearán las implementaciones dependientes.
 
 ### Modelo comercial y multi-tenant
 
-- ¿SaaS compartido, despliegue dedicado por empresa o modelo híbrido?
-- ¿Cuál será el primer tenant/segmento piloto y qué partes deben ser genéricas
-  desde el primer release?
-- ¿Qué configuración pertenece al tenant y cuál pertenece a la plataforma?
+- Resuelto por `DEC-009` / ADR-009: modelo híbrido, con data plane dedicado para
+  el piloto y ejecución compartida solo por producto después de certificar su
+  aislamiento.
+- Primer tenant: UruCortinas, segmento uruguayo de cortinas y aberturas a
+  medida. Rodrigo es responsable de aceptación.
+- El tenant decide valores de negocio; la plataforma posee schema, defaults,
+  guardrails, custodia y enforcement. La matriz detallada está en
+  `adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md`.
 
 ### Ecommerce
 

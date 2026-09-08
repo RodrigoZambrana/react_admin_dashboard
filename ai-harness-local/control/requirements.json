@@ -6,7 +6,7 @@
       "summary": "Productos independientes accesibles de forma unificada.",
       "status": "PARTIAL",
       "taskRefs": ["PF-001", "ARC-001", "ARC-002", "ARC-003", "EC-036", "GM-026", "AI-022", "CH-016"],
-      "decisionRefs": ["DEC-003"],
+      "decisionRefs": ["DEC-003", "DEC-009"],
       "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
     },
     {
@@ -14,7 +14,7 @@
       "summary": "Soluciones reusables para empresas diferentes y con aislamiento tenant.",
       "status": "PARTIAL",
       "taskRefs": ["PF-001", "EC-004", "EC-035", "GM-005", "AI-002", "AI-004", "CH-003"],
-      "decisionRefs": ["DEC-003", "DEC-004"],
+      "decisionRefs": ["DEC-003", "DEC-004", "DEC-009"],
       "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
     },
     {

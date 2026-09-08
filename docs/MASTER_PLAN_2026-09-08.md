@@ -4,7 +4,8 @@ Horizonte orientativo: 12 a 18 meses. Fecha base: 2026-09-08.
 
 ## Resultado final
 
-Una plataforma multi-tenant de crecimiento empresarial compuesta por productos
+Una plataforma híbrida de crecimiento empresarial, con data planes dedicados o
+SaaS compartidos según gates explícitos de aislamiento, compuesta por productos
 independientes pero integrados:
 
 1. Commerce Suite: CRM, backend comercial y storefront operables.
@@ -13,6 +14,11 @@ independientes pero integrados:
 3. Conversation Platform: centralización de canales, asistencia IA y
    automatización gradual.
 4. Un control plane común para identidad, tenants, permisos e integraciones.
+
+El modelo y primer piloto están aprobados en
+`adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md`: UruCortinas inicia
+con data plane dedicado y Rodrigo es responsable de aceptación. Esta decisión
+no certifica readiness funcional ni autoriza implementar el Control Plane.
 
 ## Orden de prioridades
 
@@ -139,7 +145,7 @@ fallback humano comprobados.
 
 ### Producto y operación
 
-- un tenant piloto antes de generalizar;
+- UruCortinas como primer tenant piloto dedicado antes de generalizar;
 - onboarding repetible por tenant;
 - métricas de adopción, conversión y carga operativa;
 - runbooks y ownership humano explícito.

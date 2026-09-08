@@ -7,7 +7,7 @@
   "phase": null,
   "startedAt": null,
   "objective": null,
-  "lastCompleted": "2026-09-08T23:15:22.437Z: HAR-002 — Lifecycle atómico implementado con baseline, branch, write-set, evidencia Git, rollback y recovery verificados en repositorios temporales.",
+  "lastCompleted": "2026-09-08T23:32:25.410Z: PF-001 — Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.",
   "nextRecommended": "Recalcular el control y seleccionar una única tarea elegible",
   "plan": [
     {
@@ -27,16 +27,20 @@
     }
   ],
   "files": [
-    "package.json",
-    "planning/backlog.json",
-    "ai-harness/",
-    "ai-harness-local/README.md",
-    "ai-harness-local/control/capabilities.json",
+    "ai-harness-local/control/requirements.json",
+    "ai-harness-local/decisions/index.json",
     "ai-harness-local/feature_list.json",
     "ai-harness-local/features/done/",
     "ai-harness-local/progress/",
-    "ai-harness-local/receipts/"
+    "ai-harness-local/receipts/",
+    "docs/CANONICAL_INDEX.md",
+    "docs/EXECUTION_BACKLOG_2026-09-08.md",
+    "docs/MASTER_PLAN_2026-09-08.md",
+    "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+    "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+    "docs/adr/",
+    "planning/backlog.json"
   ],
   "blockers": [],
-  "lastReceipt": "ai-harness-local/receipts/2026/2026-09-08/harness-lifecycle-git-20260908.json"
+  "lastReceipt": "ai-harness-local/receipts/2026/2026-09-08/platform-tenancy-pilot-20260908.json"
 }

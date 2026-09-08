@@ -6,15 +6,15 @@ Id: ninguno
 
 ## Objetivo
 
-No hay una tarea activa. `HAR-002` cerró mediante lifecycle atómico.
+No hay una tarea activa. `PF-001` cerró mediante lifecycle atómico.
 
 ## Plan
 
-- [x] Lifecycle atómico implementado con baseline, branch, write-set, evidencia Git, rollback y recovery verificados en repositorios temporales.
+- [x] Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.
 
 ## Último paso completado
 
-Cierre gobernado de `HAR-002` a las `2026-09-08T23:15:22.437Z`.
+Cierre gobernado de `PF-001` a las `2026-09-08T23:32:25.410Z`.
 
 ## Paso actual
 

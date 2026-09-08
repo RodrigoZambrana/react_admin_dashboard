@@ -7,6 +7,8 @@
   todavía requeridas.
 - `MASTER_PLAN_2026-09-08.md`: prioridades, fases y gates de negocio.
 - `TARGET_PRODUCT_ARCHITECTURE.md`: productos, ownership y fronteras.
+- `adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md`: modelo híbrido de
+  tenancy, clases de despliegue, ownership de configuración y piloto aprobado.
 - `EXECUTION_BACKLOG_2026-09-08.md`: vista humana del backlog gobernado.
 - `../planning/backlog.json`: fuente ejecutable y validable de tareas.
 - `ai-harness/`: reglas operativas, verificación y extracción.

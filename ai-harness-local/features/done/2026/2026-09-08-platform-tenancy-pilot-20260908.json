@@ -1,0 +1,284 @@
+{
+  "schema": "ai-harness.feature-close-receipt/v1",
+  "sessionId": "platform-tenancy-pilot-20260908",
+  "backlogTaskId": "PF-001",
+  "status": "done",
+  "startedAt": "2026-09-08T23:26:45.630Z",
+  "preparedAt": "2026-09-08T23:32:20.067Z",
+  "closedAt": "2026-09-08T23:32:25.410Z",
+  "summary": "Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.",
+  "task": {
+    "id": "PF-001",
+    "title": "Definir modelo de producto, tenancy y primer piloto",
+    "scope": {
+      "in": [
+        "Modelo comercial/técnico de tenancy",
+        "Tenant y segmento piloto",
+        "Ownership de configuración por tenant"
+      ],
+      "out": [
+        "Migraciones",
+        "Implementación de control plane"
+      ]
+    },
+    "acceptanceCriteria": [
+      "Existe ADR aprobado con el modelo elegido y alternativas descartadas.",
+      "Cada producto documenta las consecuencias de aislamiento, deployment y onboarding.",
+      "El piloto tiene alcance y responsable de aceptación identificados."
+    ],
+    "verification": [
+      "Revisión de ADR contra ambos schemas Prisma y topologías Docker."
+    ],
+    "decisionRefs": [
+      "DEC-002",
+      "DEC-003",
+      "DEC-004",
+      "DEC-009"
+    ]
+  },
+  "git": {
+    "branch": "feature/ai-conversational-platform-standalone",
+    "baseCommit": "93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7",
+    "headAtClose": "93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7",
+    "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+    "linkedWorktree": false,
+    "preexistingChanges": [],
+    "diff": {
+      "schema": "ai-harness.git-diff-receipt/v1",
+      "baseCommit": "93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7",
+      "head": "93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7",
+      "branch": "feature/ai-conversational-platform-standalone",
+      "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+      "linkedWorktree": false,
+      "changedPaths": [
+        "ai-harness-local/control/requirements.json",
+        "ai-harness-local/decisions/index.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/progress/current.json",
+        "ai-harness-local/progress/current.md",
+        "docs/CANONICAL_INDEX.md",
+        "docs/EXECUTION_BACKLOG_2026-09-08.md",
+        "docs/MASTER_PLAN_2026-09-08.md",
+        "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
+        "planning/backlog.json"
+      ],
+      "ownedPaths": [
+        "ai-harness-local/control/requirements.json",
+        "ai-harness-local/decisions/index.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/progress/current.json",
+        "ai-harness-local/progress/current.md",
+        "docs/CANONICAL_INDEX.md",
+        "docs/EXECUTION_BACKLOG_2026-09-08.md",
+        "docs/MASTER_PLAN_2026-09-08.md",
+        "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
+        "planning/backlog.json"
+      ],
+      "preservedPreexistingPaths": [],
+      "nameStatus": [
+        {
+          "status": "M",
+          "path": "ai-harness-local/control/requirements.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/decisions/index.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/feature_list.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/progress/current.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/progress/current.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/CANONICAL_INDEX.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/EXECUTION_BACKLOG_2026-09-08.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/MASTER_PLAN_2026-09-08.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+        },
+        {
+          "status": "M",
+          "path": "planning/backlog.json"
+        }
+      ],
+      "workingTree": [
+        {
+          "status": " M",
+          "path": "ai-harness-local/control/requirements.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/decisions/index.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/feature_list.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/progress/current.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/progress/current.md"
+        },
+        {
+          "status": " M",
+          "path": "docs/CANONICAL_INDEX.md"
+        },
+        {
+          "status": " M",
+          "path": "docs/EXECUTION_BACKLOG_2026-09-08.md"
+        },
+        {
+          "status": " M",
+          "path": "docs/MASTER_PLAN_2026-09-08.md"
+        },
+        {
+          "status": " M",
+          "path": "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"
+        },
+        {
+          "status": " M",
+          "path": "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+        },
+        {
+          "status": " M",
+          "path": "planning/backlog.json"
+        },
+        {
+          "status": "??",
+          "path": "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md"
+        }
+      ],
+      "candidateFingerprint": "2b279fc57add46b596a755ad9f30489956bee995c4e7ee75501aa5827f03ab64"
+    }
+  },
+  "evidence": {
+    "schema": "ai-harness.preclose-evidence/v1",
+    "taskId": "PF-001",
+    "acceptance": [
+      {
+        "requirement": "Existe ADR aprobado con el modelo elegido y alternativas descartadas.",
+        "status": "passed",
+        "evidence": "DEC-009 figura accepted y ADR-009 registra el modelo híbrido aprobado por Rodrigo; descarta SaaS compartido para todos desde el piloto y despliegue dedicado como único modelo permanente."
+      },
+      {
+        "requirement": "Cada producto documenta las consecuencias de aislamiento, deployment y onboarding.",
+        "status": "passed",
+        "evidence": "ADR-009 contiene una matriz para Commerce Core + CRM, Admin Web, Storefront Web, Growth Metrics, Conversation Platform, Channel Adapters y Control Plane; TARGET_PRODUCT_ARCHITECTURE resume sus clases y gates."
+      },
+      {
+        "requirement": "El piloto tiene alcance y responsable de aceptación identificados.",
+        "status": "passed",
+        "evidence": "ADR-009 identifica UruCortinas, el segmento uruguayo de cortinas y aberturas a medida, data plane dedicado, alcance/exclusiones del piloto y a Rodrigo como responsable de aceptación."
+      }
+    ],
+    "verification": [
+      {
+        "requirement": "Revisión de ADR contra ambos schemas Prisma y topologías Docker.",
+        "status": "passed",
+        "evidence": "Verificación automatizada local confirmó: schema principal 137 modelos/19 tenant-scoped y entidades core sin scope; AI schema 28/27 tenant-scoped con SecureConfig sin scope; Compose dev/prod/test, AI Platform y Channel Adapter usan selección tenant por build/proceso y recursos por stack. Backlog válido: 130 tareas; harness doctor y control sin errores, validation OK y alignment ALIGNED."
+      }
+    ]
+  },
+  "decisionRefs": [
+    "DEC-002",
+    "DEC-003",
+    "DEC-004",
+    "DEC-009"
+  ],
+  "productChanges": false,
+  "feature": {
+    "id": "platform-tenancy-pilot-20260908",
+    "backlogTaskId": "PF-001",
+    "type": "decision",
+    "status": "done",
+    "title": "Definir modelo de producto, tenancy y primer piloto",
+    "objective": "Acordar si la plataforma será SaaS compartido, despliegue dedicado o híbrido y seleccionar el primer segmento/tenant piloto.",
+    "scope": {
+      "in": [
+        "Modelo comercial/técnico de tenancy",
+        "Tenant y segmento piloto",
+        "Ownership de configuración por tenant"
+      ],
+      "out": [
+        "Migraciones",
+        "Implementación de control plane"
+      ]
+    },
+    "acceptanceCriteria": [
+      "Existe ADR aprobado con el modelo elegido y alternativas descartadas.",
+      "Cada producto documenta las consecuencias de aislamiento, deployment y onboarding.",
+      "El piloto tiene alcance y responsable de aceptación identificados."
+    ],
+    "verification": [
+      "Revisión de ADR contra ambos schemas Prisma y topologías Docker."
+    ],
+    "decisionRefs": [
+      "DEC-002",
+      "DEC-003",
+      "DEC-004",
+      "DEC-009"
+    ],
+    "git": {
+      "branch": "feature/ai-conversational-platform-standalone",
+      "head": "93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7",
+      "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+      "gitDir": "/Users/rodrigo/Git/personal/react_admin_dashboard/.git",
+      "commonDir": "/Users/rodrigo/Git/personal/react_admin_dashboard/.git",
+      "linkedWorktree": false,
+      "baseBranch": "feature/ai-conversational-platform-standalone",
+      "baseCommit": "93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7",
+      "preexistingChanges": []
+    },
+    "writeSet": [
+      "ai-harness-local/control/requirements.json",
+      "ai-harness-local/decisions/index.json",
+      "ai-harness-local/feature_list.json",
+      "ai-harness-local/features/done/",
+      "ai-harness-local/progress/",
+      "ai-harness-local/receipts/",
+      "docs/CANONICAL_INDEX.md",
+      "docs/EXECUTION_BACKLOG_2026-09-08.md",
+      "docs/MASTER_PLAN_2026-09-08.md",
+      "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+      "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+      "docs/adr/",
+      "planning/backlog.json"
+    ],
+    "startedAt": "2026-09-08T23:26:45.630Z",
+    "phase": "preclose",
+    "preparedAt": "2026-09-08T23:32:20.067Z",
+    "completedAt": "2026-09-08T23:32:25.410Z",
+    "result": {
+      "summary": "Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.",
+      "receipt": "ai-harness-local/receipts/2026/2026-09-08/platform-tenancy-pilot-20260908.json",
+      "featureReceipt": "ai-harness-local/features/done/2026/2026-09-08-platform-tenancy-pilot-20260908.json"
+    }
+  }
+}

@@ -78,3 +78,10 @@
 - Baseline: `8cfb3c43352a9df050e2141ad1082b84da26af23`; HEAD al cierre: `8cfb3c43352a9df050e2141ad1082b84da26af23`; branch: `feature/ai-conversational-platform-standalone`.
 - Preclose validó 4 criterios, 1 verificaciones y 21 rutas del write-set.
 - Recibo: `ai-harness-local/receipts/2026/2026-09-08/harness-lifecycle-git-20260908.json`.
+
+## 2026-09-08 — PF-001: Definir modelo de producto, tenancy y primer piloto
+
+- Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.
+- Baseline: `93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7`; HEAD al cierre: `93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7`; branch: `feature/ai-conversational-platform-standalone`.
+- Preclose validó 3 criterios, 1 verificaciones y 12 rutas del write-set.
+- Recibo: `ai-harness-local/receipts/2026/2026-09-08/platform-tenancy-pilot-20260908.json`.

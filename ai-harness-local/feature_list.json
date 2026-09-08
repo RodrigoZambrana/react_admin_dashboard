@@ -13,6 +13,74 @@
   },
   "features": [
     {
+      "id": "platform-tenancy-pilot-20260908",
+      "backlogTaskId": "PF-001",
+      "type": "decision",
+      "status": "done",
+      "title": "Definir modelo de producto, tenancy y primer piloto",
+      "objective": "Acordar si la plataforma será SaaS compartido, despliegue dedicado o híbrido y seleccionar el primer segmento/tenant piloto.",
+      "scope": {
+        "in": [
+          "Modelo comercial/técnico de tenancy",
+          "Tenant y segmento piloto",
+          "Ownership de configuración por tenant"
+        ],
+        "out": [
+          "Migraciones",
+          "Implementación de control plane"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Existe ADR aprobado con el modelo elegido y alternativas descartadas.",
+        "Cada producto documenta las consecuencias de aislamiento, deployment y onboarding.",
+        "El piloto tiene alcance y responsable de aceptación identificados."
+      ],
+      "verification": [
+        "Revisión de ADR contra ambos schemas Prisma y topologías Docker."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-004",
+        "DEC-009"
+      ],
+      "git": {
+        "branch": "feature/ai-conversational-platform-standalone",
+        "head": "93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7",
+        "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+        "gitDir": "/Users/rodrigo/Git/personal/react_admin_dashboard/.git",
+        "commonDir": "/Users/rodrigo/Git/personal/react_admin_dashboard/.git",
+        "linkedWorktree": false,
+        "baseBranch": "feature/ai-conversational-platform-standalone",
+        "baseCommit": "93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7",
+        "preexistingChanges": []
+      },
+      "writeSet": [
+        "ai-harness-local/control/requirements.json",
+        "ai-harness-local/decisions/index.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/features/done/",
+        "ai-harness-local/progress/",
+        "ai-harness-local/receipts/",
+        "docs/CANONICAL_INDEX.md",
+        "docs/EXECUTION_BACKLOG_2026-09-08.md",
+        "docs/MASTER_PLAN_2026-09-08.md",
+        "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "docs/adr/",
+        "planning/backlog.json"
+      ],
+      "startedAt": "2026-09-08T23:26:45.630Z",
+      "phase": "preclose",
+      "preparedAt": "2026-09-08T23:32:20.067Z",
+      "completedAt": "2026-09-08T23:32:25.410Z",
+      "result": {
+        "summary": "Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.",
+        "receipt": "ai-harness-local/receipts/2026/2026-09-08/platform-tenancy-pilot-20260908.json",
+        "featureReceipt": "ai-harness-local/features/done/2026/2026-09-08-platform-tenancy-pilot-20260908.json"
+      }
+    },
+    {
       "id": "harness-lifecycle-git-20260908",
       "backlogTaskId": "HAR-002",
       "type": "harness-governance",

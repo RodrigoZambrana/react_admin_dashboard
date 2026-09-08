@@ -16,12 +16,12 @@ decisiones, contratos, inventarios o gates, no cambios funcionales.
 
 | Línea | Tareas | Ready | Done | Blocked | Proposed |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Plataforma y harness | 23 | 8 | 1 | 14 | 0 |
+| Plataforma y harness | 23 | 6 | 3 | 14 | 0 |
 | Ecommerce, CRM, backend, admin y storefront | 36 | 1 | 0 | 35 | 0 |
 | Growth Metrics y operaciones futuras | 30 | 1 | 0 | 3 | 26 |
 | AI Platform | 24 | 2 | 0 | 22 | 0 |
 | Adaptadores de canales | 17 | 1 | 0 | 16 | 0 |
-| **Total** | **130** | **13** | **1** | **90** | **26** |
+| **Total** | **130** | **11** | **3** | **90** | **26** |
 
 Por prioridad existen 65 tareas P0, 52 P1, 10 P2 y 3 P3. `blocked` significa
 que la especificación es suficiente pero falta una decisión o dependencia;
@@ -34,8 +34,6 @@ previo a implementación:
 
 | Id | Resultado |
 | --- | --- |
-| HAR-002 | Lifecycle, preflight Git, write-set y cierre automatizados. |
-| PF-001 | Modelo de producto/tenancy y primer piloto definidos mediante ADR. |
 | ARC-001 | Inventario verificable de contextos, módulos y ownership actual. |
 | EC-001 | Carta de producto y Definition of Done de Commerce Suite. |
 | SEC-001 | Baseline de vulnerabilidades clasificado por exposición real. |
@@ -48,10 +46,17 @@ previo a implementación:
 | AI-024 | Documentación de AI Platform clasificada dentro del harness. |
 | CH-008 | ADR sobre soporte y riesgo de WhatsApp QR. |
 
-Orden recomendado: completar `HAR-002..HAR-009` según sus dependencias; luego
-`PF-001` → `EC-001` → `ARC-001` → `SEC-001`/`SEC-002` → `QA-001`. Los demás
-resultados pueden prepararse en paralelo dentro del mismo paquete coordinado,
-pero no promover trabajo dependiente sin revalidar el DAG.
+`HAR-002` y `PF-001` están cerradas. El siguiente orden se recalcula con el
+control; al cierre de PF-001 comienza por `EC-001`, seguido de `ARC-001` y los
+gates de seguridad/calidad según sus dependencias. No se promueve trabajo
+dependiente sin revalidar el DAG.
+
+## Decisiones y capacidades cerradas en esta ola
+
+| Id | Resultado |
+| --- | --- |
+| HAR-002 | Lifecycle, preflight Git, write-set y cierre automatizados. |
+| PF-001 | Modelo híbrido, piloto UruCortinas dedicado, ownership de configuración y responsable Rodrigo aprobados en ADR-009. |
 
 ## Paquetes de resultado
 
