@@ -26,11 +26,7 @@ export default function SocialLinks({
     onGoogleClick?.();
   };
 
-  const googleLabel = googleLoading
-    ? "Signing in with Google..."
-    : googleEnabled
-    ? "Continue with Google"
-    : "Google sign-in unavailable";
+  const googleLabel = googleLoading ? "Signing in with Google..." : "Continue with Google";
 
   return (
     <Fragment>
@@ -80,17 +76,6 @@ export default function SocialLinks({
           {googleLabel}
         </Small>
       </FlexBox>
-
-      {!googleEnabled ? (
-        <Small
-          mt="-0.5rem"
-          mb="1.25rem"
-          display="block"
-          color="gray.600"
-          textAlign="center">
-          Enable Google sign-in from Storefront settings to activate this option.
-        </Small>
-      ) : null}
     </Fragment>
   );
 }

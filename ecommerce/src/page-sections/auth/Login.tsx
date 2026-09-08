@@ -162,14 +162,6 @@ export default function Login({
           {resolvedSubtitle}
         </H5>
 
-        {storefrontConfig.integrations?.recaptcha?.enabled ? (
-          <Small color="text.muted" display="block" textAlign="center" mb="1rem">
-            {t("auth.signIn.recaptchaMessage", {
-              defaultMessage: "reCAPTCHA Enterprise protege esta acción."
-            })}
-          </Small>
-        ) : null}
-
         <TextField
           fullWidth
           mb="0.75rem"

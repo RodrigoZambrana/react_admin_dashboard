@@ -7,6 +7,7 @@ import { SESSION_TTL_MILLISECONDS } from './auth.config'
 import { GoogleConfigService } from '../common/integrations/google-config.service'
 import { resolveUserCapabilityEnvelope } from './capabilities'
 import { UserManagementPolicyService } from './user-management-policy'
+import { isLocalTestRecaptchaBypassEnabled } from '../common/security/recaptcha'
 
 const RECAPTCHA_VERIFY_URL = 'https://www.google.com/recaptcha/api/siteverify'
 const parseBootstrapAdminValue = (value: string | null | undefined) => {
@@ -42,6 +43,10 @@ export class AuthService {
   ) {}
 
   async verifyRecaptcha(token: string | undefined | null, remoteIp?: string) {
+    if (isLocalTestRecaptchaBypassEnabled()) {
+      return
+    }
+
     const config = await this.googleConfig.getEffectiveConfig()
     const isEnabled = config.recaptcha.enabled && Boolean(config.recaptcha.secretKey)
     if (!isEnabled) {

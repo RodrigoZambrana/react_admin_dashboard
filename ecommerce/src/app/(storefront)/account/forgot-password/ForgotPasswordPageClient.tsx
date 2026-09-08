@@ -101,14 +101,6 @@ export default function ForgotPasswordPageClient() {
         })}
       </Paragraph>
 
-      {storefrontConfig.integrations?.recaptcha?.enabled ? (
-        <Paragraph color="text.muted" mb="1rem">
-          {t("auth.signIn.recaptchaMessage", {
-            defaultMessage: "reCAPTCHA Enterprise protege esta acción."
-          })}
-        </Paragraph>
-      ) : null}
-
       <Paragraph color="text.muted" mb="1.5rem">
         {t("account.forgotPassword.phoneOnlyHint", {
           defaultMessage:

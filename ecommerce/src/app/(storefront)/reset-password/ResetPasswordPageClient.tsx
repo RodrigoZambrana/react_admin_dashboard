@@ -129,14 +129,6 @@ export default function ResetPasswordPageClient() {
         })}
       </Paragraph>
 
-      {storefrontConfig.integrations?.recaptcha?.enabled ? (
-        <Paragraph color="text.muted" mb="1rem">
-          {t("auth.signIn.recaptchaMessage", {
-            defaultMessage: "reCAPTCHA Enterprise protege esta acción."
-          })}
-        </Paragraph>
-      ) : null}
-
       {!token ? (
         <Small color="error.main">
           {t("account.resetPassword.errors.invalidToken", {

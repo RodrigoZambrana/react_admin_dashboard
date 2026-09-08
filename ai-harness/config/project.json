@@ -1,0 +1,115 @@
+{
+  "schemaVersion": 1,
+  "project": "growth-platform",
+  "runtime": {
+    "node": ">=20",
+    "languages": ["TypeScript", "JavaScript", "SQL"],
+    "infrastructure": ["Docker Compose", "PostgreSQL", "Redis", "Qdrant"]
+  },
+  "canonicalDocs": [
+    "docs/GENERAL_AUDIT_2026-09-08.md",
+    "docs/MASTER_PLAN_2026-09-08.md",
+    "docs/TARGET_PRODUCT_ARCHITECTURE.md"
+  ],
+  "workspaces": [
+    {
+      "id": "commerce-backend",
+      "product": "Commerce Core y CRM",
+      "path": "backend",
+      "runtimeOwner": "backend",
+      "verificationCwd": "backend",
+      "target": "commerce-core",
+      "packageManager": "npm",
+      "verification": {
+        "quick": ["npm run test:smoke"],
+        "standard": ["npm run lint", "SECURITY_LOOP_SKIP=1 npm run build", "npm run test:unit", "npm run test:integration"],
+        "release": ["npm run build", "npm test"]
+      }
+    },
+    {
+      "id": "admin",
+      "product": "Panel administrativo",
+      "path": "frontend",
+      "runtimeOwner": "frontend",
+      "verificationCwd": "frontend",
+      "target": "admin-web",
+      "packageManager": "npm",
+      "verification": {
+        "quick": ["npm test -- --reporter=dot"],
+        "standard": ["npm run lint", "SECURITY_LOOP_SKIP=1 npm run build"],
+        "release": ["npm run build", "npm run test:coverage"]
+      }
+    },
+    {
+      "id": "storefront",
+      "product": "Storefront ecommerce",
+      "path": "ecommerce",
+      "runtimeOwner": "ecommerce",
+      "verificationCwd": "ecommerce",
+      "target": "storefront-web",
+      "packageManager": "npm",
+      "verification": {
+        "quick": ["npm run test:unit -- --reporter=dot"],
+        "standard": ["npm test", "npm run build"],
+        "release": ["npm run build", "npm run test:smoke", "npm run test:e2e:mobile"]
+      }
+    },
+    {
+      "id": "ai-platform",
+      "product": "Plataforma conversacional",
+      "path": "ai-platform",
+      "runtimeOwner": "ai-platform",
+      "verificationCwd": "ai-platform",
+      "target": "conversation-platform",
+      "packageManager": "npm-workspaces",
+      "verification": {
+        "quick": ["npm test -- --silent"],
+        "standard": ["npm run build", "npm test -- --silent"],
+        "release": ["npm run build", "npm test", "npm run prisma:validate --workspace backend"]
+      }
+    },
+    {
+      "id": "channel-adapter",
+      "product": "Adaptadores de canales",
+      "path": "services/channel-adapter",
+      "runtimeOwner": "channel-adapter",
+      "verificationCwd": "services/channel-adapter",
+      "target": "channel-adapters",
+      "packageManager": "npm",
+      "verification": {
+        "quick": ["npm run test:smoke"],
+        "standard": ["npm test"],
+        "release": ["npm run test:coverage"]
+      }
+    },
+    {
+      "id": "metrics",
+      "product": "Métricas y Growth Operations",
+      "path": "backend/src/analytics",
+      "runtimeOwner": "backend",
+      "verificationCwd": "backend",
+      "target": "growth-metrics",
+      "packageManager": "shared-backend",
+      "extractionState": "module-boundary",
+      "verification": {
+        "quick": ["npm run test:integration"],
+        "standard": ["npm run test:integration", "npm run lint"],
+        "release": ["npm run build"]
+      }
+    },
+    {
+      "id": "harness",
+      "product": "AI Harness",
+      "path": "ai-harness",
+      "runtimeOwner": "repository",
+      "verificationCwd": "ai-harness",
+      "target": "embedded-harness",
+      "packageManager": "node",
+      "verification": {
+        "quick": ["node harness/doctor.mjs"],
+        "standard": ["node harness/doctor.mjs", "node --check harness/doctor.mjs", "node --check harness/verify.mjs", "node --check harness/progress.mjs"],
+        "release": ["node harness/doctor.mjs", "node harness/verify.mjs --scope harness --level standard --dry-run"]
+      }
+    }
+  ]
+}

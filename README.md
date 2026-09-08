@@ -2,6 +2,12 @@
 
 ![analytics health](http://localhost:4000/api/analytics/health/badge)
 
+> Continuidad 2026: el estado verificable, la arquitectura objetivo y las
+> prioridades vigentes están en
+> [`docs/CANONICAL_INDEX.md`](docs/CANONICAL_INDEX.md). El repositorio incluye un
+> AI Harness propio en [`ai-harness/`](ai-harness/) para mantener alcance,
+> checkpoints y verificación por producto.
+
 Este repositorio contiene todo lo necesario para desarrollar, construir y desplegar la aplicación compuesta por un frontend en React (Vite + TypeScript), un backend en NestJS/Fastify y PostgreSQL como base de datos. La infraestructura se orquesta con Docker Compose y los despliegues se automatizan mediante GitHub Actions: la rama **develop** se valida con CI y se ejecuta localmente mediante Docker, mientras que los ambientes de **testing/prod** se publican sobre un Droplet de DigitalOcean mediante SSH.
 
 ## Estructura del repositorio

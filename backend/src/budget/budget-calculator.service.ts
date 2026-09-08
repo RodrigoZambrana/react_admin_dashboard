@@ -9,6 +9,7 @@ import { GoogleConfigService } from '../common/integrations/google-config.servic
 import { buildPhoneLookupCandidates, normalizePhoneNumber } from '../common/utils/phone'
 import { CalculationStrategy } from './strategies/calculation-strategy'
 import { M2CalculationStrategy } from './strategies/m2-calculation.strategy'
+import { isLocalTestRecaptchaBypassEnabled } from '../common/security/recaptcha'
 import type {
   BudgetAddToCartDto,
   BudgetAddToCartResult,
@@ -65,6 +66,10 @@ export class BudgetCalculatorService {
   }
 
   private async verifyRecaptcha(token?: string | null) {
+    if (isLocalTestRecaptchaBypassEnabled()) {
+      return
+    }
+
     const config = await this.googleConfig.getEffectiveConfig()
     const isEnabled = config.recaptcha.storefront.enabled && Boolean(config.recaptcha.storefront.siteKey) && Boolean(config.recaptcha.secretKey)
     if (!isEnabled) {

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-05-14T02:21:09.639Z",
+  "generatedAt": "2026-09-08T21:23:57.098Z",
   "projects": [
     {
       "name": "backend",
@@ -8,11 +8,11 @@
       "metadata": {
         "vulnerabilities": {
           "info": 0,
-          "low": 0,
-          "moderate": 0,
-          "high": 0,
+          "low": 1,
+          "moderate": 7,
+          "high": 22,
           "critical": 0,
-          "total": 0
+          "total": 30
         },
         "dependencies": {
           "prod": 571,
@@ -23,10 +23,1438 @@
           "total": 842
         }
       },
-      "vulnerabilities": [],
-      "blocking": [],
-      "acceptedModerate": [],
-      "unresolvedModerate": []
+      "vulnerabilities": [
+        {
+          "key": "backend:@fastify/static",
+          "project": "backend",
+          "dependency": "@fastify/static",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "@fastify/static",
+              "version": "10.1.3",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/@fastify/static"
+          ],
+          "advisoryTitles": [
+            "@fastify/static vulnerable to Authorization Bypass via Non-Canonical URL Paths",
+            "@fastify/static vulnerable to route guard bypass via path traversal"
+          ]
+        },
+        {
+          "key": "backend:@nestjs/platform-express",
+          "project": "backend",
+          "dependency": "@nestjs/platform-express",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/@nestjs/platform-express"
+          ],
+          "advisoryTitles": [
+            "multer"
+          ]
+        },
+        {
+          "key": "backend:@nestjs/platform-fastify",
+          "project": "backend",
+          "dependency": "@nestjs/platform-fastify",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/@nestjs/platform-fastify"
+          ],
+          "advisoryTitles": [
+            "@fastify/static",
+            "Nest: Middleware Bypass on Fastify via Trailing Slash",
+            "fastify",
+            "find-my-way"
+          ]
+        },
+        {
+          "key": "backend:@prisma/config",
+          "project": "backend",
+          "dependency": "@prisma/config",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "prisma",
+              "version": "6.12.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/@prisma/config"
+          ],
+          "advisoryTitles": [
+            "deepmerge-ts"
+          ]
+        },
+        {
+          "key": "backend:brace-expansion",
+          "project": "backend",
+          "dependency": "brace-expansion",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/brace-expansion",
+            "node_modules/minimatch/node_modules/brace-expansion",
+            "node_modules/readdir-glob/node_modules/brace-expansion"
+          ],
+          "advisoryTitles": [
+            "brace-expansion: Large numeric range defeats documented `max` DoS protection",
+            "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+            "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+            "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+            "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+            "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+            "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+            "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+            "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+            "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation"
+          ]
+        },
+        {
+          "key": "backend:browserslist",
+          "project": "backend",
+          "dependency": "browserslist",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/browserslist"
+          ],
+          "advisoryTitles": [
+            "Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM",
+            "Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)"
+          ]
+        },
+        {
+          "key": "backend:deepmerge-ts",
+          "project": "backend",
+          "dependency": "deepmerge-ts",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "prisma",
+              "version": "6.12.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/deepmerge-ts"
+          ],
+          "advisoryTitles": [
+            "DeepmergeTS has stack exhaustion when merging recursive object graphs"
+          ]
+        },
+        {
+          "key": "backend:fast-uri",
+          "project": "backend",
+          "dependency": "fast-uri",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/fast-uri"
+          ],
+          "advisoryTitles": [
+            "fast-uri vulnerable to host confusion via literal backslash authority delimiter",
+            "fast-uri vulnerable to host confusion via backslash authority introducer",
+            "fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization",
+            "fast-uri vulnerable to server-side request forgery via repeated hostname percent-decoding",
+            "fast-uri vulnerable to host confusion via percent-encoded scheme normalization",
+            "fast-uri vulnerable to host confusion via failed IDN canonicalization"
+          ]
+        },
+        {
+          "key": "backend:find-my-way",
+          "project": "backend",
+          "dependency": "find-my-way",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/find-my-way"
+          ],
+          "advisoryTitles": [
+            "find-my-way: DDoS with HTTP2"
+          ]
+        },
+        {
+          "key": "backend:imapflow",
+          "project": "backend",
+          "dependency": "imapflow",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/imapflow"
+          ],
+          "advisoryTitles": [
+            "nodemailer"
+          ]
+        },
+        {
+          "key": "backend:ip-address",
+          "project": "backend",
+          "dependency": "ip-address",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/ip-address"
+          ],
+          "advisoryTitles": [
+            "ip-address: Address4 decodes leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass",
+            "ip-address: a CIDR suffix on the parsed address suppresses special-use classification and can bypass SSRF and trust-boundary checks",
+            "ip-address: misclassification of IPv4-mapped/NAT64 IPv6 addresses can bypass SSRF and trust-boundary checks"
+          ]
+        },
+        {
+          "key": "backend:js-yaml",
+          "project": "backend",
+          "dependency": "js-yaml",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/js-yaml"
+          ],
+          "advisoryTitles": [
+            "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
+            "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
+            "JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported"
+          ]
+        },
+        {
+          "key": "backend:linkify-it",
+          "project": "backend",
+          "dependency": "linkify-it",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/linkify-it"
+          ],
+          "advisoryTitles": [
+            "LinkifyIt#match scan loop has quadratic algorithmic complexity",
+            "linkify-it: Quadratic-complexity DoS via the `mailto:` validator scan-loop on attacker text"
+          ]
+        },
+        {
+          "key": "backend:mailparser",
+          "project": "backend",
+          "dependency": "mailparser",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/mailparser"
+          ],
+          "advisoryTitles": [
+            "linkify-it",
+            "nodemailer"
+          ]
+        },
+        {
+          "key": "backend:multer",
+          "project": "backend",
+          "dependency": "multer",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/multer"
+          ],
+          "advisoryTitles": [
+            "Multer vulnerable to Denial of Service via deeply nested field names",
+            "Multer vulnerable to Denial of Service via incomplete cleanup of aborted uploads"
+          ]
+        },
+        {
+          "key": "backend:nanoid",
+          "project": "backend",
+          "dependency": "nanoid",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/nanoid"
+          ],
+          "advisoryTitles": [
+            "nanoid: non-secure generators can loop indefinitely with negative size",
+            "nanoid: custom generators can loop indefinitely when size is zero"
+          ]
+        },
+        {
+          "key": "backend:nodemailer",
+          "project": "backend",
+          "dependency": "nodemailer",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "nodemailer",
+              "version": "10.0.1",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/imapflow/node_modules/nodemailer",
+            "node_modules/nodemailer"
+          ],
+          "advisoryTitles": [
+            "Nodemailer: CRLF injection in Nodemailer List-* header comments allows arbitrary message header injection",
+            "Nodemailer jsonTransport bypasses disableFileAccess and disableUrlAccess during message normalization",
+            "Nodemailer: Improper TLS Certificate Validation in OAuth2 Token Fetch Enables Credential Interception",
+            "Nodemailer: Message-level raw option bypasses disableFileAccess/disableUrlAccess, enabling arbitrary file read and full-response SSRF in the delivered message"
+          ]
+        },
+        {
+          "key": "backend:postcss",
+          "project": "backend",
+          "dependency": "postcss",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/postcss"
+          ],
+          "advisoryTitles": [
+            "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+            "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure"
+          ]
+        },
+        {
+          "key": "backend:prisma",
+          "project": "backend",
+          "dependency": "prisma",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "prisma",
+              "version": "6.12.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/prisma"
+          ],
+          "advisoryTitles": [
+            "@prisma/config"
+          ]
+        },
+        {
+          "key": "backend:tmp",
+          "project": "backend",
+          "dependency": "tmp",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/tmp"
+          ],
+          "advisoryTitles": [
+            "tmp has Path Traversal via unsanitized prefix/postfix that enables directory escape"
+          ]
+        },
+        {
+          "key": "backend:undici",
+          "project": "backend",
+          "dependency": "undici",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/undici"
+          ],
+          "advisoryTitles": [
+            "undici vulnerable to TLS certificate validation bypass via dropped requestTls in SOCKS5 ProxyAgent",
+            "undici vulnerable to HTTP header injection via Set-Cookie percent-decoding",
+            "undici WebSocket client vulnerable to denial of service via fragment count bypass",
+            "undici vulnerable to cross-origin request routing via SOCKS5 proxy pool reuse",
+            "undici vulnerable to Set-Cookie SameSite attribute downgrade via permissive substring matching",
+            "undici vulnerable to cross-user information disclosure via shared cache whitespace bypass",
+            "undici vulnerable to downstream response desynchronization via retry interceptor",
+            "undici vulnerable to cross-user information disclosure and parse-time crash via degenerate private cache directives",
+            "undici vulnerable to CRLF Injection via blob-like body 'type' property",
+            "undici vulnerable to cross-user information disclosure via whitespace around equals in Cache-Control directives",
+            "undici vulnerable to cookie attribute injection via unsanitized domain and unparsed setCookie fields",
+            "undici vulnerable to HTTP response queue poisoning via keep-alive socket reuse"
+          ]
+        },
+        {
+          "key": "backend:vite",
+          "project": "backend",
+          "dependency": "vite",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/vite"
+          ],
+          "advisoryTitles": [
+            "launch-editor: NTLMv2 hash disclosure via UNC path handling on Windows",
+            "vite: `server.fs.deny` bypass on Windows alternate paths"
+          ]
+        },
+        {
+          "key": "backend:@xmldom/xmldom",
+          "project": "backend",
+          "dependency": "@xmldom/xmldom",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/@xmldom/xmldom"
+          ],
+          "advisoryTitles": [
+            "xmldom: XML fragment injection via invalid EntityReference.nodeName during requireWellFormed serialization"
+          ]
+        },
+        {
+          "key": "backend:csv-parse",
+          "project": "backend",
+          "dependency": "csv-parse",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "csv-parse",
+              "version": "7.0.2",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/csv-parse"
+          ],
+          "advisoryTitles": [
+            "node-csv: Prototype replacement still reachable via columns path"
+          ]
+        },
+        {
+          "key": "backend:exceljs",
+          "project": "backend",
+          "dependency": "exceljs",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "exceljs",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "exceljs 4.4.0 sigue arrastrando uuid 8.x y no expone una ruta de upgrade limpia sin reemplazar nuevamente la libreria. El uso esta acotado al extractor deterministico de adjuntos XLSX y no procesa ejecucion de codigo.",
+            "mitigation": "Mantener los limites de tamano de archivo, usar el parser solo dentro del backend y revaluar el reemplazo si el upstream no corrige uuid."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "exceljs",
+              "version": "3.4.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/exceljs"
+          ],
+          "advisoryTitles": [
+            "uuid"
+          ]
+        },
+        {
+          "key": "backend:fastify",
+          "project": "backend",
+          "dependency": "fastify",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/fastify"
+          ],
+          "advisoryTitles": [
+            "fastify vulnerable to schema validation bypass via root primitive coercion mismatch",
+            "fastify vulnerable to X-Forwarded-* spoofing under trustProxy hop-count"
+          ]
+        },
+        {
+          "key": "backend:mercadopago",
+          "project": "backend",
+          "dependency": "mercadopago",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "mercadopago",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "mercadopago 2.12.0 sigue dependiendo de uuid 9.x y no publica una version corregida. El SDK esta encapsulado en el modulo de pagos y no expone directamente las APIs vulnerables al resto del sistema.",
+            "mitigation": "Mantener mercadopago en su version mas reciente, limitar el SDK al modulo de pagos y volver a evaluar en cada corrida del security loop."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "mercadopago",
+              "version": "3.6.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/mercadopago"
+          ],
+          "advisoryTitles": [
+            "uuid"
+          ]
+        },
+        {
+          "key": "backend:qs",
+          "project": "backend",
+          "dependency": "qs",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/qs"
+          ],
+          "advisoryTitles": [
+            "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set",
+            "qs array-limit bypass via bracket-key comma parsing",
+            "qs: Denial of Service via Attacker Controlled isBuffer"
+          ]
+        },
+        {
+          "key": "backend:uuid",
+          "project": "backend",
+          "dependency": "uuid",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "uuid",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "mercadopago 2.12.0 sigue dependiendo de uuid 9.x y no publica una version corregida. El uso queda encapsulado en el servicio de pagos y no expone directamente las APIs v3/v5/v6 al exterior.",
+            "mitigation": "Mantener mercadopago en su version mas reciente, limitar el SDK al modulo de pagos y volver a evaluar en cada corrida del security loop."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "exceljs",
+              "version": "3.4.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/exceljs/node_modules/uuid",
+            "node_modules/uuid"
+          ],
+          "advisoryTitles": [
+            "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided"
+          ]
+        },
+        {
+          "key": "backend:body-parser",
+          "project": "backend",
+          "dependency": "body-parser",
+          "severity": "low",
+          "impact": "low-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/body-parser"
+          ],
+          "advisoryTitles": [
+            "body-parser vulnerable to denial of service when invalid limit value silently disables size enforcement"
+          ]
+        }
+      ],
+      "blocking": [
+        {
+          "key": "backend:@fastify/static",
+          "project": "backend",
+          "dependency": "@fastify/static",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "@fastify/static",
+              "version": "10.1.3",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/@fastify/static"
+          ],
+          "advisoryTitles": [
+            "@fastify/static vulnerable to Authorization Bypass via Non-Canonical URL Paths",
+            "@fastify/static vulnerable to route guard bypass via path traversal"
+          ]
+        },
+        {
+          "key": "backend:@nestjs/platform-express",
+          "project": "backend",
+          "dependency": "@nestjs/platform-express",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/@nestjs/platform-express"
+          ],
+          "advisoryTitles": [
+            "multer"
+          ]
+        },
+        {
+          "key": "backend:@nestjs/platform-fastify",
+          "project": "backend",
+          "dependency": "@nestjs/platform-fastify",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/@nestjs/platform-fastify"
+          ],
+          "advisoryTitles": [
+            "@fastify/static",
+            "Nest: Middleware Bypass on Fastify via Trailing Slash",
+            "fastify",
+            "find-my-way"
+          ]
+        },
+        {
+          "key": "backend:@prisma/config",
+          "project": "backend",
+          "dependency": "@prisma/config",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "prisma",
+              "version": "6.12.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/@prisma/config"
+          ],
+          "advisoryTitles": [
+            "deepmerge-ts"
+          ]
+        },
+        {
+          "key": "backend:brace-expansion",
+          "project": "backend",
+          "dependency": "brace-expansion",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/brace-expansion",
+            "node_modules/minimatch/node_modules/brace-expansion",
+            "node_modules/readdir-glob/node_modules/brace-expansion"
+          ],
+          "advisoryTitles": [
+            "brace-expansion: Large numeric range defeats documented `max` DoS protection",
+            "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+            "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+            "brace-expansion: DoS via exponential-time expansion of consecutive non-expanding {} groups",
+            "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+            "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+            "brace-expansion: DoS via unbounded expansion length causing an out-of-memory process crash",
+            "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+            "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation",
+            "brace-expansion: DoS via unbounded intermediate arrays, bypassing the CVE-2026-14257 mitigation"
+          ]
+        },
+        {
+          "key": "backend:browserslist",
+          "project": "backend",
+          "dependency": "browserslist",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/browserslist"
+          ],
+          "advisoryTitles": [
+            "Browserslist: Unbounded memory growth (no cache eviction) via distinct query results, leading to eventual OOM",
+            "Browserslist: Uncaught crash / prototype write via untrusted browserslist-stats.json custom stats (normalizeStats)"
+          ]
+        },
+        {
+          "key": "backend:deepmerge-ts",
+          "project": "backend",
+          "dependency": "deepmerge-ts",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "prisma",
+              "version": "6.12.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/deepmerge-ts"
+          ],
+          "advisoryTitles": [
+            "DeepmergeTS has stack exhaustion when merging recursive object graphs"
+          ]
+        },
+        {
+          "key": "backend:fast-uri",
+          "project": "backend",
+          "dependency": "fast-uri",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/fast-uri"
+          ],
+          "advisoryTitles": [
+            "fast-uri vulnerable to host confusion via literal backslash authority delimiter",
+            "fast-uri vulnerable to host confusion via backslash authority introducer",
+            "fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization",
+            "fast-uri vulnerable to server-side request forgery via repeated hostname percent-decoding",
+            "fast-uri vulnerable to host confusion via percent-encoded scheme normalization",
+            "fast-uri vulnerable to host confusion via failed IDN canonicalization"
+          ]
+        },
+        {
+          "key": "backend:find-my-way",
+          "project": "backend",
+          "dependency": "find-my-way",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/find-my-way"
+          ],
+          "advisoryTitles": [
+            "find-my-way: DDoS with HTTP2"
+          ]
+        },
+        {
+          "key": "backend:imapflow",
+          "project": "backend",
+          "dependency": "imapflow",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/imapflow"
+          ],
+          "advisoryTitles": [
+            "nodemailer"
+          ]
+        },
+        {
+          "key": "backend:ip-address",
+          "project": "backend",
+          "dependency": "ip-address",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/ip-address"
+          ],
+          "advisoryTitles": [
+            "ip-address: Address4 decodes leading-zero octets as decimal while resolvers decode them as octal, allowing SSRF and trust-boundary bypass",
+            "ip-address: a CIDR suffix on the parsed address suppresses special-use classification and can bypass SSRF and trust-boundary checks",
+            "ip-address: misclassification of IPv4-mapped/NAT64 IPv6 addresses can bypass SSRF and trust-boundary checks"
+          ]
+        },
+        {
+          "key": "backend:js-yaml",
+          "project": "backend",
+          "dependency": "js-yaml",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/js-yaml"
+          ],
+          "advisoryTitles": [
+            "JS-YAML: Quadratic-complexity DoS in merge key handling via repeated aliases",
+            "js-yaml: YAML merge-key chains can force quadratic CPU consumption",
+            "JS-YAML: Quadratic CPU consumption in !!omap resolution (3.x and 4.x) — CVE-2026-59870 fix not backported"
+          ]
+        },
+        {
+          "key": "backend:linkify-it",
+          "project": "backend",
+          "dependency": "linkify-it",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/linkify-it"
+          ],
+          "advisoryTitles": [
+            "LinkifyIt#match scan loop has quadratic algorithmic complexity",
+            "linkify-it: Quadratic-complexity DoS via the `mailto:` validator scan-loop on attacker text"
+          ]
+        },
+        {
+          "key": "backend:mailparser",
+          "project": "backend",
+          "dependency": "mailparser",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/mailparser"
+          ],
+          "advisoryTitles": [
+            "linkify-it",
+            "nodemailer"
+          ]
+        },
+        {
+          "key": "backend:multer",
+          "project": "backend",
+          "dependency": "multer",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/multer"
+          ],
+          "advisoryTitles": [
+            "Multer vulnerable to Denial of Service via deeply nested field names",
+            "Multer vulnerable to Denial of Service via incomplete cleanup of aborted uploads"
+          ]
+        },
+        {
+          "key": "backend:nanoid",
+          "project": "backend",
+          "dependency": "nanoid",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/nanoid"
+          ],
+          "advisoryTitles": [
+            "nanoid: non-secure generators can loop indefinitely with negative size",
+            "nanoid: custom generators can loop indefinitely when size is zero"
+          ]
+        },
+        {
+          "key": "backend:nodemailer",
+          "project": "backend",
+          "dependency": "nodemailer",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "nodemailer",
+              "version": "10.0.1",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/imapflow/node_modules/nodemailer",
+            "node_modules/nodemailer"
+          ],
+          "advisoryTitles": [
+            "Nodemailer: CRLF injection in Nodemailer List-* header comments allows arbitrary message header injection",
+            "Nodemailer jsonTransport bypasses disableFileAccess and disableUrlAccess during message normalization",
+            "Nodemailer: Improper TLS Certificate Validation in OAuth2 Token Fetch Enables Credential Interception",
+            "Nodemailer: Message-level raw option bypasses disableFileAccess/disableUrlAccess, enabling arbitrary file read and full-response SSRF in the delivered message"
+          ]
+        },
+        {
+          "key": "backend:postcss",
+          "project": "backend",
+          "dependency": "postcss",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/postcss"
+          ],
+          "advisoryTitles": [
+            "PostCSS: incomplete fix of GHSA-6g55-p6wh-862q — attacker-controlled sourceMappingURL reads arbitrary .map files when `from` is unset",
+            "PostCSS: Path Traversal in Previous Source Map Auto-Loading (sourceMappingURL) leads to Arbitrary .map File Disclosure"
+          ]
+        },
+        {
+          "key": "backend:prisma",
+          "project": "backend",
+          "dependency": "prisma",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "prisma",
+              "version": "6.12.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/prisma"
+          ],
+          "advisoryTitles": [
+            "@prisma/config"
+          ]
+        },
+        {
+          "key": "backend:tmp",
+          "project": "backend",
+          "dependency": "tmp",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/tmp"
+          ],
+          "advisoryTitles": [
+            "tmp has Path Traversal via unsanitized prefix/postfix that enables directory escape"
+          ]
+        },
+        {
+          "key": "backend:undici",
+          "project": "backend",
+          "dependency": "undici",
+          "severity": "high",
+          "impact": "high-runtime-blocking",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/undici"
+          ],
+          "advisoryTitles": [
+            "undici vulnerable to TLS certificate validation bypass via dropped requestTls in SOCKS5 ProxyAgent",
+            "undici vulnerable to HTTP header injection via Set-Cookie percent-decoding",
+            "undici WebSocket client vulnerable to denial of service via fragment count bypass",
+            "undici vulnerable to cross-origin request routing via SOCKS5 proxy pool reuse",
+            "undici vulnerable to Set-Cookie SameSite attribute downgrade via permissive substring matching",
+            "undici vulnerable to cross-user information disclosure via shared cache whitespace bypass",
+            "undici vulnerable to downstream response desynchronization via retry interceptor",
+            "undici vulnerable to cross-user information disclosure and parse-time crash via degenerate private cache directives",
+            "undici vulnerable to CRLF Injection via blob-like body 'type' property",
+            "undici vulnerable to cross-user information disclosure via whitespace around equals in Cache-Control directives",
+            "undici vulnerable to cookie attribute injection via unsanitized domain and unparsed setCookie fields",
+            "undici vulnerable to HTTP response queue poisoning via keep-alive socket reuse"
+          ]
+        },
+        {
+          "key": "backend:vite",
+          "project": "backend",
+          "dependency": "vite",
+          "severity": "high",
+          "impact": "high-dev-blocking",
+          "type": "transitive",
+          "exposure": "development",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/vite"
+          ],
+          "advisoryTitles": [
+            "launch-editor: NTLMv2 hash disclosure via UNC path handling on Windows",
+            "vite: `server.fs.deny` bypass on Windows alternate paths"
+          ]
+        }
+      ],
+      "acceptedModerate": [
+        {
+          "key": "backend:exceljs",
+          "project": "backend",
+          "dependency": "exceljs",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "exceljs",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "exceljs 4.4.0 sigue arrastrando uuid 8.x y no expone una ruta de upgrade limpia sin reemplazar nuevamente la libreria. El uso esta acotado al extractor deterministico de adjuntos XLSX y no procesa ejecucion de codigo.",
+            "mitigation": "Mantener los limites de tamano de archivo, usar el parser solo dentro del backend y revaluar el reemplazo si el upstream no corrige uuid."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "exceljs",
+              "version": "3.4.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/exceljs"
+          ],
+          "advisoryTitles": [
+            "uuid"
+          ]
+        },
+        {
+          "key": "backend:mercadopago",
+          "project": "backend",
+          "dependency": "mercadopago",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "mercadopago",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "mercadopago 2.12.0 sigue dependiendo de uuid 9.x y no publica una version corregida. El SDK esta encapsulado en el modulo de pagos y no expone directamente las APIs vulnerables al resto del sistema.",
+            "mitigation": "Mantener mercadopago en su version mas reciente, limitar el SDK al modulo de pagos y volver a evaluar en cada corrida del security loop."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "mercadopago",
+              "version": "3.6.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/mercadopago"
+          ],
+          "advisoryTitles": [
+            "uuid"
+          ]
+        },
+        {
+          "key": "backend:uuid",
+          "project": "backend",
+          "dependency": "uuid",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "accepted",
+          "acceptedRisk": {
+            "project": "backend",
+            "package": "uuid",
+            "severity": "moderate",
+            "status": "accepted",
+            "reviewBy": "2026-06-03",
+            "justification": "mercadopago 2.12.0 sigue dependiendo de uuid 9.x y no publica una version corregida. El uso queda encapsulado en el servicio de pagos y no expone directamente las APIs v3/v5/v6 al exterior.",
+            "mitigation": "Mantener mercadopago en su version mas reciente, limitar el SDK al modulo de pagos y volver a evaluar en cada corrida del security loop."
+          },
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "exceljs",
+              "version": "3.4.0",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/exceljs/node_modules/uuid",
+            "node_modules/uuid"
+          ],
+          "advisoryTitles": [
+            "uuid: Missing buffer bounds check in v3/v5/v6 when buf is provided"
+          ]
+        }
+      ],
+      "unresolvedModerate": [
+        {
+          "key": "backend:@xmldom/xmldom",
+          "project": "backend",
+          "dependency": "@xmldom/xmldom",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/@xmldom/xmldom"
+          ],
+          "advisoryTitles": [
+            "xmldom: XML fragment injection via invalid EntityReference.nodeName during requireWellFormed serialization"
+          ]
+        },
+        {
+          "key": "backend:csv-parse",
+          "project": "backend",
+          "dependency": "csv-parse",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "direct",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "major",
+            "target": {
+              "name": "csv-parse",
+              "version": "7.0.2",
+              "isSemVerMajor": true
+            }
+          },
+          "paths": [
+            "node_modules/csv-parse"
+          ],
+          "advisoryTitles": [
+            "node-csv: Prototype replacement still reachable via columns path"
+          ]
+        },
+        {
+          "key": "backend:fastify",
+          "project": "backend",
+          "dependency": "fastify",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/fastify"
+          ],
+          "advisoryTitles": [
+            "fastify vulnerable to schema validation bypass via root primitive coercion mismatch",
+            "fastify vulnerable to X-Forwarded-* spoofing under trustProxy hop-count"
+          ]
+        },
+        {
+          "key": "backend:qs",
+          "project": "backend",
+          "dependency": "qs",
+          "severity": "moderate",
+          "impact": "moderate-runtime",
+          "type": "transitive",
+          "exposure": "runtime",
+          "status": "open",
+          "fixAvailable": {
+            "available": true,
+            "mode": "safe"
+          },
+          "paths": [
+            "node_modules/qs"
+          ],
+          "advisoryTitles": [
+            "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set",
+            "qs array-limit bypass via bracket-key comma parsing",
+            "qs: Denial of Service via Attacker Controlled isBuffer"
+          ]
+        }
+      ]
     }
   ]
 }
