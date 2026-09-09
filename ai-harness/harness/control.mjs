@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const harnessDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const defaultRoot = dirname(harnessDir)
+const lifecycleTransactionName = 'ai-harness-lifecycle-transaction.json'
 
 const canonicalAuditorSections = [
   { id: 'control-validity', heading: '## 1. Validez y frescura del control' },
@@ -25,6 +26,16 @@ const countBy = (items, field) =>
     counts[key] = (counts[key] ?? 0) + 1
     return counts
   }, {})
+
+const countByProduct = (tasks) =>
+  Object.fromEntries(
+    [...new Set(tasks.map(({ product }) => product))]
+      .sort((left, right) => left.localeCompare(right))
+      .map((product) => [product, {
+        total: tasks.filter((task) => task.product === product).length,
+        byStatus: countBy(tasks.filter((task) => task.product === product), 'status'),
+      }]),
+  )
 
 const makePrompt = (task, head, sourcesFingerprint) => {
   if (!task) return null
@@ -147,7 +158,7 @@ export const validateAuditorResponse = (
         }
 
         const promptMarker = '- Prompt exacto para copiar:'
-        if (expectedRecommendation) {
+        if (expectedRecommendation?.prompt?.content) {
           const markerIndex = content.indexOf(promptMarker)
           const fenceStart = markerIndex >= 0 ? content.indexOf('```text\n', markerIndex) : -1
           const promptStart = fenceStart >= 0 ? fenceStart + '```text\n'.length : -1
@@ -159,7 +170,7 @@ export const validateAuditorResponse = (
             errors.push('El prompt copiable no coincide exactamente con recommendation.prompt.content.')
           }
         } else if (content.includes(promptMarker)) {
-          errors.push('Una recomendación bloqueada no debe publicar un prompt ejecutable.')
+          errors.push('Una transición no ejecutable no debe publicar un prompt de implementación.')
         }
       }
     }
@@ -227,18 +238,24 @@ export const renderAuditorResponse = (report, contract) => {
     lines.push(
       `- Acción: **${report.recommendation.action}**.`,
       `- Destino: **${destination}**.`,
-      destination === 'NEW_CHAT'
-        ? '- Uso: crear un nuevo chat de implementación y pegar allí el prompt completo. No ejecutarlo dentro del chat auditor.'
-        : `- Uso: continuar en la tarea de implementación asociada a \`${report.recommendation.handoff?.sessionId ?? 'la sesión activa'}\`. No ejecutarlo dentro del chat auditor.`,
+      report.recommendation.action === 'PROMOTE'
+        ? '- Uso: actualizar la fuente canónica mediante una transición gobernada antes de iniciar la tarea; el control no realiza esa mutación.'
+        : destination === 'NEW_CHAT'
+          ? '- Uso: crear un nuevo chat de implementación y pegar allí el prompt completo. No ejecutarlo dentro del chat auditor.'
+          : `- Uso: continuar en la tarea de implementación asociada a \`${report.recommendation.handoff?.sessionId ?? 'la sesión activa'}\`. No ejecutarlo dentro del chat auditor.`,
       `- Tarea: **${report.recommendation.taskId} — ${report.recommendation.title}**.`,
       `- Propósito: ${report.recommendation.objective}`,
       `- Motivo: ${report.recommendation.reason}`,
-      '- Prompt exacto para copiar:',
-      '',
-      '```text',
-      ...report.recommendation.prompt.content.trimEnd().split('\n'),
-      '```',
     )
+    if (report.recommendation.prompt?.content) {
+      lines.push(
+        '- Prompt exacto para copiar:',
+        '',
+        '```text',
+        ...report.recommendation.prompt.content.trimEnd().split('\n'),
+        '```',
+      )
+    }
   } else {
     lines.push(
       '- Destino: **NONE**.',
@@ -311,16 +328,25 @@ export function buildControlReport(root = defaultRoot) {
 
   let branch = 'unknown'
   let head = 'unknown'
+  let gitDir = null
   let porcelain = []
   try {
     branch = execFileSync('git', ['branch', '--show-current'], { cwd: root, encoding: 'utf8' }).trim()
     head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
+    gitDir = execFileSync('git', ['rev-parse', '--absolute-git-dir'], { cwd: root, encoding: 'utf8' }).trim()
     porcelain = execFileSync('git', ['status', '--porcelain=v1', '--untracked-files=all'], {
       cwd: root,
       encoding: 'utf8',
     }).split('\n').filter(Boolean)
   } catch (error) {
     addDiscrepancy('GIT_UNAVAILABLE', '.', error.message)
+  }
+  if (gitDir && existsSync(join(gitDir, lifecycleTransactionName))) {
+    addDiscrepancy(
+      'LIFECYCLE_RECOVERY_REQUIRED',
+      join(gitDir, lifecycleTransactionName),
+      'Existe un cierre o transición pendiente de consolidación; ejecutar lifecycle recover antes de recomendar START.',
+    )
   }
   if (porcelain.length) warnings.push(`El árbol tiene ${porcelain.length} cambios; el reporte describe el estado vivo, no un cierre versionado.`)
 
@@ -333,6 +359,7 @@ export function buildControlReport(root = defaultRoot) {
   const policy = parsed.get('ai-harness-local/control/policy.json')
   const tasks = Array.isArray(backlog?.tasks) ? backlog.tasks : []
   const taskById = new Map()
+  const promotionCandidates = []
   const acceptedDecisionIds = new Set(
     (decisions?.decisions ?? []).filter(({ status }) => status === 'accepted').map(({ id }) => id),
   )
@@ -363,6 +390,30 @@ export function buildControlReport(root = defaultRoot) {
         addDiscrepancy('INVALID_READY_TASK', 'planning/backlog.json', task.id)
       }
     }
+    if (task.status === 'blocked') {
+      const pendingDependencies = (task.dependencies ?? []).filter((id) => taskById.get(id)?.status !== 'done')
+      const pendingDecisions = task.decisionsRequired ?? []
+      if (!pendingDependencies.length && !pendingDecisions.length) {
+        promotionCandidates.push({
+          taskId: task.id,
+          title: task.title,
+          from: 'blocked',
+          to: 'ready',
+          derived: true,
+          authority: false,
+          reason: 'Todas las dependencias están done y no quedan decisiones pendientes; la autoridad canónica todavía requiere una transición explícita.',
+        })
+      }
+    }
+  }
+
+  const recommendationOrder = policy?.recommendationOrder ?? []
+  const recommendationRank = new Map(recommendationOrder.map((id, index) => [id, index]))
+  const backlogRank = new Map(tasks.map(({ id }, index) => [id, index]))
+  const rankTask = (id) => recommendationRank.get(id) ?? recommendationOrder.length + (backlogRank.get(id) ?? tasks.length)
+  promotionCandidates.sort((left, right) => rankTask(left.taskId) - rankTask(right.taskId))
+  if (promotionCandidates.length) {
+    warnings.push(`${promotionCandidates.length} tarea(s) blocked cumplen los gates para una promoción explícita a ready.`)
   }
 
   const activeFeatures = (featureList?.features ?? []).filter(({ status }) => status === 'in_progress')
@@ -520,19 +571,108 @@ export function buildControlReport(root = defaultRoot) {
     ['DEC-007'],
   )
 
+  const dynamicExecution = policy?.dynamicExecution
+  const requiredDynamicRequirementRefs = ['REQ-007', 'REQ-009']
+  const requiredDynamicTaskRefs = ['HAR-003', 'HAR-004', 'HAR-005', 'HAR-006', 'HAR-008', 'QA-001']
+  const dynamicRequirementRefs = dynamicExecution?.requirementRefs ?? []
+  const dynamicTaskRefs = dynamicExecution?.taskRefs ?? []
+  const requirementById = new Map((requirements?.requirements ?? []).map((requirement) => [requirement.id, requirement]))
+  const requiredHumanAuthority = [
+    'product_decisions',
+    'priority_changes',
+    'scope_changes',
+    'exceptions',
+    'destructive_or_remote_operations',
+    'high_risk_releases',
+  ]
+  const dynamicPolicyIssues = []
+  if (dynamicExecution?.canonicalBacklog !== 'planning/backlog.json' || dynamicExecution?.productDimension !== 'product') {
+    dynamicPolicyIssues.push('la cola única o su dimensión de producto no están fijadas')
+  }
+  if (!acceptedDecisionIds.has(dynamicExecution?.decisionRef)) {
+    dynamicPolicyIssues.push('la decisión de avance dinámico no está aceptada')
+  }
+  for (const requirementId of requiredDynamicRequirementRefs) {
+    if (!dynamicRequirementRefs.includes(requirementId)) dynamicPolicyIssues.push(`la política no enlaza ${requirementId}`)
+  }
+  for (const taskId of requiredDynamicTaskRefs) {
+    if (!dynamicTaskRefs.includes(taskId)) dynamicPolicyIssues.push(`la política no enlaza ${taskId}`)
+  }
+  if (dynamicExecution?.promotion?.from !== 'blocked'
+    || dynamicExecution?.promotion?.to !== 'ready'
+    || dynamicExecution?.promotion?.requiresDependenciesStatus !== 'done'
+    || dynamicExecution?.promotion?.requiresNoPendingDecisions !== true
+    || dynamicExecution?.promotion?.controlMode !== 'read-only') {
+    dynamicPolicyIssues.push('la promoción gobernada no conserva los gates o el modo read-only')
+  }
+  for (const authority of requiredHumanAuthority) {
+    if (!(dynamicExecution?.humanAuthority ?? []).includes(authority)) {
+      dynamicPolicyIssues.push(`falta autoridad humana reservada: ${authority}`)
+    }
+  }
+  for (const requirementId of requiredDynamicRequirementRefs) {
+    const requirement = requirementById.get(requirementId)
+    if (!requirement) {
+      dynamicPolicyIssues.push(`falta el requerimiento ${requirementId}`)
+      continue
+    }
+    if (!(requirement.decisionRefs ?? []).includes(dynamicExecution.decisionRef)) {
+      dynamicPolicyIssues.push(`${requirementId} no enlaza ${dynamicExecution.decisionRef}`)
+    }
+    const missingTasks = requiredDynamicTaskRefs.filter((taskId) => !(requirement.taskRefs ?? []).includes(taskId))
+    if (missingTasks.length) dynamicPolicyIssues.push(`${requirementId} no enlaza ${missingTasks.join(', ')}`)
+  }
+  for (const taskId of requiredDynamicTaskRefs) {
+    if (!(taskById.get(taskId)?.decisionRefs ?? []).includes(dynamicExecution?.decisionRef)) {
+      dynamicPolicyIssues.push(`${taskId} no enlaza ${dynamicExecution?.decisionRef ?? 'la decisión dinámica'}`)
+    }
+  }
+  addAlignment(
+    'ALIGN-DYNAMIC-EXECUTION',
+    dynamicPolicyIssues.length ? 'FAIL' : 'PASS',
+    dynamicPolicyIssues.length
+      ? `Gobierno de avance dinámico incompleto: ${dynamicPolicyIssues.join('; ')}.`
+      : 'Backlog único, vistas por producto, promoción read-only, coordinación reproducible y autoridad humana conservan sus enlaces.',
+    dynamicExecution?.decisionRef ? [dynamicExecution.decisionRef] : [],
+  )
+
+  const lifecycleCommit = policy?.lifecycleCommit
+  const lifecycleCommitIssues = []
+  if (!acceptedDecisionIds.has(lifecycleCommit?.decisionRef)) lifecycleCommitIssues.push('la autorización durable no está aceptada')
+  if (lifecycleCommit?.requiredForDone !== true
+    || lifecycleCommit?.mode !== 'isolated-local'
+    || lifecycleCommit?.requiresPrecloseCandidate !== true
+    || lifecycleCommit?.includesFinalCloseArtifacts !== true
+    || lifecycleCommit?.preservesPreexistingIndex !== true
+    || lifecycleCommit?.remoteOperations !== false
+    || lifecycleCommit?.controlBlocksOnPendingJournal !== true) {
+    lifecycleCommitIssues.push('la política de commit local o sus límites están incompletos')
+  }
+  addAlignment(
+    'ALIGN-LIFECYCLE-COMMIT',
+    lifecycleCommitIssues.length ? 'FAIL' : 'PASS',
+    lifecycleCommitIssues.length
+      ? `Gobierno del commit de cierre incompleto: ${lifecycleCommitIssues.join('; ')}.`
+      : 'Done/idle exige commit local aislado; recovery y control conservan cierre fail-closed sin operaciones remotas.',
+    lifecycleCommit?.decisionRef ? [lifecycleCommit.decisionRef] : [],
+  )
+
   const validation = discrepancies.length ? 'FAIL' : 'OK'
   const alignmentStatus = validation === 'FAIL'
     ? 'UNVERIFIABLE'
     : alignmentChecks.some(({ status }) => status === 'FAIL') ? 'DRIFT' : 'ALIGNED'
 
   const inProgressTask = tasks.find(({ status }) => status === 'in_progress')
-  const nextReady = (policy?.recommendationOrder ?? [])
+  const nextReady = recommendationOrder
     .map((id) => taskById.get(id))
     .find((task) => task?.status === 'ready')
     ?? tasks.find(({ status }) => status === 'ready')
-  const nextTask = inProgressTask ?? nextReady ?? null
+  const nextPromotion = promotionCandidates[0] ?? null
+  const promoteBeforeReady = nextPromotion && (!nextReady || rankTask(nextPromotion.taskId) < rankTask(nextReady.id))
+  const recommendationAction = inProgressTask ? 'CONTINUE' : promoteBeforeReady ? 'PROMOTE' : nextReady ? 'START' : null
+  const nextTask = inProgressTask ?? (promoteBeforeReady ? taskById.get(nextPromotion.taskId) : nextReady) ?? null
   const promptHead = inProgressTask && current?.git?.baseCommit ? current.git.baseCommit : head
-  const prompt = validation === 'OK' && alignmentStatus === 'ALIGNED'
+  const prompt = validation === 'OK' && alignmentStatus === 'ALIGNED' && recommendationAction !== 'PROMOTE'
     ? makePrompt(nextTask, promptHead, sourcesFingerprint)
     : null
   const promptSha256 = prompt ? createHash('sha256').update(prompt).digest('hex') : null
@@ -569,8 +709,10 @@ export function buildControlReport(root = defaultRoot) {
         total: tasks.length,
         byStatus: countBy(tasks, 'status'),
         byPriority: countBy(tasks, 'priority'),
+        byProduct: countByProduct(tasks),
         readyIds: tasks.filter(({ status }) => status === 'ready').map(({ id }) => id),
         inProgressIds: tasks.filter(({ status }) => status === 'in_progress').map(({ id }) => id),
+        promotionCandidates,
       },
       requirements: {
         total: requirements?.requirements?.length ?? 0,
@@ -602,29 +744,31 @@ export function buildControlReport(root = defaultRoot) {
       forRecommendedTask: nextTask
         ? openDecisionEntries.filter(({ taskId }) => taskId === nextTask.id)
         : [],
-      authority: 'El usuario aprueba prioridades, alcance, riesgos, excepciones y cierres.',
+      authority: 'Las personas aprueban decisiones de producto, cambios de prioridad o alcance, excepciones, operaciones destructivas o remotas y releases de alto riesgo.',
     },
     warnings,
     discrepancies,
-    recommendation: prompt ? {
+    recommendation: validation === 'OK' && alignmentStatus === 'ALIGNED' && nextTask && recommendationAction ? {
       derived: true,
       authority: false,
-      action: inProgressTask ? 'CONTINUE' : 'START',
+      action: recommendationAction,
       taskId: nextTask.id,
       title: nextTask.title,
       objective: nextTask.objective,
       reason: inProgressTask
         ? 'Existe una única tarea en progreso y debe cerrarse antes de abrir otra.'
-        : 'Es la primera tarea ready según el orden de gobierno aceptado.',
+        : recommendationAction === 'PROMOTE'
+          ? nextPromotion.reason
+          : 'Es la primera tarea ready según el orden de gobierno aceptado.',
       handoff: {
-        destination: inProgressTask ? 'CONTINUE_EXISTING_TASK' : 'NEW_CHAT',
+        destination: inProgressTask ? 'CONTINUE_EXISTING_TASK' : recommendationAction === 'PROMOTE' ? 'NONE' : 'NEW_CHAT',
         sessionId: inProgressTask ? current?.sessionId ?? null : null,
       },
-      prompt: {
+      prompt: prompt ? {
         content: prompt,
         contentSha256: promptSha256,
         sourcesFingerprint,
-      },
+      } : null,
     } : null,
   }
 }

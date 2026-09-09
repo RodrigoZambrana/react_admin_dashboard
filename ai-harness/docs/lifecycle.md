@@ -9,9 +9,10 @@
    verificación, comprueba branch/baseline y rechaza cambios nuevos fuera del
    write-set. Su diff receipt queda dentro del checkpoint.
 3. `close` vuelve a calcular el candidato, rechaza cambios posteriores a
-   preclose y actualiza backlog, feature, checkpoint, historia y ambos recibos
-   como una sola transacción.
-4. `recover` restaura los bytes anteriores cuando quedó un journal por una
+   preclose, prepara backlog, feature, checkpoint, historia y ambos recibos, y
+   crea un commit local aislado. Solo después del commit la tarea queda
+   `done`/`idle`.
+4. `recover` restaura archivos, HEAD e index cuando quedó un journal por una
    interrupción de proceso.
 
 Si el candidato cambia deliberadamente después de preclose, se vuelve a
@@ -72,21 +73,35 @@ npm run harness:lifecycle -- preclose --evidence /ruta/a/evidence.json
 npm run harness:lifecycle -- close --summary "Resultado durable del cierre."
 ```
 
-Ningún comando crea commits, cambia branch, usa stash, resuelve conflictos ni
-contacta remotos.
+`close` crea un único commit local autorizado por `DEC-011`. Usa un index
+temporal construido desde el HEAD observado y agrega exclusivamente:
+
+- las rutas del candidato comprobado por `preclose`;
+- las fuentes de estado y recibos finales producidos por `close`.
+
+Los cambios preexistentes fuera del write-set permanecen en su estado original,
+incluido cualquier contenido que ya estuviera staged. El recibo v2 registra el
+parent, mensaje, trailer de sesión, rutas y manifiesto SHA-256 del candidato; los
+dos recibos se excluyen de su propio manifiesto para evitar autorreferencia, pero
+sí forman parte de las rutas comprometidas.
+
+El lifecycle no hace push, merge, cambio de branch, stash, resolución de
+conflictos ni otra operación remota.
 
 ## Atomicidad y recovery
 
 Antes de escribir, la transición guarda un journal con los bytes originales en
-el directorio Git específico del checkout o linked worktree. Cada archivo se
-reemplaza por rename atómico. Un fallo controlado restaura todos los originales;
-una interrupción abrupta conserva el journal y bloquea nuevas transiciones hasta
-ejecutar:
+el directorio Git específico del checkout o linked worktree. Para `close`
+conserva además el HEAD, la referencia de branch y el index real. Cada archivo se
+reemplaza por rename atómico. Un fallo controlado restaura referencia, index y
+archivos; una interrupción abrupta conserva el journal y bloquea nuevas
+transiciones y recomendaciones `START` hasta ejecutar:
 
 ```bash
 npm run harness:lifecycle -- recover
 ```
 
-Recovery solo toca las rutas exactas registradas en ese journal. Los recibos de
-cierre viven bajo `ai-harness-local/receipts/<año>/<fecha>/` y
+Recovery solo toca la referencia, el index y las rutas exactas registradas en
+ese journal. Los recibos de cierre viven bajo
+`ai-harness-local/receipts/<año>/<fecha>/` y
 `ai-harness-local/features/done/<año>/`; `close` nunca sobrescribe uno existente.

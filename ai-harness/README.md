@@ -12,6 +12,7 @@ pero no es una instalación, copia sincronizada ni enlace a otro repositorio.
 - verificación proporcional y basada en evidencia;
 - separación entre exploración, implementación y cierre.
 - auditoría read-only de pendientes, requerimientos, decisiones y alineamiento.
+- avance desde un backlog único con vistas por producto y promoción gobernada.
 
 ## Qué se adaptó
 
@@ -41,8 +42,10 @@ producto vive en `ai-harness-local/`.
 
 Las aperturas y cierres gobernados usan `harness:lifecycle start`, `preclose` y
 `close`. Estas transiciones fijan contexto Git y write-set, validan evidencia y
-diff, y escriben todas las fuentes de verdad mediante una transacción con
-rollback y recovery. El contrato completo está en `docs/lifecycle.md`.
+diff. `close` crea un commit local con un index aislado y solo publica
+`done`/`idle` después de verificarlo; un fallo restaura archivos, HEAD e index.
+No hace push, merge, cambio de branch ni operaciones remotas. El contrato
+completo está en `docs/lifecycle.md`.
 
 La matriz `ai-harness-local/control/capabilities.json` es explícita: este
 harness todavía no declara paridad general con LACNIC. Las integraciones y
@@ -58,4 +61,6 @@ la recomendación ejecutable.
 La sexta sección incluye un handoff explícito: `NEW_CHAT`,
 `CONTINUE_EXISTING_TASK` o `NONE`. Para una recomendación ejecutable también
 incluye el prompt completo derivado por el control, listo para copiar en el
-destino indicado y nunca para ejecutar dentro del chat auditor.
+destino indicado y nunca para ejecutar dentro del chat auditor. Cuando una tarea
+`blocked` ya satisface dependencias y decisiones, el control recomienda
+`PROMOTE`/`NONE` sin mutar el backlog.

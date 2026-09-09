@@ -18,11 +18,13 @@ Cierre gobernado de `PF-001` a las `2026-09-08T23:32:25.410Z`.
 
 ## Paso actual
 
-Esperar el siguiente cálculo del control.
+El control fue reconstruido después de corregir el bloqueo obsoleto de HAR-003.
+No hay una tarea iniciada.
 
 ## Próximo paso
 
-Ejecutar `npm run --silent harness:control -- --json`.
+Revisar la recomendación derivada de `HAR-003`; su inicio requiere una apertura
+separada mediante el lifecycle.
 
 ## Bloqueos
 

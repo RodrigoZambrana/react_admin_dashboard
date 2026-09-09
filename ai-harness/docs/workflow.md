@@ -36,8 +36,9 @@
 - Actualizar el documento canónico afectado y el checkpoint.
 - Informar qué se verificó, qué no y los riesgos residuales.
 - Una tarea queda cerrada solo cuando no deja pasos necesarios ocultos.
-- Ejecutar `harness:lifecycle close`; el comando actualiza backlog, feature,
-  checkpoint, historia y recibos o restaura el estado anterior.
+- Ejecutar `harness:lifecycle close`; el comando crea un commit local únicamente
+  con el candidato y artefactos finales, y recién entonces publica `done`/`idle`.
+  Si el commit falla, restaura estado, working tree e index.
 
 El contrato, formato de evidencia y recovery están en `docs/lifecycle.md`.
 

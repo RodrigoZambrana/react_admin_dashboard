@@ -85,3 +85,24 @@
 - Baseline: `93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7`; HEAD al cierre: `93083f6fe616e4d9a0ea4f2ea795fb295b5de5a7`; branch: `feature/ai-conversational-platform-standalone`.
 - Preclose validó 3 criterios, 1 verificaciones y 12 rutas del write-set.
 - Recibo: `ai-harness-local/receipts/2026/2026-09-08/platform-tenancy-pilot-20260908.json`.
+
+## 2026-09-08 — Corrección de promoción y avance dinámico del harness
+
+- Se corrigieron los fragmentos fuente para conservar HAR-002 y PF-001 en
+  `done` después de reensamblar el backlog.
+- HAR-003 pasó de `blocked` a `ready` al verificar que HAR-002 está `done` y que
+  no existen otras dependencias ni decisiones pendientes.
+- `DEC-010` formalizó backlog único con vistas por producto, coordinación
+  reproducible, promoción read-only y foco en cerrar resultados.
+- El control detecta bloqueos obsoletos y recomienda una transición explícita
+  sin mutar autoridades ni comenzar la tarea.
+
+## 2026-09-08 — Autorización de commit local en close
+
+- `DEC-011` autoriza al lifecycle a crear un commit local aislado con las rutas
+  exactas validadas por preclose y los artefactos finales de cierre.
+- Una tarea solo alcanza `done`/`idle` después de crear y verificar el commit.
+- El journal recupera HEAD, index, working tree y autoridades ante fallo o
+  interrupción; el control bloquea `START` mientras exista consolidación
+  pendiente.
+- La autorización excluye push, merge, cambio de branch y operaciones remotas.

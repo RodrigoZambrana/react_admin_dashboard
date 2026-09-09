@@ -237,12 +237,130 @@ test('close actualiza todas las fuentes o las revierte como una unidad', (t) => 
     summary: 'Lifecycle verificado.',
     clock: () => new Date('2026-09-08T23:30:00.000Z'),
   })
+  const commitPaths = git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', result.commit.id).split('\n').filter(Boolean).sort()
   assert.equal(readJson(root, 'planning/backlog.json').tasks[1].status, 'done')
   assert.equal(readJson(root, 'ai-harness-local/feature_list.json').features[0].status, 'done')
   assert.equal(readJson(root, 'ai-harness-local/progress/current.json').status, 'idle')
   assert.equal(readJson(root, result.receiptPath).status, 'done')
-  assert.equal(readJson(root, result.featurePath).schema, 'ai-harness.feature-close-receipt/v1')
+  assert.equal(readJson(root, result.featurePath).schema, 'ai-harness.feature-close-receipt/v2')
+  assert.equal(readJson(root, result.receiptPath).schema, 'ai-harness.lifecycle-close-receipt/v2')
+  assert.equal(git(root, 'rev-parse', 'HEAD'), result.commit.id)
+  assert.deepEqual(commitPaths, result.commit.paths)
+  assert.equal(git(root, 'status', '--porcelain=v1'), '')
+  const committedReceipt = JSON.parse(git(root, 'show', `${result.commit.id}:${result.receiptPath}`))
+  assert.equal(committedReceipt.git.commit.sessionTrailer, 'AI-Harness-Session: close-session')
+  assert.deepEqual(committedReceipt.git.commit.paths, commitPaths)
+  assert.equal(git(root, 'log', '--all', '--format=%H', '--grep=AI-Harness-Session: close-session'), result.commit.id)
   assert.match(readFileSync(join(root, 'ai-harness-local/progress/history.md'), 'utf8'), /HAR-002: Lifecycle test/u)
+})
+
+test('un fallo de commit restaura estado, index y artefactos sin cerrar la tarea', (t) => {
+  const root = makeFixture()
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  startLifecycle(root, { taskId: 'HAR-002', sessionId: 'commit-failure', writeSet: requiredWriteSet })
+  writeFileSync(join(root, 'src/owned.txt'), 'implementado\n')
+  precloseLifecycle(root, { evidence: evidence() })
+  const headBefore = git(root, 'rev-parse', 'HEAD')
+  const stateBefore = snapshot(root)
+  const indexBefore = git(root, 'diff', '--cached', '--binary')
+  const statusBefore = git(root, 'status', '--porcelain=v1')
+
+  assert.throws(() => closeLifecycle(root, {
+    summary: 'No debe consolidarse.',
+    transaction: { failCommit: true },
+  }), { code: 'COMMIT_FAILED' })
+
+  assert.equal(git(root, 'rev-parse', 'HEAD'), headBefore)
+  assert.deepEqual(snapshot(root), stateBefore)
+  assert.equal(git(root, 'diff', '--cached', '--binary'), indexBefore)
+  assert.equal(git(root, 'status', '--porcelain=v1'), statusBefore)
+  assert.equal(readJson(root, 'planning/backlog.json').tasks[1].status, 'in_progress')
+  assert.equal(readJson(root, 'ai-harness-local/progress/current.json').phase, 'preclose')
+  assert.equal(existsSync(join(root, 'ai-harness-local/receipts/2026/2026-09-08/commit-failure.json')), false)
+})
+
+test('close excluye archivos ajenos al write-set y los conserva sin stage', (t) => {
+  const root = makeFixture()
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  writeFileSync(join(root, 'legacy.txt'), 'cambio previo sin stage\n')
+  startLifecycle(root, { taskId: 'HAR-002', sessionId: 'foreign-file', writeSet: requiredWriteSet })
+  writeFileSync(join(root, 'src/owned.txt'), 'implementado\n')
+  precloseLifecycle(root, { evidence: evidence() })
+
+  const result = closeLifecycle(root, { summary: 'Candidato aislado.' })
+  const commitPaths = git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', result.commit.id).split('\n').filter(Boolean)
+
+  assert.ok(!commitPaths.includes('legacy.txt'))
+  assert.equal(readFileSync(join(root, 'legacy.txt'), 'utf8'), 'cambio previo sin stage\n')
+  assert.equal(git(root, 'diff', '--name-only', '--', 'legacy.txt'), 'legacy.txt')
+  assert.equal(git(root, 'diff', '--cached', '--name-only', '--', 'legacy.txt'), '')
+})
+
+test('close preserva un index preexistente y no lo incorpora al commit', (t) => {
+  const root = makeFixture()
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  writeFileSync(join(root, 'legacy.txt'), 'cambio previo staged\n')
+  git(root, 'add', 'legacy.txt')
+  const stagedBefore = git(root, 'diff', '--cached', '--binary', '--', 'legacy.txt')
+  startLifecycle(root, { taskId: 'HAR-002', sessionId: 'preexisting-index', writeSet: requiredWriteSet })
+  writeFileSync(join(root, 'src/owned.txt'), 'implementado\n')
+  precloseLifecycle(root, { evidence: evidence() })
+
+  const result = closeLifecycle(root, { summary: 'Index aislado.' })
+  const commitPaths = git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', result.commit.id).split('\n').filter(Boolean)
+
+  assert.ok(!commitPaths.includes('legacy.txt'))
+  assert.equal(git(root, 'diff', '--cached', '--binary', '--', 'legacy.txt'), stagedBefore)
+  assert.match(git(root, 'status', '--porcelain=v1'), /^M  legacy\.txt$/mu)
+})
+
+test('close crea el commit en la branch de un linked worktree', (t) => {
+  const primary = makeFixture()
+  const parent = dirname(primary)
+  const worktree = join(parent, `${primary.split('/').at(-1)}-close-worktree`)
+  t.after(() => {
+    try { execFileSync('git', ['worktree', 'remove', '--force', worktree], { cwd: primary }) } catch {}
+    rmSync(primary, { recursive: true, force: true })
+    rmSync(worktree, { recursive: true, force: true })
+  })
+  const primaryHead = git(primary, 'rev-parse', 'HEAD')
+  execFileSync('git', ['worktree', 'add', '-q', '-b', 'close-worktree', worktree], { cwd: primary })
+  startLifecycle(worktree, { taskId: 'HAR-002', sessionId: 'linked-close', writeSet: requiredWriteSet })
+  writeFileSync(join(worktree, 'src/owned.txt'), 'implementado en worktree\n')
+  precloseLifecycle(worktree, { evidence: evidence() })
+
+  const result = closeLifecycle(worktree, { summary: 'Linked worktree consolidado.' })
+
+  assert.equal(result.commit.branch, 'close-worktree')
+  assert.equal(git(worktree, 'rev-parse', 'HEAD'), result.commit.id)
+  assert.equal(git(primary, 'rev-parse', 'HEAD'), primaryHead)
+  assert.equal(readJson(worktree, result.receiptPath).git.linkedWorktree, true)
+  assert.equal(git(worktree, 'status', '--porcelain=v1'), '')
+})
+
+test('recover revierte un cierre interrumpido después de crear el commit', (t) => {
+  const root = makeFixture()
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  startLifecycle(root, { taskId: 'HAR-002', sessionId: 'commit-recovery', writeSet: requiredWriteSet })
+  writeFileSync(join(root, 'src/owned.txt'), 'implementado\n')
+  precloseLifecycle(root, { evidence: evidence() })
+  const headBefore = git(root, 'rev-parse', 'HEAD')
+  const stateBefore = snapshot(root)
+  const statusBefore = git(root, 'status', '--porcelain=v1')
+
+  assert.throws(() => closeLifecycle(root, {
+    summary: 'Cierre interrumpido.',
+    transaction: { crashAfterCommit: true },
+  }), { code: 'SIMULATED_COMMIT_CRASH' })
+  assert.notEqual(git(root, 'rev-parse', 'HEAD'), headBefore)
+  assert.equal(readJson(root, 'planning/backlog.json').tasks[1].status, 'done')
+
+  const recovery = recoverLifecycle(root)
+  assert.equal(recovery.recovered, true)
+  assert.equal(recovery.transition, 'close')
+  assert.equal(git(root, 'rev-parse', 'HEAD'), headBefore)
+  assert.deepEqual(snapshot(root), stateBefore)
+  assert.equal(git(root, 'status', '--porcelain=v1'), statusBefore)
 })
 
 test('preclose falla sin mutar cuando cambia la branch fijada por start', (t) => {

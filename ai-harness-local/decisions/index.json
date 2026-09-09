@@ -90,6 +90,26 @@
       "rationale": "Commerce/CRM y las topologías actuales seleccionan cliente a nivel de build o proceso y no tienen scope tenant completo, mientras AI Platform y partes de Growth ya permiten evolucionar hacia ejecución compartida con gates adicionales.",
       "consequences": ["Todo contrato transporta y valida tenantId incluso en despliegues dedicados.", "Commerce, Admin, Storefront, Growth Metrics, Conversation Platform y Channel Adapters se despliegan dedicados para el piloto.", "AI Platform y Growth Metrics son candidatos a ejecución compartida futura, no capacidades ya certificadas.", "El tenant decide valores de negocio y la plataforma posee schemas, defaults, guardrails, custodia y enforcement.", "Esta decisión no autoriza migraciones ni implementación de Control Plane."],
       "sourceRefs": ["docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md", "docs/TARGET_PRODUCT_ARCHITECTURE.md"]
+    },
+    {
+      "id": "DEC-010",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Avance dinámico gobernado y autoridad humana",
+      "decision": "El trabajo avanza desde un único backlog canónico con vistas generales y por producto. El control read-only calcula elegibilidad y orden; la ejecución de uno o varios agentes conserva un owner integrador, estados y recibos reproducibles, y prioriza completar el resultado activo antes de abrir nuevos frentes.",
+      "rationale": "Un backlog estático o una coordinación dependiente del chat deja bloqueos obsoletos, trabajo disperso y promociones sin evidencia durable.",
+      "consequences": ["Una tarea blocked con todas sus dependencias done y sin decisiones pendientes se expone como candidata de promoción, sin mutar el backlog silenciosamente.", "Las vistas por producto se derivan de la misma cola y no crean una autoridad paralela.", "Las decisiones de producto, cambios de prioridad o alcance, excepciones, operaciones destructivas o remotas y releases de alto riesgo permanecen explícitamente humanas.", "La concurrencia solo se usa con fronteras de escritura y un integrador definidos; el cierre verificable prevalece sobre iniciar más trabajo."],
+      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "ai-harness/docs/backlog-contract.md", "ai-harness-local/control/README.md"]
+    },
+    {
+      "id": "DEC-011",
+      "date": "2026-09-08",
+      "status": "accepted",
+      "title": "Commit local automático como condición de cierre",
+      "decision": "El lifecycle queda autorizado a crear automáticamente un commit local al ejecutar close, limitado a las rutas exactas del candidato validado por preclose y a los artefactos finales del cierre. Una tarea solo alcanza done/idle después de que ese commit fue creado y verificado.",
+      "rationale": "Separar el cierre durable del commit dejaba estados done sin consolidación Git y permitía que la recomendación avanzara sobre cambios todavía pendientes.",
+      "consequences": ["El commit usa un index aislado y no incorpora cambios preexistentes o ajenos al write-set.", "Close no hace push, merge, cambio de branch ni otra operación remota.", "Un fallo o interrupción restaura HEAD, index, working tree y autoridades al estado preclose.", "El recibo conserva parent, mensaje, rutas y manifiesto para comprobar el candidato comprometido.", "El control falla cerrado mientras exista un journal de lifecycle pendiente de recovery."],
+      "sourceRefs": ["ai-harness/docs/lifecycle.md", "ai-harness/harness/lifecycle.mjs", "ai-harness/schemas/lifecycle-close-receipt.schema.json"]
     }
   ]
 }

@@ -9,6 +9,7 @@ El auditor puede:
 
 - calcular estado, pendientes, cobertura y alineamiento;
 - detectar inconsistencias entre backlog, decisiones, requerimientos y cursor;
+- derivar vistas del backlog por producto y detectar bloqueos obsoletos;
 - recomendar una única tarea elegible y explicar sus dependencias;
 - solicitar las decisiones humanas que bloquean esa tarea.
 
@@ -18,6 +19,13 @@ El auditor no puede:
 - aprobar alcance, riesgo, excepciones o cierre en nombre del usuario;
 - declarar paridad o cumplimiento sin mecanismo, prueba y evidencia;
 - utilizar recuerdos del chat para reemplazar una fuente versionada.
+
+Una tarea `blocked` cuyas dependencias estén `done` y que no tenga decisiones
+pendientes aparece como candidata a promoción. Si precede al resto según la
+política, la única recomendación es `PROMOTE` con destino `NONE`: el auditor
+señala la transición y no inicia trabajo ni modifica el backlog. Las decisiones
+de producto, prioridad, alcance, excepciones, operaciones destructivas/remotas y
+releases de alto riesgo permanecen humanas.
 
 ## Reconstrucción
 
@@ -43,7 +51,7 @@ un estado `setup_pending` bloquea el cierre y cualquier recomendación hasta que
 exista un `threadId` verificado mediante la interfaz pública de tareas.
 
 La última sección no termina en una descripción general: declara el destino del
-handoff y reproduce literalmente el prompt gobernado. `START` implica
-`NEW_CHAT`; `CONTINUE` implica `CONTINUE_EXISTING_TASK`; una recomendación
-bloqueada implica `NONE`. El auditor informa y entrega el handoff, pero no lo
-ejecuta.
+handoff y, cuando hay ejecución, reproduce literalmente el prompt gobernado.
+`START` implica `NEW_CHAT`; `CONTINUE` implica `CONTINUE_EXISTING_TASK`;
+`PROMOTE` y una recomendación bloqueada implican `NONE`. El auditor informa y
+entrega el handoff o la transición, pero no los ejecuta.

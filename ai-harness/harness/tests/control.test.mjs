@@ -58,8 +58,66 @@ test('reconstruye el estado y conserva la paridad como no alcanzada', () => {
   assert.equal(report.alignment.status, 'ALIGNED')
   assert.equal(report.facts.harness.parityAchieved, false)
   assert.equal(report.facts.requirements.total, 9)
+  assert.ok(report.facts.backlog.byProduct['AI Harness'])
   assert.ok(report.recommendation.taskId)
   assert.equal(report.recommendation.action, report.facts.backlog.inProgressIds.length ? 'CONTINUE' : 'START')
+})
+
+test('detecta un bloqueo obsoleto y deriva la promoción sin mutar la autoridad', (t) => {
+  const fixture = makeFixture()
+  t.after(() => rmSync(fixture, { recursive: true, force: true }))
+  const backlogPath = join(fixture, 'planning/backlog.json')
+  const backlog = JSON.parse(readFileSync(backlogPath, 'utf8'))
+  const task = backlog.tasks.find(({ id }) => id === 'HAR-003')
+  task.status = 'blocked'
+  task.blockingReason = 'Fixture: espera una dependencia ya terminada.'
+  writeFileSync(backlogPath, `${JSON.stringify(backlog, null, 2)}\n`)
+  const bytesBefore = readFileSync(backlogPath, 'utf8')
+
+  const report = buildControlReport(fixture)
+
+  assert.equal(report.validation, 'OK')
+  assert.deepEqual(report.facts.backlog.promotionCandidates.map(({ taskId }) => taskId), ['HAR-003'])
+  assert.equal(report.recommendation.action, 'PROMOTE')
+  assert.equal(report.recommendation.taskId, 'HAR-003')
+  assert.equal(report.recommendation.handoff.destination, 'NONE')
+  assert.equal(report.recommendation.prompt, null)
+  const contract = JSON.parse(readFileSync(join(fixture, 'ai-harness-local/control/response-contract.json'), 'utf8'))
+  const content = renderAuditorResponse(report, contract)
+  assert.ok(!content.includes('- Prompt exacto para copiar:'))
+  assert.deepEqual(validateAuditorResponse(content, contract, { expectedRecommendation: report.recommendation }), [])
+  assert.equal(readFileSync(backlogPath, 'utf8'), bytesBefore)
+})
+
+test('una decisión pendiente impide la promoción derivada', (t) => {
+  const fixture = makeFixture()
+  t.after(() => rmSync(fixture, { recursive: true, force: true }))
+  const backlogPath = join(fixture, 'planning/backlog.json')
+  const backlog = JSON.parse(readFileSync(backlogPath, 'utf8'))
+  const task = backlog.tasks.find(({ id }) => id === 'HAR-003')
+  task.status = 'blocked'
+  task.blockingReason = 'Fixture: requiere decisión humana.'
+  task.decisionsRequired = ['Confirmar el alcance del intake.']
+  writeFileSync(backlogPath, `${JSON.stringify(backlog, null, 2)}\n`)
+
+  const report = buildControlReport(fixture)
+
+  assert.equal(report.validation, 'OK')
+  assert.ok(!report.facts.backlog.promotionCandidates.some(({ taskId }) => taskId === 'HAR-003'))
+  assert.notEqual(report.recommendation.taskId, 'HAR-003')
+  assert.ok(report.humanDecisions.pendingCount > 0)
+})
+
+test('el orden gobernado recomienda HAR-003 antes que otros ready aunque el backlog esté ordenado por id', () => {
+  const backlog = JSON.parse(readFileSync(join(root, 'planning/backlog.json'), 'utf8'))
+  const report = buildControlReport(root)
+  const harIndex = backlog.tasks.findIndex(({ id }) => id === 'HAR-003')
+  const ecIndex = backlog.tasks.findIndex(({ id }) => id === 'EC-001')
+
+  assert.ok(ecIndex < harIndex)
+  assert.equal(report.recommendation.action, 'START')
+  assert.equal(report.recommendation.taskId, 'HAR-003')
+  assert.deepEqual(report.facts.backlog.promotionCandidates, [])
 })
 
 test('el prompt recomendado queda enlazado al fingerprint vigente', () => {
@@ -189,6 +247,19 @@ test('falla cerrado mientras la tarea auditora siga en setup_pending', (t) => {
   assert.equal(report.freshness, 'UNVERIFIABLE')
   assert.equal(report.recommendation, null)
   assert.ok(report.discrepancies.some(({ kind }) => kind === 'AUDITOR_TASK_NOT_READY'))
+})
+
+test('no recomienda START mientras existe un cierre pendiente de consolidación', (t) => {
+  const fixture = makeFixture()
+  t.after(() => rmSync(fixture, { recursive: true, force: true }))
+  const gitDir = execFileSync('git', ['rev-parse', '--absolute-git-dir'], { cwd: fixture, encoding: 'utf8' }).trim()
+  writeFileSync(join(gitDir, 'ai-harness-lifecycle-transaction.json'), '{}\n')
+
+  const report = buildControlReport(fixture)
+
+  assert.equal(report.validation, 'FAIL')
+  assert.equal(report.recommendation, null)
+  assert.ok(report.discrepancies.some(({ kind }) => kind === 'LIFECYCLE_RECOVERY_REQUIRED'))
 })
 
 test('falla cerrado si la plantilla no satisface el contrato de seis secciones', (t) => {

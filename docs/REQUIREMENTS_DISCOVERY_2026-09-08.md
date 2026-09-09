@@ -23,8 +23,11 @@ consideran restricciones del backlog:
    responsabilidades son trabajo explícito, no actividades opcionales.
 8. Antes de implementar se requiere conocer el estado de todos los productos y
    disponer de tareas independientes, auditadas y verificables por el harness.
-9. El proceso debe aprovechar agentes especializados en paralelo sin perder un
-   owner final, coherencia arquitectónica ni calidad funcional.
+9. El proceso debe sostener avance dinámico desde un único backlog claro, tanto
+   en su vista general como por producto: coordinar de forma reproducible uno o
+   varios agentes, conservar estados y promociones gobernadas, y priorizar la
+   terminación verificable del trabajo sin perder un owner final, coherencia
+   arquitectónica ni calidad funcional.
 
 ## Restricciones de ejecución
 
@@ -34,6 +37,15 @@ consideran restricciones del backlog:
 - La separación física no precede al ownership de datos y contratos.
 - Los agentes pueden producir evidencia en paralelo, pero no modificar la misma
   frontera sin coordinación.
+- Las vistas generales y por producto derivan de `planning/backlog.json`; no
+  constituyen colas ni autoridades paralelas.
+- Una promoción exige dependencias terminadas, ausencia de decisiones pendientes
+  y una transición explícita; el control puede calcularla, pero no escribirla.
+- Las decisiones de producto, cambios de prioridad o alcance, excepciones,
+  operaciones destructivas o remotas y releases de alto riesgo requieren una
+  decisión humana explícita.
+- La ejecución termina y verifica el resultado activo antes de abrir otro frente,
+  salvo concurrencia deliberada con fronteras y owner integrador definidos.
 - El producto integrado debe mantenerse ejecutable durante la transición.
 
 ## Decisiones de producto todavía necesarias

@@ -42,7 +42,8 @@
   "handoff": {
     "START": "NEW_CHAT",
     "CONTINUE": "CONTINUE_EXISTING_TASK",
+    "PROMOTE": "NONE",
     "BLOCKED": "NONE",
-    "promptSource": "recommendation.prompt.content"
+    "promptSource": "recommendation.prompt.content cuando la acción es START o CONTINUE"
   }
 }

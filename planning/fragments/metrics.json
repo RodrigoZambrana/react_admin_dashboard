@@ -48,7 +48,7 @@
       "verification": ["Property/fuzz tests, pruebas de abuso y rate limit, contratos de storefront y ejecución detrás del reverse proxy."],
       "risks": ["Romper clientes históricos sin estrategia de compatibilidad.", "Confiar en IP u origin como identidad suficiente."],
       "decisionsRequired": ["Elegir el mecanismo temporal y final de credencial o firma por tenant."],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007", "DEC-009"],
       "size": "L",
       "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-002", "backend/src/conversions", "storefront"]
     },
@@ -126,9 +126,9 @@
       "verification": ["Suite tenant A/B, constraints Prisma, pruebas negativas y revisión automatizable de queries y jobs."],
       "risks": ["Backfill ambiguo de filas históricas sin tenant.", "Migración con downtime o constraints incompletos."],
       "decisionsRequired": ["Aprobar estrategia de aislamiento y tratamiento de datos históricos sin owner inequívoco."],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007", "DEC-009"],
       "size": "XL",
-      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-005", "backend/prisma/schema.prisma", "backend/src/analytics", "backend/src/growth"]
+      "sourceRefs": ["docs/audit/GROWTH_METRICS_CURRENT_STATE_2026-09-08.md#gm-005", "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md", "backend/prisma/schema.prisma", "backend/src/analytics", "backend/src/growth"]
     },
     {
       "id": "GM-006",

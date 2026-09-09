@@ -2889,20 +2889,22 @@
       "type": "harness-governance",
       "phase": "Harness parity",
       "priority": "P0",
-      "status": "blocked",
-      "blockingReason": "Requiere lifecycle atómico para abrir y cerrar el work item resultante.",
-      "objective": "Preservar fidelidad entre pedido, necesidad, requisito, decisión, tarea, aceptación y evidencia.",
-      "rationale": "El backlog es detallado, pero hoy la conversión desde un pedido sigue siendo un proceso manual sin recibo verificable.",
+      "status": "ready",
+      "objective": "Preservar fidelidad entre pedido, necesidad, requisito, decisión, tarea, aceptación y evidencia dentro de un backlog único con vistas generales y por producto.",
+      "rationale": "El backlog es detallado, pero hoy la conversión desde un pedido y la promoción posterior siguen siendo procesos manuales sin recibo verificable ni detección general de bloqueos obsoletos.",
       "scope": {
         "in": [
           "Schema de intake",
           "Clasificación de hechos/supuestos/dudas",
-          "Slicing independiente",
-          "Trazabilidad a backlog"
+          "Slicing independiente orientado a resultados terminables",
+          "Trazabilidad al backlog canónico general y por producto",
+          "Reglas de estado y promoción gobernada"
         ],
         "out": [
           "Inferir respuestas humanas",
-          "Gestor de proyectos externo"
+          "Crear un backlog paralelo",
+          "Gestor de proyectos externo",
+          "Comenzar automáticamente el trabajo promovido"
         ]
       },
       "dependencies": [
@@ -2910,7 +2912,9 @@
       ],
       "acceptanceCriteria": [
         "Un intake conserva todo requisito material del pedido.",
-        "Cada slice tiene un resultado, alcance y gate verificables.",
+        "Cada slice tiene un resultado, alcance, producto dueño y gate verificables que favorecen completar trabajo antes de abrir más frentes.",
+        "El backlog canónico permite reconstruir la vista general y por producto sin duplicar autoridad.",
+        "Una promoción solo se propone cuando todas las dependencias están done y no quedan decisiones pendientes; el control no muta la autoridad.",
         "Cambios de alcance quedan como decisión o supersesión.",
         "Existen pruebas adversas de pérdida y mezcla de requisitos."
       ],
@@ -2924,7 +2928,8 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-007",
-        "DEC-008"
+        "DEC-008",
+        "DEC-010"
       ],
       "size": "L",
       "sourceRefs": [
@@ -2949,11 +2954,13 @@
           "SHA-256 de archivos y Git modes",
           "Recibo semántico independiente",
           "Diff-check",
-          "Invalidación stale"
+          "Invalidación stale",
+          "Gate de promoción ligado al resultado completo"
         ],
         "out": [
           "Autenticar criptográficamente personas",
-          "Autoaprobar hallazgos"
+          "Autoaprobar hallazgos",
+          "Cambiar prioridad, alcance o excepciones sin aprobación humana"
         ]
       },
       "dependencies": [
@@ -2976,7 +2983,8 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-007",
-        "DEC-008"
+        "DEC-008",
+        "DEC-010"
       ],
       "size": "XL",
       "sourceRefs": [
@@ -3106,18 +3114,21 @@
           "Cinco runtimes de producto",
           "Harness",
           "Matriz riesgo-evidencia",
-          "Política de skips"
+          "Política de skips",
+          "Evidencia requerida para promoción y release por producto"
         ],
         "out": [
           "Corregir fallos",
-          "Definir funcionalidades"
+          "Definir funcionalidades",
+          "Aprobar releases de alto riesgo sin decisión humana"
         ]
       },
       "dependencies": [],
       "acceptanceCriteria": [
         "Cada producto tiene comandos, prerequisitos y owner.",
         "Los umbrales iniciales están medidos y su evolución documentada.",
-        "Los casos de alto riesgo exigen E2E/proveedor cuando corresponde."
+        "Los casos de alto riesgo exigen E2E/proveedor cuando corresponde.",
+        "La evidencia de calidad habilita una propuesta de promoción, pero un release de alto riesgo conserva aprobación humana explícita."
       ],
       "verification": [
         "Harness puede listar y ejecutar cada nivel sin comandos inexistentes."
@@ -3128,7 +3139,8 @@
       "decisionsRequired": [],
       "decisionRefs": [
         "DEC-002",
-        "DEC-007"
+        "DEC-007",
+        "DEC-010"
       ],
       "size": "M",
       "sourceRefs": [
@@ -5594,11 +5606,14 @@
           "Context capsule",
           "Presupuesto de contexto",
           "Fingerprint",
+          "Plan reproducible para uno o varios agentes",
+          "Owner integrador y fronteras de escritura",
           "Recibo de integración/rechazo"
         ],
         "out": [
           "Crear chats externos como subagentes",
-          "Memoria paralela autoritativa"
+          "Memoria paralela autoritativa",
+          "Delegar decisiones humanas"
         ]
       },
       "dependencies": [
@@ -5606,7 +5621,8 @@
         "HAR-003"
       ],
       "acceptanceCriteria": [
-        "Cada delegación identifica owner, entradas, exclusiones, write-set y aceptación.",
+        "Cada ejecución identifica si requiere uno o varios agentes y, para cada delegación, owner, entradas, exclusiones, write-set y aceptación.",
+        "El trabajo paralelo evita solapamientos y conserva un único integrador responsable del resultado terminable.",
         "El resultado se valida contra la cápsula y candidato vigentes.",
         "La integración registra qué se aceptó, corrigió o rechazó.",
         "Una instancia nueva reconstruye el handoff sin el chat original."
@@ -5621,7 +5637,8 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-007",
-        "DEC-008"
+        "DEC-008",
+        "DEC-010"
       ],
       "size": "XL",
       "sourceRefs": [
@@ -5647,11 +5664,13 @@
           "Baselines",
           "Runs y receipts",
           "Promoción de regresión",
+          "Evidencia para transición de tarea",
           "Timeouts y artefactos"
         ],
         "out": [
           "Ghost Inspector obligatorio",
-          "Reemplazar Jest/Vitest/Playwright"
+          "Reemplazar Jest/Vitest/Playwright",
+          "Autorizar releases de alto riesgo"
         ]
       },
       "dependencies": [
@@ -5674,7 +5693,8 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-007",
-        "DEC-008"
+        "DEC-008",
+        "DEC-010"
       ],
       "size": "XL",
       "sourceRefs": [
@@ -5745,11 +5765,12 @@
       "priority": "P1",
       "status": "blocked",
       "blockingReason": "Los skills deben apoyarse en intake, lifecycle, handoff, revisión y testing ya estabilizados.",
-      "objective": "Codificar procesos repetibles para planificación, implementación, incidente, refactor, review, testing y extracción.",
-      "rationale": "Las reglas generales no bastan para asegurar que tareas de distinto riesgo sigan gates adecuados.",
+      "objective": "Codificar procesos repetibles que seleccionen, ejecuten, verifiquen y cierren trabajo gobernado para planificación, implementación, incidente, refactor, review, testing y extracción.",
+      "rationale": "Las reglas generales no bastan para asegurar que tareas de distinto riesgo sigan gates adecuados ni para sostener foco en terminar el trabajo elegible antes de abrir nuevos frentes.",
       "scope": {
         "in": [
           "Catálogo y router de skills",
+          "Bucle seleccionar→ejecutar→verificar→cerrar",
           "Implementation planning",
           "Bugfix",
           "Refactor",
@@ -5759,7 +5780,8 @@
         ],
         "out": [
           "Skills Java",
-          "Integraciones externas no justificadas"
+          "Integraciones externas no justificadas",
+          "Autonomía sobre decisiones reservadas a personas"
         ]
       },
       "dependencies": [
@@ -5772,8 +5794,9 @@
       "acceptanceCriteria": [
         "Cada workflow declara trigger, entradas, gates, salidas, recovery y límites.",
         "El router selecciona el mínimo contexto aplicable.",
+        "Los workflows priorizan cerrar el resultado activo y solo abren otro frente cuando la política permite concurrencia explícita.",
         "Los skills tienen fixtures y checks de consistencia.",
-        "Un workflow especializado no puede evadir lifecycle o revisión."
+        "Un workflow especializado no puede evadir lifecycle, revisión ni autoridad humana."
       ],
       "verification": [
         "Escenarios E2E por tipo de trabajo y detección de instrucciones contradictorias."
@@ -5787,7 +5810,8 @@
         "DEC-002",
         "DEC-003",
         "DEC-007",
-        "DEC-008"
+        "DEC-008",
+        "DEC-010"
       ],
       "size": "XL",
       "sourceRefs": [

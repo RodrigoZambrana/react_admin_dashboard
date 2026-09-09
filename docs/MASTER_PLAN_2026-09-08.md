@@ -57,6 +57,26 @@ La ejecución funcional comienza únicamente cuando la tarea elegida:
 - tiene producto, owner y frontera de cambios definidos;
 - fue promovida a `ready` por el proceso del harness.
 
+El control puede detectar que un bloqueo quedó obsoleto y derivar la transición
+necesaria, pero no modifica el backlog. La promoción canónica sigue siendo
+explícita y auditable.
+
+### Modelo operativo de avance
+
+- `planning/backlog.json` es la única cola; el estado general y las vistas por
+  producto se calculan desde el campo `product`.
+- Una ejecución conserva un resultado activo y un integrador responsable. Puede
+  usar uno o varios agentes solo con entradas, exclusiones, write-set y
+  aceptación reproducibles.
+- El ciclo normal es seleccionar, ejecutar, verificar y cerrar. Abrir más trabajo
+  no sustituye el cierre del resultado vigente.
+- Intake, coordinación, revisión, testing y workflows especializados evolucionan
+  mediante `HAR-003`, `HAR-004`, `HAR-005`, `HAR-006` y `HAR-008`; `QA-001`
+  fija la evidencia de calidad y release por producto.
+- Las decisiones de producto, cambios de prioridad o alcance, excepciones,
+  operaciones destructivas o remotas y releases de alto riesgo permanecen bajo
+  autoridad humana, según `DEC-010`.
+
 ### Fase 1 — Seguridad transversal y cierre técnico ecommerce (estimación posterior al Gate 0)
 
 - Clasificar y remediar dependencias de backend, admin, storefront, AI Platform

@@ -66,9 +66,9 @@
       "verification": ["Análisis estático de imports y revisión de schema.prisma y controladores", "Revisión técnica que confirme que ningún dato commerce queda sin owner"],
       "risks": ["Asignar ownership conceptual sin verificar escrituras reales puede ocultar acoplamientos transaccionales"],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-004", "DEC-007"],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-004", "DEC-007", "DEC-009"],
       "size": "M",
-      "sourceRefs": ["docs/TARGET_PRODUCT_ARCHITECTURE.md", "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md", "backend/src/app.module.ts", "backend/prisma/schema.prisma"],
+      "sourceRefs": ["docs/TARGET_PRODUCT_ARCHITECTURE.md", "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md", "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md", "backend/src/app.module.ts", "backend/prisma/schema.prisma"],
       "blockingReason": "Depende de EC-001 y de las decisiones operativas registradas en EC-002."
     },
     {
@@ -89,10 +89,10 @@
       "acceptanceCriteria": ["Existe modelo objetivo y plan de transición aprobado", "Se documentan unicidades para email, teléfono, SKU, shipping e IDs de proveedor", "Existe threat model y rollback del backfill"],
       "verification": ["Walkthrough con dataset de dos tenants", "Checklist de consultas negativas cross-tenant y revisión de constraints propuestas"],
       "risks": ["Una migración incompleta puede mezclar datos o romper integridad referencial"],
-      "decisionsRequired": ["Elegir base por tenant, esquema por tenant, filas compartidas con tenantId o despliegue por cliente transitorio"],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-004", "DEC-007"],
+      "decisionsRequired": ["Aprobar la estrategia lógica futura (base, schema o filas) y el tratamiento de datos históricos; el despliegue permanece dedicado hasta pasar su gate"],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-004", "DEC-007", "DEC-009"],
       "size": "L",
-      "sourceRefs": ["docs/TARGET_PRODUCT_ARCHITECTURE.md", "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md", "backend/prisma/schema.prisma"],
+      "sourceRefs": ["docs/TARGET_PRODUCT_ARCHITECTURE.md", "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md", "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md", "backend/prisma/schema.prisma"],
       "blockingReason": "Requiere decisiones operativas EC-002 y ownership de datos EC-003."
     },
     {
@@ -833,10 +833,10 @@
       "acceptanceCriteria": ["El tenant piloto es aislado y reproducible", "Toda configuración está inventariada", "UAT y criterio go-live están firmados", "Soporte, rollback y ownership están definidos"] ,
       "verification": ["Provisioning desde cero en staging", "UAT de journeys y revisión de aislamiento y restore"] ,
       "risks": ["Usar datos o reglas ad hoc del piloto puede ocultar falta de reusabilidad"],
-      "decisionsRequired": ["Seleccionar tenant piloto, datos legales, responsables y criterio explícito go-live o no-go"],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-004", "DEC-007"],
+      "decisionsRequired": ["Confirmar datos legales, responsables operativos y criterio explícito go-live o no-go; Rodrigo conserva la aceptación del piloto"],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-004", "DEC-007", "DEC-009"],
       "size": "XL",
-      "sourceRefs": ["docs/MASTER_PLAN_2026-09-08.md", "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md"],
+      "sourceRefs": ["docs/MASTER_PLAN_2026-09-08.md", "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md", "docs/audit/ECOMMERCE_CURRENT_STATE_2026-09-08.md"],
       "blockingReason": "Requiere tenancy EC-004, CRM EC-023, continuidad EC-024 y release gate EC-034."
     },
     {

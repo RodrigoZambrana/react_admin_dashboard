@@ -77,6 +77,15 @@
       "remaining": "El juicio semántico y las decisiones permanecen humanos."
     },
     {
+      "id": "ADV-001",
+      "name": "Avance dinámico gobernado y terminable",
+      "category": "orchestration",
+      "status": "PARTIAL",
+      "taskRefs": ["HAR-003", "HAR-004", "HAR-005", "HAR-006", "HAR-008", "QA-001"],
+      "evidence": ["ai-harness-local/control/policy.json", "ai-harness-local/control/requirements.json", "ai-harness/harness/control.mjs", "ai-harness/docs/backlog-contract.md"],
+      "remaining": "El control ya deriva vistas por producto y promociones; faltan intake, coordinación multiagente, revisión, testing y workflows completos."
+    },
+    {
       "id": "VER-001",
       "name": "Verificación por scope y nivel",
       "category": "verification",
@@ -96,7 +105,7 @@
     },
     {
       "id": "LIF-001",
-      "name": "Ciclo start, preclose y close",
+      "name": "Ciclo start, preclose y close con commit local",
       "category": "lifecycle",
       "status": "IMPLEMENTED",
       "taskRefs": ["HAR-002"],
@@ -104,7 +113,7 @@
     },
     {
       "id": "GIT-001",
-      "name": "Preflight Git, baseline y write-set",
+      "name": "Preflight Git, baseline, write-set y commit aislado",
       "category": "git",
       "status": "IMPLEMENTED",
       "taskRefs": ["HAR-002"],

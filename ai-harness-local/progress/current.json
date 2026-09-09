@@ -8,7 +8,7 @@
   "startedAt": null,
   "objective": null,
   "lastCompleted": "2026-09-08T23:32:25.410Z: PF-001 — Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.",
-  "nextRecommended": "Recalcular el control y seleccionar una única tarea elegible",
+  "nextRecommended": "HAR-003 — Estructurar intake, trazabilidad y slicing; no iniciada",
   "plan": [
     {
       "id": "implementation",

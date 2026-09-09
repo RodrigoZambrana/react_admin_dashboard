@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0 — 2026-09-08
+
+- `close` crea y verifica un commit local aislado antes de publicar
+  `done`/`idle`.
+- El commit contiene solo el candidato de preclose y los artefactos finales;
+  preserva cambios e index preexistentes fuera del write-set.
+- El journal recupera archivos, HEAD e index ante fallo o interrupción del
+  commit, también en linked worktrees.
+- Los recibos v2 incluyen parent, mensaje, rutas y manifiesto verificable del
+  candidato comprometido.
+- El control falla cerrado si hay una consolidación lifecycle pendiente.
+
+## 0.4.1 — 2026-09-08
+
+- Detecta tareas `blocked` con dependencias terminadas y sin decisiones
+  pendientes, y deriva una recomendación `PROMOTE` sin mutar autoridades.
+- Agrega vistas del backlog por producto y conserva el orden de recomendación
+  para promociones y tareas `ready`.
+- Formaliza el avance dinámico gobernado, la coordinación reproducible y los
+  límites de autoridad humana en `DEC-010`, REQ-007, REQ-009 y sus tareas.
+- Promueve HAR-003 a `ready` después de verificar que HAR-002 está `done` y que
+  no existe otro gate pendiente.
+
 ## 0.4.0 — 2026-09-08
 
 - Agrega `harness:lifecycle start|preclose|close|recover` con transacciones

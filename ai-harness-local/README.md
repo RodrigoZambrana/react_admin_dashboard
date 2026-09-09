@@ -30,3 +30,7 @@ proyección calculada y nunca sustituyen al backlog, decisiones o checkpoint.
 Las transiciones de estado se realizan con `npm run harness:lifecycle`. Un
 journal incompleto bloquea nuevas transiciones hasta ejecutar `recover`; nunca
 se corrige editando parcialmente las fuentes de verdad.
+
+Por `DEC-011`, `close` consolida el candidato mediante un commit local aislado.
+El estado solo pasa a `done`/`idle` después de verificar ese commit; el lifecycle
+no realiza operaciones remotas.

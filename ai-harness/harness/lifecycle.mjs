@@ -58,8 +58,10 @@ const fail = (code, message) => {
 
 const git = (root, args, options = {}) => execFileSync('git', args, {
   cwd: root,
-  encoding: options.encoding ?? 'utf8',
-  stdio: ['ignore', 'pipe', 'pipe'],
+  encoding: Object.hasOwn(options, 'encoding') ? options.encoding : 'utf8',
+  env: options.env ? { ...process.env, ...options.env } : process.env,
+  input: options.input,
+  stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
   maxBuffer: 20 * 1024 * 1024,
 })
 
@@ -180,6 +182,31 @@ const restoreJournal = (root, journal) => {
   }
 }
 
+const persistJournal = (path, journal) => atomicWrite(path, json(journal))
+
+const restoreGitJournal = (root, journal) => {
+  const commit = journal.gitCommit
+  if (!commit) return
+  const observedHead = git(root, ['rev-parse', 'HEAD']).trim()
+  if (observedHead === commit.commitId) {
+    git(root, ['update-ref', commit.branchRef, commit.beforeHead, commit.commitId])
+  } else if (observedHead !== commit.beforeHead) {
+    fail('RECOVERY_HEAD_MOVED', `HEAD cambió fuera de la transacción: ${observedHead}.`)
+  }
+  const expectedIndexPath = resolve(root, git(root, ['rev-parse', '--git-path', 'index']).trim())
+  if (resolve(commit.index.path) !== expectedIndexPath) {
+    fail('INVALID_JOURNAL', `El index del journal no corresponde al worktree: ${commit.index.path}`)
+  }
+  if (commit.index.existed) atomicWrite(expectedIndexPath, Buffer.from(commit.index.contentBase64, 'base64'))
+  else if (existsSync(expectedIndexPath)) unlinkSync(expectedIndexPath)
+  if (commit.alternateIndexPath && existsSync(commit.alternateIndexPath)) unlinkSync(commit.alternateIndexPath)
+}
+
+const rollbackJournal = (root, journal) => {
+  restoreGitJournal(root, journal)
+  restoreJournal(root, journal)
+}
+
 export const recoverLifecycle = (root = defaultRoot) => {
   const path = journalPath(root)
   if (!existsSync(path)) return { recovered: false }
@@ -189,7 +216,7 @@ export const recoverLifecycle = (root = defaultRoot) => {
     if (journal.schema !== 'ai-harness.lifecycle-transaction/v1' || !Array.isArray(journal.entries)) {
       fail('INVALID_JOURNAL', `Journal de recovery inválido: ${path}`)
     }
-    restoreJournal(root, journal)
+    rollbackJournal(root, journal)
     unlinkSync(path)
     return { recovered: true, transition: journal.transition, transactionId: journal.transactionId }
   } catch (error) {
@@ -238,18 +265,30 @@ export const applyAtomicFileTransaction = (root, transition, writes, options = {
       }
       if (options.failAfterWrites === index + 1) fail('INJECTED_FAILURE', 'Fallo de escritura simulado.')
     }
+    const afterWrites = options.afterWrites?.({
+      journal,
+      journalPath: path,
+      updateJournal: (updates) => {
+        Object.assign(journal, updates)
+        persistJournal(path, journal)
+      },
+    })
     unlinkSync(path)
+    return {
+      transactionId: journal.transactionId,
+      files: normalized.map(({ path: entryPath }) => entryPath),
+      afterWrites,
+    }
   } catch (error) {
     if (error.leaveJournal) throw error
     try {
-      restoreJournal(root, journal)
+      rollbackJournal(root, journal)
       if (existsSync(path)) unlinkSync(path)
     } catch (rollbackError) {
       fail('ROLLBACK_FAILED', `${error.message}; rollback: ${rollbackError.message}`)
     }
     throw error
   }
-  return { transactionId: journal.transactionId, files: normalized.map(({ path: entryPath }) => entryPath) }
 }
 
 const ensureNoJournal = (root) => {
@@ -300,6 +339,112 @@ const candidateFingerprint = (root, current, ownedPaths) => {
     hash.update(`${path}\0${pathFingerprint(root, current.git.baseCommit, path)}\n`)
   }
   return hash.digest('hex')
+}
+
+const samePaths = (left, right) => left.length === right.length && left.every((path, index) => path === right[index])
+
+const commitManifest = (root, paths, excludedPaths = []) => {
+  const excluded = new Set(excludedPaths)
+  return paths
+    .filter((path) => !excluded.has(path))
+    .sort()
+    .map((path) => {
+      const absolute = join(root, path)
+      return existsSync(absolute)
+        ? { path, state: 'present', sha256: createHash('sha256').update(readFileSync(absolute)).digest('hex') }
+        : { path, state: 'deleted', sha256: null }
+    })
+}
+
+const verifyCommittedCandidate = (root, commitId, expectedPaths, manifest) => {
+  const actualPaths = git(root, ['diff-tree', '--no-commit-id', '--name-only', '-r', '-z', commitId])
+    .split('\0')
+    .filter(Boolean)
+    .sort()
+  if (!samePaths(actualPaths, [...expectedPaths].sort())) {
+    fail('COMMIT_SCOPE_MISMATCH', `El commit contiene rutas inesperadas: ${actualPaths.join(', ')}`)
+  }
+  for (const entry of manifest) {
+    if (entry.state === 'deleted') {
+      try {
+        git(root, ['cat-file', '-e', `${commitId}:${entry.path}`])
+        fail('COMMIT_CANDIDATE_MISMATCH', `${entry.path} debía quedar eliminada.`)
+      } catch (error) {
+        if (error instanceof LifecycleError) throw error
+      }
+      continue
+    }
+    let content
+    try {
+      content = git(root, ['show', `${commitId}:${entry.path}`], { encoding: null })
+    } catch {
+      fail('COMMIT_CANDIDATE_MISMATCH', `${entry.path} no existe en el commit.`)
+    }
+    const observed = createHash('sha256').update(content).digest('hex')
+    if (observed !== entry.sha256) fail('COMMIT_CANDIDATE_MISMATCH', `${entry.path} no coincide con el candidato validado.`)
+  }
+}
+
+const createIsolatedLocalCommit = (root, descriptor, options, journalTools) => {
+  const gitState = gitContext(root)
+  const branchRef = git(root, ['symbolic-ref', '-q', 'HEAD']).trim()
+  const rawIndexPath = git(root, ['rev-parse', '--git-path', 'index']).trim()
+  const indexPath = resolve(root, rawIndexPath)
+  const alternateIndexPath = join(gitState.gitDir, `ai-harness-index-${randomUUID()}`)
+  const indexSnapshot = {
+    path: indexPath,
+    existed: existsSync(indexPath),
+    contentBase64: existsSync(indexPath) ? readFileSync(indexPath).toString('base64') : null,
+  }
+  const gitCommit = {
+    phase: 'preparing',
+    branchRef,
+    beforeHead: descriptor.parent,
+    commitId: null,
+    alternateIndexPath,
+    index: indexSnapshot,
+  }
+  journalTools.updateJournal({ gitCommit })
+  const env = { GIT_INDEX_FILE: alternateIndexPath, ...(options.commitEnv ?? {}) }
+  let commitId
+  try {
+    git(root, ['read-tree', descriptor.parent], { env })
+    git(root, ['add', '--all', '--', ...descriptor.paths], { env })
+    const stagedPaths = git(root, ['diff', '--cached', '--name-only', '-z', descriptor.parent, '--'], { env })
+      .split('\0')
+      .filter(Boolean)
+      .sort()
+    if (!samePaths(stagedPaths, [...descriptor.paths].sort())) {
+      fail('COMMIT_SCOPE_MISMATCH', `El index aislado no coincide con el candidato: ${stagedPaths.join(', ')}`)
+    }
+    if (options.failCommit === true) fail('COMMIT_FAILED', 'Fallo de commit simulado.')
+    const tree = git(root, ['write-tree'], { env }).trim()
+    commitId = git(root, ['commit-tree', tree, '-p', descriptor.parent], {
+      env,
+      input: `${descriptor.message}\n`,
+    }).trim()
+    gitCommit.phase = 'prepared'
+    gitCommit.commitId = commitId
+    journalTools.updateJournal({ gitCommit })
+    verifyCommittedCandidate(root, commitId, descriptor.paths, descriptor.manifest)
+    git(root, ['update-ref', branchRef, commitId, descriptor.parent])
+    gitCommit.phase = 'ref-updated'
+    journalTools.updateJournal({ gitCommit })
+    if (options.crashAfterCommit === true) {
+      const error = new LifecycleError('SIMULATED_COMMIT_CRASH', 'Fallo simulado después de actualizar la referencia local.')
+      error.leaveJournal = true
+      throw error
+    }
+    if (options.failAfterCommit === true) fail('COMMIT_FAILED', 'Fallo simulado después de actualizar la referencia local.')
+    git(root, ['reset', '--quiet', commitId, '--', ...descriptor.paths])
+    gitCommit.phase = 'index-updated'
+    journalTools.updateJournal({ gitCommit })
+    if (existsSync(alternateIndexPath)) unlinkSync(alternateIndexPath)
+    return { id: commitId, branch: gitState.branch, parent: descriptor.parent, ...descriptor }
+  } catch (error) {
+    if (error instanceof LifecycleError) throw error
+    fail('COMMIT_FAILED', error.stderr?.toString().trim() || error.message)
+  }
 }
 
 const validateEvidence = (task, evidence) => {
@@ -500,7 +645,7 @@ export const closeLifecycle = (root = defaultRoot, options = {}) => {
     fail('RECEIPT_ALREADY_EXISTS', 'Close no sobrescribe recibos existentes.')
   }
   const receipt = {
-    schema: 'ai-harness.lifecycle-close-receipt/v1',
+    schema: 'ai-harness.lifecycle-close-receipt/v2',
     sessionId: current.sessionId,
     backlogTaskId: task.id,
     status: 'done',
@@ -517,6 +662,7 @@ export const closeLifecycle = (root = defaultRoot, options = {}) => {
       linkedWorktree: observed.linkedWorktree,
       preexistingChanges: structuredClone(current.git.preexistingChanges ?? []),
       diff: structuredClone(current.preclose.diff),
+      commit: null,
     },
     evidence: structuredClone(current.preclose.evidence),
     decisionRefs: structuredClone(current.task.decisionRefs ?? []),
@@ -526,9 +672,9 @@ export const closeLifecycle = (root = defaultRoot, options = {}) => {
   feature.status = 'done'
   feature.completedAt = closedAt
   feature.result = { summary: receipt.summary, receipt: receiptPath, featureReceipt: featurePath }
-  const featureReceipt = { ...structuredClone(receipt), schema: 'ai-harness.feature-close-receipt/v1', feature: structuredClone(feature) }
+  const featureReceipt = { ...structuredClone(receipt), schema: 'ai-harness.feature-close-receipt/v2', feature: structuredClone(feature) }
   const previousHistory = readFileSync(join(root, statePaths.history), 'utf8').trimEnd()
-  const history = `${previousHistory}\n\n## ${day} — ${task.id}: ${task.title}\n\n- ${receipt.summary}\n- Baseline: \`${current.git.baseCommit}\`; HEAD al cierre: \`${observed.head}\`; branch: \`${observed.branch}\`.\n- Preclose validó ${current.task.acceptanceCriteria.length} criterios, ${current.task.verification.length} verificaciones y ${current.preclose.diff.ownedPaths.length} rutas del write-set.\n- Recibo: \`${receiptPath}\`.\n`
+  const history = `${previousHistory}\n\n## ${day} — ${task.id}: ${task.title}\n\n- ${receipt.summary}\n- Baseline: \`${current.git.baseCommit}\`; HEAD previo al commit de cierre: \`${observed.head}\`; branch: \`${observed.branch}\`.\n- Preclose validó ${current.task.acceptanceCriteria.length} criterios, ${current.task.verification.length} verificaciones y ${current.preclose.diff.ownedPaths.length} rutas del write-set.\n- El cierre exige un commit local aislado con trailer \`AI-Harness-Session: ${current.sessionId}\`.\n- Recibo: \`${receiptPath}\`.\n`
   const idle = {
     schemaVersion: 1,
     status: 'idle',
@@ -558,8 +704,45 @@ export const closeLifecycle = (root = defaultRoot, options = {}) => {
     [receiptPath, json(receipt)],
     [featurePath, json(featureReceipt)],
   ])
-  const transaction = applyAtomicFileTransaction(root, 'close', writes, options.transaction)
-  return { transition: 'close', sessionId: current.sessionId, taskId: task.id, receiptPath, featurePath, transaction }
+  const commitMessage = `${task.id}: ${task.title}\n\n${receipt.summary}\n\nAI-Harness-Session: ${current.sessionId}\nAI-Harness-Candidate: ${current.preclose.diff.candidateFingerprint}`
+  const transaction = applyAtomicFileTransaction(root, 'close', writes, {
+    ...options.transaction,
+    afterWrites: (journalTools) => {
+      const finalDiff = validateScopeDiff(root, current)
+      const commitPaths = [...finalDiff.ownedPaths].sort()
+      if (!commitPaths.length) fail('EMPTY_COMMIT', 'El cierre no produjo un candidato para comprometer.')
+      const receiptPaths = [receiptPath, featurePath]
+      const commit = {
+        required: true,
+        mode: 'isolated-local',
+        parent: observed.head,
+        branch: observed.branch,
+        message: commitMessage,
+        sessionTrailer: `AI-Harness-Session: ${current.sessionId}`,
+        paths: commitPaths,
+        manifest: commitManifest(root, commitPaths, receiptPaths),
+        manifestExcludes: receiptPaths,
+      }
+      receipt.git.commit = structuredClone(commit)
+      featureReceipt.git.commit = structuredClone(commit)
+      atomicWrite(join(root, receiptPath), json(receipt))
+      atomicWrite(join(root, featurePath), json(featureReceipt))
+      const refreshedDiff = validateScopeDiff(root, current)
+      if (!samePaths([...refreshedDiff.ownedPaths].sort(), commitPaths)) {
+        fail('COMMIT_SCOPE_MISMATCH', 'Los recibos finales alteraron las rutas del candidato de cierre.')
+      }
+      return createIsolatedLocalCommit(root, commit, options.transaction ?? {}, journalTools)
+    },
+  })
+  return {
+    transition: 'close',
+    sessionId: current.sessionId,
+    taskId: task.id,
+    receiptPath,
+    featurePath,
+    commit: transaction.afterWrites,
+    transaction: { transactionId: transaction.transactionId, files: transaction.files },
+  }
 }
 
 const parseCli = (argv) => {

@@ -77,13 +77,18 @@ El comando `npm run --silent harness:control -- --json` reconstruye en vivo:
 - cumplimiento de dependencias estratégicas de separación, campañas e IA;
 - única próxima tarea elegible y prompt derivado.
 
+También deriva vistas por producto desde la cola única y detecta tareas
+`blocked` con dependencias terminadas y sin decisiones pendientes. En ese caso
+señala una promoción explícita según el orden de gobierno, sin modificar las
+fuentes ni iniciar el trabajo.
+
 Falla cerrado si falta una autoridad, una referencia no existe o el estado es
 inconsistente. El chat auditor usa ese reporte; no conserva estado alternativo.
 
 ## Camino hacia paridad general
 
 1. **HAR-002 — Lifecycle y preflight:** start/preclose/close, baseline,
-   write-set y recibos.
+   write-set, commit local aislado, recovery Git y recibos.
 2. **HAR-003/HAR-004 — Intake y contexto:** fidelidad de requerimientos,
    slicing, cápsulas y handoffs con fingerprints.
 3. **HAR-005 — Revisión independiente:** manifiesto de candidato y recibo

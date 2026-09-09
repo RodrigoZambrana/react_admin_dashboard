@@ -81,11 +81,13 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "M",
       "sourceRefs": [
         "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-002",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "ai-platform/backend/src/shared/tenant.middleware.ts",
         "docs/TARGET_PRODUCT_ARCHITECTURE.md"
       ],
@@ -171,11 +173,13 @@
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "L",
       "sourceRefs": [
         "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § AI-004",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "ai-platform/backend/prisma/schema.prisma",
         "ai-platform/backend/src/persistence"
       ],
@@ -1252,16 +1256,18 @@
         "Multi-tenant sin fencing mezcla credenciales; proceso por tenant eleva costo."
       ],
       "decisionsRequired": [
-        "Elegir proceso-por-tenant o worker multi-tenant y su fencing."
+        "Aprobar si, después del piloto dedicado, el adapter conserva proceso-por-tenant o adopta worker compartido con fencing certificado."
       ],
       "decisionRefs": [
         "DEC-002",
         "DEC-003",
-        "DEC-007"
+        "DEC-007",
+        "DEC-009"
       ],
       "size": "M",
       "sourceRefs": [
         "docs/audit/AI_CHANNELS_CURRENT_STATE_2026-09-08.md § CH-003",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
         "services/channel-adapter/src",
         "docs/TARGET_PRODUCT_ARCHITECTURE.md"
       ],
