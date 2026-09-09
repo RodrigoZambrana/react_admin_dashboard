@@ -64,11 +64,12 @@ La sexta sección incluye un handoff explícito: `NEW_CHAT`,
 `CONTINUE_EXISTING_TASK` o `NONE`. Para una recomendación ejecutable también
 incluye el prompt completo derivado por el control, listo para copiar en el
 destino indicado y nunca para ejecutar dentro del chat auditor. Cuando una tarea
-`blocked` ya satisface dependencias y decisiones, el control recomienda
-`PROMOTE`/`NONE` sin mutar el backlog.
+`blocked` ya satisface dependencias y decisiones, el harness escribe
+`blocked → ready`. El control solo informa esa elegibilidad; no muta el backlog
+ni pide confirmación humana del cálculo.
 
 Un pedido nuevo se estructura con `harness:intake`. El comando valida
 fidelidad, clasifica hechos/supuestos/dudas, exige slices terminables y
-reconstruye vistas desde `planning/backlog.json`. `apply-promotion --confirm`
-escribe una transición `blocked → ready` en la cola canónica y no llama a
-`lifecycle start`. El contrato está en `docs/intake.md`.
+reconstruye vistas desde `planning/backlog.json`. `apply-promotion` escribe una
+transición `blocked → ready` en la cola canónica y no llama a `lifecycle start`.
+El contrato está en `docs/intake.md`.

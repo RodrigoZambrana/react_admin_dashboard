@@ -114,3 +114,19 @@
 - Preclose validó 6 criterios, 1 verificaciones y 29 rutas del write-set.
 - El cierre exige un commit local aislado con trailer `AI-Harness-Session: har-003-20260909122155`.
 - Recibo: `ai-harness-local/receipts/2026/2026-09-09/har-003-20260909122155.json`.
+
+## 2026-09-09 — DEC-012: Promoción mecánica escrita por el harness
+
+- El harness escribe `blocked → ready` cuando las dependencias están `done` y
+  no quedan `decisionsRequired`.
+- `apply-promotion` escribe sin `--confirm`; `--dry-run` previsualiza;
+  `--start` permanece prohibido.
+- `lifecycle close` promociona sucesores elegibles y sincroniza el fragmento
+  dueño si está en el write-set.
+- El control y el auditor siguen read-only. El arranque sigue siendo
+  `lifecycle start`.
+- HAR-004 quedó `ready` por esa escritura; no se abrió sesión ni `in_progress`.
+- Esta decisión supersede solo la consecuencia de `DEC-010` que prohibía mutar
+  el backlog en promociones mecánicas.
+- No hubo `lifecycle start`: no existía una tarea `ready` para este slice. El
+  commit de esta entrada es la asociación Git de `DEC-012`.

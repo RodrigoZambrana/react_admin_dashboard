@@ -13,9 +13,11 @@
       "to": "ready",
       "requiresDependenciesStatus": "done",
       "requiresNoPendingDecisions": true,
-      "controlMode": "read-only"
+      "controlMode": "read-only",
+      "writer": "harness-when-eligible",
+      "decisionRef": "DEC-012"
     },
-    "humanAuthority": ["product_decisions", "priority_changes", "scope_changes", "exceptions", "destructive_or_remote_operations", "high_risk_releases"]
+    "humanAuthority": ["product_decisions", "priority_changes", "scope_changes", "exceptions", "destructive_or_remote_operations", "high_risk_releases", "work_start"]
   },
   "lifecycleCommit": {
     "decisionRef": "DEC-011",

@@ -845,8 +845,7 @@
       "type": "harness-governance",
       "phase": "Harness parity",
       "priority": "P1",
-      "status": "blocked",
-      "blockingReason": "Depende de intake estructurado y lifecycle para fijar owner, baseline y resultado.",
+      "status": "ready",
       "objective": "Hacer reproducibles las delegaciones, su contexto, límites, resultado e integración o rechazo.",
       "rationale": "La auditoría usó agentes con éxito, pero sus contratos y handoffs no tienen schema ni fingerprint local.",
       "scope": {

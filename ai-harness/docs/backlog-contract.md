@@ -11,10 +11,11 @@ El control deriva de esa misma cola los totales generales, las vistas por
 `product`, el orden recomendado y las transiciones elegibles. Estas proyecciones
 no son un segundo backlog y nunca escriben las autoridades.
 
-`harness:intake apply-promotion --confirm` y `harness:lifecycle` start/close
-actualizan el JSON canónico y, si el fragmento dueño está en el write-set o en
-el alcance de la promoción, también ese fragmento. Así la vista general y la de
-producto se reconstruyen sin una segunda autoridad.
+`harness:intake apply-promotion` y `harness:lifecycle` start/close actualizan
+el JSON canónico y, si el fragmento dueño está en el write-set o en el alcance
+de la promoción, también ese fragmento. Así la vista general y la de producto
+se reconstruyen sin una segunda autoridad. El control y el auditor no escriben
+el backlog.
 
 ## Estados
 
@@ -34,18 +35,22 @@ declara su frontera y un único integrador conserva responsabilidad por el
 resultado completo.
 
 Cuando una tarea `blocked` ya tiene todas sus dependencias en `done` y no tiene
-`decisionsRequired`, el control y `harness:intake promotions` la exponen como
-candidata a transición `blocked → ready`. Esa derivación es read-only: la fuente
-canónica se cambia solo con `harness:intake apply-promotion --id <ID> --confirm`.
-Esa escritura no inicia la tarea. El control nunca muta autoridades.
+`decisionsRequired`, el harness escribe `blocked → ready`. El control y
+`harness:intake promotions` exponen esa elegibilidad en modo read-only; no
+piden confirmación humana del cálculo. La escritura la hacen
+`harness:intake apply-promotion --id <ID>` y `harness:lifecycle close` cuando
+el sucesor queda elegible. `--dry-run` solo previsualiza. Esa escritura no
+inicia la tarea: el arranque sigue siendo `lifecycle start` o un chat nuevo.
 
 Un pedido se convierte en requisitos y slices con `harness:intake`. Los slices
 se trazan a tareas del backlog canónico; no crean una cola paralela. Un cambio
 de alcance queda como `decision` o `supersession`.
 
 Las decisiones de producto, cambios de prioridad o alcance, excepciones,
-operaciones destructivas o remotas y releases de alto riesgo no se derivan ni se
-delegan: requieren autoridad humana explícita.
+operaciones destructivas o remotas, releases de alto riesgo y el arranque de
+trabajo no se derivan ni se delegan: requieren autoridad humana explícita.
+`DEC-012` supersede solo la consecuencia de `DEC-010` que prohibía mutar el
+backlog para promociones mecánicas.
 
 ## Campos obligatorios
 

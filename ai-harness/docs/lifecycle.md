@@ -77,7 +77,9 @@ npm run harness:lifecycle -- close --summary "Resultado durable del cierre."
 temporal construido desde el HEAD observado y agrega exclusivamente:
 
 - las rutas del candidato comprobado por `preclose`;
-- las fuentes de estado y recibos finales producidos por `close`.
+- las fuentes de estado y recibos finales producidos por `close`, incluidas las
+  promociones `blocked → ready` elegibles y el fragmento dueño si está en el
+  write-set.
 
 Los cambios preexistentes fuera del write-set permanecen en su estado original,
 incluido cualquier contenido que ya estuviera staged. El recibo v2 registra el

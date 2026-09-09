@@ -18,14 +18,14 @@ El auditor no puede:
 - implementar producto ni modificar el backlog para acomodar una recomendación;
 - aprobar alcance, riesgo, excepciones o cierre en nombre del usuario;
 - declarar paridad o cumplimiento sin mecanismo, prueba y evidencia;
-- utilizar recuerdos del chat para reemplazar una fuente versionada.
+- utilizar recuerdos del chat para reemplazar una fuente versionada;
+- pedir que una persona confirme el cálculo `blocked → ready`.
 
 Una tarea `blocked` cuyas dependencias estén `done` y que no tenga decisiones
-pendientes aparece como candidata a promoción. Si precede al resto según la
-política, la única recomendación es `PROMOTE` con destino `NONE`: el auditor
-señala la transición y no inicia trabajo ni modifica el backlog. Las decisiones
-de producto, prioridad, alcance, excepciones, operaciones destructivas/remotas y
-releases de alto riesgo permanecen humanas.
+pendientes es escritura pendiente del harness, no una decisión de producto. El
+control permanece read-only y no muta autoridades. Las personas aprueban
+prioridad, alcance, excepciones y el arranque de trabajo (`lifecycle start` o
+un chat nuevo).
 
 ## Reconstrucción
 
@@ -34,8 +34,8 @@ releases de alto riesgo permanecen humanas.
    recomendación ejecutable y exponer las discrepancias.
 3. Contrastar semánticamente evidencia, límites y sobredeclaraciones.
 4. Presentar hechos, alertas, decisiones humanas y proyección por separado.
-5. Recomendar una única próxima tarea; la persona conserva la autoridad para
-   seleccionarla.
+5. Recomendar una única próxima tarea `ready` o en curso; la persona conserva
+   la autoridad para seleccionarla e iniciarla.
 
 La matriz de capacidades, los requerimientos y la política de orden viven en
 esta carpeta. El reporte se calcula en vivo y no debe convertirse en una segunda
@@ -52,6 +52,8 @@ exista un `threadId` verificado mediante la interfaz pública de tareas.
 
 La última sección no termina en una descripción general: declara el destino del
 handoff y, cuando hay ejecución, reproduce literalmente el prompt gobernado.
-`START` implica `NEW_CHAT`; `CONTINUE` implica `CONTINUE_EXISTING_TASK`;
-`PROMOTE` y una recomendación bloqueada implican `NONE`. El auditor informa y
-entrega el handoff o la transición, pero no los ejecuta.
+`START` implica `NEW_CHAT`; `CONTINUE` implica `CONTINUE_EXISTING_TASK`; una
+recomendación bloqueada implica `NONE`. Un candidato de promoción visible es
+una alerta de escritura del harness, no un prompt de implementación ni un
+pedido de aprobación humana. El auditor informa y entrega el handoff, pero no
+lo ejecuta.

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-09-09
+
+- El harness escribe `blocked → ready` cuando las dependencias están `done` y
+  no quedan `decisionsRequired`, según `DEC-012`.
+- `apply-promotion` ya no exige `--confirm`; `--dry-run` solo previsualiza y
+  `--start` sigue prohibido.
+- `lifecycle close` aplica las promociones elegibles al backlog y al fragmento
+  dueño si está en el write-set.
+- El control y el auditor permanecen read-only: no piden confirmación humana
+  del DAG ni escriben el backlog. El arranque sigue siendo `lifecycle start`.
+
 ## 0.6.0 — 2026-09-09
 
 - Agrega schema y comando `harness:intake` para fidelidad entre pedido,

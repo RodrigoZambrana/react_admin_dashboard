@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-const PROMOTION_REASON = 'Todas las dependencias están done y no quedan decisiones pendientes; la autoridad canónica todavía requiere una transición explícita.'
+const PROMOTION_REASON = 'Todas las dependencias están done y no quedan decisiones pendientes; el harness escribe blocked → ready. Las personas no confirman este cálculo; aprueban prioridad, alcance, excepciones y el arranque.'
 export const BACKLOG_FRAGMENT_FILES = ['platform.json', 'ecommerce.json', 'metrics.json', 'ai-channels.json']
 
 export const countBy = (items, field) =>
@@ -104,4 +104,14 @@ export const applyPromotionToTasks = (tasks, taskId) => {
     throw error
   }
   return applyTaskStatus(tasks, taskId, 'ready')
+}
+
+export const applyEligiblePromotionsToTasks = (tasks) => {
+  let next = tasks
+  const applied = []
+  for (const candidate of collectPromotionCandidates(next)) {
+    next = applyPromotionToTasks(next, candidate.taskId)
+    applied.push(candidate)
+  }
+  return { tasks: next, applied }
 }

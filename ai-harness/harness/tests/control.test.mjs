@@ -80,10 +80,15 @@ test('reconstruye el estado y conserva la paridad como no alcanzada', () => {
   assert.equal(report.facts.requirements.total, 9)
   assert.ok(report.facts.backlog.byProduct['AI Harness'])
   assert.ok(report.recommendation.taskId)
+  assert.notEqual(report.recommendation.action, 'PROMOTE')
   assert.equal(report.recommendation.action, report.facts.backlog.inProgressIds.length ? 'CONTINUE' : 'START')
+  const dynamic = report.alignment.checks.find(({ id }) => id === 'ALIGN-DYNAMIC-EXECUTION')
+  assert.equal(dynamic.status, 'PASS')
+  assert.ok(dynamic.decisionRefs.includes('DEC-010'))
+  assert.ok(dynamic.decisionRefs.includes('DEC-012'))
 })
 
-test('detecta un bloqueo obsoleto y deriva la promoción sin mutar la autoridad', (t) => {
+test('detecta un bloqueo obsoleto, no pide PROMOTE humano y no muta la autoridad', (t) => {
   const fixture = makeFixture()
   t.after(() => rmSync(fixture, { recursive: true, force: true }))
   const backlogPath = join(fixture, 'planning/backlog.json')
@@ -91,6 +96,12 @@ test('detecta un bloqueo obsoleto y deriva la promoción sin mutar la autoridad'
   const task = backlog.tasks.find(({ id }) => id === 'HAR-003')
   task.status = 'blocked'
   task.blockingReason = 'Fixture: espera una dependencia ya terminada.'
+  task.decisionsRequired = []
+  const successor = backlog.tasks.find(({ id }) => id === 'HAR-004')
+  if (successor) {
+    successor.status = 'blocked'
+    successor.blockingReason = 'Fixture: espera HAR-003.'
+  }
   writeFileSync(backlogPath, `${JSON.stringify(backlog, null, 2)}\n`)
   const bytesBefore = readFileSync(backlogPath, 'utf8')
 
@@ -98,13 +109,14 @@ test('detecta un bloqueo obsoleto y deriva la promoción sin mutar la autoridad'
 
   assert.equal(report.validation, 'OK')
   assert.deepEqual(report.facts.backlog.promotionCandidates.map(({ taskId }) => taskId), ['HAR-003'])
-  assert.equal(report.recommendation.action, 'PROMOTE')
-  assert.equal(report.recommendation.taskId, 'HAR-003')
-  assert.equal(report.recommendation.handoff.destination, 'NONE')
-  assert.equal(report.recommendation.prompt, null)
+  assert.notEqual(report.recommendation.action, 'PROMOTE')
+  assert.equal(report.recommendation.action, 'START')
+  assert.notEqual(report.recommendation.taskId, 'HAR-003')
+  assert.ok(report.warnings.some((warning) => warning.includes('el harness escribe blocked → ready')))
+  assert.equal(report.recommendation.handoff.destination, 'NEW_CHAT')
   const contract = JSON.parse(readFileSync(join(fixture, 'ai-harness-local/control/response-contract.json'), 'utf8'))
   const content = renderAuditorResponse(report, contract)
-  assert.ok(!content.includes('- Prompt exacto para copiar:'))
+  assert.ok(!content.includes('Acción: **PROMOTE**'))
   assert.deepEqual(validateAuditorResponse(content, contract, { expectedRecommendation: report.recommendation }), [])
   assert.equal(readFileSync(backlogPath, 'utf8'), bytesBefore)
 })
@@ -118,6 +130,11 @@ test('una decisión pendiente impide la promoción derivada', (t) => {
   task.status = 'blocked'
   task.blockingReason = 'Fixture: requiere decisión humana.'
   task.decisionsRequired = ['Confirmar el alcance del intake.']
+  const successor = backlog.tasks.find(({ id }) => id === 'HAR-004')
+  if (successor) {
+    successor.status = 'blocked'
+    successor.blockingReason = 'Fixture: espera HAR-003.'
+  }
   writeFileSync(backlogPath, `${JSON.stringify(backlog, null, 2)}\n`)
 
   const report = buildControlReport(fixture)
@@ -131,7 +148,21 @@ test('una decisión pendiente impide la promoción derivada', (t) => {
 test('el orden gobernado recomienda HAR-003 antes que otros ready aunque el backlog esté ordenado por id', (t) => {
   const fixture = makeFixture()
   t.after(() => rmSync(fixture, { recursive: true, force: true }))
-  const backlog = JSON.parse(readFileSync(join(fixture, 'planning/backlog.json'), 'utf8'))
+  const backlogPath = join(fixture, 'planning/backlog.json')
+  const backlog = JSON.parse(readFileSync(backlogPath, 'utf8'))
+  for (const item of backlog.tasks ?? []) {
+    if (item.id === 'HAR-001' || item.id === 'HAR-002') item.status = 'done'
+    if (item.id === 'HAR-003') {
+      item.status = 'ready'
+      delete item.blockingReason
+      item.decisionsRequired = []
+    }
+    if (item.id === 'HAR-004') {
+      item.status = 'blocked'
+      item.blockingReason = 'Fixture: espera HAR-003.'
+    }
+  }
+  writeFileSync(backlogPath, `${JSON.stringify(backlog, null, 2)}\n`)
   const report = buildControlReport(fixture)
   const harIndex = backlog.tasks.findIndex(({ id }) => id === 'HAR-003')
   const ecIndex = backlog.tasks.findIndex(({ id }) => id === 'EC-001')

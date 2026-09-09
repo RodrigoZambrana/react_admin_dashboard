@@ -395,6 +395,48 @@ test('close sincroniza el fragmento dueño cuando está en el write-set', (t) =>
   assert.equal(readJson(root, 'planning/fragments/platform.json').tasks.find(({ id }) => id === 'HAR-002').status, 'done')
 })
 
+test('close promociona sucesores elegibles en el backlog y el fragmento dueño', (t) => {
+  const root = makeFixture()
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  const successor = {
+    id: 'HAR-003',
+    title: 'Sucesor promocionable',
+    product: 'AI Harness',
+    status: 'blocked',
+    blockingReason: 'Espera HAR-002.',
+    objective: 'Quedar ready al cerrar la dependencia',
+    dependencies: ['HAR-002'],
+    decisionsRequired: [],
+    acceptanceCriteria: ['El sucesor queda ready.'],
+    verification: ['Estado en backlog y fragmento.'],
+    decisionRefs: ['DEC-012'],
+  }
+  const backlog = readJson(root, 'planning/backlog.json')
+  backlog.tasks.push(successor)
+  writeJson(join(root, 'planning/backlog.json'), backlog)
+  mkdirSync(join(root, 'planning/fragments'), { recursive: true })
+  writeJson(join(root, 'planning/fragments/platform.json'), {
+    tasks: [{ id: 'HAR-001', status: 'done' }, structuredClone(task), structuredClone(successor)],
+  })
+  git(root, 'add', 'planning/backlog.json', 'planning/fragments/platform.json')
+  git(root, 'commit', '-qm', 'successor')
+  const writeSet = [...requiredWriteSet, 'planning/fragments/platform.json']
+
+  startLifecycle(root, { taskId: 'HAR-002', sessionId: 'promote-on-close', writeSet })
+  writeFileSync(join(root, 'src/owned.txt'), 'implementado\n')
+  precloseLifecycle(root, { evidence: evidence() })
+  closeLifecycle(root, { summary: 'El cierre promociona sucesores elegibles.' })
+
+  const closedBacklog = readJson(root, 'planning/backlog.json')
+  const fragment = readJson(root, 'planning/fragments/platform.json')
+  const promoted = closedBacklog.tasks.find(({ id }) => id === 'HAR-003')
+  assert.equal(closedBacklog.tasks.find(({ id }) => id === 'HAR-002').status, 'done')
+  assert.equal(promoted.status, 'ready')
+  assert.equal(promoted.blockingReason, undefined)
+  assert.equal(fragment.tasks.find(({ id }) => id === 'HAR-002').status, 'done')
+  assert.equal(fragment.tasks.find(({ id }) => id === 'HAR-003').status, 'ready')
+})
+
 test('close detecta cambios posteriores a preclose y no altera fuentes', (t) => {
   const root = makeFixture()
   t.after(() => rmSync(root, { recursive: true, force: true }))

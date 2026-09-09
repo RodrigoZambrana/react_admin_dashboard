@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import {
+  applyEligiblePromotionsToTasks,
   applyPromotionToTasks,
   collectPromotionCandidates,
   findBacklogFragmentRelPath,
@@ -333,14 +334,29 @@ export const evaluateIntake = (intake, backlog = { tasks: [] }, options = {}) =>
   }
 }
 
-export const applyPromotion = (root, taskId, { confirm = false, start = false } = {}) => {
+const writePromotedTasks = (root, backlogPath, backlog, nextTasks, applied) => {
+  writeFileSync(backlogPath, json({ ...backlog, tasks: nextTasks }))
+  const paths = [backlogPath]
+  for (const item of applied) {
+    const fragmentRel = findBacklogFragmentRelPath(root, item.taskId)
+    if (!fragmentRel) continue
+    const fragmentPath = join(root, fragmentRel)
+    const fragment = readJson(fragmentPath, fragmentPath)
+    fragment.tasks = applyPromotionToTasks(fragment.tasks ?? [], item.taskId)
+    writeFileSync(fragmentPath, json(fragment))
+    paths.push(fragmentPath)
+  }
+  return [...new Set(paths)]
+}
+
+export const applyPromotion = (root, taskId, { start = false, dryRun = false } = {}) => {
   if (start) fail('PROMOTION_MUST_NOT_START', 'La promoción gobernada no puede iniciar el trabajo.')
   const backlogPath = join(root, 'planning/backlog.json')
   const backlog = readJson(backlogPath, backlogPath)
   const candidates = collectPromotionCandidates(backlog.tasks ?? [])
   const candidate = candidates.find((item) => item.taskId === taskId)
   if (!candidate) fail('PROMOTION_NOT_ELIGIBLE', `${taskId} no es un candidato de promoción.`)
-  if (!confirm) {
+  if (dryRun) {
     return {
       schema: 'ai-harness.promotion-proposal/v1',
       taskId,
@@ -351,14 +367,7 @@ export const applyPromotion = (root, taskId, { confirm = false, start = false } 
     }
   }
   const nextTasks = applyPromotionToTasks(backlog.tasks ?? [], taskId)
-  writeFileSync(backlogPath, json({ ...backlog, tasks: nextTasks }))
-  const fragmentRel = findBacklogFragmentRelPath(root, taskId)
-  const fragmentPath = fragmentRel ? join(root, fragmentRel) : null
-  if (fragmentPath) {
-    const fragment = readJson(fragmentPath, fragmentPath)
-    fragment.tasks = applyPromotionToTasks(fragment.tasks ?? [], taskId)
-    writeFileSync(fragmentPath, json(fragment))
-  }
+  const paths = writePromotedTasks(root, backlogPath, backlog, nextTasks, [candidate])
   return {
     schema: 'ai-harness.promotion-receipt/v1',
     taskId,
@@ -366,7 +375,48 @@ export const applyPromotion = (root, taskId, { confirm = false, start = false } 
     applied: true,
     started: false,
     mutatedAuthority: true,
-    paths: [backlogPath, fragmentPath].filter(Boolean),
+    actor: 'harness',
+    paths,
+  }
+}
+
+export const applyEligiblePromotions = (root, { start = false, dryRun = false } = {}) => {
+  if (start) fail('PROMOTION_MUST_NOT_START', 'La promoción gobernada no puede iniciar el trabajo.')
+  const backlogPath = join(root, 'planning/backlog.json')
+  const backlog = readJson(backlogPath, backlogPath)
+  const candidates = collectPromotionCandidates(backlog.tasks ?? [])
+  if (dryRun) {
+    return {
+      schema: 'ai-harness.promotion-proposal/v1',
+      candidates,
+      applied: false,
+      started: false,
+      mutatedAuthority: false,
+    }
+  }
+  if (!candidates.length) {
+    return {
+      schema: 'ai-harness.promotion-receipt/v1',
+      appliedIds: [],
+      candidates: [],
+      applied: false,
+      started: false,
+      mutatedAuthority: false,
+      actor: 'harness',
+      paths: [],
+    }
+  }
+  const { tasks: nextTasks, applied } = applyEligiblePromotionsToTasks(backlog.tasks ?? [])
+  const paths = writePromotedTasks(root, backlogPath, backlog, nextTasks, applied)
+  return {
+    schema: 'ai-harness.promotion-receipt/v1',
+    appliedIds: applied.map(({ taskId }) => taskId),
+    candidates: applied,
+    applied: true,
+    started: false,
+    mutatedAuthority: true,
+    actor: 'harness',
+    paths,
   }
 }
 
@@ -406,10 +456,17 @@ export const runIntakeCli = (argv = process.argv.slice(2), { root = defaultRoot,
     return
   }
   if (command === 'apply-promotion' || command === 'promote') {
-    const result = applyPromotion(root, values.get('--id'), {
-      confirm: flags.has('--confirm'),
-      start: flags.has('--start'),
-    })
+    const options = { start: flags.has('--start'), dryRun: flags.has('--dry-run') }
+    const taskId = values.get('--id')
+    if (flags.has('--eligible') && taskId) {
+      fail('INVALID_ARGUMENT', 'apply-promotion acepta --id o --eligible, no ambos.')
+    }
+    if (!flags.has('--eligible') && !taskId) {
+      fail('INVALID_ARGUMENT', 'apply-promotion requiere --id <taskId> o --eligible.')
+    }
+    const result = flags.has('--eligible')
+      ? applyEligiblePromotions(root, options)
+      : applyPromotion(root, taskId, options)
     stdout.write(json(result))
     return
   }

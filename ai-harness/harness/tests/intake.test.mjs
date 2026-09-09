@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
+  applyEligiblePromotions,
   applyPromotion,
   coverage,
   evaluateIntake,
@@ -272,7 +273,7 @@ const faithfulIntake = () => ({
       result: 'La promoción a ready solo se propone con dependencias done y sin decisiones pendientes.',
       scope: { in: ['Gates de promoción'], out: ['Start automático'] },
       product: 'AI Harness',
-      gate: 'promotions no muta autoridades; apply-promotion exige confirmación y no inicia trabajo.',
+      gate: 'promotions no muta autoridades; apply-promotion escribe sin --confirm, --dry-run solo previsualiza y no inicia trabajo.',
       requirementIds: ['R6'],
       backlogTaskId: 'T-PRO',
     },
@@ -421,7 +422,7 @@ test('una pregunta humana respondida no se considera inferida', () => {
   assert.equal(report.classifications.unansweredQuestions.length, 0)
 })
 
-test('promotions no muta la autoridad y apply-promotion no inicia trabajo', () => {
+test('promotions no muta la autoridad y apply-promotion escribe sin iniciar trabajo', () => {
   const dir = makePromotionRepo()
   const bytesBefore = readFileSync(join(dir, 'planning/backlog.json'), 'utf8')
   const chunks = []
@@ -432,24 +433,58 @@ test('promotions no muta la autoridad y apply-promotion no inicia trabajo', () =
   assert.equal(proposal.mutatedAuthority, false)
   assert.equal(readFileSync(join(dir, 'planning/backlog.json'), 'utf8'), bytesBefore)
 
-  const dryRun = applyPromotion(dir, 'T-RDY')
+  const dryRun = applyPromotion(dir, 'T-RDY', { dryRun: true })
   assert.equal(dryRun.applied, false)
   assert.equal(readFileSync(join(dir, 'planning/backlog.json'), 'utf8'), bytesBefore)
 
-  assert.throws(() => applyPromotion(dir, 'T-RDY', { confirm: true, start: true }), {
+  const previewChunks = []
+  runIntakeCli(['apply-promotion', '--id', 'T-RDY', '--dry-run'], {
+    root: dir,
+    stdout: { write: (chunk) => previewChunks.push(chunk) },
+  })
+  const preview = JSON.parse(previewChunks.join(''))
+  assert.equal(preview.applied, false)
+  assert.equal(readFileSync(join(dir, 'planning/backlog.json'), 'utf8'), bytesBefore)
+
+  assert.throws(() => applyPromotion(dir, 'T-RDY', { start: true }), {
     code: 'PROMOTION_MUST_NOT_START',
   })
-  assert.throws(() => applyPromotion(dir, 'T-PAY', { confirm: true }), {
+  assert.throws(() => applyPromotion(dir, 'T-PAY'), {
     code: 'PROMOTION_NOT_ELIGIBLE',
   })
 
-  const applied = applyPromotion(dir, 'T-RDY', { confirm: true })
+  const applied = applyPromotion(dir, 'T-RDY')
   assert.equal(applied.applied, true)
   assert.equal(applied.started, false)
+  assert.equal(applied.actor, 'harness')
   const backlog = JSON.parse(readFileSync(join(dir, 'planning/backlog.json'), 'utf8'))
   const fragment = JSON.parse(readFileSync(join(dir, 'planning/fragments/platform.json'), 'utf8'))
   assert.equal(backlog.tasks.find(({ id }) => id === 'T-RDY').status, 'ready')
   assert.equal(fragment.tasks.find(({ id }) => id === 'T-RDY').status, 'ready')
+  rmSync(dir, { recursive: true, force: true })
+})
+
+test('apply-promotion --eligible escribe todos los candidatos y --start permanece prohibido', () => {
+  const dir = makePromotionRepo()
+  const bytesBefore = readFileSync(join(dir, 'planning/backlog.json'), 'utf8')
+
+  const preview = applyEligiblePromotions(dir, { dryRun: true })
+  assert.deepEqual(preview.candidates.map(({ taskId }) => taskId), ['T-RDY'])
+  assert.equal(preview.applied, false)
+  assert.equal(readFileSync(join(dir, 'planning/backlog.json'), 'utf8'), bytesBefore)
+
+  assert.throws(() => applyEligiblePromotions(dir, { start: true }), {
+    code: 'PROMOTION_MUST_NOT_START',
+  })
+
+  const applied = applyEligiblePromotions(dir)
+  assert.equal(applied.applied, true)
+  assert.deepEqual(applied.appliedIds, ['T-RDY'])
+  assert.equal(applied.started, false)
+  assert.equal(applied.actor, 'harness')
+  const backlog = JSON.parse(readFileSync(join(dir, 'planning/backlog.json'), 'utf8'))
+  assert.equal(backlog.tasks.find(({ id }) => id === 'T-RDY').status, 'ready')
+  assert.equal(backlog.tasks.find(({ id }) => id === 'T-PAY').status, 'blocked')
   rmSync(dir, { recursive: true, force: true })
 })
 

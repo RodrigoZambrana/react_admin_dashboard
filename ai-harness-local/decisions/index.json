@@ -110,6 +110,22 @@
       "rationale": "Separar el cierre durable del commit dejaba estados done sin consolidación Git y permitía que la recomendación avanzara sobre cambios todavía pendientes.",
       "consequences": ["El commit usa un index aislado y no incorpora cambios preexistentes o ajenos al write-set.", "Close no hace push, merge, cambio de branch ni otra operación remota.", "Un fallo o interrupción restaura HEAD, index, working tree y autoridades al estado preclose.", "El recibo conserva parent, mensaje, rutas y manifiesto para comprobar el candidato comprometido.", "El control falla cerrado mientras exista un journal de lifecycle pendiente de recovery."],
       "sourceRefs": ["ai-harness/docs/lifecycle.md", "ai-harness/harness/lifecycle.mjs", "ai-harness/schemas/lifecycle-close-receipt.schema.json"]
+    },
+    {
+      "id": "DEC-012",
+      "date": "2026-09-09",
+      "status": "accepted",
+      "title": "Promoción mecánica escrita por el harness",
+      "decision": "El harness escribe blocked → ready cuando el cálculo de elegibilidad es verdadero: dependencias done y decisionsRequired vacío. El control permanece read-only. Las personas siguen aprobando prioridad, alcance, excepciones y el arranque de trabajo.",
+      "rationale": "El DAG ya comprueba si un bloqueo quedó obsoleto. Pedir confirmación humana de ese hecho convierte un cálculo en ceremonia y confunde autoridad de producto con permiso de escritura.",
+      "consequences": [
+        "apply-promotion y el cierre de lifecycle aplican promociones elegibles sin --confirm humano.",
+        "lifecycle start permanece humano; --start en la promoción sigue prohibido.",
+        "DEC-010 conserva el resto de la autoridad humana. Esta decisión supersede solo la consecuencia de no mutar el backlog para promociones mecánicas.",
+        "Un candidato de promoción visible en el control es escritura pendiente del harness, no una decisión de producto."
+      ],
+      "supersedes": ["DEC-010"],
+      "sourceRefs": ["ai-harness/docs/backlog-contract.md", "ai-harness-local/control/policy.json", "ai-harness-local/control/README.md"]
     }
   ]
 }

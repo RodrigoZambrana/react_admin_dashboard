@@ -18,7 +18,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { buildControlReport } from './control.mjs'
-import { applyTaskStatus, findBacklogFragmentRelPath } from './backlog-governance.mjs'
+import { applyEligiblePromotionsToTasks, applyTaskStatus, findBacklogFragmentRelPath } from './backlog-governance.mjs'
 
 const harnessDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const defaultRoot = dirname(harnessDir)
@@ -90,11 +90,13 @@ const matchesWriteSet = (path, writeSet) => writeSet.some((entry) =>
   entry.endsWith('/') ? path.startsWith(entry) : path === entry,
 )
 
-const syncOwnedFragment = (root, taskId, writeSet, status) => {
+const syncOwnedFragment = (root, taskId, writeSet, status, fragments = new Map()) => {
   const rel = findBacklogFragmentRelPath(root, taskId)
   if (!rel || !matchesWriteSet(rel, writeSet)) return null
-  const fragment = readJson(root, rel)
-  return { rel, fragment: { ...fragment, tasks: applyTaskStatus(fragment.tasks ?? [], taskId, status) } }
+  const fragment = fragments.get(rel) ?? readJson(root, rel)
+  const next = { ...fragment, tasks: applyTaskStatus(fragment.tasks ?? [], taskId, status) }
+  fragments.set(rel, next)
+  return { rel, fragment: next }
 }
 
 const validateWriteSet = (root, entries) => {
@@ -679,6 +681,8 @@ export const closeLifecycle = (root = defaultRoot, options = {}) => {
     productChanges: options.productChanges === true,
   }
   task.status = 'done'
+  const promoted = applyEligiblePromotionsToTasks(backlog.tasks)
+  backlog.tasks = promoted.tasks
   feature.status = 'done'
   feature.completedAt = closedAt
   feature.result = { summary: receipt.summary, receipt: receiptPath, featureReceipt: featurePath }
@@ -714,8 +718,12 @@ export const closeLifecycle = (root = defaultRoot, options = {}) => {
     [receiptPath, json(receipt)],
     [featurePath, json(featureReceipt)],
   ])
-  const fragmentSync = syncOwnedFragment(root, task.id, current.writeSet, 'done')
-  if (fragmentSync) writes.set(fragmentSync.rel, json(fragmentSync.fragment))
+  const fragmentCache = new Map()
+  syncOwnedFragment(root, task.id, current.writeSet, 'done', fragmentCache)
+  for (const item of promoted.applied) {
+    syncOwnedFragment(root, item.taskId, current.writeSet, 'ready', fragmentCache)
+  }
+  for (const [rel, fragment] of fragmentCache) writes.set(rel, json(fragment))
   const commitMessage = `${task.id}: ${task.title}\n\n${receipt.summary}\n\nAI-Harness-Session: ${current.sessionId}\nAI-Harness-Candidate: ${current.preclose.diff.candidateFingerprint}`
   const transaction = applyAtomicFileTransaction(root, 'close', writes, {
     ...options.transaction,

@@ -83,7 +83,7 @@
       "status": "PARTIAL",
       "taskRefs": ["HAR-003", "HAR-004", "HAR-005", "HAR-006", "HAR-008", "QA-001"],
       "evidence": ["ai-harness-local/control/policy.json", "ai-harness-local/control/requirements.json", "ai-harness/harness/control.mjs", "ai-harness/harness/intake.mjs", "ai-harness/docs/backlog-contract.md"],
-      "remaining": "El control e intake ya derivan vistas por producto y promociones; faltan coordinación multiagente, revisión, testing y workflows completos."
+      "remaining": "El harness ya escribe promociones mecánicas y deriva vistas por producto; faltan coordinación multiagente, revisión, testing y workflows completos."
     },
     {
       "id": "VER-001",

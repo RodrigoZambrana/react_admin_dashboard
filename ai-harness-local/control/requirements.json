@@ -54,7 +54,7 @@
       "summary": "Seguridad, buenas prácticas, modularización, limpieza, calidad y separación de responsabilidades explícitas, incluidas en la promoción gobernada del trabajo.",
       "status": "PARTIAL",
       "taskRefs": ["HAR-003", "HAR-004", "HAR-005", "HAR-006", "HAR-008", "SEC-001", "SEC-002", "SEC-003", "QA-001", "MOD-001", "CLN-001", "EC-027", "EC-028", "GM-024", "AI-023"],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-010"],
+      "decisionRefs": ["DEC-002", "DEC-003", "DEC-010", "DEC-012"],
       "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md"]
     },
     {
@@ -70,7 +70,7 @@
       "summary": "Avance dinámico y terminable desde un backlog único general y por producto, con uno o varios agentes coordinados, estados, promoción gobernada, integración única y trazabilidad.",
       "status": "PARTIAL",
       "taskRefs": ["HAR-001", "HAR-003", "HAR-004", "HAR-005", "HAR-006", "HAR-008", "QA-001"],
-      "decisionRefs": ["DEC-007", "DEC-008", "DEC-010"],
+      "decisionRefs": ["DEC-007", "DEC-008", "DEC-010", "DEC-012"],
       "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "ai-harness/AGENTS.md"]
     }
   ]

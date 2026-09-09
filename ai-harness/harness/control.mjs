@@ -224,7 +224,7 @@ export const renderAuditorResponse = (report, contract) => {
       `- Acción: **${report.recommendation.action}**.`,
       `- Destino: **${destination}**.`,
       report.recommendation.action === 'PROMOTE'
-        ? '- Uso: actualizar la fuente canónica mediante una transición gobernada antes de iniciar la tarea; el control no realiza esa mutación.'
+        ? '- Uso: el harness escribe blocked → ready cuando el cálculo es verdadero; no pedir confirmación humana de este DAG. El control no muta el backlog.'
         : destination === 'NEW_CHAT'
           ? '- Uso: crear un nuevo chat de implementación y pegar allí el prompt completo. No ejecutarlo dentro del chat auditor.'
           : `- Uso: continuar en la tarea de implementación asociada a \`${report.recommendation.handoff?.sessionId ?? 'la sesión activa'}\`. No ejecutarlo dentro del chat auditor.`,
@@ -384,7 +384,7 @@ export function buildControlReport(root = defaultRoot) {
     compare: (left, right) => rankTask(left.taskId) - rankTask(right.taskId),
   })
   if (promotionCandidates.length) {
-    warnings.push(`${promotionCandidates.length} tarea(s) blocked cumplen los gates para una promoción explícita a ready.`)
+    warnings.push(`${promotionCandidates.length} tarea(s) blocked cumplen los gates; el harness escribe blocked → ready. No es una decisión humana.`)
   }
 
   const activeFeatures = (featureList?.features ?? []).filter(({ status }) => status === 'in_progress')
@@ -555,6 +555,7 @@ export function buildControlReport(root = defaultRoot) {
     'exceptions',
     'destructive_or_remote_operations',
     'high_risk_releases',
+    'work_start',
   ]
   const dynamicPolicyIssues = []
   if (dynamicExecution?.canonicalBacklog !== 'planning/backlog.json' || dynamicExecution?.productDimension !== 'product') {
@@ -573,8 +574,10 @@ export function buildControlReport(root = defaultRoot) {
     || dynamicExecution?.promotion?.to !== 'ready'
     || dynamicExecution?.promotion?.requiresDependenciesStatus !== 'done'
     || dynamicExecution?.promotion?.requiresNoPendingDecisions !== true
-    || dynamicExecution?.promotion?.controlMode !== 'read-only') {
-    dynamicPolicyIssues.push('la promoción gobernada no conserva los gates o el modo read-only')
+    || dynamicExecution?.promotion?.controlMode !== 'read-only'
+    || dynamicExecution?.promotion?.writer !== 'harness-when-eligible'
+    || !acceptedDecisionIds.has(dynamicExecution?.promotion?.decisionRef)) {
+    dynamicPolicyIssues.push('la promoción gobernada no conserva gates, modo read-only o escritura mecánica del harness')
   }
   for (const authority of requiredHumanAuthority) {
     if (!(dynamicExecution?.humanAuthority ?? []).includes(authority)) {
@@ -603,8 +606,8 @@ export function buildControlReport(root = defaultRoot) {
     dynamicPolicyIssues.length ? 'FAIL' : 'PASS',
     dynamicPolicyIssues.length
       ? `Gobierno de avance dinámico incompleto: ${dynamicPolicyIssues.join('; ')}.`
-      : 'Backlog único, vistas por producto, promoción read-only, coordinación reproducible y autoridad humana conservan sus enlaces.',
-    dynamicExecution?.decisionRef ? [dynamicExecution.decisionRef] : [],
+      : 'Backlog único, vistas por producto, promoción mecánica del harness, control read-only y autoridad humana conservan sus enlaces.',
+    [...new Set([dynamicExecution?.decisionRef, dynamicExecution?.promotion?.decisionRef].filter(Boolean))],
   )
 
   const lifecycleCommit = policy?.lifecycleCommit
@@ -638,12 +641,10 @@ export function buildControlReport(root = defaultRoot) {
     .map((id) => taskById.get(id))
     .find((task) => task?.status === 'ready')
     ?? tasks.find(({ status }) => status === 'ready')
-  const nextPromotion = promotionCandidates[0] ?? null
-  const promoteBeforeReady = nextPromotion && (!nextReady || rankTask(nextPromotion.taskId) < rankTask(nextReady.id))
-  const recommendationAction = inProgressTask ? 'CONTINUE' : promoteBeforeReady ? 'PROMOTE' : nextReady ? 'START' : null
-  const nextTask = inProgressTask ?? (promoteBeforeReady ? taskById.get(nextPromotion.taskId) : nextReady) ?? null
+  const recommendationAction = inProgressTask ? 'CONTINUE' : nextReady ? 'START' : null
+  const nextTask = inProgressTask ?? nextReady ?? null
   const promptHead = inProgressTask && current?.git?.baseCommit ? current.git.baseCommit : head
-  const prompt = validation === 'OK' && alignmentStatus === 'ALIGNED' && recommendationAction !== 'PROMOTE'
+  const prompt = validation === 'OK' && alignmentStatus === 'ALIGNED' && nextTask
     ? makePrompt(nextTask, promptHead, sourcesFingerprint)
     : null
   const promptSha256 = prompt ? createHash('sha256').update(prompt).digest('hex') : null
@@ -715,7 +716,7 @@ export function buildControlReport(root = defaultRoot) {
       forRecommendedTask: nextTask
         ? openDecisionEntries.filter(({ taskId }) => taskId === nextTask.id)
         : [],
-      authority: 'Las personas aprueban decisiones de producto, cambios de prioridad o alcance, excepciones, operaciones destructivas o remotas y releases de alto riesgo.',
+      authority: 'Las personas aprueban decisiones de producto, cambios de prioridad o alcance, excepciones, operaciones destructivas o remotas, releases de alto riesgo y el arranque de trabajo.',
     },
     warnings,
     discrepancies,
@@ -728,11 +729,9 @@ export function buildControlReport(root = defaultRoot) {
       objective: nextTask.objective,
       reason: inProgressTask
         ? 'Existe una única tarea en progreso y debe cerrarse antes de abrir otra.'
-        : recommendationAction === 'PROMOTE'
-          ? nextPromotion.reason
-          : 'Es la primera tarea ready según el orden de gobierno aceptado.',
+        : 'Es la primera tarea ready según el orden de gobierno aceptado.',
       handoff: {
-        destination: inProgressTask ? 'CONTINUE_EXISTING_TASK' : recommendationAction === 'PROMOTE' ? 'NONE' : 'NEW_CHAT',
+        destination: inProgressTask ? 'CONTINUE_EXISTING_TASK' : 'NEW_CHAT',
         sessionId: inProgressTask ? current?.sessionId ?? null : null,
       },
       prompt: prompt ? {

@@ -27,14 +27,13 @@ La sexta sección es también un handoff ejecutable. Debe indicar explícitament
 
 - `NEW_CHAT` cuando `action` sea `START`;
 - `CONTINUE_EXISTING_TASK` cuando `action` sea `CONTINUE`;
-- `NONE` cuando `action` sea `PROMOTE`, indicando que debe corregirse la
-  transición canónica antes de iniciar trabajo;
 - `NONE` cuando la recomendación esté bloqueada.
 
 Para `START` o `CONTINUE`, copiá íntegramente y sin reformular
 `recommendation.prompt.content` dentro de un bloque Markdown `text`, listo para
-usar en el destino indicado. `PROMOTE` no lleva prompt de implementación. Nunca
-ejecutes trabajo recomendado dentro del chat auditor.
+usar en el destino indicado. Nunca ejecutes trabajo recomendado dentro del chat
+auditor. Un candidato `blocked → ready` es escritura pendiente del harness, no
+una decisión humana ni un prompt de implementación.
 
 No implementes tareas, no edites producto, no cambies prioridades, no apruebes
 riesgos ni cierres. No uses el historial del chat como autoridad. Si el reporte
