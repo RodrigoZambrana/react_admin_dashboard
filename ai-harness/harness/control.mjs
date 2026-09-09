@@ -6,6 +6,8 @@ import { existsSync, readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { collectPromotionCandidates, countBy, countByProduct } from './backlog-governance.mjs'
+
 const harnessDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const defaultRoot = dirname(harnessDir)
 const lifecycleTransactionName = 'ai-harness-lifecycle-transaction.json'
@@ -19,23 +21,6 @@ const canonicalAuditorSections = [
   { id: 'next-task', heading: '## 6. Única próxima tarea recomendada' },
 ]
 const requiredAuditorSectionIds = canonicalAuditorSections.map(({ id }) => id)
-
-const countBy = (items, field) =>
-  items.reduce((counts, item) => {
-    const key = item?.[field] ?? 'unknown'
-    counts[key] = (counts[key] ?? 0) + 1
-    return counts
-  }, {})
-
-const countByProduct = (tasks) =>
-  Object.fromEntries(
-    [...new Set(tasks.map(({ product }) => product))]
-      .sort((left, right) => left.localeCompare(right))
-      .map((product) => [product, {
-        total: tasks.filter((task) => task.product === product).length,
-        byStatus: countBy(tasks.filter((task) => task.product === product), 'status'),
-      }]),
-  )
 
 const makePrompt = (task, head, sourcesFingerprint) => {
   if (!task) return null
@@ -359,7 +344,6 @@ export function buildControlReport(root = defaultRoot) {
   const policy = parsed.get('ai-harness-local/control/policy.json')
   const tasks = Array.isArray(backlog?.tasks) ? backlog.tasks : []
   const taskById = new Map()
-  const promotionCandidates = []
   const acceptedDecisionIds = new Set(
     (decisions?.decisions ?? []).filter(({ status }) => status === 'accepted').map(({ id }) => id),
   )
@@ -390,28 +374,15 @@ export function buildControlReport(root = defaultRoot) {
         addDiscrepancy('INVALID_READY_TASK', 'planning/backlog.json', task.id)
       }
     }
-    if (task.status === 'blocked') {
-      const pendingDependencies = (task.dependencies ?? []).filter((id) => taskById.get(id)?.status !== 'done')
-      const pendingDecisions = task.decisionsRequired ?? []
-      if (!pendingDependencies.length && !pendingDecisions.length) {
-        promotionCandidates.push({
-          taskId: task.id,
-          title: task.title,
-          from: 'blocked',
-          to: 'ready',
-          derived: true,
-          authority: false,
-          reason: 'Todas las dependencias están done y no quedan decisiones pendientes; la autoridad canónica todavía requiere una transición explícita.',
-        })
-      }
-    }
   }
 
   const recommendationOrder = policy?.recommendationOrder ?? []
   const recommendationRank = new Map(recommendationOrder.map((id, index) => [id, index]))
   const backlogRank = new Map(tasks.map(({ id }, index) => [id, index]))
   const rankTask = (id) => recommendationRank.get(id) ?? recommendationOrder.length + (backlogRank.get(id) ?? tasks.length)
-  promotionCandidates.sort((left, right) => rankTask(left.taskId) - rankTask(right.taskId))
+  const promotionCandidates = collectPromotionCandidates(tasks, {
+    compare: (left, right) => rankTask(left.taskId) - rankTask(right.taskId),
+  })
   if (promotionCandidates.length) {
     warnings.push(`${promotionCandidates.length} tarea(s) blocked cumplen los gates para una promoción explícita a ready.`)
   }

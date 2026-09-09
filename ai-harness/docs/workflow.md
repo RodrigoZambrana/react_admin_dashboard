@@ -10,6 +10,8 @@
 
 ## 2. Explorar
 
+- Si el trabajo nace de un pedido nuevo, validar `harness:intake` contra el
+  backlog canónico antes de abrir otra tarea.
 - Usar código, contratos, esquema y pruebas como evidencia primaria.
 - Registrar contradicciones documentales; no corregirlas de forma masiva dentro
   de una tarea funcional.

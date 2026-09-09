@@ -33,6 +33,8 @@ npm run harness:progress
 npm run harness:control
 npm run harness:audit
 npm run harness:lifecycle -- recover
+npm run harness:intake -- --file path/to/intake.json
+npm run harness:intake -- promotions
 npm run --silent harness:control -- --json
 npm run harness:verify -- --scope changed --level quick
 ```
@@ -64,3 +66,9 @@ incluye el prompt completo derivado por el control, listo para copiar en el
 destino indicado y nunca para ejecutar dentro del chat auditor. Cuando una tarea
 `blocked` ya satisface dependencias y decisiones, el control recomienda
 `PROMOTE`/`NONE` sin mutar el backlog.
+
+Un pedido nuevo se estructura con `harness:intake`. El comando valida
+fidelidad, clasifica hechos/supuestos/dudas, exige slices terminables y
+reconstruye vistas desde `planning/backlog.json`. `apply-promotion --confirm`
+escribe una transición `blocked → ready` en la cola canónica y no llama a
+`lifecycle start`. El contrato está en `docs/intake.md`.

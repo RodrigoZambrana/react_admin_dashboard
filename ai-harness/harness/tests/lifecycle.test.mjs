@@ -374,6 +374,27 @@ test('preclose falla sin mutar cuando cambia la branch fijada por start', (t) =>
   assert.deepEqual(snapshot(root), before)
 })
 
+test('close sincroniza el fragmento dueño cuando está en el write-set', (t) => {
+  const root = makeFixture()
+  t.after(() => rmSync(root, { recursive: true, force: true }))
+  mkdirSync(join(root, 'planning/fragments'), { recursive: true })
+  writeJson(join(root, 'planning/fragments/platform.json'), {
+    tasks: [{ id: 'HAR-001', status: 'done' }, structuredClone(task)],
+  })
+  git(root, 'add', 'planning/fragments/platform.json')
+  git(root, 'commit', '-qm', 'fragment')
+  const writeSet = [...requiredWriteSet, 'planning/fragments/platform.json']
+
+  startLifecycle(root, { taskId: 'HAR-002', sessionId: 'fragment-sync', writeSet })
+  assert.equal(readJson(root, 'planning/fragments/platform.json').tasks.find(({ id }) => id === 'HAR-002').status, 'in_progress')
+  writeFileSync(join(root, 'src/owned.txt'), 'implementado\n')
+  precloseLifecycle(root, { evidence: evidence() })
+  closeLifecycle(root, { summary: 'Vista general y por producto quedan alineadas.' })
+
+  assert.equal(readJson(root, 'planning/backlog.json').tasks.find(({ id }) => id === 'HAR-002').status, 'done')
+  assert.equal(readJson(root, 'planning/fragments/platform.json').tasks.find(({ id }) => id === 'HAR-002').status, 'done')
+})
+
 test('close detecta cambios posteriores a preclose y no altera fuentes', (t) => {
   const root = makeFixture()
   t.after(() => rmSync(root, { recursive: true, force: true }))

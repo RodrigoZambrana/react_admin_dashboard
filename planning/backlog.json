@@ -2889,7 +2889,7 @@
       "type": "harness-governance",
       "phase": "Harness parity",
       "priority": "P0",
-      "status": "ready",
+      "status": "done",
       "objective": "Preservar fidelidad entre pedido, necesidad, requisito, decisión, tarea, aceptación y evidencia dentro de un backlog único con vistas generales y por producto.",
       "rationale": "El backlog es detallado, pero hoy la conversión desde un pedido y la promoción posterior siguen siendo procesos manuales sin recibo verificable ni detección general de bloqueos obsoletos.",
       "scope": {

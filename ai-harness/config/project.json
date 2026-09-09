@@ -112,7 +112,7 @@
       "packageManager": "node",
       "verification": {
         "quick": ["node harness/doctor.mjs"],
-        "standard": ["node harness/doctor.mjs", "node harness/backlog.mjs", "node harness/control.mjs", "node --test harness/tests/*.test.mjs", "node --check harness/assemble-backlog.mjs", "node --check harness/control.mjs", "node --check harness/doctor.mjs", "node --check harness/backlog.mjs", "node --check harness/lifecycle.mjs", "node --check harness/verify.mjs", "node --check harness/progress.mjs"],
+        "standard": ["node harness/doctor.mjs", "node harness/backlog.mjs", "node harness/control.mjs", "node --test harness/tests/*.test.mjs", "node --check harness/assemble-backlog.mjs", "node --check harness/control.mjs", "node --check harness/doctor.mjs", "node --check harness/backlog.mjs", "node --check harness/lifecycle.mjs", "node --check harness/intake.mjs", "node --check harness/backlog-governance.mjs", "node --check harness/verify.mjs", "node --check harness/progress.mjs"],
         "release": ["node harness/doctor.mjs", "node harness/verify.mjs --scope harness --level standard --dry-run"]
       }
     }

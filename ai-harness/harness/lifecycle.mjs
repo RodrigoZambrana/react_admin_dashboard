@@ -18,6 +18,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import { buildControlReport } from './control.mjs'
+import { applyTaskStatus, findBacklogFragmentRelPath } from './backlog-governance.mjs'
 
 const harnessDir = dirname(dirname(fileURLToPath(import.meta.url)))
 const defaultRoot = dirname(harnessDir)
@@ -88,6 +89,13 @@ const normalizePath = (root, input) => {
 const matchesWriteSet = (path, writeSet) => writeSet.some((entry) =>
   entry.endsWith('/') ? path.startsWith(entry) : path === entry,
 )
+
+const syncOwnedFragment = (root, taskId, writeSet, status) => {
+  const rel = findBacklogFragmentRelPath(root, taskId)
+  if (!rel || !matchesWriteSet(rel, writeSet)) return null
+  const fragment = readJson(root, rel)
+  return { rel, fragment: { ...fragment, tasks: applyTaskStatus(fragment.tasks ?? [], taskId, status) } }
+}
 
 const validateWriteSet = (root, entries) => {
   const writeSet = [...new Set((entries ?? []).map((entry) => normalizePath(root, entry)))].sort()
@@ -562,6 +570,8 @@ export const startLifecycle = (root = defaultRoot, options = {}) => {
     [statePaths.current, json(nextCurrent)],
     [statePaths.currentMd, currentMarkdown(nextCurrent)],
   ])
+  const fragmentSync = syncOwnedFragment(root, task.id, writeSet, 'in_progress')
+  if (fragmentSync) writes.set(fragmentSync.rel, json(fragmentSync.fragment))
   const transaction = applyAtomicFileTransaction(root, 'start', writes, options.transaction)
   return { transition: 'start', sessionId, taskId: task.id, git: feature.git, writeSet, transaction }
 }
@@ -704,6 +714,8 @@ export const closeLifecycle = (root = defaultRoot, options = {}) => {
     [receiptPath, json(receipt)],
     [featurePath, json(featureReceipt)],
   ])
+  const fragmentSync = syncOwnedFragment(root, task.id, current.writeSet, 'done')
+  if (fragmentSync) writes.set(fragmentSync.rel, json(fragmentSync.fragment))
   const commitMessage = `${task.id}: ${task.title}\n\n${receipt.summary}\n\nAI-Harness-Session: ${current.sessionId}\nAI-Harness-Candidate: ${current.preclose.diff.candidateFingerprint}`
   const transaction = applyAtomicFileTransaction(root, 'close', writes, {
     ...options.transaction,

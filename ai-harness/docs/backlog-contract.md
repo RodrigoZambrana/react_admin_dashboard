@@ -11,6 +11,11 @@ El control deriva de esa misma cola los totales generales, las vistas por
 `product`, el orden recomendado y las transiciones elegibles. Estas proyecciones
 no son un segundo backlog y nunca escriben las autoridades.
 
+`harness:intake apply-promotion --confirm` y `harness:lifecycle` start/close
+actualizan el JSON canónico y, si el fragmento dueño está en el write-set o en
+el alcance de la promoción, también ese fragmento. Así la vista general y la de
+producto se reconstruyen sin una segunda autoridad.
+
 ## Estados
 
 - `proposed`: candidato todavía incompleto o pendiente de auditoría.
@@ -29,9 +34,14 @@ declara su frontera y un único integrador conserva responsabilidad por el
 resultado completo.
 
 Cuando una tarea `blocked` ya tiene todas sus dependencias en `done` y no tiene
-`decisionsRequired`, el control la expone como candidata a transición
-`blocked → ready`. Esa derivación es read-only: la fuente canónica debe cambiarse
-mediante una promoción explícita y validada antes de iniciar trabajo.
+`decisionsRequired`, el control y `harness:intake promotions` la exponen como
+candidata a transición `blocked → ready`. Esa derivación es read-only: la fuente
+canónica se cambia solo con `harness:intake apply-promotion --id <ID> --confirm`.
+Esa escritura no inicia la tarea. El control nunca muta autoridades.
+
+Un pedido se convierte en requisitos y slices con `harness:intake`. Los slices
+se trazan a tareas del backlog canónico; no crean una cola paralela. Un cambio
+de alcance queda como `decision` o `supersession`.
 
 Las decisiones de producto, cambios de prioridad o alcance, excepciones,
 operaciones destructivas o remotas y releases de alto riesgo no se derivan ni se

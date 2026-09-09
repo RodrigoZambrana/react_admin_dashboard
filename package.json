@@ -9,6 +9,7 @@
     "harness:audit": "node ai-harness/harness/control.mjs --auditor-response",
     "harness:control": "node ai-harness/harness/control.mjs",
     "harness:lifecycle": "node ai-harness/harness/lifecycle.mjs",
+    "harness:intake": "node ai-harness/harness/intake.mjs",
     "harness:progress": "node ai-harness/harness/progress.mjs",
     "harness:test": "node --test ai-harness/harness/tests/*.test.mjs",
     "harness:verify": "node ai-harness/harness/verify.mjs",

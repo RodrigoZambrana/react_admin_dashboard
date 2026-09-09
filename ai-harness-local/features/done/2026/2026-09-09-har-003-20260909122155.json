@@ -1,0 +1,652 @@
+{
+  "schema": "ai-harness.feature-close-receipt/v2",
+  "sessionId": "har-003-20260909122155",
+  "backlogTaskId": "HAR-003",
+  "status": "done",
+  "startedAt": "2026-09-09T12:21:55.661Z",
+  "preparedAt": "2026-09-09T12:49:54.471Z",
+  "closedAt": "2026-09-09T12:51:05.319Z",
+  "summary": "Intake, slicing y promoción gobernada sobre el backlog canónico, con pruebas adversas de pérdida/mezcla y vistas general/por producto sin autoridad paralela.",
+  "task": {
+    "id": "HAR-003",
+    "title": "Estructurar intake, trazabilidad y slicing",
+    "scope": {
+      "in": [
+        "Schema de intake",
+        "Clasificación de hechos/supuestos/dudas",
+        "Slicing independiente orientado a resultados terminables",
+        "Trazabilidad al backlog canónico general y por producto",
+        "Reglas de estado y promoción gobernada"
+      ],
+      "out": [
+        "Inferir respuestas humanas",
+        "Crear un backlog paralelo",
+        "Gestor de proyectos externo",
+        "Comenzar automáticamente el trabajo promovido"
+      ]
+    },
+    "acceptanceCriteria": [
+      "Un intake conserva todo requisito material del pedido.",
+      "Cada slice tiene un resultado, alcance, producto dueño y gate verificables que favorecen completar trabajo antes de abrir más frentes.",
+      "El backlog canónico permite reconstruir la vista general y por producto sin duplicar autoridad.",
+      "Una promoción solo se propone cuando todas las dependencias están done y no quedan decisiones pendientes; el control no muta la autoridad.",
+      "Cambios de alcance quedan como decisión o supersesión.",
+      "Existen pruebas adversas de pérdida y mezcla de requisitos."
+    ],
+    "verification": [
+      "Fixtures de prompts extensos y diffs semánticos requisito→tarea."
+    ],
+    "decisionRefs": [
+      "DEC-002",
+      "DEC-007",
+      "DEC-008",
+      "DEC-010"
+    ]
+  },
+  "git": {
+    "branch": "feature/ai-conversational-platform-standalone",
+    "baseCommit": "389d93911a0749f3d06dea476c2f52470ecb7096",
+    "headAtClose": "389d93911a0749f3d06dea476c2f52470ecb7096",
+    "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+    "linkedWorktree": false,
+    "preexistingChanges": [],
+    "diff": {
+      "schema": "ai-harness.git-diff-receipt/v1",
+      "baseCommit": "389d93911a0749f3d06dea476c2f52470ecb7096",
+      "head": "389d93911a0749f3d06dea476c2f52470ecb7096",
+      "branch": "feature/ai-conversational-platform-standalone",
+      "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+      "linkedWorktree": false,
+      "changedPaths": [
+        "ai-harness-local/README.md",
+        "ai-harness-local/control/capabilities.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/progress/current.json",
+        "ai-harness-local/progress/current.md",
+        "ai-harness/AGENTS.md",
+        "ai-harness/CHANGELOG.md",
+        "ai-harness/README.md",
+        "ai-harness/VERSION",
+        "ai-harness/config/project.json",
+        "ai-harness/docs/backlog-contract.md",
+        "ai-harness/docs/intake.md",
+        "ai-harness/docs/workflow.md",
+        "ai-harness/harness/backlog-governance.mjs",
+        "ai-harness/harness/control.mjs",
+        "ai-harness/harness/intake.mjs",
+        "ai-harness/harness/lifecycle.mjs",
+        "ai-harness/harness/tests/control.test.mjs",
+        "ai-harness/harness/tests/fixtures/intake/long-commerce-metrics-request.md",
+        "ai-harness/harness/tests/intake.test.mjs",
+        "ai-harness/harness/tests/lifecycle.test.mjs",
+        "ai-harness/releases/0.6.0.md",
+        "ai-harness/schemas/intake.schema.json",
+        "docs/CANONICAL_INDEX.md",
+        "docs/EXECUTION_BACKLOG_2026-09-08.md",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+        "package.json",
+        "planning/backlog.json",
+        "planning/fragments/platform.json"
+      ],
+      "ownedPaths": [
+        "ai-harness-local/README.md",
+        "ai-harness-local/control/capabilities.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/progress/current.json",
+        "ai-harness-local/progress/current.md",
+        "ai-harness/AGENTS.md",
+        "ai-harness/CHANGELOG.md",
+        "ai-harness/README.md",
+        "ai-harness/VERSION",
+        "ai-harness/config/project.json",
+        "ai-harness/docs/backlog-contract.md",
+        "ai-harness/docs/intake.md",
+        "ai-harness/docs/workflow.md",
+        "ai-harness/harness/backlog-governance.mjs",
+        "ai-harness/harness/control.mjs",
+        "ai-harness/harness/intake.mjs",
+        "ai-harness/harness/lifecycle.mjs",
+        "ai-harness/harness/tests/control.test.mjs",
+        "ai-harness/harness/tests/fixtures/intake/long-commerce-metrics-request.md",
+        "ai-harness/harness/tests/intake.test.mjs",
+        "ai-harness/harness/tests/lifecycle.test.mjs",
+        "ai-harness/releases/0.6.0.md",
+        "ai-harness/schemas/intake.schema.json",
+        "docs/CANONICAL_INDEX.md",
+        "docs/EXECUTION_BACKLOG_2026-09-08.md",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+        "package.json",
+        "planning/backlog.json",
+        "planning/fragments/platform.json"
+      ],
+      "preservedPreexistingPaths": [],
+      "nameStatus": [
+        {
+          "status": "M",
+          "path": "ai-harness-local/README.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/control/capabilities.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/feature_list.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/progress/current.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness-local/progress/current.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/AGENTS.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/CHANGELOG.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/README.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/VERSION"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/config/project.json"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/docs/backlog-contract.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/docs/workflow.md"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/harness/control.mjs"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/harness/lifecycle.mjs"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/harness/tests/control.test.mjs"
+        },
+        {
+          "status": "M",
+          "path": "ai-harness/harness/tests/lifecycle.test.mjs"
+        },
+        {
+          "status": "M",
+          "path": "docs/CANONICAL_INDEX.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/EXECUTION_BACKLOG_2026-09-08.md"
+        },
+        {
+          "status": "M",
+          "path": "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+        },
+        {
+          "status": "M",
+          "path": "package.json"
+        },
+        {
+          "status": "M",
+          "path": "planning/backlog.json"
+        },
+        {
+          "status": "M",
+          "path": "planning/fragments/platform.json"
+        }
+      ],
+      "workingTree": [
+        {
+          "status": " M",
+          "path": "ai-harness-local/README.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/control/capabilities.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/feature_list.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/progress/current.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness-local/progress/current.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/AGENTS.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/CHANGELOG.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/README.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/VERSION"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/config/project.json"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/docs/backlog-contract.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/docs/workflow.md"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/harness/control.mjs"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/harness/lifecycle.mjs"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/harness/tests/control.test.mjs"
+        },
+        {
+          "status": " M",
+          "path": "ai-harness/harness/tests/lifecycle.test.mjs"
+        },
+        {
+          "status": " M",
+          "path": "docs/CANONICAL_INDEX.md"
+        },
+        {
+          "status": " M",
+          "path": "docs/EXECUTION_BACKLOG_2026-09-08.md"
+        },
+        {
+          "status": " M",
+          "path": "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+        },
+        {
+          "status": " M",
+          "path": "package.json"
+        },
+        {
+          "status": " M",
+          "path": "planning/backlog.json"
+        },
+        {
+          "status": " M",
+          "path": "planning/fragments/platform.json"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/docs/intake.md"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/harness/backlog-governance.mjs"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/harness/intake.mjs"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/harness/tests/fixtures/intake/long-commerce-metrics-request.md"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/harness/tests/intake.test.mjs"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/releases/0.6.0.md"
+        },
+        {
+          "status": "??",
+          "path": "ai-harness/schemas/intake.schema.json"
+        }
+      ],
+      "candidateFingerprint": "504c77bb7cfc87c68d15314420cd7ebd426c267b111ba914ac5469e345eed3d1"
+    },
+    "commit": {
+      "required": true,
+      "mode": "isolated-local",
+      "parent": "389d93911a0749f3d06dea476c2f52470ecb7096",
+      "branch": "feature/ai-conversational-platform-standalone",
+      "message": "HAR-003: Estructurar intake, trazabilidad y slicing\n\nIntake, slicing y promoción gobernada sobre el backlog canónico, con pruebas adversas de pérdida/mezcla y vistas general/por producto sin autoridad paralela.\n\nAI-Harness-Session: har-003-20260909122155\nAI-Harness-Candidate: 504c77bb7cfc87c68d15314420cd7ebd426c267b111ba914ac5469e345eed3d1",
+      "sessionTrailer": "AI-Harness-Session: har-003-20260909122155",
+      "paths": [
+        "ai-harness-local/README.md",
+        "ai-harness-local/control/capabilities.json",
+        "ai-harness-local/feature_list.json",
+        "ai-harness-local/features/done/2026/2026-09-09-har-003-20260909122155.json",
+        "ai-harness-local/progress/current.json",
+        "ai-harness-local/progress/current.md",
+        "ai-harness-local/progress/history.md",
+        "ai-harness-local/receipts/2026/2026-09-09/har-003-20260909122155.json",
+        "ai-harness/AGENTS.md",
+        "ai-harness/CHANGELOG.md",
+        "ai-harness/README.md",
+        "ai-harness/VERSION",
+        "ai-harness/config/project.json",
+        "ai-harness/docs/backlog-contract.md",
+        "ai-harness/docs/intake.md",
+        "ai-harness/docs/workflow.md",
+        "ai-harness/harness/backlog-governance.mjs",
+        "ai-harness/harness/control.mjs",
+        "ai-harness/harness/intake.mjs",
+        "ai-harness/harness/lifecycle.mjs",
+        "ai-harness/harness/tests/control.test.mjs",
+        "ai-harness/harness/tests/fixtures/intake/long-commerce-metrics-request.md",
+        "ai-harness/harness/tests/intake.test.mjs",
+        "ai-harness/harness/tests/lifecycle.test.mjs",
+        "ai-harness/releases/0.6.0.md",
+        "ai-harness/schemas/intake.schema.json",
+        "docs/CANONICAL_INDEX.md",
+        "docs/EXECUTION_BACKLOG_2026-09-08.md",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+        "package.json",
+        "planning/backlog.json",
+        "planning/fragments/platform.json"
+      ],
+      "manifest": [
+        {
+          "path": "ai-harness-local/README.md",
+          "state": "present",
+          "sha256": "8a0bc21caa7496f958181a41ff10881312252c804d185aa4615be9e055ca6aca"
+        },
+        {
+          "path": "ai-harness-local/control/capabilities.json",
+          "state": "present",
+          "sha256": "934ee53d7214720ec4c3780cbb83f15bade16afcbf9457f37019143d35e01d4b"
+        },
+        {
+          "path": "ai-harness-local/feature_list.json",
+          "state": "present",
+          "sha256": "27b447e25cd631c9cf190800313b18e7ed78da4163204eb8796a1afcb556a3f6"
+        },
+        {
+          "path": "ai-harness-local/progress/current.json",
+          "state": "present",
+          "sha256": "2ecf11a5ae1b3b2c39ed66514aa37668099b5d3dcf96c717dc832bb44be94a91"
+        },
+        {
+          "path": "ai-harness-local/progress/current.md",
+          "state": "present",
+          "sha256": "867305b18211981f406e81499f6a885082d21344b606af9a1a7e00728e11beae"
+        },
+        {
+          "path": "ai-harness-local/progress/history.md",
+          "state": "present",
+          "sha256": "6e9dbecf7d06ad25df24227b9c243c8d3f5aacba61280ccd1ac744fee4e4804f"
+        },
+        {
+          "path": "ai-harness/AGENTS.md",
+          "state": "present",
+          "sha256": "8c4ada916350e176e850d470a3c6276e963ff687bf8739186f81ad48a616361f"
+        },
+        {
+          "path": "ai-harness/CHANGELOG.md",
+          "state": "present",
+          "sha256": "583634a3da75cbdd33afff34a674f02a815ace81b493b3b763a8ebfb99bbadf3"
+        },
+        {
+          "path": "ai-harness/README.md",
+          "state": "present",
+          "sha256": "b0baa2b18c2ce2f6c0867e1a2d29ae730d0d67e61995373ec8c8931230a62524"
+        },
+        {
+          "path": "ai-harness/VERSION",
+          "state": "present",
+          "sha256": "97a5d6e540a6120d09c39ddb667e0e8e2bac7fcc2ffef813b82e08fd60365bce"
+        },
+        {
+          "path": "ai-harness/config/project.json",
+          "state": "present",
+          "sha256": "d7d364d7d0ee56fc39d24d422f44d900095e532194fefe003da877c407466f5c"
+        },
+        {
+          "path": "ai-harness/docs/backlog-contract.md",
+          "state": "present",
+          "sha256": "9233daa0ec96deb2b2329cdefcc587a7d0fe229571f518654aadee322330f443"
+        },
+        {
+          "path": "ai-harness/docs/intake.md",
+          "state": "present",
+          "sha256": "221319bb07e1ff739826394fe155cb1f5904091bd1da130fb4282db835403e04"
+        },
+        {
+          "path": "ai-harness/docs/workflow.md",
+          "state": "present",
+          "sha256": "5490fc62d2abadb0e8d8e0fb5a3ec804033103ed2ff6ff40aa9b47d78416135c"
+        },
+        {
+          "path": "ai-harness/harness/backlog-governance.mjs",
+          "state": "present",
+          "sha256": "d9535188d3438be45e75d19da8e83b55b64bf85a634d1d9e3e7555a1e2c3e5a3"
+        },
+        {
+          "path": "ai-harness/harness/control.mjs",
+          "state": "present",
+          "sha256": "175dfb6db9223b7d95c361d0226dbd692f7c841cf2d8bf489c4e5f763e9380a9"
+        },
+        {
+          "path": "ai-harness/harness/intake.mjs",
+          "state": "present",
+          "sha256": "54c244badbad9e69368daef71515f2de0aa7eb060e35b55abe0d005b80f4753e"
+        },
+        {
+          "path": "ai-harness/harness/lifecycle.mjs",
+          "state": "present",
+          "sha256": "4bca3b36ce5af7e09e9288da3919a559696eb288349076d1a486406aaae246d4"
+        },
+        {
+          "path": "ai-harness/harness/tests/control.test.mjs",
+          "state": "present",
+          "sha256": "57bdfdcaf5a87a848759520aacee21720f473016a8ede0e88947e25a895b9db4"
+        },
+        {
+          "path": "ai-harness/harness/tests/fixtures/intake/long-commerce-metrics-request.md",
+          "state": "present",
+          "sha256": "a9dc57d37871fcd98323bf4227d03318e28b0534fed64012bed9966b5f712775"
+        },
+        {
+          "path": "ai-harness/harness/tests/intake.test.mjs",
+          "state": "present",
+          "sha256": "31fdd40fff0d9efa130c05633d4502be02d036226a739f3d94f136b37956b7c1"
+        },
+        {
+          "path": "ai-harness/harness/tests/lifecycle.test.mjs",
+          "state": "present",
+          "sha256": "43b40dda925483b42d809ed05de48128370b606842c8b8f9b055e92f8cc275e0"
+        },
+        {
+          "path": "ai-harness/releases/0.6.0.md",
+          "state": "present",
+          "sha256": "04a8b99f976a9938154c127d12b3a584c18fe08a4b84dc46bbf0bb2835b6985a"
+        },
+        {
+          "path": "ai-harness/schemas/intake.schema.json",
+          "state": "present",
+          "sha256": "46cf618f17279dd90574cc0a2f008d05290bbfe1d380953d461b817fcae78bb5"
+        },
+        {
+          "path": "docs/CANONICAL_INDEX.md",
+          "state": "present",
+          "sha256": "a9901101a7ba02425542e67b8e49d671886a18c5e79572dd24f8ec73ccb55dbb"
+        },
+        {
+          "path": "docs/EXECUTION_BACKLOG_2026-09-08.md",
+          "state": "present",
+          "sha256": "062397a34f3731c6c115c2b05e7ff41412288b2c694d6606b739578fc12b382b"
+        },
+        {
+          "path": "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+          "state": "present",
+          "sha256": "53a2b7e6aa3422ec4f017e416e5742eec0f4ccb34da4c5149b31e92797282b86"
+        },
+        {
+          "path": "package.json",
+          "state": "present",
+          "sha256": "04a53218b78568e4318fe1a3d360469383c6de7d4882e5e5658571ec61a1beed"
+        },
+        {
+          "path": "planning/backlog.json",
+          "state": "present",
+          "sha256": "823cc57f3207020fc03ebe5749239050eead090d0d64f06901f0d11db9127d25"
+        },
+        {
+          "path": "planning/fragments/platform.json",
+          "state": "present",
+          "sha256": "4a52482937f0cba9c6f2ce4b2d18b2bfd025f36f20a22cc0b99dbb1bc0e78b43"
+        }
+      ],
+      "manifestExcludes": [
+        "ai-harness-local/receipts/2026/2026-09-09/har-003-20260909122155.json",
+        "ai-harness-local/features/done/2026/2026-09-09-har-003-20260909122155.json"
+      ]
+    }
+  },
+  "evidence": {
+    "schema": "ai-harness.preclose-evidence/v1",
+    "taskId": "HAR-003",
+    "acceptance": [
+      {
+        "requirement": "Un intake conserva todo requisito material del pedido.",
+        "status": "passed",
+        "evidence": "ai-harness/schemas/intake.schema.json y evaluateIntake rechazan LOST_REQUIREMENT si falta un requisito de ## Requisitos materiales o si un requisito material no se traza a un slice. El fixture long-commerce-metrics-request.md (>2500 chars, 7 requisitos) se conserva en el intake fiel; tests 'pierde un requisito material' y 'un requisito material sin slice se declara perdido' fallan cerrado."
+      },
+      {
+        "requirement": "Cada slice tiene un resultado, alcance, producto dueño y gate verificables que favorecen completar trabajo antes de abrir más frentes.",
+        "status": "passed",
+        "evidence": "El schema exige result, scope.in/out, product y gate. MIXED_REQUIREMENTS impide fusionar productos/clusters o el mismo requisito en slices independientes. recommendedNextSlice elige el habilitador desbloqueado y, si ese frente ya está done, el siguiente. Tests de mezcla checkout/métricas y de recomendación de frente terminable."
+      },
+      {
+        "requirement": "El backlog canónico permite reconstruir la vista general y por producto sin duplicar autoridad.",
+        "status": "passed",
+        "evidence": "reconstructBacklogViews deriva general y byProduct desde planning/backlog.json. evaluateIntake rechaza PARALLEL_BACKLOG. apply-promotion y lifecycle start/close sincronizan el fragmento dueño cuando está en alcance. Test 'close sincroniza el fragmento dueño cuando está en el write-set'."
+      },
+      {
+        "requirement": "Una promoción solo se propone cuando todas las dependencias están done y no quedan decisiones pendientes; el control no muta la autoridad.",
+        "status": "passed",
+        "evidence": "collectPromotionCandidates exige blocked + deps done + decisionsRequired vacío. Control y harness:intake promotions son read-only (bytes del backlog intactos). apply-promotion sin --confirm no escribe; con --start falla PROMOTION_MUST_NOT_START; T-PAY con decisión pendiente no es candidato. Tests de control.test.mjs y intake.test.mjs."
+      },
+      {
+        "requirement": "Cambios de alcance quedan como decisión o supersesión.",
+        "status": "passed",
+        "evidence": "scopeChanges solo admite kind decision|supersession; supersession exige decisionRef DEC-xxx. Tests 'un cambio de alcance sin decisión ni supersesión falla' e 'una supersesión sin DEC-xxx falla'. Inferir respuestas humanas falla con INFERRED_HUMAN_ANSWER."
+      },
+      {
+        "requirement": "Existen pruebas adversas de pérdida y mezcla de requisitos.",
+        "status": "passed",
+        "evidence": "ai-harness/harness/tests/intake.test.mjs cubre LOST_REQUIREMENT, MIXED_REQUIREMENTS (producto/cluster y duplicado), INFERRED_HUMAN_ANSWER, PARALLEL_BACKLOG, INVALID_SCOPE_CHANGE, SEMANTIC_GAP y CLI evaluate con exit 1."
+      }
+    ],
+    "verification": [
+      {
+        "requirement": "Fixtures de prompts extensos y diffs semánticos requisito→tarea.",
+        "status": "passed",
+        "evidence": "Fixture ai-harness/harness/tests/fixtures/intake/long-commerce-metrics-request.md. semanticDiff y evaluateIntake emiten requirementTaskDiffs; cobertura < 0.5 produce SEMANTIC_GAP. npm run harness:verify -- --scope harness --level standard: 49 tests pass, doctor 0 errores, backlog 130 válido."
+      }
+    ]
+  },
+  "decisionRefs": [
+    "DEC-002",
+    "DEC-007",
+    "DEC-008",
+    "DEC-010"
+  ],
+  "productChanges": false,
+  "feature": {
+    "id": "har-003-20260909122155",
+    "backlogTaskId": "HAR-003",
+    "type": "harness-governance",
+    "status": "done",
+    "title": "Estructurar intake, trazabilidad y slicing",
+    "objective": "Preservar fidelidad entre pedido, necesidad, requisito, decisión, tarea, aceptación y evidencia dentro de un backlog único con vistas generales y por producto.",
+    "scope": {
+      "in": [
+        "Schema de intake",
+        "Clasificación de hechos/supuestos/dudas",
+        "Slicing independiente orientado a resultados terminables",
+        "Trazabilidad al backlog canónico general y por producto",
+        "Reglas de estado y promoción gobernada"
+      ],
+      "out": [
+        "Inferir respuestas humanas",
+        "Crear un backlog paralelo",
+        "Gestor de proyectos externo",
+        "Comenzar automáticamente el trabajo promovido"
+      ]
+    },
+    "acceptanceCriteria": [
+      "Un intake conserva todo requisito material del pedido.",
+      "Cada slice tiene un resultado, alcance, producto dueño y gate verificables que favorecen completar trabajo antes de abrir más frentes.",
+      "El backlog canónico permite reconstruir la vista general y por producto sin duplicar autoridad.",
+      "Una promoción solo se propone cuando todas las dependencias están done y no quedan decisiones pendientes; el control no muta la autoridad.",
+      "Cambios de alcance quedan como decisión o supersesión.",
+      "Existen pruebas adversas de pérdida y mezcla de requisitos."
+    ],
+    "verification": [
+      "Fixtures de prompts extensos y diffs semánticos requisito→tarea."
+    ],
+    "decisionRefs": [
+      "DEC-002",
+      "DEC-007",
+      "DEC-008",
+      "DEC-010"
+    ],
+    "git": {
+      "branch": "feature/ai-conversational-platform-standalone",
+      "head": "389d93911a0749f3d06dea476c2f52470ecb7096",
+      "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+      "gitDir": "/Users/rodrigo/Git/personal/react_admin_dashboard/.git",
+      "commonDir": "/Users/rodrigo/Git/personal/react_admin_dashboard/.git",
+      "linkedWorktree": false,
+      "baseBranch": "feature/ai-conversational-platform-standalone",
+      "baseCommit": "389d93911a0749f3d06dea476c2f52470ecb7096",
+      "preexistingChanges": []
+    },
+    "writeSet": [
+      "ai-harness-local/",
+      "ai-harness/",
+      "docs/CANONICAL_INDEX.md",
+      "docs/EXECUTION_BACKLOG_2026-09-08.md",
+      "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+      "package.json",
+      "planning/backlog.json",
+      "planning/fragments/platform.json"
+    ],
+    "startedAt": "2026-09-09T12:21:55.661Z",
+    "phase": "preclose",
+    "preparedAt": "2026-09-09T12:49:54.471Z",
+    "completedAt": "2026-09-09T12:51:05.319Z",
+    "result": {
+      "summary": "Intake, slicing y promoción gobernada sobre el backlog canónico, con pruebas adversas de pérdida/mezcla y vistas general/por producto sin autoridad paralela.",
+      "receipt": "ai-harness-local/receipts/2026/2026-09-09/har-003-20260909122155.json",
+      "featureReceipt": "ai-harness-local/features/done/2026/2026-09-09-har-003-20260909122155.json"
+    }
+  }
+}

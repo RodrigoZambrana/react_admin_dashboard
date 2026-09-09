@@ -7,8 +7,8 @@
   "phase": null,
   "startedAt": null,
   "objective": null,
-  "lastCompleted": "2026-09-08T23:32:25.410Z: PF-001 — Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.",
-  "nextRecommended": "HAR-003 — Estructurar intake, trazabilidad y slicing; no iniciada",
+  "lastCompleted": "2026-09-09T12:51:05.319Z: HAR-003 — Intake, slicing y promoción gobernada sobre el backlog canónico, con pruebas adversas de pérdida/mezcla y vistas general/por producto sin autoridad paralela.",
+  "nextRecommended": "Recalcular el control y seleccionar una única tarea elegible",
   "plan": [
     {
       "id": "implementation",
@@ -27,20 +27,15 @@
     }
   ],
   "files": [
-    "ai-harness-local/control/requirements.json",
-    "ai-harness-local/decisions/index.json",
-    "ai-harness-local/feature_list.json",
-    "ai-harness-local/features/done/",
-    "ai-harness-local/progress/",
-    "ai-harness-local/receipts/",
+    "ai-harness-local/",
+    "ai-harness/",
     "docs/CANONICAL_INDEX.md",
     "docs/EXECUTION_BACKLOG_2026-09-08.md",
-    "docs/MASTER_PLAN_2026-09-08.md",
-    "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
-    "docs/TARGET_PRODUCT_ARCHITECTURE.md",
-    "docs/adr/",
-    "planning/backlog.json"
+    "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+    "package.json",
+    "planning/backlog.json",
+    "planning/fragments/platform.json"
   ],
   "blockers": [],
-  "lastReceipt": "ai-harness-local/receipts/2026/2026-09-08/platform-tenancy-pilot-20260908.json"
+  "lastReceipt": "ai-harness-local/receipts/2026/2026-09-09/har-003-20260909122155.json"
 }

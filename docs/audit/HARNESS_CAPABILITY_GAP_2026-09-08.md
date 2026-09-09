@@ -29,7 +29,7 @@ prueba y evidencia local. El estado estructurado vigente está en
 | --- | --- | --- | --- |
 | Router progresivo | `AGENTS.md`, project context | Implementada | Falta cápsula generada para handoffs extensos. |
 | Configuración por consumidor | manifiestos y doctor | Implementada | Ownership nominal pendiente. |
-| Intake y slicing | story intake, work plan, skills | Parcial | Sin comando/schema ni prueba de fidelidad. |
+| Intake y slicing | story intake, work plan, skills | Implementada en HAR-003 | Adaptada al backlog canónico, sin Zoho. |
 | Backlog y estado de tarea | feature list y checks | Implementada y ampliada | Faltan transiciones atómicas. |
 | Start/preclose/close | scripts con guards y recibos | Parcial/manual | No existen comandos de lifecycle. |
 | Preflight Git y write-set | `git-preflight` | Parcial | No fija baseline/write-set ni emite diff receipt. |
@@ -89,8 +89,9 @@ inconsistente. El chat auditor usa ese reporte; no conserva estado alternativo.
 
 1. **HAR-002 — Lifecycle y preflight:** start/preclose/close, baseline,
    write-set, commit local aislado, recovery Git y recibos.
-2. **HAR-003/HAR-004 — Intake y contexto:** fidelidad de requerimientos,
-   slicing, cápsulas y handoffs con fingerprints.
+2. **HAR-003 — Intake:** schema, fidelidad, slicing y promoción explícita
+   sobre el backlog canónico. **HAR-004 — Contexto:** cápsulas y handoffs
+   con fingerprints.
 3. **HAR-005 — Revisión independiente:** manifiesto de candidato y recibo
    semántico.
 4. **HAR-006/HAR-007 — Testing y runtime:** definiciones, ejecuciones,

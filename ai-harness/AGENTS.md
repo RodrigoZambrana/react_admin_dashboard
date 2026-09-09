@@ -31,7 +31,7 @@ AI_HARNESS_MODE: active
 | Canales | `services/channel-adapter/` | `services/README.md` |
 | Métricas y growth | `backend/src/analytics/`, `backend/src/growth/` | `docs/analytics-integration-audit-2026-04-29.md` |
 | Infraestructura | `deploy/`, Docker y scripts raíz | `docs/architecture.md` |
-| Harness | `ai-harness/`, `ai-harness-local/`, `AGENTS.md` | este archivo |
+| Harness | `ai-harness/`, `ai-harness-local/`, `AGENTS.md` | `ai-harness/docs/intake.md` y este archivo |
 
 ## Invariantes
 

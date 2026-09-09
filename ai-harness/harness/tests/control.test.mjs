@@ -43,6 +43,26 @@ const makeFixture = () => {
     mkdirSync(dirname(destination), { recursive: true })
     cpSync(join(root, path), destination, { recursive: true })
   }
+  const backlogPath = join(fixture, 'planning/backlog.json')
+  const backlog = JSON.parse(readFileSync(backlogPath, 'utf8'))
+  for (const task of backlog.tasks ?? []) {
+    if (task.status === 'in_progress') task.status = 'ready'
+  }
+  writeFileSync(backlogPath, `${JSON.stringify(backlog, null, 2)}\n`)
+  writeFileSync(join(fixture, 'ai-harness-local/progress/current.json'), `${JSON.stringify({
+    schemaVersion: 1,
+    status: 'idle',
+    sessionId: null,
+    objective: null,
+    phase: null,
+    baseCommit: null,
+  }, null, 2)}\n`)
+  const featuresPath = join(fixture, 'ai-harness-local/feature_list.json')
+  const features = JSON.parse(readFileSync(featuresPath, 'utf8'))
+  for (const feature of features.features ?? []) {
+    if (feature.status === 'in_progress') feature.status = 'pending'
+  }
+  writeFileSync(featuresPath, `${JSON.stringify(features, null, 2)}\n`)
   execFileSync('git', ['init', '-q'], { cwd: fixture })
   execFileSync('git', ['config', 'user.name', 'Harness Test'], { cwd: fixture })
   execFileSync('git', ['config', 'user.email', 'harness@example.invalid'], { cwd: fixture })
@@ -108,9 +128,11 @@ test('una decisión pendiente impide la promoción derivada', (t) => {
   assert.ok(report.humanDecisions.pendingCount > 0)
 })
 
-test('el orden gobernado recomienda HAR-003 antes que otros ready aunque el backlog esté ordenado por id', () => {
-  const backlog = JSON.parse(readFileSync(join(root, 'planning/backlog.json'), 'utf8'))
-  const report = buildControlReport(root)
+test('el orden gobernado recomienda HAR-003 antes que otros ready aunque el backlog esté ordenado por id', (t) => {
+  const fixture = makeFixture()
+  t.after(() => rmSync(fixture, { recursive: true, force: true }))
+  const backlog = JSON.parse(readFileSync(join(fixture, 'planning/backlog.json'), 'utf8'))
+  const report = buildControlReport(fixture)
   const harIndex = backlog.tasks.findIndex(({ id }) => id === 'HAR-003')
   const ecIndex = backlog.tasks.findIndex(({ id }) => id === 'EC-001')
 

@@ -14,14 +14,14 @@ decisiones, contratos, inventarios o gates, no cambios funcionales.
 
 ## Estado consolidado
 
-| Línea | Tareas | Ready | Done | Blocked | Proposed |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Plataforma y harness | 23 | 7 | 3 | 13 | 0 |
-| Ecommerce, CRM, backend, admin y storefront | 36 | 1 | 0 | 35 | 0 |
-| Growth Metrics y operaciones futuras | 30 | 1 | 0 | 3 | 26 |
-| AI Platform | 24 | 2 | 0 | 22 | 0 |
-| Adaptadores de canales | 17 | 1 | 0 | 16 | 0 |
-| **Total** | **130** | **12** | **3** | **89** | **26** |
+| Línea | Tareas | Ready | In progress | Done | Blocked | Proposed |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Plataforma y harness | 23 | 6 | 0 | 4 | 13 | 0 |
+| Ecommerce, CRM, backend, admin y storefront | 36 | 1 | 0 | 0 | 35 | 0 |
+| Growth Metrics y operaciones futuras | 30 | 1 | 0 | 0 | 3 | 26 |
+| AI Platform | 24 | 2 | 0 | 0 | 22 | 0 |
+| Adaptadores de canales | 17 | 1 | 0 | 0 | 16 | 0 |
+| **Total** | **130** | **11** | **0** | **4** | **89** | **26** |
 
 Por prioridad existen 65 tareas P0, 52 P1, 10 P2 y 3 P3. `blocked` significa
 que la especificación es suficiente pero falta una decisión o dependencia;
@@ -34,7 +34,6 @@ previo a implementación:
 
 | Id | Resultado |
 | --- | --- |
-| HAR-003 | Intake, trazabilidad, slicing y promoción gobernada dentro del backlog único. |
 | ARC-001 | Inventario verificable de contextos, módulos y ownership actual. |
 | EC-001 | Carta de producto y Definition of Done de Commerce Suite. |
 | SEC-001 | Baseline de vulnerabilidades clasificado por exposición real. |
@@ -47,10 +46,8 @@ previo a implementación:
 | AI-024 | Documentación de AI Platform clasificada dentro del harness. |
 | CH-008 | ADR sobre soporte y riesgo de WhatsApp QR. |
 
-`HAR-002` y `PF-001` están cerradas. HAR-003 ya no conserva otro bloqueo y fue
-promovida a `ready`; el control la recomienda primero según el orden aceptado.
-Después se recalculan `HAR-004` y el resto de la cola. No se promueve trabajo
-dependiente sin revalidar el DAG ni las decisiones pendientes.
+`HAR-001`, `HAR-002`, `PF-001` y `HAR-003` están cerradas. `HAR-004` permanece
+`blocked` hasta una promoción explícita; no se inicia trabajo dependiente.
 
 ## Decisiones y capacidades cerradas en esta ola
 
@@ -58,6 +55,7 @@ dependiente sin revalidar el DAG ni las decisiones pendientes.
 | --- | --- |
 | HAR-002 | Lifecycle, preflight Git, write-set, commit local aislado y cierre automatizados. |
 | PF-001 | Modelo híbrido, piloto UruCortinas dedicado, ownership de configuración y responsable Rodrigo aprobados en ADR-009. |
+| HAR-003 | Schema de intake, fidelidad, slicing terminable y promoción `blocked → ready` gobernada sobre el backlog único. |
 
 ## Paquetes de resultado
 

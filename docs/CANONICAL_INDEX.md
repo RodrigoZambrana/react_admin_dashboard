@@ -12,6 +12,8 @@
 - `EXECUTION_BACKLOG_2026-09-08.md`: vista humana del backlog gobernado.
 - `../planning/backlog.json`: fuente ejecutable y validable de tareas.
 - `ai-harness/`: reglas operativas, verificación y extracción.
+- `ai-harness/docs/intake.md`: pedido, requisitos, slices y promoción
+  gobernada.
 - `audit/HARNESS_CAPABILITY_GAP_2026-09-08.md`: estado de capacidades y camino
   hacia paridad general con la referencia LACNIC.
 

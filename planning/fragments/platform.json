@@ -10,15 +10,42 @@
       "status": "done",
       "objective": "Acordar si la plataforma será SaaS compartido, despliegue dedicado o híbrido y seleccionar el primer segmento/tenant piloto.",
       "rationale": "Tenancy condiciona datos, configuración, aislamiento, despliegue y extracción de todos los productos.",
-      "scope": { "in": ["Modelo comercial/técnico de tenancy", "Tenant y segmento piloto", "Ownership de configuración por tenant"], "out": ["Migraciones", "Implementación de control plane"] },
+      "scope": {
+        "in": [
+          "Modelo comercial/técnico de tenancy",
+          "Tenant y segmento piloto",
+          "Ownership de configuración por tenant"
+        ],
+        "out": [
+          "Migraciones",
+          "Implementación de control plane"
+        ]
+      },
       "dependencies": [],
-      "acceptanceCriteria": ["Existe ADR aprobado con el modelo elegido y alternativas descartadas.", "Cada producto documenta las consecuencias de aislamiento, deployment y onboarding.", "El piloto tiene alcance y responsable de aceptación identificados."],
-      "verification": ["Revisión de ADR contra ambos schemas Prisma y topologías Docker."],
-      "risks": ["Elegir un modelo sin validar el piloto puede imponer complejidad multi-tenant innecesaria."],
+      "acceptanceCriteria": [
+        "Existe ADR aprobado con el modelo elegido y alternativas descartadas.",
+        "Cada producto documenta las consecuencias de aislamiento, deployment y onboarding.",
+        "El piloto tiene alcance y responsable de aceptación identificados."
+      ],
+      "verification": [
+        "Revisión de ADR contra ambos schemas Prisma y topologías Docker."
+      ],
+      "risks": [
+        "Elegir un modelo sin validar el piloto puede imponer complejidad multi-tenant innecesaria."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-004", "DEC-009"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-004",
+        "DEC-009"
+      ],
       "size": "M",
-      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md", "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md"]
+      "sourceRefs": [
+        "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md"
+      ]
     },
     {
       "id": "ARC-001",
@@ -30,15 +57,43 @@
       "status": "ready",
       "objective": "Mapear cada módulo, tabla, cola, integración y fuente compartida al comportamiento que posee hoy.",
       "rationale": "La separación segura requiere una visión verificable del acoplamiento real, no solo carpetas objetivo.",
-      "scope": { "in": ["Backend principal", "Admin", "Storefront", "AI Platform", "Channel Adapter", "Schemas y colas"], "out": ["Mover código", "Cambiar ownership"] },
+      "scope": {
+        "in": [
+          "Backend principal",
+          "Admin",
+          "Storefront",
+          "AI Platform",
+          "Channel Adapter",
+          "Schemas y colas"
+        ],
+        "out": [
+          "Mover código",
+          "Cambiar ownership"
+        ]
+      },
       "dependencies": [],
-      "acceptanceCriteria": ["Todos los módulos y modelos críticos aparecen una sola vez en la matriz.", "Los accesos cross-boundary y owners ambiguos están señalados.", "La matriz enlaza código y schema actual."],
-      "verification": ["Checker compara matriz con módulos Nest y modelos Prisma existentes."],
-      "risks": ["Omitir accesos indirectos puede invalidar una futura extracción."],
+      "acceptanceCriteria": [
+        "Todos los módulos y modelos críticos aparecen una sola vez en la matriz.",
+        "Los accesos cross-boundary y owners ambiguos están señalados.",
+        "La matriz enlaza código y schema actual."
+      ],
+      "verification": [
+        "Checker compara matriz con módulos Nest y modelos Prisma existentes."
+      ],
+      "risks": [
+        "Omitir accesos indirectos puede invalidar una futura extracción."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-007"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-007"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/TARGET_PRODUCT_ARCHITECTURE.md", "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "ARC-002",
@@ -51,15 +106,46 @@
       "blockingReason": "Requiere el inventario actual ARC-001 y confirmar owners futuros de identidad global y CRM.",
       "objective": "Asignar owner objetivo a cada dato y comportamiento y marcar superficies legacy con estrategia de retiro.",
       "rationale": "Evita duplicar lógica, tablas o responsabilidades durante la modularización.",
-      "scope": { "in": ["Ownership objetivo", "Legacy/bridge/retire", "Dependencias permitidas"], "out": ["Extracción física", "Implementación de contratos"] },
-      "dependencies": ["PF-001", "ARC-001"],
-      "acceptanceCriteria": ["Ningún dato crítico queda con dos owners activos.", "Toda duplicación legacy tiene consumidor, fecha/gate de retiro y transición.", "Las dependencias permitidas forman un grafo sin ciclos de ownership."],
-      "verification": ["Architecture review y contraste automatizado con matriz ARC-001."],
-      "risks": ["Forzar fronteras incorrectas puede romper transacciones comerciales."],
-      "decisionsRequired": ["Confirmar owner futuro de identidad global y CRM."],
-      "decisionRefs": ["DEC-003", "DEC-004", "DEC-009"],
+      "scope": {
+        "in": [
+          "Ownership objetivo",
+          "Legacy/bridge/retire",
+          "Dependencias permitidas"
+        ],
+        "out": [
+          "Extracción física",
+          "Implementación de contratos"
+        ]
+      },
+      "dependencies": [
+        "PF-001",
+        "ARC-001"
+      ],
+      "acceptanceCriteria": [
+        "Ningún dato crítico queda con dos owners activos.",
+        "Toda duplicación legacy tiene consumidor, fecha/gate de retiro y transición.",
+        "Las dependencias permitidas forman un grafo sin ciclos de ownership."
+      ],
+      "verification": [
+        "Architecture review y contraste automatizado con matriz ARC-001."
+      ],
+      "risks": [
+        "Forzar fronteras incorrectas puede romper transacciones comerciales."
+      ],
+      "decisionsRequired": [
+        "Confirmar owner futuro de identidad global y CRM."
+      ],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-004",
+        "DEC-009"
+      ],
       "size": "M",
-      "sourceRefs": ["docs/TARGET_PRODUCT_ARCHITECTURE.md", "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md", "ai-harness/docs/extraction-gates.md"]
+      "sourceRefs": [
+        "docs/TARGET_PRODUCT_ARCHITECTURE.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
+        "ai-harness/docs/extraction-gates.md"
+      ]
     },
     {
       "id": "ARC-003",
@@ -72,15 +158,43 @@
       "blockingReason": "Requiere ownership objetivo aprobado.",
       "objective": "Establecer formato, owner, compatibilidad y tests para APIs, eventos y schemas entre productos.",
       "rationale": "Los productos no pueden evolucionar ni extraerse independientemente con contratos implícitos.",
-      "scope": { "in": ["OpenAPI o alternativa", "Schemas de eventos", "Versionado", "Consumer tests"], "out": ["Rediseñar todos los endpoints", "Broker corporativo"] },
-      "dependencies": ["ARC-002"],
-      "acceptanceCriteria": ["Existe convención aprobada de versionado y compatibilidad.", "Un contrato representativo se genera/valida desde CI.", "Cambios breaking fallan antes de integrar."],
-      "verification": ["Contract test productor-consumidor ejecutado por el harness."],
-      "risks": ["Un paquete shared generalista puede recrear acoplamiento interno."],
-      "decisionsRequired": ["Elegir mecanismo de contratos y política N/N-1."],
-      "decisionRefs": ["DEC-003", "DEC-007"],
+      "scope": {
+        "in": [
+          "OpenAPI o alternativa",
+          "Schemas de eventos",
+          "Versionado",
+          "Consumer tests"
+        ],
+        "out": [
+          "Rediseñar todos los endpoints",
+          "Broker corporativo"
+        ]
+      },
+      "dependencies": [
+        "ARC-002"
+      ],
+      "acceptanceCriteria": [
+        "Existe convención aprobada de versionado y compatibilidad.",
+        "Un contrato representativo se genera/valida desde CI.",
+        "Cambios breaking fallan antes de integrar."
+      ],
+      "verification": [
+        "Contract test productor-consumidor ejecutado por el harness."
+      ],
+      "risks": [
+        "Un paquete shared generalista puede recrear acoplamiento interno."
+      ],
+      "decisionsRequired": [
+        "Elegir mecanismo de contratos y política N/N-1."
+      ],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-007"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "QA-001",
@@ -92,15 +206,44 @@
       "status": "ready",
       "objective": "Completar gates quick, standard y release con tipos, lint, tests, cobertura, runtime y E2E proporcionales.",
       "rationale": "Los tests actuales son desiguales y una compilación verde no demuestra operación.",
-      "scope": { "in": ["Cinco runtimes de producto", "Harness", "Matriz riesgo-evidencia", "Política de skips", "Evidencia requerida para promoción y release por producto"], "out": ["Corregir fallos", "Definir funcionalidades", "Aprobar releases de alto riesgo sin decisión humana"] },
+      "scope": {
+        "in": [
+          "Cinco runtimes de producto",
+          "Harness",
+          "Matriz riesgo-evidencia",
+          "Política de skips",
+          "Evidencia requerida para promoción y release por producto"
+        ],
+        "out": [
+          "Corregir fallos",
+          "Definir funcionalidades",
+          "Aprobar releases de alto riesgo sin decisión humana"
+        ]
+      },
       "dependencies": [],
-      "acceptanceCriteria": ["Cada producto tiene comandos, prerequisitos y owner.", "Los umbrales iniciales están medidos y su evolución documentada.", "Los casos de alto riesgo exigen E2E/proveedor cuando corresponde.", "La evidencia de calidad habilita una propuesta de promoción, pero un release de alto riesgo conserva aprobación humana explícita."],
-      "verification": ["Harness puede listar y ejecutar cada nivel sin comandos inexistentes."],
-      "risks": ["Umbrales arbitrarios pueden bloquear sin aumentar confianza."],
+      "acceptanceCriteria": [
+        "Cada producto tiene comandos, prerequisitos y owner.",
+        "Los umbrales iniciales están medidos y su evolución documentada.",
+        "Los casos de alto riesgo exigen E2E/proveedor cuando corresponde.",
+        "La evidencia de calidad habilita una propuesta de promoción, pero un release de alto riesgo conserva aprobación humana explícita."
+      ],
+      "verification": [
+        "Harness puede listar y ejecutar cada nivel sin comandos inexistentes."
+      ],
+      "risks": [
+        "Umbrales arbitrarios pueden bloquear sin aumentar confianza."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-007", "DEC-010"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007",
+        "DEC-010"
+      ],
       "size": "M",
-      "sourceRefs": ["ai-harness/docs/verification.md", "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "ai-harness/docs/verification.md",
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "SEC-001",
@@ -112,15 +255,43 @@
       "status": "ready",
       "objective": "Clasificar exposición, fix path, owner y mitigación de los 103 hallazgos de dependencias observados.",
       "rationale": "Storefront y Channel Adapter contienen criticals y hoy no participan del security loop.",
-      "scope": { "in": ["Backend", "Admin", "Storefront", "AI Platform", "Channel Adapter", "Runtime vs dev"], "out": ["Actualizar paquetes", "Aceptar riesgos sin revisión"] },
+      "scope": {
+        "in": [
+          "Backend",
+          "Admin",
+          "Storefront",
+          "AI Platform",
+          "Channel Adapter",
+          "Runtime vs dev"
+        ],
+        "out": [
+          "Actualizar paquetes",
+          "Aceptar riesgos sin revisión"
+        ]
+      },
       "dependencies": [],
-      "acceptanceCriteria": ["Cada critical/high tiene owner, exposición y acción.", "Hallazgos duplicados se agrupan por upgrade verificable.", "Excepciones incluyen mitigación y vencimiento."],
-      "verification": ["Reporte reproducible desde lockfiles y revisado contra rutas de explotación."],
-      "risks": ["El conteo npm no representa por sí solo explotabilidad o prioridad real."],
+      "acceptanceCriteria": [
+        "Cada critical/high tiene owner, exposición y acción.",
+        "Hallazgos duplicados se agrupan por upgrade verificable.",
+        "Excepciones incluyen mitigación y vencimiento."
+      ],
+      "verification": [
+        "Reporte reproducible desde lockfiles y revisado contra rutas de explotación."
+      ],
+      "risks": [
+        "El conteo npm no representa por sí solo explotabilidad o prioridad real."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-004", "DEC-007"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-004",
+        "DEC-007"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md", "security/latest-report.json"]
+      "sourceRefs": [
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md",
+        "security/latest-report.json"
+      ]
     },
     {
       "id": "SEC-002",
@@ -132,15 +303,39 @@
       "status": "ready",
       "objective": "Definir activos, trust boundaries, abusos y controles para auth, pagos, uploads, webhooks, IA, canales y campañas.",
       "rationale": "Las vulnerabilidades de lógica y autorización no aparecen en npm audit.",
-      "scope": { "in": ["Threat models por superficie", "Abuse cases", "Controles y pruebas requeridas"], "out": ["Implementar mitigaciones", "Pentest externo"] },
+      "scope": {
+        "in": [
+          "Threat models por superficie",
+          "Abuse cases",
+          "Controles y pruebas requeridas"
+        ],
+        "out": [
+          "Implementar mitigaciones",
+          "Pentest externo"
+        ]
+      },
       "dependencies": [],
-      "acceptanceCriteria": ["Cada superficie tiene diagrama de flujo de confianza.", "Amenazas se priorizan y enlazan a tareas concretas.", "Se documentan controles existentes y gaps verificables."],
-      "verification": ["Revisión cruzada de seguridad y owners de producto."],
-      "risks": ["Un threat model demasiado genérico no genera controles ejecutables."],
+      "acceptanceCriteria": [
+        "Cada superficie tiene diagrama de flujo de confianza.",
+        "Amenazas se priorizan y enlazan a tareas concretas.",
+        "Se documentan controles existentes y gaps verificables."
+      ],
+      "verification": [
+        "Revisión cruzada de seguridad y owners de producto."
+      ],
+      "risks": [
+        "Un threat model demasiado genérico no genera controles ejecutables."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-006", "DEC-007"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-006",
+        "DEC-007"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "SEC-003",
@@ -153,15 +348,42 @@
       "blockingReason": "Debe usar el triage y la matriz de calidad aprobados.",
       "objective": "Aplicar SCA, secret scanning y policy gates coherentes a todos los lockfiles.",
       "rationale": "El loop actual solo cubre backend y admin y deja fuera los hallazgos críticos.",
-      "scope": { "in": ["Cinco workspaces", "CI", "Baselines y excepciones"], "out": ["Actualizar dependencias", "SAST comercial obligatorio"] },
-      "dependencies": ["SEC-001", "QA-001"],
-      "acceptanceCriteria": ["Todos los productos reportan y bloquean según policy.", "Secret scanning evita nuevos valores sensibles.", "El gate distingue runtime/dev y excepciones vencidas."],
-      "verification": ["PR fixture con hallazgo controlado falla en el producto correcto."],
-      "risks": ["Activar gates antes del triage puede bloquear toda integración sin plan."],
+      "scope": {
+        "in": [
+          "Cinco workspaces",
+          "CI",
+          "Baselines y excepciones"
+        ],
+        "out": [
+          "Actualizar dependencias",
+          "SAST comercial obligatorio"
+        ]
+      },
+      "dependencies": [
+        "SEC-001",
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "Todos los productos reportan y bloquean según policy.",
+        "Secret scanning evita nuevos valores sensibles.",
+        "El gate distingue runtime/dev y excepciones vencidas."
+      ],
+      "verification": [
+        "PR fixture con hallazgo controlado falla en el producto correcto."
+      ],
+      "risks": [
+        "Activar gates antes del triage puede bloquear toda integración sin plan."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-004", "DEC-007"],
+      "decisionRefs": [
+        "DEC-004",
+        "DEC-007"
+      ],
       "size": "M",
-      "sourceRefs": ["scripts/security-loop.mjs", "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "scripts/security-loop.mjs",
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "DOC-001",
@@ -173,15 +395,40 @@
       "status": "ready",
       "objective": "Clasificar documentos como canonical, reference o archive y volver portables sus enlaces.",
       "rationale": "Hay 91 documentos raíz y 299 archivos de texto con rutas del entorno personal.",
-      "scope": { "in": ["Inventario documental", "Metadata/owner", "Link checker", "Rutas personales"], "out": ["Borrar evidencia no inventariada", "Reescribir historia"] },
+      "scope": {
+        "in": [
+          "Inventario documental",
+          "Metadata/owner",
+          "Link checker",
+          "Rutas personales"
+        ],
+        "out": [
+          "Borrar evidencia no inventariada",
+          "Reescribir historia"
+        ]
+      },
       "dependencies": [],
-      "acceptanceCriteria": ["Todo documento tiene clase y owner.", "Los documentos canónicos no contienen rutas personales ni contradicciones conocidas.", "Los links se validan automáticamente."],
-      "verification": ["Checker documental pasa y el índice canónico enumera fuentes vigentes."],
-      "risks": ["Eliminar documentos históricos puede perder decisiones no migradas."],
+      "acceptanceCriteria": [
+        "Todo documento tiene clase y owner.",
+        "Los documentos canónicos no contienen rutas personales ni contradicciones conocidas.",
+        "Los links se validan automáticamente."
+      ],
+      "verification": [
+        "Checker documental pasa y el índice canónico enumera fuentes vigentes."
+      ],
+      "risks": [
+        "Eliminar documentos históricos puede perder decisiones no migradas."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-007"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/CANONICAL_INDEX.md", "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "docs/CANONICAL_INDEX.md",
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "CFG-001",
@@ -193,15 +440,41 @@
       "status": "ready",
       "objective": "Asignar consumidor, owner, ambiente, obligatoriedad y fuente a cada variable de configuración.",
       "rationale": "La configuración está dispersa entre env schemas, compose, código y secure config.",
-      "scope": { "in": ["Variables y flags", "Secretos", "Ambientes", "Rotación", "Build vs runtime"], "out": ["Copiar valores reales", "Elegir secret manager"] },
+      "scope": {
+        "in": [
+          "Variables y flags",
+          "Secretos",
+          "Ambientes",
+          "Rotación",
+          "Build vs runtime"
+        ],
+        "out": [
+          "Copiar valores reales",
+          "Elegir secret manager"
+        ]
+      },
       "dependencies": [],
-      "acceptanceCriteria": ["Cada variable tiene definición única y owner.", "No se exponen secretos en browser o artefactos.", "Las contradicciones entre ejemplos/compose/código quedan como tareas."],
-      "verification": ["Validador compara manifiesto con accesos process.env/import.meta.env."],
-      "risks": ["Un inventario incompleto puede causar builds tolerantes pero inválidos."],
+      "acceptanceCriteria": [
+        "Cada variable tiene definición única y owner.",
+        "No se exponen secretos en browser o artefactos.",
+        "Las contradicciones entre ejemplos/compose/código quedan como tareas."
+      ],
+      "verification": [
+        "Validador compara manifiesto con accesos process.env/import.meta.env."
+      ],
+      "risks": [
+        "Un inventario incompleto puede causar builds tolerantes pero inválidos."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-003", "DEC-007"],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-007"
+      ],
       "size": "L",
-      "sourceRefs": ["env.schema.json", "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "env.schema.json",
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "CI-001",
@@ -214,15 +487,43 @@
       "blockingReason": "Requiere gates de calidad y seguridad definidos.",
       "objective": "Dar a cada PR estados reproducibles por producto y un gate de integración compartida.",
       "rationale": "Solo analytics tiene workflow actual; el resto depende de validación manual/local.",
-      "scope": { "in": ["Instalación reproducible", "Gates por paths", "Cambios shared", "Harness"], "out": ["Deploy productivo", "Proveedores reales"] },
-      "dependencies": ["QA-001", "SEC-003"],
-      "acceptanceCriteria": ["Cada producto obtiene status en PR.", "Cambios compartidos disparan todos los consumidores.", "Artefactos/logs permiten diagnosticar fallos sin secretos."],
-      "verification": ["PR de ensayo por producto y cambio shared ejecuta la matriz esperada."],
-      "risks": ["Filtros de paths incorrectos pueden omitir regresiones cross-product."],
+      "scope": {
+        "in": [
+          "Instalación reproducible",
+          "Gates por paths",
+          "Cambios shared",
+          "Harness"
+        ],
+        "out": [
+          "Deploy productivo",
+          "Proveedores reales"
+        ]
+      },
+      "dependencies": [
+        "QA-001",
+        "SEC-003"
+      ],
+      "acceptanceCriteria": [
+        "Cada producto obtiene status en PR.",
+        "Cambios compartidos disparan todos los consumidores.",
+        "Artefactos/logs permiten diagnosticar fallos sin secretos."
+      ],
+      "verification": [
+        "PR de ensayo por producto y cambio shared ejecuta la matriz esperada."
+      ],
+      "risks": [
+        "Filtros de paths incorrectos pueden omitir regresiones cross-product."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-003", "DEC-007"],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-007"
+      ],
       "size": "L",
-      "sourceRefs": [".github/workflows/analytics-health.yml", "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        ".github/workflows/analytics-health.yml",
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "MOD-001",
@@ -235,15 +536,43 @@
       "blockingReason": "Requiere ownership y matriz de caracterización antes de dividir código.",
       "objective": "Convertir cada archivo de alta concentración en una secuencia pequeña de seams y tests de caracterización.",
       "rationale": "Servicios y pantallas de 5.000–11.000 líneas mezclan responsabilidades y elevan riesgo de cambio.",
-      "scope": { "in": ["Hotspots backend/admin/storefront/AI/adapter", "Dependencias", "Seams", "Secuencia y rollback"], "out": ["Refactor masivo", "Cambiar comportamiento"] },
-      "dependencies": ["ARC-002", "QA-001"],
-      "acceptanceCriteria": ["Cada hotspot tiene responsabilidades identificadas y orden de extracción.", "Cada lote cabe en una tarea independiente con regresión previa.", "Las métricas objetivo se basan en cohesión/ownership, no solo líneas."],
-      "verification": ["Architecture review y ejecución de characterization tests definidos."],
-      "risks": ["Trocear por tamaño sin dominio puede empeorar acoplamiento."],
+      "scope": {
+        "in": [
+          "Hotspots backend/admin/storefront/AI/adapter",
+          "Dependencias",
+          "Seams",
+          "Secuencia y rollback"
+        ],
+        "out": [
+          "Refactor masivo",
+          "Cambiar comportamiento"
+        ]
+      },
+      "dependencies": [
+        "ARC-002",
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "Cada hotspot tiene responsabilidades identificadas y orden de extracción.",
+        "Cada lote cabe en una tarea independiente con regresión previa.",
+        "Las métricas objetivo se basan en cohesión/ownership, no solo líneas."
+      ],
+      "verification": [
+        "Architecture review y ejecución de characterization tests definidos."
+      ],
+      "risks": [
+        "Trocear por tamaño sin dominio puede empeorar acoplamiento."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-003", "DEC-004"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-003",
+        "DEC-004"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "CLN-001",
@@ -256,15 +585,43 @@
       "blockingReason": "La eliminación requiere matriz de calidad para probar no uso.",
       "objective": "Clasificar cada candidato como mantener, migrar, archivar o retirar con evidencia de uso y licencia.",
       "rationale": "El repositorio versiona templates vendor, source maps, demos y backups que amplían superficie y ruido.",
-      "scope": { "in": ["Assets AI/storefront", "Root src", "Backups", "Source maps", "Rutas demo"], "out": ["Borrado automático", "Reescritura de diseño"] },
-      "dependencies": ["QA-001"],
-      "acceptanceCriteria": ["Cada candidato tiene owner, tamaño, uso y disposición.", "Ningún archivo se retira sin prueba de no referencia dinámica/estática.", "Backups útiles migran a almacenamiento y retención apropiados."],
-      "verification": ["Import/reference scan y comparación de build/tests en tareas de retiro posteriores."],
-      "risks": ["Assets aparentemente no usados pueden resolverse dinámicamente por templates/CMS."],
+      "scope": {
+        "in": [
+          "Assets AI/storefront",
+          "Root src",
+          "Backups",
+          "Source maps",
+          "Rutas demo"
+        ],
+        "out": [
+          "Borrado automático",
+          "Reescritura de diseño"
+        ]
+      },
+      "dependencies": [
+        "QA-001"
+      ],
+      "acceptanceCriteria": [
+        "Cada candidato tiene owner, tamaño, uso y disposición.",
+        "Ningún archivo se retira sin prueba de no referencia dinámica/estática.",
+        "Backups útiles migran a almacenamiento y retención apropiados."
+      ],
+      "verification": [
+        "Import/reference scan y comparación de build/tests en tareas de retiro posteriores."
+      ],
+      "risks": [
+        "Assets aparentemente no usados pueden resolverse dinámicamente por templates/CMS."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-004", "DEC-007"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-004",
+        "DEC-007"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "OPS-001",
@@ -277,15 +634,48 @@
       "blockingReason": "SLO, RPO/RTO y modelo operativo dependen del producto/tenancy.",
       "objective": "Establecer health, SLO, logs, métricas, alertas, backup, restore, rollback y ownership mínimos.",
       "rationale": "Ningún producto debe declararse operativo solo por pasar unit tests o build.",
-      "scope": { "in": ["Plantilla readiness", "SLO", "RPO/RTO", "Runbook", "Evidence receipt"], "out": ["Implementar observabilidad", "Comprar herramientas"] },
-      "dependencies": ["PF-001"],
-      "acceptanceCriteria": ["Existe checklist aprobado por producto.", "Los criterios distinguen disponibilidad, degradación y dependencia externa.", "El harness puede exigir un recibo release antes de marcar operativo."],
-      "verification": ["Aplicación de la plantilla a un producto detecta gaps conocidos de la auditoría."],
-      "risks": ["SLOs sin owner o capacidad de medición se vuelven documentación decorativa."],
-      "decisionsRequired": ["Aprobar SLO, RPO/RTO y responsables iniciales."],
-      "decisionRefs": ["DEC-003", "DEC-004", "DEC-007", "DEC-009"],
+      "scope": {
+        "in": [
+          "Plantilla readiness",
+          "SLO",
+          "RPO/RTO",
+          "Runbook",
+          "Evidence receipt"
+        ],
+        "out": [
+          "Implementar observabilidad",
+          "Comprar herramientas"
+        ]
+      },
+      "dependencies": [
+        "PF-001"
+      ],
+      "acceptanceCriteria": [
+        "Existe checklist aprobado por producto.",
+        "Los criterios distinguen disponibilidad, degradación y dependencia externa.",
+        "El harness puede exigir un recibo release antes de marcar operativo."
+      ],
+      "verification": [
+        "Aplicación de la plantilla a un producto detecta gaps conocidos de la auditoría."
+      ],
+      "risks": [
+        "SLOs sin owner o capacidad de medición se vuelven documentación decorativa."
+      ],
+      "decisionsRequired": [
+        "Aprobar SLO, RPO/RTO y responsables iniciales."
+      ],
+      "decisionRefs": [
+        "DEC-003",
+        "DEC-004",
+        "DEC-007",
+        "DEC-009"
+      ],
       "size": "M",
-      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md", "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"]
+      "sourceRefs": [
+        "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+        "docs/adr/ADR-009-HYBRID-TENANCY-AND-URUCORTINAS-PILOT.md",
+        "docs/audit/PLATFORM_FOUNDATION_CURRENT_STATE_2026-09-08.md"
+      ]
     },
     {
       "id": "HAR-001",
@@ -298,17 +688,49 @@
       "objective": "Medir capacidades reales frente al harness LACNIC y habilitar un auditor read-only que reconstruya pendientes, alineamiento, decisiones y próximo paso desde el repositorio.",
       "rationale": "La existencia de reglas y archivos no demuestra paridad ni permite un control independiente y repetible del programa.",
       "scope": {
-        "in": ["Matriz de capacidades con evidencia y remanente", "Reporte determinista de control", "Cobertura de requerimientos y acuerdos", "Prompt de recreación y tarea Codex dedicada", "Pruebas y versionado del harness"],
-        "out": ["Copiar integraciones LACNIC/Zoho/Java", "Implementar tareas de producto", "Autoaprobar decisiones o riesgos", "Dashboard gráfico"]
+        "in": [
+          "Matriz de capacidades con evidencia y remanente",
+          "Reporte determinista de control",
+          "Cobertura de requerimientos y acuerdos",
+          "Prompt de recreación y tarea Codex dedicada",
+          "Pruebas y versionado del harness"
+        ],
+        "out": [
+          "Copiar integraciones LACNIC/Zoho/Java",
+          "Implementar tareas de producto",
+          "Autoaprobar decisiones o riesgos",
+          "Dashboard gráfico"
+        ]
       },
       "dependencies": [],
-      "acceptanceCriteria": ["La comparación declara con evidencia si existe o no paridad y no confunde documentación con mecanismo ejecutable.", "El control falla ante autoridades ausentes o inconsistentes y separa hechos, alertas, decisiones humanas y proyecciones.", "El reporte enumera backlog, requisitos, capacidades y alineamiento y recomienda una sola tarea elegible.", "Existe un prompt durable para reconstruir un chat auditor sin depender de conversaciones previas.", "Las funciones nuevas tienen pruebas automatizadas y pasan el gate standard del harness."],
-      "verification": ["npm run harness:control -- --json", "npm run harness:test", "npm run harness:verify -- --scope harness --level standard"],
-      "risks": ["Un auditor que infiera autoridad o use datos obsoletos puede recomendar trabajo fuera de secuencia.", "Declarar paridad por cantidad de archivos ocultaría controles generales todavía ausentes."],
+      "acceptanceCriteria": [
+        "La comparación declara con evidencia si existe o no paridad y no confunde documentación con mecanismo ejecutable.",
+        "El control falla ante autoridades ausentes o inconsistentes y separa hechos, alertas, decisiones humanas y proyecciones.",
+        "El reporte enumera backlog, requisitos, capacidades y alineamiento y recomienda una sola tarea elegible.",
+        "Existe un prompt durable para reconstruir un chat auditor sin depender de conversaciones previas.",
+        "Las funciones nuevas tienen pruebas automatizadas y pasan el gate standard del harness."
+      ],
+      "verification": [
+        "npm run harness:control -- --json",
+        "npm run harness:test",
+        "npm run harness:verify -- --scope harness --level standard"
+      ],
+      "risks": [
+        "Un auditor que infiera autoridad o use datos obsoletos puede recomendar trabajo fuera de secuencia.",
+        "Declarar paridad por cantidad de archivos ocultaría controles generales todavía ausentes."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-001", "DEC-002", "DEC-007", "DEC-008"],
+      "decisionRefs": [
+        "DEC-001",
+        "DEC-002",
+        "DEC-007",
+        "DEC-008"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md", "ai-harness-local/control/README.md"]
+      "sourceRefs": [
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+        "ai-harness-local/control/README.md"
+      ]
     },
     {
       "id": "HAR-002",
@@ -320,15 +742,46 @@
       "status": "done",
       "objective": "Convertir apertura, preclose y cierre en transiciones atómicas que fijen baseline, write-set y evidencia Git.",
       "rationale": "El ciclo actual depende de edición manual y no impide estados parciales o mezcla de cambios preexistentes.",
-      "scope": { "in": ["start/preclose/close", "Baseline y branch", "Write-set y cambios preexistentes", "Recibos y recovery"], "out": ["Crear commits sin autorización", "Resolver conflictos destructivamente", "Integraciones remotas"] },
-      "dependencies": ["HAR-001"],
-      "acceptanceCriteria": ["Las transiciones inválidas fallan sin modificar estado.", "Start conserva baseline, tarea, alcance y write-set.", "Preclose comprueba aceptación, verificación y diff.", "Close actualiza backlog, feature, checkpoint, historia y recibo de forma coherente o revierte."],
-      "verification": ["Tests con repositorios Git temporales para árbol limpio, sucio, worktree y recuperación de fallo."],
-      "risks": ["Una transición parcialmente escrita puede corromper el cursor operativo."],
+      "scope": {
+        "in": [
+          "start/preclose/close",
+          "Baseline y branch",
+          "Write-set y cambios preexistentes",
+          "Recibos y recovery"
+        ],
+        "out": [
+          "Crear commits sin autorización",
+          "Resolver conflictos destructivamente",
+          "Integraciones remotas"
+        ]
+      },
+      "dependencies": [
+        "HAR-001"
+      ],
+      "acceptanceCriteria": [
+        "Las transiciones inválidas fallan sin modificar estado.",
+        "Start conserva baseline, tarea, alcance y write-set.",
+        "Preclose comprueba aceptación, verificación y diff.",
+        "Close actualiza backlog, feature, checkpoint, historia y recibo de forma coherente o revierte."
+      ],
+      "verification": [
+        "Tests con repositorios Git temporales para árbol limpio, sucio, worktree y recuperación de fallo."
+      ],
+      "risks": [
+        "Una transición parcialmente escrita puede corromper el cursor operativo."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-001", "DEC-002", "DEC-007", "DEC-008"],
+      "decisionRefs": [
+        "DEC-001",
+        "DEC-002",
+        "DEC-007",
+        "DEC-008"
+      ],
       "size": "XL",
-      "sourceRefs": ["docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md", "ai-harness-local/control/capabilities.json"]
+      "sourceRefs": [
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+        "ai-harness-local/control/capabilities.json"
+      ]
     },
     {
       "id": "HAR-003",
@@ -337,18 +790,53 @@
       "type": "harness-governance",
       "phase": "Harness parity",
       "priority": "P0",
-      "status": "ready",
+      "status": "done",
       "objective": "Preservar fidelidad entre pedido, necesidad, requisito, decisión, tarea, aceptación y evidencia dentro de un backlog único con vistas generales y por producto.",
       "rationale": "El backlog es detallado, pero hoy la conversión desde un pedido y la promoción posterior siguen siendo procesos manuales sin recibo verificable ni detección general de bloqueos obsoletos.",
-      "scope": { "in": ["Schema de intake", "Clasificación de hechos/supuestos/dudas", "Slicing independiente orientado a resultados terminables", "Trazabilidad al backlog canónico general y por producto", "Reglas de estado y promoción gobernada"], "out": ["Inferir respuestas humanas", "Crear un backlog paralelo", "Gestor de proyectos externo", "Comenzar automáticamente el trabajo promovido"] },
-      "dependencies": ["HAR-002"],
-      "acceptanceCriteria": ["Un intake conserva todo requisito material del pedido.", "Cada slice tiene un resultado, alcance, producto dueño y gate verificables que favorecen completar trabajo antes de abrir más frentes.", "El backlog canónico permite reconstruir la vista general y por producto sin duplicar autoridad.", "Una promoción solo se propone cuando todas las dependencias están done y no quedan decisiones pendientes; el control no muta la autoridad.", "Cambios de alcance quedan como decisión o supersesión.", "Existen pruebas adversas de pérdida y mezcla de requisitos."],
-      "verification": ["Fixtures de prompts extensos y diffs semánticos requisito→tarea."],
-      "risks": ["Automatizar slicing sin revisión puede fragmentar resultados que necesitan una transacción común."],
+      "scope": {
+        "in": [
+          "Schema de intake",
+          "Clasificación de hechos/supuestos/dudas",
+          "Slicing independiente orientado a resultados terminables",
+          "Trazabilidad al backlog canónico general y por producto",
+          "Reglas de estado y promoción gobernada"
+        ],
+        "out": [
+          "Inferir respuestas humanas",
+          "Crear un backlog paralelo",
+          "Gestor de proyectos externo",
+          "Comenzar automáticamente el trabajo promovido"
+        ]
+      },
+      "dependencies": [
+        "HAR-002"
+      ],
+      "acceptanceCriteria": [
+        "Un intake conserva todo requisito material del pedido.",
+        "Cada slice tiene un resultado, alcance, producto dueño y gate verificables que favorecen completar trabajo antes de abrir más frentes.",
+        "El backlog canónico permite reconstruir la vista general y por producto sin duplicar autoridad.",
+        "Una promoción solo se propone cuando todas las dependencias están done y no quedan decisiones pendientes; el control no muta la autoridad.",
+        "Cambios de alcance quedan como decisión o supersesión.",
+        "Existen pruebas adversas de pérdida y mezcla de requisitos."
+      ],
+      "verification": [
+        "Fixtures de prompts extensos y diffs semánticos requisito→tarea."
+      ],
+      "risks": [
+        "Automatizar slicing sin revisión puede fragmentar resultados que necesitan una transacción común."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-007", "DEC-008", "DEC-010"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007",
+        "DEC-008",
+        "DEC-010"
+      ],
       "size": "L",
-      "sourceRefs": ["docs/REQUIREMENTS_DISCOVERY_2026-09-08.md", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+      "sourceRefs": [
+        "docs/REQUIREMENTS_DISCOVERY_2026-09-08.md",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+      ]
     },
     {
       "id": "HAR-004",
@@ -361,15 +849,51 @@
       "blockingReason": "Depende de intake estructurado y lifecycle para fijar owner, baseline y resultado.",
       "objective": "Hacer reproducibles las delegaciones, su contexto, límites, resultado e integración o rechazo.",
       "rationale": "La auditoría usó agentes con éxito, pero sus contratos y handoffs no tienen schema ni fingerprint local.",
-      "scope": { "in": ["Agent request/result", "Context capsule", "Presupuesto de contexto", "Fingerprint", "Plan reproducible para uno o varios agentes", "Owner integrador y fronteras de escritura", "Recibo de integración/rechazo"], "out": ["Crear chats externos como subagentes", "Memoria paralela autoritativa", "Delegar decisiones humanas"] },
-      "dependencies": ["HAR-002", "HAR-003"],
-      "acceptanceCriteria": ["Cada ejecución identifica si requiere uno o varios agentes y, para cada delegación, owner, entradas, exclusiones, write-set y aceptación.", "El trabajo paralelo evita solapamientos y conserva un único integrador responsable del resultado terminable.", "El resultado se valida contra la cápsula y candidato vigentes.", "La integración registra qué se aceptó, corrigió o rechazó.", "Una instancia nueva reconstruye el handoff sin el chat original."],
-      "verification": ["E2E de handoff con resultado válido, stale, fuera de scope y conflicto de archivos."],
-      "risks": ["Una cápsula excesiva recrea el problema de contexto; una insuficiente induce inferencias."],
+      "scope": {
+        "in": [
+          "Agent request/result",
+          "Context capsule",
+          "Presupuesto de contexto",
+          "Fingerprint",
+          "Plan reproducible para uno o varios agentes",
+          "Owner integrador y fronteras de escritura",
+          "Recibo de integración/rechazo"
+        ],
+        "out": [
+          "Crear chats externos como subagentes",
+          "Memoria paralela autoritativa",
+          "Delegar decisiones humanas"
+        ]
+      },
+      "dependencies": [
+        "HAR-002",
+        "HAR-003"
+      ],
+      "acceptanceCriteria": [
+        "Cada ejecución identifica si requiere uno o varios agentes y, para cada delegación, owner, entradas, exclusiones, write-set y aceptación.",
+        "El trabajo paralelo evita solapamientos y conserva un único integrador responsable del resultado terminable.",
+        "El resultado se valida contra la cápsula y candidato vigentes.",
+        "La integración registra qué se aceptó, corrigió o rechazó.",
+        "Una instancia nueva reconstruye el handoff sin el chat original."
+      ],
+      "verification": [
+        "E2E de handoff con resultado válido, stale, fuera de scope y conflicto de archivos."
+      ],
+      "risks": [
+        "Una cápsula excesiva recrea el problema de contexto; una insuficiente induce inferencias."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-007", "DEC-008", "DEC-010"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007",
+        "DEC-008",
+        "DEC-010"
+      ],
       "size": "XL",
-      "sourceRefs": ["ai-harness/AGENTS.md", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+      "sourceRefs": [
+        "ai-harness/AGENTS.md",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+      ]
     },
     {
       "id": "HAR-005",
@@ -382,15 +906,49 @@
       "blockingReason": "Necesita lifecycle, write-set y contrato de agente para identificar productor, revisor y candidato exacto.",
       "objective": "Impedir cierres sobre evidencia obsoleta o revisiones realizadas contra otro diff.",
       "rationale": "La regla de revisión existe, pero no hay manifiesto completo ni vínculo verificable entre candidato y dictamen.",
-      "scope": { "in": ["Manifest de candidato", "SHA-256 de archivos y Git modes", "Recibo semántico independiente", "Diff-check", "Invalidación stale", "Gate de promoción ligado al resultado completo"], "out": ["Autenticar criptográficamente personas", "Autoaprobar hallazgos", "Cambiar prioridad, alcance o excepciones sin aprobación humana"] },
-      "dependencies": ["HAR-002", "HAR-004"],
-      "acceptanceCriteria": ["Cambios committed, staged, unstaged o nuevos invalidan una revisión previa.", "El revisor es distinto del productor y evalúa alcance, evidencia, límites y sobredeclaraciones.", "El cierre rechaza recibos stale o de otro baseline.", "La historia conserva revisiones rechazadas y supersedidas."],
-      "verification": ["Fixtures de candidato válido y mutaciones posteriores en todos los estados Git."],
-      "risks": ["Excluir archivos incorrectos del fingerprint puede legitimar cambios no revisados."],
+      "scope": {
+        "in": [
+          "Manifest de candidato",
+          "SHA-256 de archivos y Git modes",
+          "Recibo semántico independiente",
+          "Diff-check",
+          "Invalidación stale",
+          "Gate de promoción ligado al resultado completo"
+        ],
+        "out": [
+          "Autenticar criptográficamente personas",
+          "Autoaprobar hallazgos",
+          "Cambiar prioridad, alcance o excepciones sin aprobación humana"
+        ]
+      },
+      "dependencies": [
+        "HAR-002",
+        "HAR-004"
+      ],
+      "acceptanceCriteria": [
+        "Cambios committed, staged, unstaged o nuevos invalidan una revisión previa.",
+        "El revisor es distinto del productor y evalúa alcance, evidencia, límites y sobredeclaraciones.",
+        "El cierre rechaza recibos stale o de otro baseline.",
+        "La historia conserva revisiones rechazadas y supersedidas."
+      ],
+      "verification": [
+        "Fixtures de candidato válido y mutaciones posteriores en todos los estados Git."
+      ],
+      "risks": [
+        "Excluir archivos incorrectos del fingerprint puede legitimar cambios no revisados."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-007", "DEC-008", "DEC-010"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007",
+        "DEC-008",
+        "DEC-010"
+      ],
       "size": "XL",
-      "sourceRefs": ["ai-harness-local/control/README.md", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+      "sourceRefs": [
+        "ai-harness-local/control/README.md",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+      ]
     },
     {
       "id": "HAR-006",
@@ -403,15 +961,50 @@
       "blockingReason": "Los resultados deben ligarse al candidato y revisión definidos por HAR-005.",
       "objective": "Modelar definiciones, sesiones, baselines, ejecuciones, promociones y evidencia de pruebas por producto.",
       "rationale": "Ejecutar comandos no demuestra qué requisito cubren, con qué datos ni contra qué candidato.",
-      "scope": { "in": ["Test definitions", "Task test plan", "Baselines", "Runs y receipts", "Promoción de regresión", "Evidencia para transición de tarea", "Timeouts y artefactos"], "out": ["Ghost Inspector obligatorio", "Reemplazar Jest/Vitest/Playwright", "Autorizar releases de alto riesgo"] },
-      "dependencies": ["HAR-002", "HAR-005"],
-      "acceptanceCriteria": ["Cada verificación enlaza requisito, candidato, ambiente y resultado.", "Los baselines mutantes son reproducibles y no contienen secretos.", "Las pruebas fallidas o no ejecutadas no pueden aparecer como aprobadas.", "Release exige las evidencias configuradas por producto."],
-      "verification": ["E2E del testing harness con pass, fail, timeout, skip no permitido y baseline stale."],
-      "risks": ["Una abstracción generalista puede ocultar capacidades específicas de cada runner."],
+      "scope": {
+        "in": [
+          "Test definitions",
+          "Task test plan",
+          "Baselines",
+          "Runs y receipts",
+          "Promoción de regresión",
+          "Evidencia para transición de tarea",
+          "Timeouts y artefactos"
+        ],
+        "out": [
+          "Ghost Inspector obligatorio",
+          "Reemplazar Jest/Vitest/Playwright",
+          "Autorizar releases de alto riesgo"
+        ]
+      },
+      "dependencies": [
+        "HAR-002",
+        "HAR-005"
+      ],
+      "acceptanceCriteria": [
+        "Cada verificación enlaza requisito, candidato, ambiente y resultado.",
+        "Los baselines mutantes son reproducibles y no contienen secretos.",
+        "Las pruebas fallidas o no ejecutadas no pueden aparecer como aprobadas.",
+        "Release exige las evidencias configuradas por producto."
+      ],
+      "verification": [
+        "E2E del testing harness con pass, fail, timeout, skip no permitido y baseline stale."
+      ],
+      "risks": [
+        "Una abstracción generalista puede ocultar capacidades específicas de cada runner."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-002", "DEC-007", "DEC-008", "DEC-010"],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007",
+        "DEC-008",
+        "DEC-010"
+      ],
       "size": "XL",
-      "sourceRefs": ["ai-harness-local/testing/regression/catalog.json", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+      "sourceRefs": [
+        "ai-harness-local/testing/regression/catalog.json",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+      ]
     },
     {
       "id": "HAR-007",
@@ -424,15 +1017,48 @@
       "blockingReason": "Requiere lifecycle y modelo de evidencia antes de administrar servicios locales.",
       "objective": "Definir start, stop, status, health, limpieza y recovery reproducibles para los runtimes del portfolio.",
       "rationale": "El doctor actual comprueba estructura, pero no certifica PostgreSQL, Redis, Qdrant, migraciones ni dependencias de cada producto.",
-      "scope": { "in": ["Manifiesto de servicios", "Health real", "Start/stop/status", "Datos locales", "Cleanup seguro", "Recovery"], "out": ["Deploy productivo", "Eliminar datos sin confirmación", "Proveedor cloud"] },
-      "dependencies": ["HAR-002", "HAR-005"],
-      "acceptanceCriteria": ["El estado distingue proceso activo de servicio funcional.", "Los comandos son idempotentes y confinados al proyecto.", "Cleanup preserva datos no clasificados y explica recuperabilidad.", "Doctor produce diagnóstico accionable por producto."],
-      "verification": ["Pruebas con servicios saludables, degradados, puertos ocupados, migración pendiente y recuperación."],
-      "risks": ["Automatizar cleanup sin ownership explícito puede destruir datos locales útiles."],
+      "scope": {
+        "in": [
+          "Manifiesto de servicios",
+          "Health real",
+          "Start/stop/status",
+          "Datos locales",
+          "Cleanup seguro",
+          "Recovery"
+        ],
+        "out": [
+          "Deploy productivo",
+          "Eliminar datos sin confirmación",
+          "Proveedor cloud"
+        ]
+      },
+      "dependencies": [
+        "HAR-002",
+        "HAR-005"
+      ],
+      "acceptanceCriteria": [
+        "El estado distingue proceso activo de servicio funcional.",
+        "Los comandos son idempotentes y confinados al proyecto.",
+        "Cleanup preserva datos no clasificados y explica recuperabilidad.",
+        "Doctor produce diagnóstico accionable por producto."
+      ],
+      "verification": [
+        "Pruebas con servicios saludables, degradados, puertos ocupados, migración pendiente y recuperación."
+      ],
+      "risks": [
+        "Automatizar cleanup sin ownership explícito puede destruir datos locales útiles."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-001", "DEC-007", "DEC-008"],
+      "decisionRefs": [
+        "DEC-001",
+        "DEC-007",
+        "DEC-008"
+      ],
       "size": "XL",
-      "sourceRefs": ["ai-harness/config/project.json", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+      "sourceRefs": [
+        "ai-harness/config/project.json",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+      ]
     },
     {
       "id": "HAR-008",
@@ -445,15 +1071,57 @@
       "blockingReason": "Los skills deben apoyarse en intake, lifecycle, handoff, revisión y testing ya estabilizados.",
       "objective": "Codificar procesos repetibles que seleccionen, ejecuten, verifiquen y cierren trabajo gobernado para planificación, implementación, incidente, refactor, review, testing y extracción.",
       "rationale": "Las reglas generales no bastan para asegurar que tareas de distinto riesgo sigan gates adecuados ni para sostener foco en terminar el trabajo elegible antes de abrir nuevos frentes.",
-      "scope": { "in": ["Catálogo y router de skills", "Bucle seleccionar→ejecutar→verificar→cerrar", "Implementation planning", "Bugfix", "Refactor", "Review", "Testing", "Extracción"], "out": ["Skills Java", "Integraciones externas no justificadas", "Autonomía sobre decisiones reservadas a personas"] },
-      "dependencies": ["HAR-003", "HAR-004", "HAR-005", "HAR-006", "HAR-007"],
-      "acceptanceCriteria": ["Cada workflow declara trigger, entradas, gates, salidas, recovery y límites.", "El router selecciona el mínimo contexto aplicable.", "Los workflows priorizan cerrar el resultado activo y solo abren otro frente cuando la política permite concurrencia explícita.", "Los skills tienen fixtures y checks de consistencia.", "Un workflow especializado no puede evadir lifecycle, revisión ni autoridad humana."],
-      "verification": ["Escenarios E2E por tipo de trabajo y detección de instrucciones contradictorias."],
-      "risks": ["Demasiados skills solapados pueden aumentar contradicción y carga de contexto."],
+      "scope": {
+        "in": [
+          "Catálogo y router de skills",
+          "Bucle seleccionar→ejecutar→verificar→cerrar",
+          "Implementation planning",
+          "Bugfix",
+          "Refactor",
+          "Review",
+          "Testing",
+          "Extracción"
+        ],
+        "out": [
+          "Skills Java",
+          "Integraciones externas no justificadas",
+          "Autonomía sobre decisiones reservadas a personas"
+        ]
+      },
+      "dependencies": [
+        "HAR-003",
+        "HAR-004",
+        "HAR-005",
+        "HAR-006",
+        "HAR-007"
+      ],
+      "acceptanceCriteria": [
+        "Cada workflow declara trigger, entradas, gates, salidas, recovery y límites.",
+        "El router selecciona el mínimo contexto aplicable.",
+        "Los workflows priorizan cerrar el resultado activo y solo abren otro frente cuando la política permite concurrencia explícita.",
+        "Los skills tienen fixtures y checks de consistencia.",
+        "Un workflow especializado no puede evadir lifecycle, revisión ni autoridad humana."
+      ],
+      "verification": [
+        "Escenarios E2E por tipo de trabajo y detección de instrucciones contradictorias."
+      ],
+      "risks": [
+        "Demasiados skills solapados pueden aumentar contradicción y carga de contexto."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-001", "DEC-002", "DEC-003", "DEC-007", "DEC-008", "DEC-010"],
+      "decisionRefs": [
+        "DEC-001",
+        "DEC-002",
+        "DEC-003",
+        "DEC-007",
+        "DEC-008",
+        "DEC-010"
+      ],
       "size": "XL",
-      "sourceRefs": ["ai-harness/AGENTS.md", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+      "sourceRefs": [
+        "ai-harness/AGENTS.md",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+      ]
     },
     {
       "id": "HAR-009",
@@ -466,15 +1134,54 @@
       "blockingReason": "Requiere cerrar todos los mecanismos aplicables HAR-002 a HAR-008 y revisión independiente vigente.",
       "objective": "Demostrar equivalencia de capacidades generales aplicables sin copiar particularidades de LACNIC.",
       "rationale": "La paridad debe basarse en recorridos funcionales y evidencia, no en intención o similitud documental.",
-      "scope": { "in": ["Matriz final", "E2E de workflows", "Recovery", "Revisión independiente", "Límites y exclusiones", "Migración/versionado"], "out": ["Igualdad de implementación interna", "Java/Zoho/Ghost Inspector/onboarding LACNIC"] },
-      "dependencies": ["HAR-002", "HAR-003", "HAR-004", "HAR-005", "HAR-006", "HAR-007", "HAR-008"],
-      "acceptanceCriteria": ["Ninguna capacidad aplicable permanece PLANNED.", "Toda capacidad IMPLEMENTED tiene mecanismo, tests, evidencia y revisión vigentes.", "Cada PARTIAL conserva una diferencia deliberada aprobada o se completa.", "El control calcula parityAchieved=true sin excepciones ocultas.", "Una instancia nueva reproduce estado y próxima acción sin chats previos."],
-      "verification": ["Suite release del harness y revisión independiente del candidato completo."],
-      "risks": ["Forzar equivalencia interna puede copiar complejidad innecesaria en lugar de satisfacer el resultado."],
+      "scope": {
+        "in": [
+          "Matriz final",
+          "E2E de workflows",
+          "Recovery",
+          "Revisión independiente",
+          "Límites y exclusiones",
+          "Migración/versionado"
+        ],
+        "out": [
+          "Igualdad de implementación interna",
+          "Java/Zoho/Ghost Inspector/onboarding LACNIC"
+        ]
+      },
+      "dependencies": [
+        "HAR-002",
+        "HAR-003",
+        "HAR-004",
+        "HAR-005",
+        "HAR-006",
+        "HAR-007",
+        "HAR-008"
+      ],
+      "acceptanceCriteria": [
+        "Ninguna capacidad aplicable permanece PLANNED.",
+        "Toda capacidad IMPLEMENTED tiene mecanismo, tests, evidencia y revisión vigentes.",
+        "Cada PARTIAL conserva una diferencia deliberada aprobada o se completa.",
+        "El control calcula parityAchieved=true sin excepciones ocultas.",
+        "Una instancia nueva reproduce estado y próxima acción sin chats previos."
+      ],
+      "verification": [
+        "Suite release del harness y revisión independiente del candidato completo."
+      ],
+      "risks": [
+        "Forzar equivalencia interna puede copiar complejidad innecesaria en lugar de satisfacer el resultado."
+      ],
       "decisionsRequired": [],
-      "decisionRefs": ["DEC-001", "DEC-002", "DEC-007", "DEC-008"],
+      "decisionRefs": [
+        "DEC-001",
+        "DEC-002",
+        "DEC-007",
+        "DEC-008"
+      ],
       "size": "XL",
-      "sourceRefs": ["ai-harness-local/control/capabilities.json", "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"]
+      "sourceRefs": [
+        "ai-harness-local/control/capabilities.json",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md"
+      ]
     }
   ]
 }

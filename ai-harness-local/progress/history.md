@@ -106,3 +106,11 @@
   interrupción; el control bloquea `START` mientras exista consolidación
   pendiente.
 - La autorización excluye push, merge, cambio de branch y operaciones remotas.
+
+## 2026-09-09 — HAR-003: Estructurar intake, trazabilidad y slicing
+
+- Intake, slicing y promoción gobernada sobre el backlog canónico, con pruebas adversas de pérdida/mezcla y vistas general/por producto sin autoridad paralela.
+- Baseline: `389d93911a0749f3d06dea476c2f52470ecb7096`; HEAD previo al commit de cierre: `389d93911a0749f3d06dea476c2f52470ecb7096`; branch: `feature/ai-conversational-platform-standalone`.
+- Preclose validó 6 criterios, 1 verificaciones y 29 rutas del write-set.
+- El cierre exige un commit local aislado con trailer `AI-Harness-Session: har-003-20260909122155`.
+- Recibo: `ai-harness-local/receipts/2026/2026-09-09/har-003-20260909122155.json`.

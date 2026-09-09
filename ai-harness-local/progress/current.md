@@ -6,25 +6,23 @@ Id: ninguno
 
 ## Objetivo
 
-No hay una tarea activa. `PF-001` cerró mediante lifecycle atómico.
+No hay una tarea activa. `HAR-003` cerró mediante lifecycle atómico.
 
 ## Plan
 
-- [x] Modelo híbrido aprobado en ADR-009; UruCortinas queda como piloto dedicado con Rodrigo responsable, ownership de configuración y consecuencias por producto verificadas contra Prisma y Docker.
+- [x] Intake, slicing y promoción gobernada sobre el backlog canónico, con pruebas adversas de pérdida/mezcla y vistas general/por producto sin autoridad paralela.
 
 ## Último paso completado
 
-Cierre gobernado de `PF-001` a las `2026-09-08T23:32:25.410Z`.
+Cierre gobernado de `HAR-003` a las `2026-09-09T12:51:05.319Z`.
 
 ## Paso actual
 
-El control fue reconstruido después de corregir el bloqueo obsoleto de HAR-003.
-No hay una tarea iniciada.
+Esperar el siguiente cálculo del control.
 
 ## Próximo paso
 
-Revisar la recomendación derivada de `HAR-003`; su inicio requiere una apertura
-separada mediante el lifecycle.
+Ejecutar `npm run --silent harness:control -- --json`.
 
 ## Bloqueos
 

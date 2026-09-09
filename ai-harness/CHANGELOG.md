@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-09-09
+
+- Agrega schema y comando `harness:intake` para fidelidad entre pedido,
+  necesidad, requisito, slice, tarea y evidencia.
+- Clasifica hechos, supuestos y preguntas; una pregunta no se responde por
+  inferencia.
+- Valida slices independientes con resultado, alcance, producto dueño y gate.
+- Reconstruye vistas generales y por producto desde el backlog canónico.
+- Propone promociones `blocked → ready` con los mismos gates que el control y
+  exige confirmación explícita para escribir; nunca inicia el trabajo.
+
 ## 0.5.0 — 2026-09-08
 
 - `close` crea y verifica un commit local aislado antes de publicar

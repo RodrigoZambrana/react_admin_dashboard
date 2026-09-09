@@ -13,6 +13,76 @@
   },
   "features": [
     {
+      "id": "har-003-20260909122155",
+      "backlogTaskId": "HAR-003",
+      "type": "harness-governance",
+      "status": "done",
+      "title": "Estructurar intake, trazabilidad y slicing",
+      "objective": "Preservar fidelidad entre pedido, necesidad, requisito, decisión, tarea, aceptación y evidencia dentro de un backlog único con vistas generales y por producto.",
+      "scope": {
+        "in": [
+          "Schema de intake",
+          "Clasificación de hechos/supuestos/dudas",
+          "Slicing independiente orientado a resultados terminables",
+          "Trazabilidad al backlog canónico general y por producto",
+          "Reglas de estado y promoción gobernada"
+        ],
+        "out": [
+          "Inferir respuestas humanas",
+          "Crear un backlog paralelo",
+          "Gestor de proyectos externo",
+          "Comenzar automáticamente el trabajo promovido"
+        ]
+      },
+      "acceptanceCriteria": [
+        "Un intake conserva todo requisito material del pedido.",
+        "Cada slice tiene un resultado, alcance, producto dueño y gate verificables que favorecen completar trabajo antes de abrir más frentes.",
+        "El backlog canónico permite reconstruir la vista general y por producto sin duplicar autoridad.",
+        "Una promoción solo se propone cuando todas las dependencias están done y no quedan decisiones pendientes; el control no muta la autoridad.",
+        "Cambios de alcance quedan como decisión o supersesión.",
+        "Existen pruebas adversas de pérdida y mezcla de requisitos."
+      ],
+      "verification": [
+        "Fixtures de prompts extensos y diffs semánticos requisito→tarea."
+      ],
+      "decisionRefs": [
+        "DEC-002",
+        "DEC-007",
+        "DEC-008",
+        "DEC-010"
+      ],
+      "git": {
+        "branch": "feature/ai-conversational-platform-standalone",
+        "head": "389d93911a0749f3d06dea476c2f52470ecb7096",
+        "worktree": "/Users/rodrigo/Git/personal/react_admin_dashboard",
+        "gitDir": "/Users/rodrigo/Git/personal/react_admin_dashboard/.git",
+        "commonDir": "/Users/rodrigo/Git/personal/react_admin_dashboard/.git",
+        "linkedWorktree": false,
+        "baseBranch": "feature/ai-conversational-platform-standalone",
+        "baseCommit": "389d93911a0749f3d06dea476c2f52470ecb7096",
+        "preexistingChanges": []
+      },
+      "writeSet": [
+        "ai-harness-local/",
+        "ai-harness/",
+        "docs/CANONICAL_INDEX.md",
+        "docs/EXECUTION_BACKLOG_2026-09-08.md",
+        "docs/audit/HARNESS_CAPABILITY_GAP_2026-09-08.md",
+        "package.json",
+        "planning/backlog.json",
+        "planning/fragments/platform.json"
+      ],
+      "startedAt": "2026-09-09T12:21:55.661Z",
+      "phase": "preclose",
+      "preparedAt": "2026-09-09T12:49:54.471Z",
+      "completedAt": "2026-09-09T12:51:05.319Z",
+      "result": {
+        "summary": "Intake, slicing y promoción gobernada sobre el backlog canónico, con pruebas adversas de pérdida/mezcla y vistas general/por producto sin autoridad paralela.",
+        "receipt": "ai-harness-local/receipts/2026/2026-09-09/har-003-20260909122155.json",
+        "featureReceipt": "ai-harness-local/features/done/2026/2026-09-09-har-003-20260909122155.json"
+      }
+    },
+    {
       "id": "platform-tenancy-pilot-20260908",
       "backlogTaskId": "PF-001",
       "type": "decision",
